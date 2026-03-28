@@ -1,0 +1,1307 @@
+{
+  "info": {
+    "name": "APEXIQ — Complete E2E Flow (Institute → Teacher → Student → AI)",
+    "_postman_id": "apexiq-full-e2e-flow-2026-v2",
+    "description": "Complete end-to-end test of the APEXIQ EdTech platform.\n\nCovers the FULL lifecycle:\n0. Health Checks\n1. Super Admin creates Tenant (Institute)\n2. Institute Admin logs in & sets up Content (Subject→Chapter→Topic→Questions)\n3. Admin creates Teacher → Teacher logs in\n4. Admin creates Batch (assigns teacher), Lecture & Mock Test\n5. Student registers, onboards, joins batch\n6. Student takes mock test\n7. Teacher: Content Management (lectures, questions, chapters)\n8. Teacher: Live Class flow (start→poll→end→attendance)\n9. Teacher: Doubt Queue & Response\n10. Teacher: Batch Management (roster, attendance, performance)\n11. ALL 12 AI Services\n12. Student engagement, doubts, study plans\n13. Analytics\n14. Notifications\n15. Admin Dashboard\n\nPre-requisites:\n- NestJS: cd apexiq-backend/apexiq && npm run start:dev (port 3000)\n- Django AI: cd AI_Study && python manage.py runserver 8000\n- PostgreSQL running\n- Super Admin must be pre-seeded in DB with role='super_admin'\n\nRun folders IN ORDER. All IDs auto-chain via test scripts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "djangoUrl", "value": "http://localhost:8000", "type": "string" },
+    { "key": "superAdminToken", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "teacherToken", "value": "", "type": "string" },
+    { "key": "studentToken", "value": "", "type": "string" },
+    { "key": "tenantId", "value": "", "type": "string" },
+    { "key": "adminUserId", "value": "", "type": "string" },
+    { "key": "teacherUserId", "value": "", "type": "string" },
+    { "key": "studentUserId", "value": "", "type": "string" },
+    { "key": "studentId", "value": "", "type": "string" },
+    { "key": "subjectId", "value": "", "type": "string" },
+    { "key": "chapterId", "value": "", "type": "string" },
+    { "key": "topicId", "value": "", "type": "string" },
+    { "key": "questionId1", "value": "", "type": "string" },
+    { "key": "questionId2", "value": "", "type": "string" },
+    { "key": "questionId3", "value": "", "type": "string" },
+    { "key": "optionId1", "value": "", "type": "string" },
+    { "key": "optionId2", "value": "", "type": "string" },
+    { "key": "optionId3", "value": "", "type": "string" },
+    { "key": "lectureId", "value": "", "type": "string" },
+    { "key": "teacherLectureId", "value": "", "type": "string" },
+    { "key": "batchId", "value": "", "type": "string" },
+    { "key": "mockTestId", "value": "", "type": "string" },
+    { "key": "sessionId", "value": "", "type": "string" },
+    { "key": "liveSessionId", "value": "", "type": "string" },
+    { "key": "pollId", "value": "", "type": "string" },
+    { "key": "doubtId", "value": "", "type": "string" },
+    { "key": "planItemId", "value": "", "type": "string" },
+    { "key": "inviteToken", "value": "", "type": "string" },
+    { "key": "notificationId", "value": "", "type": "string" },
+    { "key": "teacherQuestionId", "value": "", "type": "string" },
+    { "key": "teacherChapterId", "value": "", "type": "string" },
+    { "key": "teacherTopicId", "value": "", "type": "string" },
+    { "key": "tempPassword", "value": "", "type": "string" },
+    { "key": "adminPhone", "value": "+919000000001", "type": "string" },
+    { "key": "teacherPhone", "value": "+919000000002", "type": "string" },
+    { "key": "studentPhone", "value": "+919000000003", "type": "string" },
+    { "key": "superAdminPhone", "value": "+918000000001", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "STEP 0 — Health Checks",
+      "item": [
+        {
+          "name": "0.1 NestJS Server",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('NestJS UP', function(){ pm.expect(pm.response.code).to.be.oneOf([200,404]); });"]}}],
+          "request": {"auth":{"type":"noauth"},"method":"GET","url":{"raw":"{{baseUrl}}/","host":["{{baseUrl}}"],"path":[""]}}
+        },
+        {
+          "name": "0.2 Django AI Server",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Django UP', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {"auth":{"type":"noauth"},"method":"GET","url":{"raw":"{{djangoUrl}}/","host":["{{djangoUrl}}"],"path":[""]}}
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 1 — Super Admin: Create Tenant (Institute)",
+      "description": "Super Admin logs in and creates a new tenant (coaching institute). This bootstraps the institute_admin user.",
+      "item": [
+        {
+          "name": "1.1 Super Admin — Send OTP",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('OTP sent', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "auth":{"type":"noauth"},
+            "method":"POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"phoneNumber\": \"{{superAdminPhone}}\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/otp/send","host":["{{baseUrl}}"],"path":["api","v1","auth","otp","send"]}
+          }
+        },
+        {
+          "name": "1.2 Super Admin — Verify OTP",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Super admin logged in', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    var token = d.accessToken || d.access_token;",
+            "    if(token) pm.collectionVariables.set('superAdminToken', token);",
+            "    console.log('Super Admin role: ' + (d.user ? d.user.role : 'unknown'));",
+            "});"
+          ]}}],
+          "request": {
+            "auth":{"type":"noauth"},
+            "method":"POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"phoneNumber\": \"{{superAdminPhone}}\",\n  \"otp\": \"123456\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/otp/verify","host":["{{baseUrl}}"],"path":["api","v1","auth","otp","verify"]}
+          }
+        },
+        {
+          "name": "1.3 Create Tenant — ApexIQ Coaching Institute",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Tenant created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('tenantId', d.id);",
+            "    if(d.tenant && d.tenant.id) pm.collectionVariables.set('tenantId', d.tenant.id);",
+            "    if(d.tempPassword) pm.collectionVariables.set('tempPassword', d.tempPassword);",
+            "    console.log('Tenant ID: ' + pm.collectionVariables.get('tenantId'));",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{superAdminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"name\": \"ApexIQ Test Institute\",\n  \"subdomain\": \"apexiq-test\",\n  \"plan\": \"GROWTH\",\n  \"billingEmail\": \"admin@apexiq-test.com\",\n  \"maxStudents\": 500,\n  \"maxTeachers\": 20,\n  \"adminPhone\": \"{{adminPhone}}\",\n  \"trialDays\": 30\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/admin/tenants","host":["{{baseUrl}}"],"path":["api","v1","admin","tenants"]}
+          }
+        },
+        {
+          "name": "1.4 List Tenants (verify)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Tenants listed', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{superAdminToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/admin/tenants","host":["{{baseUrl}}"],"path":["api","v1","admin","tenants"]}
+          }
+        },
+        {
+          "name": "1.5 Platform Stats",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Stats OK', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{superAdminToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/admin/stats","host":["{{baseUrl}}"],"path":["api","v1","admin","stats"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 2 — Institute Admin: Login & Setup Content",
+      "description": "Institute admin logs in and sets up: Subject → Chapter → Topic → Questions",
+      "item": [
+        {
+          "name": "2.1 Admin — Send OTP",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('OTP sent', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "auth":{"type":"noauth"},
+            "method":"POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"phoneNumber\": \"{{adminPhone}}\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/otp/send","host":["{{baseUrl}}"],"path":["api","v1","auth","otp","send"]}
+          }
+        },
+        {
+          "name": "2.2 Admin — Verify OTP → Token",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Admin logged in', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    var token = d.accessToken || d.access_token;",
+            "    if(token) pm.collectionVariables.set('adminToken', token);",
+            "    var uid = d.user ? d.user.id : d.userId;",
+            "    if(uid) pm.collectionVariables.set('adminUserId', uid);",
+            "    console.log('Admin token saved. Role: ' + (d.user ? d.user.role : 'unknown'));",
+            "});"
+          ]}}],
+          "request": {
+            "auth":{"type":"noauth"},
+            "method":"POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"phoneNumber\": \"{{adminPhone}}\",\n  \"otp\": \"123456\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/otp/verify","host":["{{baseUrl}}"],"path":["api","v1","auth","otp","verify"]}
+          }
+        },
+        {
+          "name": "2.3 Create Subject — Physics",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Subject created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('subjectId', d.id);",
+            "    console.log('Subject ID: ' + d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"name\": \"Physics\",\n  \"examTarget\": \"jee\",\n  \"icon\": \"atom-icon\",\n  \"sortOrder\": 1\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/subjects","host":["{{baseUrl}}"],"path":["api","v1","content","subjects"]}
+          }
+        },
+        {
+          "name": "2.4 Create Chapter — Thermodynamics",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Chapter created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('chapterId', d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"subjectId\": \"{{subjectId}}\",\n  \"name\": \"Thermodynamics\",\n  \"sortOrder\": 1\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/chapters","host":["{{baseUrl}}"],"path":["api","v1","content","chapters"]}
+          }
+        },
+        {
+          "name": "2.5 Create Topic — Carnot Engine",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Topic created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('topicId', d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"chapterId\": \"{{chapterId}}\",\n  \"name\": \"Carnot Engine & Laws of Thermodynamics\",\n  \"sortOrder\": 1\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/topics","host":["{{baseUrl}}"],"path":["api","v1","content","topics"]}
+          }
+        },
+        {
+          "name": "2.6 Create Question 1 — MCQ",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Q1 created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('questionId1', d.id);",
+            "    if(d.options && d.options.length > 0) {",
+            "        var correct = d.options.find(function(o){ return o.isCorrect; });",
+            "        if(correct) pm.collectionVariables.set('optionId1', correct.id);",
+            "    }",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"topicId\": \"{{topicId}}\",\n  \"content\": \"A Carnot engine operates between 500 K and 300 K. What is its efficiency?\",\n  \"type\": \"mcq_single\",\n  \"difficulty\": \"medium\",\n  \"source\": \"teacher\",\n  \"marksCorrect\": 4,\n  \"marksWrong\": -1,\n  \"solutionText\": \"Efficiency = 1 - T_cold/T_hot = 1 - 300/500 = 0.4 = 40%\",\n  \"tags\": [\"thermodynamics\", \"carnot\", \"efficiency\"],\n  \"options\": [\n    { \"optionLabel\": \"A\", \"content\": \"20%\", \"isCorrect\": false, \"sortOrder\": 0 },\n    { \"optionLabel\": \"B\", \"content\": \"40%\", \"isCorrect\": true, \"sortOrder\": 1 },\n    { \"optionLabel\": \"C\", \"content\": \"60%\", \"isCorrect\": false, \"sortOrder\": 2 },\n    { \"optionLabel\": \"D\", \"content\": \"80%\", \"isCorrect\": false, \"sortOrder\": 3 }\n  ]\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/questions","host":["{{baseUrl}}"],"path":["api","v1","content","questions"]}
+          }
+        },
+        {
+          "name": "2.7 Create Question 2 — MCQ",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Q2 created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('questionId2', d.id);",
+            "    if(d.options && d.options.length > 0) {",
+            "        var correct = d.options.find(function(o){ return o.isCorrect; });",
+            "        if(correct) pm.collectionVariables.set('optionId2', correct.id);",
+            "    }",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"topicId\": \"{{topicId}}\",\n  \"content\": \"Which law of thermodynamics states that energy cannot be created or destroyed?\",\n  \"type\": \"mcq_single\",\n  \"difficulty\": \"easy\",\n  \"source\": \"teacher\",\n  \"marksCorrect\": 4,\n  \"marksWrong\": -1,\n  \"solutionText\": \"The First Law of Thermodynamics is the law of conservation of energy.\",\n  \"tags\": [\"thermodynamics\", \"first-law\"],\n  \"options\": [\n    { \"optionLabel\": \"A\", \"content\": \"Zeroth Law\", \"isCorrect\": false, \"sortOrder\": 0 },\n    { \"optionLabel\": \"B\", \"content\": \"First Law\", \"isCorrect\": true, \"sortOrder\": 1 },\n    { \"optionLabel\": \"C\", \"content\": \"Second Law\", \"isCorrect\": false, \"sortOrder\": 2 },\n    { \"optionLabel\": \"D\", \"content\": \"Third Law\", \"isCorrect\": false, \"sortOrder\": 3 }\n  ]\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/questions","host":["{{baseUrl}}"],"path":["api","v1","content","questions"]}
+          }
+        },
+        {
+          "name": "2.8 Create Question 3 — MCQ",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Q3 created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('questionId3', d.id);",
+            "    if(d.options && d.options.length > 0) {",
+            "        var correct = d.options.find(function(o){ return o.isCorrect; });",
+            "        if(correct) pm.collectionVariables.set('optionId3', correct.id);",
+            "    }",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"topicId\": \"{{topicId}}\",\n  \"content\": \"In an isothermal process, which quantity remains constant?\",\n  \"type\": \"mcq_single\",\n  \"difficulty\": \"easy\",\n  \"source\": \"teacher\",\n  \"marksCorrect\": 4,\n  \"marksWrong\": -1,\n  \"solutionText\": \"In an isothermal process, temperature remains constant.\",\n  \"tags\": [\"thermodynamics\", \"isothermal\"],\n  \"options\": [\n    { \"optionLabel\": \"A\", \"content\": \"Pressure\", \"isCorrect\": false, \"sortOrder\": 0 },\n    { \"optionLabel\": \"B\", \"content\": \"Volume\", \"isCorrect\": false, \"sortOrder\": 1 },\n    { \"optionLabel\": \"C\", \"content\": \"Temperature\", \"isCorrect\": true, \"sortOrder\": 2 },\n    { \"optionLabel\": \"D\", \"content\": \"Entropy\", \"isCorrect\": false, \"sortOrder\": 3 }\n  ]\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/questions","host":["{{baseUrl}}"],"path":["api","v1","content","questions"]}
+          }
+        },
+        {
+          "name": "2.9 Verify Content Tree",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Content tree loaded', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/content/subjects","host":["{{baseUrl}}"],"path":["api","v1","content","subjects"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 3 — Admin: Create Teacher & Teacher Login",
+      "description": "Institute Admin creates a teacher account. Teacher logs in via OTP (or password). This is the NEW teacher onboarding flow.",
+      "item": [
+        {
+          "name": "3.1 Admin — Create Teacher Account",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Teacher created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.teacher && d.teacher.id) pm.collectionVariables.set('teacherUserId', d.teacher.id);",
+            "    if(d.tempPassword) pm.collectionVariables.set('tempPassword', d.tempPassword);",
+            "    console.log('Teacher ID: ' + pm.collectionVariables.get('teacherUserId'));",
+            "    console.log('Temp Password: ' + d.tempPassword);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"phoneNumber\": \"{{teacherPhone}}\",\n  \"fullName\": \"Rajesh Kumar\",\n  \"email\": \"rajesh@apexiq-test.com\",\n  \"password\": \"Teacher@1234\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/teachers","host":["{{baseUrl}}"],"path":["api","v1","auth","teachers"]}
+          }
+        },
+        {
+          "name": "3.2 Admin — List Teachers (verify)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Teachers listed', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(Array.isArray(d) && d.length > 0) {",
+            "        console.log('Teachers count: ' + d.length);",
+            "        console.log('First teacher: ' + d[0].fullName);",
+            "    }",
+            "});"
+          ]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/teachers","host":["{{baseUrl}}"],"path":["api","v1","auth","teachers"]}
+          }
+        },
+        {
+          "name": "3.3 Teacher — Send OTP",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('OTP sent', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "auth":{"type":"noauth"},
+            "method":"POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"phoneNumber\": \"{{teacherPhone}}\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/otp/send","host":["{{baseUrl}}"],"path":["api","v1","auth","otp","send"]}
+          }
+        },
+        {
+          "name": "3.4 Teacher — Verify OTP → Token",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Teacher logged in', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    var token = d.accessToken || d.access_token;",
+            "    if(token) pm.collectionVariables.set('teacherToken', token);",
+            "    var uid = d.user ? d.user.id : d.userId;",
+            "    if(uid) pm.collectionVariables.set('teacherUserId', uid);",
+            "    console.log('Teacher role: ' + (d.user ? d.user.role : 'unknown'));",
+            "    console.log('Teacher token saved');",
+            "});"
+          ]}}],
+
+           
+
+          "request": {
+            "auth":{"type":"noauth"},
+            "method":"POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"phoneNumber\": \"{{teacherPhone}}\",\n  \"otp\": \"123456\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/otp/verify","host":["{{baseUrl}}"],"path":["api","v1","auth","otp","verify"]}
+          }
+        },
+        {
+          "name": "3.5 Teacher — Get Profile (me)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Teacher profile', function(){",
+            "    pm.response.to.have.status(200);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    var user = d.user || d;",
+            "    console.log('Role: ' + user.role + ', Name: ' + user.fullName);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/me","host":["{{baseUrl}}"],"path":["api","v1","auth","me"]}
+          }
+        },
+        {
+          "name": "3.6 Teacher — Update Profile",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Profile updated', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"PATCH",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"fullName\": \"Dr. Rajesh Kumar\",\n  \"email\": \"dr.rajesh@apexiq-test.com\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/profile","host":["{{baseUrl}}"],"path":["api","v1","auth","profile"]}
+          }
+        },
+        {
+          "name": "3.7 Teacher — Set Password",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Password set', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"password\": \"Teacher@1234\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/password","host":["{{baseUrl}}"],"path":["api","v1","auth","password"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 4 — Admin: Create Batch (with Teacher), Lecture & Mock Test",
+      "description": "Admin creates a batch assigned to the teacher, adds a lecture, creates a mock test.",
+      "item": [
+        {
+          "name": "4.1 Create Batch — JEE 2027 Batch A (with Teacher)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Batch created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('batchId', d.id);",
+            "    console.log('Batch ID: ' + d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"name\": \"JEE 2027 — Batch A (Physics)\",\n  \"examTarget\": \"jee\",\n  \"class\": \"12\",\n  \"maxStudents\": 60,\n  \"feeAmount\": 25000,\n  \"startDate\": \"2026-04-01\",\n  \"endDate\": \"2027-06-30\",\n  \"teacherId\": \"{{teacherUserId}}\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/batches","host":["{{baseUrl}}"],"path":["api","v1","batches"]}
+          }
+        },
+        {
+          "name": "4.2 Create Lecture — Thermodynamics Part 1 (Admin)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Lecture created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('lectureId', d.id);",
+            "    console.log('Lecture ID: ' + d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"batchId\": \"{{batchId}}\",\n  \"topicId\": \"{{topicId}}\",\n  \"title\": \"Thermodynamics — Part 1: Carnot Engine\",\n  \"description\": \"Deep dive into Carnot Engine, efficiency and applications\",\n  \"type\": \"recorded\",\n  \"videoUrl\": \"https://cdn.example.com/videos/thermo-part1.mp4\",\n  \"durationMinutes\": 45\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/lectures","host":["{{baseUrl}}"],"path":["api","v1","content","lectures"]}
+          }
+        },
+        {
+          "name": "4.3 Create Mock Test",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Mock Test created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('mockTestId', d.id);",
+            "    console.log('Mock Test ID: ' + d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"title\": \"Thermodynamics Mini Test\",\n  \"batchId\": \"{{batchId}}\",\n  \"subjectId\": \"{{subjectId}}\",\n  \"durationMinutes\": 30,\n  \"totalMarks\": 12,\n  \"questionIds\": [\"{{questionId1}}\", \"{{questionId2}}\", \"{{questionId3}}\"]\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/assessments/mock-tests","host":["{{baseUrl}}"],"path":["api","v1","assessments","mock-tests"]}
+          }
+        },
+        {
+          "name": "4.4 Generate Invite Link",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Invite link generated', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.token) pm.collectionVariables.set('inviteToken', d.token);",
+            "    if(d.inviteToken) pm.collectionVariables.set('inviteToken', d.inviteToken);",
+            "    console.log('Invite token saved');",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/batches/{{batchId}}/invite-link","host":["{{baseUrl}}"],"path":["api","v1","batches","{{batchId}}","invite-link"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 5 — Student: Register, Onboard & Join Batch",
+      "description": "Student registers via OTP, completes onboarding, joins batch via invite token.",
+      "item": [
+        {
+          "name": "5.1 Student — Send OTP",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('OTP sent', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "auth":{"type":"noauth"},
+            "method":"POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"phoneNumber\": \"{{studentPhone}}\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/otp/send","host":["{{baseUrl}}"],"path":["api","v1","auth","otp","send"]}
+          }
+        },
+        {
+          "name": "5.2 Student — Verify OTP → Token",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Student logged in', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    var token = d.accessToken || d.access_token;",
+            "    if(token) pm.collectionVariables.set('studentToken', token);",
+            "    var uid = d.user ? d.user.id : d.userId;",
+            "    if(uid) pm.collectionVariables.set('studentUserId', uid);",
+            "    console.log('Student token saved. isNewUser: ' + d.isNewUser);",
+            "});"
+          ]}}],
+          "request": {
+            "auth":{"type":"noauth"},
+            "method":"POST",
+            "header": [{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"phoneNumber\": \"{{studentPhone}}\",\n  \"otp\": \"123456\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/otp/verify","host":["{{baseUrl}}"],"path":["api","v1","auth","otp","verify"]}
+          }
+        },
+        {
+          "name": "5.3 Student — Update Profile",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Profile updated', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"PATCH",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"fullName\": \"Priya Sharma\",\n  \"email\": \"priya@student.com\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/profile","host":["{{baseUrl}}"],"path":["api","v1","auth","profile"]}
+          }
+        },
+        {
+          "name": "5.4 Student — Onboard (JEE Target)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Onboarded', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.student && d.student.id) pm.collectionVariables.set('studentId', d.student.id);",
+            "    console.log('Student profile ID: ' + pm.collectionVariables.get('studentId'));",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"examTarget\": \"jee\",\n  \"class\": \"12\",\n  \"examYear\": \"2027\",\n  \"targetCollege\": \"IIT Bombay CS\",\n  \"dailyStudyHours\": 6,\n  \"language\": \"en\",\n  \"city\": \"Mumbai\",\n  \"state\": \"Maharashtra\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/onboard","host":["{{baseUrl}}"],"path":["api","v1","auth","onboard"]}
+          }
+        },
+        {
+          "name": "5.5 Student — Join Batch via Token",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Joined batch', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"token\": \"{{inviteToken}}\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/batches/join","host":["{{baseUrl}}"],"path":["api","v1","batches","join"]}
+          }
+        },
+        {
+          "name": "5.6 Student — Get Profile (me)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Profile OK', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/auth/me","host":["{{baseUrl}}"],"path":["api","v1","auth","me"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 6 — Student: Take Mock Test",
+      "description": "Student starts test session → answers 3 questions → submits → views result.",
+      "item": [
+        {
+          "name": "6.1 Start Test Session",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Session started', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('sessionId', d.id);",
+            "    console.log('Session ID: ' + d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"mockTestId\": \"{{mockTestId}}\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/assessments/sessions","host":["{{baseUrl}}"],"path":["api","v1","assessments","sessions"]}
+          }
+        },
+        {
+          "name": "6.2 Answer Q1 (correct)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('A1 saved', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"questionId\": \"{{questionId1}}\",\n  \"selectedOptionId\": \"{{optionId1}}\",\n  \"timeTaken\": 45\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/assessments/sessions/{{sessionId}}/answers","host":["{{baseUrl}}"],"path":["api","v1","assessments","sessions","{{sessionId}}","answers"]}
+          }
+        },
+        {
+          "name": "6.3 Answer Q2 (correct)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('A2 saved', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"questionId\": \"{{questionId2}}\",\n  \"selectedOptionId\": \"{{optionId2}}\",\n  \"timeTaken\": 30\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/assessments/sessions/{{sessionId}}/answers","host":["{{baseUrl}}"],"path":["api","v1","assessments","sessions","{{sessionId}}","answers"]}
+          }
+        },
+        {
+          "name": "6.4 Answer Q3 (correct)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('A3 saved', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"questionId\": \"{{questionId3}}\",\n  \"selectedOptionId\": \"{{optionId3}}\",\n  \"timeTaken\": 25\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/assessments/sessions/{{sessionId}}/answers","host":["{{baseUrl}}"],"path":["api","v1","assessments","sessions","{{sessionId}}","answers"]}
+          }
+        },
+        {
+          "name": "6.5 Submit Test",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Test submitted', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/assessments/sessions/{{sessionId}}/submit","host":["{{baseUrl}}"],"path":["api","v1","assessments","sessions","{{sessionId}}","submit"]}
+          }
+        },
+        {
+          "name": "6.6 View Test Result",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Result loaded', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/assessments/sessions/{{sessionId}}/result","host":["{{baseUrl}}"],"path":["api","v1","assessments","sessions","{{sessionId}}","result"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 7 — Teacher: Content Management",
+      "description": "Teacher creates chapters, topics, questions, lectures — all teacher-accessible content endpoints.",
+      "item": [
+        {
+          "name": "7.1 Teacher — Create Chapter (Waves)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Chapter created by teacher', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('teacherChapterId', d.id);",
+            "    console.log('Teacher Chapter ID: ' + d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"subjectId\": \"{{subjectId}}\",\n  \"name\": \"Wave Optics\",\n  \"sortOrder\": 2\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/chapters","host":["{{baseUrl}}"],"path":["api","v1","content","chapters"]}
+          }
+        },
+        {
+          "name": "7.2 Teacher — Create Topic (Diffraction)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Topic created by teacher', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('teacherTopicId', d.id);",
+            "    console.log('Teacher Topic ID: ' + d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"chapterId\": \"{{teacherChapterId}}\",\n  \"name\": \"Diffraction & Interference\",\n  \"sortOrder\": 1\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/topics","host":["{{baseUrl}}"],"path":["api","v1","content","topics"]}
+          }
+        },
+        {
+          "name": "7.3 Teacher — Create Question (Single)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Question created by teacher', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('teacherQuestionId', d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"topicId\": \"{{teacherTopicId}}\",\n  \"content\": \"In Young's double slit experiment, what happens when slit separation is halved?\",\n  \"type\": \"mcq_single\",\n  \"difficulty\": \"medium\",\n  \"source\": \"teacher\",\n  \"marksCorrect\": 4,\n  \"marksWrong\": -1,\n  \"solutionText\": \"Fringe width β = λD/d. When d is halved, β doubles.\",\n  \"tags\": [\"optics\", \"youngs-experiment\"],\n  \"options\": [\n    { \"optionLabel\": \"A\", \"content\": \"Fringe width doubles\", \"isCorrect\": true, \"sortOrder\": 0 },\n    { \"optionLabel\": \"B\", \"content\": \"Fringe width halves\", \"isCorrect\": false, \"sortOrder\": 1 },\n    { \"optionLabel\": \"C\", \"content\": \"No change\", \"isCorrect\": false, \"sortOrder\": 2 },\n    { \"optionLabel\": \"D\", \"content\": \"Fringes disappear\", \"isCorrect\": false, \"sortOrder\": 3 }\n  ]\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/questions","host":["{{baseUrl}}"],"path":["api","v1","content","questions"]}
+          }
+        },
+        {
+          "name": "7.4 Teacher — Bulk Create Questions",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Bulk questions created', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"questions\": [\n    {\n      \"topicId\": \"{{teacherTopicId}}\",\n      \"content\": \"What is the condition for constructive interference?\",\n      \"type\": \"mcq_single\",\n      \"difficulty\": \"easy\",\n      \"source\": \"teacher\",\n      \"marksCorrect\": 4,\n      \"marksWrong\": -1,\n      \"solutionText\": \"Path difference = nλ for constructive interference.\",\n      \"options\": [\n        { \"optionLabel\": \"A\", \"content\": \"Path diff = nλ\", \"isCorrect\": true, \"sortOrder\": 0 },\n        { \"optionLabel\": \"B\", \"content\": \"Path diff = (n+½)λ\", \"isCorrect\": false, \"sortOrder\": 1 },\n        { \"optionLabel\": \"C\", \"content\": \"Path diff = 0 only\", \"isCorrect\": false, \"sortOrder\": 2 },\n        { \"optionLabel\": \"D\", \"content\": \"Path diff = λ/4\", \"isCorrect\": false, \"sortOrder\": 3 }\n      ]\n    },\n    {\n      \"topicId\": \"{{teacherTopicId}}\",\n      \"content\": \"Diffraction is more pronounced when the slit width is:\",\n      \"type\": \"mcq_single\",\n      \"difficulty\": \"easy\",\n      \"source\": \"teacher\",\n      \"marksCorrect\": 4,\n      \"marksWrong\": -1,\n      \"solutionText\": \"Diffraction is more visible when slit width ≈ wavelength.\",\n      \"options\": [\n        { \"optionLabel\": \"A\", \"content\": \"Much larger than wavelength\", \"isCorrect\": false, \"sortOrder\": 0 },\n        { \"optionLabel\": \"B\", \"content\": \"Comparable to wavelength\", \"isCorrect\": true, \"sortOrder\": 1 },\n        { \"optionLabel\": \"C\", \"content\": \"Zero\", \"isCorrect\": false, \"sortOrder\": 2 },\n        { \"optionLabel\": \"D\", \"content\": \"Infinite\", \"isCorrect\": false, \"sortOrder\": 3 }\n      ]\n    }\n  ]\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/questions/bulk","host":["{{baseUrl}}"],"path":["api","v1","content","questions","bulk"]}
+          }
+        },
+        {
+          "name": "7.5 Teacher — Update Question",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Question updated', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"PATCH",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"difficulty\": \"hard\",\n  \"solutionText\": \"Updated: Fringe width β = λD/d. Halving d doubles β. This is a standard JEE question.\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/questions/{{teacherQuestionId}}","host":["{{baseUrl}}"],"path":["api","v1","content","questions","{{teacherQuestionId}}"]}
+          }
+        },
+        {
+          "name": "7.6 Teacher — Create Lecture (Live)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Lecture created by teacher', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('teacherLectureId', d.id);",
+            "    console.log('Teacher Lecture ID: ' + d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"batchId\": \"{{batchId}}\",\n  \"topicId\": \"{{teacherTopicId}}\",\n  \"title\": \"Wave Optics — Live Doubt Session\",\n  \"description\": \"Interactive doubt clearing session on diffraction and interference\",\n  \"type\": \"live\",\n  \"scheduledAt\": \"2026-04-15T10:00:00Z\",\n  \"liveMeetingUrl\": \"https://meet.apexiq.com/live/wave-optics-1\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/lectures","host":["{{baseUrl}}"],"path":["api","v1","content","lectures"]}
+          }
+        },
+        {
+          "name": "7.7 Teacher — Update Lecture",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Lecture updated', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"PATCH",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"title\": \"Wave Optics — Live Doubt Session (Updated)\",\n  \"description\": \"Updated: Will also cover polarization basics\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/content/lectures/{{teacherLectureId}}","host":["{{baseUrl}}"],"path":["api","v1","content","lectures","{{teacherLectureId}}"]}
+          }
+        },
+        {
+          "name": "7.8 Teacher — List Lectures (own batches)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Lectures listed', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/content/lectures?batchId={{batchId}}","host":["{{baseUrl}}"],"path":["api","v1","content","lectures"],"query":[{"key":"batchId","value":"{{batchId}}"}]}
+          }
+        },
+        {
+          "name": "7.9 Teacher — Lecture Stats",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Lecture stats', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/content/lectures/{{lectureId}}/stats","host":["{{baseUrl}}"],"path":["api","v1","content","lectures","{{lectureId}}","stats"]}
+          }
+        },
+        {
+          "name": "7.10 Teacher — List Questions",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Questions listed', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/content/questions?topicId={{teacherTopicId}}","host":["{{baseUrl}}"],"path":["api","v1","content","questions"],"query":[{"key":"topicId","value":"{{teacherTopicId}}"}]}
+          }
+        },
+        {
+          "name": "7.11 Teacher — View Content Tree",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Content tree', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/content/subjects","host":["{{baseUrl}}"],"path":["api","v1","content","subjects"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 8 — Teacher: Live Class Flow",
+      "description": "Teacher starts a live class, creates a poll, closes poll, ends class, views attendance.",
+      "item": [
+        {
+          "name": "8.1 Teacher — Get Agora Token (host)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Token received', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"lectureId\": \"{{teacherLectureId}}\",\n  \"role\": \"host\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/live-class/token","host":["{{baseUrl}}"],"path":["api","v1","live-class","token"]}
+          }
+        },
+        {
+          "name": "8.2 Teacher — Start Live Class",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Live class started', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.sessionId) pm.collectionVariables.set('liveSessionId', d.sessionId);",
+            "    console.log('Live Session ID: ' + d.sessionId);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/live-class/{{teacherLectureId}}/start","host":["{{baseUrl}}"],"path":["api","v1","live-class","{{teacherLectureId}}","start"]}
+          }
+        },
+        {
+          "name": "8.3 Teacher — Get Live Session Info",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Session info', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/live-class/{{teacherLectureId}}/session","host":["{{baseUrl}}"],"path":["api","v1","live-class","{{teacherLectureId}}","session"]}
+          }
+        },
+        {
+          "name": "8.4 Teacher — Create Poll",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Poll created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('pollId', d.id);",
+            "    console.log('Poll ID: ' + d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"question\": \"What is the wavelength of visible light?\",\n  \"options\": [\"100-200 nm\", \"400-700 nm\", \"800-1000 nm\", \"1500-2000 nm\"],\n  \"correctOptionIndex\": 1\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/live-class/{{liveSessionId}}/polls","host":["{{baseUrl}}"],"path":["api","v1","live-class","{{liveSessionId}}","polls"]}
+          }
+        },
+        {
+          "name": "8.5 Teacher — Get Polls for Session",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Polls listed', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/live-class/{{liveSessionId}}/polls","host":["{{baseUrl}}"],"path":["api","v1","live-class","{{liveSessionId}}","polls"]}
+          }
+        },
+        {
+          "name": "8.6 Teacher — Close Poll",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Poll closed', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"]}}],
+          "request": {
+            "method":"PATCH",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/live-class/polls/{{pollId}}/close","host":["{{baseUrl}}"],"path":["api","v1","live-class","polls","{{pollId}}","close"]}
+          }
+        },
+        {
+          "name": "8.7 Teacher — Get Chat History",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Chat history', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/live-class/{{liveSessionId}}/chat?page=1&limit=20","host":["{{baseUrl}}"],"path":["api","v1","live-class","{{liveSessionId}}","chat"],"query":[{"key":"page","value":"1"},{"key":"limit","value":"20"}]}
+          }
+        },
+        {
+          "name": "8.8 Teacher — End Live Class",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Live class ended', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/live-class/{{teacherLectureId}}/end","host":["{{baseUrl}}"],"path":["api","v1","live-class","{{teacherLectureId}}","end"]}
+          }
+        },
+        {
+          "name": "8.9 Teacher — Live Class Attendance",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Attendance report', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/live-class/{{teacherLectureId}}/attendance","host":["{{baseUrl}}"],"path":["api","v1","live-class","{{teacherLectureId}}","attendance"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 9 — Teacher: Doubt Queue & Response",
+      "description": "Teacher views escalated doubt queue, responds to doubts, lists all doubts.",
+      "item": [
+        {
+          "name": "9.1 Student — Create a Doubt (to generate queue)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Doubt created', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+            "    var d = pm.response.json().data || pm.response.json();",
+            "    if(d.id) pm.collectionVariables.set('doubtId', d.id);",
+            "    console.log('Doubt ID: ' + d.id);",
+            "});"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"topicId\": \"{{topicId}}\",\n  \"questionText\": \"I don't understand why Carnot engine has maximum efficiency. Can you explain the derivation step by step?\",\n  \"source\": \"manual\",\n  \"explanationMode\": \"detailed\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/doubts","host":["{{baseUrl}}"],"path":["api","v1","doubts"]}
+          }
+        },
+        {
+          "name": "9.2 Student — Mark Doubt NOT helpful (escalates to teacher)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Doubt escalated', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"PATCH",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"isHelpful\": false\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/doubts/{{doubtId}}/helpful","host":["{{baseUrl}}"],"path":["api","v1","doubts","{{doubtId}}","helpful"]}
+          }
+        },
+        {
+          "name": "9.3 Teacher — Get Doubt Queue",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Doubt queue loaded', function(){",
+            "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+            "    console.log('Queue response received');",
+            "});"
+          ]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/doubts/queue","host":["{{baseUrl}}"],"path":["api","v1","doubts","queue"]}
+          }
+        },
+        {
+          "name": "9.4 Teacher — Respond to Escalated Doubt",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Teacher responded', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"PATCH",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"teacherResponse\": \"Great question! The Carnot engine achieves maximum efficiency because it operates on a fully reversible cycle. The key insight is that any irreversible process generates entropy, which reduces the work output. The Carnot cycle consists of two isothermal and two adiabatic processes, all reversible, giving efficiency η = 1 - T_cold/T_hot.\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/doubts/{{doubtId}}/teacher-response","host":["{{baseUrl}}"],"path":["api","v1","doubts","{{doubtId}}","teacher-response"]}
+          }
+        },
+        {
+          "name": "9.5 Teacher — List All Doubts",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Doubts listed', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/doubts","host":["{{baseUrl}}"],"path":["api","v1","doubts"]}
+          }
+        },
+        {
+          "name": "9.6 Teacher — View Specific Doubt",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Doubt details', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/doubts/{{doubtId}}","host":["{{baseUrl}}"],"path":["api","v1","doubts","{{doubtId}}"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 10 — Teacher: Batch Management",
+      "description": "Teacher views own batches, roster, attendance, and performance for assigned batches.",
+      "item": [
+        {
+          "name": "10.1 Teacher — List Own Batches",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Teacher batches listed', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/batches","host":["{{baseUrl}}"],"path":["api","v1","batches"]}
+          }
+        },
+        {
+          "name": "10.2 Teacher — View Batch Detail",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Batch detail', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/batches/{{batchId}}","host":["{{baseUrl}}"],"path":["api","v1","batches","{{batchId}}"]}
+          }
+        },
+        {
+          "name": "10.3 Teacher — Batch Roster (student list)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Roster loaded', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/batches/{{batchId}}/roster","host":["{{baseUrl}}"],"path":["api","v1","batches","{{batchId}}","roster"]}
+          }
+        },
+        {
+          "name": "10.4 Teacher — Batch Attendance",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Attendance loaded', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/batches/{{batchId}}/attendance","host":["{{baseUrl}}"],"path":["api","v1","batches","{{batchId}}","attendance"]}
+          }
+        },
+        {
+          "name": "10.5 Teacher — Batch Performance",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Performance loaded', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/batches/{{batchId}}/performance","host":["{{baseUrl}}"],"path":["api","v1","batches","{{batchId}}","performance"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 11 — Teacher: AI Services (Teacher-accessible)",
+      "description": "Teacher tests AI endpoints accessible to their role: grading, engagement, STT notes, feedback.",
+      "item": [
+        {
+          "name": "11.1 Teacher — AI Grade Subjective Answer",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Graded', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"questionText\": \"Explain the second law of thermodynamics and its implications.\",\n  \"studentAnswer\": \"The second law says that entropy of an isolated system always increases. This means heat flows from hot to cold naturally and you cannot create a perfect heat engine.\",\n  \"expectedAnswer\": \"The second law of thermodynamics states that the total entropy of an isolated system can never decrease over time. It implies that heat cannot spontaneously flow from cold to hot bodies, perpetual motion machines of the second kind are impossible, and all natural processes are irreversible.\",\n  \"maxMarks\": 10\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/grade/subjective","host":["{{baseUrl}}"],"path":["api","v1","ai","grade","subjective"]}
+          }
+        },
+        {
+          "name": "11.2 Teacher — AI Detect Engagement",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Engagement detected', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"context\": \"Student watching Wave Optics lecture\",\n  \"signals\": {\n    \"rewindCount\": 5,\n    \"pauseCount\": 8,\n    \"answersPerMinute\": 0.5,\n    \"accuracy\": 40,\n    \"idleSeconds\": 120\n  }\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/engagement/detect","host":["{{baseUrl}}"],"path":["api","v1","ai","engagement","detect"]}
+          }
+        },
+        {
+          "name": "11.3 Teacher — AI Generate Lecture Notes (STT)",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Notes generated', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"audioUrl\": \"https://cdn.example.com/lectures/wave-optics-recording.mp3\",\n  \"topicId\": \"{{teacherTopicId}}\",\n  \"language\": \"en\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/stt/notes","host":["{{baseUrl}}"],"path":["api","v1","ai","stt","notes"]}
+          }
+        },
+        {
+          "name": "11.4 Teacher — AI Generate Feedback",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Feedback generated', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{teacherToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"context\": \"post_test\",\n  \"data\": {\n    \"testName\": \"Thermodynamics Mini Test\",\n    \"score\": 8,\n    \"totalMarks\": 12,\n    \"accuracy\": 66.7,\n    \"weakTopics\": [\"Carnot engine efficiency\"],\n    \"strongTopics\": [\"Laws of thermodynamics\", \"Isothermal processes\"]\n  }\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/feedback/generate","host":["{{baseUrl}}"],"path":["api","v1","ai","feedback","generate"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 12 — Student: ALL 12 AI Services",
+      "description": "Student tests all 12 AI services via /api/v1/ai/* endpoints.",
+      "item": [
+        {
+          "name": "12.1 AI #1 — Doubt Resolve",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Doubt resolved', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"questionText\": \"Why does a Carnot engine have the highest possible efficiency?\",\n  \"topicId\": \"{{topicId}}\",\n  \"mode\": \"detailed\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/doubt/resolve","host":["{{baseUrl}}"],"path":["api","v1","ai","doubt","resolve"]}
+          }
+        },
+        {
+          "name": "12.2 AI #2 — Tutor Session Start",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Tutor session', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"topicId\": \"{{topicId}}\",\n  \"context\": \"I am preparing for JEE and struggling with thermodynamics\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/tutor/session","host":["{{baseUrl}}"],"path":["api","v1","ai","tutor","session"]}
+          }
+        },
+        {
+          "name": "12.3 AI #3 — Performance Analysis",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Performance analyzed', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"testSessionId\": \"{{sessionId}}\",\n  \"examTarget\": \"jee\",\n  \"attempts\": [\n    {\"questionId\": \"q1\", \"topic\": \"Thermodynamics\", \"correct\": true, \"timeTaken\": 45},\n    {\"questionId\": \"q2\", \"topic\": \"Thermodynamics\", \"correct\": true, \"timeTaken\": 30},\n    {\"questionId\": \"q3\", \"topic\": \"Thermodynamics\", \"correct\": false, \"timeTaken\": 60}\n  ]\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/performance/analyze","host":["{{baseUrl}}"],"path":["api","v1","ai","performance","analyze"]}
+          }
+        },
+        {
+          "name": "12.4 AI #4 — Grade Subjective",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Graded', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"questionText\": \"Explain the Carnot cycle.\",\n  \"studentAnswer\": \"The Carnot cycle is a theoretical thermodynamic cycle that provides the maximum possible efficiency. It consists of four steps: isothermal expansion, adiabatic expansion, isothermal compression, and adiabatic compression.\",\n  \"expectedAnswer\": \"The Carnot cycle consists of two isothermal and two adiabatic processes forming a closed cycle on a PV diagram.\",\n  \"maxMarks\": 10\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/grade/subjective","host":["{{baseUrl}}"],"path":["api","v1","ai","grade","subjective"]}
+          }
+        },
+        {
+          "name": "12.5 AI #5 — Engagement Detection",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Engagement', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"context\": \"Watching Thermodynamics Part 1 lecture\",\n  \"signals\": {\n    \"rewindCount\": 3,\n    \"pauseCount\": 2,\n    \"answersPerMinute\": 1.5,\n    \"accuracy\": 75,\n    \"idleSeconds\": 10\n  }\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/engagement/detect","host":["{{baseUrl}}"],"path":["api","v1","ai","engagement","detect"]}
+          }
+        },
+        {
+          "name": "12.6 AI #6 — Content Recommendation",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Recommendations', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"context\": \"post_test\",\n  \"weakTopics\": [\"Carnot Engine\", \"Entropy\"],\n  \"recentPerformance\": {\"accuracy\": 66, \"testsCompleted\": 1}\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/content/recommend","host":["{{baseUrl}}"],"path":["api","v1","ai","content","recommend"]}
+          }
+        },
+        {
+          "name": "12.7 AI #7 — STT Notes",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Notes', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"audioUrl\": \"https://cdn.example.com/lectures/thermo-part1.mp3\",\n  \"topicId\": \"{{topicId}}\",\n  \"language\": \"en\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/stt/notes","host":["{{baseUrl}}"],"path":["api","v1","ai","stt","notes"]}
+          }
+        },
+        {
+          "name": "12.8 AI #8 — Student Feedback",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Feedback', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"context\": \"post_test\",\n  \"data\": {\n    \"testName\": \"Thermodynamics Mini Test\",\n    \"score\": 8,\n    \"totalMarks\": 12,\n    \"weakTopics\": [\"Carnot engine\"]\n  }\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/feedback/generate","host":["{{baseUrl}}"],"path":["api","v1","ai","feedback","generate"]}
+          }
+        },
+        {
+          "name": "12.9 AI #9 — Notes Analysis",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Notes analyzed', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"notesContent\": \"Thermodynamics notes: First law - energy conservation. Second law - entropy always increases. Carnot engine gives max efficiency = 1 - Tc/Th. Not sure about adiabatic processes and entropy calculations.\",\n  \"topicId\": \"{{topicId}}\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/notes/analyze","host":["{{baseUrl}}"],"path":["api","v1","ai","notes","analyze"]}
+          }
+        },
+        {
+          "name": "12.10 AI #10 — Resume Analyzer",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Resume analyzed', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"resumeText\": \"Priya Sharma\\nClass 12 Student, JEE Aspirant\\n\\nEducation: CBSE 10th - 95%, Currently in 12th\\nSkills: Python, C++, Physics problem solving\\nAchievements: State-level science olympiad winner, Top 5% in NTSE\",\n  \"targetRole\": \"IIT Engineering Student\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/resume/analyze","host":["{{baseUrl}}"],"path":["api","v1","ai","resume","analyze"]}
+          }
+        },
+        {
+          "name": "12.11 AI #11 — Interview Prep",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Interview prep', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"targetCollege\": \"IIT Bombay\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/interview/start","host":["{{baseUrl}}"],"path":["api","v1","ai","interview","start"]}
+          }
+        },
+        {
+          "name": "12.12 AI #12 — Study Plan Generate",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Study plan', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"examTarget\": \"jee\",\n  \"examYear\": \"2027\",\n  \"dailyHours\": 6,\n  \"weakTopics\": [\"Thermodynamics\", \"Wave Optics\"],\n  \"targetCollege\": \"IIT Bombay\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/ai/plan/generate","host":["{{baseUrl}}"],"path":["api","v1","ai","plan","generate"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 13 — Analytics & Notifications",
+      "description": "Student analytics, admin notifications, admin dashboard.",
+      "item": [
+        {
+          "name": "13.1 Student — Performance Profile",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Profile', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/analytics/performance","host":["{{baseUrl}}"],"path":["api","v1","analytics","performance"]}
+          }
+        },
+        {
+          "name": "13.2 Student — Weak Topics",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Weak topics', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/analytics/weak-topics","host":["{{baseUrl}}"],"path":["api","v1","analytics","weak-topics"]}
+          }
+        },
+        {
+          "name": "13.3 Student — Leaderboard",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Leaderboard', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/analytics/leaderboard","host":["{{baseUrl}}"],"path":["api","v1","analytics","leaderboard"]}
+          }
+        },
+        {
+          "name": "13.4 Admin — Send Notification",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+            "pm.test('Notification sent', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });"
+          ]}}],
+          "request": {
+            "method":"POST",
+            "header": [{"key":"Authorization","value":"Bearer {{superAdminToken}}"},{"key":"Content-Type","value":"application/json"}],
+            "body":{"mode":"raw","raw":"{\n  \"title\": \"Exam Prep Starts Next Week\",\n  \"body\": \"JEE 2027 mock test series begins on Monday. Prepare well!\",\n  \"targetRole\": \"student\",\n  \"tenantId\": \"{{tenantId}}\"\n}"},
+            "url":{"raw":"{{baseUrl}}/api/v1/admin/announcements","host":["{{baseUrl}}"],"path":["api","v1","admin","announcements"]}
+          }
+        },
+        {
+          "name": "13.5 Student — List Notifications",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Notifications', function(){ pm.expect(pm.response.code).to.be.oneOf([200]); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{studentToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/notifications","host":["{{baseUrl}}"],"path":["api","v1","notifications"]}
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "STEP 14 — Admin Dashboard & Tenant Stats",
+      "description": "Admin views batch management, super admin views platform stats.",
+      "item": [
+        {
+          "name": "14.1 Admin — Batch Roster",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Roster', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/batches/{{batchId}}/roster","host":["{{baseUrl}}"],"path":["api","v1","batches","{{batchId}}","roster"]}
+          }
+        },
+        {
+          "name": "14.2 Admin — Batch Attendance",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Attendance', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/batches/{{batchId}}/attendance","host":["{{baseUrl}}"],"path":["api","v1","batches","{{batchId}}","attendance"]}
+          }
+        },
+        {
+          "name": "14.3 Admin — Batch Performance",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Performance', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/batches/{{batchId}}/performance","host":["{{baseUrl}}"],"path":["api","v1","batches","{{batchId}}","performance"]}
+          }
+        },
+        {
+          "name": "14.4 Super Admin — Tenant Stats",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Tenant stats', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{superAdminToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/admin/tenants/{{tenantId}}/stats","host":["{{baseUrl}}"],"path":["api","v1","admin","tenants","{{tenantId}}","stats"]}
+          }
+        },
+        {
+          "name": "14.5 Super Admin — Platform Stats",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Platform stats', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{superAdminToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/admin/stats","host":["{{baseUrl}}"],"path":["api","v1","admin","stats"]}
+          }
+        },
+        {
+          "name": "14.6 Super Admin — List All Users",
+          "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Users listed', function(){ pm.response.to.have.status(200); });"]}}],
+          "request": {
+            "method":"GET",
+            "header": [{"key":"Authorization","value":"Bearer {{superAdminToken}}"}],
+            "url":{"raw":"{{baseUrl}}/api/v1/admin/users?role=teacher","host":["{{baseUrl}}"],"path":["api","v1","admin","users"],"query":[{"key":"role","value":"teacher"}]}
+          }
+        }
+      ]
+    }
+  ]
+}
