@@ -455,7 +455,7 @@ export class ContentService {
                     return { data: [], meta: { total: 0, page, limit, totalPages: 0 } };
                 }
                 qb.andWhere('l.status IN (:...statuses)', {
-                    statuses: [LectureStatus.PUBLISHED, LectureStatus.LIVE, LectureStatus.SCHEDULED],
+                    statuses: [LectureStatus.PUBLISHED, LectureStatus.LIVE, LectureStatus.SCHEDULED, LectureStatus.ENDED],
                 });
             }
         } else if (userRole === UserRole.TEACHER) {
@@ -628,7 +628,7 @@ export class ContentService {
         progress.lastPositionSeconds = dto.lastPositionSeconds;
         if (dto.rewindCount !== undefined) progress.rewindCount = dto.rewindCount;
         if (dto.confusionFlags !== undefined) progress.confusionFlags = dto.confusionFlags;
-        if (dto.watchPercentage >= 90) progress.isCompleted = true;
+        progress.isCompleted = dto.watchPercentage >= 90;
 
         const saved = await this.progressRepo.save(progress);
 
