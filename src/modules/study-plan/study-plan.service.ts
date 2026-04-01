@@ -98,7 +98,7 @@ export class StudyPlanService {
       this.topicProgressRepo.find({ where: { studentId: student.id } }),
       this.lectureRepo.find({
         where: lectureWhere,
-        relations: ['topic'],
+        relations: ['topic', 'topic.chapter', 'topic.chapter.subject'],
         order: { createdAt: 'ASC' },
       }),
       this.mockTestRepo.find({
@@ -110,11 +110,27 @@ export class StudyPlanService {
     // Attach topic names using a separate query with tenantId (relations JOIN can miss tenant-scoped rows)
     const topicIds = [...new Set(weakTopicsRaw.map((wt) => wt.topicId).filter(Boolean))];
     const topicsForWeak = topicIds.length
-      ? await this.topicRepo.find({ where: { id: In(topicIds), tenantId } })
+      ? await this.topicRepo.find({ where: { id: In(topicIds), tenantId }, relations: ['chapter', 'chapter.subject'] })
       : [];
     const topicMap = new Map(topicsForWeak.map((t) => [t.id, t]));
     weakTopicsRaw.forEach((wt) => { wt.topic = topicMap.get(wt.topicId) ?? null as any; });
     const weakTopics = weakTopicsRaw;
+
+    // ── Derive the student's actual subjects from their batch curriculum ──────
+    // Pull subject names from lectures' topic→chapter→subject chain (already loaded above)
+    const batchSubjectNames = [...new Set(
+      availableLectures
+        .map((l) => l.topic?.chapter?.subject?.name)
+        .filter((n): n is string => !!n),
+    )];
+    // If no lectures yet, fall back to exam-target defaults
+    const subjectRotation = batchSubjectNames.length
+      ? batchSubjectNames
+      : student.examTarget === 'neet'
+        ? NEET_SUBJECTS
+        : student.examTarget === 'both'
+          ? BOTH_SUBJECTS
+          : JEE_SUBJECTS;
 
     const examDate = this.deriveExamDate(student.examYear);
     const daysToExam = Math.max(1, Math.ceil((examDate.getTime() - Date.now()) / 86400000));
@@ -132,6 +148,7 @@ export class StudyPlanService {
         targetCollege: student.targetCollege,
         academicCalendar: {
           examDate: examDate.toISOString().slice(0, 10),
+          assignedSubjects: subjectRotation,
           strongTopics: allProgress
             .filter((p) => p.status === TopicStatus.COMPLETED)
             .map((p) => p.topicId),
@@ -181,6 +198,7 @@ export class StudyPlanService {
         availableLectures,
         availableMockTests,
         daysToExam,
+        subjectRotation,
       );
     }
 
@@ -621,6 +639,7 @@ export class StudyPlanService {
     lectures: Lecture[],
     mockTests: MockTest[],
     daysToExam: number,
+    subjects: string[],
   ): RawPlanItem[] {
     const planDays = Math.min(30, Math.max(7, daysToExam - 5));
     const dailyMinutes = Math.round((student.dailyStudyHours ?? 3) * 60);
@@ -634,14 +653,6 @@ export class StudyPlanService {
 
     // Ordered queue: critical → high → medium → cycle back
     const weakQueue = [...critical, ...high, ...medium];
-
-    // ── Subject rotation ──────────────────────────────────────────────────────
-    const subjects =
-      student.examTarget === ExamTarget.NEET
-        ? NEET_SUBJECTS
-        : student.examTarget === ExamTarget.BOTH
-          ? BOTH_SUBJECTS
-          : JEE_SUBJECTS;
 
     // ── Index lectures by topicId ─────────────────────────────────────────────
     const lectureByTopic = new Map<string, Lecture[]>();

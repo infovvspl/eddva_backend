@@ -1,5 +1,5 @@
-import { Controller, Post, Get, Delete, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Controller, Post, Get, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { IsString, IsEnum, IsOptional } from 'class-validator';
 import { BattleService } from './battle.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -64,6 +64,23 @@ export class BattleController {
     @TenantId() tenantId: string,
   ) {
     return this.battleService.getMyElo(userId, tenantId);
+  }
+
+  @Get('bot-questions')
+  @ApiOperation({ summary: 'Fetch questions for bot practice by scope (subject / chapter / topic)' })
+  @ApiQuery({ name: 'scope', enum: ['subject', 'chapter', 'topic'] })
+  @ApiQuery({ name: 'scopeId', type: 'string' })
+  @ApiQuery({ name: 'count', type: 'number', required: false })
+  getBotQuestions(
+    @Query('scope') scope: string,
+    @Query('scopeId') scopeId: string,
+    @Query('count') count: string,
+    @TenantId() tenantId: string,
+  ) {
+    const validScope = (['topic', 'chapter', 'subject'] as const).includes(scope as any)
+      ? (scope as 'topic' | 'chapter' | 'subject')
+      : 'topic';
+    return this.battleService.getBotPracticeQuestions(validScope, scopeId, parseInt(count ?? '10', 10), tenantId);
   }
 
   @Get(':id')

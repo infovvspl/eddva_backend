@@ -82,6 +82,8 @@ export class BattleGateway
 
       // Start battle when room is full
       if (participants.length >= battle.maxParticipants) {
+        // Mark battle as ACTIVE in the database so REST polling detects it
+        await this.battleService.startBattle(battle.id);
         const questions = await this.battleService.getBattleQuestions(battle.id);
         this.server.to(roomCode).emit('battle:start', {
           battle,
@@ -131,7 +133,7 @@ export class BattleGateway
             this.server.to(data.roomCode).emit('battle:question', {
               question: result.nextQuestion,
               roundNumber: data.roundNumber + 1,
-              timeLimit: data.responseTimeMs,
+              timeLimit: result.secondsPerRound,
             });
           }, 2000);
         }

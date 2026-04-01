@@ -40,6 +40,11 @@ export class CreateDoubtDto {
   @ApiProperty({ enum: ExplanationMode })
   @IsEnum(ExplanationMode)
   explanationMode: ExplanationMode;
+
+  @ApiPropertyOptional({ description: 'Skip AI and forward directly to teacher' })
+  @IsOptional()
+  @IsBoolean()
+  skipAI?: boolean;
 }
 
 export class DoubtListQueryDto {

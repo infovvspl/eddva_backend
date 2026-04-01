@@ -59,10 +59,19 @@ export class BattleService {
       where: { battleId: battle.id },
       relations: ['student', 'student.user'],
     });
+
+    // Map backend status to frontend-expected values
+    const statusMap: Record<string, string> = {
+      [BattleStatus.WAITING]:   'waiting',
+      [BattleStatus.ACTIVE]:    'in_progress',
+      [BattleStatus.FINISHED]:  'completed',
+      [BattleStatus.ABANDONED]: 'completed',
+    };
+
     return {
       battleId: battle.id,
       roomCode: battle.roomCode,
-      status: battle.status,
+      status: statusMap[battle.status] ?? battle.status,
       mode: battle.mode,
       topicId: battle.topicId,
       totalRounds: battle.totalRounds,
@@ -81,8 +90,62 @@ export class BattleService {
 
   // ─── Create Battle ────────────────────────────────────────────────────────
 
+  // ─── Mark Battle Active ───────────────────────────────────────────────────
+
+  async startBattle(battleId: string) {
+    await this.battleRepo.update(battleId, {
+      status: BattleStatus.ACTIVE,
+      startedAt: new Date(),
+    });
+  }
+
+  // ─── Create Battle (with auto-matchmaking queue) ──────────────────────────
+
   async createBattleRoom(userId: string, tenantId: string, mode = BattleMode.QUICK_DUEL, topicId?: string) {
     const student = await this.getStudent(userId);
+
+    // ── Auto-matchmaking: for quick_duel, topic_battle, and daily mode
+    //    find an existing WAITING room (with <maxParticipants) and join it
+    if (
+      mode === BattleMode.QUICK_DUEL ||
+      mode === BattleMode.TOPIC_BATTLE ||
+      mode === BattleMode.DAILY
+    ) {
+      const qb = this.battleRepo
+        .createQueryBuilder('b')
+        .where('b.tenantId = :tenantId AND b.mode = :mode AND b.status = :status', {
+          tenantId, mode, status: BattleStatus.WAITING,
+        });
+
+      // For topic battles, match on the same topic
+      if (mode === BattleMode.TOPIC_BATTLE && topicId) {
+        qb.andWhere('b.topicId = :topicId', { topicId });
+      }
+
+      qb.orderBy('b.createdAt', 'ASC');
+      const existingBattle = await qb.getOne();
+
+      if (existingBattle) {
+        const alreadyIn = await this.participantRepo.findOne({
+          where: { battleId: existingBattle.id, studentId: student.id },
+        });
+        if (!alreadyIn) {
+          const count = await this.participantRepo.count({ where: { battleId: existingBattle.id } });
+          if (count < existingBattle.maxParticipants) {
+            const elo = await this.getOrCreateElo(student.id, tenantId);
+            await this.participantRepo.save(
+              this.participantRepo.create({
+                battleId: existingBattle.id,
+                studentId: student.id,
+                eloBefore: elo.eloRating,
+              }),
+            );
+            return this.formatRoom(existingBattle, tenantId);
+          }
+        }
+      }
+    }
+
     const roomCode = this.generateRoomCode();
 
     const qCount = mode === BattleMode.QUICK_DUEL ? 5 : 10;
@@ -370,6 +433,7 @@ export class BattleService {
         correctOptionId: correctOption?.id ?? null,
         scores,
         nextQuestion,
+        secondsPerRound: battle.secondsPerRound,
       };
     }
 
@@ -455,6 +519,46 @@ export class BattleService {
     const battle = await this.battleRepo.findOne({ where: { roomCode } });
     if (!battle) return [];
     return this.getBattleQuestions(battle.id);
+  }
+
+  // ─── Bot Practice Questions ───────────────────────────────────────────────
+
+  async getBotPracticeQuestions(
+    scope: 'subject' | 'chapter' | 'topic',
+    scopeId: string,
+    count: number,
+    tenantId: string,
+  ) {
+    const limit = Math.min(Math.max(count || 10, 1), 50);
+
+    const qb = this.questionRepo
+      .createQueryBuilder('q')
+      .leftJoinAndSelect('q.options', 'options')
+      .leftJoin('q.topic', 'topic')
+      .where('q.tenantId = :tenantId AND q.isActive = true', { tenantId });
+
+    if (scope === 'topic') {
+      qb.andWhere('q.topicId = :scopeId', { scopeId });
+    } else if (scope === 'chapter') {
+      qb.andWhere('topic.chapterId = :scopeId', { scopeId });
+    } else {
+      // subject
+      qb.leftJoin('topic.chapter', 'chapter')
+        .andWhere('chapter.subjectId = :scopeId', { scopeId });
+    }
+
+    qb.orderBy('RANDOM()').limit(limit);
+    const questions = await qb.getMany();
+
+    return questions.map(q => ({
+      id: q.id,
+      text: q.content,
+      options: q.options
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(o => ({ id: o.id, text: o.content })),
+      correctId: q.options.find(o => o.isCorrect)?.id ?? null,
+      difficulty: q.difficulty,
+    }));
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────

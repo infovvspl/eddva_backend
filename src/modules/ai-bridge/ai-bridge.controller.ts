@@ -49,7 +49,7 @@ export class AiBridgeController {
   //  (Also available via POST /doubts — this is for direct AI testing)
   // ══════════════════════════════════════════════════════════════════════════
   @Post('doubt/resolve')
-  @Roles(UserRole.STUDENT)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @HttpCode(HttpStatus.OK)
   async resolveDoubt(
     @Body() body: { questionText: string; topicId?: string; mode?: string },

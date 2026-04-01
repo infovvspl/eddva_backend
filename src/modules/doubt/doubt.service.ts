@@ -76,22 +76,32 @@ export class DoubtService {
       }),
     );
 
-    const aiResult = (await this.aiBridgeService.resolveDoubt({
-      questionText: dto.questionText || dto.questionImageUrl || '',
-      topicId: dto.topicId,
-      mode: dto.explanationMode as 'short' | 'detailed',
-      studentContext: { source: dto.source, sourceRefId: dto.sourceRefId },
-    })) as {
-      explanation?: string;
-      conceptLinks?: string[];
-      similarQuestionIds?: string[];
-    };
+    if (dto.skipAI) {
+      // Forward directly to teacher — skip AI
+      doubt.status = DoubtStatus.ESCALATED;
+      await this.doubtRepo.save(doubt);
+      await this.notifyEscalatedDoubtTeachers(doubt);
+    } else {
+      const aiResult = (await this.aiBridgeService.resolveDoubt({
+        questionText: dto.questionText || dto.questionImageUrl || '',
+        topicId: dto.topicId,
+        mode: dto.explanationMode as 'short' | 'detailed',
+        studentContext: { source: dto.source, sourceRefId: dto.sourceRefId },
+      })) as {
+        explanation?: string;
+        answer?: string;
+        conceptLinks?: string[];
+        key_concepts?: string[];
+        similarQuestionIds?: string[];
+      };
 
-    doubt.aiExplanation = aiResult?.explanation ?? null;
-    doubt.aiConceptLinks = aiResult?.conceptLinks ?? [];
-    doubt.aiSimilarQuestionIds = aiResult?.similarQuestionIds ?? [];
-    doubt.status = DoubtStatus.AI_RESOLVED;
-    await this.doubtRepo.save(doubt);
+      // Django returns "answer" + "key_concepts"; fall back to alternate field names
+      doubt.aiExplanation = aiResult?.explanation ?? aiResult?.answer ?? null;
+      doubt.aiConceptLinks = aiResult?.conceptLinks ?? aiResult?.key_concepts ?? [];
+      doubt.aiSimilarQuestionIds = aiResult?.similarQuestionIds ?? [];
+      doubt.status = DoubtStatus.AI_RESOLVED;
+      await this.doubtRepo.save(doubt);
+    }
 
     return this.getDoubtWithRelations(doubt.id, topic?.tenantId || tenantId);
   }
