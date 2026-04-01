@@ -312,8 +312,9 @@ export class ContentController {
     getLectureById(
         @Param('id', ParseUUIDPipe) id: string,
         @TenantId() tenantId: string,
+        @CurrentUser() user: any,
     ) {
-        return this.contentService.getLectureById(id, tenantId);
+        return this.contentService.getLectureById(id, tenantId, user);
     }
 
     @Patch('lectures/:id')

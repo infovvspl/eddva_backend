@@ -76,7 +76,8 @@ export class GradingService {
       progress.status = TopicStatus.COMPLETED;
       if (!progress.completedAt) progress.completedAt = now;
     } else {
-      progress.status = TopicStatus.LOCKED;
+      // Not passed → keep as IN_PROGRESS so student can retry; never lock them out
+      progress.status = TopicStatus.IN_PROGRESS;
     }
 
     return progress;
