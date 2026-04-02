@@ -1114,7 +1114,8 @@ export class AssessmentService {
         const aiQuestions = await this.generateAiQuestionsForDiagnostic(relevantTopics, tenantId);
         if (aiQuestions.length < 1) {
           throw new BadRequestException(
-            'Could not generate diagnostic questions. Please ensure your subjects and topics are configured, then try again.',
+            'The question bank is empty and the AI service could not generate questions at this time. ' +
+            'Please add questions manually or check that the AI service (GROQ) is running and configured correctly.',
           );
         }
         allQuestions.length = 0;
@@ -1439,13 +1440,12 @@ export class AssessmentService {
     topics: Topic[],
     tenantId: string,
   ): Promise<Question[]> {
-    const MAX_TOPICS = 10;
+    // Limit to 5 topics max — avoids GROQ free-tier rate limits under parallel load
+    const MAX_TOPICS = 5;
     const QUESTIONS_PER_TOPIC = 4;
-    // 40% easy / 40% medium / 20% hard cycling across selected topics
     const difficultyPattern: DifficultyLevel[] = [
       DifficultyLevel.EASY, DifficultyLevel.MEDIUM, DifficultyLevel.HARD,
-      DifficultyLevel.MEDIUM, DifficultyLevel.EASY, DifficultyLevel.MEDIUM,
-      DifficultyLevel.HARD, DifficultyLevel.EASY, DifficultyLevel.MEDIUM, DifficultyLevel.EASY,
+      DifficultyLevel.MEDIUM, DifficultyLevel.EASY,
     ];
 
     // Select representative topics spread across all available topics
@@ -1457,13 +1457,19 @@ export class AssessmentService {
       selected = Array.from({ length: MAX_TOPICS }, (_, i) => topics[i * step]);
     }
 
-    this.logger.log(`Generating AI questions for ${selected.length} topics`);
+    this.logger.log(`Generating AI questions for ${selected.length} topics (sequential)`);
 
-    // Call AI for all topics in parallel
-    const results = await Promise.allSettled(
-      selected.map(async (topic, idx) => {
-        const difficulty = difficultyPattern[idx % difficultyPattern.length];
-        const rawQs = await this.aiBridgeService.generateQuestionsFromTopic(
+    // Call AI sequentially to avoid GROQ rate limit (free tier = 30 RPM)
+    const saved: Question[] = [];
+    let aiFailCount = 0;
+
+    for (let idx = 0; idx < selected.length; idx++) {
+      const topic = selected[idx];
+      const difficulty = difficultyPattern[idx % difficultyPattern.length];
+
+      let rawQs: any[] = [];
+      try {
+        rawQs = (await this.aiBridgeService.generateQuestionsFromTopic(
           {
             topicId: topic.id,
             topicName: topic.name,
@@ -1472,16 +1478,16 @@ export class AssessmentService {
             type: 'mcq_single',
           },
           tenantId,
+        )) as any[];
+      } catch (err) {
+        aiFailCount++;
+        this.logger.warn(
+          `AI call failed for topic "${topic.name}" (${aiFailCount} failures so far): ${(err as Error).message}`,
         );
-        return { topic, rawQs: rawQs as any[], difficulty };
-      }),
-    );
+        continue;
+      }
 
-    // Persist each generated question + options
-    const saved: Question[] = [];
-    for (const r of results) {
-      if (r.status !== 'fulfilled' || !Array.isArray(r.value.rawQs)) continue;
-      const { topic, rawQs, difficulty } = r.value;
+      if (!Array.isArray(rawQs) || rawQs.length === 0) continue;
 
       for (const rq of rawQs) {
         if (!rq?.content) continue;
@@ -1529,6 +1535,9 @@ export class AssessmentService {
       }
     }
 
+    if (aiFailCount > 0) {
+      this.logger.error(`AI generation failed for ${aiFailCount}/${selected.length} topics`);
+    }
     this.logger.log(`AI generated and saved ${saved.length} questions for diagnostic`);
     return saved;
   }
