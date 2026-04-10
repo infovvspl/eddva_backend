@@ -35,6 +35,7 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
   TeacherOnboardingDto,
+  StudentRegisterDto,
 } from './dto/auth.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -47,6 +48,18 @@ import { UserRole } from '../../database/entities/user.entity';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  // ── Student Self-Registration ─────────────────────────────────────────────
+
+  @Post('register')
+  @Public()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Student self-registration — name, phone, email, address, password' })
+  @ApiResponse({ status: 201, description: 'Registered successfully, tokens returned' })
+  @ApiResponse({ status: 409, description: 'Phone or email already registered' })
+  register(@Body() dto: StudentRegisterDto, @TenantId() tenantId: string) {
+    return this.authService.registerStudent(dto, tenantId);
+  }
 
   // ── OTP Flow ──────────────────────────────────────────────────────────────
 
@@ -209,7 +222,7 @@ export class AuthController {
 
   @Post('teacher/onboard')
   @ApiBearerAuth()
-  @Roles(UserRole.TEACHER)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Complete teacher onboarding — profile, qualifications, expertise' })
   completeTeacherOnboarding(
     @CurrentUser('id') userId: string,

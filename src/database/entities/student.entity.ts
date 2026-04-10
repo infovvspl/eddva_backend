@@ -54,13 +54,13 @@ export class Student extends Base {
   user: User;
 
   // ── Academic profile ──────────────────────────────────────────────────────
-  @Column({ name: 'exam_target', type: 'enum', enum: ExamTarget, default: ExamTarget.JEE })
+  @Column({ name: 'exam_target', type: 'enum', enum: ExamTarget, nullable: true })
   examTarget: ExamTarget;
 
-  @Column({ name: 'class', type: 'enum', enum: StudentClass })
+  @Column({ name: 'class', type: 'enum', enum: StudentClass, nullable: true })
   class: StudentClass;
 
-  @Column({ name: 'exam_year', type: 'enum', enum: ExamYear })
+  @Column({ name: 'exam_year', type: 'enum', enum: ExamYear, nullable: true })
   examYear: ExamYear;
 
   @Column({ name: 'target_college', nullable: true })
@@ -72,12 +72,31 @@ export class Student extends Base {
   @Column({ name: 'language', type: 'enum', enum: Language, default: Language.ENGLISH })
   language: Language;
 
-  // ── Location (for leaderboard scoping) ───────────────────────────────────
+  // ── Personal details ─────────────────────────────────────────────────────
+  @Column({ name: 'care_of', nullable: true })
+  careOf: string; // Care of / Son of
+
+  @Column({ name: 'alternate_phone_number', nullable: true })
+  alternatePhoneNumber: string;
+
+  // ── Location ─────────────────────────────────────────────────────────────
+  @Column({ nullable: true })
+  address: string;
+
+  @Column({ name: 'post_office', nullable: true })
+  postOffice: string;
+
   @Column({ nullable: true })
   city: string;
 
   @Column({ nullable: true })
+  landmark: string; // Landmark / Tehsil
+
+  @Column({ nullable: true })
   state: string;
+
+  @Column({ name: 'pin_code', nullable: true })
+  pinCode: string;
 
   @Column({ name: 'coaching_name', nullable: true })
   coachingName: string;

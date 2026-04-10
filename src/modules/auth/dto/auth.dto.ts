@@ -10,10 +10,77 @@ import {
   IsEmail,
   MinLength,
   IsArray,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ExamTarget, StudentClass, ExamYear, Language } from '../../../database/entities/student.entity';
+
+export class StudentRegisterDto {
+  @ApiProperty({ example: 'Arjun Sharma' })
+  @IsString()
+  @IsNotEmpty()
+  fullName: string;
+
+  @ApiProperty({ example: 'Ramesh Sharma', description: 'Care of / Son of' })
+  @IsString()
+  @IsNotEmpty()
+  careOf: string;
+
+  @ApiProperty({ example: '+919876543210' })
+  @IsPhoneNumber('IN')
+  @IsNotEmpty()
+  phoneNumber: string;
+
+  @ApiProperty({ example: '+919876543211', description: 'Alternate phone number' })
+  @IsPhoneNumber('IN')
+  @IsNotEmpty()
+  alternatePhoneNumber: string;
+
+  @ApiProperty({ example: 'arjun@gmail.com' })
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @ApiProperty({ example: '12, Gandhi Nagar, Near Bus Stand' })
+  @IsString()
+  @IsNotEmpty()
+  address: string;
+
+  @ApiProperty({ example: 'Andheri' })
+  @IsString()
+  @IsNotEmpty()
+  postOffice: string;
+
+  @ApiProperty({ example: 'Mumbai' })
+  @IsString()
+  @IsNotEmpty()
+  city: string;
+
+  @ApiProperty({ example: 'Versova', description: 'Landmark / Tehsil' })
+  @IsString()
+  @IsNotEmpty()
+  landmark: string;
+
+  @ApiProperty({ example: 'Gujarat' })
+  @IsString()
+  @IsNotEmpty()
+  state: string;
+
+  @ApiProperty({ example: '400058' })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d{6}$/, { message: 'Pin code must be 6 digits' })
+  pinCode: string;
+
+  @ApiProperty({ example: 'StrongP@ss1', minLength: 8, description: 'Min 8 chars, at least one uppercase, one number, one special character' })
+  @IsString()
+  @MinLength(8)
+  @Matches(/^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/, {
+    message: 'Password must contain at least one uppercase letter, one number, and one special character',
+  })
+  password: string;
+}
 
 export class SendOtpDto {
   @ApiProperty({ example: '+919876543210' })

@@ -38,10 +38,10 @@ export class LiveClassController {
   ) {}
 
   @Post('token')
-  @Roles(UserRole.TEACHER, UserRole.STUDENT)
+  @Roles(UserRole.TEACHER, UserRole.STUDENT, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Get an Agora token for a live class' })
   getToken(@Body() dto: GetTokenDto, @CurrentUser() user: any, @TenantId() tenantId: string) {
-    if (user.role === UserRole.TEACHER && dto.role !== 'host') {
+    if ((user.role === UserRole.TEACHER || user.role === UserRole.INSTITUTE_ADMIN) && dto.role !== 'host') {
       throw new BadRequestException('Teachers must request host tokens');
     }
     if (user.role === UserRole.STUDENT && dto.role !== 'audience') {
@@ -52,7 +52,7 @@ export class LiveClassController {
   }
 
   @Post(':lectureId/start')
-  @Roles(UserRole.TEACHER)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Start a live class' })
   async startClass(
     @Param('lectureId', ParseUUIDPipe) lectureId: string,
@@ -69,7 +69,7 @@ export class LiveClassController {
   }
 
   @Post(':lectureId/end')
-  @Roles(UserRole.TEACHER)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'End a live class' })
   async endClass(
     @Param('lectureId', ParseUUIDPipe) lectureId: string,
@@ -98,7 +98,7 @@ export class LiveClassController {
   }
 
   @Post(':liveSessionId/polls')
-  @Roles(UserRole.TEACHER)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Create a live poll' })
   async createPoll(
     @Param('liveSessionId', ParseUUIDPipe) liveSessionId: string,
@@ -112,7 +112,7 @@ export class LiveClassController {
   }
 
   @Patch('polls/:pollId/close')
-  @Roles(UserRole.TEACHER)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Close a live poll' })
   async closePoll(
     @Param('pollId', ParseUUIDPipe) pollId: string,
@@ -157,7 +157,7 @@ export class LiveClassController {
   }
 
   @Post(':liveSessionId/chat/:messageId/pin')
-  @Roles(UserRole.TEACHER)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Pin a live chat message' })
   async pinMessage(
     @Param('liveSessionId', ParseUUIDPipe) liveSessionId: string,

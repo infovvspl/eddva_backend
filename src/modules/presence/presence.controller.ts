@@ -34,7 +34,7 @@ export class PresenceController {
   }
 
   @Get('stats/teacher')
-  @Roles(UserRole.TEACHER)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @UseGuards(RolesGuard)
   @ApiOperation({ summary: 'Live stats for teacher (students online)' })
   teacherStats(@TenantId() tenantId: string) {
