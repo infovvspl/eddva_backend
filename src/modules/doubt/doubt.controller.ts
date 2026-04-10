@@ -46,7 +46,7 @@ export class DoubtController {
   }
 
   @Get('queue')
-  @Roles(UserRole.TEACHER)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Get escalated doubt queue for the current teacher' })
   getQueue(@CurrentUser() user: any, @TenantId() tenantId: string) {
     return this.doubtService.getTeacherQueue(user.id, tenantId);
@@ -88,7 +88,7 @@ export class DoubtController {
   }
 
   @Patch(':id/teacher-response')
-  @Roles(UserRole.TEACHER)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Respond to an escalated doubt as teacher' })
   respondAsTeacher(
     @Param('id', ParseUUIDPipe) id: string,
@@ -100,7 +100,7 @@ export class DoubtController {
   }
 
   @Patch(':id/mark-reviewed')
-  @Roles(UserRole.TEACHER)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Mark AI answer as correct — no additional response needed' })
   markAsReviewed(
     @Param('id', ParseUUIDPipe) id: string,

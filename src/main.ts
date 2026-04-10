@@ -21,8 +21,9 @@ async function bootstrap() {
   const cfg = app.get(ConfigService);
 
   // ── CORS ──────────────────────────────────────────────────────────────────
+  const isDev = cfg.get<string>('app.nodeEnv') !== 'production';
   app.enableCors({
-    origin: cfg.get<string[]>('app.corsOrigins'),
+    origin: isDev ? true : cfg.get<string[]>('app.corsOrigins'),
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
