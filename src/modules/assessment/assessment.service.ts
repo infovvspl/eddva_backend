@@ -1115,7 +1115,7 @@ export class AssessmentService {
         if (aiQuestions.length < 1) {
           throw new BadRequestException(
             'The question bank is empty and the AI service could not generate questions at this time. ' +
-            'Please add questions manually or check that the AI service (GROQ) is running and configured correctly.',
+            'Please add questions manually or check that the AI service (Ollama) is running and configured correctly.',
           );
         }
         allQuestions.length = 0;
@@ -1440,7 +1440,7 @@ export class AssessmentService {
     topics: Topic[],
     tenantId: string,
   ): Promise<Question[]> {
-    // Limit to 5 topics max — avoids GROQ free-tier rate limits under parallel load
+    // Limit to 5 topics max — avoid overloading local Ollama under parallel load
     const MAX_TOPICS = 5;
     const QUESTIONS_PER_TOPIC = 4;
     const difficultyPattern: DifficultyLevel[] = [
@@ -1459,7 +1459,7 @@ export class AssessmentService {
 
     this.logger.log(`Generating AI questions for ${selected.length} topics (sequential)`);
 
-    // Call AI sequentially to avoid GROQ rate limit (free tier = 30 RPM)
+    // Call AI sequentially to avoid overwhelming local Ollama
     const saved: Question[] = [];
     let aiFailCount = 0;
 
