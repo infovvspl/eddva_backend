@@ -21,8 +21,21 @@ async function bootstrap() {
   const cfg = app.get(ConfigService);
 
   // ── CORS ──────────────────────────────────────────────────────────────────
+  const isDev = cfg.get<string>('app.nodeEnv') !== 'production';
+  const allowedOrigins = cfg.get<string[]>('app.corsOrigins');
+
   app.enableCors({
-    origin: cfg.get<string[]>('app.corsOrigins'),
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+      // In dev: allow all *.localhost on any port
+      if (isDev && /^https?:\/\/([a-zA-Z0-9-]+\.)*localhost(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      // Always allow explicitly listed origins
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
