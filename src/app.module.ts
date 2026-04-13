@@ -56,6 +56,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { InstituteSettingsModule } from './modules/institute-settings/institute-settings.module';
 import { PYQModule } from './modules/pyq/pyq.module';
 import { PresenceModule } from './modules/presence/presence.module';
+import { AIModule } from './ai/ai.module';
 
 // ── Common ────────────────────────────────────────────────────────────────────
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
@@ -148,6 +149,7 @@ const ALL_ENTITIES = [
     InstituteSettingsModule,
     PYQModule,
     PresenceModule,
+    AIModule,
 
     // TODO: Add as you build them:
 
