@@ -55,13 +55,14 @@ export class PYQService {
       const row = rows[i];
       const rowNum = i + 2; // 1-based + header row
       try {
-        const topicId = await this.resolveTopicId(
+        const resolved = await this.resolveScope(
           row['subject'] ?? '', row['chapter'] ?? '', row['topic'] ?? '', tenantId,
         );
-        if (!topicId) {
-          errors.push({ row: rowNum, error: `Topic not found: "${row['topic']}" in chapter "${row['chapter']}"` });
+        if (!resolved.topicId && !resolved.chapterId && !resolved.subjectId) {
+          errors.push({ row: rowNum, error: `Scope not found: subject="${row['subject']}" chapter="${row['chapter']}" topic="${row['topic']}"` });
           continue;
         }
+        const { topicId, chapterId, subjectId } = resolved;
 
         const year = parseInt(row['year'], 10);
         const exam = (row['exam'] ?? '').toLowerCase().trim();
@@ -80,7 +81,9 @@ export class PYQService {
         const options = this.buildOptions(row, type);
         const q: Partial<Question> = {
           tenantId,
-          topicId,
+          topicId: topicId ?? null,
+          chapterId: chapterId ?? null,
+          subjectId: subjectId ?? null,
           content: questionText,
           type: type === 'integer' ? QuestionType.INTEGER : QuestionType.MCQ_SINGLE,
           difficulty: this.mapDifficulty(row['difficulty']),
@@ -102,7 +105,7 @@ export class PYQService {
         }
 
         toInsert.push({ q, options });
-        topicsAffected.add(topicId);
+        if (topicId) topicsAffected.add(topicId);
       } catch (err) {
         errors.push({ row: rowNum, error: String(err?.message ?? err) });
       }
@@ -442,7 +445,6 @@ export class PYQService {
 
     const qb = this.questionRepo.createQueryBuilder('q')
       .leftJoinAndSelect('q.options', 'o')
-      .where('q.topic_id = :topicId', { topicId })
       .andWhere('q.source = :src', { src: QuestionSource.PYQ })
       .andWhere('q.is_verified = true')
       .andWhere('q.is_active = true')
@@ -451,6 +453,17 @@ export class PYQService {
       .addOrderBy('q.difficulty', 'ASC')
       .skip((page - 1) * limit)
       .take(limit);
+
+    // Scope: topic > chapter > subject (topic is most specific)
+    if (filter.subjectId) {
+      qb.leftJoin('q.topic', 't').leftJoin('t.chapter', 'ch')
+        .andWhere('(q.subject_id = :subjectId OR ch.subject_id = :subjectId)', { subjectId: filter.subjectId });
+    } else if (filter.chapterId) {
+      qb.leftJoin('q.topic', 't2')
+        .andWhere('(q.chapter_id = :chapterId OR t2.chapter_id = :chapterId)', { chapterId: filter.chapterId });
+    } else {
+      qb.andWhere('q.topic_id = :topicId', { topicId });
+    }
 
     if (filter.year) qb.andWhere('q.pyq_year = :year', { year: filter.year });
     if (Array.isArray(examFilter)) {
@@ -1019,18 +1032,55 @@ Return ONLY a valid JSON array, no markdown:
   }
 
   private async resolveTopicId(subject: string, chapter: string, topic: string, tenantId: string): Promise<string | null> {
-    const row = await this.dataSource.query(`
-      SELECT t.id
-        FROM topics t
-        JOIN chapters c ON t.chapter_id = c.id
-        JOIN subjects s ON c.subject_id = s.id
-       WHERE LOWER(s.name) = LOWER($1)
-         AND LOWER(c.name) = LOWER($2)
-         AND LOWER(t.name) = LOWER($3)
-         AND (s.tenant_id = $4 OR s.tenant_id IS NULL)
-       LIMIT 1
-    `, [subject.trim(), chapter.trim(), topic.trim(), tenantId]);
-    return row?.[0]?.id ?? null;
+    const resolved = await this.resolveScope(subject, chapter, topic, tenantId);
+    return resolved.topicId ?? null;
+  }
+
+  private async resolveScope(
+    subject: string, chapter: string, topic: string, tenantId: string,
+  ): Promise<{ topicId: string | null; chapterId: string | null; subjectId: string | null }> {
+    const s = subject.trim();
+    const c = chapter.trim();
+    const t = topic.trim();
+
+    // Topic-level (most specific)
+    if (s && c && t) {
+      const row = await this.dataSource.query(`
+        SELECT t.id AS topic_id, c.id AS chapter_id, s.id AS subject_id
+          FROM topics t
+          JOIN chapters c ON t.chapter_id = c.id
+          JOIN subjects s ON c.subject_id = s.id
+         WHERE LOWER(s.name) = LOWER($1) AND LOWER(c.name) = LOWER($2) AND LOWER(t.name) = LOWER($3)
+           AND (s.tenant_id = $4 OR s.tenant_id IS NULL)
+         LIMIT 1
+      `, [s, c, t, tenantId]);
+      if (row?.[0]) return { topicId: row[0].topic_id, chapterId: row[0].chapter_id, subjectId: row[0].subject_id };
+    }
+
+    // Chapter-level
+    if (s && c) {
+      const row = await this.dataSource.query(`
+        SELECT c.id AS chapter_id, s.id AS subject_id
+          FROM chapters c
+          JOIN subjects s ON c.subject_id = s.id
+         WHERE LOWER(s.name) = LOWER($1) AND LOWER(c.name) = LOWER($2)
+           AND (s.tenant_id = $3 OR s.tenant_id IS NULL)
+         LIMIT 1
+      `, [s, c, tenantId]);
+      if (row?.[0]) return { topicId: null, chapterId: row[0].chapter_id, subjectId: row[0].subject_id };
+    }
+
+    // Subject-level
+    if (s) {
+      const row = await this.dataSource.query(`
+        SELECT id AS subject_id FROM subjects
+         WHERE LOWER(name) = LOWER($1) AND (tenant_id = $2 OR tenant_id IS NULL)
+         LIMIT 1
+      `, [s, tenantId]);
+      if (row?.[0]) return { topicId: null, chapterId: null, subjectId: row[0].subject_id };
+    }
+
+    return { topicId: null, chapterId: null, subjectId: null };
   }
 
   private buildOptions(row: Record<string, string>, type: string) {

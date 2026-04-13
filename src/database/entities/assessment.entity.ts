@@ -3,17 +3,26 @@ import { Base } from './base.entity';
 import { Tenant } from './tenant.entity';
 import { Student } from './student.entity';
 import { Question } from './question.entity';
-import { Topic } from './subject.entity';
+import { Chapter, Subject, Topic } from './subject.entity';
 
 // ─── MockTest (template) ──────────────────────────────────────────────────────
 export enum MockTestType {
   FULL_MOCK = 'full_mock',
+  SUBJECT_TEST = 'subject_test',
   CHAPTER_TEST = 'chapter_test',
+  TOPIC_TEST = 'topic_test',
   SUBTOPIC_DRILL = 'subtopic_drill',
   SPEED_TEST = 'speed_test',
   PYQ = 'pyq',
   REVISION = 'revision',
   DIAGNOSTIC = 'diagnostic',
+}
+
+export enum MockTestScope {
+  BATCH = 'batch',       // whole course
+  SUBJECT = 'subject',
+  CHAPTER = 'chapter',
+  TOPIC = 'topic',
 }
 
 @Entity('mock_tests')
@@ -49,8 +58,26 @@ export class MockTest extends Base {
   @Column({ name: 'created_by', nullable: true })
   createdBy: string; // teacher user_id
 
+  // ── Scope: one of batch / subject / chapter / topic will be set ──────────
+  @Column({ name: 'scope', type: 'enum', enum: MockTestScope, default: MockTestScope.BATCH })
+  scope: MockTestScope;
+
   @Column({ name: 'batch_id', nullable: true })
   batchId: string;
+
+  @Column({ name: 'subject_id', nullable: true })
+  subjectId: string;
+
+  @ManyToOne(() => Subject, { nullable: true })
+  @JoinColumn({ name: 'subject_id' })
+  subject: Subject;
+
+  @Column({ name: 'chapter_id', nullable: true })
+  chapterId: string;
+
+  @ManyToOne(() => Chapter, { nullable: true })
+  @JoinColumn({ name: 'chapter_id' })
+  chapter: Chapter;
 
   @Column({ name: 'topic_id', nullable: true })
   topicId: string;

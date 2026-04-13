@@ -53,6 +53,8 @@ export class UnverifiedQueryDto {
 // ── Student DTOs ──────────────────────────────────────────────────────────────
 
 export class PYQFilterDto {
+  @ApiPropertyOptional() @IsOptional() @IsUUID() subjectId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() chapterId?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Type(() => Number) year?: number;
   @ApiPropertyOptional() @IsOptional() @IsIn(VALID_EXAMS) exam?: string;
   @ApiPropertyOptional() @IsOptional() @IsIn(['easy', 'medium', 'hard']) difficulty?: string;
