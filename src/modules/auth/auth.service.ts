@@ -72,7 +72,12 @@ export class AuthService {
 
   // ── Student Self-Registration ─────────────────────────────────────────────
 
-  async registerStudent(dto: StudentRegisterDto, tenantId: string) {
+  async registerStudent(dto: StudentRegisterDto, _tenantId: string) {
+    // Self-registration always goes to the platform tenant — no subdomain dependency
+    const platformTenant = await this.tenantRepo.findOne({ where: { subdomain: 'platform' } });
+    if (!platformTenant) throw new Error('Platform tenant not configured');
+    const tenantId = platformTenant.id;
+
     // Check duplicate phone
     const existingPhone = await this.userRepo.findOne({
       where: { phoneNumber: dto.phoneNumber, tenantId },
@@ -94,7 +99,7 @@ export class AuthService {
         phoneNumber: dto.phoneNumber,
         fullName: dto.fullName,
         email: dto.email,
-        password: dto.password, // hashed by BeforeInsert hook
+        password: dto.password, // @BeforeInsert hook hashes this
         tenantId,
         role: UserRole.STUDENT,
         status: UserStatus.ACTIVE,
@@ -216,14 +221,8 @@ export class AuthService {
 
     const user = await this.userRepo.findOne({ where: whereClause });
 
-    // Validate password first (use same error to avoid user enumeration)
+    // Validate password (same error for both cases to avoid user enumeration)
     if (!user || !(await user.validatePassword(dto.password))) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    // Tenant security check — SUPER_ADMIN is on platform tenant, allow from anywhere
-    // All other roles must belong to the tenant making the request
-    if (user.role !== UserRole.SUPER_ADMIN && user.tenantId !== tenantId) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
