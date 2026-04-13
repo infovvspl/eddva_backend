@@ -8,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, Like, FindOptionsWhere, In } from 'typeorm';
 
-import { Subject, Chapter, Topic } from '../../database/entities/subject.entity';
+import { Subject, Chapter, Topic, TopicResource, ResourceType } from '../../database/entities/subject.entity';
 import {
     Question,
     QuestionOption,
@@ -80,6 +80,8 @@ export class ContentService {
         private readonly studyPlanRepo: Repository<StudyPlan>,
         @InjectRepository(PlanItem)
         private readonly planItemRepo: Repository<PlanItem>,
+        @InjectRepository(TopicResource)
+        private readonly topicResourceRepo: Repository<TopicResource>,
         private readonly dataSource: DataSource,
         private readonly aiBridgeService: AiBridgeService,
     ) { }
@@ -1429,6 +1431,71 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             passingMarks: Math.ceil(formatted.length * 4 * 0.7),
             questions: formatted,
         };
+    }
+
+    // ─── TOPIC RESOURCES ──────────────────────────────────────────────────────
+
+    async createTopicResource(
+        topicId: string,
+        data: {
+            uploadedBy: string;
+            type: ResourceType;
+            title: string;
+            fileUrl: string;
+            fileSizeKb?: number;
+            description?: string;
+            sortOrder?: number;
+        },
+        tenantId: string,
+    ): Promise<TopicResource> {
+        const topic = await this.topicRepo.findOne({ where: { id: topicId, tenantId } });
+        if (!topic) throw new NotFoundException(`Topic ${topicId} not found`);
+
+        const resource = this.topicResourceRepo.create({
+            tenantId,
+            topicId,
+            ...data,
+        });
+        return this.topicResourceRepo.save(resource);
+    }
+
+    async getTopicResources(topicId: string, tenantId: string): Promise<TopicResource[]> {
+        const topic = await this.topicRepo.findOne({ where: { id: topicId, tenantId } });
+        if (!topic) throw new NotFoundException(`Topic ${topicId} not found`);
+
+        return this.topicResourceRepo.find({
+            where: { topicId, tenantId, isActive: true },
+            order: { sortOrder: 'ASC', createdAt: 'ASC' },
+        });
+    }
+
+    async updateTopicResource(
+        resourceId: string,
+        data: Partial<Pick<TopicResource, 'title' | 'description' | 'sortOrder' | 'isActive'>>,
+        tenantId: string,
+    ): Promise<TopicResource> {
+        const resource = await this.topicResourceRepo.findOne({ where: { id: resourceId, tenantId } });
+        if (!resource) throw new NotFoundException(`Resource ${resourceId} not found`);
+
+        Object.assign(resource, data);
+        return this.topicResourceRepo.save(resource);
+    }
+
+    async deleteTopicResource(resourceId: string, tenantId: string): Promise<{ message: string }> {
+        const resource = await this.topicResourceRepo.findOne({ where: { id: resourceId, tenantId } });
+        if (!resource) throw new NotFoundException(`Resource ${resourceId} not found`);
+
+        await this.topicResourceRepo.softDelete(resourceId);
+        return { message: 'Resource deleted successfully' };
+    }
+
+    async updateBatchThumbnail(batchId: string, thumbnailUrl: string, tenantId: string): Promise<{ thumbnailUrl: string }> {
+        const batch = await this.batchRepo.findOne({ where: { id: batchId, tenantId } });
+        if (!batch) throw new NotFoundException(`Batch ${batchId} not found`);
+
+        batch.thumbnailUrl = thumbnailUrl;
+        await this.batchRepo.save(batch);
+        return { thumbnailUrl };
     }
 
     async completeAiQuiz(

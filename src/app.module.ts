@@ -14,7 +14,7 @@ import { dbConfig } from './config/database.config';
 import { Tenant } from './database/entities/tenant.entity';
 import { User } from './database/entities/user.entity';
 import { Student } from './database/entities/student.entity';
-import { Subject, Chapter, Topic } from './database/entities/subject.entity';
+import { Subject, Chapter, Topic, TopicResource } from './database/entities/subject.entity';
 import { Question, QuestionOption } from './database/entities/question.entity';
 import { Batch, BatchSubjectTeacher, Enrollment } from './database/entities/batch.entity';
 import {
@@ -64,7 +64,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 
 const ALL_ENTITIES = [
   Tenant, User, Student,
-  Subject, Chapter, Topic,
+  Subject, Chapter, Topic, TopicResource,
   Question, QuestionOption,
   Batch, BatchSubjectTeacher, Enrollment,
   MockTest, TestSession, QuestionAttempt, TopicProgress,
