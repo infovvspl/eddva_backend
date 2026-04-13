@@ -561,7 +561,15 @@ export class AuthService {
       ...(dto.email && { email: dto.email }),
       ...(dto.fcmToken && { fcmToken: dto.fcmToken }),
     });
+    if (dto.city !== undefined) {
+      await this.studentRepo.update({ userId }, { city: dto.city });
+    }
     return { message: 'Profile updated' };
+  }
+
+  async updateAvatar(userId: string, avatarUrl: string) {
+    await this.userRepo.update(userId, { profilePictureUrl: avatarUrl });
+    return { avatarUrl };
   }
 
   async getMe(userId: string) {

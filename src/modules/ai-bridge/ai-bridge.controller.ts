@@ -34,7 +34,7 @@ import {
  * These endpoints mirror what the domain modules (doubt, study-plan) do internally,
  * but are directly accessible for E2E testing before frontend integration.
  *
- * Flow: Frontend → NestJS (JWT auth) → Django AI (Bearer + X-Tenant-ID) → Groq LLM
+ * Flow: Frontend → NestJS (JWT auth) → Django AI (Bearer + X-Tenant-ID) → LLM
  *
  * All endpoints require JWT authentication. Most are STUDENT-only.
  * Teachers can access grading and engagement endpoints.

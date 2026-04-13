@@ -234,6 +234,11 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   fcmToken?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  city?: string;
 }
 
 export class TeacherOnboardingDto {
