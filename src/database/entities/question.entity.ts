@@ -1,7 +1,7 @@
 import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { Base } from './base.entity';
 import { Tenant } from './tenant.entity';
-import { Topic } from './subject.entity';
+import { Chapter, Subject, Topic } from './subject.entity';
 
 export enum QuestionType {
   MCQ_SINGLE = 'mcq_single',
@@ -32,10 +32,24 @@ export class Question extends Base {
   @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
 
-  @Column({ name: 'topic_id' })
+  @Column({ name: 'subject_id', nullable: true })
+  subjectId: string;
+
+  @ManyToOne(() => Subject, { nullable: true })
+  @JoinColumn({ name: 'subject_id' })
+  subject: Subject;
+
+  @Column({ name: 'chapter_id', nullable: true })
+  chapterId: string;
+
+  @ManyToOne(() => Chapter, { nullable: true })
+  @JoinColumn({ name: 'chapter_id' })
+  chapter: Chapter;
+
+  @Column({ name: 'topic_id', nullable: true })
   topicId: string;
 
-  @ManyToOne(() => Topic)
+  @ManyToOne(() => Topic, { nullable: true })
   @JoinColumn({ name: 'topic_id' })
   topic: Topic;
 

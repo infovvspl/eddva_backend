@@ -11,6 +11,7 @@ import { DataSource, In, Repository } from 'typeorm';
 import {
   ErrorType,
   MockTest,
+  MockTestScope,
   MockTestType,
   QuestionAttempt,
   TestSession,
@@ -82,13 +83,37 @@ export class AssessmentService {
 
   async createMockTest(dto: CreateMockTestDto, user: any, tenantId: string) {
     const schema = await this.getMockTestSchema();
-    const batch = await this.validateBatchAccess(dto.batchId, user, tenantId);
     const questions = await this.loadAndValidateQuestions(dto.questionIds, tenantId, dto.topicId);
+
+    // Determine scope and type automatically if not provided
+    const scope = dto.scope ?? this.inferScope(dto);
+    const type = dto.type ?? this.inferType(scope, dto);
+
+    let batchId: string | null = null;
+    if (dto.batchId) {
+      const batch = await this.validateBatchAccess(dto.batchId, user, tenantId);
+      batchId = batch.id;
+    }
+
+    // Validate scope targets exist
+    if (dto.subjectId) {
+      const subject = await this.subjectRepo.findOne({ where: { id: dto.subjectId, tenantId } });
+      if (!subject) throw new NotFoundException(`Subject ${dto.subjectId} not found`);
+    }
+    if (dto.chapterId) {
+      const chapter = await this.chapterRepo.findOne({ where: { id: dto.chapterId, tenantId } });
+      if (!chapter) throw new NotFoundException(`Chapter ${dto.chapterId} not found`);
+    }
+    if (dto.topicId) {
+      const topic = await this.topicRepo.findOne({ where: { id: dto.topicId, tenantId } });
+      if (!topic) throw new NotFoundException(`Topic ${dto.topicId} not found`);
+    }
 
     const mockTest = this.mockTestRepo.create({
       tenantId,
       title: dto.title,
-      type: dto.topicId ? MockTestType.CHAPTER_TEST : MockTestType.FULL_MOCK,
+      type,
+      scope,
       totalMarks: dto.totalMarks,
       durationMinutes: dto.durationMinutes,
       questionIds: questions.map((question) => question.id),
@@ -101,7 +126,7 @@ export class AssessmentService {
     await this.updateOptionalMockTestColumns(
       saved.id,
       {
-        batchId: batch.id,
+        batchId: batchId,
         topicId: dto.topicId ?? null,
         passingMarks: dto.passingMarks ?? null,
         isPublished: false,
@@ -112,7 +137,32 @@ export class AssessmentService {
       schema,
     );
 
+    // Set subject/chapter via direct query (always available columns)
+    if (dto.subjectId || dto.chapterId) {
+      await this.dataSource.query(
+        `UPDATE mock_tests SET subject_id = $1, chapter_id = $2 WHERE id = $3`,
+        [dto.subjectId ?? null, dto.chapterId ?? null, saved.id],
+      );
+    }
+
     return this.getMockTestById(saved.id, user, tenantId);
+  }
+
+  private inferScope(dto: CreateMockTestDto): MockTestScope {
+    if (dto.topicId) return MockTestScope.TOPIC;
+    if (dto.chapterId) return MockTestScope.CHAPTER;
+    if (dto.subjectId) return MockTestScope.SUBJECT;
+    return MockTestScope.BATCH;
+  }
+
+  private inferType(scope: MockTestScope, dto: CreateMockTestDto): MockTestType {
+    if (dto.type) return dto.type;
+    switch (scope) {
+      case MockTestScope.TOPIC:   return MockTestType.TOPIC_TEST;
+      case MockTestScope.CHAPTER: return MockTestType.CHAPTER_TEST;
+      case MockTestScope.SUBJECT: return MockTestType.SUBJECT_TEST;
+      default:                    return MockTestType.FULL_MOCK;
+    }
   }
 
   async getMockTests(query: MockTestListQueryDto, user: any, tenantId: string) {
@@ -127,9 +177,34 @@ export class AssessmentService {
     const params: any[] = [tenantId];
     let index = params.length + 1;
 
+    if (query.scope) {
+      filters.push(`mt.scope = $${index++}`);
+      params.push(query.scope);
+    }
+
     if (query.batchId && schema.batchId) {
       filters.push(`mt.batch_id = $${index++}`);
       params.push(query.batchId);
+    }
+
+    if (query.subjectId) {
+      filters.push(`mt.subject_id = $${index++}`);
+      params.push(query.subjectId);
+    }
+
+    if (query.chapterId) {
+      filters.push(`mt.chapter_id = $${index++}`);
+      params.push(query.chapterId);
+    }
+
+    if (query.topicId) {
+      filters.push(`mt.topic_id = $${index++}`);
+      params.push(query.topicId);
+    }
+
+    if (query.type) {
+      filters.push(`mt.type = $${index++}`);
+      params.push(query.type);
     }
 
     if (query.isPublished !== undefined && schema.isPublished) {
@@ -213,18 +288,21 @@ export class AssessmentService {
       await this.validateBatchAccess(dto.batchId, user, tenantId);
     }
 
+    const newScope = dto.scope ?? (
+      dto.topicId ? MockTestScope.TOPIC :
+      dto.chapterId ? MockTestScope.CHAPTER :
+      dto.subjectId ? MockTestScope.SUBJECT :
+      mockTest.scope
+    );
+
     Object.assign(mockTest, {
       title: dto.title ?? mockTest.title,
       totalMarks: dto.totalMarks ?? mockTest.totalMarks,
       durationMinutes: dto.durationMinutes ?? mockTest.durationMinutes,
       scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : mockTest.scheduledAt,
       questionIds,
-      type:
-        dto.topicId !== undefined
-          ? dto.topicId
-            ? MockTestType.CHAPTER_TEST
-            : MockTestType.FULL_MOCK
-          : mockTest.type,
+      scope: newScope,
+      type: dto.type ?? this.inferType(newScope, dto as any),
     });
 
     await this.mockTestRepo.save(mockTest);
@@ -241,6 +319,13 @@ export class AssessmentService {
       },
       schema,
     );
+
+    if (dto.subjectId !== undefined || dto.chapterId !== undefined) {
+      await this.dataSource.query(
+        `UPDATE mock_tests SET subject_id = COALESCE($1, subject_id), chapter_id = COALESCE($2, chapter_id) WHERE id = $3`,
+        [dto.subjectId ?? null, dto.chapterId ?? null, id],
+      );
+    }
 
     return this.getMockTestById(id, user, tenantId);
   }

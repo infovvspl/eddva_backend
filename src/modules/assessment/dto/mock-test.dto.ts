@@ -2,6 +2,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -10,11 +11,32 @@ import {
   Min,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { MockTestScope, MockTestType } from '../../../database/entities/assessment.entity';
 
 export class MockTestListQueryDto {
   @IsOptional()
+  @IsEnum(MockTestScope)
+  scope?: MockTestScope;
+
+  @IsOptional()
   @IsUUID()
   batchId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  subjectId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  chapterId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  topicId?: string;
+
+  @IsOptional()
+  @IsEnum(MockTestType)
+  type?: MockTestType;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
@@ -35,15 +57,32 @@ export class MockTestListQueryDto {
 }
 
 export class CreateMockTestDto {
+  @IsString()
+  title: string;
+
+  @IsEnum(MockTestType)
+  type: MockTestType;
+
+  @IsOptional()
+  @IsEnum(MockTestScope)
+  scope?: MockTestScope;
+
+  // Scope targets — at least one should be provided based on scope
+  @IsOptional()
   @IsUUID()
-  batchId: string;
+  batchId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  subjectId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  chapterId?: string;
 
   @IsOptional()
   @IsUUID()
   topicId?: string;
-
-  @IsString()
-  title: string;
 
   @Type(() => Number)
   @IsInt()
@@ -88,8 +127,20 @@ export class CreateMockTestDto {
 
 export class UpdateMockTestDto {
   @IsOptional()
+  @IsEnum(MockTestScope)
+  scope?: MockTestScope;
+
+  @IsOptional()
   @IsUUID()
   batchId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  subjectId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  chapterId?: string;
 
   @IsOptional()
   @IsUUID()
@@ -98,6 +149,10 @@ export class UpdateMockTestDto {
   @IsOptional()
   @IsString()
   title?: string;
+
+  @IsOptional()
+  @IsEnum(MockTestType)
+  type?: MockTestType;
 
   @IsOptional()
   @Type(() => Number)
