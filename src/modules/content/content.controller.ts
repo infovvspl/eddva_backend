@@ -532,4 +532,123 @@ export class ContentController {
     ) {
         return this.contentService.completeAiQuiz(topicId, dto, user.id, tenantId);
     }
+
+    // ─── TOPIC RESOURCES (PDF / DPP / QUIZ / NOTES) ───────────────────────────
+
+    @Post('topics/:topicId/resources/upload')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @ApiOperation({ summary: 'Upload a resource file (PDF, DPP, notes) for a topic' })
+    @ApiParam({ name: 'topicId', type: 'string' })
+    @UseInterceptors(
+        FileInterceptor('file', {
+            storage: diskStorage({
+                destination: (_req, _file, cb) => {
+                    const dir = join(process.cwd(), 'uploads', 'resources');
+                    mkdirSync(dir, { recursive: true });
+                    cb(null, dir);
+                },
+                filename: (_req, file, cb) => {
+                    const unique = randomBytes(8).toString('hex');
+                    cb(null, `${unique}${extname(file.originalname)}`);
+                },
+            }),
+            limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+            fileFilter: (_req, file, cb) => {
+                const allowed = ['.pdf', '.pptx', '.docx', '.xlsx', '.png', '.jpg', '.jpeg', '.mp4'];
+                const ext = extname(file.originalname).toLowerCase();
+                if (allowed.includes(ext)) cb(null, true);
+                else cb(new BadRequestException(`File type ${ext} not allowed`), false);
+            },
+        }),
+    )
+    uploadTopicResource(
+        @Param('topicId', ParseUUIDPipe) topicId: string,
+        @UploadedFile() file: Express.Multer.File,
+        @Body() body: { title: string; type: string; description?: string; sortOrder?: string },
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        if (!file) throw new BadRequestException('No file uploaded');
+        const fileUrl = `/uploads/resources/${file.filename}`;
+        return this.contentService.createTopicResource(topicId, {
+            title: body.title,
+            type: body.type as any,
+            description: body.description,
+            sortOrder: body.sortOrder ? parseInt(body.sortOrder) : 0,
+            fileUrl,
+            fileSizeKb: Math.round(file.size / 1024),
+            uploadedBy: user.id,
+        }, tenantId);
+    }
+
+    @Get('topics/:topicId/resources')
+    @ApiOperation({ summary: 'List all resources for a topic (PDF, DPP, quiz, notes)' })
+    @ApiParam({ name: 'topicId', type: 'string' })
+    getTopicResources(
+        @Param('topicId', ParseUUIDPipe) topicId: string,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.getTopicResources(topicId, tenantId);
+    }
+
+    @Patch('topics/:topicId/resources/:resourceId')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @ApiOperation({ summary: 'Update a topic resource (title, description, sortOrder)' })
+    updateTopicResource(
+        @Param('topicId', ParseUUIDPipe) topicId: string,
+        @Param('resourceId', ParseUUIDPipe) resourceId: string,
+        @Body() body: { title?: string; description?: string; sortOrder?: number; isActive?: boolean },
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.updateTopicResource(resourceId, body, tenantId);
+    }
+
+    @Delete('topics/:topicId/resources/:resourceId')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Delete a topic resource' })
+    deleteTopicResource(
+        @Param('resourceId', ParseUUIDPipe) resourceId: string,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.deleteTopicResource(resourceId, tenantId);
+    }
+
+    // ─── BATCH THUMBNAIL ──────────────────────────────────────────────────────
+
+    @Post('batches/:batchId/thumbnail')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @ApiOperation({ summary: 'Upload a thumbnail image for a batch/course' })
+    @ApiParam({ name: 'batchId', type: 'string' })
+    @UseInterceptors(
+        FileInterceptor('file', {
+            storage: diskStorage({
+                destination: (_req, _file, cb) => {
+                    const dir = join(process.cwd(), 'uploads', 'thumbnails');
+                    mkdirSync(dir, { recursive: true });
+                    cb(null, dir);
+                },
+                filename: (_req, file, cb) => {
+                    const unique = randomBytes(8).toString('hex');
+                    cb(null, `${unique}${extname(file.originalname)}`);
+                },
+            }),
+            limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+            fileFilter: (_req, file, cb) => {
+                const allowed = ['.png', '.jpg', '.jpeg', '.webp'];
+                const ext = extname(file.originalname).toLowerCase();
+                if (allowed.includes(ext)) cb(null, true);
+                else cb(new BadRequestException('Only image files allowed for thumbnails'), false);
+            },
+        }),
+    )
+    uploadBatchThumbnail(
+        @Param('batchId', ParseUUIDPipe) batchId: string,
+        @UploadedFile() file: Express.Multer.File,
+        @TenantId() tenantId: string,
+    ) {
+        if (!file) throw new BadRequestException('No file uploaded');
+        const thumbnailUrl = `/uploads/thumbnails/${file.filename}`;
+        return this.contentService.updateBatchThumbnail(batchId, thumbnailUrl, tenantId);
+    }
 }

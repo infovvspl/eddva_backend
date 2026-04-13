@@ -104,6 +104,11 @@ export class UpdateBatchDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
 }
 
 export class BatchListQueryDto {

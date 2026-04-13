@@ -51,6 +51,9 @@ export class Batch extends Base {
   @Column({ name: 'end_date', type: 'date', nullable: true })
   endDate: string;
 
+  @Column({ name: 'thumbnail_url', nullable: true })
+  thumbnailUrl: string;
+
   @Column({ type: 'jsonb', nullable: true, default: {} })
   metadata: Record<string, any>;
 }
