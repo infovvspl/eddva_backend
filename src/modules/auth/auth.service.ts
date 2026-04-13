@@ -35,6 +35,7 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
   TeacherOnboardingDto,
+  StudentRegisterDto,
 } from './dto/auth.dto';
 import { MailService } from '../mail/mail.service';
 
@@ -68,6 +69,68 @@ export class AuthService {
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly mailService: MailService,
   ) {}
+
+  // ── Student Self-Registration ─────────────────────────────────────────────
+
+  async registerStudent(dto: StudentRegisterDto, tenantId: string) {
+    // Check duplicate phone
+    const existingPhone = await this.userRepo.findOne({
+      where: { phoneNumber: dto.phoneNumber, tenantId },
+    });
+    if (existingPhone) {
+      throw new ConflictException('An account with this phone number already exists');
+    }
+
+    // Check duplicate email
+    const existingEmail = await this.userRepo.findOne({
+      where: { email: dto.email, tenantId },
+    });
+    if (existingEmail) {
+      throw new ConflictException('An account with this email already exists');
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const user = manager.create(User, {
+        phoneNumber: dto.phoneNumber,
+        fullName: dto.fullName,
+        email: dto.email,
+        password: dto.password, // hashed by BeforeInsert hook
+        tenantId,
+        role: UserRole.STUDENT,
+        status: UserStatus.ACTIVE,
+        phoneVerified: false,
+        isFirstLogin: false,
+      });
+      const savedUser = await manager.save(user);
+
+      const student = manager.create(Student, {
+        userId: savedUser.id,
+        tenantId,
+        careOf: dto.careOf,
+        alternatePhoneNumber: dto.alternatePhoneNumber,
+        address: dto.address,
+        postOffice: dto.postOffice,
+        city: dto.city,
+        landmark: dto.landmark,
+        state: dto.state,
+        pinCode: dto.pinCode,
+        onboardingComplete: false,
+      });
+      await manager.save(student);
+
+      const tokens = await this.generateTokens(savedUser);
+      await savedUser.hashRefreshToken(tokens.refreshToken);
+      await manager.save(savedUser);
+
+      return {
+        ...tokens,
+        user: this.sanitizeUser(savedUser),
+        isNewUser: true,
+        onboardingRequired: true,
+        message: 'Registration successful. Please complete your academic profile.',
+      };
+    });
+  }
 
   // ── OTP ──────────────────────────────────────────────────────────────────
 
@@ -143,7 +206,8 @@ export class AuthService {
       throw new BadRequestException('Either email or phone number is required');
     }
 
-    const whereClause: any = { tenantId };
+    // Find user globally by email or phone
+    const whereClause: any = {};
     if (dto.email) {
       whereClause.email = dto.email;
     } else {
@@ -152,7 +216,14 @@ export class AuthService {
 
     const user = await this.userRepo.findOne({ where: whereClause });
 
+    // Validate password first (use same error to avoid user enumeration)
     if (!user || !(await user.validatePassword(dto.password))) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Tenant security check — SUPER_ADMIN is on platform tenant, allow from anywhere
+    // All other roles must belong to the tenant making the request
+    if (user.role !== UserRole.SUPER_ADMIN && user.tenantId !== tenantId) {
       throw new UnauthorizedException('Invalid credentials');
     }
 

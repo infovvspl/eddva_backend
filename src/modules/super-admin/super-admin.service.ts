@@ -11,6 +11,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { DataSource, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
+import * as bcrypt from 'bcryptjs';
 
 import { NotificationService } from '../notification/notification.service';
 import { Batch, Enrollment } from '../../database/entities/batch.entity';
@@ -73,6 +74,7 @@ export class SuperAdminService {
     }
 
     const tempPassword = this.generateTempPassword();
+    const hashedPassword = await bcrypt.hash(tempPassword, 12);
     const trialDays = dto.trialDays ?? 14;
 
     const result = await this.dataSource.transaction(async (manager) => {
@@ -95,7 +97,7 @@ export class SuperAdminService {
           tenantId: tenant.id,
           phoneNumber: dto.adminPhone,
           fullName: `${dto.name} Admin`,
-          password: tempPassword,
+          password: hashedPassword, // pre-hashed — @BeforeInsert doesn't fire inside transactions
           role: UserRole.INSTITUTE_ADMIN,
           status: UserStatus.ACTIVE,
           isFirstLogin: true,
