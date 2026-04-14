@@ -79,6 +79,11 @@ export class BatchService {
       await this.validateTeacher(dto.teacherId, tenantId);
     }
 
+    const isPaid = dto.isPaid ?? false;
+    if (isPaid && (!dto.feeAmount || dto.feeAmount <= 0)) {
+      throw new BadRequestException('Fee amount is required and must be greater than 0 for paid batches.');
+    }
+
     const batch = this.batchRepo.create({
       tenantId,
       name: dto.name,
@@ -86,7 +91,9 @@ export class BatchService {
       class: dto.class,
       teacherId: dto.teacherId ?? null,
       maxStudents: dto.maxStudents ?? 60,
-      feeAmount: dto.feeAmount ?? null,
+      isPaid,
+      feeAmount: isPaid ? dto.feeAmount : null,
+      platformFeePercent: 20,
       startDate: dto.startDate ?? null,
       endDate: dto.endDate ?? null,
       status: BatchStatus.ACTIVE,
@@ -159,7 +166,20 @@ export class BatchService {
       await this.validateTeacher(dto.teacherId, tenantId);
     }
 
-    Object.assign(batch, dto);
+    // If changing to paid, ensure feeAmount is set
+    const becomingPaid = dto.isPaid === true;
+    if (becomingPaid && (!dto.feeAmount && !batch.feeAmount)) {
+      throw new BadRequestException('Fee amount is required and must be greater than 0 for paid batches.');
+    }
+    // If switching to free, clear feeAmount
+    if (dto.isPaid === false) {
+      batch.feeAmount = null;
+    }
+
+    Object.assign(batch, {
+      ...dto,
+      feeAmount: dto.isPaid === false ? null : (dto.feeAmount ?? batch.feeAmount),
+    });
     return this.batchRepo.save(batch);
   }
 
