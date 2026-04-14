@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
+import { CurrentUser, Public, TenantId } from '../../common/decorators/auth.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -248,6 +248,13 @@ export class BatchController {
     @TenantId() tenantId: string,
   ) {
     return this.batchService.generateInviteLink(id, tenantId);
+  }
+
+  @Get('join/preview')
+  @Public()
+  @ApiOperation({ summary: 'Get batch preview from invite token (no auth required)' })
+  getBatchPreview(@Query('token') token: string, @TenantId() tenantId: string) {
+    return this.batchService.getBatchPreviewByToken(token, tenantId);
   }
 
   @Post('join')
