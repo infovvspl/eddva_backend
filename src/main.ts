@@ -16,6 +16,7 @@ async function bootstrap() {
   // ── Static file serving for uploads ───────────────────────────────────────
   mkdirSync(join(__dirname, '..', 'uploads', 'avatars'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'videos'), { recursive: true });
+  mkdirSync(join(__dirname, '..', 'uploads', 'thumbnails'), { recursive: true });
   app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
 
   const cfg = app.get(ConfigService);

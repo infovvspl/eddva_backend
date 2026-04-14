@@ -21,6 +21,11 @@ export class CreateBatchDto {
   @IsString()
   name: string;
 
+  @ApiPropertyOptional({ description: 'Course description / what students will learn' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
   @ApiProperty({ enum: ExamTarget })
   @IsEnum(ExamTarget)
   examTarget: ExamTarget;
@@ -69,6 +74,11 @@ export class UpdateBatchDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @ApiPropertyOptional({ description: 'Course description / what students will learn' })
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiPropertyOptional({ enum: ExamTarget })
   @IsOptional()

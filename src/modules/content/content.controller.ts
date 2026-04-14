@@ -581,6 +581,26 @@ export class ContentController {
         }, tenantId);
     }
 
+    @Post('topics/:topicId/resources/link')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @ApiOperation({ summary: 'Add a URL-based resource (YouTube link, external PDF, etc.) for a topic' })
+    @ApiParam({ name: 'topicId', type: 'string' })
+    addTopicResourceLink(
+        @Param('topicId', ParseUUIDPipe) topicId: string,
+        @Body() body: { title: string; type: string; externalUrl: string; description?: string; sortOrder?: number },
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.createTopicResourceByUrl(topicId, {
+            title: body.title,
+            type: body.type as any,
+            externalUrl: body.externalUrl,
+            description: body.description,
+            sortOrder: body.sortOrder ?? 0,
+            uploadedBy: user.id,
+        }, tenantId);
+    }
+
     @Get('topics/:topicId/resources')
     @ApiOperation({ summary: 'List all resources for a topic (PDF, DPP, quiz, notes)' })
     @ApiParam({ name: 'topicId', type: 'string' })
