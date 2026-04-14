@@ -20,6 +20,11 @@ export class CreateSubjectDto {
     @IsEnum(ExamTarget)
     examTarget: ExamTarget;
 
+    @ApiPropertyOptional({ description: 'Batch/Course this subject belongs to' })
+    @IsOptional()
+    @IsString()
+    batchId?: string;
+
     @ApiPropertyOptional({ example: 'atom-icon' })
     @IsOptional()
     @IsString()
