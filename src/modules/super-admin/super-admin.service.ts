@@ -13,7 +13,7 @@ import { DataSource, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 
 import { NotificationService } from '../notification/notification.service';
-import { Batch, Enrollment } from '../../database/entities/batch.entity';
+import { Batch } from '../../database/entities/batch.entity';
 import { TestSession } from '../../database/entities/assessment.entity';
 import { Lecture } from '../../database/entities/learning.entity';
 import { Student } from '../../database/entities/student.entity';
@@ -56,8 +56,6 @@ export class SuperAdminService {
     private readonly lectureRepo: Repository<Lecture>,
     @InjectRepository(TestSession)
     private readonly sessionRepo: Repository<TestSession>,
-    @InjectRepository(Enrollment)
-    private readonly enrollmentRepo: Repository<Enrollment>,
     @InjectRepository(Announcement)
     private readonly announcementRepo: Repository<Announcement>,
     private readonly notificationService: NotificationService,
@@ -339,6 +337,121 @@ export class SuperAdminService {
     if (!announcement) throw new NotFoundException(`Announcement ${id} not found`);
     await this.announcementRepo.softDelete(id);
     return { message: 'Announcement deleted successfully' };
+  }
+
+  // ── Course Enrollments (who bought which course) ──────────────────────
+
+  async getCourseEnrollments(query: {
+    tenantId?: string;
+    batchId?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) {
+    const page  = Math.max(1, query.page  ?? 1);
+    const limit = Math.min(100, query.limit ?? 20);
+    const offset = (page - 1) * limit;
+
+    const filters: string[] = ['e.deleted_at IS NULL'];
+    const params: any[] = [];
+    let idx = 1;
+
+    if (query.tenantId) {
+      filters.push(`e.tenant_id = $${idx++}`);
+      params.push(query.tenantId);
+    }
+
+    if (query.batchId) {
+      filters.push(`e.batch_id = $${idx++}`);
+      params.push(query.batchId);
+    }
+
+    if (query.search) {
+      filters.push(`(
+        LOWER(u.full_name) LIKE LOWER($${idx}) OR
+        LOWER(u.email) LIKE LOWER($${idx}) OR
+        u.phone_number LIKE $${idx}
+      )`);
+      params.push(`%${query.search}%`);
+      idx++;
+    }
+
+    const where = filters.join(' AND ');
+
+    const rows = await this.dataSource.query(`
+      SELECT
+        e.id              AS enrollment_id,
+        e.status          AS enrollment_status,
+        e.enrolled_at,
+        e.fee_paid,
+        e.fee_paid_at,
+
+        s.id              AS student_id,
+        u.full_name       AS student_name,
+        u.email           AS student_email,
+        u.phone_number    AS student_phone,
+        s.care_of         AS care_of,
+        s.city            AS city,
+        s.state           AS state,
+        s.pin_code        AS pin_code,
+
+        b.id              AS batch_id,
+        b.name            AS batch_name,
+        b.exam_target     AS exam_target,
+        b.fee_amount      AS batch_fee,
+        b.start_date      AS batch_start_date,
+        b.end_date        AS batch_end_date,
+
+        t.id              AS tenant_id,
+        t.name            AS institute_name,
+        t.subdomain       AS institute_subdomain
+      FROM enrollments e
+      JOIN students   s ON s.id       = e.student_id
+      JOIN users      u ON u.id       = s.user_id
+      JOIN batches    b ON b.id       = e.batch_id
+      JOIN tenants    t ON t.id       = e.tenant_id
+      WHERE ${where}
+      ORDER BY e.enrolled_at DESC
+      LIMIT $${idx++} OFFSET $${idx++}
+    `, [...params, limit, offset]);
+
+    const countResult = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS total
+       FROM enrollments e
+       JOIN students s ON s.id = e.student_id
+       JOIN users    u ON u.id = s.user_id
+       JOIN batches  b ON b.id = e.batch_id
+       JOIN tenants  t ON t.id = e.tenant_id
+       WHERE ${where}`,
+      params,
+    );
+
+    const total = countResult[0]?.total ?? 0;
+
+    // Summary revenue per batch
+    const revenueSummary = await this.dataSource.query(`
+      SELECT
+        b.id   AS batch_id,
+        b.name AS batch_name,
+        t.name AS institute_name,
+        COUNT(e.id)::int                             AS total_enrollments,
+        SUM(e.fee_paid)::numeric                     AS total_revenue,
+        COUNT(CASE WHEN e.fee_paid > 0 THEN 1 END)::int AS paid_count
+      FROM enrollments e
+      JOIN batches b ON b.id = e.batch_id
+      JOIN tenants t ON t.id = e.tenant_id
+      WHERE e.deleted_at IS NULL
+        ${query.tenantId ? `AND e.tenant_id = '${query.tenantId}'` : ''}
+        ${query.batchId  ? `AND e.batch_id  = '${query.batchId}'`  : ''}
+      GROUP BY b.id, b.name, t.name
+      ORDER BY total_revenue DESC NULLS LAST
+    `);
+
+    return {
+      data: rows,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      revenueSummary,
+    };
   }
 
   // ── Onboarding OTP (verify-only, no user creation) ────────────────────

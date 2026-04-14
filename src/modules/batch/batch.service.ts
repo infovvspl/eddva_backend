@@ -87,6 +87,7 @@ export class BatchService {
     const batch = this.batchRepo.create({
       tenantId,
       name: dto.name,
+      description: dto.description ?? null,
       examTarget: dto.examTarget,
       class: dto.class,
       teacherId: dto.teacherId ?? null,
@@ -848,6 +849,29 @@ export class BatchService {
     };
   }
 
+  async getBatchPreviewByToken(token: string, tenantId: string) {
+    const payload = await this.cacheManager.get<{ batchId: string; tenantId: string }>(`batch-invite:${token}`);
+    if (!payload || payload.tenantId !== tenantId) {
+      throw new BadRequestException('Invalid or expired invite link');
+    }
+    const batch = await this.getBatchOrThrow(payload.batchId, tenantId);
+    const enrolled = await this.enrollmentRepo.count({ where: { batchId: batch.id, tenantId, status: EnrollmentStatus.ACTIVE } });
+    return {
+      id: batch.id,
+      name: batch.name,
+      description: batch.description,
+      examTarget: batch.examTarget,
+      class: batch.class,
+      isPaid: batch.isPaid,
+      feeAmount: batch.feeAmount,
+      thumbnailUrl: batch.thumbnailUrl,
+      maxStudents: batch.maxStudents,
+      enrolledCount: enrolled,
+      startDate: batch.startDate,
+      endDate: batch.endDate,
+    };
+  }
+
   async joinBatchByToken(token: string, userId: string, tenantId: string) {
     const payload = await this.cacheManager.get<{ batchId: string; tenantId: string }>(`batch-invite:${token}`);
     if (!payload || payload.tenantId !== tenantId) {
@@ -855,8 +879,17 @@ export class BatchService {
     }
 
     const student = await this.getStudentByUserId(userId, tenantId);
+
+    // Gracefully handle already-enrolled case so the same link can be used by multiple students
+    const existing = await this.enrollmentRepo.findOne({
+      where: { tenantId, batchId: payload.batchId, studentId: student.id, status: EnrollmentStatus.ACTIVE },
+    });
+    if (existing) {
+      return { message: 'You are already enrolled in this batch' };
+    }
+
     await this.enrollStudent(payload.batchId, { studentId: student.id }, tenantId);
-    await this.cacheManager.del(`batch-invite:${token}`);
+    // Token is NOT deleted — link is multi-use (valid for 7 days)
     return { message: 'Joined batch successfully' };
   }
 

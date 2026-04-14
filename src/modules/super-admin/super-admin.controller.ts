@@ -114,6 +114,24 @@ export class SuperAdminController {
     return this.superAdminService.deleteAnnouncement(id);
   }
 
+  @Get('enrollments')
+  @ApiOperation({ summary: 'Get all students who enrolled/bought courses, with revenue summary' })
+  getCourseEnrollments(
+    @Query('tenantId') tenantId?: string,
+    @Query('batchId') batchId?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.superAdminService.getCourseEnrollments({
+      tenantId,
+      batchId,
+      search,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 20,
+    });
+  }
+
   @Post('otp/send')
   @ApiOperation({ summary: 'Send OTP for phone verification during onboarding' })
   sendOnboardingOtp(@Body() dto: { phoneNumber: string }) {
