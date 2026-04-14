@@ -23,6 +23,9 @@ export class Batch extends Base {
   @Column()
   name: string; // "JEE 2026 Batch A"
 
+  @Column({ type: 'text', nullable: true })
+  description: string;
+
   @Column({ name: 'exam_target', type: 'enum', enum: ExamTarget })
   examTarget: ExamTarget;
 

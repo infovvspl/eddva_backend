@@ -90,7 +90,7 @@ export class ContentService {
 
     async createSubject(dto: CreateSubjectDto, tenantId: string): Promise<Subject> {
         this.logger.log(`Creating subject for tenant ${tenantId}`);
-        const subject = this.subjectRepo.create({ ...dto, tenantId });
+        const subject = this.subjectRepo.create({ ...dto, tenantId, batchId: dto.batchId ?? null });
         return this.subjectRepo.save(subject);
     }
 
@@ -98,8 +98,17 @@ export class ContentService {
         const where: FindOptionsWhere<Subject> = { tenantId, isActive: true };
         if (query.examTarget) where.examTarget = query.examTarget;
 
-        // When a batchId is given, restrict to only subjects assigned to that batch.
+        // When a batchId is given, return subjects that directly belong to that batch
         if (query.batchId) {
+            return this.subjectRepo.find({
+                where: { tenantId, isActive: true, batchId: query.batchId },
+                relations: ['chapters', 'chapters.topics'],
+                order: { sortOrder: 'ASC', name: 'ASC' },
+            });
+        }
+
+        // Legacy path — assignments table (kept for backwards compat)
+        if (false && query.batchId) {
             const assignments = await this.batchSubjectTeacherRepo.find({
                 where: { batchId: query.batchId },
                 select: ['subjectName'],
@@ -1441,7 +1450,8 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             uploadedBy: string;
             type: ResourceType;
             title: string;
-            fileUrl: string;
+            fileUrl?: string | null;
+            externalUrl?: string | null;
             fileSizeKb?: number;
             description?: string;
             sortOrder?: number;
@@ -1454,6 +1464,33 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         const resource = this.topicResourceRepo.create({
             tenantId,
             topicId,
+            ...data,
+            fileUrl: data.fileUrl ?? null,
+            externalUrl: data.externalUrl ?? null,
+        });
+        return this.topicResourceRepo.save(resource);
+    }
+
+    async createTopicResourceByUrl(
+        topicId: string,
+        data: {
+            uploadedBy: string;
+            type: ResourceType;
+            title: string;
+            externalUrl: string;
+            description?: string;
+            sortOrder?: number;
+        },
+        tenantId: string,
+    ): Promise<TopicResource> {
+        if (!data.externalUrl?.trim()) throw new BadRequestException('externalUrl is required');
+        const topic = await this.topicRepo.findOne({ where: { id: topicId, tenantId } });
+        if (!topic) throw new NotFoundException(`Topic ${topicId} not found`);
+
+        const resource = this.topicResourceRepo.create({
+            tenantId,
+            topicId,
+            fileUrl: null,
             ...data,
         });
         return this.topicResourceRepo.save(resource);

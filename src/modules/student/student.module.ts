@@ -8,7 +8,10 @@ import {
   WeakTopic,
   LeaderboardEntry,
 } from '../../database/entities/analytics.entity';
-import { StudyPlan, PlanItem } from '../../database/entities/learning.entity';
+import { Lecture, LectureProgress, StudyPlan, PlanItem } from '../../database/entities/learning.entity';
+import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
+import { Subject, Chapter, Topic, TopicResource } from '../../database/entities/subject.entity';
+import { TopicProgress } from '../../database/entities/assessment.entity';
 
 @Module({
   imports: [
@@ -19,6 +22,16 @@ import { StudyPlan, PlanItem } from '../../database/entities/learning.entity';
       LeaderboardEntry,
       StudyPlan,
       PlanItem,
+      Batch,
+      Enrollment,
+      BatchSubjectTeacher,
+      Subject,
+      Chapter,
+      Topic,
+      TopicResource,
+      TopicProgress,
+      Lecture,
+      LectureProgress,
     ]),
   ],
   controllers: [StudentController],
