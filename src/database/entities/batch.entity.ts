@@ -39,8 +39,15 @@ export class Batch extends Base {
   @Column({ name: 'max_students', default: 60 })
   maxStudents: number;
 
+  @Column({ name: 'is_paid', default: false })
+  isPaid: boolean;
+
   @Column({ name: 'fee_amount', type: 'decimal', precision: 10, scale: 2, nullable: true })
   feeAmount: number;
+
+  // Revenue split: 20% platform fee, 80% to institute admin
+  @Column({ name: 'platform_fee_percent', type: 'decimal', precision: 5, scale: 2, default: 20 })
+  platformFeePercent: number;
 
   @Column({ type: 'enum', enum: BatchStatus, default: BatchStatus.ACTIVE })
   status: BatchStatus;

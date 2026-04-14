@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -8,6 +9,7 @@ import {
   IsString,
   IsUUID,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -39,10 +41,16 @@ export class CreateBatchDto {
   @Min(1)
   maxStudents?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Whether this batch requires payment to enroll' })
   @IsOptional()
-  @Type(() => Number)
+  @IsBoolean()
+  isPaid?: boolean;
+
+  @ApiPropertyOptional({ description: 'Fee amount in INR. Required when isPaid is true.' })
+  @ValidateIf(o => o.isPaid === true)
   @IsNumber()
+  @Min(1)
+  @Type(() => Number)
   feeAmount?: number;
 
   @ApiPropertyOptional()
@@ -84,10 +92,16 @@ export class UpdateBatchDto {
   @Min(1)
   maxStudents?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Whether this batch requires payment to enroll' })
+  @IsOptional()
+  @IsBoolean()
+  isPaid?: boolean;
+
+  @ApiPropertyOptional({ description: 'Fee amount in INR. Required when isPaid is true.' })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(1)
   feeAmount?: number;
 
   @ApiPropertyOptional({ enum: BatchStatus })
