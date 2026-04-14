@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"entity.ts$\")",
+      "Bash(find \"c:\\\\Users\\\\subha\\\\Desktop\\\\eddva_backend\\\\src\\\\modules\\\\batch\" -type f -name \"*.ts\" -exec basename {} \\\\;)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\lib\\api",
+      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\pages\\admin"
+    ]
+  }
+}
