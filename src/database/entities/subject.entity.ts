@@ -3,9 +3,11 @@ import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 export enum ResourceType {
   PDF      = 'pdf',
   DPP      = 'dpp',
+  PYQ      = 'pyq',
   QUIZ     = 'quiz',
   NOTES    = 'notes',
   VIDEO    = 'video',
+  LINK     = 'link',
 }
 import { Base } from './base.entity';
 import { Tenant } from './tenant.entity';
@@ -20,6 +22,9 @@ export class Subject extends Base {
   @ManyToOne(() => Tenant)
   @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
+
+  @Column({ name: 'batch_id', nullable: true })
+  batchId: string | null;
 
   @Column()
   name: string; // Physics, Chemistry, Mathematics, Biology
@@ -140,13 +145,16 @@ export class TopicResource extends Base {
   uploadedBy: string; // userId of institute admin
 
   @Column({ type: 'enum', enum: ResourceType })
-  type: ResourceType; // pdf | dpp | quiz | notes | video
+  type: ResourceType; // pdf | dpp | pyq | quiz | notes | video | link
 
   @Column()
   title: string; // e.g. "DPP - Newton's Laws Set 1"
 
-  @Column({ name: 'file_url' })
-  fileUrl: string; // S3 / local path
+  @Column({ name: 'file_url', nullable: true })
+  fileUrl: string | null; // S3 / local path (null for URL-only resources)
+
+  @Column({ name: 'external_url', nullable: true })
+  externalUrl: string | null; // YouTube link or any external URL
 
   @Column({ name: 'file_size_kb', nullable: true })
   fileSizeKb: number;
