@@ -12,6 +12,10 @@ export const dbConfig: DataSourceOptions = {
   database: process.env.DB_NAME || 'apexiq',
   synchronize: false,
   logging: process.env.NODE_ENV === 'development',
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  extra: {
+    family: 4, // Force IPv4 — Supabase host resolves to IPv6 only by default
+  },
   entities: [__dirname + '/../database/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
   migrationsTableName: 'migrations',
