@@ -74,6 +74,9 @@ export class LiveClassService {
       if (lecture.teacherId !== userId) {
         throw new ForbiddenException('Only the assigned teacher can access host credentials');
       }
+    } else if (userRole === UserRole.INSTITUTE_ADMIN) {
+      // Institute admins are hosts for any lecture in their tenant — no ownership check needed
+      tokenRole = 'host';
     } else if (userRole === UserRole.STUDENT) {
       await this.assertStudentEnrollment(lecture, userId, tenantId);
       tokenRole = 'audience';
@@ -94,8 +97,8 @@ export class LiveClassService {
     };
   }
 
-  async startClass(lectureId: string, teacherId: string, tenantId: string) {
-    const lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId);
+  async startClass(lectureId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
+    const lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId, userRole);
     if (![LectureStatus.SCHEDULED, LectureStatus.DRAFT].includes(lecture.status)) {
       throw new BadRequestException('Class can only be started from scheduled or draft state');
     }
@@ -153,8 +156,8 @@ export class LiveClassService {
     };
   }
 
-  async endClass(lectureId: string, teacherId: string, tenantId: string) {
-    const lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId);
+  async endClass(lectureId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
+    const lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId, userRole);
     const session = await this.findSessionByLectureOrThrow(lectureId, tenantId);
 
     if (session.status !== LiveSessionStatus.LIVE) {
@@ -551,12 +554,13 @@ export class LiveClassService {
     return lecture;
   }
 
-  private async getOwnedLiveLecture(lectureId: string, teacherId: string, tenantId: string) {
+  private async getOwnedLiveLecture(lectureId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
     const lecture = await this.getLectureOrThrow(lectureId, tenantId);
     if (lecture.type !== LectureType.LIVE) {
       throw new BadRequestException('Not a live lecture');
     }
-    if (lecture.teacherId !== teacherId) {
+    // Institute admins can manage any lecture in their tenant
+    if (userRole !== UserRole.INSTITUTE_ADMIN && lecture.teacherId !== teacherId) {
       throw new ForbiddenException('Only the assigned teacher can manage this class');
     }
     return lecture;

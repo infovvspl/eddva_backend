@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { StudentService } from './student.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -101,8 +101,30 @@ export class StudentController {
 
   @Get('discover-batches')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Discover available batches matching student preferences — shown on first login modal' })
+  @ApiOperation({ summary: 'Discover all available batches across all institutes — shown on first login' })
   discoverBatches(@CurrentUser() user: any, @TenantId() tenantId: string) {
     return this.studentService.discoverBatches(user.id, tenantId);
+  }
+
+  @Post('enroll/:batchId')
+  @Roles(UserRole.STUDENT)
+  @ApiParam({ name: 'batchId', type: 'string' })
+  @ApiOperation({ summary: 'Self-enroll in a batch (cross-institute)' })
+  enrollInBatch(
+    @Param('batchId', ParseUUIDPipe) batchId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.studentService.enrollInBatch(user.id, batchId);
+  }
+
+  @Get('batches/:batchId')
+  @Roles(UserRole.STUDENT)
+  @ApiParam({ name: 'batchId', type: 'string' })
+  @ApiOperation({ summary: 'Public batch preview — no enrollment required' })
+  getBatchPreview(
+    @Param('batchId', ParseUUIDPipe) batchId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.studentService.getBatchPreview(batchId, user.id);
   }
 }
