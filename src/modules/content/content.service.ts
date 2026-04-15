@@ -32,6 +32,7 @@ import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto } from './dto/a
 import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subject.dto';
 import { CreateChapterDto, UpdateChapterDto } from './dto/chapter.dto';
 import { CreateTopicDto, UpdateTopicDto } from './dto/topic.dto';
+import { BulkImportCurriculumDto } from './dto/bulk-import.dto';
 import {
     CreateQuestionDto,
     UpdateQuestionDto,
@@ -155,6 +156,130 @@ export class ContentService {
         if (!subject) throw new NotFoundException(`Subject ${id} not found`);
         await this.subjectRepo.softDelete(id);
         return { message: 'Subject deleted successfully' };
+    }
+
+    // ─── BULK CURRICULUM IMPORT ───────────────────────────────────────────────
+
+    async bulkImportCurriculum(dto: BulkImportCurriculumDto, tenantId: string) {
+        const { batchId, examTarget, subjects } = dto;
+
+        // Verify batch belongs to this tenant
+        const batch = await this.batchRepo.findOne({ where: { id: batchId, tenantId } });
+        if (!batch) throw new NotFoundException(`Batch ${batchId} not found`);
+
+        const resolvedExamTarget = (examTarget ?? batch.examTarget) as any;
+
+        const stats = { subjects: 0, chapters: 0, topics: 0 };
+        const skipped = { subjects: 0, chapters: 0, topics: 0 };
+        const result: {
+            id: string; name: string;
+            chapters: { id: string; name: string; topics: { id: string; name: string }[] }[];
+        }[] = [];
+
+        await this.dataSource.transaction(async manager => {
+            for (let si = 0; si < subjects.length; si++) {
+                const sDef = subjects[si];
+
+                // Upsert subject — match by name + batchId
+                let subject = await manager.findOne(Subject, {
+                    where: { tenantId, batchId, isActive: true, name: sDef.name },
+                });
+                if (!subject) {
+                    subject = manager.create(Subject, {
+                        name: sDef.name,
+                        tenantId,
+                        batchId,
+                        examTarget: resolvedExamTarget,
+                        colorCode: sDef.colorCode ?? null,
+                        sortOrder: si,
+                        isActive: true,
+                    });
+                    subject = await manager.save(Subject, subject);
+                    stats.subjects++;
+                } else {
+                    skipped.subjects++;
+                    if (sDef.colorCode) {
+                        subject.colorCode = sDef.colorCode;
+                        await manager.save(Subject, subject);
+                    }
+                }
+
+                const subjectOut: typeof result[number] = { id: subject.id, name: subject.name, chapters: [] };
+
+                for (let ci = 0; ci < sDef.chapters.length; ci++) {
+                    const cDef = sDef.chapters[ci];
+
+                    // Upsert chapter — match by name + subjectId
+                    let chapter = await manager.findOne(Chapter, {
+                        where: { tenantId, subjectId: subject.id, isActive: true, name: cDef.name },
+                    });
+                    if (!chapter) {
+                        chapter = manager.create(Chapter, {
+                            name: cDef.name,
+                            tenantId,
+                            subjectId: subject.id,
+                            jeeWeightage:  cDef.jeeWeightage  ?? 0,
+                            neetWeightage: cDef.neetWeightage ?? 0,
+                            sortOrder: ci,
+                            isActive: true,
+                        });
+                        chapter = await manager.save(Chapter, chapter);
+                        stats.chapters++;
+                    } else {
+                        skipped.chapters++;
+                        // Update weightages if provided
+                        let dirty = false;
+                        if (cDef.jeeWeightage  != null) { chapter.jeeWeightage  = cDef.jeeWeightage;  dirty = true; }
+                        if (cDef.neetWeightage != null) { chapter.neetWeightage = cDef.neetWeightage; dirty = true; }
+                        if (dirty) await manager.save(Chapter, chapter);
+                    }
+
+                    const chapterOut: typeof subjectOut.chapters[number] = { id: chapter.id, name: chapter.name, topics: [] };
+
+                    for (let ti = 0; ti < cDef.topics.length; ti++) {
+                        const tDef = cDef.topics[ti];
+
+                        // Upsert topic — match by name + chapterId
+                        let topic = await manager.findOne(Topic, {
+                            where: { tenantId, chapterId: chapter.id, isActive: true, name: tDef.name },
+                        });
+                        if (!topic) {
+                            topic = manager.create(Topic, {
+                                name: tDef.name,
+                                tenantId,
+                                chapterId: chapter.id,
+                                estimatedStudyMinutes: tDef.estimatedStudyMinutes ?? 60,
+                                sortOrder: ti,
+                                gatePassPercentage: 70,
+                                prerequisiteTopicIds: [],
+                                isActive: true,
+                            });
+                            topic = await manager.save(Topic, topic);
+                            stats.topics++;
+                        } else {
+                            skipped.topics++;
+                            if (tDef.estimatedStudyMinutes != null) {
+                                topic.estimatedStudyMinutes = tDef.estimatedStudyMinutes;
+                                await manager.save(Topic, topic);
+                            }
+                        }
+
+                        chapterOut.topics.push({ id: topic.id, name: topic.name });
+                    }
+
+                    subjectOut.chapters.push(chapterOut);
+                }
+
+                result.push(subjectOut);
+            }
+        });
+
+        return {
+            message: `Import complete`,
+            created: stats,
+            skipped,
+            curriculum: result,
+        };
     }
 
     // ─── CHAPTERS ────────────────────────────────────────────────────────────

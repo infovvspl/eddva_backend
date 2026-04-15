@@ -2,11 +2,38 @@
   "permissions": {
     "allow": [
       "Bash(grep -E \"entity.ts$\")",
-      "Bash(find \"c:\\\\Users\\\\subha\\\\Desktop\\\\eddva_backend\\\\src\\\\modules\\\\batch\" -type f -name \"*.ts\" -exec basename {} \\\\;)"
+      "Bash(find \"c:\\\\Users\\\\subha\\\\Desktop\\\\eddva_backend\\\\src\\\\modules\\\\batch\" -type f -name \"*.ts\" -exec basename {} \\\\;)",
+      "Bash(python3 -c ':*)",
+      "Bash(grep -rn \"LiveClassRoom\\\\|live-class\\\\|/live\" /c/Users/subha/Desktop/eddva_frontend/src/router*.tsx)",
+      "Bash(grep -v \"^$\")",
+      "Bash(bash -c \"cd '/c/Users/subha/Desktop/eddva_frontend' && npx tsc --noEmit 2>&1 | head -50\")",
+      "Bash(bash -c \"cd '/c/Users/subha/Desktop/eddva_frontend' && npx tsc --noEmit 2>&1 | head -30\")",
+      "Bash(bash -c \"cd '/c/Users/subha/Desktop/eddva_frontend' && npx tsc --noEmit 2>&1 | head -40\")",
+      "Bash(bash -c \"cd '/c/Users/subha/Desktop/eddva_frontend' && npx tsc --noEmit 2>&1\")",
+      "Bash(cmd /c \"cd C:\\\\Users\\\\subha\\\\Desktop\\\\eddva_frontend && npx tsc --noEmit 2>&1\")",
+      "Bash(cmd /c \"npx tsc --noEmit 2>&1\")",
+      "Bash(cmd /c \"psql -U postgres -d apexiq -c \\\\\"SELECT e.id, e.student_id, e.batch_id, e.fee_paid, e.status, b.name as batch_name, u.full_name as student_name FROM enrollments e JOIN batches b ON b.id = e.batch_id JOIN students s ON s.id = e.student_id JOIN users u ON u.id = s.user_id WHERE b.name ILIKE '%%mahasangam%%' ORDER BY e.enrolled_at DESC;\\\\\" 2>&1\")",
+      "Bash(cmd /c \"set PGPASSWORD=postgres && psql -U postgres -d apexiq -c \\\\\"SELECT e.id, e.student_id, e.batch_id, e.fee_paid, e.status, b.name as batch_name, u.full_name as student_name FROM enrollments e JOIN batches b ON b.id = e.batch_id JOIN students s ON s.id = e.student_id JOIN users u ON u.id = s.user_id WHERE b.name ILIKE '%%mahasangam%%' ORDER BY e.enrolled_at DESC;\\\\\" 2>&1\")",
+      "Bash(cmd /c \"set PGPASSWORD=postgres && psql.exe -U postgres -d apexiq -c \\\\\"SELECT e.id, b.name, u.full_name, e.fee_paid, e.status FROM enrollments e JOIN batches b ON b.id = e.batch_id JOIN students s ON s.id = e.student_id JOIN users u ON u.id = s.user_id WHERE b.name ILIKE '%mahasangam%';\\\\\" 2>&1\")",
+      "Bash(where psql:*)",
+      "Bash(PGPASSWORD=postgres psql -U postgres -d apexiq -c \"SELECT e.id, b.name as batch_name, u.full_name, e.fee_paid, e.status FROM enrollments e JOIN batches b ON b.id = e.batch_id JOIN students s ON s.id = e.student_id JOIN users u ON u.id = s.user_id WHERE b.name ILIKE '%mahasangam%';\")",
+      "Bash(PGPASSWORD=postgres psql -U postgres -d apexiq -c \"DELETE FROM enrollments WHERE id = '787afa07-a0d9-491a-9a58-e4f3be66423c';\")",
+      "Bash(psql -U postgres -d apexiq -c ':*)",
+      "Bash(cmd /c \"find /c /v \\\\\"\\\\\" C:\\\\Users\\\\subha\\\\Desktop\\\\eddva_frontend\\\\src\\\\lib\\\\api\\\\admin.ts\")",
+      "Bash(PGPASSWORD=postgres psql -U postgres -d apexiq -c \"SELECT id, name, exam_target FROM batches WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 10;\")",
+      "Bash(cmd /c \"cd C:\\\\Users\\\\subha\\\\Desktop\\\\eddva_frontend && node -e \\\\\"require\\('xlsx'\\); console.log\\('ok'\\)\\\\\" 2>&1\")",
+      "Bash(cmd /c \"cd C:\\\\Users\\\\subha\\\\Desktop\\\\eddva_frontend && cat package.json | findstr xlsx\")",
+      "Bash(cmd /c \"cd C:\\\\Users\\\\subha\\\\Desktop\\\\eddva_frontend && npm install xlsx --save 2>&1\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\lib\\api",
-      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\pages\\admin"
+      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\pages\\admin",
+      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\pages\\live",
+      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\pages\\student",
+      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\pages\\teacher",
+      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\components\\teacher",
+      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\pages",
+      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\hooks"
     ]
   }
 }

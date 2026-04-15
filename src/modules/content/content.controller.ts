@@ -31,6 +31,7 @@ import {
 import { ContentService } from './content.service';
 
 import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subject.dto';
+import { BulkImportCurriculumDto } from './dto/bulk-import.dto';
 import { CreateChapterDto, UpdateChapterDto, ChapterQueryDto } from './dto/chapter.dto';
 import { CreateTopicDto, UpdateTopicDto, TopicQueryDto } from './dto/topic.dto';
 import {
@@ -62,6 +63,18 @@ import { UserRole } from '../../database/entities/user.entity';
 @Controller('content')
 export class ContentController {
     constructor(private readonly contentService: ContentService) { }
+
+    // ─── BULK IMPORT ─────────────────────────────────────────────────────────
+
+    @Post('curriculum/bulk-import')
+    @Roles(UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN, UserRole.TEACHER)
+    @ApiOperation({ summary: 'Bulk import subjects → chapters → topics for a batch in one shot' })
+    bulkImportCurriculum(
+        @Body() dto: BulkImportCurriculumDto,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.bulkImportCurriculum(dto, tenantId);
+    }
 
     // ─── SUBJECTS ─────────────────────────────────────────────────────────────
 

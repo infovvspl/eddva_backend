@@ -8,13 +8,19 @@ export class AgoraService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  generateRtcToken(channelName: string, uid: number, role: 'host' | 'audience'): string {
+  generateRtcToken(channelName: string, uid: number, role: 'host' | 'audience'): string | null {
     const appId = this.configService.get<string>('AGORA_APP_ID');
     const appCertificate = this.configService.get<string>('AGORA_APP_CERTIFICATE');
 
-    if (!appId || !appCertificate) {
-      this.logger.warn('AGORA_APP_ID not set — using mock token for development');
-      return `DEV_MOCK_TOKEN_${channelName}_${uid}`;
+    if (!appId) {
+      this.logger.warn('AGORA_APP_ID not set — cannot generate RTC token');
+      return null;
+    }
+
+    if (!appCertificate) {
+      // Token security is disabled in Agora Console — pass null so the SDK joins without a token
+      this.logger.warn('AGORA_APP_CERTIFICATE not set — joining without token (testing mode)');
+      return null;
     }
 
     const expireTime = 7200;

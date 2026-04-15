@@ -59,7 +59,7 @@ export class LiveClassController {
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
   ) {
-    const result = await this.liveClassService.startClass(lectureId, user.id, tenantId);
+    const result = await this.liveClassService.startClass(lectureId, user.id, tenantId, user.role);
     this.liveClassGateway.broadcastClassStarted(result.sessionId, {
       sessionId: result.sessionId,
       teacherName: result.teacherName,
@@ -76,7 +76,7 @@ export class LiveClassController {
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
   ) {
-    const result = await this.liveClassService.endClass(lectureId, user.id, tenantId);
+    const result = await this.liveClassService.endClass(lectureId, user.id, tenantId, user.role);
     this.liveClassGateway.broadcastClassEnded(result.sessionId, {
       recordingUrl: result.recordingUrl,
     });

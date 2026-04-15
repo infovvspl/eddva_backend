@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { Student } from '../../database/entities/student.entity';
@@ -9,7 +9,7 @@ import {
   LeaderboardScope,
 } from '../../database/entities/analytics.entity';
 import { Lecture, LectureProgress, LectureStatus, StudyPlan, PlanItem } from '../../database/entities/learning.entity';
-import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
+import { Batch, BatchStatus, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { Subject, Chapter, Topic, TopicResource } from '../../database/entities/subject.entity';
 import { TopicProgress, TopicStatus } from '../../database/entities/assessment.entity';
 
@@ -230,18 +230,26 @@ export class StudentService {
     const assignments = await this.batchSubjectTeacherRepo.find({
       where: { batchId },
     });
-    const assignedSubjectNames = [...new Set(assignments.map(a => a.subjectName.toLowerCase()))];
 
-    // Load subjects for this tenant that match batch assignments
-    const subjects = await this.subjectRepo.find({
-      where: { tenantId, isActive: true },
+    // Primary: subjects linked directly via batchId column
+    let filteredSubjects = await this.subjectRepo.find({
+      where: { batchId, isActive: true },
       relations: ['chapters', 'chapters.topics', 'chapters.topics.resources'],
       order: { sortOrder: 'ASC' },
     });
 
-    const filteredSubjects = subjects.filter(s =>
-      assignedSubjectNames.includes(s.name.toLowerCase()),
-    );
+    // Fallback: match by name via batch_subject_teachers (legacy batches)
+    if (filteredSubjects.length === 0 && assignments.length > 0) {
+      const assignedNames = [...new Set(assignments.map(a => a.subjectName.toLowerCase()))];
+      const allSubjects = await this.subjectRepo.find({
+        where: { tenantId, isActive: true },
+        relations: ['chapters', 'chapters.topics', 'chapters.topics.resources'],
+        order: { sortOrder: 'ASC' },
+      });
+      filteredSubjects = allSubjects.filter(s =>
+        assignedNames.includes(s.name.toLowerCase()),
+      );
+    }
 
     // Topic IDs in this course (for bulk progress fetch)
     const allTopicIds: string[] = [];
@@ -334,6 +342,7 @@ export class StudentService {
                     type:        r.type,
                     title:       r.title,
                     fileUrl:     r.fileUrl,
+                    externalUrl: r.externalUrl ?? null,
                     fileSizeKb:  r.fileSizeKb ?? null,
                     description: r.description ?? null,
                   })),
@@ -665,17 +674,18 @@ export class StudentService {
 
   // ─── DISCOVER BATCHES (login modal) ──────────────────────────────────────────
 
-  async discoverBatches(userId: string, tenantId: string) {
+  async discoverBatches(userId: string, _tenantId: string) {
     const student = await this.studentRepo.findOne({ where: { userId } });
     if (!student) throw new NotFoundException('Student profile not found');
 
-    // Already enrolled batch IDs
+    // Already enrolled batch IDs (cross-tenant)
     const enrollments = await this.enrollmentRepo.find({ where: { studentId: student.id } });
     const enrolledBatchIds = enrollments.map(e => e.batchId);
 
+    // Query ALL active batches across ALL institutes (no tenantId filter)
     const qb = this.batchRepo.createQueryBuilder('b')
-      .where('b.tenant_id = :tenantId', { tenantId })
-      .andWhere('b.status = :status', { status: 'active' })
+      .leftJoinAndSelect('b.teacher', 'teacher')
+      .where('b.status = :status', { status: BatchStatus.ACTIVE })
       .andWhere('b.deleted_at IS NULL');
 
     // Exclude already enrolled
@@ -683,15 +693,20 @@ export class StudentService {
       qb.andWhere('b.id NOT IN (:...enrolledBatchIds)', { enrolledBatchIds });
     }
 
-    // Filter by student preferences if set
-    if (student.examTarget) {
-      qb.andWhere('b.exam_target = :examTarget', { examTarget: student.examTarget });
-    }
-    if (student.class) {
-      qb.andWhere('b.class = :class', { class: student.class });
-    }
-
     const batches = await qb.orderBy('b.created_at', 'DESC').getMany();
+
+    // Count enrollments per batch for studentCount
+    const batchIds = batches.map(b => b.id);
+    let enrollmentCounts: Record<string, number> = {};
+    if (batchIds.length) {
+      const counts: Array<{ batch_id: string; cnt: string }> = await this.dataSource.query(
+        `SELECT batch_id, COUNT(*)::int AS cnt FROM enrollments
+         WHERE batch_id = ANY($1) AND status = 'active' AND deleted_at IS NULL
+         GROUP BY batch_id`,
+        [batchIds],
+      );
+      enrollmentCounts = Object.fromEntries(counts.map(r => [r.batch_id, Number(r.cnt)]));
+    }
 
     return {
       studentPreferences: {
@@ -709,7 +724,155 @@ export class StudentService {
         endDate:      b.endDate,
         thumbnailUrl: b.thumbnailUrl ?? null,
         status:       b.status,
+        isPaid:       b.isPaid,
+        feeAmount:    b.feeAmount ?? null,
+        maxStudents:  b.maxStudents,
+        studentCount: enrollmentCounts[b.id] ?? 0,
+        teacher:      b.teacher ? { id: b.teacher.id, fullName: b.teacher.fullName } : null,
       })),
+    };
+  }
+
+  async enrollInBatch(userId: string, batchId: string) {
+    const student = await this.studentRepo.findOne({ where: { userId } });
+    if (!student) throw new NotFoundException('Student profile not found');
+
+    // Find batch across all tenants
+    const batch = await this.batchRepo.findOne({ where: { id: batchId } });
+    if (!batch) throw new NotFoundException('Batch not found');
+    if (batch.status !== BatchStatus.ACTIVE) {
+      throw new BadRequestException('This batch is no longer accepting enrollments');
+    }
+
+    // Already enrolled?
+    const existing = await this.enrollmentRepo.findOne({
+      where: { studentId: student.id, batchId },
+    });
+    if (existing) return { message: 'Already enrolled in this batch' };
+
+    // Capacity check
+    const enrolledCount = await this.enrollmentRepo.count({
+      where: { batchId, status: EnrollmentStatus.ACTIVE },
+    });
+    if (batch.maxStudents && enrolledCount >= batch.maxStudents) {
+      throw new BadRequestException('This batch is full');
+    }
+
+    const enrollment = this.enrollmentRepo.create({
+      tenantId:  batch.tenantId,
+      studentId: student.id,
+      batchId:   batch.id,
+      status:    EnrollmentStatus.ACTIVE,
+    });
+    await this.enrollmentRepo.save(enrollment);
+
+    return { message: 'Successfully enrolled' };
+  }
+
+  // ─── PUBLIC BATCH PREVIEW (no enrollment required) ────────────────────────────
+
+  async getBatchPreview(batchId: string, userId: string) {
+    const batch = await this.batchRepo.findOne({
+      where: { id: batchId },
+      relations: ['teacher'],
+    });
+    if (!batch || batch.status !== BatchStatus.ACTIVE) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // Is this student enrolled?
+    const student = await this.studentRepo.findOne({ where: { userId } });
+    const enrollment = student
+      ? await this.enrollmentRepo.findOne({ where: { batchId, studentId: student.id } })
+      : null;
+
+    // Count enrolled students
+    const enrolledCount = await this.enrollmentRepo.count({
+      where: { batchId, status: EnrollmentStatus.ACTIVE },
+    });
+
+    // Load full curriculum — subjects → chapters → topics (no resources for preview)
+    const assignments = await this.batchSubjectTeacherRepo.find({ where: { batchId } });
+
+    // Primary: subjects linked directly via batchId column
+    let filteredSubjects = await this.subjectRepo.find({
+      where: { batchId, isActive: true },
+      relations: ['chapters', 'chapters.topics'],
+      order: { sortOrder: 'ASC' },
+    });
+
+    // Fallback: match by name via batch_subject_teachers (legacy batches)
+    if (filteredSubjects.length === 0 && assignments.length > 0) {
+      const assignedNames = [...new Set(assignments.map(a => a.subjectName.toLowerCase()))];
+      const allSubjects = await this.subjectRepo.find({
+        where: { isActive: true },
+        relations: ['chapters', 'chapters.topics'],
+        order: { sortOrder: 'ASC' },
+      });
+      filteredSubjects = allSubjects.filter(s =>
+        assignedNames.includes(s.name.toLowerCase()),
+      );
+    }
+
+    // Teacher map per subject
+    const teacherMap = new Map<string, { id: string; name: string } | null>();
+    for (const a of assignments) {
+      const rows = await this.dataSource.query(
+        `SELECT u.id, u.full_name AS name FROM users u WHERE u.id = $1 LIMIT 1`,
+        [a.teacherId],
+      );
+      teacherMap.set(a.subjectName.toLowerCase(), rows[0] ?? null);
+    }
+
+    const curriculum = filteredSubjects.map(subject => ({
+      id:        subject.id,
+      name:      subject.name,
+      icon:      subject.icon ?? null,
+      colorCode: subject.colorCode ?? null,
+      teacher:   teacherMap.get(subject.name.toLowerCase()) ?? null,
+      chapters: (subject.chapters ?? [])
+        .filter(c => c.isActive)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(chapter => ({
+          id:            chapter.id,
+          name:          chapter.name,
+          jeeWeightage:  chapter.jeeWeightage,
+          neetWeightage: chapter.neetWeightage,
+          topics: (chapter.topics ?? [])
+            .filter(t => t.isActive)
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map(topic => ({
+              id:                    topic.id,
+              name:                  topic.name,
+              estimatedStudyMinutes: topic.estimatedStudyMinutes,
+            })),
+        })),
+    }));
+
+    const totalTopics = curriculum.reduce(
+      (s, sub) => s + sub.chapters.reduce((cs, ch) => cs + ch.topics.length, 0),
+      0,
+    );
+
+    return {
+      id:           batch.id,
+      name:         batch.name,
+      examTarget:   batch.examTarget,
+      class:        batch.class,
+      thumbnailUrl: batch.thumbnailUrl ?? null,
+      isPaid:       batch.isPaid,
+      feeAmount:    batch.feeAmount ?? null,
+      maxStudents:  batch.maxStudents,
+      startDate:    batch.startDate ?? null,
+      endDate:      batch.endDate ?? null,
+      status:       batch.status,
+      teacher:      batch.teacher ? { id: batch.teacher.id, fullName: batch.teacher.fullName } : null,
+      studentCount: enrolledCount,
+      subjectNames: filteredSubjects.map(s => s.name),
+      isEnrolled:   !!enrollment,
+      feePaid:      enrollment?.feePaid ?? null,
+      curriculum,
+      totalTopics,
     };
   }
 }
