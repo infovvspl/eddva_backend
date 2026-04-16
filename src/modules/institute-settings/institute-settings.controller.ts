@@ -1,7 +1,11 @@
 import {
-  Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards,
+  BadRequestException,
+  Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -23,6 +27,39 @@ import {
 @Controller('institute/settings')
 export class InstituteSettingsController {
   constructor(private readonly svc: InstituteSettingsService) {}
+
+  // ── Profile Image ────────────────────────────────────────────────────────────
+
+  @Post('profile/image')
+  @ApiOperation({ summary: 'Upload institute admin profile picture' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads/avatars',
+        filename: (req: any, file, cb) => {
+          const userId = req.user?.sub ?? 'unknown';
+          const ext = extname(file.originalname).toLowerCase() || '.jpg';
+          cb(null, `${userId}${ext}`);
+        },
+      }),
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.match(/^image\/(jpeg|jpg|png|webp|gif)$/)) {
+          return cb(new BadRequestException('Only image files are allowed (jpg, png, webp)'), false);
+        }
+        cb(null, true);
+      },
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async uploadProfileImage(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser('id') userId: string,
+  ) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    const imageUrl = `/uploads/avatars/${file.filename}`;
+    return this.svc.updateProfileImage(userId, imageUrl);
+  }
 
   // ── Branding ────────────────────────────────────────────────────────────────
 

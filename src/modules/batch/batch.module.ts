@@ -11,7 +11,7 @@ import { User } from '../../database/entities/user.entity';
 import { Doubt, Lecture, LectureProgress } from '../../database/entities/learning.entity';
 import { TestSession } from '../../database/entities/assessment.entity';
 import { EngagementLog, WeakTopic } from '../../database/entities/analytics.entity';
-import { Topic } from '../../database/entities/subject.entity';
+import { Chapter, Subject, Topic, TopicResource } from '../../database/entities/subject.entity';
 import { NotificationModule } from '../notification/notification.module';
 
 @Module({
@@ -20,7 +20,7 @@ import { NotificationModule } from '../notification/notification.module';
     TypeOrmModule.forFeature([
       Batch, BatchSubjectTeacher, Enrollment, Student, Tenant, User,
       LectureProgress, Lecture, TestSession, Doubt,
-      WeakTopic, EngagementLog, Topic,
+      WeakTopic, EngagementLog, Topic, Subject, Chapter, TopicResource,
     ]),
   ],
   controllers: [BatchController],
