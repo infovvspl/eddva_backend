@@ -28,6 +28,7 @@ import {
   FlagStudentDto,
   RosterQueryDto,
   UpdateBatchDto,
+  RazorpayVerifyDto,
 } from './dto/batch.dto';
 import { AssignSubjectTeacherDto, BulkEnrollDto, BulkCreateBatchStudentsDto, CreateBatchStudentDto, EnrollStudentDto, JoinBatchDto } from './dto/enrollment.dto';
 
@@ -262,6 +263,40 @@ export class BatchController {
   @ApiOperation({ summary: 'Join a batch via invite token' })
   joinBatch(@Body() dto: JoinBatchDto, @CurrentUser() user: any, @TenantId() tenantId: string) {
     return this.batchService.joinBatchByToken(dto.token, user.id, tenantId);
+  }
+
+  @Post(':id/view')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Track a student viewing the course details' })
+  trackBatchView(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.batchService.trackBatchView(id, user.id, tenantId);
+  }
+
+  @Post(':id/checkout')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Create a Razorpay order for purchasing this course' })
+  createCheckout(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.batchService.createCheckoutOrder(id, user.id, tenantId);
+  }
+
+  @Post(':id/verify-payment')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Verify razorpay payment and enroll student' })
+  verifyPayment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RazorpayVerifyDto,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.batchService.verifyAndEnroll(id, user.id, tenantId, dto);
   }
 
   @Get(':id')

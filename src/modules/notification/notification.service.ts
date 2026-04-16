@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { In, LessThan, Repository } from 'typeorm';
-import * as Twilio from 'twilio';
+import Twilio from 'twilio';
 
 import {
   Notification,

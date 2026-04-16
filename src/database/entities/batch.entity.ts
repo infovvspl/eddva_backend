@@ -66,6 +66,9 @@ export class Batch extends Base {
 
   @Column({ type: 'jsonb', nullable: true, default: {} })
   metadata: Record<string, any>;
+
+  @Column({ type: 'jsonb', nullable: true, default: [] })
+  faqs: { question: string; answer: string }[];
 }
 
 @Entity('batch_subject_teachers')

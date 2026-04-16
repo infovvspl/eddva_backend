@@ -7,7 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, DataSource } from 'typeorm';
 import { Readable } from 'stream';
-import * as csvParser from 'csv-parser';
+import csvParser from 'csv-parser';
 
 import { Question, QuestionOption, QuestionSource, QuestionType, DifficultyLevel } from '../../database/entities/question.entity';
 import { Topic } from '../../database/entities/subject.entity';
