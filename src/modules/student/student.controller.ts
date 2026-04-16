@@ -63,6 +63,19 @@ export class StudentController {
     return this.studentService.getTopicDetail(batchId, topicId, user.id, tenantId);
   }
 
+  // ─── BATCH PREVIEW ───────────────────────────────────────────────────────────
+
+  @Get('batches/:batchId')
+  @Roles(UserRole.STUDENT)
+  @ApiParam({ name: 'batchId', type: 'string' })
+  @ApiOperation({ summary: 'Curriculum preview — topics include lectureCount and resourceCounts' })
+  getBatchPreview(
+    @Param('batchId', ParseUUIDPipe) batchId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.studentService.getBatchPreview(batchId, user.id);
+  }
+
   // ─── CONTINUE LEARNING ───────────────────────────────────────────────────────
 
   @Get('continue-learning')
@@ -117,14 +130,4 @@ export class StudentController {
     return this.studentService.enrollInBatch(user.id, batchId);
   }
 
-  @Get('batches/:batchId')
-  @Roles(UserRole.STUDENT)
-  @ApiParam({ name: 'batchId', type: 'string' })
-  @ApiOperation({ summary: 'Public batch preview — no enrollment required' })
-  getBatchPreview(
-    @Param('batchId', ParseUUIDPipe) batchId: string,
-    @CurrentUser() user: any,
-  ) {
-    return this.studentService.getBatchPreview(batchId, user.id);
-  }
 }
