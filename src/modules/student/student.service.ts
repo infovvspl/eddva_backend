@@ -136,7 +136,7 @@ export class StudentService {
 
     const enrollments = await this.enrollmentRepo.find({
       where: { studentId: student.id },
-      relations: ['batch'],
+      relations: ['batch', 'batch.teacher'],
       order: { enrolledAt: 'DESC' },
     });
 
@@ -191,12 +191,14 @@ export class StudentService {
           batch: {
             id:           batch.id,
             name:         batch.name,
+            description:  batch.description ?? null,
             examTarget:   batch.examTarget,
             class:        batch.class,
-            startDate:    batch.startDate,
-            endDate:      batch.endDate,
+            startDate:    batch.startDate ?? null,
+            endDate:      batch.endDate ?? null,
             thumbnailUrl: batch.thumbnailUrl ?? null,
             status:       batch.status,
+            teacher:      batch.teacher ? { id: batch.teacher.id, fullName: batch.teacher.fullName } : null,
           },
           subjects:          subjectNames,
           progress: {
@@ -223,7 +225,8 @@ export class StudentService {
     });
     if (!enrollment) throw new ForbiddenException('You are not enrolled in this course');
 
-    const batch = await this.batchRepo.findOne({ where: { id: batchId, tenantId } });
+    // No tenantId filter — students can enroll in batches across tenants
+    const batch = await this.batchRepo.findOne({ where: { id: batchId } });
     if (!batch) throw new NotFoundException('Batch not found');
 
     // Subjects assigned to this batch
@@ -408,8 +411,9 @@ export class StudentService {
     });
     if (!enrollment) throw new ForbiddenException('You are not enrolled in this course');
 
+    // No tenantId filter — topic belongs to the batch's tenant, not necessarily the student's
     const topic = await this.topicRepo.findOne({
-      where: { id: topicId, tenantId },
+      where: { id: topicId },
       relations: ['chapter', 'chapter.subject', 'resources'],
     });
     if (!topic) throw new NotFoundException('Topic not found');
@@ -728,10 +732,11 @@ export class StudentService {
       availableBatches: batches.map(b => ({
         id:           b.id,
         name:         b.name,
+        description:  b.description ?? null,
         examTarget:   b.examTarget,
         class:        b.class,
-        startDate:    b.startDate,
-        endDate:      b.endDate,
+        startDate:    b.startDate ?? null,
+        endDate:      b.endDate ?? null,
         thumbnailUrl: b.thumbnailUrl ?? null,
         status:       b.status,
         isPaid:       b.isPaid,

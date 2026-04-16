@@ -111,6 +111,18 @@ export class DoubtController {
     return this.doubtService.markAsReviewed(id, dto, user.id, tenantId);
   }
 
+  @Patch(':id/request-ai')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Student requests AI resolution for an unresolved doubt' })
+  @ApiParam({ name: 'id', type: 'string' })
+  requestAiResolution(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.doubtService.requestAiResolution(id, user.id, tenantId);
+  }
+
   @Patch(':id/rate-teacher')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Student rates the teacher response as helpful or not' })
