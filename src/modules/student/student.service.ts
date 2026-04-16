@@ -318,8 +318,18 @@ export class StudentService {
             .filter(t => t.isActive)
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map(topic => {
-              const prog    = progressMap.get(topic.id);
-              const lec     = lectureCountMap.get(topic.id);
+              const prog      = progressMap.get(topic.id);
+              const lec       = lectureCountMap.get(topic.id);
+              const activeRes = (topic.resources ?? []).filter(r => r.isActive);
+
+              // Count resources by type for locked-state preview
+              const resourceCounts = activeRes.reduce<Record<string, number>>((acc, r) => {
+                acc[r.type] = (acc[r.type] ?? 0) + 1;
+                return acc;
+              }, {});
+
+              const lectureCount = lec ? Number(lec.total) : 0;
+
               return {
                 id:                    topic.id,
                 name:                  topic.name,
@@ -330,19 +340,19 @@ export class StudentService {
                   bestAccuracy:  prog?.bestAccuracy ?? 0,
                   completedAt:   prog?.completedAt ?? null,
                 },
+                lectureCount,
                 lectures: {
-                  total:     lec ? Number(lec.total) : 0,
+                  total:     lectureCount,
                   completed: lec ? Number(lec.completed) : 0,
                 },
-                resources: (topic.resources ?? [])
-                  .filter(r => r.isActive)
+                resourceCounts,
+                resources: activeRes
                   .sort((a, b) => a.sortOrder - b.sortOrder)
                   .map(r => ({
                     id:          r.id,
                     type:        r.type,
                     title:       r.title,
                     fileUrl:     r.fileUrl,
-                    externalUrl: r.externalUrl ?? null,
                     fileSizeKb:  r.fileSizeKb ?? null,
                     description: r.description ?? null,
                   })),
@@ -797,7 +807,7 @@ export class StudentService {
     // Primary: subjects linked directly via batchId column
     let filteredSubjects = await this.subjectRepo.find({
       where: { batchId, isActive: true },
-      relations: ['chapters', 'chapters.topics'],
+      relations: ['chapters', 'chapters.topics', 'chapters.topics.resources'],
       order: { sortOrder: 'ASC' },
     });
 
@@ -806,13 +816,30 @@ export class StudentService {
       const assignedNames = [...new Set(assignments.map(a => a.subjectName.toLowerCase()))];
       const allSubjects = await this.subjectRepo.find({
         where: { isActive: true },
-        relations: ['chapters', 'chapters.topics'],
+        relations: ['chapters', 'chapters.topics', 'chapters.topics.resources'],
         order: { sortOrder: 'ASC' },
       });
       filteredSubjects = allSubjects.filter(s =>
         assignedNames.includes(s.name.toLowerCase()),
       );
     }
+
+    // Bulk lecture counts for all topics in this batch
+    const allTopicIds = filteredSubjects.flatMap(s =>
+      (s.chapters ?? []).flatMap(c => (c.topics ?? []).map(t => t.id)),
+    );
+    const lectureCounts: Array<{ topic_id: string; total: string }> = allTopicIds.length
+      ? await this.dataSource.query(`
+          SELECT topic_id, COUNT(*)::int AS total
+          FROM lectures
+          WHERE batch_id = $1
+            AND topic_id = ANY($2)
+            AND status = 'published'
+            AND deleted_at IS NULL
+          GROUP BY topic_id
+        `, [batchId, allTopicIds])
+      : [];
+    const lectureCountMap = new Map(lectureCounts.map(r => [r.topic_id, Number(r.total)]));
 
     // Teacher map per subject
     const teacherMap = new Map<string, { id: string; name: string } | null>();
@@ -841,11 +868,20 @@ export class StudentService {
           topics: (chapter.topics ?? [])
             .filter(t => t.isActive)
             .sort((a, b) => a.sortOrder - b.sortOrder)
-            .map(topic => ({
-              id:                    topic.id,
-              name:                  topic.name,
-              estimatedStudyMinutes: topic.estimatedStudyMinutes,
-            })),
+            .map(topic => {
+              const activeRes = (topic.resources ?? []).filter(r => r.isActive);
+              const resourceCounts = activeRes.reduce<Record<string, number>>((acc, r) => {
+                acc[r.type] = (acc[r.type] ?? 0) + 1;
+                return acc;
+              }, {});
+              return {
+                id:                    topic.id,
+                name:                  topic.name,
+                estimatedStudyMinutes: topic.estimatedStudyMinutes,
+                lectureCount:          lectureCountMap.get(topic.id) ?? 0,
+                resourceCounts,
+              };
+            }),
         })),
     }));
 

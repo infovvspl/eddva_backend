@@ -22,7 +22,7 @@ import { Student, ExamTarget, StudentClass, ExamYear, SubscriptionPlan } from '.
 import { Tenant } from '../../database/entities/tenant.entity';
 import { User, UserRole, UserStatus } from '../../database/entities/user.entity';
 import { EngagementLog, WeakTopic } from '../../database/entities/analytics.entity';
-import { Topic } from '../../database/entities/subject.entity';
+import { Chapter, Subject, Topic, TopicResource } from '../../database/entities/subject.entity';
 
 import {
   AttendanceQueryDto,
@@ -69,6 +69,12 @@ export class BatchService {
     private readonly engagementLogRepo: Repository<EngagementLog>,
     @InjectRepository(Topic)
     private readonly topicRepo: Repository<Topic>,
+    @InjectRepository(Subject)
+    private readonly subjectRepo: Repository<Subject>,
+    @InjectRepository(Chapter)
+    private readonly chapterRepo: Repository<Chapter>,
+    @InjectRepository(TopicResource)
+    private readonly topicResourceRepo: Repository<TopicResource>,
     private readonly notificationService: NotificationService,
     private readonly mailService: MailService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
@@ -152,10 +158,83 @@ export class BatchService {
       where: { tenantId, batchId: id, status: EnrollmentStatus.ACTIVE },
     });
 
+    // Build curriculum preview with resourceCounts + lectureCount per topic
+    const assignments = await this.batchSubjectTeacherRepo.find({ where: { batchId: id } });
+    const assignedNames = [...new Set(assignments.map(a => a.subjectName.toLowerCase()))];
+
+    const subjects = await this.subjectRepo.find({
+      where: { tenantId, isActive: true },
+      relations: ['chapters', 'chapters.topics', 'chapters.topics.resources'],
+      order: { sortOrder: 'ASC' },
+    });
+
+    const filteredSubjects = subjects.filter(s =>
+      assignedNames.includes(s.name.toLowerCase()),
+    );
+
+    // Bulk lecture counts per topic for this batch
+    const allTopicIds = filteredSubjects.flatMap(s =>
+      (s.chapters ?? []).flatMap(c => (c.topics ?? []).map(t => t.id)),
+    );
+
+    const lectureCounts: Array<{ topic_id: string; total: string }> = allTopicIds.length
+      ? await this.batchRepo.manager.query(`
+          SELECT topic_id, COUNT(*)::int AS total
+          FROM lectures
+          WHERE batch_id = $1
+            AND topic_id = ANY($2)
+            AND status = 'published'
+            AND deleted_at IS NULL
+          GROUP BY topic_id
+        `, [id, allTopicIds])
+      : [];
+    const lectureCountMap = new Map(lectureCounts.map(r => [r.topic_id, Number(r.total)]));
+
+    const curriculum = filteredSubjects.map(subject => {
+      const teacher = assignments.find(
+        a => a.subjectName.toLowerCase() === subject.name.toLowerCase(),
+      );
+      return {
+        id:        subject.id,
+        name:      subject.name,
+        icon:      subject.icon ?? null,
+        colorCode: subject.colorCode ?? null,
+        teacherId: teacher?.teacherId ?? null,
+        chapters: (subject.chapters ?? [])
+          .filter(c => c.isActive)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map(chapter => ({
+            id:   chapter.id,
+            name: chapter.name,
+            jeeWeightage:  chapter.jeeWeightage,
+            neetWeightage: chapter.neetWeightage,
+            topics: (chapter.topics ?? [])
+              .filter(t => t.isActive)
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map(topic => {
+                const activeRes = (topic.resources ?? []).filter(r => r.isActive);
+                const resourceCounts = activeRes.reduce<Record<string, number>>((acc, r) => {
+                  acc[r.type] = (acc[r.type] ?? 0) + 1;
+                  return acc;
+                }, {});
+                return {
+                  id:                    topic.id,
+                  name:                  topic.name,
+                  estimatedStudyMinutes: topic.estimatedStudyMinutes,
+                  gatePassPercentage:    topic.gatePassPercentage,
+                  lectureCount:          lectureCountMap.get(topic.id) ?? 0,
+                  resourceCounts,
+                };
+              }),
+          })),
+      };
+    });
+
     return {
       ...batch,
-      teacherName: batch.teacher?.fullName || null,
+      teacherName: batch.teacher?.fullName ?? null,
       studentCount,
+      curriculum,
     };
   }
 

@@ -29,6 +29,11 @@ export class InstituteSettingsService {
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
   ) {}
 
+  async updateProfileImage(userId: string, imageUrl: string) {
+    await this.userRepo.update(userId, { profilePictureUrl: imageUrl });
+    return { avatarUrl: imageUrl };
+  }
+
   private async getTenant(tenantId: string): Promise<Tenant> {
     const t = await this.tenantRepo.findOne({ where: { id: tenantId } });
     if (!t) throw new NotFoundException('Tenant not found');
