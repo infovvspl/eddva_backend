@@ -569,9 +569,7 @@ export class ContentService {
         const limit = query.limit || 20;
         const skip = (page - 1) * limit;
 
-        const qb = this.lectureRepo
-            .createQueryBuilder('l')
-            .where('l.tenantId = :tenantId', { tenantId });
+        const qb = this.lectureRepo.createQueryBuilder('l');
 
         if (query.batchId) qb.andWhere('l.batchId = :batchId', { batchId: query.batchId });
         if (query.topicId) qb.andWhere('l.topicId = :topicId', { topicId: query.topicId });
@@ -579,7 +577,7 @@ export class ContentService {
 
         // Role-based filtering
         if (userRole === UserRole.STUDENT) {
-            // Get enrolled batch IDs for this student
+            // Students see only lectures from their enrolled batches — cross-tenant safe (no tenantId filter)
             const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
             if (student) {
                 const enrollments = await this.enrollmentRepo.find({ where: { studentId: student.id } });
@@ -595,9 +593,12 @@ export class ContentService {
                 });
             }
         } else if (userRole === UserRole.TEACHER) {
-            qb.andWhere('l.teacherId = :userId', { userId });
+            qb.andWhere('l.tenantId = :tenantId', { tenantId })
+              .andWhere('l.teacherId = :userId', { userId });
+        } else {
+            // admin/super_admin scoped to their tenant
+            qb.andWhere('l.tenantId = :tenantId', { tenantId });
         }
-        // admin/super_admin sees all
 
         qb.orderBy('l.createdAt', 'DESC').skip(skip).take(limit);
 

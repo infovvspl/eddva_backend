@@ -248,6 +248,40 @@ export class DoubtService {
     return this.serializeDoubt(doubt);
   }
 
+  async requestAiResolution(id: string, userId: string, tenantId: string) {
+    const student = await this.getStudentByUserId(userId, tenantId);
+    const doubt = await this.getDoubtWithRelations(id, tenantId);
+
+    if (doubt.studentId !== student.id) {
+      throw new ForbiddenException('You can only update your own doubts');
+    }
+    if (
+      doubt.status === DoubtStatus.AI_RESOLVED ||
+      doubt.status === DoubtStatus.TEACHER_RESOLVED
+    ) {
+      throw new BadRequestException('This doubt is already resolved');
+    }
+
+    try {
+      const aiResult = (await this.aiBridgeService.resolveDoubt({
+        questionText: doubt.questionText || doubt.questionImageUrl || '',
+        topicId: doubt.topicId || undefined,
+        mode: ((doubt.explanationMode as string) || 'short') as 'short' | 'detailed',
+        studentContext: { source: doubt.source, sourceRefId: doubt.sourceRefId ?? undefined },
+      })) as any;
+
+      doubt.aiExplanation = aiResult?.explanation ?? aiResult?.answer ?? null;
+      doubt.aiConceptLinks = aiResult?.conceptLinks ?? aiResult?.key_concepts ?? [];
+      doubt.aiSimilarQuestionIds = aiResult?.similarQuestionIds ?? [];
+      doubt.status = DoubtStatus.AI_RESOLVED;
+      await this.doubtRepo.save(doubt);
+    } catch {
+      throw new BadRequestException('AI service is temporarily unavailable. Please try again later.');
+    }
+
+    return this.serializeDoubt(doubt);
+  }
+
   async rateTeacherResponse(id: string, dto: RateTeacherResponseDto, userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
     const doubt = await this.getDoubtWithRelations(id, tenantId);

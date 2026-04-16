@@ -1320,27 +1320,43 @@ export class BatchService {
   // Feature additions: Notifications & Payments
   // ---------------------------------------------------------------------------
 
-  async trackBatchView(batchId: string, userId: string, tenantId: string) {
-    // Fire & forget
+  async trackBatchView(batchId: string, userId: string, _tenantId: string) {
+    // Fire & forget — cross-tenant safe
     (async () => {
       try {
-        const batch = await this.getBatchOrThrow(batchId, tenantId);
-        const user = await this.userRepo.findOne({ where: { id: userId, tenantId } });
+        // Look up batch without tenant restriction (students can browse any institute's courses)
+        const batch = await this.batchRepo.findOne({ where: { id: batchId } });
+        if (!batch) return;
+
+        const user = await this.userRepo.findOne({ where: { id: userId } });
         if (!user) return;
 
+        // Only notify when the student is NOT already enrolled
+        const student = await this.studentRepo.findOne({ where: { userId } });
+        if (student) {
+          const enrolled = await this.enrollmentRepo.findOne({
+            where: { batchId, studentId: student.id },
+          });
+          if (enrolled) return; // already enrolled — skip notification
+        }
+
+        // Notify admins of the COURSE's institute (batch.tenantId), not the student's tenant
         const admins = await this.userRepo.find({
-          where: { tenantId, role: UserRole.INSTITUTE_ADMIN, status: UserStatus.ACTIVE },
+          where: { tenantId: batch.tenantId, role: UserRole.INSTITUTE_ADMIN, status: UserStatus.ACTIVE },
         });
 
-        const contactInfo = [user.phoneNumber, user.email].filter(Boolean).join(' / ');
-        const message = `Student ${user.fullName} (${contactInfo}) viewed course "${batch.name}"`;
+        const phone = user.phoneNumber ?? 'N/A';
+        const body =
+          `📚 ${user.fullName} is interested in "${batch.name}"\n` +
+          `📞 Phone: ${phone}` +
+          (user.email ? `\n✉️  Email: ${user.email}` : '');
 
         for (const admin of admins) {
           await this.notificationService.send({
             userId: admin.id,
-            tenantId,
-            title: 'Course View',
-            body: message,
+            tenantId: batch.tenantId,
+            title: `Lead: ${user.fullName} viewed your course`,
+            body,
             channels: ['in_app'],
             refType: 'course_view',
             refId: batch.id,
@@ -1348,7 +1364,7 @@ export class BatchService {
         }
       } catch (err) {
         // Swallow background error
-        console.error('trackBatchView error:', err);
+        this.logger.warn(`trackBatchView error: ${(err as any)?.message ?? err}`);
       }
     })();
     return { tracked: true };

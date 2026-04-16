@@ -28,7 +28,7 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @Get()
-  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'List notifications for the current user' })
   getNotifications(
     @Query() query: NotificationListQueryDto,
@@ -39,7 +39,7 @@ export class NotificationController {
   }
 
   @Patch(':id/read')
-  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Mark one notification as read' })
   @ApiParam({ name: 'id', type: 'string' })
   markAsRead(
@@ -51,14 +51,14 @@ export class NotificationController {
   }
 
   @Patch('read-all')
-  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Mark all notifications as read' })
   markAllAsRead(@CurrentUser() user: any, @TenantId() tenantId: string) {
     return this.notificationService.markAllAsRead(user.id, tenantId);
   }
 
   @Get('unread-count')
-  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Get unread notification count' })
   getUnreadCount(@CurrentUser() user: any, @TenantId() tenantId: string) {
     return this.notificationService.getUnreadCount(user.id, tenantId);
