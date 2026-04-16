@@ -10,6 +10,8 @@ import {
   IsUUID,
   Min,
   ValidateIf,
+  ValidateNested,
+  IsArray,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -38,13 +40,6 @@ export class CreateBatchDto {
   @IsOptional()
   @IsUUID()
   teacherId?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  maxStudents?: number;
 
   @ApiPropertyOptional({ description: 'Whether this batch requires payment to enroll' })
   @IsOptional()
@@ -95,13 +90,6 @@ export class UpdateBatchDto {
   @IsUUID()
   teacherId?: string | null;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  maxStudents?: number;
-
   @ApiPropertyOptional({ description: 'Whether this batch requires payment to enroll' })
   @IsOptional()
   @IsBoolean()
@@ -133,6 +121,25 @@ export class UpdateBatchDto {
   @IsOptional()
   @IsString()
   thumbnailUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Course FAQs', type: 'array' })
+  @IsOptional()
+  @IsArray()
+  faqs?: { question: string; answer: string }[];
+}
+
+export class RazorpayVerifyDto {
+  @ApiProperty()
+  @IsString()
+  razorpay_order_id: string;
+
+  @ApiProperty()
+  @IsString()
+  razorpay_payment_id: string;
+
+  @ApiProperty()
+  @IsString()
+  razorpay_signature: string;
 }
 
 export class BatchListQueryDto {

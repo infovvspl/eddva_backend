@@ -6,10 +6,11 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { randomBytes, randomUUID } from 'crypto';
+import { createHmac, randomBytes, randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
@@ -34,6 +35,8 @@ import {
   UpdateBatchDto,
 } from './dto/batch.dto';
 import { AssignSubjectTeacherDto, BulkEnrollDto, BulkCreateBatchStudentsDto, CreateBatchStudentDto, EnrollStudentDto } from './dto/enrollment.dto';
+
+import Razorpay from 'razorpay';
 
 type MockTestBatchSchema = { batchId: boolean };
 
@@ -91,7 +94,6 @@ export class BatchService {
       examTarget: dto.examTarget,
       class: dto.class,
       teacherId: dto.teacherId ?? null,
-      maxStudents: dto.maxStudents ?? 60,
       isPaid,
       feeAmount: isPaid ? dto.feeAmount : null,
       platformFeePercent: 20,
@@ -269,7 +271,6 @@ export class BatchService {
   async enrollStudent(batchId: string, dto: EnrollStudentDto, tenantId: string) {
     const batch = await this.getBatchOrThrow(batchId, tenantId);
     const student = await this.getStudentById(dto.studentId, tenantId);
-    await this.assertBatchCapacity(batch.id, batch.maxStudents, tenantId);
 
     const existing = await this.enrollmentRepo.findOne({
       where: { tenantId, batchId, studentId: student.id, status: EnrollmentStatus.ACTIVE },
@@ -301,7 +302,6 @@ export class BatchService {
 
     for (const studentId of dto.studentIds) {
       try {
-        await this.assertBatchCapacity(batch.id, batch.maxStudents, tenantId);
         const student = await this.getStudentById(studentId, tenantId);
         const existing = await this.enrollmentRepo.findOne({
           where: { tenantId, batchId, studentId: student.id, status: EnrollmentStatus.ACTIVE },
@@ -945,7 +945,6 @@ export class BatchService {
 
   async createAndEnrollStudent(batchId: string, dto: CreateBatchStudentDto, tenantId: string) {
     const batch = await this.getBatchOrThrow(batchId, tenantId);
-    await this.assertBatchCapacity(batch.id, batch.maxStudents, tenantId);
 
     // Duplicate checks
     const existingPhone = await this.userRepo.findOne({ where: { phoneNumber: dto.phoneNumber, tenantId } });
@@ -1000,8 +999,6 @@ export class BatchService {
 
     for (const s of dto.students) {
       try {
-        await this.assertBatchCapacity(batch.id, batch.maxStudents, tenantId);
-
         const existingPhone = await this.userRepo.findOne({ where: { phoneNumber: s.phoneNumber, tenantId } });
         if (existingPhone) {
           results.push({ fullName: s.fullName, email: s.email, tempPassword: '', status: 'skipped', error: 'Phone number already exists' });
@@ -1104,15 +1101,6 @@ export class BatchService {
   private async assertTeacherOrAdmin(batch: Batch, user: any) {
     if (user.role === UserRole.TEACHER && batch.teacherId !== user.id) {
       throw new ForbiddenException('You can only access your own batches');
-    }
-  }
-
-  private async assertBatchCapacity(batchId: string, maxStudents: number, tenantId: string) {
-    const count = await this.enrollmentRepo.count({
-      where: { tenantId, batchId, status: EnrollmentStatus.ACTIVE },
-    });
-    if (count >= maxStudents) {
-      throw new BadRequestException('Batch has reached capacity');
     }
   }
 
@@ -1247,5 +1235,123 @@ export class BatchService {
         .catch(() => ({ batchId: false }));
     }
     return this.mockTestBatchSchemaPromise;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Feature additions: Notifications & Payments
+  // ---------------------------------------------------------------------------
+
+  async trackBatchView(batchId: string, userId: string, tenantId: string) {
+    // Fire & forget
+    (async () => {
+      try {
+        const batch = await this.getBatchOrThrow(batchId, tenantId);
+        const user = await this.userRepo.findOne({ where: { id: userId, tenantId } });
+        if (!user) return;
+
+        const admins = await this.userRepo.find({
+          where: { tenantId, role: UserRole.INSTITUTE_ADMIN, status: UserStatus.ACTIVE },
+        });
+
+        const contactInfo = [user.phoneNumber, user.email].filter(Boolean).join(' / ');
+        const message = `Student ${user.fullName} (${contactInfo}) viewed course "${batch.name}"`;
+
+        for (const admin of admins) {
+          await this.notificationService.send({
+            userId: admin.id,
+            tenantId,
+            title: 'Course View',
+            body: message,
+            channels: ['in_app'],
+            refType: 'course_view',
+            refId: batch.id,
+          });
+        }
+      } catch (err) {
+        // Swallow background error
+        console.error('trackBatchView error:', err);
+      }
+    })();
+    return { tracked: true };
+  }
+
+  getRazorpayInstance() {
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      throw new InternalServerErrorException('Razorpay config is missing');
+    }
+    return new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+  }
+
+  async createCheckoutOrder(batchId: string, userId: string, tenantId: string) {
+    // Look up batch without tenant filter — students can buy batches cross-institute
+    const batch = await this.batchRepo.findOne({ where: { id: batchId }, relations: ['teacher'] });
+    if (!batch) throw new NotFoundException(`Batch ${batchId} not found`);
+
+    if (!batch.isPaid || !batch.feeAmount) {
+      throw new BadRequestException('This course is free');
+    }
+
+    const student = await this.getStudentByUserId(userId, tenantId);
+    const existingEnrollment = await this.enrollmentRepo.findOne({
+      where: { batchId, studentId: student.id, status: EnrollmentStatus.ACTIVE },
+    });
+    if (existingEnrollment) {
+      throw new ConflictException('You are already enrolled in this course');
+    }
+
+    const rzp = this.getRazorpayInstance();
+    const order = await rzp.orders.create({
+      amount: batch.feeAmount * 100, // in paise
+      currency: 'INR',
+      receipt: `rcpt_${batch.id.substring(0, 8)}_${Date.now()}`,
+    });
+
+    return {
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      key: process.env.RAZORPAY_KEY_ID,
+    };
+  }
+
+  async verifyAndEnroll(batchId: string, userId: string, tenantId: string, dto: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) {
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      throw new InternalServerErrorException('Razorpay secret missing');
+    }
+
+    const expectedSignature = createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(dto.razorpay_order_id + '|' + dto.razorpay_payment_id)
+      .digest('hex');
+
+    if (expectedSignature !== dto.razorpay_signature) {
+      throw new BadRequestException('Invalid payment signature');
+    }
+
+    // Look up batch without tenant filter (cross-institute support)
+    const batch = await this.batchRepo.findOne({ where: { id: batchId } });
+    if (!batch) throw new NotFoundException(`Batch ${batchId} not found`);
+
+    const student = await this.getStudentByUserId(userId, tenantId);
+
+    // Idempotency: if already enrolled, return existing
+    const existing = await this.enrollmentRepo.findOne({
+      where: { batchId, studentId: student.id, status: EnrollmentStatus.ACTIVE },
+    });
+    if (existing) return existing;
+
+    // Enroll using batch's tenantId and record payment
+    return this.enrollmentRepo.save(
+      this.enrollmentRepo.create({
+        tenantId: batch.tenantId,
+        batchId,
+        studentId: student.id,
+        status: EnrollmentStatus.ACTIVE,
+        feePaid: batch.feeAmount,
+        feePaidAt: new Date(),
+      }),
+    );
   }
 }

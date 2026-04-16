@@ -101,21 +101,26 @@ const ALL_ENTITIES = [
       }),
     }),
 
-    // ── Cache (Redis) ─────────────────────────────────────────────────────────
+    // ── Cache (Redis with in-memory fallback) ─────────────────────────────────
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (cfg: ConfigService) => ({
-        store: await redisStore({
-          socket: {
-            host: cfg.get<string>('redis.host'),
-            port: cfg.get<number>('redis.port'),
-          },
-          password: cfg.get<string>('redis.password') || undefined,
-          ttl: cfg.get<number>('redis.ttl'),
-        }),
-      }),
+      useFactory: async (cfg: ConfigService): Promise<any> => {
+        const host = cfg.get<string>('redis.host') || 'localhost';
+        const isLocal = host === 'localhost' || host === '127.0.0.1';
+        if (isLocal) {
+          // No local Redis — use in-memory store for development
+          return { ttl: (cfg.get<number>('redis.ttl') || 3600) * 1000 };
+        }
+        return {
+          store: await redisStore({
+            socket: { host, port: cfg.get<number>('redis.port') || 6379 },
+            password: cfg.get<string>('redis.password') || undefined,
+            ttl: (cfg.get<number>('redis.ttl') || 3600) * 1000,
+          }),
+        };
+      },
     }),
 
     // ── Rate Limiting ─────────────────────────────────────────────────────────
