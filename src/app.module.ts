@@ -62,6 +62,7 @@ import { AIModule } from './ai/ai.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { UploadModule } from './modules/upload/upload.module';
 
 const ALL_ENTITIES = [
   Tenant, User, Student,
@@ -160,6 +161,8 @@ const ALL_ENTITIES = [
 
     // Expose Tenant entity for TenantMiddleware
     TypeOrmModule.forFeature([Tenant]),
+
+    UploadModule,
   ],
   providers: [
     // Global exception filter
