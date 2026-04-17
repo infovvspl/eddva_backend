@@ -1,6 +1,7 @@
 import {
   BadRequestException,
-  Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors,
+  Body, Controller, Delete, Get, HttpCode, HttpStatus,
+  Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -14,10 +15,12 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../database/entities/user.entity';
 import { InstituteSettingsService } from './institute-settings.service';
 import {
+  UpdateInstituteProfileDto,
   UpdateBrandingDto,
   UpdateBillingEmailDto,
   UpdateNotificationPrefsDto,
   CreateCalendarEventDto,
+  InstituteOnboardingDto,
 } from './dto/institute-settings.dto';
 
 @ApiTags('Institute Settings')
@@ -27,6 +30,21 @@ import {
 @Controller('institute/settings')
 export class InstituteSettingsController {
   constructor(private readonly svc: InstituteSettingsService) {}
+
+  // ── Onboarding ───────────────────────────────────────────────────────────────
+
+  @Get('onboarding')
+  @ApiOperation({ summary: 'Get onboarding state — pre-filled with super-admin-set data' })
+  getOnboarding(@TenantId() tenantId: string, @CurrentUser('id') userId: string) {
+    return this.svc.getOnboarding(tenantId, userId);
+  }
+
+  @Post('onboarding')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Save institute onboarding (any step or all at once) — marks onboardingComplete' })
+  saveOnboarding(@TenantId() tenantId: string, @Body() dto: InstituteOnboardingDto) {
+    return this.svc.saveOnboarding(tenantId, dto);
+  }
 
   // ── Profile Image ────────────────────────────────────────────────────────────
 
@@ -59,6 +77,25 @@ export class InstituteSettingsController {
     if (!file) throw new BadRequestException('No file uploaded');
     const imageUrl = `/uploads/avatars/${file.filename}`;
     return this.svc.updateProfileImage(userId, imageUrl);
+  }
+
+  @Get('profile')
+  @ApiOperation({ summary: 'Get institute admin profile' })
+  getProfile(
+    @CurrentUser('id') userId: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.svc.getProfile(userId, tenantId);
+  }
+
+  @Patch('profile')
+  @ApiOperation({ summary: 'Update institute admin profile' })
+  updateProfile(
+    @CurrentUser('id') userId: string,
+    @TenantId() tenantId: string,
+    @Body() dto: UpdateInstituteProfileDto,
+  ) {
+    return this.svc.updateProfile(userId, tenantId, dto);
   }
 
   // ── Branding ────────────────────────────────────────────────────────────────

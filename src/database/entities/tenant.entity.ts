@@ -48,6 +48,17 @@ export class Tenant extends Base {
   @Column({ name: 'welcome_message', nullable: true })
   welcomeMessage: string;
 
+  // Institute location
+  @Column({ nullable: true })
+  city: string;
+
+  @Column({ nullable: true })
+  state: string;
+
+  // Onboarding
+  @Column({ name: 'onboarding_complete', default: false })
+  onboardingComplete: boolean;
+
   // Limits
   @Column({ name: 'max_students', default: 100 })
   maxStudents: number;

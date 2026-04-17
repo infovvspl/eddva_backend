@@ -9,6 +9,7 @@ import {
   UpdateNotificationPrefsDto,
   UpdateBillingEmailDto,
   CreateCalendarEventDto,
+  InstituteOnboardingDto,
 } from './dto/institute-settings.dto';
 
 const PLAN_LIMITS = {
@@ -31,7 +32,106 @@ export class InstituteSettingsService {
 
   async updateProfileImage(userId: string, imageUrl: string) {
     await this.userRepo.update(userId, { profilePictureUrl: imageUrl });
-    return { avatarUrl: imageUrl };
+    return { avatarUrl: imageUrl, url: imageUrl }; // support both field names
+  }
+
+  async getProfile(userId: string, tenantId: string) {
+    const [user, tenant] = await Promise.all([
+      this.userRepo.findOne({ where: { id: userId } }),
+      this.tenantRepo.findOne({ where: { id: tenantId } }),
+    ]);
+    if (!user || !tenant) throw new NotFoundException('Profile not found');
+
+    const meta = tenant.metadata ?? {};
+    return {
+      instituteName: meta.instituteName ?? tenant.name ?? '',
+      adminName:     meta.adminName     ?? user.fullName   ?? '',
+      email:         meta.email         ?? user.email      ?? '',
+      orgImageUrl:   meta.orgImageUrl   ?? user.profilePictureUrl ?? null,
+      coursesOffered:    meta.coursesOffered    ?? [],
+      yearsOfExperience: meta.yearsOfExperience ?? null,
+      classTypes:        meta.classTypes        ?? [],
+      teachingMode:      meta.teachingMode      ?? 'both',
+    };
+  }
+
+  async updateProfile(userId: string, tenantId: string, dto: Partial<{
+    instituteName?: string; adminName?: string; email?: string; orgImageUrl?: string;
+    coursesOffered?: string[]; yearsOfExperience?: number; classTypes?: string[]; teachingMode?: string;
+  }>) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    tenant.metadata = {
+      ...(tenant.metadata ?? {}),
+      ...(dto.instituteName    !== undefined && { instituteName:    dto.instituteName }),
+      ...(dto.adminName        !== undefined && { adminName:        dto.adminName }),
+      ...(dto.email            !== undefined && { email:            dto.email }),
+      ...(dto.orgImageUrl      !== undefined && { orgImageUrl:      dto.orgImageUrl }),
+      ...(dto.coursesOffered   !== undefined && { coursesOffered:   dto.coursesOffered }),
+      ...(dto.yearsOfExperience !== undefined && { yearsOfExperience: dto.yearsOfExperience }),
+      ...(dto.classTypes       !== undefined && { classTypes:       dto.classTypes }),
+      ...(dto.teachingMode     !== undefined && { teachingMode:     dto.teachingMode }),
+    };
+    await this.tenantRepo.save(tenant);
+    return this.getProfile(userId, tenantId);
+  }
+
+  // ── Institute Onboarding ──────────────────────────────────────────────────────
+
+  async getOnboarding(tenantId: string, userId: string) {
+    const [tenant, user] = await Promise.all([
+      this.tenantRepo.findOne({ where: { id: tenantId } }),
+      this.userRepo.findOne({ where: { id: userId } }),
+    ]);
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    return {
+      onboardingComplete: tenant.onboardingComplete,
+      // Step 1 — Identity (pre-filled from what super admin set)
+      name:           tenant.name,
+      logoUrl:        tenant.logoUrl         ?? null,
+      brandColor:     tenant.brandColor      ?? '#F97316',
+      city:           tenant.city            ?? null,
+      state:          tenant.state           ?? null,
+      // Step 2 — Courses (stored in metadata)
+      coursesOffered: tenant.metadata?.coursesOffered ?? [],
+      // Step 3 — Mode
+      teachingMode:   tenant.metadata?.teachingMode   ?? null,
+      // Admin profile image
+      adminAvatarUrl: user?.profilePictureUrl         ?? null,
+    };
+  }
+
+  async saveOnboarding(tenantId: string, dto: InstituteOnboardingDto) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    if (dto.name        !== undefined) tenant.name       = dto.name;
+    if (dto.logoUrl     !== undefined) tenant.logoUrl    = dto.logoUrl;
+    if (dto.brandColor  !== undefined) tenant.brandColor = dto.brandColor;
+    if (dto.city        !== undefined) tenant.city       = dto.city;
+    if (dto.state       !== undefined) tenant.state      = dto.state;
+
+    tenant.metadata = {
+      ...(tenant.metadata ?? {}),
+      ...(dto.coursesOffered !== undefined && { coursesOffered: dto.coursesOffered }),
+      ...(dto.teachingMode   !== undefined && { teachingMode:   dto.teachingMode }),
+    };
+
+    tenant.onboardingComplete = true;
+    await this.tenantRepo.save(tenant);
+
+    return {
+      onboardingComplete: true,
+      name:           tenant.name,
+      logoUrl:        tenant.logoUrl         ?? null,
+      brandColor:     tenant.brandColor      ?? '#F97316',
+      city:           tenant.city            ?? null,
+      state:          tenant.state           ?? null,
+      coursesOffered: tenant.metadata?.coursesOffered ?? [],
+      teachingMode:   tenant.metadata?.teachingMode   ?? null,
+    };
   }
 
   private async getTenant(tenantId: string): Promise<Tenant> {

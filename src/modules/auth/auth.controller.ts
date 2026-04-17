@@ -233,6 +233,18 @@ export class AuthController {
     return this.authService.completeTeacherOnboarding(userId, tenantId, dto);
   }
 
+  @Post('teacher/onboard/skip')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Skip teacher onboarding — marks onboardingComplete without requiring profile fields' })
+  skipTeacherOnboarding(
+    @CurrentUser('id') userId: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.authService.completeTeacherOnboarding(userId, tenantId, {});
+  }
+
   // ── File Upload ───────────────────────────────────────────────────────────
 
   @Post('profile/avatar')
