@@ -99,30 +99,30 @@ export class ContentService {
         const where: FindOptionsWhere<Subject> = { tenantId, isActive: true };
         if (query.examTarget) where.examTarget = query.examTarget;
 
-        // When a batchId is given, return subjects that directly belong to that batch
+        // When a batchId is given, resolve subjects via batch_subject_teachers (subjects are global,
+        // linked to batches by name — not by a batchId FK on the subject row)
         if (query.batchId) {
-            return this.subjectRepo.find({
-                where: { tenantId, isActive: true, batchId: query.batchId },
-                relations: ['chapters', 'chapters.topics'],
-                order: { sortOrder: 'ASC', name: 'ASC' },
-            });
-        }
-
-        // Legacy path — assignments table (kept for backwards compat)
-        if (false && query.batchId) {
             const assignments = await this.batchSubjectTeacherRepo.find({
                 where: { batchId: query.batchId },
                 select: ['subjectName'],
             });
             if (assignments.length === 0) return [];
-            const assignedNames = assignments.map(a => a.subjectName.toLowerCase());
+            const assignedNames = [...new Set(assignments.map(a => a.subjectName.toLowerCase()))];
 
             const tenantSubjects = await this.subjectRepo.find({
                 where: { tenantId, isActive: true },
                 relations: ['chapters', 'chapters.topics'],
-                order: { sortOrder: 'ASC', createdAt: 'ASC' },
+                order: { sortOrder: 'ASC', name: 'ASC' },
             });
-            return tenantSubjects.filter(s => assignedNames.includes(s.name.toLowerCase()));
+            const filtered = tenantSubjects.filter(s => assignedNames.includes(s.name.toLowerCase()));
+
+            // Deduplicate by name, prefer batchId=null (global) entries
+            const seen = new Map<string, Subject>();
+            for (const s of filtered) {
+                const key = s.name.toLowerCase().trim();
+                if (!seen.has(key) || s.batchId === null) seen.set(key, s);
+            }
+            return Array.from(seen.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
         }
 
         const all = await this.subjectRepo.find({
@@ -579,7 +579,10 @@ export class ContentService {
         const limit = query.limit || 20;
         const skip = (page - 1) * limit;
 
-        const qb = this.lectureRepo.createQueryBuilder('l');
+        const qb = this.lectureRepo.createQueryBuilder('l')
+            .leftJoinAndSelect('l.topic', 'topic')
+            .leftJoinAndSelect('topic.chapter', 'chapter')
+            .leftJoinAndSelect('chapter.subject', 'subject');
 
         if (query.batchId) qb.andWhere('l.batchId = :batchId', { batchId: query.batchId });
         if (query.topicId) qb.andWhere('l.topicId = :topicId', { topicId: query.topicId });
@@ -617,6 +620,27 @@ export class ContentService {
             data,
             meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
         };
+
+        // Attach studentProgress to ALL student lecture requests (not just topicId-scoped ones)
+        if (userRole === UserRole.STUDENT && data.length > 0) {
+            const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
+            if (student && !query.topicId) {
+                const lectureIds = data.map((l) => l.id);
+                const progresses = lectureIds.length
+                    ? await this.progressRepo.find({ where: { studentId: student.id, lectureId: In(lectureIds) } })
+                    : [];
+                const progressMap = new Map(progresses.map((p) => [p.lectureId, p]));
+                (result as any).data = data.map((lec) => {
+                    const lp = progressMap.get(lec.id);
+                    return {
+                        ...lec,
+                        studentProgress: lp
+                            ? { watchPercentage: lp.watchPercentage, lastPositionSeconds: lp.lastPositionSeconds, isCompleted: lp.isCompleted, rewindCount: lp.rewindCount }
+                            : null,
+                    };
+                });
+            }
+        }
 
         // Attach per-lecture progress, quiz, gate status, AI study status (student + topicId filter)
         if (query.topicId && userRole === UserRole.STUDENT) {

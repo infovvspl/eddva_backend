@@ -239,6 +239,52 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   city?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  targetCollege?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  dailyStudyHours?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  pinCode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  careOf?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  alternatePhoneNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  landmark?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  postOffice?: string;
 }
 
 export class TeacherOnboardingDto {

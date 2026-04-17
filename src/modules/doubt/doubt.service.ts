@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -31,6 +32,8 @@ import {
 
 @Injectable()
 export class DoubtService {
+  private readonly logger = new Logger(DoubtService.name);
+
   constructor(
     @InjectRepository(Doubt)
     private readonly doubtRepo: Repository<Doubt>,
@@ -58,7 +61,7 @@ export class DoubtService {
     const student = await this.getStudentByUserId(userId, tenantId);
     let topic: Topic | null = null;
     if (dto.topicId) {
-      topic = await this.topicRepo.findOne({ where: { id: dto.topicId, tenantId } });
+      topic = await this.topicRepo.findOne({ where: { id: dto.topicId } });
       if (!topic) throw new NotFoundException(`Topic ${dto.topicId} not found`);
     }
 
@@ -110,7 +113,7 @@ export class DoubtService {
       }
     }
 
-    return this.getDoubtWithRelations(doubt.id, topic?.tenantId || tenantId);
+    return this.getDoubtWithRelations(doubt.id, tenantId);
   }
 
   async getDoubts(query: DoubtListQueryDto, user: any, tenantId: string) {
@@ -300,16 +303,19 @@ export class DoubtService {
     return this.serializeDoubt(doubt);
   }
 
-  async getTeacherQueue(userId: string, tenantId: string) {
-    const studentIds = await this.getTeacherStudentIds(userId, tenantId);
-    if (!studentIds.length) return [];
+  async getTeacherQueue(userId: string, tenantId: string, role?: string) {
+    let whereClause: any = { tenantId, status: DoubtStatus.ESCALATED };
+
+    if (role === UserRole.INSTITUTE_ADMIN) {
+      // Admin sees all escalated doubts in the tenant
+    } else {
+      const studentIds = await this.getTeacherStudentIds(userId, tenantId);
+      if (!studentIds.length) return [];
+      whereClause.studentId = In(studentIds);
+    }
 
     const doubts = await this.doubtRepo.find({
-      where: {
-        tenantId,
-        status: DoubtStatus.ESCALATED,
-        studentId: In(studentIds),
-      },
+      where: whereClause,
       relations: ['student', 'student.user', 'topic'],
       order: { createdAt: 'ASC' },
     });
@@ -360,6 +366,10 @@ export class DoubtService {
       this.batchSubjectTeacherRepo.find({ where: { tenantId, teacherId: userId } }),
     ]);
 
+    this.logger.debug(
+      `getTeacherStudentIds userId=${userId} tenantId=${tenantId} primaryBatches=${primaryBatches.length} subjectAssignments=${subjectAssignments.length}`,
+    );
+
     const batchIds = [
       ...new Set([
         ...primaryBatches.map((b) => b.id),
@@ -373,13 +383,17 @@ export class DoubtService {
       where: { tenantId, batchId: In(batchIds), status: EnrollmentStatus.ACTIVE },
     });
 
+    this.logger.debug(
+      `getTeacherStudentIds batchIds=${batchIds.join(',')} enrollments=${enrollments.length}`,
+    );
+
     return [...new Set(enrollments.map((e) => e.studentId))];
   }
 
   private async notifyEscalatedDoubtTeachers(doubt: Doubt) {
     const topic = doubt.topicId
       ? await this.topicRepo.findOne({
-          where: { id: doubt.topicId, tenantId: doubt.tenantId },
+          where: { id: doubt.topicId },
           relations: ['chapter', 'chapter.subject'],
         })
       : null;
@@ -394,21 +408,53 @@ export class DoubtService {
 
     if (!enrollments.length) return;
 
+    const batchIds = enrollments.map((e) => e.batchId);
     const batches = await this.batchRepo.find({
-      where: { id: In(enrollments.map((enrollment) => enrollment.batchId)), tenantId: doubt.tenantId },
+      where: { id: In(batchIds), tenantId: doubt.tenantId },
     });
 
-    const teacherIds = [...new Set(batches.map((batch) => batch.teacherId).filter(Boolean))];
-    const teachers = teacherIds.length
-      ? await this.userRepo.find({ where: { id: In(teacherIds), tenantId: doubt.tenantId } })
-      : [];
+    // Collect primary batch teachers
+    const teacherIdSet = new Set<string>(
+      batches.map((b) => b.teacherId).filter(Boolean) as string[],
+    );
 
-    for (const teacher of teachers) {
+    // Also collect subject-specific teachers from batch_subject_teachers
+    // matching the subject of this doubt's topic
+    const subjectName = topic?.chapter?.subject?.name;
+    if (subjectName && batchIds.length) {
+      const subjectAssignments = await this.batchSubjectTeacherRepo.find({
+        where: { batchId: In(batchIds), tenantId: doubt.tenantId },
+      });
+      for (const a of subjectAssignments) {
+        if (a.subjectName?.toLowerCase() === subjectName.toLowerCase()) {
+          teacherIdSet.add(a.teacherId);
+        }
+      }
+    }
+
+    // Always notify institute admins in the tenant
+    const admins = await this.userRepo.find({
+      where: { tenantId: doubt.tenantId, role: UserRole.INSTITUTE_ADMIN },
+    });
+    for (const admin of admins) {
+      teacherIdSet.add(admin.id);
+    }
+
+    if (!teacherIdSet.size) return;
+
+    const recipients = await this.userRepo.find({
+      where: { id: In([...teacherIdSet]), tenantId: doubt.tenantId },
+    });
+
+    const topicLabel = topic?.name || 'Unknown topic';
+    const subjectLabel = subjectName ? ` (${subjectName})` : '';
+
+    for (const recipient of recipients) {
       await this.notificationService.send({
-        userId: teacher.id,
-        tenantId: teacher.tenantId,
-        title: `New doubt escalated in your subject: ${topic?.name || 'Unknown topic'}`,
-        body: `New doubt escalated in your subject: ${topic?.name || 'Unknown topic'}`,
+        userId: recipient.id,
+        tenantId: recipient.tenantId,
+        title: `New doubt from a student${subjectLabel}`,
+        body: `Topic: ${topicLabel} — "${(doubt.questionText || '').slice(0, 80)}"`,
         channels: ['push', 'in_app'],
         refType: 'doubt_escalated',
         refId: doubt.id,

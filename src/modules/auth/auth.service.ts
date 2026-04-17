@@ -580,8 +580,20 @@ export class AuthService {
       ...(dto.email && { email: dto.email }),
       ...(dto.fcmToken && { fcmToken: dto.fcmToken }),
     });
-    if (dto.city !== undefined) {
-      await this.studentRepo.update({ userId }, { city: dto.city });
+    const studentUpdates: any = {};
+    if (dto.city !== undefined) studentUpdates.city = dto.city;
+    if (dto.targetCollege !== undefined) studentUpdates.targetCollege = dto.targetCollege;
+    if (dto.dailyStudyHours !== undefined) studentUpdates.dailyStudyHours = dto.dailyStudyHours;
+    if (dto.address !== undefined) studentUpdates.address = dto.address;
+    if (dto.state !== undefined) studentUpdates.state = dto.state;
+    if (dto.pinCode !== undefined) studentUpdates.pinCode = dto.pinCode;
+    if (dto.careOf !== undefined) studentUpdates.careOf = dto.careOf;
+    if (dto.alternatePhoneNumber !== undefined) studentUpdates.alternatePhoneNumber = dto.alternatePhoneNumber;
+    if (dto.landmark !== undefined) studentUpdates.landmark = dto.landmark;
+    if (dto.postOffice !== undefined) studentUpdates.postOffice = dto.postOffice;
+
+    if (Object.keys(studentUpdates).length > 0) {
+      await this.studentRepo.update({ userId }, studentUpdates);
     }
     return { message: 'Profile updated' };
   }

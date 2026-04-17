@@ -168,6 +168,19 @@ export class StudentService {
         const completedTopics = topicProgressRows.find(r => r.status === TopicStatus.COMPLETED)?.cnt ?? 0;
         const inProgressTopics = topicProgressRows.find(r => r.status === TopicStatus.IN_PROGRESS)?.cnt ?? 0;
 
+        // Total topics in this batch (for accurate progress percentage)
+        const totalTopicsRows = await this.dataSource.query(`
+          SELECT COUNT(DISTINCT t.id)::int AS cnt
+          FROM topics t
+          JOIN chapters c ON c.id = t.chapter_id
+          JOIN subjects s ON s.id = c.subject_id
+          JOIN batch_subject_teachers bst
+            ON LOWER(bst.subject_name) = LOWER(s.name)
+            AND bst.batch_id = $1
+          WHERE t.is_active = true AND t.deleted_at IS NULL
+        `, [batch.id]);
+        const totalTopics = totalTopicsRows[0]?.cnt ?? 0;
+
         // Total published lectures in this batch
         const totalLectures = await this.lectureRepo.count({
           where: { batchId: batch.id, status: LectureStatus.PUBLISHED },
@@ -206,6 +219,10 @@ export class StudentService {
             watchedLectures:  watchedLectures[0]?.cnt ?? 0,
             completedTopics:  Number(completedTopics),
             inProgressTopics: Number(inProgressTopics),
+            totalTopics:      Number(totalTopics),
+            overallPct: Number(totalTopics) > 0
+              ? Math.round((Number(completedTopics) / Number(totalTopics)) * 100)
+              : 0,
           },
         };
       }),
