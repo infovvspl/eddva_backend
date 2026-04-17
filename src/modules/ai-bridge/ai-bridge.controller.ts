@@ -15,9 +15,6 @@ import { UserRole } from '../../database/entities/user.entity';
 import {
   StartTutorSessionDto,
   ContinueTutorSessionDto,
-  AnalyzePerformanceDto,
-  GradeSubjectiveDto,
-  DetectEngagementDto,
   RecommendContentDto,
   GenerateLectureNotesDto,
   GenerateFeedbackDto,
@@ -99,70 +96,6 @@ export class AiBridgeController {
       {
         sessionId: dto.sessionId,
         studentMessage: dto.studentMessage,
-      },
-      tenantId,
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  AI #3 — Performance Analysis
-  // ══════════════════════════════════════════════════════════════════════════
-  @Post('performance/analyze')
-  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
-  @HttpCode(HttpStatus.OK)
-  async analyzePerformance(
-    @Body() dto: AnalyzePerformanceDto,
-    @CurrentUser('id') userId: string,
-    @TenantId() tenantId: string,
-  ) {
-    return this.aiBridgeService.analyzePerformance(
-      {
-        studentId: userId,
-        testSessionId: dto.testSessionId,
-        attempts: dto.attempts,
-        examTarget: dto.examTarget || 'jee',
-      },
-      tenantId,
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  AI #4 — Assessment Grading
-  // ══════════════════════════════════════════════════════════════════════════
-  @Post('grade/subjective')
-  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
-  @HttpCode(HttpStatus.OK)
-  async gradeSubjective(
-    @Body() dto: GradeSubjectiveDto,
-    @TenantId() tenantId: string,
-  ) {
-    return this.aiBridgeService.gradeSubjective(
-      {
-        questionText: dto.questionText,
-        studentAnswer: dto.studentAnswer,
-        expectedAnswer: dto.expectedAnswer,
-        maxMarks: dto.maxMarks,
-      },
-      tenantId,
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  AI #5 — Engagement Monitoring
-  // ══════════════════════════════════════════════════════════════════════════
-  @Post('engagement/detect')
-  @Roles(UserRole.STUDENT, UserRole.TEACHER)
-  @HttpCode(HttpStatus.OK)
-  async detectEngagement(
-    @Body() dto: DetectEngagementDto,
-    @CurrentUser('id') userId: string,
-    @TenantId() tenantId: string,
-  ) {
-    return this.aiBridgeService.detectEngagement(
-      {
-        studentId: userId,
-        context: dto.context,
-        signals: dto.signals,
       },
       tenantId,
     );

@@ -33,7 +33,7 @@ export class AiBridgeService {
 
   private headers(tenantId?: string) {
     const h: Record<string, string> = {
-      Authorization: `Bearer ${this.apiKey}`,
+      'X-API-Key': this.apiKey,
       'Content-Type': 'application/json',
     };
     if (tenantId) {
@@ -84,50 +84,6 @@ export class AiBridgeService {
     tenantId?: string,
   ) {
     return this.post('/tutor/continue', payload, tenantId);
-  }
-
-  // ── AI #3 — Performance Analysis ─────────────────────────────────────────
-  async analyzePerformance(
-    payload: {
-      studentId: string;
-      testSessionId: string;
-      attempts: any[];
-      examTarget: string;
-    },
-    tenantId?: string,
-  ) {
-    return this.post('/performance/analyze', payload, tenantId);
-  }
-
-  // ── AI #4 — Assessment Grading ────────────────────────────────────────────
-  async gradeSubjective(
-    payload: {
-      questionText: string;
-      studentAnswer: string;
-      expectedAnswer: string;
-      maxMarks: number;
-    },
-    tenantId?: string,
-  ) {
-    return this.post('/grade/subjective', payload, tenantId);
-  }
-
-  // ── AI #5 — Engagement Monitoring ────────────────────────────────────────
-  async detectEngagement(
-    payload: {
-      studentId: string;
-      context: string;
-      signals: {
-        rewindCount?: number;
-        pauseCount?: number;
-        answersPerMinute?: number;
-        accuracy?: number;
-        idleSeconds?: number;
-      };
-    },
-    tenantId?: string,
-  ) {
-    return this.post('/engage/detect', payload, tenantId);
   }
 
   // ── AI #6 — Content Recommendation ───────────────────────────────────────
