@@ -46,7 +46,7 @@ type MockTestSchema = {
 @Injectable()
 export class AssessmentService {
   private readonly logger = new Logger(AssessmentService.name);
-  private mockTestSchemaPromise: Promise<MockTestSchema> | null = null;
+  private mockTestSchemaCache: MockTestSchema | null = null;
 
   constructor(
     @InjectRepository(MockTest)
@@ -1481,42 +1481,33 @@ export class AssessmentService {
   }
 
   private async getMockTestSchema(): Promise<MockTestSchema> {
-    if (!this.mockTestSchemaPromise) {
-      this.mockTestSchemaPromise = this.dataSource
-        .query(
-          `
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = 'mock_tests'
-          `,
-        )
-        .then((rows: Array<{ column_name: string }>) => {
-          const set = new Set(rows.map((row) => row.column_name));
-          return {
-            batchId: set.has('batch_id'),
-            topicId: set.has('topic_id'),
-            passingMarks: set.has('passing_marks'),
-            isPublished: set.has('is_published'),
-            shuffleQuestions: set.has('shuffle_questions'),
-            showAnswersAfterSubmit: set.has('show_answers_after_submit'),
-            allowReattempt: set.has('allow_reattempt'),
-          };
-        })
-        .catch((error) => {
-          this.logger.warn(`Failed to inspect mock_tests schema: ${error.message}`);
-          return {
-            batchId: false,
-            topicId: false,
-            passingMarks: false,
-            isPublished: false,
-            shuffleQuestions: false,
-            showAnswersAfterSubmit: false,
-            allowReattempt: false,
-          };
-        });
+    if (this.mockTestSchemaCache) return this.mockTestSchemaCache;
+
+    try {
+      const rows: Array<{ column_name: string }> = await this.dataSource.query(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'mock_tests'`,
+      );
+      const set = new Set(rows.map((r) => r.column_name));
+      this.mockTestSchemaCache = {
+        batchId:               set.has('batch_id'),
+        topicId:               set.has('topic_id'),
+        passingMarks:          set.has('passing_marks'),
+        isPublished:           set.has('is_published'),
+        shuffleQuestions:      set.has('shuffle_questions'),
+        showAnswersAfterSubmit: set.has('show_answers_after_submit'),
+        allowReattempt:        set.has('allow_reattempt'),
+      };
+    } catch (error) {
+      this.logger.warn(`Failed to inspect mock_tests schema: ${error.message}`);
+      // Don't cache on error — retry next request
+      return {
+        batchId: false, topicId: false, passingMarks: false,
+        isPublished: false, shuffleQuestions: false,
+        showAnswersAfterSubmit: false, allowReattempt: false,
+      };
     }
 
-    return this.mockTestSchemaPromise;
+    return this.mockTestSchemaCache;
   }
 
   // ── AI Question Generation for Diagnostic ────────────────────────────────────
