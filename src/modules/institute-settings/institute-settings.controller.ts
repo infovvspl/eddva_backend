@@ -16,12 +16,12 @@ import { UserRole } from '../../database/entities/user.entity';
 import { InstituteSettingsService } from './institute-settings.service';
 import { S3Service } from '../upload/s3.service';
 import {
+  UpdateInstituteProfileDto,
   UpdateBrandingDto,
   UpdateBillingEmailDto,
   UpdateNotificationPrefsDto,
   CreateCalendarEventDto,
   InstituteOnboardingDto,
-  UpdateInstituteProfileDto,
 } from './dto/institute-settings.dto';
 
 @ApiTags('Institute Settings')
