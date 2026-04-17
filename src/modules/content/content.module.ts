@@ -12,10 +12,12 @@ import { MockTest, TopicProgress } from '../../database/entities/assessment.enti
 import { PlanItem, StudyPlan } from '../../database/entities/learning.entity';
 import { Student } from '../../database/entities/student.entity';
 import { AiBridgeModule } from '../ai-bridge/ai-bridge.module';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
     imports: [
         AiBridgeModule,
+        UploadModule,
         TypeOrmModule.forFeature([
             Subject,
             Chapter,
