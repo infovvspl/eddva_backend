@@ -125,11 +125,21 @@ export class ContentService {
             return tenantSubjects.filter(s => assignedNames.includes(s.name.toLowerCase()));
         }
 
-        return this.subjectRepo.find({
+        const all = await this.subjectRepo.find({
             where: { tenantId, isActive: true },
             relations: ['chapters', 'chapters.topics'],
             order: { sortOrder: 'ASC', createdAt: 'ASC' },
         });
+
+        // Deduplicate by name — prefer global (batchId = null) over batch-scoped copies
+        const seen = new Map<string, Subject>();
+        for (const s of all) {
+            const key = s.name.toLowerCase().trim();
+            if (!seen.has(key) || s.batchId === null) {
+                seen.set(key, s);
+            }
+        }
+        return Array.from(seen.values()).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
     }
 
     async getSubjectById(id: string, tenantId: string): Promise<Subject> {
