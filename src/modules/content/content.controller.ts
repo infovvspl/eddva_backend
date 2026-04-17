@@ -14,21 +14,24 @@ import {
     HttpStatus,
     ParseUUIDPipe,
     BadRequestException,
+    UploadedFile,
+    UseInterceptors,
 } from '@nestjs/common';
-<<<<<<< HEAD
+
 import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { mkdirSync } from 'fs';
 import { randomBytes } from 'crypto';
-=======
->>>>>>> 38134ffd0ef9c227a88f375d5ece41ab1e29bc49
+
+import { memoryStorage } from 'multer';
 import {
     ApiTags,
     ApiBearerAuth,
     ApiOperation,
     ApiParam,
+    ApiConsumes,
 } from '@nestjs/swagger';
 
 import { ContentService } from './content.service';
@@ -59,13 +62,18 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { UserRole } from '../../database/entities/user.entity';
+import { S3Service } from '../upload/s3.service';
+
 
 @ApiTags('Content')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('content')
 export class ContentController {
-    constructor(private readonly contentService: ContentService) { }
+    constructor(
+        private readonly contentService: ContentService,
+        private readonly s3Service: S3Service,
+    ) { }
 
     // ─── BULK IMPORT ─────────────────────────────────────────────────────────
 
@@ -559,6 +567,54 @@ export class ContentController {
         }, tenantId);
     }
 
+    @Post('topics/:topicId/resources/upload-file')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @ApiConsumes('multipart/form-data')
+    @ApiOperation({ summary: 'Upload a topic resource through backend and save the final file URL' })
+    @ApiParam({ name: 'topicId', type: 'string' })
+    @UseInterceptors(
+        FileInterceptor('file', {
+            storage: memoryStorage(),
+            limits: { fileSize: 10 * 1024 * 1024 },
+            fileFilter: (_req, file, cb) => {
+                const allowed =
+                    file.mimetype === 'application/pdf' ||
+                    file.mimetype.startsWith('image/');
+
+                if (!allowed) {
+                    return cb(new BadRequestException('Only PDF or image files are allowed'), false);
+                }
+                cb(null, true);
+            },
+        }),
+    )
+    async uploadTopicResourceFile(
+        @Param('topicId', ParseUUIDPipe) topicId: string,
+        @UploadedFile() file: Express.Multer.File,
+        @Body() body: { title: string; type: string; description?: string; sortOrder?: string; fileSizeKb?: string },
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        if (!file) throw new BadRequestException('No file uploaded');
+        if (!body.title) throw new BadRequestException('title is required');
+        if (!body.type) throw new BadRequestException('type is required');
+
+        const ext = extname(file.originalname).toLowerCase();
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '');
+        const key = `tenants/${tenantId}/topics/${topicId}/resources/${Date.now()}-${safeName || `resource${ext || ''}`}`;
+        const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype);
+
+        return this.contentService.createTopicResource(topicId, {
+            title: body.title,
+            type: body.type as any,
+            description: body.description,
+            sortOrder: body.sortOrder ? Number(body.sortOrder) : 0,
+            fileUrl,
+            fileSizeKb: body.fileSizeKb ? Number(body.fileSizeKb) : Math.ceil(file.size / 1024),
+            uploadedBy: user.id,
+        }, tenantId);
+    }
+
     @Post('topics/:topicId/resources/link')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
     @ApiOperation({ summary: 'Add a URL-based resource (YouTube link, external PDF, etc.) for a topic' })
@@ -630,6 +686,39 @@ export class ContentController {
         @TenantId() tenantId: string,
     ) {
         if (!fileUrl) throw new BadRequestException('fileUrl is required');
+        return this.contentService.updateBatchThumbnail(batchId, fileUrl, tenantId);
+    }
+
+    @Post('batches/:batchId/thumbnail/upload')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @HttpCode(HttpStatus.OK)
+    @ApiConsumes('multipart/form-data')
+    @ApiOperation({ summary: 'Upload batch thumbnail through backend and save the final URL' })
+    @ApiParam({ name: 'batchId', type: 'string' })
+    @UseInterceptors(
+        FileInterceptor('file', {
+            storage: memoryStorage(),
+            limits: { fileSize: 10 * 1024 * 1024 },
+            fileFilter: (_req, file, cb) => {
+                if (!file.mimetype.match(/^image\/(jpeg|jpg|png|webp|gif)$/)) {
+                    return cb(new BadRequestException('Only image files are allowed'), false);
+                }
+                cb(null, true);
+            },
+        }),
+    )
+    async uploadBatchThumbnailFile(
+        @Param('batchId', ParseUUIDPipe) batchId: string,
+        @UploadedFile() file: Express.Multer.File,
+        @TenantId() tenantId: string,
+    ) {
+        if (!file) throw new BadRequestException('No file uploaded');
+
+        const ext = extname(file.originalname).toLowerCase() || '.png';
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '');
+        const key = `tenants/${tenantId}/courses/${batchId}/thumbnail/${Date.now()}-${safeName || `thumbnail${ext}`}`;
+        const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype);
+
         return this.contentService.updateBatchThumbnail(batchId, fileUrl, tenantId);
     }
 }
