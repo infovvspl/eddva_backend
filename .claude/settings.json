@@ -23,7 +23,21 @@
       "Bash(PGPASSWORD=postgres psql -U postgres -d apexiq -c \"SELECT id, name, exam_target FROM batches WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 10;\")",
       "Bash(cmd /c \"cd C:\\\\Users\\\\subha\\\\Desktop\\\\eddva_frontend && node -e \\\\\"require\\('xlsx'\\); console.log\\('ok'\\)\\\\\" 2>&1\")",
       "Bash(cmd /c \"cd C:\\\\Users\\\\subha\\\\Desktop\\\\eddva_frontend && cat package.json | findstr xlsx\")",
-      "Bash(cmd /c \"cd C:\\\\Users\\\\subha\\\\Desktop\\\\eddva_frontend && npm install xlsx --save 2>&1\")"
+      "Bash(cmd /c \"cd C:\\\\Users\\\\subha\\\\Desktop\\\\eddva_frontend && npm install xlsx --save 2>&1\")",
+      "Bash(PGPASSWORD=postgres psql -U postgres -d apexiq -c \"ALTER TABLE lecture_progress ADD COLUMN IF NOT EXISTS quiz_responses jsonb NOT NULL DEFAULT '[]';\")",
+      "Bash(PGPASSWORD=postgres psql -U postgres -d apexiq -h 127.0.0.1 -p 5432 -c \"ALTER TABLE lecture_progress ADD COLUMN IF NOT EXISTS quiz_responses jsonb NOT NULL DEFAULT '[]';\")",
+      "Bash(PGPASSWORD=postgres psql -U postgres -d apexiq -h localhost -p 5433 -c \"ALTER TABLE lecture_progress ADD COLUMN IF NOT EXISTS quiz_responses jsonb NOT NULL DEFAULT '[]';\")",
+      "Bash(cmd /c \"net start postgresql* 2>&1 | head -5\")",
+      "Bash(cmd /c \"sc query postgresql* 2>&1\")",
+      "Bash(cmd /c \"\\\\\"C:\\\\\\\\Program Files\\\\\\\\PostgreSQL\\\\\\\\17\\\\\\\\bin\\\\\\\\pg_isready.exe\\\\\" -h localhost -p 5432 2>&1\")",
+      "Bash(PGPASSWORD=postgres \"C:/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -d apexiq -c \"ALTER TABLE lecture_progress ADD COLUMN IF NOT EXISTS quiz_responses jsonb NOT NULL DEFAULT '[]';\")",
+      "Bash(PGPASSWORD=postgres \"C:/Program Files/PostgreSQL/17/bin/pg_isready.exe\" -h 127.0.0.1)",
+      "Bash(PGPASSWORD=postgres \"C:/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -d apexiq -h 127.0.0.1 -c \"SELECT 1;\")",
+      "Bash(cmd /c \"node add-quiz-responses.mjs 2>&1\")",
+      "Bash(cmd /c \"node add-quiz-responses.mjs\")",
+      "Bash(node add-quiz-responses.mjs)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(node add-mock-test-columns.mjs)"
     ],
     "additionalDirectories": [
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\lib\\api",
@@ -33,7 +47,8 @@
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\pages\\teacher",
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\components\\teacher",
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\pages",
-      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\hooks"
+      "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\hooks",
+      "C:\\Users\\subha\\Desktop\\eddva_backend"
     ]
   }
 }
