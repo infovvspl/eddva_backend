@@ -10,6 +10,7 @@ import {
   UpdateBillingEmailDto,
   CreateCalendarEventDto,
   InstituteOnboardingDto,
+  UpdateInstituteProfileDto,
 } from './dto/institute-settings.dto';
 
 const PLAN_LIMITS = {
@@ -32,49 +33,58 @@ export class InstituteSettingsService {
 
   async updateProfileImage(userId: string, imageUrl: string) {
     await this.userRepo.update(userId, { profilePictureUrl: imageUrl });
-    return { avatarUrl: imageUrl, url: imageUrl }; // support both field names
+    return { avatarUrl: imageUrl, url: imageUrl };
   }
 
-  async getProfile(userId: string, tenantId: string) {
-    const [user, tenant] = await Promise.all([
+  async getProfile(tenantId: string, userId: string) {
+    const [tenant, user] = await Promise.all([
+      this.getTenant(tenantId),
       this.userRepo.findOne({ where: { id: userId } }),
-      this.tenantRepo.findOne({ where: { id: tenantId } }),
     ]);
-    if (!user || !tenant) throw new NotFoundException('Profile not found');
 
     const meta = tenant.metadata ?? {};
     return {
-      instituteName: meta.instituteName ?? tenant.name ?? '',
-      adminName:     meta.adminName     ?? user.fullName   ?? '',
-      email:         meta.email         ?? user.email      ?? '',
-      orgImageUrl:   meta.orgImageUrl   ?? user.profilePictureUrl ?? null,
-      coursesOffered:    meta.coursesOffered    ?? [],
-      yearsOfExperience: meta.yearsOfExperience ?? null,
-      classTypes:        meta.classTypes        ?? [],
-      teachingMode:      meta.teachingMode      ?? 'both',
+      instituteName:     meta.instituteName     ?? tenant.name ?? '',
+      adminName:         (meta.adminName         ?? user?.fullName) || '',
+      email:             (meta.email             ?? user?.email)    || '',
+      orgImageUrl:       (meta.orgImageUrl       ?? user?.profilePictureUrl) || tenant.logoUrl || null,
+      coursesOffered:    (meta.coursesOffered    ?? tenant.metadata?.coursesOffered) || [],
+      yearsOfExperience: (meta.yearsOfExperience ?? tenant.metadata?.yearsOfExperience) || null,
+      classTypes:        (meta.classTypes        ?? tenant.metadata?.classTypes) || [],
+      teachingMode:      (meta.teachingMode      ?? tenant.metadata?.teachingMode) || 'offline',
     };
   }
 
-  async updateProfile(userId: string, tenantId: string, dto: Partial<{
-    instituteName?: string; adminName?: string; email?: string; orgImageUrl?: string;
-    coursesOffered?: string[]; yearsOfExperience?: number; classTypes?: string[]; teachingMode?: string;
-  }>) {
-    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
-    if (!tenant) throw new NotFoundException('Tenant not found');
+  async updateProfile(tenantId: string, userId: string, dto: UpdateInstituteProfileDto) {
+    const [tenant, user] = await Promise.all([
+      this.getTenant(tenantId),
+      this.userRepo.findOne({ where: { id: userId } }),
+    ]);
 
+    if (!user) throw new NotFoundException('User not found');
+
+    // Update Tenant fields & metadata
+    if (dto.instituteName !== undefined) tenant.name = dto.instituteName;
+    
     tenant.metadata = {
       ...(tenant.metadata ?? {}),
       ...(dto.instituteName    !== undefined && { instituteName:    dto.instituteName }),
       ...(dto.adminName        !== undefined && { adminName:        dto.adminName }),
       ...(dto.email            !== undefined && { email:            dto.email }),
       ...(dto.orgImageUrl      !== undefined && { orgImageUrl:      dto.orgImageUrl }),
-      ...(dto.coursesOffered   !== undefined && { coursesOffered:   dto.coursesOffered }),
+      ...(dto.coursesOffered    !== undefined && { coursesOffered:    dto.coursesOffered }),
       ...(dto.yearsOfExperience !== undefined && { yearsOfExperience: dto.yearsOfExperience }),
-      ...(dto.classTypes       !== undefined && { classTypes:       dto.classTypes }),
-      ...(dto.teachingMode     !== undefined && { teachingMode:     dto.teachingMode }),
+      ...(dto.classTypes        !== undefined && { classTypes:        dto.classTypes }),
+      ...(dto.teachingMode      !== undefined && { teachingMode:      dto.teachingMode }),
     };
     await this.tenantRepo.save(tenant);
-    return this.getProfile(userId, tenantId);
+
+    // Update User fields
+    if (dto.adminName !== undefined) user.fullName = dto.adminName;
+    if (dto.email     !== undefined) user.email    = dto.email;
+    await this.userRepo.save(user);
+
+    return this.getProfile(tenantId, userId);
   }
 
   // ── Institute Onboarding ──────────────────────────────────────────────────────
@@ -170,7 +180,8 @@ export class InstituteSettingsService {
     const [studentCount, teacherCount] = await Promise.all([
       this.studentRepo
         .createQueryBuilder('s')
-        .innerJoin('s.user', 'u', 'u.tenant_id = :tid', { tid: tenantId })
+        .innerJoin('u', 'u', 's.user_id = u.id')
+        .where('u.tenant_id = :tid', { tid: tenantId })
         .getCount(),
       this.userRepo.count({ where: { tenantId, role: 'teacher' as any } }),
     ]);

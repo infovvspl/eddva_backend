@@ -15,6 +15,7 @@ export const dbConfig: DataSourceOptions = {
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
   extra: {
     family: 4, // Force IPv4 — Supabase host resolves to IPv6 only by default
+    max: 15,   // Limit pool size to prevent "MaxClientsInSessionMode" errors
   },
   entities: [__dirname + '/../database/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],

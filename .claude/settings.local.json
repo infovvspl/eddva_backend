@@ -2,7 +2,18 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(npx ts-node *)",
+      "Bash(node -e \"require\\('uuid'\\)\")",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000/api/v1/auth/me -o /dev/null -w \"%{http_code}\")",
+      "Bash(npx kill-port *)",
+      "Bash(netstat -ano)",
+      "Bash(awk '{print $5}')",
+      "Read(//tmp/**)",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://eddva.s3.ap-south-1.amazonaws.com/tenants/73a505c3-23eb-4166-b019-8c9bc154a284/admin/profile/4a17ed1c-dbc4-4844-9eea-7cb4853f6da6.png\")",
+      "Bash(taskkill /F /PID 25472)"
     ]
   }
 }
