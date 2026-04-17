@@ -48,12 +48,23 @@ export const mailConfig = registerAs('mail', () => ({
 }));
 
 export const storageConfig = registerAs('storage', () => ({
-  provider: process.env.STORAGE_PROVIDER || 'r2',
+  provider: process.env.STORAGE_PROVIDER || 's3',
+
+  s3: {
+    region:          process.env.AWS_REGION          || 'ap-south-1',
+    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    bucketName:      process.env.S3_BUCKET_NAME      || 'eddva-assets',
+    publicUrl:       process.env.S3_PUBLIC_URL        || '',   // CDN origin (CloudFront)
+    presignExpiresIn: parseInt(process.env.S3_PRESIGN_TTL || '600'), // 10 min
+  },
+
+  // Cloudflare R2 (S3-compatible, kept for legacy)
   r2: {
-    accountId: process.env.R2_ACCOUNT_ID,
-    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    accountId:       process.env.R2_ACCOUNT_ID,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-    bucketName: process.env.R2_BUCKET_NAME || 'apexiq-media',
-    publicUrl: process.env.R2_PUBLIC_URL || 'https://media.apexiq.in',
+    bucketName:      process.env.R2_BUCKET_NAME || 'apexiq-media',
+    publicUrl:       process.env.R2_PUBLIC_URL  || 'https://media.apexiq.in',
   },
 }));
