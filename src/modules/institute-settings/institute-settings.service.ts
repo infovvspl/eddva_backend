@@ -10,6 +10,7 @@ import {
   UpdateBillingEmailDto,
   CreateCalendarEventDto,
   InstituteOnboardingDto,
+  UpdateInstituteProfileDto,
 } from './dto/institute-settings.dto';
 
 const PLAN_LIMITS = {
@@ -33,6 +34,52 @@ export class InstituteSettingsService {
   async updateProfileImage(userId: string, imageUrl: string) {
     await this.userRepo.update(userId, { profilePictureUrl: imageUrl });
     return { avatarUrl: imageUrl };
+  }
+
+  async getProfile(tenantId: string, userId: string) {
+    const [tenant, user] = await Promise.all([
+      this.getTenant(tenantId),
+      this.userRepo.findOne({ where: { id: userId } }),
+    ]);
+
+    return {
+      instituteName:     tenant.name,
+      adminName:         user?.fullName || '',
+      email:             user?.email    || '',
+      orgImageUrl:       user?.profilePictureUrl || tenant.logoUrl || null,
+      coursesOffered:    tenant.metadata?.coursesOffered    || [],
+      yearsOfExperience: tenant.metadata?.yearsOfExperience || null,
+      classTypes:        tenant.metadata?.classTypes        || [],
+      teachingMode:      tenant.metadata?.teachingMode      || 'offline',
+    };
+  }
+
+  async updateProfile(tenantId: string, userId: string, dto: UpdateInstituteProfileDto) {
+    const [tenant, user] = await Promise.all([
+      this.getTenant(tenantId),
+      this.userRepo.findOne({ where: { id: userId } }),
+    ]);
+
+    if (!user) throw new NotFoundException('User not found');
+
+    // Update Tenant fields
+    if (dto.instituteName !== undefined) tenant.name = dto.instituteName;
+    
+    tenant.metadata = {
+      ...(tenant.metadata ?? {}),
+      ...(dto.coursesOffered    !== undefined && { coursesOffered:    dto.coursesOffered }),
+      ...(dto.yearsOfExperience !== undefined && { yearsOfExperience: dto.yearsOfExperience }),
+      ...(dto.classTypes        !== undefined && { classTypes:        dto.classTypes }),
+      ...(dto.teachingMode      !== undefined && { teachingMode:      dto.teachingMode }),
+    };
+    await this.tenantRepo.save(tenant);
+
+    // Update User fields
+    if (dto.adminName !== undefined) user.fullName = dto.adminName;
+    if (dto.email     !== undefined) user.email    = dto.email;
+    await this.userRepo.save(user);
+
+    return this.getProfile(tenantId, userId);
   }
 
   // ── Institute Onboarding ──────────────────────────────────────────────────────
