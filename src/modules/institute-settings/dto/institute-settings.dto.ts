@@ -2,7 +2,45 @@ import {
   IsString, IsOptional, IsHexColor, IsEmail, IsEnum, IsBoolean, IsDateString,
   ValidateNested, IsArray, IsNumber, IsUrl,
 } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class InstituteOnboardingDto {
+  @ApiPropertyOptional({ example: 'Bright Future Academy' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ example: 'https://cdn.example.com/logo.png' })
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
+
+  @ApiPropertyOptional({ example: 'Mumbai' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({ example: 'Maharashtra' })
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional({ example: ['JEE', 'NEET', 'Board Exams'], type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  coursesOffered?: string[];
+
+  @ApiPropertyOptional({ example: 'hybrid', enum: ['online', 'offline', 'hybrid'] })
+  @IsOptional()
+  @IsString()
+  teachingMode?: string;
+
+  @ApiPropertyOptional({ example: '#F97316' })
+  @IsOptional()
+  @IsHexColor()
+  brandColor?: string;
+}
 import { Type } from 'class-transformer';
 
 export class UpdateInstituteProfileDto {
