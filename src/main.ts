@@ -21,6 +21,10 @@ async function bootstrap() {
 
   const cfg = app.get(ConfigService);
 
+  // ── Body size limit for video uploads ────────────────────────────────────
+  app.use(require('express').json({ limit: '10mb' }));
+  app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
+
   // ── CORS ──────────────────────────────────────────────────────────────────
   const isDev = cfg.get<string>('app.nodeEnv') !== 'production';
   app.enableCors({

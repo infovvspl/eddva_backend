@@ -280,8 +280,67 @@ export class ContentController {
     // 2. PUT video directly to S3 using the returned uploadUrl
     // 3. Save the returned fileUrl as videoUrl when creating/updating the lecture
 
+    @Post('lectures/upload-video')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @HttpCode(HttpStatus.OK)
+    @ApiConsumes('multipart/form-data')
+    @ApiOperation({ summary: 'Upload a lecture video through backend to S3' })
+    @UseInterceptors(
+        FileInterceptor('file', {
+            storage: memoryStorage(),
+            limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB
+            fileFilter: (_req, file, cb) => {
+                if (!file.mimetype.startsWith('video/')) {
+                    return cb(new BadRequestException('Only video files are allowed'), false);
+                }
+                cb(null, true);
+            },
+        }),
+    )
+    async uploadVideo(
+        @UploadedFile() file: Express.Multer.File,
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        if (!file) throw new BadRequestException('No file uploaded');
+        const ext = extname(file.originalname).toLowerCase() || '.mp4';
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `video${ext}`;
+        const key = `tenants/${tenantId}/lectures/${Date.now()}-${safeName}`;
+        const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype);
+        return { url: fileUrl };
+    }
+
+    @Post('lectures/upload-thumbnail')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @HttpCode(HttpStatus.OK)
+    @ApiConsumes('multipart/form-data')
+    @ApiOperation({ summary: 'Upload a lecture thumbnail image to S3' })
+    @UseInterceptors(
+        FileInterceptor('file', {
+            storage: memoryStorage(),
+            limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+            fileFilter: (_req, file, cb) => {
+                if (!file.mimetype.startsWith('image/')) {
+                    return cb(new BadRequestException('Only image files are allowed'), false);
+                }
+                cb(null, true);
+            },
+        }),
+    )
+    async uploadThumbnail(
+        @UploadedFile() file: Express.Multer.File,
+        @TenantId() tenantId: string,
+    ) {
+        if (!file) throw new BadRequestException('No file uploaded');
+        const ext = extname(file.originalname).toLowerCase() || '.jpg';
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `thumbnail${ext}`;
+        const key = `tenants/${tenantId}/lectures/thumbnails/${Date.now()}-${safeName}`;
+        const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype);
+        return { url: fileUrl };
+    }
+
     @Post('lectures/confirm-video')
-    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Confirm video URL after S3 upload (no-op — videoUrl is set on lecture create/update)' })
     confirmVideo(@Body('fileUrl') fileUrl: string) {
@@ -290,7 +349,7 @@ export class ContentController {
     }
 
     @Post('lectures')
-    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
     @ApiOperation({ summary: 'Create a lecture (recorded or live)' })
     createLecture(
         @Body() dto: CreateLectureDto,
