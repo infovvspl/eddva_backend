@@ -45,13 +45,13 @@ export class InstituteSettingsService {
     const meta = tenant.metadata ?? {};
     return {
       instituteName:     meta.instituteName     ?? tenant.name ?? '',
-      adminName:         meta.adminName         ?? user?.fullName || '',
-      email:             meta.email             ?? user?.email    || '',
-      orgImageUrl:       meta.orgImageUrl       ?? user?.profilePictureUrl || tenant.logoUrl || null,
-      coursesOffered:    meta.coursesOffered    ?? tenant.metadata?.coursesOffered || [],
-      yearsOfExperience: meta.yearsOfExperience ?? tenant.metadata?.yearsOfExperience || null,
-      classTypes:        meta.classTypes        ?? tenant.metadata?.classTypes || [],
-      teachingMode:      meta.teachingMode      ?? tenant.metadata?.teachingMode || 'offline',
+      adminName:         (meta.adminName         ?? user?.fullName) || '',
+      email:             (meta.email             ?? user?.email)    || '',
+      orgImageUrl:       (meta.orgImageUrl       ?? user?.profilePictureUrl) || tenant.logoUrl || null,
+      coursesOffered:    (meta.coursesOffered    ?? tenant.metadata?.coursesOffered) || [],
+      yearsOfExperience: (meta.yearsOfExperience ?? tenant.metadata?.yearsOfExperience) || null,
+      classTypes:        (meta.classTypes        ?? tenant.metadata?.classTypes) || [],
+      teachingMode:      (meta.teachingMode      ?? tenant.metadata?.teachingMode) || 'offline',
     };
   }
 
