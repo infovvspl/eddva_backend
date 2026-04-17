@@ -1,4 +1,14 @@
-import { IsEnum, IsString, IsNotEmpty, IsNumber, IsOptional, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
 
 export enum UploadType {
   PROFILE = 'profile',
@@ -11,26 +21,33 @@ export enum UploadType {
 }
 
 export class GenerateUploadUrlDto {
+  @ApiProperty({ enum: UploadType })
   @IsEnum(UploadType, { message: 'Invalid upload type' })
   @IsNotEmpty()
   type: UploadType;
 
-  @IsString()
+  @ApiPropertyOptional({ description: 'Required for course uploads and all lecture uploads' })
   @IsOptional()
+  @IsUUID()
   courseId?: string;
 
-  @IsString()
+  @ApiPropertyOptional({ description: 'Required for lecture uploads' })
   @IsOptional()
+  @IsUUID()
   lectureId?: string;
 
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   fileName: string;
 
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   contentType: string;
 
+  @ApiProperty({ description: 'File size in bytes' })
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   fileSize: number;
