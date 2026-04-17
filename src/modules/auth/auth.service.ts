@@ -240,10 +240,29 @@ export class AuthService {
     await user.hashRefreshToken(tokens.refreshToken);
     await this.userRepo.save(user);
 
+    const teacherProfile =
+      user.role === UserRole.TEACHER
+        ? await this.teacherProfileRepo.findOne({ where: { userId: user.id } })
+        : null;
+
+    const tenant =
+      user.role === UserRole.INSTITUTE_ADMIN
+        ? await this.tenantRepo.findOne({ where: { id: user.tenantId } })
+        : null;
+
+    const onboardingRequired =
+      user.role === UserRole.TEACHER
+        ? teacherProfile === null || !teacherProfile.onboardingComplete
+        : user.role === UserRole.INSTITUTE_ADMIN
+          ? !tenant?.onboardingComplete
+          : false;
+
     return {
       ...tokens,
       user: this.sanitizeUser(user),
       isFirstLogin: user.isFirstLogin,
+      teacherProfile,
+      onboardingRequired,
     };
   }
 
@@ -636,7 +655,11 @@ export class AuthService {
     await this.teacherProfileRepo.save(profile);
     await this.userRepo.save(user);
 
-    return { profile, message: 'Onboarding complete' };
+    return {
+      teacherProfile: profile,
+      onboardingComplete: true,
+      message: 'Onboarding complete',
+    };
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
