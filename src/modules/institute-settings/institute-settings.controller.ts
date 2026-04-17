@@ -4,7 +4,7 @@ import {
   Param, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { extname } from 'path';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
@@ -14,12 +14,14 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../database/entities/user.entity';
 import { InstituteSettingsService } from './institute-settings.service';
+import { S3Service } from '../upload/s3.service';
 import {
   UpdateBrandingDto,
   UpdateBillingEmailDto,
   UpdateNotificationPrefsDto,
   CreateCalendarEventDto,
   InstituteOnboardingDto,
+  UpdateInstituteProfileDto,
 } from './dto/institute-settings.dto';
 
 @ApiTags('Institute Settings')
@@ -28,7 +30,10 @@ import {
 @Roles(UserRole.INSTITUTE_ADMIN)
 @Controller('institute/settings')
 export class InstituteSettingsController {
-  constructor(private readonly svc: InstituteSettingsService) {}
+  constructor(
+    private readonly svc: InstituteSettingsService,
+    private readonly s3: S3Service,
+  ) {}
 
   // ── Onboarding ───────────────────────────────────────────────────────────────
 
@@ -45,37 +50,52 @@ export class InstituteSettingsController {
     return this.svc.saveOnboarding(tenantId, dto);
   }
 
-  // ── Profile Image ────────────────────────────────────────────────────────────
+  // ── Profile ──────────────────────────────────────────────────────────────────
+
+  @Get('profile')
+  @ApiOperation({ summary: 'Get institute profile details' })
+  getProfile(@TenantId() tenantId: string, @CurrentUser('id') userId: string) {
+    return this.svc.getProfile(tenantId, userId);
+  }
+
+  @Patch('profile')
+  @ApiOperation({ summary: 'Update institute profile (name, courses, mode, admin details)' })
+  updateProfile(
+    @TenantId() tenantId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateInstituteProfileDto,
+  ) {
+    return this.svc.updateProfile(tenantId, userId, dto);
+  }
+
+  // ── Profile Image ─────────────────────────────────────────────────────────
 
   @Post('profile/image')
-  @ApiOperation({ summary: 'Upload institute admin profile picture' })
+  @HttpCode(HttpStatus.OK)
   @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload institute admin profile image — streams to S3, returns fileUrl' })
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads/avatars',
-        filename: (req: any, file, cb) => {
-          const userId = req.user?.sub ?? 'unknown';
-          const ext = extname(file.originalname).toLowerCase() || '.jpg';
-          cb(null, `${userId}${ext}`);
-        },
-      }),
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
         if (!file.mimetype.match(/^image\/(jpeg|jpg|png|webp|gif)$/)) {
-          return cb(new BadRequestException('Only image files are allowed (jpg, png, webp)'), false);
+          return cb(new BadRequestException('Only image files are allowed'), false);
         }
         cb(null, true);
       },
-      limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
   async uploadProfileImage(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser('id') userId: string,
+    @TenantId() tenantId: string,
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
-    const imageUrl = `/uploads/avatars/${file.filename}`;
-    return this.svc.updateProfileImage(userId, imageUrl);
+    const ext = extname(file.originalname).toLowerCase() || '.jpg';
+    const key = `tenants/${tenantId}/admin/profile/${userId}${ext}`;
+    const fileUrl = await this.s3.upload(key, file.buffer, file.mimetype);
+    return this.svc.updateProfileImage(userId, fileUrl);
   }
 
   // ── Branding ────────────────────────────────────────────────────────────────

@@ -1,8 +1,47 @@
 import {
   IsString, IsOptional, IsHexColor, IsEmail, IsEnum, IsBoolean, IsDateString,
-  ValidateNested, IsArray,
+  IsNumber, ValidateNested, IsArray,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class UpdateInstituteProfileDto {
+  @ApiPropertyOptional({ example: 'Bright Future Academy' })
+  @IsOptional()
+  @IsString()
+  instituteName?: string;
+
+  @ApiPropertyOptional({ example: 'John Doe' })
+  @IsOptional()
+  @IsString()
+  adminName?: string;
+
+  @ApiPropertyOptional({ example: 'admin@example.com' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ example: ['JEE', 'NEET'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  coursesOffered?: string[];
+
+  @ApiPropertyOptional({ example: 10 })
+  @IsOptional()
+  @IsNumber()
+  yearsOfExperience?: number;
+
+  @ApiPropertyOptional({ example: ['Class 11', 'Class 12'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  classTypes?: string[];
+
+  @ApiPropertyOptional({ example: 'hybrid' })
+  @IsOptional()
+  @IsString()
+  teachingMode?: string;
+}
 
 export class InstituteOnboardingDto {
   @ApiPropertyOptional({ example: 'Bright Future Academy' })
