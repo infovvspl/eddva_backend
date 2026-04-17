@@ -13,16 +13,17 @@ import {
     HttpCode,
     HttpStatus,
     ParseUUIDPipe,
-    UploadedFile,
-    UseInterceptors,
     BadRequestException,
 } from '@nestjs/common';
+<<<<<<< HEAD
 import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { mkdirSync } from 'fs';
 import { randomBytes } from 'crypto';
+=======
+>>>>>>> 38134ffd0ef9c227a88f375d5ece41ab1e29bc49
 import {
     ApiTags,
     ApiBearerAuth,
@@ -266,37 +267,18 @@ export class ContentController {
 
     // ─── LECTURES ─────────────────────────────────────────────────────────────
 
-    // ─── VIDEO UPLOAD ──────────────────────────────────────────────────────────
+    // ─── VIDEO UPLOAD (S3 pre-signed flow) ────────────────────────────────────
+    // 1. Call POST /upload/url { type:"lecture-video", lectureId, fileName, contentType, fileSize }
+    // 2. PUT video directly to S3 using the returned uploadUrl
+    // 3. Save the returned fileUrl as videoUrl when creating/updating the lecture
 
-    @Post('lectures/upload-video')
+    @Post('lectures/confirm-video')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
-    @ApiOperation({ summary: 'Upload a video file; returns the public URL to use as videoUrl' })
-    @UseInterceptors(FileInterceptor('file', {
-        storage: diskStorage({
-            destination: (_req, _file, cb) => {
-                const dest = join(__dirname, '..', '..', '..', 'uploads', 'videos');
-                mkdirSync(dest, { recursive: true });
-                cb(null, dest);
-            },
-            filename: (_req, file, cb) => {
-                const unique = randomBytes(12).toString('hex');
-                cb(null, `${unique}${extname(file.originalname)}`);
-            },
-        }),
-        limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB
-        fileFilter: (_req, file, cb) => {
-            if (!file.mimetype.startsWith('video/')) {
-                return cb(new BadRequestException('Only video files are allowed'), false);
-            }
-            cb(null, true);
-        },
-    }))
-    uploadVideo(
-        @UploadedFile() file: Express.Multer.File,
-    ) {
-        if (!file) throw new BadRequestException('No file uploaded');
-        const url = `/uploads/videos/${file.filename}`;
-        return { url, filename: file.filename, size: file.size, mimetype: file.mimetype };
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Confirm video URL after S3 upload (no-op — videoUrl is set on lecture create/update)' })
+    confirmVideo(@Body('fileUrl') fileUrl: string) {
+        if (!fileUrl) throw new BadRequestException('fileUrl is required');
+        return { url: fileUrl };
     }
 
     @Post('lectures')
@@ -550,48 +532,29 @@ export class ContentController {
 
     // ─── TOPIC RESOURCES (PDF / DPP / QUIZ / NOTES) ───────────────────────────
 
+    // ─── TOPIC RESOURCE (S3 pre-signed flow) ─────────────────────────────────
+    // 1. Call POST /upload/url { type:"material", courseId, fileName, contentType, fileSize }
+    // 2. PUT file directly to S3 using the returned uploadUrl
+    // 3. Call this endpoint with the returned fileUrl + metadata to save the record
+
     @Post('topics/:topicId/resources/upload')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
-    @ApiOperation({ summary: 'Upload a resource file (PDF, DPP, notes) for a topic' })
+    @ApiOperation({ summary: 'Save a topic resource after S3 upload' })
     @ApiParam({ name: 'topicId', type: 'string' })
-    @UseInterceptors(
-        FileInterceptor('file', {
-            storage: diskStorage({
-                destination: (_req, _file, cb) => {
-                    const dir = join(process.cwd(), 'uploads', 'resources');
-                    mkdirSync(dir, { recursive: true });
-                    cb(null, dir);
-                },
-                filename: (_req, file, cb) => {
-                    const unique = randomBytes(8).toString('hex');
-                    cb(null, `${unique}${extname(file.originalname)}`);
-                },
-            }),
-            limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-            fileFilter: (_req, file, cb) => {
-                const allowed = ['.pdf', '.pptx', '.docx', '.xlsx', '.png', '.jpg', '.jpeg', '.mp4'];
-                const ext = extname(file.originalname).toLowerCase();
-                if (allowed.includes(ext)) cb(null, true);
-                else cb(new BadRequestException(`File type ${ext} not allowed`), false);
-            },
-        }),
-    )
     uploadTopicResource(
         @Param('topicId', ParseUUIDPipe) topicId: string,
-        @UploadedFile() file: Express.Multer.File,
-        @Body() body: { title: string; type: string; description?: string; sortOrder?: string },
+        @Body() body: { title: string; type: string; fileUrl: string; fileSizeKb?: number; description?: string; sortOrder?: number },
         @CurrentUser() user: any,
         @TenantId() tenantId: string,
     ) {
-        if (!file) throw new BadRequestException('No file uploaded');
-        const fileUrl = `/uploads/resources/${file.filename}`;
+        if (!body.fileUrl) throw new BadRequestException('fileUrl is required');
         return this.contentService.createTopicResource(topicId, {
             title: body.title,
             type: body.type as any,
             description: body.description,
-            sortOrder: body.sortOrder ? parseInt(body.sortOrder) : 0,
-            fileUrl,
-            fileSizeKb: Math.round(file.size / 1024),
+            sortOrder: body.sortOrder ?? 0,
+            fileUrl: body.fileUrl,
+            fileSizeKb: body.fileSizeKb ?? 0,
             uploadedBy: user.id,
         }, tenantId);
     }
@@ -651,39 +614,22 @@ export class ContentController {
 
     // ─── BATCH THUMBNAIL ──────────────────────────────────────────────────────
 
+    // ─── BATCH THUMBNAIL (S3 pre-signed flow) ────────────────────────────────
+    // 1. Call POST /upload/url { type:"thumbnail", courseId:batchId, fileName, contentType, fileSize }
+    // 2. PUT image directly to S3 using the returned uploadUrl
+    // 3. Call this endpoint with the returned fileUrl to save it on the batch
+
     @Post('batches/:batchId/thumbnail')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
-    @ApiOperation({ summary: 'Upload a thumbnail image for a batch/course' })
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Save batch thumbnail after S3 upload' })
     @ApiParam({ name: 'batchId', type: 'string' })
-    @UseInterceptors(
-        FileInterceptor('file', {
-            storage: diskStorage({
-                destination: (_req, _file, cb) => {
-                    const dir = join(process.cwd(), 'uploads', 'thumbnails');
-                    mkdirSync(dir, { recursive: true });
-                    cb(null, dir);
-                },
-                filename: (_req, file, cb) => {
-                    const unique = randomBytes(8).toString('hex');
-                    cb(null, `${unique}${extname(file.originalname)}`);
-                },
-            }),
-            limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-            fileFilter: (_req, file, cb) => {
-                const allowed = ['.png', '.jpg', '.jpeg', '.webp'];
-                const ext = extname(file.originalname).toLowerCase();
-                if (allowed.includes(ext)) cb(null, true);
-                else cb(new BadRequestException('Only image files allowed for thumbnails'), false);
-            },
-        }),
-    )
     uploadBatchThumbnail(
         @Param('batchId', ParseUUIDPipe) batchId: string,
-        @UploadedFile() file: Express.Multer.File,
+        @Body('fileUrl') fileUrl: string,
         @TenantId() tenantId: string,
     ) {
-        if (!file) throw new BadRequestException('No file uploaded');
-        const thumbnailUrl = `/uploads/thumbnails/${file.filename}`;
-        return this.contentService.updateBatchThumbnail(batchId, thumbnailUrl, tenantId);
+        if (!fileUrl) throw new BadRequestException('fileUrl is required');
+        return this.contentService.updateBatchThumbnail(batchId, fileUrl, tenantId);
     }
 }

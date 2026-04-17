@@ -1,8 +1,53 @@
 import {
   IsString, IsOptional, IsHexColor, IsEmail, IsEnum, IsBoolean, IsDateString,
-  ValidateNested, IsArray, IsNumber, IsUrl,
+  IsNumber, ValidateNested, IsArray, IsUrl,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+
+export class UpdateInstituteProfileDto {
+  @ApiPropertyOptional({ example: 'Bright Future Academy' })
+  @IsOptional()
+  @IsString()
+  instituteName?: string;
+
+  @ApiPropertyOptional({ example: 'John Doe' })
+  @IsOptional()
+  @IsString()
+  adminName?: string;
+
+  @ApiPropertyOptional({ example: 'admin@example.com' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ example: 'https://cdn.example.com/org.png' })
+  @IsOptional()
+  @IsString()
+  orgImageUrl?: string;
+
+  @ApiPropertyOptional({ example: ['JEE', 'NEET'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  coursesOffered?: string[];
+
+  @ApiPropertyOptional({ example: 10 })
+  @IsOptional()
+  @IsNumber()
+  yearsOfExperience?: number;
+
+  @ApiPropertyOptional({ example: ['Class 11', 'Class 12'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  classTypes?: string[];
+
+  @ApiPropertyOptional({ example: 'hybrid' })
+  @IsOptional()
+  @IsString()
+  teachingMode?: string;
+}
 
 export class InstituteOnboardingDto {
   @ApiPropertyOptional({ example: 'Bright Future Academy' })
@@ -41,51 +86,6 @@ export class InstituteOnboardingDto {
   @IsHexColor()
   brandColor?: string;
 }
-import { Type } from 'class-transformer';
-
-export class UpdateInstituteProfileDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  instituteName?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  adminName?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  orgImageUrl?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  coursesOffered?: string[];
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  yearsOfExperience?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  classTypes?: string[];
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  teachingMode?: string;
-}
 
 export class UpdateBrandingDto {
   @ApiPropertyOptional({ example: 'https://cdn.example.com/logo.png' })
@@ -98,14 +98,14 @@ export class UpdateBrandingDto {
   @IsHexColor()
   brandColor?: string;
 
-  @ApiPropertyOptional({ example: 'Welcome to Allen Online — your journey to IIT starts here.' })
+  @ApiPropertyOptional({ example: 'Welcome to EDDVA — your journey to success starts here.' })
   @IsOptional()
   @IsString()
   welcomeMessage?: string;
 }
 
 export class UpdateBillingEmailDto {
-  @ApiPropertyOptional({ example: 'billing@allen.ac.in' })
+  @ApiPropertyOptional({ example: 'billing@eddva.in' })
   @IsOptional()
   @IsEmail()
   billingEmail?: string;

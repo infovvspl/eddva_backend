@@ -57,6 +57,28 @@ export class S3Service implements OnModuleInit {
     return { uploadUrl, fileUrl: this.toPublicUrl(key), key };
   }
 
+  // ── Direct upload (backend streams file to S3) ────────────────────────────
+
+  async upload(key: string, buffer: Buffer, contentType: string): Promise<string> {
+    this.logger.log(`Uploading to S3: ${key} (${buffer.length} bytes, ${contentType})`);
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket:      this.bucket,
+          Key:         key,
+          Body:        buffer,
+          ContentType: contentType,
+        }),
+      );
+    } catch (err) {
+      this.logger.error(`S3 upload failed for key "${key}": ${err.message}`);
+      throw new Error(`S3 upload failed: ${err.message}`);
+    }
+    const url = this.toPublicUrl(key);
+    this.logger.log(`S3 upload success: ${url}`);
+    return url;
+  }
+
   // ── Delete ────────────────────────────────────────────────────────────────
 
   async delete(key: string): Promise<void> {
@@ -90,9 +112,12 @@ export class S3Service implements OnModuleInit {
   private async validateBucket() {
     try {
       await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
-      this.logger.log(`S3 bucket "${this.bucket}" — connected`);
+      this.logger.log(`S3 bucket "${this.bucket}" (${this.config.get('storage.s3.region')}) — connected ✓`);
     } catch (err) {
-      this.logger.error(`S3 bucket "${this.bucket}" — NOT reachable: ${err.message}`);
+      this.logger.error(
+        `S3 bucket "${this.bucket}" NOT reachable — ${err.name}: ${err.message}. ` +
+        `Check AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET_NAME in .env`,
+      );
     }
   }
 }
