@@ -1,8 +1,9 @@
 import {
   IsString, IsOptional, IsHexColor, IsEmail, IsEnum, IsBoolean, IsDateString,
-  IsNumber, ValidateNested, IsArray,
+  IsNumber, ValidateNested, IsArray, IsUrl,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class UpdateInstituteProfileDto {
   @ApiPropertyOptional({ example: 'Bright Future Academy' })
@@ -19,6 +20,11 @@ export class UpdateInstituteProfileDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  @ApiPropertyOptional({ example: 'https://cdn.example.com/org.png' })
+  @IsOptional()
+  @IsString()
+  orgImageUrl?: string;
 
   @ApiPropertyOptional({ example: ['JEE', 'NEET'] })
   @IsOptional()
@@ -80,7 +86,6 @@ export class InstituteOnboardingDto {
   @IsHexColor()
   brandColor?: string;
 }
-import { Type } from 'class-transformer';
 
 export class UpdateBrandingDto {
   @ApiPropertyOptional({ example: 'https://cdn.example.com/logo.png' })
@@ -93,14 +98,14 @@ export class UpdateBrandingDto {
   @IsHexColor()
   brandColor?: string;
 
-  @ApiPropertyOptional({ example: 'Welcome to Allen Online — your journey to IIT starts here.' })
+  @ApiPropertyOptional({ example: 'Welcome to EDDVA — your journey to success starts here.' })
   @IsOptional()
   @IsString()
   welcomeMessage?: string;
 }
 
 export class UpdateBillingEmailDto {
-  @ApiPropertyOptional({ example: 'billing@allen.ac.in' })
+  @ApiPropertyOptional({ example: 'billing@eddva.in' })
   @IsOptional()
   @IsEmail()
   billingEmail?: string;

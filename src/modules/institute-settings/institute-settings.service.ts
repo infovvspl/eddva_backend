@@ -33,7 +33,7 @@ export class InstituteSettingsService {
 
   async updateProfileImage(userId: string, imageUrl: string) {
     await this.userRepo.update(userId, { profilePictureUrl: imageUrl });
-    return { avatarUrl: imageUrl };
+    return { avatarUrl: imageUrl, url: imageUrl };
   }
 
   async getProfile(tenantId: string, userId: string) {
@@ -42,15 +42,16 @@ export class InstituteSettingsService {
       this.userRepo.findOne({ where: { id: userId } }),
     ]);
 
+    const meta = tenant.metadata ?? {};
     return {
-      instituteName:     tenant.name,
-      adminName:         user?.fullName || '',
-      email:             user?.email    || '',
-      orgImageUrl:       user?.profilePictureUrl || tenant.logoUrl || null,
-      coursesOffered:    tenant.metadata?.coursesOffered    || [],
-      yearsOfExperience: tenant.metadata?.yearsOfExperience || null,
-      classTypes:        tenant.metadata?.classTypes        || [],
-      teachingMode:      tenant.metadata?.teachingMode      || 'offline',
+      instituteName:     meta.instituteName     ?? tenant.name ?? '',
+      adminName:         meta.adminName         ?? user?.fullName || '',
+      email:             meta.email             ?? user?.email    || '',
+      orgImageUrl:       meta.orgImageUrl       ?? user?.profilePictureUrl || tenant.logoUrl || null,
+      coursesOffered:    meta.coursesOffered    ?? tenant.metadata?.coursesOffered || [],
+      yearsOfExperience: meta.yearsOfExperience ?? tenant.metadata?.yearsOfExperience || null,
+      classTypes:        meta.classTypes        ?? tenant.metadata?.classTypes || [],
+      teachingMode:      meta.teachingMode      ?? tenant.metadata?.teachingMode || 'offline',
     };
   }
 
@@ -62,11 +63,15 @@ export class InstituteSettingsService {
 
     if (!user) throw new NotFoundException('User not found');
 
-    // Update Tenant fields
+    // Update Tenant fields & metadata
     if (dto.instituteName !== undefined) tenant.name = dto.instituteName;
     
     tenant.metadata = {
       ...(tenant.metadata ?? {}),
+      ...(dto.instituteName    !== undefined && { instituteName:    dto.instituteName }),
+      ...(dto.adminName        !== undefined && { adminName:        dto.adminName }),
+      ...(dto.email            !== undefined && { email:            dto.email }),
+      ...(dto.orgImageUrl      !== undefined && { orgImageUrl:      dto.orgImageUrl }),
       ...(dto.coursesOffered    !== undefined && { coursesOffered:    dto.coursesOffered }),
       ...(dto.yearsOfExperience !== undefined && { yearsOfExperience: dto.yearsOfExperience }),
       ...(dto.classTypes        !== undefined && { classTypes:        dto.classTypes }),
@@ -175,7 +180,8 @@ export class InstituteSettingsService {
     const [studentCount, teacherCount] = await Promise.all([
       this.studentRepo
         .createQueryBuilder('s')
-        .innerJoin('s.user', 'u', 'u.tenant_id = :tid', { tid: tenantId })
+        .innerJoin('u', 'u', 's.user_id = u.id')
+        .where('u.tenant_id = :tid', { tid: tenantId })
         .getCount(),
       this.userRepo.count({ where: { tenantId, role: 'teacher' as any } }),
     ]);

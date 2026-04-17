@@ -145,7 +145,23 @@ export class BatchService {
       qb.andWhere('batch.id IN (:...batchIds)', { batchIds });
     }
 
-    return qb.orderBy('batch.createdAt', 'DESC').getMany();
+    const batches = await qb.orderBy('batch.createdAt', 'DESC').getMany();
+
+    if (!batches.length) return [];
+
+    const batchIds = batches.map(b => b.id);
+    const counts = await this.enrollmentRepo
+      .createQueryBuilder('e')
+      .select('e.batchId', 'batchId')
+      .addSelect('COUNT(*)', 'count')
+      .where('e.batchId IN (:...batchIds)', { batchIds })
+      .andWhere('e.status = :status', { status: EnrollmentStatus.ACTIVE })
+      .andWhere('e.tenantId = :tenantId', { tenantId })
+      .groupBy('e.batchId')
+      .getRawMany();
+
+    const countMap = new Map<string, number>(counts.map(r => [r.batchId, Number(r.count)]));
+    return batches.map(b => ({ ...b, studentCount: countMap.get(b.id) ?? 0 }));
   }
 
   async getBatchById(id: string, user: any, tenantId: string) {
@@ -460,7 +476,12 @@ export class BatchService {
       data: enrollments.map((enrollment) => ({
         studentId: enrollment.studentId,
         name: enrollment.student?.user?.fullName || null,
+        fullName: enrollment.student?.user?.fullName || null,
         phone: enrollment.student?.user?.phoneNumber || null,
+        phoneNumber: enrollment.student?.user?.phoneNumber || null,
+        email: enrollment.student?.user?.email || null,
+        enrolledAt: enrollment.enrolledAt || null,
+        status: enrollment.status || 'active',
         lastLoginAt: enrollment.student?.user?.lastLoginAt || null,
         streakDays: enrollment.student?.currentStreak || 0,
         lastTestScore: lastTestScores.get(enrollment.studentId) ?? null,
