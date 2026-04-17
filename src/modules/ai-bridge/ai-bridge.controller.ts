@@ -127,20 +127,23 @@ export class AiBridgeController {
   //  AI #7 — Speech-to-Text Notes
   // ══════════════════════════════════════════════════════════════════════════
   @Post('stt/notes')
-  @Roles(UserRole.STUDENT, UserRole.TEACHER)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @HttpCode(HttpStatus.OK)
   async generateLectureNotes(
     @Body() dto: GenerateLectureNotesDto,
     @TenantId() tenantId: string,
   ) {
+    const audioUrl = this._fixAudioUrl(dto.audioUrl);
     return this.aiBridgeService.generateLectureNotes(
-      {
-        audioUrl: dto.audioUrl,
-        topicId: dto.topicId || '',
-        language: dto.language || 'en',
-      },
+      { audioUrl, topicId: dto.topicId || '', language: dto.language || 'en' },
       tenantId,
     );
+  }
+
+  private _fixAudioUrl(url: string): string {
+    const doubleUrl = url.match(/https?:\/\/[^/]+\/api\/v\d+(https?:\/\/.+)/);
+    if (doubleUrl) return doubleUrl[1];
+    return url.replace(/\/api\/v\d+\/uploads\//, '/uploads/');
   }
 
   // ══════════════════════════════════════════════════════════════════════════

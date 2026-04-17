@@ -42,12 +42,12 @@ export class AiBridgeService {
     return h;
   }
 
-  private async post<T>(path: string, body: any, tenantId?: string): Promise<T> {
+  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number): Promise<T> {
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
           headers: this.headers(tenantId),
-          timeout: this.timeout,
+          timeout: timeoutMs ?? this.timeout,
         }),
       );
       return res.data;
@@ -108,7 +108,7 @@ export class AiBridgeService {
     },
     tenantId?: string,
   ) {
-    return this.post('/stt/notes', payload, tenantId);
+    return this.post('/stt/notes', payload, tenantId, 300_000); // 5 min — Whisper + LLM
   }
 
   // ── AI #8 — Student Feedback Engine ──────────────────────────────────────
