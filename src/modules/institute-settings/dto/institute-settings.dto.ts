@@ -1,9 +1,53 @@
 import {
   IsString, IsOptional, IsHexColor, IsEmail, IsEnum, IsBoolean, IsDateString,
-  ValidateNested, IsArray,
+  ValidateNested, IsArray, IsNumber, IsUrl,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+
+export class UpdateInstituteProfileDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  instituteName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  adminName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  orgImageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  coursesOffered?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  yearsOfExperience?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  classTypes?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  teachingMode?: string;
+}
 
 export class UpdateBrandingDto {
   @ApiPropertyOptional({ example: 'https://cdn.example.com/logo.png' })

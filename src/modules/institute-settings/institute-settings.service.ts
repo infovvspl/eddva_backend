@@ -31,7 +31,49 @@ export class InstituteSettingsService {
 
   async updateProfileImage(userId: string, imageUrl: string) {
     await this.userRepo.update(userId, { profilePictureUrl: imageUrl });
-    return { avatarUrl: imageUrl };
+    return { avatarUrl: imageUrl, url: imageUrl }; // support both field names
+  }
+
+  async getProfile(userId: string, tenantId: string) {
+    const [user, tenant] = await Promise.all([
+      this.userRepo.findOne({ where: { id: userId } }),
+      this.tenantRepo.findOne({ where: { id: tenantId } }),
+    ]);
+    if (!user || !tenant) throw new NotFoundException('Profile not found');
+
+    const meta = tenant.metadata ?? {};
+    return {
+      instituteName: meta.instituteName ?? tenant.name ?? '',
+      adminName:     meta.adminName     ?? user.fullName   ?? '',
+      email:         meta.email         ?? user.email      ?? '',
+      orgImageUrl:   meta.orgImageUrl   ?? user.profilePictureUrl ?? null,
+      coursesOffered:    meta.coursesOffered    ?? [],
+      yearsOfExperience: meta.yearsOfExperience ?? null,
+      classTypes:        meta.classTypes        ?? [],
+      teachingMode:      meta.teachingMode      ?? 'both',
+    };
+  }
+
+  async updateProfile(userId: string, tenantId: string, dto: Partial<{
+    instituteName?: string; adminName?: string; email?: string; orgImageUrl?: string;
+    coursesOffered?: string[]; yearsOfExperience?: number; classTypes?: string[]; teachingMode?: string;
+  }>) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    tenant.metadata = {
+      ...(tenant.metadata ?? {}),
+      ...(dto.instituteName    !== undefined && { instituteName:    dto.instituteName }),
+      ...(dto.adminName        !== undefined && { adminName:        dto.adminName }),
+      ...(dto.email            !== undefined && { email:            dto.email }),
+      ...(dto.orgImageUrl      !== undefined && { orgImageUrl:      dto.orgImageUrl }),
+      ...(dto.coursesOffered   !== undefined && { coursesOffered:   dto.coursesOffered }),
+      ...(dto.yearsOfExperience !== undefined && { yearsOfExperience: dto.yearsOfExperience }),
+      ...(dto.classTypes       !== undefined && { classTypes:       dto.classTypes }),
+      ...(dto.teachingMode     !== undefined && { teachingMode:     dto.teachingMode }),
+    };
+    await this.tenantRepo.save(tenant);
+    return this.getProfile(userId, tenantId);
   }
 
   private async getTenant(tenantId: string): Promise<Tenant> {

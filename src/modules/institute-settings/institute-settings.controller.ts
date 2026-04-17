@@ -14,6 +14,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../database/entities/user.entity';
 import { InstituteSettingsService } from './institute-settings.service';
 import {
+  UpdateInstituteProfileDto,
   UpdateBrandingDto,
   UpdateBillingEmailDto,
   UpdateNotificationPrefsDto,
@@ -59,6 +60,25 @@ export class InstituteSettingsController {
     if (!file) throw new BadRequestException('No file uploaded');
     const imageUrl = `/uploads/avatars/${file.filename}`;
     return this.svc.updateProfileImage(userId, imageUrl);
+  }
+
+  @Get('profile')
+  @ApiOperation({ summary: 'Get institute admin profile' })
+  getProfile(
+    @CurrentUser('id') userId: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.svc.getProfile(userId, tenantId);
+  }
+
+  @Patch('profile')
+  @ApiOperation({ summary: 'Update institute admin profile' })
+  updateProfile(
+    @CurrentUser('id') userId: string,
+    @TenantId() tenantId: string,
+    @Body() dto: UpdateInstituteProfileDto,
+  ) {
+    return this.svc.updateProfile(userId, tenantId, dto);
   }
 
   // ── Branding ────────────────────────────────────────────────────────────────
