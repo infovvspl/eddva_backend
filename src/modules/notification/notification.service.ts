@@ -55,7 +55,8 @@ export class NotificationService {
       .createQueryBuilder('notification')
       .where('notification.userId = :userId', { userId })
       .andWhere('notification.tenantId = :tenantId', { tenantId })
-      .andWhere('notification.deletedAt IS NULL');
+      .andWhere('notification.deletedAt IS NULL')
+      .andWhere('notification.channel = :channel', { channel: NotificationChannel.IN_APP });
 
     if (query.isRead !== undefined) {
       if (query.isRead) {

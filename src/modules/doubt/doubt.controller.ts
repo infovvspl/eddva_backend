@@ -49,7 +49,7 @@ export class DoubtController {
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Get escalated doubt queue for the current teacher' })
   getQueue(@CurrentUser() user: any, @TenantId() tenantId: string) {
-    return this.doubtService.getTeacherQueue(user.id, tenantId);
+    return this.doubtService.getTeacherQueue(user.id, tenantId, user.role);
   }
 
   @Get()
