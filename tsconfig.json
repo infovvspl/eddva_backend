@@ -25,10 +25,6 @@
       "@database/*": ["src/database/*"],
       "@modules/*": ["src/modules/*"]
     }
-<<<<<<< HEAD
-  }
-=======
   },
   "exclude": ["node_modules", "dist", "**/*.spec.ts"]
->>>>>>> 40a44598ced4a2b084f36d289456dcf8897057bd
 }
