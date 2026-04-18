@@ -161,7 +161,10 @@ export class BatchService {
       .getRawMany();
 
     const countMap = new Map<string, number>(counts.map(r => [r.batchId, Number(r.count)]));
-    return batches.map(b => ({ ...b, studentCount: countMap.get(b.id) ?? 0 }));
+    return batches.map(b => {
+      const n = countMap.get(b.id) ?? 0;
+      return { ...b, studentCount: n, enrolledCount: n };
+    });
   }
 
   async getBatchById(id: string, user: any, tenantId: string) {

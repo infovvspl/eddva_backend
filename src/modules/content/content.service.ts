@@ -99,24 +99,119 @@ export class ContentService {
         const where: FindOptionsWhere<Subject> = { tenantId, isActive: true };
         if (query.examTarget) where.examTarget = query.examTarget;
 
-        // When a batchId is given, resolve subjects via batch_subject_teachers (subjects are global,
-        // linked to batches by name — not by a batchId FK on the subject row)
+        // When a batchId is given, align with student curriculum resolution:
+        // 1) Prefer subjects linked by subjects.batch_id (batch-scoped curriculum)
+        // 2) If none, fall back to batch_subject_teachers name matching (legacy / global subjects)
         if (query.batchId) {
-            const assignments = await this.batchSubjectTeacherRepo.find({
-                where: { batchId: query.batchId },
-                select: ['subjectName'],
-            });
-            if (assignments.length === 0) return [];
-            const assignedNames = [...new Set(assignments.map(a => a.subjectName.toLowerCase()))];
+            const [batchLinked, assignments] = await Promise.all([
+                this.subjectRepo.find({
+                    where: { tenantId, batchId: query.batchId, isActive: true },
+                    relations: ['chapters', 'chapters.topics'],
+                    order: { sortOrder: 'ASC', name: 'ASC' },
+                }),
+                this.batchSubjectTeacherRepo.find({
+                    where: { batchId: query.batchId },
+                    select: ['subjectName'],
+                }),
+            ]);
 
             const tenantSubjects = await this.subjectRepo.find({
                 where: { tenantId, isActive: true },
                 relations: ['chapters', 'chapters.topics'],
                 order: { sortOrder: 'ASC', name: 'ASC' },
             });
-            const filtered = tenantSubjects.filter(s => assignedNames.includes(s.name.toLowerCase()));
 
-            // Deduplicate by name, prefer batchId=null (global) entries
+            const assignedNames = [...new Set(assignments.map(a => a.subjectName.toLowerCase().trim()))];
+
+            // Merge batch-scoped subjects with BST/global matches so a course never "loses"
+            // Chemistry/Biology when only some rows have subjects.batch_id set.
+            const byName = new Map<string, Subject>();
+            for (const s of batchLinked) {
+                byName.set(s.name.toLowerCase().trim(), s);
+            }
+            for (const rawName of assignedNames) {
+                const key = rawName.toLowerCase().trim();
+                if (byName.has(key)) continue;
+                const candidates = tenantSubjects.filter(s => s.name.toLowerCase().trim() === key);
+                let pick: Subject | undefined;
+                for (const c of candidates) {
+                    if (c.batchId === null) {
+                        pick = c;
+                        break;
+                    }
+                }
+                if (!pick && candidates.length) pick = candidates[0];
+                if (pick) byName.set(key, pick);
+            }
+
+            // Subjects reached via lectures on this batch (often global `batch_id` rows) so admins
+            // still see Chemistry/Biology trees even when `subjects.batch_id` only exists on Physics.
+            const lectureSubjectRows: { id: string }[] = await this.dataSource.query(
+                `
+                SELECT DISTINCT s.id::text AS id
+                FROM lectures l
+                INNER JOIN topics t ON t.id = l.topic_id AND t.deleted_at IS NULL
+                INNER JOIN chapters c ON c.id = t.chapter_id AND c.deleted_at IS NULL
+                INNER JOIN subjects s ON s.id = c.subject_id AND s.deleted_at IS NULL
+                WHERE l.batch_id = $1 AND l.deleted_at IS NULL
+                  AND s.tenant_id = $2 AND s.is_active = true
+                `,
+                [query.batchId, tenantId],
+            );
+            const lecIds = [...new Set(lectureSubjectRows.map((r) => r.id).filter(Boolean))];
+            if (lecIds.length) {
+                const lecSubjects = await this.subjectRepo.find({
+                    where: { id: In(lecIds), tenantId, isActive: true },
+                    relations: ['chapters', 'chapters.topics'],
+                });
+                for (const s of lecSubjects) {
+                    const key = s.name.toLowerCase().trim();
+                    if (!byName.has(key)) byName.set(key, s);
+                }
+            }
+
+            // Subjects that have topic files/links on this batch (or BST-listed name) even with no lectures yet
+            const trSubjectRows: { id: string }[] = await this.dataSource.query(
+                `
+                SELECT DISTINCT s.id::text AS id
+                FROM topic_resources tr
+                INNER JOIN topics t ON t.id = tr.topic_id AND t.deleted_at IS NULL
+                INNER JOIN chapters c ON c.id = t.chapter_id AND c.deleted_at IS NULL
+                INNER JOIN subjects s ON s.id = c.subject_id AND s.deleted_at IS NULL
+                WHERE tr.tenant_id = $2 AND tr.deleted_at IS NULL
+                  AND s.tenant_id = $2 AND s.is_active = true
+                  AND (
+                    s.batch_id = $1
+                    OR EXISTS (
+                      SELECT 1 FROM batch_subject_teachers bst
+                      WHERE bst.batch_id = $1
+                        AND LOWER(TRIM(bst.subject_name)) = LOWER(TRIM(s.name))
+                    )
+                  )
+                `,
+                [query.batchId, tenantId],
+            );
+            const trIds = [...new Set(trSubjectRows.map((r) => r.id).filter(Boolean))];
+            if (trIds.length) {
+                const trSubjects = await this.subjectRepo.find({
+                    where: { id: In(trIds), tenantId, isActive: true },
+                    relations: ['chapters', 'chapters.topics'],
+                });
+                for (const s of trSubjects) {
+                    const key = s.name.toLowerCase().trim();
+                    if (!byName.has(key)) byName.set(key, s);
+                }
+            }
+
+            if (byName.size > 0) {
+                return Array.from(byName.values()).sort(
+                    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name),
+                );
+            }
+
+            if (assignedNames.length === 0) return [];
+
+            const filtered = tenantSubjects.filter(s => assignedNames.includes(s.name.toLowerCase().trim()));
             const seen = new Map<string, Subject>();
             for (const s of filtered) {
                 const key = s.name.toLowerCase().trim();
@@ -629,6 +724,8 @@ export class ContentService {
 
         if (query.batchId) qb.andWhere('l.batchId = :batchId', { batchId: query.batchId });
         if (query.topicId) qb.andWhere('l.topicId = :topicId', { topicId: query.topicId });
+        if (query.chapterId) qb.andWhere('topic.chapterId = :chapterId', { chapterId: query.chapterId });
+        if (query.subjectId) qb.andWhere('chapter.subjectId = :subjectId', { subjectId: query.subjectId });
         if (query.status) qb.andWhere('l.status = :status', { status: query.status });
 
         // Role-based filtering
