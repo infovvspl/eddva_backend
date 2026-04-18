@@ -87,7 +87,7 @@ const ALL_ENTITIES = [
     ConfigModule.forRoot({
       isGlobal: true,
       load: [appConfig, jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig],
-      envFilePath: ['.env', '.env.local'],
+      envFilePath: ['.env.local', '.env'],
     }),
 
     // ── Database ──────────────────────────────────────────────────────────────
