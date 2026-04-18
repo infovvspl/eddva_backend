@@ -13,7 +13,8 @@
       "Read(//tmp/**)",
       "Bash(node -e ' *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://eddva.s3.ap-south-1.amazonaws.com/tenants/73a505c3-23eb-4166-b019-8c9bc154a284/admin/profile/4a17ed1c-dbc4-4844-9eea-7cb4853f6da6.png\")",
-      "Bash(taskkill /F /PID 25472)"
+      "Bash(taskkill /F /PID 25472)",
+      "Bash(ipconfig)"
     ]
   }
 }

@@ -181,9 +181,17 @@ export class StudentService {
         `, [batch.id]);
         const totalTopics = totalTopicsRows[0]?.cnt ?? 0;
 
-        // Total published lectures in this batch
+        // Lectures visible to students (same statuses as /content/lectures for student role)
         const totalLectures = await this.lectureRepo.count({
-          where: { batchId: batch.id, status: LectureStatus.PUBLISHED },
+          where: {
+            batchId: batch.id,
+            status: In([
+              LectureStatus.PUBLISHED,
+              LectureStatus.SCHEDULED,
+              LectureStatus.LIVE,
+              LectureStatus.ENDED,
+            ]),
+          },
         });
 
         // Watched lectures by student
@@ -302,7 +310,7 @@ export class StudentService {
               ON lp.lecture_id = l.id AND lp.student_id = $1
             WHERE l.batch_id = $2
               AND l.topic_id = ANY($3)
-              AND l.status = 'published'
+              AND l.status IN ('published', 'scheduled', 'live', 'ended')
               AND l.deleted_at IS NULL
             GROUP BY l.topic_id
           `, [student.id, batchId, allTopicIds])
@@ -437,7 +445,16 @@ export class StudentService {
 
     const [lectures, topicProgress] = await Promise.all([
       this.lectureRepo.find({
-        where: { batchId, topicId, status: LectureStatus.PUBLISHED },
+        where: {
+          batchId,
+          topicId,
+          status: In([
+            LectureStatus.PUBLISHED,
+            LectureStatus.SCHEDULED,
+            LectureStatus.LIVE,
+            LectureStatus.ENDED,
+          ]),
+        },
         order: { createdAt: 'ASC' },
       }),
       this.topicProgressRepo.findOne({ where: { studentId: student.id, topicId } }),
@@ -857,7 +874,7 @@ export class StudentService {
           FROM lectures
           WHERE batch_id = $1
             AND topic_id = ANY($2)
-            AND status = 'published'
+            AND status IN ('published', 'scheduled', 'live', 'ended')
             AND deleted_at IS NULL
           GROUP BY topic_id
         `, [batchId, allTopicIds])
