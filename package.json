@@ -72,11 +72,7 @@
     "@nestjs/testing": "^10.0.0",
     "@types/bcryptjs": "^2.4.3",
     "@types/express": "^4.17.17",
-<<<<<<< HEAD
-    "@types/jest": "^30.0.0",
-=======
     "@types/jest": "^29.5.14",
->>>>>>> 38134ffd0ef9c227a88f375d5ece41ab1e29bc49
     "@types/multer": "^1.4.7",
     "@types/node": "^20.3.1",
     "@types/nodemailer": "^7.0.11",
