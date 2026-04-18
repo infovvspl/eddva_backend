@@ -37,7 +37,10 @@
       "Bash(cmd /c \"node add-quiz-responses.mjs\")",
       "Bash(node add-quiz-responses.mjs)",
       "Bash(echo \"exit: $?\")",
-      "Bash(node add-mock-test-columns.mjs)"
+      "Bash(node add-mock-test-columns.mjs)",
+      "Bash(xargs grep *)",
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
+      "Bash(node -e \"const {RtcTokenBuilder, RtcRole} = require\\('agora-token'\\); const t = RtcTokenBuilder.buildTokenWithUid\\('3d96e2d23e1e48348e5a20934a884701','beae16ff8fc84536a46281e03c59639f','test-channel',12345,RtcRole.PUBLISHER,7200,7200\\); console.log\\('Token:', t ? t.substring\\(0,30\\)+'...' : 'NULL'\\);\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\lib\\api",
@@ -48,7 +51,12 @@
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\components\\teacher",
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\pages",
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\hooks",
-      "C:\\Users\\subha\\Desktop\\eddva_backend"
+      "C:\\Users\\subha\\Desktop\\eddva_backend",
+      "c:\\Users\\subha\\Desktop\\VVSPL\\eddva_frontend\\src\\lib\\api",
+      "c:\\Users\\subha\\Desktop\\VVSPL\\eddva_frontend\\src\\hooks",
+      "c:\\Users\\subha\\Desktop\\VVSPL\\eddva_frontend\\src\\pages\\teacher",
+      "c:\\Users\\subha\\Desktop\\VVSPL\\eddva_frontend\\src\\pages\\live",
+      "c:\\Users\\subha\\Desktop\\VVSPL\\eddva_frontend\\src"
     ]
   }
 }

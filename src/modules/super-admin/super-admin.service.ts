@@ -13,7 +13,7 @@ import { DataSource, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 
 import { NotificationService } from '../notification/notification.service';
-import { Batch } from '../../database/entities/batch.entity';
+import { Batch, Enrollment, EnrollmentStatus, BatchStatus } from '../../database/entities/batch.entity';
 import { TestSession } from '../../database/entities/assessment.entity';
 import { Lecture } from '../../database/entities/learning.entity';
 import { Student } from '../../database/entities/student.entity';
@@ -52,6 +52,8 @@ export class SuperAdminService {
     private readonly studentRepo: Repository<Student>,
     @InjectRepository(Batch)
     private readonly batchRepo: Repository<Batch>,
+    @InjectRepository(Enrollment)
+    private readonly enrollmentRepo: Repository<Enrollment>,
     @InjectRepository(Lecture)
     private readonly lectureRepo: Repository<Lecture>,
     @InjectRepository(TestSession)
@@ -533,6 +535,147 @@ export class SuperAdminService {
       adminName: adminUser?.fullName || null,
       adminEmail: adminUser?.email || null,
     };
+  }
+
+  /** Active batches (courses) for an institute — public catalog for the marketing / courses page. */
+  async getPublicInstituteCoursesCatalog(tenantId: string) {
+    const tenant = await this.tenantRepo.findOne({
+      where: { id: tenantId },
+      select: [
+        'id', 'name', 'subdomain', 'status', 'logoUrl', 'brandColor', 'welcomeMessage', 'city', 'state',
+      ],
+    });
+    if (!tenant) {
+      throw new NotFoundException('Institute not found');
+    }
+
+    const instituteSuspended = tenant.status === TenantStatus.SUSPENDED;
+    const institutePayload = {
+      id: tenant.id,
+      name: tenant.name,
+      subdomain: tenant.subdomain,
+      status: tenant.status,
+      logoUrl: tenant.logoUrl ?? null,
+      brandColor: tenant.brandColor ?? null,
+      welcomeMessage: tenant.welcomeMessage ?? null,
+      city: tenant.city ?? null,
+      state: tenant.state ?? null,
+      ...(instituteSuspended ? { suspended: true as const } : {}),
+    };
+
+    if (instituteSuspended) {
+      return { catalogScope: 'institute' as const, institute: institutePayload, courses: [] };
+    }
+
+    const batches = await this.batchRepo.find({
+      where: { tenantId, status: BatchStatus.ACTIVE },
+      relations: ['teacher'],
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!batches.length) {
+      return { catalogScope: 'institute' as const, institute: institutePayload, courses: [] };
+    }
+
+    const batchIds = batches.map((b) => b.id);
+    const counts = await this.enrollmentRepo
+      .createQueryBuilder('e')
+      .select('e.batchId', 'batchId')
+      .addSelect('COUNT(*)', 'count')
+      .where('e.batchId IN (:...batchIds)', { batchIds })
+      .andWhere('e.status = :status', { status: EnrollmentStatus.ACTIVE })
+      .andWhere('e.tenantId = :tenantId', { tenantId })
+      .groupBy('e.batchId')
+      .getRawMany();
+
+    const countMap = new Map<string, number>(counts.map((r) => [r.batchId, Number(r.count)]));
+
+    const courses = batches.map((b) => ({
+      id: b.id,
+      name: b.name,
+      description: b.description ?? null,
+      examTarget: b.examTarget,
+      class: b.class,
+      isPaid: b.isPaid,
+      feeAmount: b.feeAmount != null ? Number(b.feeAmount) : null,
+      thumbnailUrl: b.thumbnailUrl ?? null,
+      maxStudents: b.maxStudents,
+      enrolledCount: countMap.get(b.id) ?? 0,
+      startDate: b.startDate ?? null,
+      endDate: b.endDate ?? null,
+      status: b.status,
+      teacherName: b.teacher?.fullName ?? null,
+    }));
+
+    return { catalogScope: 'institute' as const, institute: institutePayload, courses };
+  }
+
+  /**
+   * Public marketplace: active batches from all non-suspended institutes.
+   * Used when there is no tenant subdomain (e.g. main marketing domain / localhost).
+   */
+  async getPublicPlatformCoursesCatalog() {
+    const allActive = await this.batchRepo.find({
+      where: { status: BatchStatus.ACTIVE },
+      relations: ['teacher', 'tenant'],
+      order: { createdAt: 'DESC' },
+      take: 200,
+    });
+    const batches = allActive.filter(
+      (b) => b.tenant && b.tenant.status !== TenantStatus.SUSPENDED,
+    ).slice(0, 150);
+
+    const instituteShell = {
+      id: '',
+      name: 'Course catalog',
+      subdomain: null as string | null,
+      status: 'active',
+      logoUrl: null as string | null,
+      brandColor: null as string | null,
+      welcomeMessage:
+        'Programs from partner institutes. Create an account to enroll; paid courses are available after sign-in.',
+      city: null as string | null,
+      state: null as string | null,
+    };
+
+    if (!batches.length) {
+      return { catalogScope: 'platform' as const, institute: instituteShell, courses: [] };
+    }
+
+    const batchIds = batches.map((b) => b.id);
+    const counts = await this.enrollmentRepo
+      .createQueryBuilder('e')
+      .select('e.batchId', 'batchId')
+      .addSelect('COUNT(*)', 'count')
+      .where('e.batchId IN (:...batchIds)', { batchIds })
+      .andWhere('e.status = :status', { status: EnrollmentStatus.ACTIVE })
+      .groupBy('e.batchId')
+      .getRawMany();
+
+    const countMap = new Map<string, number>(counts.map((r) => [r.batchId, Number(r.count)]));
+
+    const courses = batches.map((b) => ({
+      id: b.id,
+      name: b.name,
+      description: b.description ?? null,
+      examTarget: b.examTarget,
+      class: b.class,
+      isPaid: b.isPaid,
+      feeAmount: b.feeAmount != null ? Number(b.feeAmount) : null,
+      thumbnailUrl: b.thumbnailUrl ?? null,
+      maxStudents: b.maxStudents,
+      enrolledCount: countMap.get(b.id) ?? 0,
+      startDate: b.startDate ?? null,
+      endDate: b.endDate ?? null,
+      status: b.status,
+      teacherName: b.teacher?.fullName ?? null,
+      instituteId: b.tenant.id,
+      instituteName: b.tenant.name,
+      instituteLogoUrl: b.tenant.logoUrl ?? null,
+      instituteSubdomain: b.tenant.subdomain ?? null,
+    }));
+
+    return { catalogScope: 'platform' as const, institute: instituteShell, courses };
   }
 
   private generateTempPassword() {

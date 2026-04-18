@@ -70,6 +70,7 @@ export class DoubtService {
         tenantId,
         studentId: student.id,
         topicId: dto.topicId ?? null,
+        batchId: dto.batchId ?? null,
         questionText: dto.questionText ?? null,
         questionImageUrl: dto.questionImageUrl ?? null,
         source: dto.source,
@@ -133,16 +134,29 @@ export class DoubtService {
 
     if (query.status) qb.andWhere('doubt.status = :status', { status: query.status });
     if (query.topicId) qb.andWhere('doubt.topicId = :topicId', { topicId: query.topicId });
+    if (query.batchId) qb.andWhere('doubt.batchId = :batchId', { batchId: query.batchId });
 
     if (user.role === UserRole.STUDENT) {
       const student = await this.getStudentByUserId(user.id, tenantId);
       qb.andWhere('doubt.studentId = :studentId', { studentId: student.id });
     } else if (user.role === UserRole.TEACHER) {
-      const studentIds = await this.getTeacherStudentIds(user.id, tenantId);
-      if (!studentIds.length) {
+      const [batchIds, studentIds] = await Promise.all([
+        this.getTeacherBatchIds(user.id, tenantId, query.batchId),
+        this.getTeacherStudentIds(user.id, tenantId, query.batchId),
+      ]);
+      if (!batchIds.length && !studentIds.length) {
         return { data: [], meta: { total: 0, page, limit, totalPages: 0 } };
       }
-      qb.andWhere('doubt.studentId IN (:...studentIds)', { studentIds });
+      if (batchIds.length && studentIds.length) {
+        qb.andWhere(
+          '(doubt.batchId IN (:...batchIds) OR doubt.studentId IN (:...studentIds))',
+          { batchIds, studentIds },
+        );
+      } else if (batchIds.length) {
+        qb.andWhere('doubt.batchId IN (:...batchIds)', { batchIds });
+      } else {
+        qb.andWhere('doubt.studentId IN (:...studentIds)', { studentIds });
+      }
     } else if (query.studentId) {
       qb.andWhere('doubt.studentId = :studentId', { studentId: query.studentId });
     }
@@ -303,27 +317,52 @@ export class DoubtService {
     return this.serializeDoubt(doubt);
   }
 
-  async getTeacherQueue(userId: string, tenantId: string, role?: string) {
-    let whereClause: any = { tenantId, status: DoubtStatus.ESCALATED };
+  async getTeacherQueue(userId: string, tenantId: string, role?: string, scopeBatchId?: string) {
+    const qb = this.doubtRepo
+      .createQueryBuilder('doubt')
+      .leftJoinAndSelect('doubt.student', 'student')
+      .leftJoinAndSelect('student.user', 'studentUser')
+      .leftJoinAndSelect('doubt.topic', 'topic')
+      .leftJoinAndSelect('topic.chapter', 'chapter')
+      .leftJoinAndSelect('chapter.subject', 'subject')
+      .where('doubt.tenantId = :tenantId', { tenantId })
+      .andWhere('doubt.status = :status', { status: DoubtStatus.ESCALATED })
+      .andWhere('doubt.deletedAt IS NULL');
 
-    if (role === UserRole.INSTITUTE_ADMIN) {
-      // Admin sees all escalated doubts in the tenant
-    } else {
-      const studentIds = await this.getTeacherStudentIds(userId, tenantId);
-      if (!studentIds.length) return [];
-      whereClause.studentId = In(studentIds);
+    if (scopeBatchId) {
+      qb.andWhere('doubt.batchId = :scopeBatchId', { scopeBatchId });
     }
 
-    const doubts = await this.doubtRepo.find({
-      where: whereClause,
-      relations: ['student', 'student.user', 'topic'],
-      order: { createdAt: 'ASC' },
-    });
+    if (role !== UserRole.INSTITUTE_ADMIN) {
+      const [batchIds, studentIds] = await Promise.all([
+        this.getTeacherBatchIds(userId, tenantId, scopeBatchId),
+        this.getTeacherStudentIds(userId, tenantId, scopeBatchId),
+      ]);
+
+      this.logger.debug(
+        `getTeacherQueue userId=${userId} batchIds=${batchIds.length} studentIds=${studentIds.length}`,
+      );
+
+      if (!batchIds.length && !studentIds.length) return [];
+
+      // Show doubt if batchId matches the teacher's batch (new doubts)
+      // OR studentId is an enrolled student (legacy doubts without batchId)
+      if (batchIds.length && studentIds.length) {
+        qb.andWhere(
+          '(doubt.batchId IN (:...batchIds) OR doubt.studentId IN (:...studentIds))',
+          { batchIds, studentIds },
+        );
+      } else if (batchIds.length) {
+        qb.andWhere('doubt.batchId IN (:...batchIds)', { batchIds });
+      } else {
+        qb.andWhere('doubt.studentId IN (:...studentIds)', { studentIds });
+      }
+    }
+
+    const doubts = await qb.orderBy('doubt.createdAt', 'ASC').getMany();
 
     return doubts.map((doubt) => ({
       ...this.serializeDoubt(doubt),
-      studentName: doubt.student?.user?.fullName || null,
-      topicName: doubt.topic?.name || null,
       timeSinceAskedMinutes: Math.max(
         0,
         Math.floor((Date.now() - new Date(doubt.createdAt).getTime()) / 60000),
@@ -356,26 +395,42 @@ export class DoubtService {
   }
 
   private async canTeacherHandleDoubt(doubt: Doubt, userId: string, tenantId: string) {
-    const studentIds = await this.getTeacherStudentIds(userId, tenantId);
-    return studentIds.includes(doubt.studentId);
+    const [batchIds, studentIds] = await Promise.all([
+      this.getTeacherBatchIds(userId, tenantId),
+      this.getTeacherStudentIds(userId, tenantId),
+    ]);
+    return (
+      (doubt.batchId != null && batchIds.includes(doubt.batchId)) ||
+      studentIds.includes(doubt.studentId)
+    );
   }
 
-  private async getTeacherStudentIds(userId: string, tenantId: string) {
+  private async getTeacherBatchIds(userId: string, tenantId: string, scopeBatchId?: string): Promise<string[]> {
     const [primaryBatches, subjectAssignments] = await Promise.all([
       this.batchRepo.find({ where: { tenantId, teacherId: userId } }),
       this.batchSubjectTeacherRepo.find({ where: { tenantId, teacherId: userId } }),
     ]);
 
     this.logger.debug(
-      `getTeacherStudentIds userId=${userId} tenantId=${tenantId} primaryBatches=${primaryBatches.length} subjectAssignments=${subjectAssignments.length}`,
+      `getTeacherBatchIds userId=${userId} tenantId=${tenantId} primaryBatches=${primaryBatches.length} subjectAssignments=${subjectAssignments.length}`,
     );
 
-    const batchIds = [
+    let batchIds = [
       ...new Set([
         ...primaryBatches.map((b) => b.id),
         ...subjectAssignments.map((a) => a.batchId),
       ]),
     ];
+
+    if (scopeBatchId) {
+      batchIds = batchIds.filter((id) => id === scopeBatchId);
+    }
+
+    return batchIds;
+  }
+
+  private async getTeacherStudentIds(userId: string, tenantId: string, scopeBatchId?: string): Promise<string[]> {
+    const batchIds = await this.getTeacherBatchIds(userId, tenantId, scopeBatchId);
 
     if (!batchIds.length) return [];
 
@@ -398,35 +453,50 @@ export class DoubtService {
         })
       : null;
 
-    const enrollments = await this.enrollmentRepo.find({
-      where: {
-        tenantId: doubt.tenantId,
-        studentId: doubt.studentId,
-        status: EnrollmentStatus.ACTIVE,
-      },
-    });
+    const teacherIdSet = new Set<string>();
 
-    if (!enrollments.length) return;
+    // Determine which batches to look at:
+    // If batchId is stored on the doubt (student selected a specific course), use only that batch.
+    // Otherwise fall back to all active enrollments for the student.
+    let batchIds: string[] = [];
+    if (doubt.batchId) {
+      batchIds = [doubt.batchId];
+    } else {
+      const enrollments = await this.enrollmentRepo.find({
+        where: {
+          tenantId: doubt.tenantId,
+          studentId: doubt.studentId,
+          status: EnrollmentStatus.ACTIVE,
+        },
+      });
+      batchIds = enrollments.map((e) => e.batchId);
+    }
 
-    const batchIds = enrollments.map((e) => e.batchId);
-    const batches = await this.batchRepo.find({
-      where: { id: In(batchIds), tenantId: doubt.tenantId },
-    });
+    if (!batchIds.length) {
+      this.logger.warn(`notifyEscalatedDoubtTeachers: no batches found for doubt ${doubt.id}`);
+    } else {
+      const batches = await this.batchRepo.find({
+        where: { id: In(batchIds), tenantId: doubt.tenantId },
+      });
 
-    // Collect primary batch teachers
-    const teacherIdSet = new Set<string>(
-      batches.map((b) => b.teacherId).filter(Boolean) as string[],
-    );
+      // Add primary batch teacher(s)
+      for (const b of batches) {
+        if (b.teacherId) teacherIdSet.add(b.teacherId);
+      }
 
-    // Also collect subject-specific teachers from batch_subject_teachers
-    // matching the subject of this doubt's topic
-    const subjectName = topic?.chapter?.subject?.name;
-    if (subjectName && batchIds.length) {
+      // Add subject-specific teachers from batch_subject_teachers.
+      // Match by subject name (normalized). We use the topic's subject name
+      // because BatchSubjectTeacher stores a string subject name too.
+      const subjectName = topic?.chapter?.subject?.name;
       const subjectAssignments = await this.batchSubjectTeacherRepo.find({
         where: { batchId: In(batchIds), tenantId: doubt.tenantId },
       });
       for (const a of subjectAssignments) {
-        if (a.subjectName?.toLowerCase() === subjectName.toLowerCase()) {
+        // Include if no subject filter or names match (case-insensitive, trimmed)
+        if (
+          !subjectName ||
+          a.subjectName?.trim().toLowerCase() === subjectName.trim().toLowerCase()
+        ) {
           teacherIdSet.add(a.teacherId);
         }
       }
@@ -440,13 +510,17 @@ export class DoubtService {
       teacherIdSet.add(admin.id);
     }
 
-    if (!teacherIdSet.size) return;
+    if (!teacherIdSet.size) {
+      this.logger.warn(`notifyEscalatedDoubtTeachers: no recipients found for doubt ${doubt.id}`);
+      return;
+    }
 
     const recipients = await this.userRepo.find({
       where: { id: In([...teacherIdSet]), tenantId: doubt.tenantId },
     });
 
     const topicLabel = topic?.name || 'Unknown topic';
+    const subjectName = topic?.chapter?.subject?.name;
     const subjectLabel = subjectName ? ` (${subjectName})` : '';
 
     for (const recipient of recipients) {
@@ -472,8 +546,10 @@ export class DoubtService {
     return {
       ...doubt,
       topicName: doubt.topic?.name || null,
-      studentName: doubt.student?.user?.fullName || null,
+      chapterName: doubt.topic?.chapter?.name || null,
       subjectName: doubt.topic?.chapter?.subject?.name || null,
+      studentName: doubt.student?.user?.fullName || null,
+      batchName: (doubt as any).batch?.name || null,
     };
   }
 }

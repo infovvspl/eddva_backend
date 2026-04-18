@@ -1,9 +1,10 @@
-import { Controller, Get, Param, NotFoundException } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, ParseUUIDPipe, NotFoundException } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Public } from '../../common/decorators/auth.decorator';
 import { Tenant, TenantStatus } from '../../database/entities/tenant.entity';
+import { SuperAdminService } from './super-admin.service';
 
 @ApiTags('Public Tenant')
 @Controller('tenants')
@@ -11,7 +12,19 @@ export class PublicTenantController {
   constructor(
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+    private readonly superAdminService: SuperAdminService,
   ) {}
+
+  @Get('public/catalog')
+  @Public()
+  @ApiOperation({
+    summary: 'Public course marketplace (all institutes)',
+    description:
+      'Active batches from non-suspended tenants. No subdomain or auth required — for the main /courses page.',
+  })
+  async listPublicPlatformCourses() {
+    return this.superAdminService.getPublicPlatformCoursesCatalog();
+  }
 
   @Get('resolve/:subdomain')
   @Public()
@@ -46,5 +59,17 @@ export class PublicTenantController {
       brandColor: tenant.brandColor,
       welcomeMessage: tenant.welcomeMessage,
     };
+  }
+
+  @Get(':tenantId/courses')
+  @Public()
+  @ApiParam({ name: 'tenantId', description: 'Institute (tenant) UUID from resolve or config' })
+  @ApiOperation({
+    summary: 'List all public courses (batches) for an institute',
+    description:
+      'Returns institute branding plus active courses for the institute courses/marketing page. No auth required.',
+  })
+  async listInstituteCourses(@Param('tenantId', ParseUUIDPipe) tenantId: string) {
+    return this.superAdminService.getPublicInstituteCoursesCatalog(tenantId);
   }
 }

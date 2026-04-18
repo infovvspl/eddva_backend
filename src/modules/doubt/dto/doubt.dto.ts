@@ -16,6 +16,11 @@ export class CreateDoubtDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
+  batchId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
   topicId?: string;
 
   @ApiPropertyOptional()
@@ -52,6 +57,11 @@ export class DoubtListQueryDto {
   @IsOptional()
   @IsEnum(DoubtStatus)
   status?: DoubtStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  batchId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

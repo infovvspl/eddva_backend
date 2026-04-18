@@ -303,7 +303,10 @@ export class BatchService {
       this.userRepo.count({ where: { tenantId, role: UserRole.TEACHER, status: UserStatus.ACTIVE } }),
       this.userRepo.count({ where: { tenantId, role: UserRole.TEACHER, status: UserStatus.PENDING_VERIFICATION } }),
       this.lectureRepo.count({ where: { tenantId } }),
-      this.doubtRepo.count({ where: { tenantId, status: DoubtStatus.OPEN } }),
+      // Count doubts that still need action (not AI-only resolved, not teacher-resolved)
+      this.doubtRepo.count({
+        where: { tenantId, status: In([DoubtStatus.OPEN, DoubtStatus.ESCALATED]) },
+      }),
       this.sessionRepo.count({ where: { tenantId } }),
     ]);
 
