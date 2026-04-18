@@ -4,9 +4,21 @@ import { ValidationPipe, VersioningType, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { join } from 'path';
+<<<<<<< HEAD
 import { mkdirSync } from 'fs';
 import { AppModule } from './app.module';
 
+=======
+import { mkdirSync, existsSync } from 'fs';
+import * as dotenv from 'dotenv';
+import { AppModule } from './app.module';
+
+// Load env files early with override so .env.local always wins over .env and process.env
+for (const file of ['.env', '.env.local']) {
+  if (existsSync(file)) dotenv.config({ path: file, override: true });
+}
+
+>>>>>>> 40a44598ced4a2b084f36d289456dcf8897057bd
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {

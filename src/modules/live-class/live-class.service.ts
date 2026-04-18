@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -30,6 +31,8 @@ import { CreatePollDto } from './dto/live-class.dto';
 
 @Injectable()
 export class LiveClassService {
+  private readonly logger = new Logger(LiveClassService.name);
+
   constructor(
     @InjectRepository(LiveSession)
     private readonly liveSessionRepo: Repository<LiveSession>,
@@ -58,7 +61,13 @@ export class LiveClassService {
   ) {}
 
   async getToken(lectureId: string, userId: string, tenantId: string, userRole: UserRole) {
-    const lecture = await this.getLectureOrThrow(lectureId, tenantId);
+    // Look up by ID only — student tenantId may differ from lecture tenantId
+    const lecture = await this.lectureRepo.findOne({
+      where: { id: lectureId },
+      relations: ['topic'],
+    });
+    if (!lecture) throw new NotFoundException('Lecture not found');
+
     if (lecture.type !== LectureType.LIVE) {
       throw new BadRequestException('Not a live lecture');
     }
@@ -75,10 +84,9 @@ export class LiveClassService {
         throw new ForbiddenException('Only the assigned teacher can access host credentials');
       }
     } else if (userRole === UserRole.INSTITUTE_ADMIN) {
-      // Institute admins are hosts for any lecture in their tenant — no ownership check needed
       tokenRole = 'host';
     } else if (userRole === UserRole.STUDENT) {
-      await this.assertStudentEnrollment(lecture, userId, tenantId);
+      await this.assertStudentEnrollment(lecture, userId, lecture.tenantId);
       tokenRole = 'audience';
       const cacheKey = this.buildUidCacheKey(session.id, userId);
       uid = (await this.cacheManager.get<number>(cacheKey)) || this.agoraService.generateUid();
@@ -116,6 +124,11 @@ export class LiveClassService {
 
     await this.lectureRepo.save(lecture);
     const savedSession = await this.liveSessionRepo.save(session);
+
+    // Start Agora Cloud Recording (non-blocking — failure must not break the class start)
+    this.startRecordingAsync(savedSession.id, savedSession.agoraChannelName, lectureId).catch(
+      (err) => this.logger.error('Cloud recording start failed silently', err),
+    );
 
     const enrollments = await this.enrollmentRepo.find({
       where: { tenantId, batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
@@ -156,6 +169,23 @@ export class LiveClassService {
     };
   }
 
+  private async startRecordingAsync(sessionId: string, channelName: string, lectureId: string) {
+    const token = this.agoraService.generateRecordingToken(channelName);
+    if (!token) return;
+
+    const resourceId = await this.agoraService.acquireRecordingResource(channelName);
+    if (!resourceId) return;
+
+    const sid = await this.agoraService.startCloudRecording(channelName, resourceId, token, lectureId);
+    if (!sid) return;
+
+    await this.liveSessionRepo.update(sessionId, {
+      recordingResourceId: resourceId,
+      recordingSid: sid,
+    });
+    this.logger.log(`Recording started for session ${sessionId}: sid=${sid}`);
+  }
+
   async endClass(lectureId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
     const lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId, userRole);
     const session = await this.findSessionByLectureOrThrow(lectureId, tenantId);
@@ -172,10 +202,10 @@ export class LiveClassService {
     await this.lectureRepo.save(lecture);
     await this.liveSessionRepo.save(session);
 
+    // Close open attendance records
     const openAttendances = await this.liveAttendanceRepo.find({
       where: { tenantId, liveSessionId: session.id, leftAt: IsNull() },
     });
-
     for (const attendance of openAttendances) {
       attendance.leftAt = now;
       attendance.durationSeconds = this.calculateDurationSeconds(attendance.joinedAt, now);
@@ -184,10 +214,39 @@ export class LiveClassService {
       await this.liveAttendanceRepo.save(openAttendances);
     }
 
+    // Stop cloud recording and promote lecture to a watchable recording
+    let recordingUrl: string | null = session.recordingUrl || null;
+    if (session.recordingResourceId && session.recordingSid) {
+      const url = await this.agoraService.stopCloudRecording(
+        session.agoraChannelName,
+        session.recordingResourceId,
+        session.recordingSid,
+      );
+      if (url) {
+        recordingUrl = url;
+        session.recordingUrl = url;
+        await this.liveSessionRepo.save(session);
+
+        lecture.videoUrl = url;
+        lecture.type = LectureType.RECORDED;
+        lecture.status = LectureStatus.PUBLISHED;
+        await this.lectureRepo.save(lecture);
+        this.logger.log(`Lecture ${lectureId} promoted to RECORDED: ${url}`);
+      } else {
+        this.logger.warn(`Recording stop returned no URL for session ${session.id}`);
+      }
+    } else {
+      this.logger.warn(`No recording resource on session ${session.id} — recording skipped`);
+    }
+
     const enrollments = await this.enrollmentRepo.find({
       where: { tenantId, batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
       relations: ['student'],
     });
+
+    const notificationBody = recordingUrl
+      ? 'Recording is now available. Watch it anytime!'
+      : 'Recording and AI notes will be available shortly.';
 
     await Promise.all(
       enrollments
@@ -197,7 +256,7 @@ export class LiveClassService {
             userId: enrollment.student.userId,
             tenantId,
             title: '📚 Class has ended',
-            body: 'Recording and AI notes will be available shortly.',
+            body: notificationBody,
             channels: ['push', 'in_app'],
             refType: 'lecture',
             refId: lectureId,
@@ -206,21 +265,29 @@ export class LiveClassService {
     );
 
     return {
-      durationMinutes: session.startedAt
+      duration: session.startedAt
         ? Math.round((now.getTime() - new Date(session.startedAt).getTime()) / 60000)
         : 0,
-      attendeeCount: await this.liveAttendanceRepo.count({
+      attendanceCount: await this.liveAttendanceRepo.count({
         where: { tenantId, liveSessionId: session.id },
       }),
       sessionId: session.id,
-      recordingUrl: session.recordingUrl || null,
+      recordingUrl,
     };
   }
 
-  async getSession(lectureId: string, tenantId: string) {
-    const lecture = await this.getLectureOrThrow(lectureId, tenantId);
+  async getSession(lectureId: string, _tenantId: string) {
+    // Look up by lectureId only — the caller's tenantId may differ from the lecture's
+    // (e.g. student registered on platform tenant, lecture belongs to institute tenant).
+    // Authorization is enforced later in getToken via enrollment check.
+    const lecture = await this.lectureRepo.findOne({
+      where: { id: lectureId },
+      relations: ['topic'],
+    });
+    if (!lecture) throw new NotFoundException('Lecture not found');
+
     const session = await this.findOrCreateSession(lecture);
-    const teacher = await this.userRepo.findOne({ where: { id: lecture.teacherId, tenantId } });
+    const teacher = await this.userRepo.findOne({ where: { id: lecture.teacherId, tenantId: lecture.tenantId } });
 
     return {
       id: session.id,
@@ -230,7 +297,7 @@ export class LiveClassService {
       startedAt: session.startedAt,
       endedAt: session.endedAt,
       peakViewerCount: session.peakViewerCount,
-      currentViewerCount: await this.getCurrentViewerCount(session.id, tenantId),
+      currentViewerCount: await this.getCurrentViewerCount(session.id, lecture.tenantId),
       lectureTitle: session.lecture?.title || null,
       topicName: session.lecture?.topic?.name || null,
       teacherName: teacher?.fullName || null,
@@ -635,11 +702,15 @@ export class LiveClassService {
     return poll;
   }
 
-  private async assertStudentEnrollment(lecture: Lecture, userId: string, tenantId: string) {
-    const student = await this.getStudentByUserId(userId, tenantId);
+  private async assertStudentEnrollment(lecture: Lecture, userId: string, _tenantId: string) {
+    // Find student by userId across any tenant (student may be registered under a different tenant)
+    const student = await this.studentRepo.findOne({ where: { userId } });
+    if (!student) throw new NotFoundException('Student not found');
+
+    // Enrollment lives under the lecture's tenant
     const enrollment = await this.enrollmentRepo.findOne({
       where: {
-        tenantId,
+        tenantId: lecture.tenantId,
         batchId: lecture.batchId,
         studentId: student.id,
         status: EnrollmentStatus.ACTIVE,
@@ -651,10 +722,11 @@ export class LiveClassService {
   }
 
   private async getStudentByUserId(userId: string, tenantId: string) {
-    const student = await this.studentRepo.findOne({ where: { userId, tenantId } });
-    if (!student) {
-      throw new NotFoundException('Student not found');
-    }
+    // Try exact tenant first, fall back to userId-only (cross-tenant scenario)
+    const student =
+      (await this.studentRepo.findOne({ where: { userId, tenantId } })) ??
+      (await this.studentRepo.findOne({ where: { userId } }));
+    if (!student) throw new NotFoundException('Student not found');
     return student;
   }
 

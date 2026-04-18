@@ -16,6 +16,14 @@ export class CreateDoubtDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
+<<<<<<< HEAD
+=======
+  batchId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+>>>>>>> 40a44598ced4a2b084f36d289456dcf8897057bd
   topicId?: string;
 
   @ApiPropertyOptional()
@@ -56,6 +64,14 @@ export class DoubtListQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
+<<<<<<< HEAD
+=======
+  batchId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+>>>>>>> 40a44598ced4a2b084f36d289456dcf8897057bd
   topicId?: string;
 
   @ApiPropertyOptional()

@@ -566,7 +566,50 @@ export class ContentService {
             teacherId: userId,
             status,
         });
-        return this.lectureRepo.save(lecture);
+        const saved = await this.lectureRepo.save(lecture);
+
+        if (dto.type === LectureType.RECORDED && dto.videoUrl) {
+            this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId).catch(() => {});
+        }
+
+        return saved;
+    }
+
+    private _fixVideoUrl(url: string): string {
+        // "http://host/api/v1http://host/uploads/..." → "http://host/uploads/..."
+        const doubleUrl = url.match(/https?:\/\/[^/]+\/api\/v\d+(https?:\/\/.+)/);
+        if (doubleUrl) return doubleUrl[1];
+        // "http://host/api/v1/uploads/..." → "http://host/uploads/..."
+        return url.replace(/\/api\/v\d+\/uploads\//, '/uploads/');
+    }
+
+    private async _processLectureAI(
+        lectureId: string,
+        videoUrl: string,
+        topicId: string | undefined,
+        tenantId: string,
+    ): Promise<void> {
+        const cleanUrl = this._fixVideoUrl(videoUrl);
+        this.logger.log(`AI processing started for lecture ${lectureId} url=${cleanUrl}`);
+        try {
+            const result = await this.aiBridgeService.generateLectureNotes(
+                { audioUrl: cleanUrl, topicId: topicId ?? '', language: 'hi' },
+                tenantId,
+            ) as any;
+
+            const updates: Partial<Lecture> = { status: LectureStatus.PUBLISHED };
+            if (result?.rawTranscript) updates.transcript = result.rawTranscript;
+            updates.aiNotesMarkdown = result?.notes ?? result?.content ?? result?.raw ?? null;
+            const concepts = result?.key_concepts ?? result?.keyConcepts;
+            if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
+
+            await this.lectureRepo.update(lectureId, updates);
+            this.logger.log(`AI processing complete for lecture ${lectureId}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.error(`AI processing failed for lecture ${lectureId}: ${msg}`);
+            await this.lectureRepo.update(lectureId, { status: LectureStatus.PUBLISHED });
+        }
     }
 
     async getLectures(

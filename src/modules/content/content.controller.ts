@@ -8,6 +8,7 @@ import {
     Body,
     Param,
     Query,
+    Req,
     UseGuards,
     HttpCode,
     HttpStatus,
@@ -16,7 +17,14 @@ import {
     UploadedFile,
     UseInterceptors,
 } from '@nestjs/common';
+
+import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { mkdirSync } from 'fs';
+import { randomBytes } from 'crypto';
+
 import { memoryStorage } from 'multer';
 import {
     ApiTags,
@@ -55,7 +63,6 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { UserRole } from '../../database/entities/user.entity';
 import { S3Service } from '../upload/s3.service';
-import { extname } from 'path';
 
 @ApiTags('Content')
 @ApiBearerAuth()
