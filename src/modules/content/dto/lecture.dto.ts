@@ -181,6 +181,16 @@ export class LectureQueryDto {
     @IsUUID()
     topicId?: string;
 
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsUUID()
+    chapterId?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsUUID()
+    subjectId?: string;
+
     @ApiPropertyOptional({ enum: LectureStatus })
     @IsOptional()
     @IsEnum(LectureStatus)
@@ -193,12 +203,12 @@ export class LectureQueryDto {
     @Min(1)
     page?: number;
 
-    @ApiPropertyOptional({ example: 20, default: 20 })
+    @ApiPropertyOptional({ example: 20, default: 20, description: 'Max 500 for admin batch curriculum views' })
     @IsOptional()
     @Type(() => Number)
     @IsInt()
     @Min(1)
-    @Max(100)
+    @Max(500)
     limit?: number;
 }
 

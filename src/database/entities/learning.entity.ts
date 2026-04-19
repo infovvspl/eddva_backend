@@ -45,6 +45,13 @@ export class Doubt extends Base {
   @JoinColumn({ name: 'topic_id' })
   topic: Topic;
 
+  @Column({ name: 'batch_id', nullable: true })
+  batchId: string | null;
+
+  @ManyToOne(() => Batch)
+  @JoinColumn({ name: 'batch_id' })
+  batch: Batch;
+
   // ── Input ─────────────────────────────────────────────────────────────────
   @Column({ name: 'question_text', type: 'text', nullable: true })
   questionText: string;

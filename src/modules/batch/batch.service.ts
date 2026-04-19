@@ -161,7 +161,10 @@ export class BatchService {
       .getRawMany();
 
     const countMap = new Map<string, number>(counts.map(r => [r.batchId, Number(r.count)]));
-    return batches.map(b => ({ ...b, studentCount: countMap.get(b.id) ?? 0 }));
+    return batches.map(b => {
+      const n = countMap.get(b.id) ?? 0;
+      return { ...b, studentCount: n, enrolledCount: n };
+    });
   }
 
   async getBatchById(id: string, user: any, tenantId: string) {
@@ -300,7 +303,10 @@ export class BatchService {
       this.userRepo.count({ where: { tenantId, role: UserRole.TEACHER, status: UserStatus.ACTIVE } }),
       this.userRepo.count({ where: { tenantId, role: UserRole.TEACHER, status: UserStatus.PENDING_VERIFICATION } }),
       this.lectureRepo.count({ where: { tenantId } }),
-      this.doubtRepo.count({ where: { tenantId, status: DoubtStatus.OPEN } }),
+      // Count doubts that still need action (not AI-only resolved, not teacher-resolved)
+      this.doubtRepo.count({
+        where: { tenantId, status: In([DoubtStatus.OPEN, DoubtStatus.ESCALATED]) },
+      }),
       this.sessionRepo.count({ where: { tenantId } }),
     ]);
 

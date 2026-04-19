@@ -273,27 +273,30 @@ export class AuthService {
       where: { email: dto.email, tenantId },
     });
 
-    // Always return success to prevent email enumeration
+    // Always return the same response to prevent email enumeration
+    const genericResponse = { message: 'If an account exists with that email, a reset link has been sent.' };
+
     if (!user) {
-      return { message: 'If an account exists with that email, a reset link has been sent.' };
+      return genericResponse;
     }
 
-    // Generate a reset token and store in cache (15 min TTL)
+    // Generate a cryptographically secure token; store userId in cache with 15-min TTL
     const { randomBytes } = require('crypto');
-    const token = randomBytes(32).toString('hex');
-    const key = `pwd_reset:${token}`;
-    await this.cacheManager.set(key, user.id, 15 * 60 * 1000);
+    const token: string = randomBytes(32).toString('hex');
+    const cacheKey = `pwd_reset:${token}`;
+    await this.cacheManager.set(cacheKey, user.id, 15 * 60 * 1000);
 
-    // In production: send email with reset link
-    const devMode = this.configService.get<boolean>('otp.devMode');
-    if (devMode) {
-      this.logger.debug(`[DEV MODE] Password reset token for ${dto.email}: ${token}`);
-    } else {
-      this.logger.log(`Password reset requested for ${dto.email}`);
-      // TODO: integrate email service to send reset link
-    }
+    const frontendUrl = this.configService.get<string>('app.frontendUrl');
+    const resetLink = `${frontendUrl}/reset-password?token=${token}`;
+    const mailDevMode = this.configService.get<boolean>('mail.devMode');
 
-    return { message: 'If an account exists with that email, a reset link has been sent.', ...(devMode ? { token } : {}) };
+    // Fire-and-forget — never let a mail failure block the API response
+    this.mailService
+      .sendPasswordResetEmail(user.email, user.fullName, resetLink)
+      .catch((err: Error) => this.logger.error(`Failed to send password reset email to ${user.email}: ${err.message}`));
+
+    // Return token only in mail dev mode so the inline dev-mode reset form still works
+    return { ...genericResponse, ...(mailDevMode ? { token } : {}) };
   }
 
   async resetPassword(dto: ResetPasswordDto) {

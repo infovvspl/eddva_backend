@@ -64,7 +64,6 @@ import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { UserRole } from '../../database/entities/user.entity';
 import { S3Service } from '../upload/s3.service';
 
-
 @ApiTags('Content')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)

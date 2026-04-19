@@ -199,34 +199,37 @@ export class AiBridgeService {
 
     return questions.map((q: any) => {
       const labels = ['A', 'B', 'C', 'D', 'E'];
-      const correctAnswer: string = (q.answer || '').trim().toLowerCase();
 
-      // Extract leading label from answers like "A. text", "A) text" → "a", "b", etc.
-      const answerLeadingLabel = correctAnswer.match(/^([a-e])[.)]\s*/)?.[1] ?? null;
-      // Django sometimes returns 1-based numeric index ("1"=A, "2"=B, ...)
-      const answerNumericIndex = /^\d+$/.test(correctAnswer) ? parseInt(correctAnswer, 10) - 1 : -1;
-      this.logger.debug(`AI quiz answer raw="${q.answer}" normalized="${correctAnswer}" leadingLabel="${answerLeadingLabel}" numericIdx=${answerNumericIndex}`);
+      // Normalize answer — expected to be exactly "A", "B", "C", or "D"
+      const rawAnswer: string = (q.answer || '').trim();
+      // Primary: single letter (A/B/C/D)
+      const letterMatch = rawAnswer.match(/^([A-Ea-e])[.):\s]*/)?.[1]?.toUpperCase() ?? null;
+      // Fallback: 1-based numeric index ("1"→A, "2"→B, ...)
+      const numericIndex = /^\d+$/.test(rawAnswer) ? parseInt(rawAnswer, 10) - 1 : -1;
 
+      let correctLabelFound = false;
       const options = (q.options || []).map((opt: any, i: number) => {
         const text = typeof opt === 'string' ? opt : String(opt);
         const label = labels[i] || String.fromCharCode(65 + i);
-        const labelLower = label.toLowerCase();
-        const textLower = text.trim().toLowerCase();
-        // Handle: numeric index "1"/"2"/"3"/"4", letter "A"/"a", "A.", "A. text", "A) text", full text
         const isCorrect =
-          (answerNumericIndex >= 0 && i === answerNumericIndex) ||
-          correctAnswer === labelLower ||
-          correctAnswer === labelLower + '.' ||
-          (answerLeadingLabel !== null && answerLeadingLabel === labelLower) ||
-          correctAnswer === textLower;
+          (letterMatch !== null && label === letterMatch) ||
+          (numericIndex >= 0 && i === numericIndex) ||
+          text.trim().toLowerCase() === rawAnswer.toLowerCase();
+        if (isCorrect) correctLabelFound = true;
         return { label, content: text, isCorrect };
       });
+
+      if (!correctLabelFound) {
+        this.logger.warn(
+          `AI question answer could not be matched: raw="${rawAnswer}" question="${(q.question || '').slice(0, 60)}"`
+        );
+      }
 
       return {
         content: q.question || q.content || '',
         options,
         explanation: q.explanation || '',
-        integerAnswer: payload.type === 'integer' ? (q.answer || null) : null,
+        integerAnswer: payload.type === 'integer' ? (rawAnswer || null) : null,
       };
     });
   }
