@@ -34,6 +34,7 @@ import {
   RosterQueryDto,
   UpdateBatchDto,
 } from './dto/batch.dto';
+import { toJsonSafeDeep } from '../../common/utils/json-safe';
 import { AssignSubjectTeacherDto, BulkEnrollDto, BulkCreateBatchStudentsDto, CreateBatchStudentDto, EnrollStudentDto } from './dto/enrollment.dto';
 
 import Razorpay from 'razorpay';
@@ -161,9 +162,34 @@ export class BatchService {
       .getRawMany();
 
     const countMap = new Map<string, number>(counts.map(r => [r.batchId, Number(r.count)]));
-    return batches.map(b => {
+    return batches.map((b) => {
       const n = countMap.get(b.id) ?? 0;
-      return { ...b, studentCount: n, enrolledCount: n };
+      const t = b.teacher;
+      return toJsonSafeDeep({
+        id: b.id,
+        tenantId: b.tenantId,
+        name: b.name,
+        description: b.description ?? null,
+        examTarget: b.examTarget,
+        class: b.class,
+        teacherId: b.teacherId ?? null,
+        teacher: t ? { id: t.id, fullName: t.fullName, email: t.email ?? null } : undefined,
+        teacherName: t?.fullName ?? undefined,
+        maxStudents: b.maxStudents,
+        isPaid: b.isPaid,
+        feeAmount: b.feeAmount != null ? Number(b.feeAmount) : null,
+        platformFeePercent: b.platformFeePercent != null ? Number(b.platformFeePercent) : 20,
+        status: b.status,
+        startDate: b.startDate ?? null,
+        endDate: b.endDate ?? null,
+        thumbnailUrl: b.thumbnailUrl ?? null,
+        metadata: b.metadata ?? {},
+        faqs: Array.isArray(b.faqs) ? b.faqs : [],
+        createdAt: b.createdAt,
+        updatedAt: b.updatedAt,
+        studentCount: n,
+        enrolledCount: n,
+      }) as Record<string, unknown>;
     });
   }
 
@@ -292,6 +318,7 @@ export class BatchService {
       pendingTeachers,
       totalLectures,
       openDoubts,
+      recentDoubtsRaw,
       totalTestSessions,
     ] = await Promise.all([
       this.batchRepo.find({
@@ -303,12 +330,34 @@ export class BatchService {
       this.userRepo.count({ where: { tenantId, role: UserRole.TEACHER, status: UserStatus.ACTIVE } }),
       this.userRepo.count({ where: { tenantId, role: UserRole.TEACHER, status: UserStatus.PENDING_VERIFICATION } }),
       this.lectureRepo.count({ where: { tenantId } }),
-      // Count doubts that still need action (not AI-only resolved, not teacher-resolved)
-      this.doubtRepo.count({
+      // QB count: more reliable than count({ status: In([...]) }) across TypeORM/Postgres enum combos
+      this.doubtRepo
+        .createQueryBuilder('d')
+        .where('d.tenantId = :tenantId', { tenantId })
+        .andWhere('d.deletedAt IS NULL')
+        .andWhere('d.status IN (:...st)', { st: [DoubtStatus.OPEN, DoubtStatus.ESCALATED] })
+        .getCount(),
+      this.doubtRepo.find({
         where: { tenantId, status: In([DoubtStatus.OPEN, DoubtStatus.ESCALATED]) },
+        relations: ['student', 'student.user', 'topic', 'batch'],
+        order: { createdAt: 'DESC' },
+        take: 8,
       }),
       this.sessionRepo.count({ where: { tenantId } }),
     ]);
+
+    const recentDoubts = recentDoubtsRaw.map((d) =>
+      toJsonSafeDeep({
+        id: d.id,
+        status: d.status,
+        questionText: d.questionText,
+        createdAt: d.createdAt,
+        batchId: d.batchId,
+        batchName: d.batch?.name ?? null,
+        topicName: d.topic?.name ?? null,
+        studentName: d.student?.user?.fullName ?? null,
+      }) as Record<string, unknown>,
+    );
 
     const batchIds = batches.map(b => b.id);
     const totalStudents = batchIds.length
@@ -351,6 +400,7 @@ export class BatchService {
         totalTestSessions,
       },
       recentBatches: recentBatchesWithCount,
+      recentDoubts,
     };
   }
 

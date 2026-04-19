@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
@@ -14,6 +14,7 @@ import { DoubtSource, DoubtStatus, ExplanationMode } from '../../../database/ent
 
 export class CreateDoubtDto {
   @ApiPropertyOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : value))
   @IsOptional()
   @IsUUID()
   batchId?: string;
@@ -47,6 +48,11 @@ export class CreateDoubtDto {
   explanationMode: ExplanationMode;
 
   @ApiPropertyOptional({ description: 'Skip AI and forward directly to teacher' })
+  @Transform(({ value }) => {
+    if (value === true || value === 'true' || value === 1 || value === '1') return true;
+    if (value === false || value === 'false' || value === 0 || value === '0') return false;
+    return undefined;
+  })
   @IsOptional()
   @IsBoolean()
   skipAI?: boolean;
@@ -77,12 +83,12 @@ export class DoubtListQueryDto {
   @Min(1)
   page = 1;
 
-  @ApiPropertyOptional({ default: 20 })
+  @ApiPropertyOptional({ default: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  limit = 20;
+  limit = 100;
 }
 
 export class MarkDoubtHelpfulDto {

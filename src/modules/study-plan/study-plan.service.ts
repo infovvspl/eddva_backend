@@ -947,12 +947,25 @@ export class StudyPlanService {
       (lectureProgresses as LectureProgress[]).map((p) => [p.lectureId, p] as [string, LectureProgress]),
     );
 
+    const pub = (item: PlanItem) => ({
+      id: item.id,
+      studyPlanId: item.studyPlanId,
+      scheduledDate: item.scheduledDate,
+      type: item.type,
+      refId: item.refId,
+      title: item.title,
+      estimatedMinutes: item.estimatedMinutes,
+      sortOrder: item.sortOrder,
+      status: item.status,
+      completedAt: item.completedAt,
+    });
+
     return items.map((item) => {
       if (item.type === PlanItemType.LECTURE && item.refId) {
         const lec = lectures.find((l) => l.id === item.refId);
         const lp  = progressByLecture.get(item.refId);
         return {
-          ...item,
+          ...pub(item),
           content: {
             lectureId: lec?.id,
             lectureTitle: lec?.title || item.title,
@@ -967,7 +980,7 @@ export class StudyPlanService {
       if (item.type === PlanItemType.MOCK_TEST && item.refId) {
         const mt = mockTests.find((m) => m.id === item.refId);
         return {
-          ...item,
+          ...pub(item),
           content: {
             mockTestId: mt?.id,
             questionCount: (mt?.questionIds as string[] | null)?.length ?? null,
@@ -978,7 +991,7 @@ export class StudyPlanService {
       if ((item.type === PlanItemType.PRACTICE || item.type === PlanItemType.REVISION) && item.refId) {
         const topic = topics.find((t) => t.id === item.refId);
         return {
-          ...item,
+          ...pub(item),
           content: {
             topicId: topic?.id ?? item.refId,
             topicName: topic?.name ?? item.title,
@@ -987,7 +1000,7 @@ export class StudyPlanService {
           },
         };
       }
-      return item;
+      return pub(item);
     });
   }
 

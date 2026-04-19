@@ -16,13 +16,14 @@ export class PresenceController {
   constructor(private readonly presenceService: PresenceService) {}
 
   @Post('heartbeat')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update online presence (call every 30 s)' })
   heartbeat(
     @CurrentUser() user: { id: string; role: string },
     @TenantId() tenantId: string,
-  ): void {
+  ): { ok: true } {
     this.presenceService.beat(user.id, user.role, tenantId);
+    return { ok: true };
   }
 
   @Get('stats')

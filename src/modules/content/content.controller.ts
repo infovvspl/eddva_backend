@@ -22,8 +22,9 @@ import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
-import { mkdirSync } from 'fs';
-import { randomBytes } from 'crypto';
+import { mkdirSync, createReadStream, unlinkSync } from 'fs';
+import { tmpdir } from 'os';
+import { v4 as uuidv4 } from 'uuid';
 
 import { memoryStorage } from 'multer';
 import {
@@ -274,10 +275,9 @@ export class ContentController {
 
     // ─── LECTURES ─────────────────────────────────────────────────────────────
 
-    // ─── VIDEO UPLOAD (S3 pre-signed flow) ────────────────────────────────────
-    // 1. Call POST /upload/url { type:"lecture-video", lectureId, fileName, contentType, fileSize }
-    // 2. PUT video directly to S3 using the returned uploadUrl
-    // 3. Save the returned fileUrl as videoUrl when creating/updating the lecture
+    // ─── VIDEO UPLOAD (browser → API → S3) ────────────────────────────────────
+    // Multipart upload avoids S3 bucket CORS for dev origins (e.g. cds.localhost).
+    // Optional body fields courseId + lectureId match the presigned key layout from POST /upload-url.
 
     @Post('lectures/upload-video')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
@@ -286,8 +286,18 @@ export class ContentController {
     @ApiOperation({ summary: 'Upload a lecture video through backend to S3' })
     @UseInterceptors(
         FileInterceptor('file', {
-            storage: memoryStorage(),
-            limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB
+            storage: diskStorage({
+                destination: (_req, _file, cb) => {
+                    const dir = join(tmpdir(), 'eddva-lecture-uploads');
+                    mkdirSync(dir, { recursive: true });
+                    cb(null, dir);
+                },
+                filename: (_req, file, cb) => {
+                    const ext = extname(file.originalname).toLowerCase() || '.mp4';
+                    cb(null, `${Date.now()}-${uuidv4()}${ext}`);
+                },
+            }),
+            limits: { fileSize: 10 * 1024 * 1024 * 1024 }, // 10 GB — temp file on disk, streamed to S3
             fileFilter: (_req, file, cb) => {
                 if (!file.mimetype.startsWith('video/')) {
                     return cb(new BadRequestException('Only video files are allowed'), false);
@@ -298,15 +308,30 @@ export class ContentController {
     )
     async uploadVideo(
         @UploadedFile() file: Express.Multer.File,
-        @CurrentUser() user: any,
+        @Body('courseId') courseId: string | undefined,
+        @Body('lectureId') lectureId: string | undefined,
         @TenantId() tenantId: string,
     ) {
-        if (!file) throw new BadRequestException('No file uploaded');
+        if (!file?.path) throw new BadRequestException('No file uploaded');
         const ext = extname(file.originalname).toLowerCase() || '.mp4';
         const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `video${ext}`;
-        const key = `tenants/${tenantId}/lectures/${Date.now()}-${safeName}`;
-        const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype);
-        return { url: fileUrl };
+        const objectName = `${Date.now()}-${uuidv4()}-${safeName}`;
+        const key =
+            courseId && lectureId
+                ? `tenants/${tenantId}/courses/${courseId}/lectures/${lectureId}/video/${objectName}`
+                : `tenants/${tenantId}/lectures/${objectName}`;
+
+        const stream = createReadStream(file.path);
+        try {
+            const fileUrl = await this.s3Service.uploadStream(key, stream, file.mimetype);
+            return { url: fileUrl };
+        } finally {
+            try {
+                unlinkSync(file.path);
+            } catch {
+                // ignore
+            }
+        }
     }
 
     @Post('lectures/upload-thumbnail')

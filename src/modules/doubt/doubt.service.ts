@@ -29,6 +29,7 @@ import {
   RateTeacherResponseDto,
   TeacherResponseDto,
 } from './dto/doubt.dto';
+import { toJsonSafeDeep } from '../../common/utils/json-safe';
 
 @Injectable()
 export class DoubtService {
@@ -65,25 +66,45 @@ export class DoubtService {
       if (!topic) throw new NotFoundException(`Topic ${dto.topicId} not found`);
     }
 
+    let batchId = dto.batchId ?? null;
+    if (!batchId) {
+      const ens = await this.enrollmentRepo.find({
+        where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
+        relations: ['batch'],
+        order: { enrolledAt: 'DESC' },
+      });
+      // Prefer an institute batch (tenant ≠ request tenant) so doubts land in the teacher queue.
+      const preferred =
+        ens.find((e) => e.batch?.tenantId && e.batch.tenantId !== tenantId) ?? ens[0];
+      batchId = preferred?.batchId ?? null;
+    }
+
+    // Institute enrollments live on the batch's tenant; JWT may still be "platform".
+    let doubtTenantId = tenantId;
+    if (batchId) {
+      const batch = await this.batchRepo.findOne({ where: { id: batchId } });
+      if (batch?.tenantId) doubtTenantId = batch.tenantId;
+    }
+
+    const skipAi = !!dto.skipAI;
+    const initialStatus = skipAi ? DoubtStatus.ESCALATED : DoubtStatus.OPEN;
+
     const doubt = await this.doubtRepo.save(
       this.doubtRepo.create({
-        tenantId,
+        tenantId: doubtTenantId,
         studentId: student.id,
         topicId: dto.topicId ?? null,
-        batchId: dto.batchId ?? null,
+        batchId,
         questionText: dto.questionText ?? null,
         questionImageUrl: dto.questionImageUrl ?? null,
         source: dto.source,
         sourceRefId: dto.sourceRefId ?? null,
         explanationMode: dto.explanationMode,
-        status: DoubtStatus.OPEN,
+        status: initialStatus,
       }),
     );
 
-    if (dto.skipAI) {
-      // Forward directly to teacher — skip AI
-      doubt.status = DoubtStatus.ESCALATED;
-      await this.doubtRepo.save(doubt);
+    if (skipAi) {
       await this.notifyEscalatedDoubtTeachers(doubt);
     } else {
       try {
@@ -114,12 +135,12 @@ export class DoubtService {
       }
     }
 
-    return this.getDoubtWithRelations(doubt.id, tenantId);
+    return this.getDoubtWithRelations(doubt.id);
   }
 
   async getDoubts(query: DoubtListQueryDto, user: any, tenantId: string) {
     const page = query.page || 1;
-    const limit = query.limit || 20;
+    const limit = Math.min(query.limit ?? 100, 200);
     const skip = (page - 1) * limit;
 
     const qb = this.doubtRepo
@@ -129,8 +150,14 @@ export class DoubtService {
       .leftJoinAndSelect('doubt.topic', 'topic')
       .leftJoinAndSelect('topic.chapter', 'chapter')
       .leftJoinAndSelect('chapter.subject', 'subject')
-      .where('doubt.tenantId = :tenantId', { tenantId })
+      .leftJoinAndSelect('doubt.batch', 'batch')
       .andWhere('doubt.deletedAt IS NULL');
+
+    // Students are one row per user; doubts for institute batches use the batch tenant,
+    // so list by studentId instead of JWT tenant to include institute-queued doubts.
+    if (user.role !== UserRole.STUDENT) {
+      qb.andWhere('doubt.tenantId = :tenantId', { tenantId });
+    }
 
     if (query.status) qb.andWhere('doubt.status = :status', { status: query.status });
     if (query.topicId) qb.andWhere('doubt.topicId = :topicId', { topicId: query.topicId });
@@ -144,18 +171,19 @@ export class DoubtService {
         this.getTeacherBatchIds(user.id, tenantId, query.batchId),
         this.getTeacherStudentIds(user.id, tenantId, query.batchId),
       ]);
-      if (!batchIds.length && !studentIds.length) {
-        return { data: [], meta: { total: 0, page, limit, totalPages: 0 } };
-      }
-      if (batchIds.length && studentIds.length) {
-        qb.andWhere(
-          '(doubt.batchId IN (:...batchIds) OR doubt.studentId IN (:...studentIds))',
-          { batchIds, studentIds },
-        );
-      } else if (batchIds.length) {
-        qb.andWhere('doubt.batchId IN (:...batchIds)', { batchIds });
-      } else {
-        qb.andWhere('doubt.studentId IN (:...studentIds)', { studentIds });
+      // When the teacher is not yet linked on batches / roster, still show tenant doubts
+      // (same rows students see under institute tenant) so the UI is not empty.
+      if (batchIds.length || studentIds.length) {
+        if (batchIds.length && studentIds.length) {
+          qb.andWhere(
+            '(doubt.batchId IN (:...batchIds) OR doubt.studentId IN (:...studentIds))',
+            { batchIds, studentIds },
+          );
+        } else if (batchIds.length) {
+          qb.andWhere('doubt.batchId IN (:...batchIds)', { batchIds });
+        } else {
+          qb.andWhere('doubt.studentId IN (:...studentIds)', { studentIds });
+        }
       }
     } else if (query.studentId) {
       qb.andWhere('doubt.studentId = :studentId', { studentId: query.studentId });
@@ -171,14 +199,14 @@ export class DoubtService {
   }
 
   async getDoubtById(id: string, user: any, tenantId: string) {
-    const doubt = await this.getDoubtWithRelations(id, tenantId);
+    const doubt = await this.getDoubtWithRelations(id);
     await this.assertCanAccessDoubt(doubt, user, tenantId);
     return this.serializeDoubt(doubt);
   }
 
   async markHelpful(id: string, dto: MarkDoubtHelpfulDto, userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const doubt = await this.getDoubtWithRelations(id, tenantId);
+    const doubt = await this.getDoubtWithRelations(id);
     if (doubt.studentId !== student.id) {
       throw new ForbiddenException('You can only update your own doubts');
     }
@@ -196,7 +224,7 @@ export class DoubtService {
   }
 
   async addTeacherResponse(id: string, dto: TeacherResponseDto, userId: string, tenantId: string) {
-    const doubt = await this.getDoubtWithRelations(id, tenantId);
+    const doubt = await this.getDoubtWithRelations(id);
     const canHandle = await this.canTeacherHandleDoubt(doubt, userId, tenantId);
     if (!canHandle) throw new ForbiddenException('You are not assigned to this doubt');
 
@@ -213,13 +241,14 @@ export class DoubtService {
     await this.doubtRepo.save(doubt);
 
     const student = await this.studentRepo.findOne({
-      where: { id: doubt.studentId, tenantId },
+      where: { id: doubt.studentId },
       relations: ['user'],
     });
+    const notifyTenantId = student?.user?.tenantId ?? doubt.tenantId;
     if (student?.userId) {
       await this.notificationService.send({
         userId: student.userId,
-        tenantId,
+        tenantId: notifyTenantId,
         title: `${teacher.fullName} answered your doubt ✅`,
         body: dto.teacherResponse.slice(0, 120),
         channels: ['push', 'in_app'],
@@ -232,7 +261,7 @@ export class DoubtService {
   }
 
   async markAsReviewed(id: string, dto: MarkDoubtReviewedDto, userId: string, tenantId: string) {
-    const doubt = await this.getDoubtWithRelations(id, tenantId);
+    const doubt = await this.getDoubtWithRelations(id);
     const canHandle = await this.canTeacherHandleDoubt(doubt, userId, tenantId);
     if (!canHandle) throw new ForbiddenException('You are not assigned to this doubt');
 
@@ -247,13 +276,14 @@ export class DoubtService {
     await this.doubtRepo.save(doubt);
 
     const student = await this.studentRepo.findOne({
-      where: { id: doubt.studentId, tenantId },
+      where: { id: doubt.studentId },
       relations: ['user'],
     });
+    const notifyTenantId = student?.user?.tenantId ?? doubt.tenantId;
     if (student?.userId) {
       await this.notificationService.send({
         userId: student.userId,
-        tenantId,
+        tenantId: notifyTenantId,
         title: `${teacher.fullName} verified your AI answer ✅`,
         body: `The AI explanation for your doubt was confirmed correct by ${teacher.fullName}.`,
         channels: ['in_app'],
@@ -267,7 +297,7 @@ export class DoubtService {
 
   async requestAiResolution(id: string, userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const doubt = await this.getDoubtWithRelations(id, tenantId);
+    const doubt = await this.getDoubtWithRelations(id);
 
     if (doubt.studentId !== student.id) {
       throw new ForbiddenException('You can only update your own doubts');
@@ -301,7 +331,7 @@ export class DoubtService {
 
   async rateTeacherResponse(id: string, dto: RateTeacherResponseDto, userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const doubt = await this.getDoubtWithRelations(id, tenantId);
+    const doubt = await this.getDoubtWithRelations(id);
     if (doubt.studentId !== student.id) throw new ForbiddenException('You can only rate your own doubts');
     if (doubt.status !== DoubtStatus.TEACHER_RESOLVED) {
       throw new BadRequestException('Doubt has not been resolved by teacher yet');
@@ -325,6 +355,7 @@ export class DoubtService {
       .leftJoinAndSelect('doubt.topic', 'topic')
       .leftJoinAndSelect('topic.chapter', 'chapter')
       .leftJoinAndSelect('chapter.subject', 'subject')
+      .leftJoinAndSelect('doubt.batch', 'batch')
       .where('doubt.tenantId = :tenantId', { tenantId })
       .andWhere('doubt.status = :status', { status: DoubtStatus.ESCALATED })
       .andWhere('doubt.deletedAt IS NULL');
@@ -343,10 +374,9 @@ export class DoubtService {
         `getTeacherQueue userId=${userId} batchIds=${batchIds.length} studentIds=${studentIds.length}`,
       );
 
-      if (!batchIds.length && !studentIds.length) return [];
-
       // Show doubt if batchId matches the teacher's batch (new doubts)
       // OR studentId is an enrolled student (legacy doubts without batchId)
+      // If neither is set (teacher not linked on batches yet), show all escalated for this tenant.
       if (batchIds.length && studentIds.length) {
         qb.andWhere(
           '(doubt.batchId IN (:...batchIds) OR doubt.studentId IN (:...studentIds))',
@@ -354,7 +384,7 @@ export class DoubtService {
         );
       } else if (batchIds.length) {
         qb.andWhere('doubt.batchId IN (:...batchIds)', { batchIds });
-      } else {
+      } else if (studentIds.length) {
         qb.andWhere('doubt.studentId IN (:...studentIds)', { studentIds });
       }
     }
@@ -370,10 +400,10 @@ export class DoubtService {
     }));
   }
 
-  private async getDoubtWithRelations(id: string, tenantId: string) {
+  private async getDoubtWithRelations(id: string) {
     const doubt = await this.doubtRepo.findOne({
-      where: { id, tenantId },
-      relations: ['student', 'student.user', 'topic', 'topic.chapter', 'topic.chapter.subject'],
+      where: { id },
+      relations: ['student', 'student.user', 'topic', 'topic.chapter', 'topic.chapter.subject', 'batch'],
     });
     if (!doubt) throw new NotFoundException(`Doubt ${id} not found`);
     return doubt;
@@ -391,18 +421,39 @@ export class DoubtService {
     if (user.role === UserRole.TEACHER) {
       const canHandle = await this.canTeacherHandleDoubt(doubt, user.id, tenantId);
       if (!canHandle) throw new ForbiddenException('You do not have access to this doubt');
+      return;
+    }
+
+    if (user.role === UserRole.INSTITUTE_ADMIN && doubt.tenantId !== tenantId) {
+      throw new ForbiddenException('You do not have access to this doubt');
     }
   }
 
   private async canTeacherHandleDoubt(doubt: Doubt, userId: string, tenantId: string) {
+    const actor = await this.userRepo.findOne({ where: { id: userId } });
+    if (!actor) return false;
+
+    if (actor.role === UserRole.INSTITUTE_ADMIN && doubt.tenantId === tenantId) {
+      return true;
+    }
+
     const [batchIds, studentIds] = await Promise.all([
       this.getTeacherBatchIds(userId, tenantId),
       this.getTeacherStudentIds(userId, tenantId),
     ]);
-    return (
-      (doubt.batchId != null && batchIds.includes(doubt.batchId)) ||
-      studentIds.includes(doubt.studentId)
-    );
+    if (doubt.batchId != null && batchIds.includes(doubt.batchId)) return true;
+    if (studentIds.includes(doubt.studentId)) return true;
+
+    // Escalated pool: any TEACHER in this institute may answer (covers missing batch_subject_teachers rows).
+    if (
+      actor.role === UserRole.TEACHER &&
+      doubt.tenantId === tenantId &&
+      doubt.status === DoubtStatus.ESCALATED
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
   private async getTeacherBatchIds(userId: string, tenantId: string, scopeBatchId?: string): Promise<string[]> {
@@ -492,13 +543,19 @@ export class DoubtService {
         where: { batchId: In(batchIds), tenantId: doubt.tenantId },
       });
       for (const a of subjectAssignments) {
-        // Include if no subject filter or names match (case-insensitive, trimmed)
-        if (
+        const match =
           !subjectName ||
-          a.subjectName?.trim().toLowerCase() === subjectName.trim().toLowerCase()
-        ) {
-          teacherIdSet.add(a.teacherId);
-        }
+          a.subjectName?.trim().toLowerCase() === subjectName.trim().toLowerCase();
+        if (match) teacherIdSet.add(a.teacherId);
+      }
+      // If no subject-matched teachers (naming mismatch), notify all teachers assigned to the batch
+      const matchedAny = subjectAssignments.some(
+        (a) =>
+          !subjectName ||
+          a.subjectName?.trim().toLowerCase() === subjectName?.trim().toLowerCase(),
+      );
+      if (subjectName && subjectAssignments.length > 0 && !matchedAny) {
+        for (const a of subjectAssignments) teacherIdSet.add(a.teacherId);
       }
     }
 
@@ -536,20 +593,73 @@ export class DoubtService {
     }
   }
 
-  private async getStudentByUserId(userId: string, tenantId: string) {
-    const student = await this.studentRepo.findOne({ where: { userId, tenantId } });
+  /** One student row per user (unique user_id); enrollments may be on other tenants' batches. */
+  private async getStudentByUserId(userId: string, _tenantId: string) {
+    const student = await this.studentRepo.findOne({ where: { userId } });
     if (!student) throw new NotFoundException('Student not found');
     return student;
   }
 
   private serializeDoubt(doubt: Doubt) {
-    return {
-      ...doubt,
-      topicName: doubt.topic?.name || null,
-      chapterName: doubt.topic?.chapter?.name || null,
-      subjectName: doubt.topic?.chapter?.subject?.name || null,
-      studentName: doubt.student?.user?.fullName || null,
-      batchName: (doubt as any).batch?.name || null,
-    };
+    const st = doubt.student;
+    const usr = st?.user;
+    const tp = doubt.topic;
+    const ch = tp?.chapter;
+    const sub = ch?.subject;
+    const b = doubt.batch;
+
+    return toJsonSafeDeep({
+      id: doubt.id,
+      tenantId: doubt.tenantId,
+      studentId: doubt.studentId,
+      topicId: doubt.topicId,
+      batchId: doubt.batchId,
+      questionText: doubt.questionText,
+      questionImageUrl: doubt.questionImageUrl,
+      ocrExtractedText: doubt.ocrExtractedText,
+      source: doubt.source,
+      sourceRefId: doubt.sourceRefId,
+      explanationMode: doubt.explanationMode,
+      status: doubt.status,
+      aiExplanation: doubt.aiExplanation,
+      aiConceptLinks: doubt.aiConceptLinks ?? [],
+      aiSimilarQuestionIds: doubt.aiSimilarQuestionIds ?? [],
+      teacherId: doubt.teacherId,
+      teacherResponse: doubt.teacherResponse,
+      isHelpful: doubt.isHelpful,
+      resolvedAt: doubt.resolvedAt,
+      aiQualityRating: doubt.aiQualityRating,
+      teacherLectureRef: doubt.teacherLectureRef,
+      teacherResponseImageUrl: doubt.teacherResponseImageUrl,
+      isTeacherResponseHelpful: doubt.isTeacherResponseHelpful,
+      teacherReviewedAt: doubt.teacherReviewedAt,
+      createdAt: doubt.createdAt,
+      updatedAt: doubt.updatedAt,
+      topicName: tp?.name ?? null,
+      chapterName: ch?.name ?? null,
+      subjectName: sub?.name ?? null,
+      studentName: usr?.fullName ?? null,
+      batchName: b?.name ?? null,
+      student:
+        st && usr
+          ? {
+              id: st.id,
+              fullName: usr.fullName,
+              phoneNumber: usr.phoneNumber,
+            }
+          : undefined,
+      topic: tp
+        ? {
+            id: tp.id,
+            name: tp.name,
+            chapter: ch
+              ? {
+                  name: ch.name,
+                  subject: sub ? { name: sub.name } : undefined,
+                }
+              : undefined,
+          }
+        : undefined,
+    }) as Record<string, unknown>;
   }
 }

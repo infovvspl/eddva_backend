@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { toJsonSafeDeep } from '../../common/utils/json-safe';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenant } from '../../database/entities/tenant.entity';
@@ -43,7 +44,7 @@ export class InstituteSettingsService {
     ]);
 
     const meta = tenant.metadata ?? {};
-    return {
+    return toJsonSafeDeep({
       instituteName:     meta.instituteName     ?? tenant.name ?? '',
       adminName:         (meta.adminName         ?? user?.fullName) || '',
       email:             (meta.email             ?? user?.email)    || '',
@@ -52,7 +53,7 @@ export class InstituteSettingsService {
       yearsOfExperience: (meta.yearsOfExperience ?? tenant.metadata?.yearsOfExperience) || null,
       classTypes:        (meta.classTypes        ?? tenant.metadata?.classTypes) || [],
       teachingMode:      (meta.teachingMode      ?? tenant.metadata?.teachingMode) || 'offline',
-    };
+    }) as Record<string, unknown>;
   }
 
   async updateProfile(tenantId: string, userId: string, dto: UpdateInstituteProfileDto) {
