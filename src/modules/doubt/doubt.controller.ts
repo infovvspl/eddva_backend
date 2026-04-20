@@ -79,6 +79,17 @@ export class DoubtController {
     return this.doubtService.getDoubtById(id, user, tenantId);
   }
 
+  @Post(':id/ai-draft')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Generate AI draft for a doubt using AI bridge service' })
+  generateAiDraft(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.doubtService.generateAiDraft(id, user, tenantId);
+  }
+
   @Patch(':id/helpful')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Mark AI doubt response as helpful or escalate it' })
@@ -113,6 +124,17 @@ export class DoubtController {
     @TenantId() tenantId: string,
   ) {
     return this.doubtService.markAsReviewed(id, dto, user.id, tenantId);
+  }
+
+  @Patch(':id/resolve-with-ai')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Run AI resolution for an escalated/open doubt (teacher-initiated)' })
+  resolveWithAiAsTeacher(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.doubtService.resolveEscalatedWithAiAsTeacher(id, user.id, tenantId);
   }
 
   @Patch(':id/request-ai')

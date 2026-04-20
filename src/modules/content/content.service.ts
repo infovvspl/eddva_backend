@@ -23,11 +23,12 @@ import {
 } from '../../database/entities/learning.entity';
 import { TopicProgress, TopicStatus, MockTest } from '../../database/entities/assessment.entity';
 import { PlanItem, PlanItemStatus, PlanItemType, StudyPlan } from '../../database/entities/learning.entity';
-import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
-import { UserRole } from '../../database/entities/user.entity';
+import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
+import { User, UserRole } from '../../database/entities/user.entity';
 import { Student } from '../../database/entities/student.entity';
 
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
+import { NotificationService } from '../notification/notification.service';
 import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto } from './dto/ai-study.dto';
 import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subject.dto';
 import { CreateChapterDto, UpdateChapterDto } from './dto/chapter.dto';
@@ -83,8 +84,11 @@ export class ContentService {
         private readonly planItemRepo: Repository<PlanItem>,
         @InjectRepository(TopicResource)
         private readonly topicResourceRepo: Repository<TopicResource>,
+        @InjectRepository(User)
+        private readonly userRepo: Repository<User>,
         private readonly dataSource: DataSource,
         private readonly aiBridgeService: AiBridgeService,
+        private readonly notificationService: NotificationService,
     ) { }
 
     // ─── SUBJECTS ─────────────────────────────────────────────────────────────
@@ -667,7 +671,48 @@ export class ContentService {
             this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId).catch(() => {});
         }
 
+        if (dto.type === LectureType.LIVE && saved.scheduledAt) {
+            this.notifyEnrolledStudentsLiveClass(saved, tenantId).catch((err) =>
+                this.logger.warn(
+                    `live class notify failed: ${err instanceof Error ? err.message : String(err)}`,
+                ),
+            );
+        }
+
         return saved;
+    }
+
+    private async notifyEnrolledStudentsLiveClass(lecture: Lecture, tenantId: string): Promise<void> {
+        const enrollments = await this.enrollmentRepo.find({
+            where: { batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
+            relations: ['student', 'student.user'],
+        });
+        const teacher = await this.userRepo.findOne({ where: { id: lecture.teacherId } });
+        const teacherName = teacher?.fullName ?? 'Your teacher';
+        const when = lecture.scheduledAt
+            ? new Date(lecture.scheduledAt).toLocaleString('en-IN', {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+            })
+            : '';
+
+        for (const e of enrollments) {
+            const userId = e.student?.userId ?? e.student?.user?.id;
+            if (!userId) continue;
+            const notifyTenantId = e.student?.user?.tenantId ?? tenantId;
+            await this.notificationService.send({
+                userId,
+                tenantId: notifyTenantId,
+                title: `Live class scheduled: ${lecture.title}`,
+                body: `${teacherName} scheduled a live class${when ? ` — ${when}` : ''}. Open Calendar or Lectures to join.`,
+                channels: ['in_app', 'push'],
+                refType: 'live_class_scheduled',
+                refId: lecture.id,
+            });
+        }
     }
 
     private _fixVideoUrl(url: string): string {

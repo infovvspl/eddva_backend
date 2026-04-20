@@ -17,7 +17,7 @@ import { MockTest, QuestionAttempt, TestSession } from '../../database/entities/
 import { Student } from '../../database/entities/student.entity';
 import { User } from '../../database/entities/user.entity';
 import { StudentElo } from '../../database/entities/battle.entity';
-import { Batch, Enrollment } from '../../database/entities/batch.entity';
+import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
 import { Doubt, Lecture, LectureProgress } from '../../database/entities/learning.entity';
 import { Chapter, Subject, Topic } from '../../database/entities/subject.entity';
 import { NotificationModule } from '../notification/notification.module';
@@ -36,6 +36,7 @@ import { NotificationModule } from '../notification/notification.module';
       User,
       StudentElo,
       Batch,
+      BatchSubjectTeacher,
       Enrollment,
       MockTest,
       LectureProgress,

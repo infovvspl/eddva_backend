@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
-import { Batch, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
+import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { Doubt, DoubtStatus, Lecture, LectureProgress } from '../../database/entities/learning.entity';
 import { TestSession, TestSessionStatus } from '../../database/entities/assessment.entity';
 import { Student } from '../../database/entities/student.entity';
 import { WeakTopic, PerformanceProfile } from '../../database/entities/analytics.entity';
 import { Topic, Subject, Chapter } from '../../database/entities/subject.entity';
+import { UserRole } from '../../database/entities/user.entity';
 
 import {
   TeacherAnalyticsQueryDto,
@@ -15,10 +16,14 @@ import {
   ExportQueryDto,
 } from './dto/teacher-analytics.dto';
 
+/** JWT user shape from JwtStrategy — used for tenant-scoped analytics access. */
+type TeacherAnalyticsActor = { id: string; role: UserRole };
+
 @Injectable()
 export class TeacherAnalyticsService {
   constructor(
     @InjectRepository(Batch) private readonly batchRepo: Repository<Batch>,
+    @InjectRepository(BatchSubjectTeacher) private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
     @InjectRepository(TestSession) private readonly testSessionRepo: Repository<TestSession>,
@@ -34,14 +39,49 @@ export class TeacherAnalyticsService {
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  private async getTeacherBatches(teacherId: string, tenantId: string, batchId?: string) {
-    const where: any = { tenantId, teacherId };
-    if (batchId) where.id = batchId;
-    return this.batchRepo.find({ where });
+  /**
+   * Resolves batches the actor may aggregate analytics for — aligned with {@link BatchService.getBatches}:
+   * - Teachers: homeroom (`batch.teacherId`) or subject-teacher rows.
+   * - Institute / super admins: all non-deleted batches in the tenant.
+   */
+  private async getAccessibleBatches(
+    user: TeacherAnalyticsActor,
+    tenantId: string,
+    batchId?: string,
+  ): Promise<Batch[]> {
+    if (user.role === UserRole.INSTITUTE_ADMIN || user.role === UserRole.SUPER_ADMIN) {
+      const where: Record<string, unknown> = { tenantId };
+      if (batchId) where.id = batchId;
+      return this.batchRepo.find({ where: where as any, order: { createdAt: 'DESC' } });
+    }
+
+    const subjectBatchIds = await this.batchSubjectTeacherRepo
+      .find({ where: { teacherId: user.id, tenantId } })
+      .then((rows) => rows.map((r) => r.batchId));
+
+    const qb = this.batchRepo
+      .createQueryBuilder('batch')
+      .where('batch.tenantId = :tenantId', { tenantId })
+      .andWhere('batch.deletedAt IS NULL');
+
+    if (subjectBatchIds.length > 0) {
+      qb.andWhere('(batch.teacherId = :teacherId OR batch.id IN (:...subjectBatchIds))', {
+        teacherId: user.id,
+        subjectBatchIds,
+      });
+    } else {
+      qb.andWhere('batch.teacherId = :teacherId', { teacherId: user.id });
+    }
+
+    if (batchId) {
+      qb.andWhere('batch.id = :batchId', { batchId });
+    }
+
+    return qb.orderBy('batch.createdAt', 'DESC').getMany();
   }
 
-  private async getTeacherStudentIds(teacherId: string, tenantId: string, batchId?: string) {
-    const batches = await this.getTeacherBatches(teacherId, tenantId, batchId);
+  private async getTeacherStudentIds(user: TeacherAnalyticsActor, tenantId: string, batchId?: string) {
+    const batches = await this.getAccessibleBatches(user, tenantId, batchId);
     if (!batches.length) return { batches, studentIds: [] };
 
     const enrollments = await this.enrollmentRepo.find({
@@ -58,8 +98,8 @@ export class TeacherAnalyticsService {
 
   // ─── 1. Overview ──────────────────────────────────────────────────────────
 
-  async getOverview(teacherId: string, tenantId: string, query: TeacherAnalyticsQueryDto) {
-    const { batches, studentIds } = await this.getTeacherStudentIds(teacherId, tenantId, query.batchId);
+  async getOverview(user: TeacherAnalyticsActor, tenantId: string, query: TeacherAnalyticsQueryDto) {
+    const { batches, studentIds } = await this.getTeacherStudentIds(user, tenantId, query.batchId);
 
     const totalStudents = studentIds.length;
     const totalBatches = batches.length;
@@ -127,8 +167,8 @@ export class TeacherAnalyticsService {
 
   // ─── 2. Class Performance ─────────────────────────────────────────────────
 
-  async getClassPerformance(teacherId: string, tenantId: string, query: ClassPerformanceQueryDto) {
-    const { studentIds } = await this.getTeacherStudentIds(teacherId, tenantId, query.batchId);
+  async getClassPerformance(user: TeacherAnalyticsActor, tenantId: string, query: ClassPerformanceQueryDto) {
+    const { studentIds } = await this.getTeacherStudentIds(user, tenantId, query.batchId);
     if (!studentIds.length) {
       return { data: [], meta: { total: 0, page: 1, limit: query.limit || 30, totalPages: 0 } };
     }
@@ -244,17 +284,17 @@ export class TeacherAnalyticsService {
 
   // ─── 3. Topic Coverage ────────────────────────────────────────────────────
 
-  async getTopicCoverage(teacherId: string, tenantId: string, query: TeacherAnalyticsQueryDto) {
-    const { batches, studentIds } = await this.getTeacherStudentIds(teacherId, tenantId, query.batchId);
+  async getTopicCoverage(user: TeacherAnalyticsActor, tenantId: string, query: TeacherAnalyticsQueryDto) {
+    const { batches, studentIds } = await this.getTeacherStudentIds(user, tenantId, query.batchId);
     if (!studentIds.length) return [];
 
     const totalStudents = studentIds.length;
 
-    // Get all lectures for this teacher's batches
+    // Lectures tied to accessible batches (all teachers' content in those batches)
     const batchIds = batches.map((b) => b.id);
     const lectures = batchIds.length
       ? await this.lectureRepo.find({
-          where: { teacherId, batchId: In(batchIds) },
+          where: { tenantId, batchId: In(batchIds) },
         })
       : [];
 
@@ -421,11 +461,17 @@ export class TeacherAnalyticsService {
 
   // ─── 4. Engagement Heatmap ────────────────────────────────────────────────
 
-  async getEngagementHeatmap(teacherId: string, tenantId: string, lectureId: string) {
+  async getEngagementHeatmap(user: TeacherAnalyticsActor, tenantId: string, lectureId: string) {
     const lecture = await this.lectureRepo.findOne({
-      where: { id: lectureId, tenantId, teacherId },
+      where: { id: lectureId, tenantId },
     });
     if (!lecture) return { lecture: null, segments: [], confusionPeaks: [] };
+
+    const accessible = await this.getAccessibleBatches(user, tenantId);
+    const allowedBatchIds = new Set(accessible.map((b) => b.id));
+    if (!lecture.batchId || !allowedBatchIds.has(lecture.batchId)) {
+      return { lecture: null, segments: [], confusionPeaks: [] };
+    }
 
     const progresses = await this.lectureProgressRepo.find({
       where: { lectureId, tenantId },
@@ -486,10 +532,22 @@ export class TeacherAnalyticsService {
 
   // ─── 5. Doubt Analytics ───────────────────────────────────────────────────
 
-  async getDoubtAnalytics(teacherId: string, tenantId: string, query: TeacherAnalyticsQueryDto) {
-    const { studentIds } = await this.getTeacherStudentIds(teacherId, tenantId, query.batchId);
+  async getDoubtAnalytics(user: TeacherAnalyticsActor, tenantId: string, query: TeacherAnalyticsQueryDto) {
+    const { studentIds } = await this.getTeacherStudentIds(user, tenantId, query.batchId);
     if (!studentIds.length) {
-      return { summary: {}, byStatus: [], byTopic: [], recentDoubts: [] };
+      return {
+        summary: {
+          total: 0,
+          openEscalated: 0,
+          aiResolved: 0,
+          teacherResolved: 0,
+          avgResolutionMinutes: 0,
+          aiResolutionRate: 0,
+        },
+        byStatus: [],
+        byTopic: [],
+        recentDoubts: [],
+      };
     }
 
     const doubts = await this.doubtRepo.find({
@@ -567,12 +625,12 @@ export class TeacherAnalyticsService {
   // ─── 6. Student Deep Dive ─────────────────────────────────────────────────
 
   async getStudentDeepDive(
-    teacherId: string,
+    user: TeacherAnalyticsActor,
     tenantId: string,
     studentId: string,
     query: TeacherAnalyticsQueryDto,
   ) {
-    const { studentIds } = await this.getTeacherStudentIds(teacherId, tenantId, query.batchId);
+    const { studentIds } = await this.getTeacherStudentIds(user, tenantId, query.batchId);
     if (!studentIds.includes(studentId)) {
       return null;
     }
@@ -684,8 +742,8 @@ export class TeacherAnalyticsService {
 
   // ─── 7. Batch Comparison ──────────────────────────────────────────────────
 
-  async getBatchComparison(teacherId: string, tenantId: string, _query: TeacherAnalyticsQueryDto) {
-    const batches = await this.getTeacherBatches(teacherId, tenantId);
+  async getBatchComparison(user: TeacherAnalyticsActor, tenantId: string, _query: TeacherAnalyticsQueryDto) {
+    const batches = await this.getAccessibleBatches(user, tenantId);
     if (!batches.length) return [];
 
     const results = await Promise.all(
@@ -740,11 +798,11 @@ export class TeacherAnalyticsService {
 
   // ─── 8. Smart Insights ────────────────────────────────────────────────────
 
-  async getSmartInsights(teacherId: string, tenantId: string, batchId?: string) {
+  async getSmartInsights(user: TeacherAnalyticsActor, tenantId: string, batchId?: string) {
     const insights: { type: string; severity: 'warning' | 'critical' | 'info'; title: string; description: string; action: string }[] = [];
 
     // 1. Class performance — low scorers
-    const perfData = await this.getClassPerformance(teacherId, tenantId, { batchId, limit: 1000, page: 1 });
+    const perfData = await this.getClassPerformance(user, tenantId, { batchId, limit: 1000, page: 1 });
     const lowScorers = perfData.data.filter((s) => s.avgScore < 50);
     if (lowScorers.length > 0) {
       insights.push({
@@ -757,7 +815,7 @@ export class TeacherAnalyticsService {
     }
 
     // 2. Topic coverage — weak topics & gate pass
-    const topicData = await this.getTopicCoverage(teacherId, tenantId, { batchId });
+    const topicData = await this.getTopicCoverage(user, tenantId, { batchId });
     const highConfusionTopics = topicData
       .filter((t) => t.affectedPercentage > 50)
       .slice(0, 3);
@@ -785,7 +843,7 @@ export class TeacherAnalyticsService {
     }
 
     // 3. Doubt analytics
-    const doubtData = await this.getDoubtAnalytics(teacherId, tenantId, { batchId });
+    const doubtData = await this.getDoubtAnalytics(user, tenantId, { batchId });
     const openEscalated = (doubtData.summary as any).openEscalated || 0;
     if (openEscalated > 5) {
       insights.push({
@@ -813,11 +871,11 @@ export class TeacherAnalyticsService {
 
   // ─── 9. CSV Export ────────────────────────────────────────────────────────
 
-  async exportCsv(teacherId: string, tenantId: string, query: ExportQueryDto) {
+  async exportCsv(user: TeacherAnalyticsActor, tenantId: string, query: ExportQueryDto) {
     const type = query.type || 'class-performance';
 
     if (type === 'class-performance') {
-      const result = await this.getClassPerformance(teacherId, tenantId, { ...query, limit: 1000 });
+      const result = await this.getClassPerformance(user, tenantId, { ...query, limit: 1000 });
       return result.data.map((row) => ({
         Name: row.name,
         'Quizzes Taken': row.quizzesTaken,
@@ -830,7 +888,7 @@ export class TeacherAnalyticsService {
     }
 
     if (type === 'doubt-analytics') {
-      const result = await this.getDoubtAnalytics(teacherId, tenantId, query);
+      const result = await this.getDoubtAnalytics(user, tenantId, query);
       return result.recentDoubts.map((d) => ({
         'Student Name': d.studentName,
         Question: d.questionText,
@@ -841,7 +899,7 @@ export class TeacherAnalyticsService {
     }
 
     if (type === 'topic-coverage') {
-      const data = await this.getTopicCoverage(teacherId, tenantId, query);
+      const data = await this.getTopicCoverage(user, tenantId, query);
       return data.map((t) => ({
         Topic: t.topicName,
         Chapter: t.chapterName,
