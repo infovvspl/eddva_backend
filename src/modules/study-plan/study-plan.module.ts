@@ -8,8 +8,8 @@ import { StudyPlan, PlanItem, Lecture, LectureProgress, AiStudySession } from '.
 import { Student } from '../../database/entities/student.entity';
 import { WeakTopic } from '../../database/entities/analytics.entity';
 import { TopicProgress, MockTest } from '../../database/entities/assessment.entity';
-import { Chapter, Subject, Topic } from '../../database/entities/subject.entity';
-import { Enrollment } from '../../database/entities/batch.entity';
+import { Chapter, Subject, Topic, TopicResource } from '../../database/entities/subject.entity';
+import { BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
 import { AiBridgeModule } from '../ai-bridge/ai-bridge.module';
 import { NotificationModule } from '../notification/notification.module';
 
@@ -20,7 +20,7 @@ import { NotificationModule } from '../notification/notification.module';
     TypeOrmModule.forFeature([
       StudyPlan, PlanItem, Student, WeakTopic, TopicProgress,
       Lecture, LectureProgress, AiStudySession,
-      MockTest, Topic, Chapter, Subject, Enrollment,
+      MockTest, Topic, Chapter, Subject, TopicResource, Enrollment, BatchSubjectTeacher,
     ]),
   ],
   controllers: [StudyPlanController],

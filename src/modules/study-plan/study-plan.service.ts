@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
+import { DataSource } from 'typeorm';
 import { Between, In, MoreThan, Not, Repository } from 'typeorm';
 
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
@@ -14,8 +15,8 @@ import { WeakTopic, WeakTopicSeverity } from '../../database/entities/analytics.
 import { MockTest, MockTestType, TopicProgress, TopicStatus } from '../../database/entities/assessment.entity';
 import { AiStudySession, Lecture, LectureProgress, LectureStatus, PlanItem, PlanItemStatus, PlanItemType, StudyPlan } from '../../database/entities/learning.entity';
 import { ExamTarget, ExamYear, Student } from '../../database/entities/student.entity';
-import { Chapter, Subject, Topic } from '../../database/entities/subject.entity';
-import { Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
+import { Chapter, ResourceType, Subject, Topic, TopicResource } from '../../database/entities/subject.entity';
+import { BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 
 import { StudyPlanRangeQueryDto } from './dto/study-plan.dto';
 
@@ -56,6 +57,8 @@ export class StudyPlanService {
     private readonly topicRepo: Repository<Topic>,
     @InjectRepository(Enrollment)
     private readonly enrollmentRepo: Repository<Enrollment>,
+    @InjectRepository(BatchSubjectTeacher)
+    private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
     @InjectRepository(LectureProgress)
     private readonly lectureProgressRepo: Repository<LectureProgress>,
     @InjectRepository(AiStudySession)
@@ -64,6 +67,9 @@ export class StudyPlanService {
     private readonly chapterRepo: Repository<Chapter>,
     @InjectRepository(Subject)
     private readonly subjectRepo: Repository<Subject>,
+    @InjectRepository(TopicResource)
+    private readonly topicResourceRepo: Repository<TopicResource>,
+    private readonly dataSource: DataSource,
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: NotificationService,
   ) {}
@@ -83,8 +89,10 @@ export class StudyPlanService {
     // Determine student's enrolled batch for accurate content filtering
     const enrollment = await this.enrollmentRepo.findOne({
       where: { studentId: student.id, tenantId, status: EnrollmentStatus.ACTIVE },
+      relations: ['batch'],
     }).catch(() => null);
     const batchId = enrollment?.batchId;
+    const effectiveExamTarget = enrollment?.batch?.examTarget || student.examTarget;
 
     const lectureWhere: any = batchId
       ? { batchId, tenantId, status: LectureStatus.PUBLISHED }
@@ -93,8 +101,9 @@ export class StudyPlanService {
       ? { batchId, tenantId, isPublished: true }
       : { tenantId, isPublished: true };
 
-    const [weakTopicsRaw, allProgress, availableLectures, availableMockTests] = await Promise.all([
-      this.weakTopicRepo.find({ where: { studentId: student.id } }),
+    const [monthlyWeakTopics, monthlyInsights, allProgress, availableLectures, availableMockTests, availableTopics, batchSubjects, batchSubjectAssignments] = await Promise.all([
+      this.computeWeakTopicsFromLastMonth(student.id, tenantId, batchId),
+      this.computeRecentMonthTestInsights(student.id, tenantId, batchId),
       this.topicProgressRepo.find({ where: { studentId: student.id } }),
       this.lectureRepo.find({
         where: lectureWhere,
@@ -105,35 +114,59 @@ export class StudyPlanService {
         where: mockTestWhere,
         order: { createdAt: 'ASC' },
       }),
+      this.topicRepo.find({
+        where: { tenantId, isActive: true },
+        relations: ['chapter', 'chapter.subject'],
+        order: { sortOrder: 'ASC' },
+      }),
+      batchId
+        ? this.subjectRepo.find({ where: { tenantId, batchId, isActive: true }, order: { sortOrder: 'ASC' } })
+        : Promise.resolve([] as Subject[]),
+      batchId
+        ? this.batchSubjectTeacherRepo.find({ where: { tenantId, batchId } })
+        : Promise.resolve([] as BatchSubjectTeacher[]),
     ]);
 
     // Attach topic names using a separate query with tenantId (relations JOIN can miss tenant-scoped rows)
-    const topicIds = [...new Set(weakTopicsRaw.map((wt) => wt.topicId).filter(Boolean))];
+    const topicIds = [...new Set(monthlyWeakTopics.map((wt) => wt.topicId).filter(Boolean))];
     const topicsForWeak = topicIds.length
       ? await this.topicRepo.find({ where: { id: In(topicIds), tenantId }, relations: ['chapter', 'chapter.subject'] })
       : [];
     const topicMap = new Map(topicsForWeak.map((t) => [t.id, t]));
-    weakTopicsRaw.forEach((wt) => { wt.topic = topicMap.get(wt.topicId) ?? null as any; });
-    const weakTopics = weakTopicsRaw;
+    monthlyWeakTopics.forEach((wt) => { wt.topic = topicMap.get(wt.topicId) ?? null as any; });
+    const weakTopics = monthlyWeakTopics.length
+      ? monthlyWeakTopics
+      : await this.weakTopicRepo.find({ where: { studentId: student.id } });
 
-    // ── Derive the student's actual subjects from their batch curriculum ──────
-    // Pull subject names from lectures' topic→chapter→subject chain (already loaded above)
-    const batchSubjectNames = [...new Set(
+    const defaultSubjects = this.defaultSubjectsForExamTarget(effectiveExamTarget);
+
+    // ── Derive subject rotation from strongest curriculum sources first ───────
+    const subjectNamesFromBatchSubjects = [...new Set(
+      batchSubjects
+        .map((s) => s.name?.trim())
+        .filter((n): n is string => !!n),
+    )];
+    const subjectNamesFromAssignments = [...new Set(
+      batchSubjectAssignments
+        .map((a) => a.subjectName?.trim())
+        .filter((n): n is string => !!n),
+    )];
+    const subjectNamesFromLectures = [...new Set(
       availableLectures
         .map((l) => l.topic?.chapter?.subject?.name)
         .filter((n): n is string => !!n),
     )];
-    // If no lectures yet, fall back to exam-target defaults
-    const subjectRotation = batchSubjectNames.length
-      ? batchSubjectNames
-      : student.examTarget === 'neet'
-        ? NEET_SUBJECTS
-        : student.examTarget === 'both'
-          ? BOTH_SUBJECTS
-          : JEE_SUBJECTS;
+    const derivedSubjects =
+      subjectNamesFromBatchSubjects.length
+        ? subjectNamesFromBatchSubjects
+        : subjectNamesFromAssignments.length
+          ? subjectNamesFromAssignments
+          : subjectNamesFromLectures;
+    const subjectRotation = Array.from(new Set([...derivedSubjects, ...defaultSubjects]));
 
     const examDate = this.deriveExamDate(student.examYear);
-    const daysToExam = Math.max(1, Math.ceil((examDate.getTime() - Date.now()) / 86400000));
+    const rawDaysToExam = Math.ceil((examDate.getTime() - Date.now()) / 86400000);
+    const daysToExam = Number.isFinite(rawDaysToExam) ? Math.max(1, rawDaysToExam) : 120;
 
     let items: RawPlanItem[] = [];
 
@@ -141,7 +174,7 @@ export class StudyPlanService {
     try {
       const aiResult = (await this.aiBridgeService.generateStudyPlan({
         studentId: student.id,
-        examTarget: student.examTarget,
+        examTarget: effectiveExamTarget,
         examYear: student.examYear,
         dailyHours: student.dailyStudyHours,
         weakTopics: weakTopics.map((t) => t.topic?.name ?? t.topicId),
@@ -153,18 +186,31 @@ export class StudyPlanService {
             .filter((p) => p.status === TopicStatus.COMPLETED)
             .map((p) => p.topicId),
           daysToExam,
+          recentMonthTestInsights: monthlyInsights,
+          batchContext: {
+            batchId,
+            batchName: enrollment?.batch?.name ?? null,
+            examTarget: effectiveExamTarget,
+            class: enrollment?.batch?.class ?? student.class,
+          },
         },
       })) as { planItems?: RawPlanItem[]; items?: RawPlanItem[] };
 
       // Normalize AI response — map old field names (activity/duration_min/topic/subject) to expected ones
       const rawItems: any[] = aiResult.items || aiResult.planItems || [];
-      items = rawItems.map((item: any) => ({
+      const mappedItems = rawItems.map((item: any) => ({
         date:               item.date,
-        type:               item.type || item.activity || 'practice',
+        type:               this.normalizePlanItemType(item.type || item.activity || 'practice'),
         title:              item.title || item.topic || item.subject || null,
         refId:              item.refId ?? null,
         estimatedMinutes:   item.estimatedMinutes ?? item.duration_min ?? 30,
       }));
+      // Keep only structurally valid items; otherwise allow fallback engine to run.
+      items = mappedItems.filter((item) => {
+        if (!item.date || !item.type) return false;
+        const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(String(item.date));
+        return dateOk;
+      });
 
       // Re-anchor AI plan to start from today (IST) — AI may return future-dated items
       if (items.length) {
@@ -197,6 +243,7 @@ export class StudyPlanService {
         weakTopics,
         availableLectures,
         availableMockTests,
+        availableTopics,
         daysToExam,
         subjectRotation,
       );
@@ -205,24 +252,41 @@ export class StudyPlanService {
     // ── Fix refIds: map AI-generated topic names to real lecture/quiz IDs ──
     items = this.applyBatchRefIds(items, availableLectures, availableMockTests);
 
-    // ── Fallback: lecture items still without refId get the first unwatched lecture ──
-    const unwatchedLecture = availableLectures[0];
-    if (unwatchedLecture) {
+    // Never force teacher lecture refs for personalized plans.
+    // For student-specific tasks, use topic refs (practice/revision) when available.
+    const fallbackTopicId =
+      weakTopics.find((t) => !!t.topicId)?.topicId ??
+      availableLectures.find((l) => !!l.topicId)?.topicId ??
+      null;
+    if (fallbackTopicId) {
       items = items.map((item) => {
-        if ((item.type === 'lecture') && !item.refId) {
-          return { ...item, refId: unwatchedLecture.id };
-        }
-        if ((item.type === 'practice' || item.type === 'revision') && !item.refId && unwatchedLecture.topicId) {
-          return { ...item, refId: unwatchedLecture.topicId };
+        if ((item.type === 'practice' || item.type === 'revision') && !item.refId) {
+          return { ...item, refId: fallbackTopicId };
         }
         return item;
       });
     }
 
     // ── Persist ─────────────────────────────────────────────────────────────
-    const planDays = Math.min(30, Math.max(7, daysToExam - 5));
+    const planDays = Math.min(30, Math.max(7, (Number.isFinite(daysToExam) ? daysToExam : 120) - 5));
     const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + planDays);
+    validUntil.setDate(validUntil.getDate() + (Number.isFinite(planDays) ? planDays : 30));
+
+    const validItems = items.filter((item) => !!item.date && !!item.type);
+    // Final safety net: if AI/fallback somehow produced nothing, generate a deterministic starter month.
+    if (!validItems.length) {
+      items = this.buildComprehensivePlan(
+        student,
+        weakTopics,
+        availableLectures,
+        availableMockTests,
+        availableTopics,
+        daysToExam,
+        subjectRotation,
+      );
+    }
+
+    const finalItems = items.filter((item) => !!item.date && !!item.type);
 
     const plan = await this.studyPlanRepo.manager.transaction(async (manager) => {
       const current = await manager.findOne(StudyPlan, { where: { studentId: student.id, tenantId } });
@@ -241,9 +305,7 @@ export class StudyPlanService {
         }),
       );
 
-      const planItems = items
-        .filter((item) => !!item.date && !!item.type) // drop malformed AI items
-        .map((item, i) =>
+      const planItems = finalItems.map((item, i) =>
           manager.create(PlanItem, {
             studyPlanId: created.id,
             scheduledDate: item.date,
@@ -281,8 +343,12 @@ export class StudyPlanService {
 
   async getToday(userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId } });
-    if (!plan) return [];
+    let plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId } });
+    if (!plan) {
+      await this.generatePlan(userId, tenantId, false);
+      plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId } });
+      if (!plan) return [];
+    }
 
     const today = this.todayIst();
     const items = await this.planItemRepo.find({
@@ -433,17 +499,11 @@ export class StudyPlanService {
     }).catch(() => null);
     if (!enrollment) return;
 
-    // Find next lecture in batch for the next topic
-    const nextLecture = await this.lectureRepo.findOne({
-      where: { topicId: nextTopic.id, batchId: enrollment.batchId, status: LectureStatus.PUBLISHED, tenantId },
-      order: { createdAt: 'ASC' },
-    });
-
     const studyPlan = await this.studyPlanRepo.findOne({ where: { studentId, tenantId } });
     if (!studyPlan) return;
 
-    const refId = nextLecture?.id ?? nextTopic.id;
-    const itemType = nextLecture ? PlanItemType.LECTURE : PlanItemType.PRACTICE;
+    const refId = nextTopic.id;
+    const itemType = PlanItemType.PRACTICE;
 
     // Skip if task already in plan
     const alreadyIn = await this.planItemRepo.findOne({
@@ -464,10 +524,8 @@ export class StudyPlanService {
         scheduledDate: nextDate,
         type: itemType,
         refId,
-        title: nextLecture ? `Watch: ${nextLecture.title}` : `Study: ${nextTopic.name}`,
-        estimatedMinutes: nextLecture
-          ? Math.ceil((nextLecture.videoDurationSeconds || 2700) / 60)
-          : nextTopic.estimatedStudyMinutes || 45,
+        title: `Practice + Notes: ${nextTopic.name}`,
+        estimatedMinutes: nextTopic.estimatedStudyMinutes || 45,
         sortOrder: 0,
         status: PlanItemStatus.PENDING,
       }),
@@ -638,6 +696,7 @@ export class StudyPlanService {
     weakTopics: WeakTopic[],
     lectures: Lecture[],
     mockTests: MockTest[],
+    allTopics: Topic[],
     daysToExam: number,
     subjects: string[],
   ): RawPlanItem[] {
@@ -661,6 +720,16 @@ export class StudyPlanService {
       if (!lectureByTopic.has(lec.topicId)) lectureByTopic.set(lec.topicId, []);
       lectureByTopic.get(lec.topicId)!.push(lec);
     }
+
+    // ── Index topics by subject for real-data rotation (no placeholders) ─────
+    const topicsBySubject = new Map<string, Topic[]>();
+    for (const t of allTopics) {
+      const sName = t.chapter?.subject?.name;
+      if (!sName) continue;
+      if (!topicsBySubject.has(sName)) topicsBySubject.set(sName, []);
+      topicsBySubject.get(sName)!.push(t);
+    }
+    const topicCursorBySubject = new Map<string, number>();
 
     // ── Available full-mock tests ─────────────────────────────────────────────
     const fullMocks = mockTests.filter((m) => m.type === MockTestType.FULL_MOCK);
@@ -778,20 +847,31 @@ export class StudyPlanService {
       const wt = weakQueue.length ? weakQueue[weakIdx % weakQueue.length] : null;
       if (weakQueue.length) weakIdx++;
 
-      const topicName = wt?.topic?.name ?? `${subject} Core Concepts`;
+      const subjectPool = topicsBySubject.get(subject) ?? [];
+      const cursor = topicCursorBySubject.get(subject) ?? 0;
+      const subjectTopic = subjectPool.length ? subjectPool[cursor % subjectPool.length] : null;
+      if (subjectPool.length) topicCursorBySubject.set(subject, cursor + 1);
+      const topicName = wt?.topic?.name ?? subjectTopic?.name ?? `${subject} Practice`;
+      const effectiveTopicId = wt?.topicId ?? subjectTopic?.id ?? null;
 
       // Find a real lecture for this weak topic
-      const lecture = wt ? (lectureByTopic.get(wt.topicId)?.[0] ?? null) : null;
+      const lecture = effectiveTopicId ? (lectureByTopic.get(effectiveTopicId)?.[0] ?? null) : null;
+      const effectiveWeakTopic = wt ?? (effectiveTopicId
+        ? ({
+            topicId: effectiveTopicId,
+            topic: subjectTopic ?? null,
+          } as unknown as WeakTopic)
+        : null);
 
       if (phase === 'foundation') {
         // Foundation: Lecture → Practice → Light revision
-        this.addFoundationDay(items, dateStr, dailyMinutes, subject, topicName, lecture, wt, weakQueue, weakIdx);
+        this.addFoundationDay(items, dateStr, dailyMinutes, subject, topicName, lecture, effectiveWeakTopic, weakQueue, weakIdx);
       } else if (phase === 'consolidation') {
         // Consolidation: Revision → Practice → Doubt
-        this.addConsolidationDay(items, dateStr, dailyMinutes, subject, topicName, wt);
+        this.addConsolidationDay(items, dateStr, dailyMinutes, subject, topicName, effectiveWeakTopic);
       } else {
         // Testing: Speed drills → targeted practice
-        this.addTestingDay(items, dateStr, dailyMinutes, subject, topicName, wt);
+        this.addTestingDay(items, dateStr, dailyMinutes, subject, topicName, effectiveWeakTopic);
       }
     }
 
@@ -814,23 +894,14 @@ export class StudyPlanService {
     const practiceMinutes = Math.floor(dailyMinutes * 0.40);
     const revisionMinutes = dailyMinutes - lectureMinutes - practiceMinutes;
 
-    // Lecture slot — link real lecture if available
-    if (lecture) {
-      items.push({
-        date,
-        type: 'lecture',
-        title: `▶ ${lecture.title}`,
-        refId: lecture.id,
-        estimatedMinutes: lectureMinutes,
-      });
-    } else {
-      items.push({
-        date,
-        type: 'lecture',
-        title: `Study: ${topicName} (${subject})`,
-        estimatedMinutes: lectureMinutes,
-      });
-    }
+    // Video slot (YouTube/self-study), not teacher lecture.
+    items.push({
+      date,
+      type: 'revision',
+      title: `YouTube Video Review: ${topicName} (${subject})`,
+      refId: wt?.topicId ?? lecture?.topicId ?? null,
+      estimatedMinutes: lectureMinutes,
+    });
 
     // Practice slot
     items.push({
@@ -840,13 +911,14 @@ export class StudyPlanService {
       estimatedMinutes: practiceMinutes,
     });
 
-    // Revision slot (if enough time)
+    // Notes slot (if enough time)
     if (revisionMinutes >= 20) {
       const prevTopic = weakQueue.length > 1 ? weakQueue[(weakIdx - 2 + weakQueue.length) % weakQueue.length] : wt;
       items.push({
         date,
         type: 'revision',
-        title: `Quick Revise: ${prevTopic?.topic?.name ?? topicName}`,
+        refId: prevTopic?.topicId ?? wt?.topicId ?? null,
+        title: `AI Notes + Quick Revision: ${prevTopic?.topic?.name ?? topicName}`,
         estimatedMinutes: revisionMinutes,
       });
     }
@@ -867,7 +939,8 @@ export class StudyPlanService {
     items.push({
       date,
       type: 'revision',
-      title: `Deep Revision: ${topicName}`,
+      refId: wt?.topicId ?? null,
+      title: `AI Notes Deep Revision: ${topicName}`,
       estimatedMinutes: revisionMinutes,
     });
     items.push({
@@ -899,9 +972,136 @@ export class StudyPlanService {
     items.push({
       date,
       type: 'revision',
-      title: `Flash Cards Revision: ${topicName}`,
+      refId: wt?.topicId ?? null,
+      title: `Flash Notes Revision: ${topicName}`,
       estimatedMinutes: flashMinutes,
     });
+  }
+
+  /**
+   * Build weak topics from the student's last 30 days of test attempts.
+   * This powers monthly plan generation and dashboard recommendations.
+   */
+  private async computeWeakTopicsFromLastMonth(studentId: string, tenantId: string, batchId?: string): Promise<WeakTopic[]> {
+    const params: any[] = [studentId, tenantId];
+    const batchFilter = batchId ? `AND ts.mock_test_id IN (SELECT id FROM mock_tests WHERE batch_id = $3)` : '';
+    if (batchId) params.push(batchId);
+
+    const rows = await this.dataSource.query(
+      `
+        SELECT
+          q.topic_id AS "topicId",
+          COUNT(*)::int AS "attemptCount",
+          SUM(CASE WHEN qa.is_correct = false THEN 1 ELSE 0 END)::int AS "wrongCount",
+          AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END)::float AS "accuracy",
+          MAX(qa.answered_at) AS "lastAttemptedAt"
+        FROM question_attempts qa
+        INNER JOIN test_sessions ts ON ts.id = qa.test_session_id
+        INNER JOIN questions q ON q.id = qa.question_id
+        WHERE qa.student_id = $1
+          AND qa.tenant_id = $2
+          AND qa.deleted_at IS NULL
+          AND ts.status IN ('submitted', 'auto_submitted')
+          AND qa.answered_at >= (NOW() - INTERVAL '30 days')
+          ${batchFilter}
+        GROUP BY q.topic_id
+        HAVING COUNT(*) >= 3
+        ORDER BY
+          (SUM(CASE WHEN qa.is_correct = false THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0)) DESC,
+          COUNT(*) DESC
+        LIMIT 12
+      `,
+      params,
+    );
+
+    return rows.map((row: any) => {
+      const wrongCount = Number(row.wrongCount || 0);
+      const severity =
+        wrongCount >= 10 ? WeakTopicSeverity.CRITICAL :
+        wrongCount >= 6 ? WeakTopicSeverity.HIGH :
+        wrongCount >= 3 ? WeakTopicSeverity.MEDIUM :
+        WeakTopicSeverity.LOW;
+
+      return this.weakTopicRepo.create({
+        studentId,
+        topicId: row.topicId,
+        severity,
+        accuracy: Number(Number(row.accuracy || 0).toFixed(2)),
+        wrongCount,
+        lastAttemptedAt: row.lastAttemptedAt ? new Date(row.lastAttemptedAt) : null,
+        // Not using these for monthly plan logic, keep safe defaults.
+        doubtCount: 0,
+        rewindCount: 0,
+      });
+    });
+  }
+
+  /** Aggregate one-month test data that the AI service can use for better personalization. */
+  private async computeRecentMonthTestInsights(studentId: string, tenantId: string, batchId?: string) {
+    const params: any[] = [studentId, tenantId];
+    const batchJoinFilter = batchId ? `AND mt.batch_id = $3` : '';
+    if (batchId) params.push(batchId);
+
+    const [summaryRows, subjectRows] = await Promise.all([
+      this.dataSource.query(
+        `
+          SELECT
+            COUNT(ts.id)::int AS "testsTaken",
+            COALESCE(AVG(COALESCE(ts.total_score, 0)), 0)::float AS "avgScore",
+            COALESCE(AVG(
+              CASE
+                WHEN (COALESCE(ts.correct_count,0) + COALESCE(ts.wrong_count,0)) > 0
+                THEN (COALESCE(ts.correct_count,0)::float * 100.0) /
+                     NULLIF((COALESCE(ts.correct_count,0) + COALESCE(ts.wrong_count,0)), 0)
+                ELSE 0
+              END
+            ), 0)::float AS "avgAccuracy"
+          FROM test_sessions ts
+          LEFT JOIN mock_tests mt ON mt.id = ts.mock_test_id
+          WHERE ts.student_id = $1
+            AND ts.tenant_id = $2
+            AND ts.status IN ('submitted', 'auto_submitted')
+            AND ts.submitted_at >= (NOW() - INTERVAL '30 days')
+            ${batchJoinFilter}
+        `,
+        params,
+      ),
+      this.dataSource.query(
+        `
+          SELECT
+            s.name AS "subjectName",
+            AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END)::float AS "accuracy",
+            COUNT(*)::int AS "attemptCount"
+          FROM question_attempts qa
+          INNER JOIN test_sessions ts ON ts.id = qa.test_session_id
+          INNER JOIN questions q ON q.id = qa.question_id
+          INNER JOIN topics t ON t.id = q.topic_id
+          INNER JOIN chapters c ON c.id = t.chapter_id
+          INNER JOIN subjects s ON s.id = c.subject_id
+          LEFT JOIN mock_tests mt ON mt.id = ts.mock_test_id
+          WHERE qa.student_id = $1
+            AND qa.tenant_id = $2
+            AND qa.answered_at >= (NOW() - INTERVAL '30 days')
+            AND ts.status IN ('submitted', 'auto_submitted')
+            ${batchJoinFilter}
+          GROUP BY s.name
+          ORDER BY "accuracy" ASC
+        `,
+        params,
+      ),
+    ]);
+
+    return {
+      periodDays: 30,
+      testsTaken: Number(summaryRows?.[0]?.testsTaken ?? 0),
+      avgScore: Number(Number(summaryRows?.[0]?.avgScore ?? 0).toFixed(2)),
+      avgAccuracy: Number(Number(summaryRows?.[0]?.avgAccuracy ?? 0).toFixed(2)),
+      weakSubjects: (subjectRows || []).slice(0, 3).map((r: any) => ({
+        subjectName: String(r.subjectName || 'Unknown'),
+        accuracy: Number(Number(r.accuracy || 0).toFixed(2)),
+        attemptCount: Number(r.attemptCount || 0),
+      })),
+    };
   }
 
   // ─── Helper methods ──────────────────────────────────────────────────────────
@@ -942,6 +1142,18 @@ export class StudyPlanService {
         ? this.lectureProgressRepo.find({ where: { studentId, lectureId: In(lectureIds) } })
         : [],
     ]);
+    const topicIds = topics.map((t) => t.id);
+    const topicResources = topicIds.length
+      ? await this.topicResourceRepo.find({
+          where: { tenantId, topicId: In(topicIds), isActive: true },
+          order: { sortOrder: 'ASC', createdAt: 'ASC' },
+        })
+      : [];
+    const resourcesByTopic = new Map<string, TopicResource[]>();
+    for (const r of topicResources) {
+      if (!resourcesByTopic.has(r.topicId)) resourcesByTopic.set(r.topicId, []);
+      resourcesByTopic.get(r.topicId)!.push(r);
+    }
 
     const progressByLecture = new Map<string, LectureProgress>(
       (lectureProgresses as LectureProgress[]).map((p) => [p.lectureId, p] as [string, LectureProgress]),
@@ -990,6 +1202,21 @@ export class StudyPlanService {
       }
       if ((item.type === PlanItemType.PRACTICE || item.type === PlanItemType.REVISION) && item.refId) {
         const topic = topics.find((t) => t.id === item.refId);
+        const resources = topic ? (resourcesByTopic.get(topic.id) ?? []) : [];
+        const videoRes =
+          resources.find((r) => r.type === ResourceType.VIDEO && (!!r.externalUrl || !!r.fileUrl)) ??
+          resources.find((r) => r.type === ResourceType.LINK && (r.externalUrl || '').includes('youtu'));
+        const notesRes =
+          resources.find((r) => r.type === ResourceType.NOTES && (!!r.fileUrl || !!r.externalUrl)) ??
+          resources.find((r) => r.type === ResourceType.PDF && (!!r.fileUrl || !!r.externalUrl));
+        const titleLower = (item.title || '').toLowerCase();
+        const isVideoTask = item.type === PlanItemType.REVISION && titleLower.includes('youtube');
+        const taskKind =
+          item.type === PlanItemType.PRACTICE
+            ? 'practice'
+            : isVideoTask
+              ? 'youtube_video'
+              : 'ai_notes';
         return {
           ...pub(item),
           content: {
@@ -997,6 +1224,11 @@ export class StudyPlanService {
             topicName: topic?.name ?? item.title,
             chapterName: topic?.chapter?.name ?? null,
             subjectName: topic?.chapter?.subject?.name ?? null,
+            taskKind,
+            videoTitle: videoRes?.title ?? null,
+            videoUrl: videoRes?.externalUrl ?? videoRes?.fileUrl ?? null,
+            notesTitle: notesRes?.title ?? null,
+            notesUrl: notesRes?.fileUrl ?? notesRes?.externalUrl ?? null,
           },
         };
       }
@@ -1028,7 +1260,17 @@ export class StudyPlanService {
   }
 
   private deriveExamDate(examYear: ExamYear): Date {
-    return new Date(`${examYear}-04-30T00:00:00.000Z`);
+    const yearNum = Number.parseInt(String(examYear), 10);
+    const fallbackYear = new Date().getUTCFullYear() + 1;
+    const y = Number.isFinite(yearNum) && yearNum > 2000 ? yearNum : fallbackYear;
+    return new Date(Date.UTC(y, 3, 30, 0, 0, 0, 0)); // Apr 30 (month is 0-based)
+  }
+
+  private defaultSubjectsForExamTarget(examTarget?: string): string[] {
+    const exam = String(examTarget || '').toLowerCase();
+    if (exam === 'neet') return NEET_SUBJECTS;
+    if (exam === 'both') return BOTH_SUBJECTS;
+    return JEE_SUBJECTS;
   }
 
   private mapPlanItemType(type: string): PlanItemType {
@@ -1041,6 +1283,13 @@ export class StudyPlanService {
       case 'battle':        return PlanItemType.BATTLE;
       default:              return PlanItemType.PRACTICE;
     }
+  }
+
+  private normalizePlanItemType(type: string): string {
+    const t = String(type || '').toLowerCase();
+    if (t === 'lecture' || t === 'video' || t === 'youtube' || t === 'watch_video') return 'revision';
+    if (t === 'notes' || t === 'note' || t === 'reading') return 'revision';
+    return t || 'practice';
   }
 
   private xpForItem(type: PlanItemType): number {

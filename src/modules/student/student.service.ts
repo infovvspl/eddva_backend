@@ -58,14 +58,17 @@ export class StudentService {
     });
     if (!student) throw new NotFoundException('Student not found');
 
+    const enrollment = await this.enrollmentRepo.findOne({
+      where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
+      relations: ['batch'],
+      order: { enrolledAt: 'DESC' },
+    });
+    const batchId = enrollment?.batchId;
+    const effectiveExamTarget = enrollment?.batch?.examTarget ?? student.examTarget;
+
     const [profile, weakTopics, todayPlan, globalRank, pendingRow, testsRow] = await Promise.all([
       this.profileRepo.findOne({ where: { studentId: student.id } }),
-      this.weakTopicRepo.find({
-        where: { studentId: student.id },
-        relations: ['topic', 'topic.chapter', 'topic.chapter.subject'],
-        order: { severity: 'DESC' },
-        take: 5,
-      }),
+      this.computeWeakTopicsLastMonth(student.id, tenantId, batchId),
       this.getTodayPlanItems(student.id),
       this.leaderboardRepo.findOne({
         where: { studentId: student.id, scope: LeaderboardScope.GLOBAL },
@@ -91,6 +94,7 @@ export class StudentService {
 
     const pendingLectures = Number(pendingRow?.[0]?.cnt ?? 0);
     const testsAttempted = Number(testsRow?.[0]?.cnt ?? 0);
+    const recommendations = this.buildRecommendations(weakTopics, effectiveExamTarget);
 
     return {
       student,
@@ -104,6 +108,7 @@ export class StudentService {
       globalPercentile: globalRank?.percentile,
       pendingLectures,
       testsAttempted,
+      recommendations,
     };
   }
 
@@ -115,6 +120,101 @@ export class StudentService {
       where: { studyPlanId: plan.id, scheduledDate: today },
       order: { sortOrder: 'ASC' },
     });
+  }
+
+  private async computeWeakTopicsLastMonth(studentId: string, tenantId: string, batchId?: string) {
+    const params: any[] = [studentId, tenantId];
+    const batchFilter = batchId ? `AND ts.mock_test_id IN (SELECT id FROM mock_tests WHERE batch_id = $3)` : '';
+    if (batchId) params.push(batchId);
+
+    const rows: Array<{
+      topicId: string;
+      topicName: string;
+      subjectName: string;
+      accuracy: string;
+      wrongCount: string;
+      severity: 'critical' | 'high' | 'medium' | 'low';
+    }> = await this.dataSource.query(
+      `
+        SELECT
+          t.id AS "topicId",
+          t.name AS "topicName",
+          s.name AS "subjectName",
+          AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END)::float AS "accuracy",
+          SUM(CASE WHEN qa.is_correct = false THEN 1 ELSE 0 END)::int AS "wrongCount",
+          CASE
+            WHEN SUM(CASE WHEN qa.is_correct = false THEN 1 ELSE 0 END) >= 10 THEN 'critical'
+            WHEN SUM(CASE WHEN qa.is_correct = false THEN 1 ELSE 0 END) >= 6 THEN 'high'
+            WHEN SUM(CASE WHEN qa.is_correct = false THEN 1 ELSE 0 END) >= 3 THEN 'medium'
+            ELSE 'low'
+          END AS "severity"
+        FROM question_attempts qa
+        INNER JOIN test_sessions ts ON ts.id = qa.test_session_id
+        INNER JOIN questions q ON q.id = qa.question_id
+        INNER JOIN topics t ON t.id = q.topic_id
+        INNER JOIN chapters c ON c.id = t.chapter_id
+        INNER JOIN subjects s ON s.id = c.subject_id
+        WHERE qa.student_id = $1
+          AND qa.tenant_id = $2
+          AND qa.deleted_at IS NULL
+          AND ts.status IN ('submitted', 'auto_submitted')
+          AND qa.answered_at >= (NOW() - INTERVAL '30 days')
+          ${batchFilter}
+        GROUP BY t.id, t.name, s.name
+        HAVING COUNT(*) >= 3
+        ORDER BY
+          AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END) ASC,
+          SUM(CASE WHEN qa.is_correct = false THEN 1 ELSE 0 END) DESC
+        LIMIT 5
+      `,
+      params,
+    );
+
+    if (rows.length > 0) {
+      return rows.map((r) => ({
+        topicId: r.topicId,
+        topicName: r.topicName,
+        subjectName: r.subjectName,
+        accuracy: Number(Number(r.accuracy || 0).toFixed(2)),
+        severity: r.severity,
+        topic: {
+          id: r.topicId,
+          name: r.topicName,
+          chapter: { subject: { name: r.subjectName } },
+        },
+      }));
+    }
+
+    const fallback = await this.weakTopicRepo.find({
+      where: { studentId },
+      relations: ['topic', 'topic.chapter', 'topic.chapter.subject'],
+      order: { severity: 'DESC' },
+      take: 5,
+    });
+    return fallback;
+  }
+
+  private buildRecommendations(
+    weakTopics: Array<{ topicName?: string; topic?: any; subjectName?: string; accuracy?: number }>,
+    examTarget?: string,
+  ): string[] {
+    const exam = (examTarget || '').toUpperCase();
+    const topWeak = weakTopics.slice(0, 3).map((w) => ({
+      topic: w.topicName || w.topic?.name || 'Key weak topic',
+      subject: w.subjectName || w.topic?.chapter?.subject?.name || 'core subject',
+      accuracy: Number(w.accuracy || 0),
+    }));
+    const suggestions = topWeak.map(
+      (w) =>
+        `Focus ${w.subject} - ${w.topic}: daily 30-45 min targeted practice (current accuracy ${Math.round(
+          w.accuracy,
+        )}%).`,
+    );
+    if (exam) {
+      suggestions.push(`Align this week with ${exam} pattern: prioritize high-weightage ${exam} topics and one timed test block.`);
+    }
+    suggestions.push('Do an error log review after each test and convert repeated mistakes into next-day revision tasks.');
+    return suggestions.slice(0, 5);
   }
 
   async getWeakTopics(studentId: string) {
