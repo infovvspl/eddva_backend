@@ -188,4 +188,10 @@ export class CreateCalendarEventDto {
   @IsOptional()
   @IsString()
   color?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'Optional batch/course IDs to target. Empty/omitted means all courses.' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  batchIds?: string[];
 }

@@ -10,8 +10,17 @@ import {
   BattleMode,
   EloTier,
 } from '../../database/entities/battle.entity';
+import { Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { Question } from '../../database/entities/question.entity';
 import { Student } from '../../database/entities/student.entity';
+import { Topic } from '../../database/entities/subject.entity';
+import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
+
+interface AiBattleQuestion {
+  id: string;
+  text: string;
+  options: { id: string; text: string; isCorrect: boolean }[];
+}
 
 @Injectable()
 export class BattleService {
@@ -28,8 +37,11 @@ export class BattleService {
     private readonly eloRepo: Repository<StudentElo>,
     @InjectRepository(Question)
     private readonly questionRepo: Repository<Question>,
+    private readonly aiBridgeService: AiBridgeService,
     private readonly dataSource: DataSource,
   ) {}
+
+  private readonly aiBattleQuestionsByBattleId = new Map<string, AiBattleQuestion[]>();
 
   // ─── Helper: get or create StudentElo ─────────────────────────────────────
 
@@ -50,6 +62,21 @@ export class BattleService {
       .findOne({ where: { userId } });
     if (!student) throw new NotFoundException('Student profile not found');
     return student;
+  }
+
+  async getStudentTenantByStudentId(studentId: string): Promise<string | null> {
+    const enrollment = await this.dataSource.getRepository(Enrollment).findOne({
+      where: { studentId, status: EnrollmentStatus.ACTIVE },
+      relations: ['batch'],
+      order: { enrolledAt: 'DESC' },
+    });
+    if (enrollment?.batch?.tenantId) return enrollment.batch.tenantId;
+
+    const student = await this.dataSource.getRepository(Student).findOne({
+      where: { id: studentId },
+      select: ['id', 'tenantId'],
+    });
+    return student?.tenantId ?? null;
   }
 
   // ─── Helper: format room response ─────────────────────────────────────────
@@ -164,25 +191,9 @@ export class BattleService {
       }),
     );
 
-    // Fetch questions
-    let questions: Question[] = [];
-    if (topicId) {
-      questions = await this.questionRepo
-        .createQueryBuilder('q')
-        .where('q.topicId = :topicId AND q.tenantId = :tenantId AND q.isActive = true', { topicId, tenantId })
-        .orderBy('RANDOM()')
-        .limit(qCount)
-        .getMany();
-    } else {
-      questions = await this.questionRepo
-        .createQueryBuilder('q')
-        .where('q.tenantId = :tenantId AND q.isActive = true', { tenantId })
-        .orderBy('RANDOM()')
-        .limit(qCount)
-        .getMany();
-    }
-
-    battle.questionIds = questions.map(q => q.id);
+    const aiQuestions = await this.buildAiBattleQuestions(tenantId, qCount, topicId);
+    this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
+    battle.questionIds = [];
     await this.battleRepo.save(battle);
 
     // Add creator as participant
@@ -225,14 +236,9 @@ export class BattleService {
       }),
     );
 
-    const questions = await this.questionRepo
-      .createQueryBuilder('q')
-      .where('q.tenantId = :tenantId AND q.isActive = true', { tenantId })
-      .orderBy('RANDOM()')
-      .limit(qCount)
-      .getMany();
-
-    battle.questionIds = questions.map(q => q.id);
+    const aiQuestions = await this.buildAiBattleQuestions(tenantId, qCount, null);
+    this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
+    battle.questionIds = [];
     await this.battleRepo.save(battle);
 
     const [challengerElo, targetElo] = await Promise.all([
@@ -371,6 +377,7 @@ export class BattleService {
     const elo = await this.getOrCreateElo(student.id, tenantId);
     return {
       eloRating: elo.eloRating,
+      xpPoints: student.xpTotal ?? 0,
       tier: elo.tier,
       battleXp: elo.battleXp,
       battlesPlayed: elo.battlesPlayed,
@@ -400,6 +407,15 @@ export class BattleService {
   // ─── Get Questions for a Battle ───────────────────────────────────────────
 
   async getBattleQuestions(battleId: string) {
+    const aiQuestions = this.aiBattleQuestionsByBattleId.get(battleId) ?? [];
+    if (aiQuestions.length > 0) {
+      return aiQuestions.map((q) => ({
+        id: q.id,
+        text: q.text,
+        options: q.options.map((o) => ({ id: o.id, text: o.text })),
+      }));
+    }
+
     const battle = await this.battleRepo.findOne({ where: { id: battleId } });
     if (!battle?.questionIds?.length) return [];
     const questions = await this.questionRepo.find({
@@ -433,12 +449,22 @@ export class BattleService {
     });
     if (!participant) throw new NotFoundException('Participant not found');
 
-    const question = await this.questionRepo.findOne({
-      where: { id: data.questionId },
-      relations: ['options'],
-    });
-    const correctOption = question?.options.find(o => o.isCorrect);
-    const isCorrect = correctOption?.id === data.optionId;
+    const aiQuestions = this.aiBattleQuestionsByBattleId.get(data.battleId) ?? [];
+    const aiQuestion = aiQuestions.find((q) => q.id === data.questionId);
+    const aiCorrectOption = aiQuestion?.options.find((o) => o.isCorrect);
+
+    const question = aiQuestion
+      ? null
+      : await this.questionRepo.findOne({
+          where: { id: data.questionId },
+          relations: ['options'],
+        });
+
+    const correctOptionId =
+      aiCorrectOption?.id ??
+      question?.options.find((o) => o.isCorrect)?.id ??
+      null;
+    const isCorrect = correctOptionId !== null && correctOptionId === data.optionId;
 
     await this.answerRepo.save(
       this.answerRepo.create({
@@ -488,7 +514,7 @@ export class BattleService {
         roundComplete: true,
         battleComplete,
         roundWinnerId,
-        correctOptionId: correctOption?.id ?? null,
+        correctOptionId,
         scores,
         nextQuestion,
         secondsPerRound: battle.secondsPerRound,
@@ -547,6 +573,8 @@ export class BattleService {
       relations: ['student', 'student.user'],
     });
 
+    this.aiBattleQuestionsByBattleId.delete(battleId);
+
     return {
       winnerId: winner?.studentId,
       finalScores: finalParticipants.map(p => ({
@@ -576,6 +604,9 @@ export class BattleService {
   async getLobbyUsersByStudentIds(studentIds: string[], tenantId: string) {
     if (!studentIds.length) return [];
 
+    // studentIds are already tenant-scoped by the gateway's in-memory onlineUsers map.
+    // Avoid re-filtering by Student.tenantId here because legacy/migrated data can have
+    // stale tenant linkage and incorrectly hide valid online students from the lobby.
     const rows = await this.dataSource
       .getRepository(Student)
       .createQueryBuilder('s')
@@ -585,16 +616,18 @@ export class BattleService {
         's.id AS "studentId"',
         'u.full_name AS "name"',
         'u.profile_picture_url AS "avatarUrl"',
+        'COALESCE(s.xp_total, 0) AS "xpPoints"',
         'COALESCE(elo.elo_rating, 1000) AS "eloRating"',
         'COALESCE(elo.tier, :defaultTier) AS "tier"',
       ])
-      .where('s.tenant_id = :tenantId', { tenantId })
+      .where('1=1')
       .andWhere('s.id IN (:...studentIds)', { studentIds })
       .setParameter('defaultTier', EloTier.IRON)
       .getRawMany<{
         studentId: string;
         name: string | null;
         avatarUrl: string | null;
+        xpPoints: string | number;
         eloRating: string | number;
         tier: string;
       }>();
@@ -603,6 +636,7 @@ export class BattleService {
       studentId: r.studentId,
       name: r.name ?? 'Player',
       avatarUrl: r.avatarUrl ?? null,
+      xpPoints: Number(r.xpPoints ?? 0),
       eloRating: Number(r.eloRating ?? 1000),
       tier: (r.tier ?? EloTier.IRON).toLowerCase(),
     }));
@@ -660,6 +694,124 @@ export class BattleService {
 
   private generateRoomCode(): string {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
+
+  private async resolveAiTopic(tenantId: string, preferredTopicId?: string | null): Promise<Topic | null> {
+    const topicRepo = this.dataSource.getRepository(Topic);
+
+    if (preferredTopicId) {
+      const topic = await topicRepo.findOne({
+        where: { id: preferredTopicId, tenantId, isActive: true },
+      });
+      if (topic) return topic;
+    }
+
+    return topicRepo
+      .createQueryBuilder('t')
+      .where('t.tenant_id = :tenantId AND t.is_active = true', { tenantId })
+      .orderBy('RANDOM()')
+      .limit(1)
+      .getOne();
+  }
+
+  private async buildAiBattleQuestions(
+    tenantId: string,
+    count: number,
+    preferredTopicId?: string | null,
+  ): Promise<AiBattleQuestion[]> {
+    const safeCount = Math.min(Math.max(count || 10, 3), 20);
+    const topic = await this.resolveAiTopic(tenantId, preferredTopicId);
+
+    if (!topic) {
+      this.logger.warn(`No active topic found for AI battle generation (tenant=${tenantId})`);
+      return this.getFallbackDbQuestions(tenantId, safeCount, preferredTopicId ?? undefined);
+    }
+
+    try {
+      const ai = await this.aiBridgeService.generateQuestionsFromTopic(
+        {
+          topicId: topic.id,
+          topicName: topic.name,
+          count: safeCount,
+          difficulty: 'medium',
+          type: 'mcq_single',
+        },
+        tenantId,
+      );
+
+      const normalized = (Array.isArray(ai) ? ai : [])
+        .map((q: any, qIndex: number) => {
+          const text = String(q?.content ?? '').trim();
+          const optionsRaw = Array.isArray(q?.options) ? q.options : [];
+          if (!text || optionsRaw.length < 2) return null;
+
+          const options = optionsRaw.map((opt: any, oIndex: number) => ({
+            id: String(opt?.label ?? String.fromCharCode(65 + oIndex)).toUpperCase(),
+            text: String(opt?.content ?? opt?.text ?? '').trim(),
+            isCorrect: Boolean(opt?.isCorrect),
+          }));
+
+          if (options.some((o) => !o.text)) return null;
+          if (!options.some((o) => o.isCorrect)) return null;
+
+          return {
+            id: `ai_${qIndex + 1}_${Math.random().toString(36).slice(2, 7)}`,
+            text,
+            options,
+          } as AiBattleQuestion;
+        })
+        .filter((q): q is AiBattleQuestion => Boolean(q))
+        .slice(0, safeCount);
+
+      if (normalized.length >= 3) {
+        return normalized;
+      }
+
+      this.logger.warn(
+        `AI battle generation returned too few valid questions (${normalized.length}); falling back to DB`,
+      );
+      return this.getFallbackDbQuestions(tenantId, safeCount, topic.id);
+    } catch (err: any) {
+      this.logger.warn(`AI battle generation failed: ${err?.message ?? 'unknown error'}`);
+      return this.getFallbackDbQuestions(tenantId, safeCount, topic.id);
+    }
+  }
+
+  private async getFallbackDbQuestions(
+    tenantId: string,
+    count: number,
+    preferredTopicId?: string,
+  ): Promise<AiBattleQuestion[]> {
+    const qb = this.questionRepo
+      .createQueryBuilder('q')
+      .leftJoinAndSelect('q.options', 'options')
+      .where('q.tenantId = :tenantId AND q.isActive = true', { tenantId });
+
+    if (preferredTopicId) {
+      qb.andWhere('q.topicId = :topicId', { topicId: preferredTopicId });
+    }
+
+    const dbQuestions = await qb.orderBy('RANDOM()').limit(count).getMany();
+
+    return dbQuestions
+      .map((q, idx) => {
+        const options = (q.options ?? [])
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((o, oIndex) => ({
+            id: String.fromCharCode(65 + oIndex),
+            text: o.content,
+            isCorrect: Boolean(o.isCorrect),
+          }));
+
+        if (!q.content || options.length < 2 || !options.some((o) => o.isCorrect)) return null;
+
+        return {
+          id: `db_${idx + 1}_${Math.random().toString(36).slice(2, 7)}`,
+          text: q.content,
+          options,
+        } as AiBattleQuestion;
+      })
+      .filter((q): q is AiBattleQuestion => Boolean(q));
   }
 
   private getEloTier(elo: number): EloTier {

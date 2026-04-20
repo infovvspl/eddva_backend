@@ -51,6 +51,16 @@ export class AcademicCalendarController {
     );
   }
 
+  @Get('batches')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Batch/course options for calendar event targeting' })
+  getEventBatches(
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.feed.getVisibleBatches(user, tenantId);
+  }
+
   @Post('events')
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Add an institute calendar event (notifies enrolled students)' })

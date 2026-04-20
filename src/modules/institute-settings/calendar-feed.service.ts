@@ -50,7 +50,11 @@ export class CalendarFeedService {
         where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
         select: ['batchId'],
       });
-      return [...new Set(enrollments.map((e) => e.batchId))];
+      const enrolledBatchIds = enrollments.map((e) => e.batchId);
+      // Fallback for legacy/migrated students where enrollment rows may be missing,
+      // but batchId still exists on student profile.
+      const fallbackBatchId = (student as any).batchId ? [(student as any).batchId as string] : [];
+      return [...new Set([...enrolledBatchIds, ...fallbackBatchId].filter(Boolean))];
     }
 
     return [];
@@ -60,9 +64,9 @@ export class CalendarFeedService {
     const y = year ?? new Date().getFullYear();
     const m = month ?? new Date().getMonth() + 1;
 
-    const instituteEvents = await this.instituteSettings.getCalendarEvents(tenantId, y, m);
-
+    const effectiveTenantId = await this.resolveTenantForCalendar(user, tenantId);
     const batchScope = await this.resolveBatchScope(user, tenantId);
+    const instituteEvents = await this.instituteSettings.getCalendarEvents(effectiveTenantId, y, m, batchScope);
     const monthStart = new Date(y, m - 1, 1, 0, 0, 0, 0);
     const monthEnd = new Date(y, m, 0, 23, 59, 59, 999);
 
@@ -72,14 +76,14 @@ export class CalendarFeedService {
     };
 
     if (batchScope === null) {
-      lectureWhere.tenantId = tenantId;
+      lectureWhere.tenantId = effectiveTenantId;
     } else if (batchScope.length === 0) {
       return { instituteEvents, liveClasses: [] };
     } else if (user.role === UserRole.STUDENT) {
       // Enrolled batches may use institute tenant; scope by batch only.
       lectureWhere.batchId = In(batchScope);
     } else {
-      lectureWhere.tenantId = tenantId;
+      lectureWhere.tenantId = effectiveTenantId;
       lectureWhere.batchId = In(batchScope);
     }
 
@@ -111,5 +115,39 @@ export class CalendarFeedService {
       }));
 
     return { instituteEvents, liveClasses };
+  }
+
+  private async resolveTenantForCalendar(
+    user: { id: string; role: string },
+    tenantId: string,
+  ): Promise<string> {
+    if (user.role !== UserRole.STUDENT) return tenantId;
+
+    const student = await this.studentRepo.findOne({ where: { userId: user.id }, select: ['id', 'tenantId'] });
+    if (!student) return tenantId;
+
+    const enrollment = await this.enrollmentRepo.findOne({
+      where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
+      relations: ['batch'],
+      order: { enrolledAt: 'DESC' },
+    });
+    return enrollment?.batch?.tenantId ?? student.tenantId ?? tenantId;
+  }
+
+  async getVisibleBatches(user: { id: string; role: string }, tenantId: string) {
+    const batchScope = await this.resolveBatchScope(user, tenantId);
+
+    const qb = this.batchRepo
+      .createQueryBuilder('b')
+      .select(['b.id AS "id"', 'b.name AS "name"'])
+      .where('b.tenant_id = :tenantId', { tenantId })
+      .orderBy('b.name', 'ASC');
+
+    if (Array.isArray(batchScope)) {
+      if (batchScope.length === 0) return [];
+      qb.andWhere('b.id IN (:...batchIds)', { batchIds: batchScope });
+    }
+
+    return qb.getRawMany<{ id: string; name: string }>();
   }
 }
