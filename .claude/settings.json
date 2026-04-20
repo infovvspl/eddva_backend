@@ -40,7 +40,22 @@
       "Bash(node add-mock-test-columns.mjs)",
       "Bash(xargs grep *)",
       "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
-      "Bash(node -e \"const {RtcTokenBuilder, RtcRole} = require\\('agora-token'\\); const t = RtcTokenBuilder.buildTokenWithUid\\('3d96e2d23e1e48348e5a20934a884701','beae16ff8fc84536a46281e03c59639f','test-channel',12345,RtcRole.PUBLISHER,7200,7200\\); console.log\\('Token:', t ? t.substring\\(0,30\\)+'...' : 'NULL'\\);\")"
+      "Bash(node -e \"const {RtcTokenBuilder, RtcRole} = require\\('agora-token'\\); const t = RtcTokenBuilder.buildTokenWithUid\\('3d96e2d23e1e48348e5a20934a884701','beae16ff8fc84536a46281e03c59639f','test-channel',12345,RtcRole.PUBLISHER,7200,7200\\); console.log\\('Token:', t ? t.substring\\(0,30\\)+'...' : 'NULL'\\);\")",
+      "Bash(psql 'postgresql://postgres.utiqzdnyrrprcdghqkgv:Subham%40123%40@aws-1-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require' -c ' *)",
+      "Bash(cmd /c \"cd C:\\\\Users\\\\subha\\\\Desktop\\\\VVSPL\\\\eddva_frontend && npx tsc --noEmit 2>&1\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\subha\\\\Desktop\\\\VVSPL\\\\eddva_frontend && npx tsc --noEmit\")",
+      "Bash(node -e \"const { execSync } = require\\('child_process'\\); try { const r = execSync\\('npx tsc --noEmit', { cwd: 'C:\\\\\\\\\\\\\\\\Users\\\\\\\\\\\\\\\\subha\\\\\\\\\\\\\\\\Desktop\\\\\\\\\\\\\\\\VVSPL\\\\\\\\\\\\\\\\eddva_frontend', encoding: 'utf8', timeout: 60000 }\\); console.log\\(r || 'OK'\\); } catch\\(e\\) { console.log\\(\\(e.stdout || ''\\) + \\(e.stderr || ''\\)\\); }\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(p.dependencies['@aws-sdk/client-s3'], p.dependencies['@aws-sdk/s3-request-presigner']\\)\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\(process.env.AWS_S3_BUCKET || process.env.S3_BUCKET_NAME || 'NOT_FOUND'\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(curl -s \"http://localhost:3000/content/lectures/1fd1920c-f558-496c-8cc7-9bc711cf5d38\" -H \"Authorization: Bearer $\\(cat /tmp/token || echo 'notoken'\\)\")",
+      "Bash(curl -s \"http://localhost:3000/health\")",
+      "Bash(PGPASSWORD=\"Subham@123@\" psql \"host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require\" -c \"SELECT id, title, status, batch_id, topic_id, tenant_id FROM lectures WHERE id = '1fd1920c-f558-496c-8cc7-9bc711cf5d38';\")",
+      "Bash(PGPASSWORD=\"Subham@123@\" psql \"host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require\" -c \"SELECT id, name FROM topics WHERE id IN \\('a2132d93-8017-40fb-81e7-f06b25dc1769', 'be90365d-0674-4124-8548-cdf75f9ecfe7'\\);\")",
+      "Bash(PGPASSWORD=\"Subham@123@\" psql \"host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require\" -c \"SELECT t.id, t.name, c.name as chapter, s.name as subject FROM topics t LEFT JOIN chapters c ON c.id = t.chapter_id LEFT JOIN subjects s ON s.id = c.subject_id WHERE t.id IN \\('a2132d93-8017-40fb-81e7-f06b25dc1769', 'be90365d-0674-4124-8548-cdf75f9ecfe7'\\);\")",
+      "Bash(PGPASSWORD=\"Subham@123@\" psql \"host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require\" -c \"SELECT id, title, status, topic_id FROM lectures WHERE topic_id IN \\('a2132d93-8017-40fb-81e7-f06b25dc1769', 'be90365d-0674-4124-8548-cdf75f9ecfe7'\\);\")",
+      "Bash(PGPASSWORD=\"Subham@123@\" psql \"host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require\" -c \"SELECT id, title, status, batch_id, topic_id FROM lectures WHERE topic_id = 'a2132d93-8017-40fb-81e7-f06b25dc1769';\")",
+      "Bash(psql 'host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require' -c ' *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\lib\\api",

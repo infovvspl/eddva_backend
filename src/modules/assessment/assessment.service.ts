@@ -29,6 +29,7 @@ import { WeakTopic, WeakTopicSeverity } from '../../database/entities/analytics.
 import { GradingService } from './grading.service';
 import { StudyPlanService } from '../study-plan/study-plan.service';
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
+import { NotificationService } from '../notification/notification.service';
 import { AnswerQuestionDto } from './dto/answer.dto';
 import { CreateMockTestDto, MockTestListQueryDto, UpdateMockTestDto } from './dto/mock-test.dto';
 import { SessionListQueryDto, StartSessionDto } from './dto/session.dto';
@@ -79,6 +80,7 @@ export class AssessmentService {
     private readonly dataSource: DataSource,
     private readonly studyPlanService: StudyPlanService,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async createMockTest(dto: CreateMockTestDto, user: any, tenantId: string) {
@@ -170,11 +172,25 @@ export class AssessmentService {
     const limit = query.limit || 20;
     const offset = (page - 1) * limit;
     const schema = await this.getMockTestSchema();
-    const enrolledBatchIds =
-      user.role === UserRole.STUDENT ? await this.getStudentBatchIds(user.id, tenantId) : [];
+
+    // For students: resolve enrollments and derive the correct tenant from the batch
+    // (handles cross-tenant cases where user tenant ≠ batch tenant)
+    let effectiveTenantId = tenantId;
+    const enrolledBatchIds: string[] = [];
+    if (user.role === UserRole.STUDENT) {
+      const { batchIds, batchTenantId } = await this.getStudentBatchIds(user.id, tenantId, query.batchId);
+      enrolledBatchIds.push(...batchIds);
+      if (batchTenantId) effectiveTenantId = batchTenantId;
+    }
+
+    this.logger.debug(
+      `[getMockTests] role=${user.role} userId=${user.id} tenantId=${tenantId} effectiveTenantId=${effectiveTenantId} ` +
+      `schema.batchId=${schema.batchId} schema.isPublished=${schema.isPublished} ` +
+      `enrolledBatchIds=${JSON.stringify(enrolledBatchIds)} queryBatchId=${query.batchId}`,
+    );
 
     const filters: string[] = ['mt.tenant_id = $1', 'mt.deleted_at IS NULL'];
-    const params: any[] = [tenantId];
+    const params: any[] = [effectiveTenantId];
     let index = params.length + 1;
 
     if (query.scope) {
@@ -276,6 +292,7 @@ export class AssessmentService {
     const mockTest = await this.mockTestRepo.findOne({ where: { id, tenantId } });
     if (!mockTest) throw new NotFoundException(`Mock test ${id} not found`);
 
+    const wasPublished = mockTest.isPublished;
     await this.assertMockTestWriteAccess(mockTest, user);
 
     let questionIds = mockTest.questionIds;
@@ -327,7 +344,46 @@ export class AssessmentService {
       );
     }
 
+    const justPublished = dto.isPublished === true && !wasPublished && !!mockTest.batchId;
+    if (justPublished) {
+      this.notifyBatchStudentsOfNewTest(mockTest.id, mockTest.title, mockTest.batchId, tenantId)
+        .catch((err: unknown) => this.logger.warn(`Mock test notification failed: ${(err as Error).message}`));
+    }
+
     return this.getMockTestById(id, user, tenantId);
+  }
+
+  private async notifyBatchStudentsOfNewTest(
+    mockTestId: string,
+    testTitle: string,
+    batchId: string,
+    tenantId: string,
+  ): Promise<void> {
+    const enrollments = await this.enrollmentRepo.find({
+      where: { batchId, tenantId, status: EnrollmentStatus.ACTIVE },
+      relations: ['student', 'student.user'],
+    });
+
+    const batch = await this.batchRepo.findOne({ where: { id: batchId } });
+    const batchName = batch?.name ?? 'your course';
+
+    await Promise.allSettled(
+      enrollments
+        .filter(e => e.student?.user?.id)
+        .map(e =>
+          this.notificationService.send({
+            userId: e.student.user.id,
+            tenantId,
+            title: '📝 New Mock Test Available',
+            body: `"${testTitle}" has been published in ${batchName}. Attempt it now!`,
+            channels: ['in_app'],
+            refType: 'mock_test_available',
+            refId: mockTestId,
+          }),
+        ),
+    );
+
+    this.logger.log(`Notified ${enrollments.length} students about mock test "${testTitle}"`);
   }
 
   async deleteMockTest(id: string, user: any, tenantId: string) {
@@ -510,10 +566,12 @@ export class AssessmentService {
           wrongCount++;
         }
 
-        const currentTopic = topicStats.get(question.topicId) || { marksAwarded: 0, totalMarks: 0 };
-        currentTopic.marksAwarded += graded.marksAwarded;
-        currentTopic.totalMarks += question.marksCorrect || 0;
-        topicStats.set(question.topicId, currentTopic);
+        if (question.topicId) {
+          const currentTopic = topicStats.get(question.topicId) || { marksAwarded: 0, totalMarks: 0 };
+          currentTopic.marksAwarded += graded.marksAwarded;
+          currentTopic.totalMarks += question.marksCorrect || 0;
+          topicStats.set(question.topicId, currentTopic);
+        }
       }
 
       await manager.save(QuestionAttempt, allAttempts);
@@ -543,6 +601,7 @@ export class AssessmentService {
 
         // Upsert WeakTopic records based on diagnostic accuracy
         for (const [topicId, stats] of topicStats.entries()) {
+          if (!topicId) continue; // skip questions not assigned to a topic
           const accuracy = stats.totalMarks > 0 ? (stats.marksAwarded / stats.totalMarks) * 100 : 0;
           if (accuracy < 70) {
             const severity =
@@ -577,6 +636,7 @@ export class AssessmentService {
       }
 
       for (const [topicId, stats] of topicStats.entries()) {
+        if (!topicId) continue; // skip questions not assigned to a topic
         const topic = questions.find((question) => question.topicId === topicId)?.topic;
         if (!topic) continue;
 
@@ -1274,8 +1334,8 @@ export class AssessmentService {
     return batch;
   }
 
-  private async getStudentByUserId(userId: string, tenantId: string) {
-    const student = await this.studentRepo.findOne({ where: { userId, tenantId } });
+  private async getStudentByUserId(userId: string, _tenantId: string) {
+    const student = await this.studentRepo.findOne({ where: { userId } });
     if (!student) throw new NotFoundException('Student profile not found');
     return student;
   }
@@ -1295,7 +1355,7 @@ export class AssessmentService {
         throw new ForbiddenException('This test is not published');
       }
       if (schema.batchId && mockTest.batchId) {
-        const batchIds = await this.getStudentBatchIds(user.id, tenantId);
+        const { batchIds } = await this.getStudentBatchIds(user.id, tenantId, mockTest.batchId);
         if (!batchIds.includes(mockTest.batchId)) {
           throw new ForbiddenException('You are not enrolled in this test batch');
         }
@@ -1358,12 +1418,41 @@ export class AssessmentService {
     };
   }
 
-  private async getStudentBatchIds(userId: string, tenantId: string) {
-    const student = await this.getStudentByUserId(userId, tenantId);
-    const enrollments = await this.enrollmentRepo.find({
+  private async getStudentBatchIds(
+    userId: string,
+    tenantId: string,
+    preferBatchId?: string,
+  ): Promise<{ batchIds: string[]; batchTenantId: string | null }> {
+    const student = await this.studentRepo.findOne({ where: { userId } });
+    if (!student) {
+      this.logger.warn(`[getStudentBatchIds] No student profile for userId=${userId}`);
+      return { batchIds: [], batchTenantId: null };
+    }
+    // First try with the JWT tenant; if no results try without tenant filter
+    let enrollments = await this.enrollmentRepo.find({
       where: { tenantId, studentId: student.id, status: EnrollmentStatus.ACTIVE },
     });
-    return enrollments.map((enrollment) => enrollment.batchId);
+    let batchTenantId: string | null = null;
+    if (enrollments.length === 0) {
+      // Fallback: find enrollments ignoring tenant (handles cross-tenant students)
+      enrollments = await this.enrollmentRepo.find({
+        where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
+      });
+      if (enrollments.length > 0) {
+        batchTenantId = enrollments[0].tenantId;
+      }
+    }
+    // If caller specified a batchId, use that batch's tenantId
+    if (preferBatchId) {
+      const hit = enrollments.find(e => e.batchId === preferBatchId);
+      if (hit) batchTenantId = hit.tenantId;
+    }
+    this.logger.debug(
+      `[getStudentBatchIds] userId=${userId} tenantId=${tenantId} studentId=${student.id} ` +
+      `enrollments=${enrollments.length} batchTenantId=${batchTenantId} ` +
+      `batchIds=${JSON.stringify(enrollments.map(e => e.batchId))}`,
+    );
+    return { batchIds: enrollments.map(e => e.batchId), batchTenantId };
   }
 
   private async getTeacherBatchIds(userId: string, tenantId: string) {
@@ -1399,6 +1488,7 @@ export class AssessmentService {
       'mt.tenant_id AS "tenantId"',
       'mt.title',
       'mt.type',
+      'mt.scope',
       'mt.total_marks AS "totalMarks"',
       'mt.duration_minutes AS "durationMinutes"',
       'mt.question_ids AS "questionIds"',
@@ -1406,6 +1496,8 @@ export class AssessmentService {
       'mt.created_by AS "createdBy"',
       'mt.created_at AS "createdAt"',
       'mt.updated_at AS "updatedAt"',
+      'mt.subject_id AS "subjectId"',
+      'mt.chapter_id AS "chapterId"',
       schema.batchId ? 'mt.batch_id AS "batchId"' : 'NULL::uuid AS "batchId"',
       schema.topicId ? 'mt.topic_id AS "topicId"' : 'NULL::uuid AS "topicId"',
       schema.passingMarks ? 'mt.passing_marks AS "passingMarks"' : 'NULL::int AS "passingMarks"',
@@ -1413,6 +1505,7 @@ export class AssessmentService {
       schema.shuffleQuestions ? 'mt.shuffle_questions AS "shuffleQuestions"' : 'false AS "shuffleQuestions"',
       schema.showAnswersAfterSubmit ? 'mt.show_answers_after_submit AS "showAnswersAfterSubmit"' : 'true AS "showAnswersAfterSubmit"',
       schema.allowReattempt ? 'mt.allow_reattempt AS "allowReattempt"' : 'false AS "allowReattempt"',
+      // Resolved names via JOIN (queries must alias sub-queries or use LEFT JOIN — handled at call sites)
     ].join(', ');
   }
 
@@ -1485,7 +1578,7 @@ export class AssessmentService {
 
     try {
       const rows: Array<{ column_name: string }> = await this.dataSource.query(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = 'mock_tests'`,
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'mock_tests' AND table_schema = 'public'`,
       );
       const set = new Set(rows.map((r) => r.column_name));
       this.mockTestSchemaCache = {
@@ -1497,8 +1590,8 @@ export class AssessmentService {
         showAnswersAfterSubmit: set.has('show_answers_after_submit'),
         allowReattempt:        set.has('allow_reattempt'),
       };
-    } catch (error) {
-      this.logger.warn(`Failed to inspect mock_tests schema: ${error.message}`);
+    } catch (error: unknown) {
+      this.logger.warn(`Failed to inspect mock_tests schema: ${(error as Error).message}`);
       // Don't cache on error — retry next request
       return {
         batchId: false, topicId: false, passingMarks: false,

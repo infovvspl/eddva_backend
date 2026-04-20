@@ -36,6 +36,11 @@ export class S3Service implements OnModuleInit {
         accessKeyId: cfg.accessKeyId,
         secretAccessKey: cfg.secretAccessKey,
       },
+      // SDK v3.729+ adds x-amz-checksum-crc32 to presigned URLs by default.
+      // Browsers can't compute/send that header, so S3 rejects the PUT.
+      // Setting WHEN_REQUIRED disables the automatic checksum injection.
+      requestChecksumCalculation: 'WHEN_REQUIRED' as any,
+      responseChecksumValidation: 'WHEN_REQUIRED' as any,
     });
 
     await this.validateBucket();
