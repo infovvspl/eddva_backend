@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Readable } from 'stream';
 import {
   DeleteObjectCommand,
   HeadBucketCommand,
@@ -71,6 +72,25 @@ export class S3Service implements OnModuleInit {
         ContentType: contentType,
       }),
     );
+
+    return this.toPublicUrl(key);
+  }
+
+  /** Stream upload (e.g. from multer diskStorage) — avoids loading large videos into memory. */
+  async uploadStream(key: string, body: Readable, contentType: string): Promise<string> {
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: body,
+          ContentType: contentType,
+        }),
+      );
+    } catch (err) {
+      body.destroy();
+      throw err;
+    }
 
     return this.toPublicUrl(key);
   }

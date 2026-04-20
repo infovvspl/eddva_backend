@@ -58,11 +58,11 @@ export class StudentService {
     });
     if (!student) throw new NotFoundException('Student not found');
 
-    const [profile, weakTopics, todayPlan, globalRank] = await Promise.all([
+    const [profile, weakTopics, todayPlan, globalRank, pendingRow, testsRow] = await Promise.all([
       this.profileRepo.findOne({ where: { studentId: student.id } }),
       this.weakTopicRepo.find({
         where: { studentId: student.id },
-        relations: ['topic'],
+        relations: ['topic', 'topic.chapter', 'topic.chapter.subject'],
         order: { severity: 'DESC' },
         take: 5,
       }),
@@ -70,18 +70,40 @@ export class StudentService {
       this.leaderboardRepo.findOne({
         where: { studentId: student.id, scope: LeaderboardScope.GLOBAL },
       }),
+      this.dataSource.query(
+        `SELECT COUNT(DISTINCT l.id)::int AS cnt
+         FROM lectures l
+         INNER JOIN enrollments e ON e.batch_id = l.batch_id AND e.student_id = $1 AND e.status = 'active' AND e.deleted_at IS NULL
+         WHERE l.deleted_at IS NULL
+           AND l.status IN ('published','scheduled','live','ended')
+           AND NOT EXISTS (
+             SELECT 1 FROM lecture_progress lp
+             WHERE lp.lecture_id = l.id AND lp.student_id = $1 AND lp.is_completed = true
+           )`,
+        [student.id],
+      ),
+      this.dataSource.query(
+        `SELECT COUNT(*)::int AS cnt FROM test_sessions
+         WHERE student_id = $1 AND status IN ('submitted','auto_submitted') AND deleted_at IS NULL`,
+        [student.id],
+      ),
     ]);
+
+    const pendingLectures = Number(pendingRow?.[0]?.cnt ?? 0);
+    const testsAttempted = Number(testsRow?.[0]?.cnt ?? 0);
 
     return {
       student,
       predictedRank: profile?.predictedRank,
-      overallAccuracy: profile?.overallAccuracy,
+      overallAccuracy: profile?.overallAccuracy ?? 0,
       currentStreak: student.currentStreak,
       xpTotal: student.xpTotal,
       weakTopics,
       todayPlan,
       globalRank: globalRank?.rank,
       globalPercentile: globalRank?.percentile,
+      pendingLectures,
+      testsAttempted,
     };
   }
 

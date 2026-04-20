@@ -18,6 +18,8 @@ export enum UploadType {
   LECTURE_VIDEO = 'lecture-video',
   LECTURE_THUMBNAIL = 'lecture-thumbnail',
   LECTURE_ATTACHMENT = 'lecture-attachment',
+  /** Teacher/student doubt attachments — image only, tenant-scoped, no courseId */
+  DOUBT_RESPONSE_IMAGE = 'doubt-response-image',
 }
 
 export class GenerateUploadUrlDto {

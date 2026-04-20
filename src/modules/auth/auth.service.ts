@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, Not, IsNull } from 'typeorm';
+import { Repository, DataSource, Not, IsNull, ILike } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -38,6 +38,7 @@ import {
   StudentRegisterDto,
 } from './dto/auth.dto';
 import { MailService } from '../mail/mail.service';
+import { toJsonSafeDeep } from '../../common/utils/json-safe';
 
 @Injectable()
 export class AuthService {
@@ -211,15 +212,7 @@ export class AuthService {
       throw new BadRequestException('Either email or phone number is required');
     }
 
-    // Find user globally by email or phone
-    const whereClause: any = {};
-    if (dto.email) {
-      whereClause.email = dto.email;
-    } else {
-      whereClause.phoneNumber = dto.phoneNumber;
-    }
-
-    const user = await this.userRepo.findOne({ where: whereClause });
+    const user = await this.findUserForPasswordLogin(dto);
 
     // Validate password (same error for both cases to avoid user enumeration)
     if (!user || !(await user.validatePassword(dto.password))) {
@@ -264,6 +257,35 @@ export class AuthService {
       teacherProfile,
       onboardingRequired,
     };
+  }
+
+  /** Normalize phone for lookup (matches common frontend +91 / 10-digit input). */
+  private normalizeLoginPhone(raw: string): string {
+    let s = raw.replace(/[\s-]/g, '');
+    if (!s) return s;
+    if (!s.startsWith('+')) {
+      if (/^\d{10}$/.test(s)) s = `+91${s}`;
+      else if (/^91\d{10}$/.test(s)) s = `+${s}`;
+    }
+    return s;
+  }
+
+  private async findUserForPasswordLogin(dto: LoginWithPasswordDto): Promise<User | null> {
+    const email = dto.email?.trim();
+    if (email) {
+      return this.userRepo.findOne({ where: { email: ILike(email) } });
+    }
+    const raw = dto.phoneNumber?.trim();
+    if (!raw) return null;
+    const phone = this.normalizeLoginPhone(raw);
+    let found = await this.userRepo.findOne({ where: { phoneNumber: phone } });
+    if (found) return found;
+    if (phone.startsWith('+91') && phone.length === 13) {
+      found = await this.userRepo.findOne({ where: { phoneNumber: phone.slice(3) } });
+      if (found) return found;
+      found = await this.userRepo.findOne({ where: { phoneNumber: phone.slice(1) } });
+    }
+    return found || null;
   }
 
   // ── Forgot / Reset Password ──────────────────────────────────────────────
@@ -613,20 +635,27 @@ export class AuthService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const student = await this.studentRepo.findOne({ where: { userId, tenantId: user.tenantId } });
+    const student = await this.studentRepo.findOne({ where: { userId } });
 
     // Update streak on every /me call (safe — idempotent within same day)
     if (student) {
-      const today = new Date().toISOString().split('T')[0];
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-      if (student.lastActiveDate !== today) {
-        student.currentStreak =
-          student.lastActiveDate === yesterday ? (student.currentStreak ?? 0) + 1 : 1;
-        if (student.currentStreak > (student.longestStreak ?? 0)) {
-          student.longestStreak = student.currentStreak;
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const last = student.lastActiveDate
+          ? String(student.lastActiveDate).slice(0, 10)
+          : null;
+        if (last !== today) {
+          student.currentStreak =
+            last === yesterday ? (student.currentStreak ?? 0) + 1 : 1;
+          if (student.currentStreak > (student.longestStreak ?? 0)) {
+            student.longestStreak = student.currentStreak;
+          }
+          student.lastActiveDate = today;
+          await this.studentRepo.save(student);
         }
-        student.lastActiveDate = today;
-        await this.studentRepo.save(student);
+      } catch (e) {
+        this.logger.warn(`getMe streak update skipped: ${(e as Error).message}`);
       }
     }
 
@@ -635,7 +664,11 @@ export class AuthService {
       teacherProfile = await this.teacherProfileRepo.findOne({ where: { userId } });
     }
 
-    return { user: this.sanitizeUser(user), student, teacherProfile };
+    return toJsonSafeDeep({
+      user: this.sanitizeUser(user),
+      student: student ? this.sanitizeStudent(student) : null,
+      teacherProfile: teacherProfile ? this.sanitizeTeacherProfile(teacherProfile) : null,
+    }) as { user: Record<string, unknown>; student: Record<string, unknown> | null; teacherProfile: Record<string, unknown> | null };
   }
 
   async completeTeacherOnboarding(userId: string, tenantId: string, dto: TeacherOnboardingDto) {
@@ -708,8 +741,101 @@ export class AuthService {
   }
 
   private sanitizeUser(user: User) {
-    const { password, refreshToken, ...safe } = user as any;
-    return safe;
+    const tenant = user.tenant;
+    return {
+      id: user.id,
+      tenantId: user.tenantId,
+      phoneNumber: user.phoneNumber,
+      email: user.email,
+      fullName: user.fullName,
+      profilePictureUrl: user.profilePictureUrl,
+      phoneVerified: user.phoneVerified,
+      isFirstLogin: user.isFirstLogin,
+      lastLoginAt: user.lastLoginAt,
+      role: user.role,
+      status: user.status,
+      notificationPrefs: user.notificationPrefs,
+      fcmToken: user.fcmToken,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      tenant: tenant
+        ? {
+            id: tenant.id,
+            name: tenant.name,
+            subdomain: tenant.subdomain,
+            type: tenant.type,
+            status: tenant.status,
+            plan: tenant.plan,
+            logoUrl: tenant.logoUrl,
+            brandColor: tenant.brandColor,
+            welcomeMessage: tenant.welcomeMessage,
+            city: tenant.city,
+            state: tenant.state,
+            onboardingComplete: tenant.onboardingComplete,
+            maxStudents: tenant.maxStudents,
+            maxTeachers: tenant.maxTeachers,
+            metadata: (toJsonSafeDeep(tenant.metadata ?? {}) ?? {}) as Record<string, unknown>,
+          }
+        : undefined,
+    };
+  }
+
+  private sanitizeStudent(s: Student) {
+    return {
+      id: s.id,
+      tenantId: s.tenantId,
+      userId: s.userId,
+      examTarget: s.examTarget ?? null,
+      class: s.class ?? null,
+      examYear: s.examYear ?? null,
+      targetCollege: s.targetCollege ?? null,
+      dailyStudyHours: s.dailyStudyHours,
+      language: s.language,
+      careOf: s.careOf ?? null,
+      alternatePhoneNumber: s.alternatePhoneNumber ?? null,
+      address: s.address ?? null,
+      postOffice: s.postOffice ?? null,
+      city: s.city ?? null,
+      landmark: s.landmark ?? null,
+      state: s.state ?? null,
+      pinCode: s.pinCode ?? null,
+      coachingName: s.coachingName ?? null,
+      xpTotal: s.xpTotal,
+      currentStreak: s.currentStreak,
+      longestStreak: s.longestStreak,
+      lastActiveDate: s.lastActiveDate ?? null,
+      subscriptionPlan: s.subscriptionPlan,
+      subscriptionExpiresAt: s.subscriptionExpiresAt ?? null,
+      onboardingComplete: s.onboardingComplete,
+      diagnosticCompleted: s.diagnosticCompleted,
+      baselineRankEstimate: s.baselineRankEstimate ?? null,
+      parentUserId: s.parentUserId ?? null,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+    };
+  }
+
+  private sanitizeTeacherProfile(p: TeacherProfile) {
+    return {
+      id: p.id,
+      userId: p.userId,
+      tenantId: p.tenantId,
+      qualification: p.qualification ?? null,
+      subjectExpertise: p.subjectExpertise ?? [],
+      classesTeach: p.classesTeach ?? [],
+      yearsOfExperience: p.yearsOfExperience ?? null,
+      bio: p.bio ?? null,
+      gender: p.gender ?? null,
+      dateOfBirth: p.dateOfBirth ?? null,
+      profilePhotoUrl: p.profilePhotoUrl ?? null,
+      teachingMode: p.teachingMode ?? null,
+      previousInstitute: p.previousInstitute ?? null,
+      city: p.city ?? null,
+      state: p.state ?? null,
+      onboardingComplete: p.onboardingComplete,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    };
   }
 
   private async isOnboarded(userId: string): Promise<boolean> {

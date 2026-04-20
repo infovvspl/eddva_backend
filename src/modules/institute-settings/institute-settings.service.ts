@@ -1,9 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { toJsonSafeDeep } from '../../common/utils/json-safe';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Tenant } from '../../database/entities/tenant.entity';
 import { User } from '../../database/entities/user.entity';
 import { Student } from '../../database/entities/student.entity';
+import { Batch, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
+import { NotificationService } from '../notification/notification.service';
 import {
   UpdateBrandingDto,
   UpdateNotificationPrefsDto,
@@ -25,10 +28,15 @@ const CALENDAR_KEY = 'calendarEvents';
 
 @Injectable()
 export class InstituteSettingsService {
+  private readonly logger = new Logger(InstituteSettingsService.name);
+
   constructor(
     @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(User)   private readonly userRepo: Repository<User>,
     @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
+    @InjectRepository(Batch) private readonly batchRepo: Repository<Batch>,
+    @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async updateProfileImage(userId: string, imageUrl: string) {
@@ -43,7 +51,7 @@ export class InstituteSettingsService {
     ]);
 
     const meta = tenant.metadata ?? {};
-    return {
+    return toJsonSafeDeep({
       instituteName:     meta.instituteName     ?? tenant.name ?? '',
       adminName:         (meta.adminName         ?? user?.fullName) || '',
       email:             (meta.email             ?? user?.email)    || '',
@@ -52,7 +60,7 @@ export class InstituteSettingsService {
       yearsOfExperience: (meta.yearsOfExperience ?? tenant.metadata?.yearsOfExperience) || null,
       classTypes:        (meta.classTypes        ?? tenant.metadata?.classTypes) || [],
       teachingMode:      (meta.teachingMode      ?? tenant.metadata?.teachingMode) || 'offline',
-    };
+    }) as Record<string, unknown>;
   }
 
   async updateProfile(tenantId: string, userId: string, dto: UpdateInstituteProfileDto) {
@@ -264,7 +272,7 @@ export class InstituteSettingsService {
     return events.sort((a: any, b: any) => a.date.localeCompare(b.date));
   }
 
-  async createCalendarEvent(tenantId: string, dto: CreateCalendarEventDto) {
+  async createCalendarEvent(tenantId: string, dto: CreateCalendarEventDto, createdByUserId?: string) {
     const t = await this.getTenant(tenantId);
     const events: any[] = t.metadata?.[CALENDAR_KEY] ?? [];
     const newEvent = {
@@ -275,7 +283,51 @@ export class InstituteSettingsService {
     events.push(newEvent);
     t.metadata = { ...(t.metadata ?? {}), [CALENDAR_KEY]: events };
     await this.tenantRepo.save(t);
+
+    this.notifyStudentsCalendarEventCreated(tenantId, newEvent, createdByUserId).catch((err) =>
+      this.logger.warn(`calendar event notify failed: ${err instanceof Error ? err.message : err}`),
+    );
+
     return newEvent;
+  }
+
+  private async notifyStudentsCalendarEventCreated(tenantId: string, event: any, createdByUserId?: string) {
+    const actor = createdByUserId
+      ? await this.userRepo.findOne({ where: { id: createdByUserId } })
+      : null;
+    const title = actor?.fullName
+      ? `${actor.fullName} added a calendar event`
+      : 'New calendar event';
+
+    const bodyBase = `${event.title} — ${typeof event.date === 'string' ? event.date.split('T')[0] : event.date}`;
+    const bodyExtra = event.description ? `. ${String(event.description).slice(0, 100)}` : '';
+    const body = `${bodyBase}${bodyExtra}`;
+
+    const batches = await this.batchRepo.find({ where: { tenantId }, select: ['id'] });
+    const batchIds = batches.map((b) => b.id);
+    if (!batchIds.length) return;
+
+    const enrollments = await this.enrollmentRepo.find({
+      where: { batchId: In(batchIds), status: EnrollmentStatus.ACTIVE },
+      relations: ['student', 'student.user'],
+    });
+
+    const seen = new Set<string>();
+    for (const e of enrollments) {
+      const uid = e.student?.userId ?? e.student?.user?.id;
+      if (!uid || seen.has(uid)) continue;
+      seen.add(uid);
+      const notifyTenantId = e.student?.user?.tenantId ?? tenantId;
+      await this.notificationService.send({
+        userId: uid,
+        tenantId: notifyTenantId,
+        title,
+        body,
+        channels: ['in_app', 'push'],
+        refType: 'calendar_event',
+        refId: String(event.id),
+      });
+    }
   }
 
   async deleteCalendarEvent(tenantId: string, eventId: string) {

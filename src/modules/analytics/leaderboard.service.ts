@@ -122,33 +122,33 @@ export class LeaderboardService {
     this.logger.log(`Recomputed global leaderboard for ${period}`);
   }
 
+  private async queryGlobalLeaderboardRows(tenantId: string) {
+    return this.leaderboardRepo
+      .createQueryBuilder('entry')
+      .innerJoinAndSelect('entry.student', 'student')
+      .leftJoinAndSelect('student.user', 'user')
+      .where('entry.scope = :scope', { scope: LeaderboardScope.GLOBAL })
+      .andWhere('entry.period = :period', { period: LeaderboardPeriod.MONTHLY })
+      .andWhere('student.tenantId = :tenantId', { tenantId })
+      .orderBy('entry.rank', 'ASC')
+      .addOrderBy('entry.score', 'DESC')
+      .getMany();
+  }
+
   private async getStoredGlobalLeaderboard(tenantId: string, period: string) {
     const monthStart = new Date(`${period}-01T00:00:00.000Z`);
     const monthEnd = new Date(monthStart);
     monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
 
-    const rows = await this.leaderboardRepo.find({
-      where: {
-        scope: LeaderboardScope.GLOBAL,
-        period: LeaderboardPeriod.MONTHLY,
-        student: { tenantId } as any,
-      } as any,
-      relations: ['student', 'student.user'],
-      order: { rank: 'ASC', score: 'DESC' },
-    });
-
+    const rows = await this.queryGlobalLeaderboardRows(tenantId);
     const filtered = rows.filter((entry) => entry.computedAt >= monthStart && entry.computedAt < monthEnd);
     if (!filtered.length) {
-      // Compute on-demand but only once — avoid infinite recursion
-      await this.recomputeGlobalLeaderboard();
-      const recomputed = await this.leaderboardRepo.find({
-        where: {
-          scope: LeaderboardScope.GLOBAL,
-          period: LeaderboardPeriod.MONTHLY,
-        } as any,
-        relations: ['student', 'student.user'],
-        order: { rank: 'ASC', score: 'DESC' },
-      });
+      try {
+        await this.recomputeGlobalLeaderboard();
+      } catch (e) {
+        this.logger.warn(`recomputeGlobalLeaderboard failed: ${(e as Error).message}`);
+      }
+      const recomputed = await this.queryGlobalLeaderboardRows(tenantId);
       const fresh = recomputed.filter((e) => e.computedAt >= monthStart && e.computedAt < monthEnd);
       return fresh.map((entry) => this.serializeLeaderboardEntry(entry));
     }

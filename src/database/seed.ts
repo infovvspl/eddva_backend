@@ -31,15 +31,16 @@ async function seed() {
     }
     console.log(`Using Platform Tenant: ${platformTenant.id}`);
 
-    // 2. Create Super Admin User
+    // 2. Create Super Admin User (E.164 phone matches frontend + /auth/login lookup)
     const superAdminEmail = 'superadmin@gmail.com';
-    const superAdminPhone = '9999999999';
+    const superAdminPhone = '+919999999999';
 
-    let superAdmin = await userRepo.findOne({ 
+    let superAdmin = await userRepo.findOne({
       where: [
         { email: superAdminEmail },
-        { phoneNumber: superAdminPhone }
-      ] 
+        { phoneNumber: superAdminPhone },
+        { phoneNumber: '9999999999' }, // legacy seed — upgraded below
+      ],
     });
 
     if (!superAdmin) {
@@ -60,10 +61,11 @@ async function seed() {
     } else {
       console.log('Super Admin already exists, updating credentials...');
       superAdmin.fullName = 'Super Admin';
+      superAdmin.phoneNumber = superAdminPhone;
       superAdmin.password = 'Admin@123'; // Triggers @BeforeUpdate hook to re-hash
       superAdmin.role = UserRole.SUPER_ADMIN;
       superAdmin.status = UserStatus.ACTIVE;
-      superAdmin.phoneVerified = true,
+      superAdmin.phoneVerified = true;
       superAdmin.isFirstLogin = false;
       await userRepo.save(superAdmin);
       console.log('Super Admin updated successfully!');
