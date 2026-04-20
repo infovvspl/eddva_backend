@@ -1587,7 +1587,31 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             commonMistakes = this.extractBulletSection(lessonMarkdown, 'Common Mistakes Students Make');
         } catch (err) {
             this.logger.warn(`AI lesson generation failed for topic ${topicId}: ${err.message}`);
-            lessonMarkdown = 'AI lesson generation is temporarily unavailable. Please try again or ask your teacher.';
+            // Preserve existing real content if available — never overwrite good data with an error string
+            if (existing?.lessonMarkdown && !this.shouldRegenerateLesson(existing.lessonMarkdown)) {
+                lessonMarkdown = existing.lessonMarkdown;
+                keyConcepts = existing.keyConcepts ?? [];
+                formulas = existing.formulas ?? [];
+                commonMistakes = existing.commonMistakes ?? [];
+                aiSessionRef = existing.aiSessionRef ?? null;
+            } else {
+                // No real content exists — return a transient error without saving to DB
+                return {
+                    id: existing?.id ?? null,
+                    topicId,
+                    topicName: topic.name,
+                    lessonMarkdown: 'AI lesson generation is temporarily unavailable. Please try again in a moment.',
+                    keyConcepts: [],
+                    formulas: [],
+                    practiceQuestions: [],
+                    commonMistakes: [],
+                    conversation: [],
+                    isCompleted: false,
+                    timeSpentSeconds: 0,
+                    completedAt: null,
+                    isNew: false,
+                };
+            }
         }
 
         // Second call: practice questions via dedicated question-generation endpoint
@@ -1790,6 +1814,15 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         });
         if (!session) return null;
 
+        // If the stored lesson is weak/broken, regenerate it now
+        if (tenantId && this.shouldRegenerateLesson(session.lessonMarkdown)) {
+            try {
+                return await this.startAiStudy(topicId, userId, tenantId);
+            } catch (err) {
+                this.logger.warn(`Auto-regeneration failed for session ${session.id}: ${err.message}`);
+            }
+        }
+
         // Backfill practice questions if missing
         if ((!session.practiceQuestions || session.practiceQuestions.length === 0) && tenantId) {
             try {
@@ -1917,11 +1950,16 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         const text = String(markdown || '');
         if (!text.trim()) return true;
         // Too short for a "complete" lesson.
-        if (text.length < 2400) return true;
+        if (text.length < 4500) return true;
         // Missing key structural sections indicates truncated output.
-        const required = ['Core Concepts', 'Formulas', 'Derivation', 'Solved Examples'];
+        const required = ['Core Concepts', 'Formulas', 'Derivation', 'Solved Examples', 'Exam Strategy'];
         const missingCount = required.filter((k) => !new RegExp(k, 'i').test(text)).length;
-        return missingCount >= 2;
+        if (missingCount >= 1) return true;
+        // Truncated-looking formulas/derivations (e.g. "$U =" with no RHS).
+        if (/\$[^$\n]{0,25}=\s*(?:\n|$)/m.test(text)) return true;
+        if (/Derivation[\s\S]{0,120}:\s*(?:\n|$)/i.test(text)) return true;
+        if (/[=:]\s*$/.test(text.trim())) return true;
+        return false;
     }
 
     private extractFormulaCandidates(markdown: string): string[] {

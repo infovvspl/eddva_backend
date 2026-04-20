@@ -201,7 +201,7 @@ export class StudyPlanService {
       const mappedItems = rawItems.map((item: any) => ({
         date:               item.date,
         type:               this.normalizePlanItemType(item.type || item.activity || 'practice'),
-        title:              item.title || item.topic || item.subject || null,
+        title:              this.normalizePlanItemTitle(item.title || item.topic || item.subject || null),
         refId:              item.refId ?? null,
         estimatedMinutes:   item.estimatedMinutes ?? item.duration_min ?? 30,
       }));
@@ -257,6 +257,8 @@ export class StudyPlanService {
     items = this.assignFallbackTopicRefs(items, availableTopics, weakTopics);
     items = this.ensureTodaySubjectCoverage(items, subjectRotation, availableTopics, weakTopics);
     items = this.reorderTodayItems(items, availableTopics);
+    items = this.capTodayToOneNotesAndOnePracticePerSubject(items, availableTopics);
+    items = this.removeDuplicatePlanItems(items);
 
     // ── Persist ─────────────────────────────────────────────────────────────
     const planDays = Math.min(30, Math.max(7, (Number.isFinite(daysToExam) ? daysToExam : 120) - 5));
@@ -330,6 +332,21 @@ export class StudyPlanService {
     }
 
     return this.getPlanWithItems(plan.id, tenantId);
+  }
+
+  async clearCurrentPlan(userId: string, tenantId: string) {
+    const student = await this.getStudentByUserId(userId, tenantId);
+    const existing = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId } });
+    if (!existing) {
+      return { message: 'No existing study plan to clear.' };
+    }
+
+    await this.studyPlanRepo.manager.transaction(async (manager) => {
+      await manager.delete(PlanItem, { studyPlanId: existing.id });
+      await manager.delete(StudyPlan, { id: existing.id });
+    });
+
+    return { message: 'Previous study plan removed successfully.' };
   }
 
   async getToday(userId: string, tenantId: string) {
@@ -885,11 +902,11 @@ export class StudyPlanService {
     const practiceMinutes = Math.floor(dailyMinutes * 0.40);
     const revisionMinutes = dailyMinutes - lectureMinutes - practiceMinutes;
 
-    // Video slot (YouTube/self-study), not teacher lecture.
+    // Notes slot (AI self-study), no YouTube task.
     items.push({
       date,
       type: 'revision',
-      title: `YouTube Video Review: ${topicName} (${subject})`,
+      title: `AI Notes Deep Dive: ${topicName} (${subject})`,
       refId: wt?.topicId ?? lecture?.topicId ?? null,
       estimatedMinutes: lectureMinutes,
     });
@@ -902,14 +919,14 @@ export class StudyPlanService {
       estimatedMinutes: practiceMinutes,
     });
 
-    // Notes slot (if enough time)
+    // Extra slot (if enough time): practice booster, not another notes item.
     if (revisionMinutes >= 20) {
       const prevTopic = weakQueue.length > 1 ? weakQueue[(weakIdx - 2 + weakQueue.length) % weakQueue.length] : wt;
       items.push({
         date,
-        type: 'revision',
+        type: 'practice',
         refId: prevTopic?.topicId ?? wt?.topicId ?? null,
-        title: `AI Notes + Quick Revision: ${prevTopic?.topic?.name ?? topicName}`,
+        title: `Practice Booster: ${prevTopic?.topic?.name ?? topicName}`,
         estimatedMinutes: revisionMinutes,
       });
     }
@@ -1316,24 +1333,14 @@ export class StudyPlanService {
         subjectTopics[0] ??
         null;
       const subjectItems = todayItems.filter((i) => this.detectSubjectFromItem(i, topics) === subject);
-      const hasVideo = subjectItems.some((i) => /youtube|video/i.test(String(i.title || '')));
       const hasNotes = subjectItems.some((i) => /notes|revision/i.test(String(i.title || '')) && !/youtube|video/i.test(String(i.title || '')));
       const hasPractice = subjectItems.some((i) => i.type === 'practice' || /practice/i.test(String(i.title || '')));
 
-      if (!hasVideo) {
-        additions.push({
-          date: today,
-          type: 'revision',
-          title: `YouTube Video Review: ${topic?.name ?? subject} (${subject})`,
-          refId: topic?.id,
-          estimatedMinutes: 45,
-        });
-      }
       if (!hasNotes) {
         additions.push({
           date: today,
           type: 'revision',
-          title: `AI Notes + Quick Revision: ${topic?.name ?? subject}`,
+          title: `AI Notes + Quick Revision: ${topic?.name ?? subject} (${subject})`,
           refId: topic?.id,
           estimatedMinutes: 35,
         });
@@ -1372,9 +1379,8 @@ export class StudyPlanService {
 
     const typePriority = (i: RawPlanItem): number => {
       const t = String(i.title || '').toLowerCase();
-      if (t.includes('youtube') || t.includes('video')) return 0;
-      if (t.includes('notes') || t.includes('revision')) return 1;
-      if (i.type === 'practice' || t.includes('practice')) return 2;
+      if (t.includes('notes') || t.includes('revision')) return 0;
+      if (i.type === 'practice' || t.includes('practice')) return 1;
       return 3;
     };
 
@@ -1386,6 +1392,69 @@ export class StudyPlanService {
     });
 
     return [...sorted, ...otherItems];
+  }
+
+  private removeDuplicatePlanItems(items: RawPlanItem[]): RawPlanItem[] {
+    const seen = new Set<string>();
+    const out: RawPlanItem[] = [];
+
+    const normalizeTitle = (t: string) =>
+      String(t || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/[^\w\s]/g, '')
+        .trim();
+
+    for (const item of items) {
+      const key = [
+        item.date,
+        item.type,
+        item.refId ?? '',
+        normalizeTitle(item.title || ''),
+      ].join('|');
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+    }
+
+    return out;
+  }
+
+  private capTodayToOneNotesAndOnePracticePerSubject(items: RawPlanItem[], topics: Topic[]): RawPlanItem[] {
+    const today = this.todayIst();
+    const todayItems = items.filter((i) => i.date === today);
+    const otherItems = items.filter((i) => i.date !== today);
+    if (!todayItems.length) return items;
+
+    const kept: RawPlanItem[] = [];
+    const noteSeen = new Set<string>();
+    const practiceSeen = new Set<string>();
+
+    const isNotes = (i: RawPlanItem) => i.type === 'revision' || /notes|revision/i.test(String(i.title || ''));
+    const isPractice = (i: RawPlanItem) => i.type === 'practice' || /practice/i.test(String(i.title || ''));
+
+    for (const item of todayItems) {
+      const subject = this.detectSubjectFromItem(item, topics) || 'General';
+
+      if (isNotes(item)) {
+        if (noteSeen.has(subject)) continue;
+        noteSeen.add(subject);
+        kept.push(item);
+        continue;
+      }
+
+      if (isPractice(item)) {
+        if (practiceSeen.has(subject)) continue;
+        practiceSeen.add(subject);
+        kept.push(item);
+        continue;
+      }
+
+      kept.push(item);
+    }
+
+    return [...kept, ...otherItems];
   }
 
   private mapPlanItemType(type: string): PlanItemType {
@@ -1405,6 +1474,19 @@ export class StudyPlanService {
     if (t === 'lecture' || t === 'video' || t === 'youtube' || t === 'watch_video') return 'revision';
     if (t === 'notes' || t === 'note' || t === 'reading') return 'revision';
     return t || 'practice';
+  }
+
+  private normalizePlanItemTitle(title: string | null): string | null {
+    const raw = String(title || '').trim();
+    if (!raw) return null;
+    if (/youtube|video|watch/i.test(raw)) {
+      return raw
+        .replace(/youtube\s*video\s*review[:\-]?\s*/i, 'AI Notes + Revision: ')
+        .replace(/\b(youtube|video|watch)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    return raw;
   }
 
   private xpForItem(type: PlanItemType): number {
