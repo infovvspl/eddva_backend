@@ -193,6 +193,7 @@ export enum NotificationType {
   TEACHER_FLAGGED = 'teacher_flagged',
   NEW_DOUBT = 'new_doubt',
   SUBSCRIPTION_RENEWAL = 'subscription_renewal',
+  LECTURE_PUBLISHED = 'lecture_published',
   GENERAL = 'general',
 }
 

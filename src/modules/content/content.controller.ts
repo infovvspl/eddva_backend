@@ -347,6 +347,30 @@ export class ContentController {
         return this.contentService.deleteLecture(id, user.id, user.role, tenantId);
     }
 
+    @Post('lectures/:id/translate-transcript')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Translate lecture transcript to Hindi (cached after first call)' })
+    @ApiParam({ name: 'id', type: 'string' })
+    translateTranscript(
+        @Param('id', ParseUUIDPipe) id: string,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.translateLectureTranscript(id, tenantId);
+    }
+
+    @Post('lectures/:id/retranscribe')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Re-trigger AI transcription for a recorded lecture' })
+    @ApiParam({ name: 'id', type: 'string' })
+    retranscribeLecture(
+        @Param('id', ParseUUIDPipe) id: string,
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.retranscribeLecture(id, user.id, user.role, tenantId);
+    }
+
     // ─── LECTURE PROGRESS ─────────────────────────────────────────────────────
 
     @Post('lectures/:id/progress')

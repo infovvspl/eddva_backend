@@ -19,15 +19,17 @@ import {
     LectureProgress,
     LectureType,
     LectureStatus,
+    TranscriptStatus,
     AiStudySession,
 } from '../../database/entities/learning.entity';
 import { TopicProgress, TopicStatus, MockTest } from '../../database/entities/assessment.entity';
 import { PlanItem, PlanItemStatus, PlanItemType, StudyPlan } from '../../database/entities/learning.entity';
-import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
+import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { Student } from '../../database/entities/student.entity';
 
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
+import { NotificationService } from '../notification/notification.service';
 import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto } from './dto/ai-study.dto';
 import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subject.dto';
 import { CreateChapterDto, UpdateChapterDto } from './dto/chapter.dto';
@@ -85,6 +87,7 @@ export class ContentService {
         private readonly topicResourceRepo: Repository<TopicResource>,
         private readonly dataSource: DataSource,
         private readonly aiBridgeService: AiBridgeService,
+        private readonly notificationService: NotificationService,
     ) { }
 
     // ─── SUBJECTS ─────────────────────────────────────────────────────────────
@@ -493,12 +496,14 @@ export class ContentService {
     }
 
     async createQuestion(dto: CreateQuestionDto, tenantId: string): Promise<Question> {
-        this.logger.log(`Creating question for topic ${dto.topicId}, tenant ${tenantId}`);
+        this.logger.log(`Creating question for topic ${dto.topicId ?? 'none'}, tenant ${tenantId}`);
         this.validateQuestionOptions(dto);
 
-        // Topics are platform-level content — do not filter by institute tenantId
-        const topic = await this.topicRepo.findOne({ where: { id: dto.topicId } });
-        if (!topic) throw new NotFoundException(`Topic ${dto.topicId} not found`);
+        if (dto.topicId) {
+            // Topics are platform-level content — do not filter by institute tenantId
+            const topic = await this.topicRepo.findOne({ where: { id: dto.topicId } });
+            if (!topic) throw new NotFoundException(`Topic ${dto.topicId} not found`);
+        }
 
         return this.dataSource.transaction(async (manager) => {
             const { options: optionDtos = [], ...questionData } = dto;
@@ -686,25 +691,85 @@ export class ContentService {
     ): Promise<void> {
         const cleanUrl = this._fixVideoUrl(videoUrl);
         this.logger.log(`AI processing started for lecture ${lectureId} url=${cleanUrl}`);
+
+        // Capture current status so we can decide what to set after AI completes.
+        // New lectures start as PROCESSING → move to DRAFT so the teacher reviews before publishing.
+        // Retranscriptions already have PUBLISHED/DRAFT → keep that status (just update content).
+        const current = await this.lectureRepo.findOne({ where: { id: lectureId }, select: ['id', 'status', 'lectureLanguage'] });
+        const isNewLecture = current?.status === LectureStatus.PROCESSING;
+        const lang: 'en' | 'hi' = (current?.lectureLanguage === 'hi') ? 'hi' : 'en';
+
+        await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.PROCESSING });
         try {
             const result = await this.aiBridgeService.generateLectureNotes(
-                { audioUrl: cleanUrl, topicId: topicId ?? '', language: 'hi' },
+                { audioUrl: cleanUrl, topicId: topicId ?? '', language: lang },
                 tenantId,
             ) as any;
 
-            const updates: Partial<Lecture> = { status: LectureStatus.PUBLISHED };
-            if (result?.rawTranscript) updates.transcript = result.rawTranscript;
-            updates.aiNotesMarkdown = result?.notes ?? result?.content ?? result?.raw ?? null;
+            const updates: Partial<Lecture> = {
+                // New lectures → DRAFT (teacher reviews notes before publishing)
+                // Re-transcriptions → keep existing published status
+                status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
+                transcriptStatus: TranscriptStatus.DONE,
+                transcriptLanguage: lang,
+            };
+            const rawTranscript = result?.rawTranscript ?? result?.transcript ?? result?.text ?? null;
+            if (rawTranscript) updates.transcript = rawTranscript;
+            const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? result?.raw ?? null;
+            if (notes) updates.aiNotesMarkdown = notes;
             const concepts = result?.key_concepts ?? result?.keyConcepts;
             if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
 
             await this.lectureRepo.update(lectureId, updates);
-            this.logger.log(`AI processing complete for lecture ${lectureId}`);
+            this.logger.log(`AI processing complete for lecture ${lectureId} → status: ${updates.status}`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             this.logger.error(`AI processing failed for lecture ${lectureId}: ${msg}`);
-            await this.lectureRepo.update(lectureId, { status: LectureStatus.PUBLISHED });
+            // Still publish on failure so the lecture isn't stuck in PROCESSING forever
+            await this.lectureRepo.update(lectureId, {
+                status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
+                transcriptStatus: TranscriptStatus.FAILED,
+            });
         }
+    }
+
+    async retranscribeLecture(id: string, userId: string, userRole: UserRole, tenantId: string): Promise<{ message: string }> {
+        const lecture = await this.lectureRepo.findOne({ where: { id, tenantId } });
+        if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
+        if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
+            throw new ForbiddenException('You can only retranscribe your own lectures');
+        }
+        if (lecture.type !== LectureType.RECORDED || !lecture.videoUrl) {
+            throw new BadRequestException('Only recorded lectures with a video URL can be transcribed');
+        }
+        if (lecture.transcriptStatus === TranscriptStatus.PROCESSING) {
+            return { message: 'Transcription already in progress' };
+        }
+        await this.lectureRepo.update(id, { transcriptStatus: TranscriptStatus.PROCESSING });
+        this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => {});
+        return { message: 'Transcription started' };
+    }
+
+    async translateLectureTranscript(id: string, tenantId: string): Promise<{ transcriptHi: string }> {
+        const lecture = await this.lectureRepo.findOne({ where: { id } });
+        if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
+
+        // Return cached version if already translated
+        if (lecture.transcriptHi) return { transcriptHi: lecture.transcriptHi };
+
+        if (!lecture.transcript) throw new BadRequestException('No transcript available to translate');
+
+        // Call AI bridge to translate English → Hindi
+        const result = await this.aiBridgeService.translateText(
+            { text: lecture.transcript, targetLanguage: 'hi' },
+            tenantId,
+        ) as any;
+
+        const translated: string = result?.translatedText ?? result?.text ?? result?.translation ?? '';
+        if (!translated) throw new BadRequestException('Translation returned empty result');
+
+        await this.lectureRepo.update(id, { transcriptHi: translated });
+        return { transcriptHi: translated };
     }
 
     async getLectures(
@@ -910,8 +975,42 @@ export class ContentService {
             throw new ForbiddenException('You can only modify your own lectures');
         }
 
+        const wasPublished = lecture.status === LectureStatus.PUBLISHED;
         Object.assign(lecture, dto);
-        return this.lectureRepo.save(lecture);
+        const saved = await this.lectureRepo.save(lecture);
+
+        // Fire in-app notifications to all enrolled students when a lecture is first published
+        if (!wasPublished && saved.status === LectureStatus.PUBLISHED && saved.batchId) {
+            this._notifyStudentsOnPublish(saved).catch(err =>
+                this.logger.warn(`Failed to send publish notifications for lecture ${saved.id}: ${err.message}`)
+            );
+        }
+
+        return saved;
+    }
+
+    private async _notifyStudentsOnPublish(lecture: Lecture): Promise<void> {
+        const enrollments = await this.enrollmentRepo.find({
+            where: { batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
+        });
+        if (!enrollments.length) return;
+
+        const studentIds = enrollments.map(e => e.studentId);
+        const studentRepo = this.dataSource.getRepository(Student);
+        const students = await studentRepo.findBy({ id: In(studentIds) });
+
+        for (const student of students) {
+            if (!student.userId) continue;
+            await this.notificationService.send({
+                userId: student.userId,
+                tenantId: lecture.tenantId,
+                title: 'New Lecture Published',
+                body: `"${lecture.title}" is now available. Start watching!`,
+                channels: ['in_app'],
+                refType: 'lecture_published',
+                refId: lecture.id,
+            });
+        }
     }
 
     async deleteLecture(
