@@ -442,6 +442,17 @@ export class ContentController {
         return this.contentService.translateLectureTranscript(id, tenantId);
     }
 
+    @Post('lectures/:id/translate-notes')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Translate AI notes to English (on-demand)' })
+    @ApiParam({ name: 'id', type: 'string' })
+    translateNotesToEnglish(
+        @Param('id', ParseUUIDPipe) id: string,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.translateLectureNotesToEnglish(id, tenantId);
+    }
+
     @Post('lectures/:id/retranscribe')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
     @HttpCode(HttpStatus.OK)

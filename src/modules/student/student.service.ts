@@ -172,59 +172,51 @@ export class StudentService {
         });
         const subjectNames = [...new Set(subjectAssignments.map(a => a.subjectName))];
 
-        // Get total topics and student completed topics via topic_progress
-        const topicProgressRows = await this.dataSource.query(`
-          SELECT tp.status, COUNT(*)::int AS cnt
-          FROM topic_progress tp
-          JOIN topics t ON t.id = tp.topic_id
-          JOIN chapters c ON c.id = t.chapter_id
-          JOIN subjects s ON s.id = c.subject_id
-          JOIN batch_subject_teachers bst
-            ON LOWER(bst.subject_name) = LOWER(s.name)
-            AND bst.batch_id = $1
-          WHERE tp.student_id = $2
-            AND tp.deleted_at IS NULL
-          GROUP BY tp.status
-        `, [batch.id, student.id]);
+        // Load topic IDs for this batch — same two-step approach as getCourseDetail
+        let batchSubjects = await this.subjectRepo.find({
+          where: { batchId: batch.id, isActive: true },
+          relations: ['chapters', 'chapters.topics'],
+        });
+        if (batchSubjects.length === 0 && subjectAssignments.length > 0) {
+          const assignedNames = [...new Set(subjectAssignments.map(a => a.subjectName.toLowerCase()))];
+          const allSubjects = await this.subjectRepo.find({
+            where: { isActive: true },
+            relations: ['chapters', 'chapters.topics'],
+          });
+          batchSubjects = allSubjects.filter(s => assignedNames.includes(s.name.toLowerCase()));
+        }
 
-        const completedTopics = topicProgressRows.find(r => r.status === TopicStatus.COMPLETED)?.cnt ?? 0;
-        const inProgressTopics = topicProgressRows.find(r => r.status === TopicStatus.IN_PROGRESS)?.cnt ?? 0;
+        const batchTopicIds: string[] = batchSubjects.flatMap(s =>
+          (s.chapters ?? []).flatMap(c => (c.topics ?? []).filter(t => t.isActive).map(t => t.id))
+        );
+        const totalTopics = batchTopicIds.length;
 
-        // Total topics in this batch (for accurate progress percentage)
-        const totalTopicsRows = await this.dataSource.query(`
-          SELECT COUNT(DISTINCT t.id)::int AS cnt
-          FROM topics t
-          JOIN chapters c ON c.id = t.chapter_id
-          JOIN subjects s ON s.id = c.subject_id
-          JOIN batch_subject_teachers bst
-            ON LOWER(bst.subject_name) = LOWER(s.name)
-            AND bst.batch_id = $1
-          WHERE t.is_active = true AND t.deleted_at IS NULL
-        `, [batch.id]);
-        const totalTopics = totalTopicsRows[0]?.cnt ?? 0;
+        // Topic progress for this student
+        let completedTopics = 0;
+        let inProgressTopics = 0;
+        if (batchTopicIds.length > 0) {
+          const tpRows = await this.dataSource.query(`
+            SELECT status, COUNT(*)::int AS cnt
+            FROM topic_progress
+            WHERE student_id = $1 AND topic_id = ANY($2) AND deleted_at IS NULL
+            GROUP BY status
+          `, [student.id, batchTopicIds]);
+          completedTopics  = tpRows.find((r: any) => r.status === TopicStatus.COMPLETED)?.cnt ?? 0;
+          inProgressTopics = tpRows.find((r: any) => r.status === TopicStatus.IN_PROGRESS)?.cnt ?? 0;
+        }
 
-        // Lectures visible to students (same statuses as /content/lectures for student role)
+        // Lectures & watch progress — count all non-deleted (including draft/processing so new uploads appear immediately)
         const totalLectures = await this.lectureRepo.count({
-          where: {
-            batchId: batch.id,
-            status: In([
-              LectureStatus.PUBLISHED,
-              LectureStatus.SCHEDULED,
-              LectureStatus.LIVE,
-              LectureStatus.ENDED,
-            ]),
-          },
+          where: { batchId: batch.id },
         });
 
-        // Watched lectures by student
-        const watchedLectures = await this.dataSource.query(`
+        const watchedRow = await this.dataSource.query(`
           SELECT COUNT(DISTINCT lp.lecture_id)::int AS cnt
           FROM lecture_progress lp
           JOIN lectures l ON l.id = lp.lecture_id
-          WHERE l.batch_id = $1
-            AND lp.student_id = $2
-            AND lp.is_completed = true
+          WHERE l.batch_id = $1 AND lp.student_id = $2 AND lp.is_completed = true
         `, [batch.id, student.id]);
+        const watchedLectures = watchedRow[0]?.cnt ?? 0;
 
         return {
           enrollmentId:    e.id,
@@ -243,16 +235,16 @@ export class StudentService {
             status:       batch.status,
             teacher:      batch.teacher ? { id: batch.teacher.id, fullName: batch.teacher.fullName } : null,
           },
-          subjects:          subjectNames,
+          subjects: subjectNames,
           progress: {
             totalLectures,
-            watchedLectures:  watchedLectures[0]?.cnt ?? 0,
-            completedTopics:  Number(completedTopics),
+            watchedLectures: Number(watchedLectures),
+            completedTopics: Number(completedTopics),
             inProgressTopics: Number(inProgressTopics),
-            totalTopics:      Number(totalTopics),
-            overallPct: Number(totalTopics) > 0
-              ? Math.round((Number(completedTopics) / Number(totalTopics)) * 100)
-              : 0,
+            totalTopics,
+            overallPct: totalLectures > 0
+              ? Math.round((Number(watchedLectures) / totalLectures) * 100)
+              : (totalTopics > 0 ? Math.round((Number(completedTopics) / totalTopics) * 100) : 0),
           },
         };
       }),
@@ -319,20 +311,24 @@ export class StudentService {
       : [];
     const progressMap = new Map(topicProgressList.map(p => [p.topicId, p]));
 
-    // Batch-load lecture counts per topic for this batch
+    // Batch-load lecture counts per topic for this batch.
+    // total: all non-deleted lectures (including draft/processing so newly uploaded videos show immediately)
+    // completed: only lectures the student has fully watched (restricted to watchable statuses)
     const lectureCounts: Array<{ topic_id: string; total: string; completed: string }> =
       allTopicIds.length
         ? await this.dataSource.query(`
             SELECT
               l.topic_id,
-              COUNT(l.id)::int                                           AS total,
-              COUNT(lp.id) FILTER (WHERE lp.is_completed = true)::int   AS completed
+              COUNT(l.id)::int AS total,
+              COUNT(lp.id) FILTER (
+                WHERE lp.is_completed = true
+                  AND l.status IN ('published', 'scheduled', 'live', 'ended')
+              )::int AS completed
             FROM lectures l
             LEFT JOIN lecture_progress lp
               ON lp.lecture_id = l.id AND lp.student_id = $1
             WHERE l.batch_id = $2
               AND l.topic_id = ANY($3)
-              AND l.status IN ('published', 'scheduled', 'live', 'ended')
               AND l.deleted_at IS NULL
             GROUP BY l.topic_id
           `, [student.id, batchId, allTopicIds])
@@ -440,9 +436,9 @@ export class StudentService {
         completedTopics: completedCount,
         totalLectures,
         watchedLectures,
-        progressPercent: totalTopics > 0
-          ? Math.round((completedCount / totalTopics) * 100)
-          : 0,
+        progressPercent: totalLectures > 0
+          ? Math.round((watchedLectures / totalLectures) * 100)
+          : (totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0),
       },
       curriculum,
     };
