@@ -815,6 +815,22 @@ export class ContentService {
         return { transcriptHi: translated };
     }
 
+    async translateLectureNotesToEnglish(id: string, tenantId: string): Promise<{ notesEn: string }> {
+        const lecture = await this.lectureRepo.findOne({ where: { id } });
+        if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
+        if (!lecture.aiNotesMarkdown) throw new BadRequestException('No AI notes available to translate');
+
+        const result = await this.aiBridgeService.translateText(
+            { text: lecture.aiNotesMarkdown, targetLanguage: 'en' },
+            tenantId,
+        ) as any;
+
+        const translated: string = result?.translatedText ?? result?.text ?? result?.translation ?? '';
+        if (!translated) throw new BadRequestException('Translation returned empty result');
+
+        return { notesEn: translated };
+    }
+
     async getLectures(
         query: LectureQueryDto,
         userId: string,
@@ -1158,6 +1174,31 @@ export class ContentService {
                     .andWhere('type = :type', { type: PlanItemType.LECTURE })
                     .andWhere('status != :done', { done: PlanItemStatus.COMPLETED })
                     .execute();
+            }
+
+            // Auto-complete topic when all its lectures have been watched (90%+)
+            const topicLectures = await this.lectureRepo.find({
+                where: { topicId: lecture.topicId, tenantId },
+                select: ['id'],
+            });
+            if (topicLectures.length > 0) {
+                const completedLectures = await this.progressRepo.count({
+                    where: {
+                        studentId: student.id,
+                        lectureId: In(topicLectures.map(l => l.id)),
+                        isCompleted: true,
+                    },
+                });
+                if (completedLectures >= topicLectures.length) {
+                    const topicProg = await this.topicProgressRepo.findOne({
+                        where: { studentId: student.id, topicId: lecture.topicId },
+                    });
+                    if (topicProg && topicProg.status !== TopicStatus.COMPLETED) {
+                        topicProg.status = TopicStatus.COMPLETED;
+                        if (!topicProg.completedAt) topicProg.completedAt = new Date();
+                        await this.topicProgressRepo.save(topicProg);
+                    }
+                }
             }
 
             // Find quiz (mock test) linked to this topic so the frontend knows it's available
