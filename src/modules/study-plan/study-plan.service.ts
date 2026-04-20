@@ -254,18 +254,9 @@ export class StudyPlanService {
 
     // Never force teacher lecture refs for personalized plans.
     // For student-specific tasks, use topic refs (practice/revision) when available.
-    const fallbackTopicId =
-      weakTopics.find((t) => !!t.topicId)?.topicId ??
-      availableLectures.find((l) => !!l.topicId)?.topicId ??
-      null;
-    if (fallbackTopicId) {
-      items = items.map((item) => {
-        if ((item.type === 'practice' || item.type === 'revision') && !item.refId) {
-          return { ...item, refId: fallbackTopicId };
-        }
-        return item;
-      });
-    }
+    items = this.assignFallbackTopicRefs(items, availableTopics, weakTopics);
+    items = this.ensureTodaySubjectCoverage(items, subjectRotation, availableTopics, weakTopics);
+    items = this.reorderTodayItems(items, availableTopics);
 
     // ── Persist ─────────────────────────────────────────────────────────────
     const planDays = Math.min(30, Math.max(7, (Number.isFinite(daysToExam) ? daysToExam : 120) - 5));
@@ -1210,7 +1201,7 @@ export class StudyPlanService {
           resources.find((r) => r.type === ResourceType.NOTES && (!!r.fileUrl || !!r.externalUrl)) ??
           resources.find((r) => r.type === ResourceType.PDF && (!!r.fileUrl || !!r.externalUrl));
         const titleLower = (item.title || '').toLowerCase();
-        const isVideoTask = item.type === PlanItemType.REVISION && titleLower.includes('youtube');
+        const isVideoTask = item.type === PlanItemType.REVISION && (titleLower.includes('youtube') || titleLower.includes('video'));
         const taskKind =
           item.type === PlanItemType.PRACTICE
             ? 'practice'
@@ -1271,6 +1262,130 @@ export class StudyPlanService {
     if (exam === 'neet') return NEET_SUBJECTS;
     if (exam === 'both') return BOTH_SUBJECTS;
     return JEE_SUBJECTS;
+  }
+
+  private assignFallbackTopicRefs(items: RawPlanItem[], topics: Topic[], weakTopics: WeakTopic[]): RawPlanItem[] {
+    if (!items.length) return items;
+    const weakTopicIds = weakTopics.map((w) => w.topicId).filter(Boolean);
+    const weakTopicSet = new Set(weakTopicIds);
+    const fallbackWeakTopicId = weakTopicIds[0] ?? null;
+
+    return items.map((item) => {
+      if (!((item.type === 'practice' || item.type === 'revision') && !item.refId)) return item;
+
+      const titleLower = String(item.title || '').toLowerCase();
+      const matchedByName = topics.find((t) => titleLower.includes(String(t.name || '').toLowerCase()));
+      if (matchedByName) return { ...item, refId: matchedByName.id };
+
+      const subjectMatch = titleLower.match(/\(([^)]+)\)/)?.[1]?.trim().toLowerCase() ?? null;
+      if (subjectMatch) {
+        const topicBySubject = topics.find((t) =>
+          String(t.chapter?.subject?.name || '').toLowerCase() === subjectMatch &&
+          weakTopicSet.has(t.id),
+        ) ?? topics.find((t) => String(t.chapter?.subject?.name || '').toLowerCase() === subjectMatch);
+        if (topicBySubject) return { ...item, refId: topicBySubject.id };
+      }
+
+      return fallbackWeakTopicId ? { ...item, refId: fallbackWeakTopicId } : item;
+    });
+  }
+
+  private ensureTodaySubjectCoverage(
+    items: RawPlanItem[],
+    subjects: string[],
+    topics: Topic[],
+    weakTopics: WeakTopic[],
+  ): RawPlanItem[] {
+    if (!subjects.length) return items;
+
+    const today = this.todayIst();
+    const normalizedSubjects = subjects.map((s) => String(s || '').trim()).filter(Boolean);
+    const todayItems = items.filter((i) => i.date === today);
+    const coveredToday = new Set(
+      todayItems
+        .map((i) => this.detectSubjectFromItem(i, topics))
+        .filter((s): s is string => !!s),
+    );
+
+    const weakTopicSet = new Set(weakTopics.map((w) => w.topicId).filter(Boolean));
+    const additions: RawPlanItem[] = [];
+    for (const subject of normalizedSubjects) {
+      const subjectTopics = topics.filter((t) => String(t.chapter?.subject?.name || '').trim() === subject);
+      const topic =
+        subjectTopics.find((t) => weakTopicSet.has(t.id)) ??
+        subjectTopics[0] ??
+        null;
+      const subjectItems = todayItems.filter((i) => this.detectSubjectFromItem(i, topics) === subject);
+      const hasVideo = subjectItems.some((i) => /youtube|video/i.test(String(i.title || '')));
+      const hasNotes = subjectItems.some((i) => /notes|revision/i.test(String(i.title || '')) && !/youtube|video/i.test(String(i.title || '')));
+      const hasPractice = subjectItems.some((i) => i.type === 'practice' || /practice/i.test(String(i.title || '')));
+
+      if (!hasVideo) {
+        additions.push({
+          date: today,
+          type: 'revision',
+          title: `YouTube Video Review: ${topic?.name ?? subject} (${subject})`,
+          refId: topic?.id,
+          estimatedMinutes: 45,
+        });
+      }
+      if (!hasNotes) {
+        additions.push({
+          date: today,
+          type: 'revision',
+          title: `AI Notes + Quick Revision: ${topic?.name ?? subject}`,
+          refId: topic?.id,
+          estimatedMinutes: 35,
+        });
+      }
+      if (!hasPractice) {
+        additions.push({
+          date: today,
+          type: 'practice',
+          title: `Practice Questions: ${topic?.name ?? subject}`,
+          refId: topic?.id,
+          estimatedMinutes: Math.max(30, Math.min(45, topic?.estimatedStudyMinutes ?? 35)),
+        });
+      }
+    }
+
+    return additions.length ? [...items, ...additions] : items;
+  }
+
+  private detectSubjectFromItem(item: RawPlanItem, topics: Topic[]): string | null {
+    if (item.refId) {
+      const t = topics.find((x) => x.id === item.refId);
+      if (t?.chapter?.subject?.name) return t.chapter.subject.name;
+    }
+    const title = String(item.title || '');
+    const paren = title.match(/\(([^)]+)\)/)?.[1]?.trim();
+    if (paren) return paren;
+    const subjectGuess = topics.find((t) => title.toLowerCase().includes(String(t.chapter?.subject?.name || '').toLowerCase()));
+    return subjectGuess?.chapter?.subject?.name ?? null;
+  }
+
+  private reorderTodayItems(items: RawPlanItem[], topics: Topic[]): RawPlanItem[] {
+    const today = this.todayIst();
+    const todayItems = items.filter((i) => i.date === today);
+    const otherItems = items.filter((i) => i.date !== today);
+    if (!todayItems.length) return items;
+
+    const typePriority = (i: RawPlanItem): number => {
+      const t = String(i.title || '').toLowerCase();
+      if (t.includes('youtube') || t.includes('video')) return 0;
+      if (t.includes('notes') || t.includes('revision')) return 1;
+      if (i.type === 'practice' || t.includes('practice')) return 2;
+      return 3;
+    };
+
+    const sorted = [...todayItems].sort((a, b) => {
+      const sa = this.detectSubjectFromItem(a, topics) || 'zzzz';
+      const sb = this.detectSubjectFromItem(b, topics) || 'zzzz';
+      if (sa !== sb) return sa.localeCompare(sb);
+      return typePriority(a) - typePriority(b);
+    });
+
+    return [...sorted, ...otherItems];
   }
 
   private mapPlanItemType(type: string): PlanItemType {

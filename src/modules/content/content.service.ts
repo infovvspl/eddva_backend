@@ -1413,7 +1413,7 @@ export class ContentService {
         const existing = await this.aiStudyRepo.findOne({
             where: { studentId: student.id, topicId },
         });
-        if (existing) {
+        if (existing && !this.shouldRegenerateLesson(existing.lessonMarkdown)) {
             // Backfill practice questions if missing (e.g., sessions created before this feature)
             if (!existing.practiceQuestions || existing.practiceQuestions.length === 0) {
                 try {
@@ -1451,6 +1451,9 @@ export class ContentService {
                 completedAt: existing.completedAt ?? null,
                 isNew: false,
             };
+        }
+        if (existing && this.shouldRegenerateLesson(existing.lessonMarkdown)) {
+            this.logger.log(`Regenerating weak/incomplete AI lesson for session ${existing.id}, topic ${topicId}`);
         }
 
         const examTarget = student.examTarget?.toUpperCase() ?? 'JEE';
@@ -1611,20 +1614,34 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         const introMessage = lessonMarkdown.split('\n').find((l) => l.trim() && !l.startsWith('#'))
             ?? `Here is your AI-generated lesson on ${topicName}.`;
 
-        const session = this.aiStudyRepo.create({
-            tenantId,
-            studentId: student.id,
-            topicId,
-            lessonMarkdown,
-            keyConcepts,
-            formulas,
-            practiceQuestions,
-            commonMistakes,
-            aiSessionRef,
-            conversation: [{ role: 'ai', message: introMessage, timestamp: new Date().toISOString() }],
-        });
+        const session = existing
+            ? {
+                ...existing,
+                lessonMarkdown,
+                keyConcepts,
+                formulas,
+                practiceQuestions,
+                commonMistakes,
+                aiSessionRef,
+                conversation: [{ role: 'ai', message: introMessage, timestamp: new Date().toISOString() }],
+                isCompleted: false,
+                completedAt: null,
+                timeSpentSeconds: 0,
+              }
+            : this.aiStudyRepo.create({
+                tenantId,
+                studentId: student.id,
+                topicId,
+                lessonMarkdown,
+                keyConcepts,
+                formulas,
+                practiceQuestions,
+                commonMistakes,
+                aiSessionRef,
+                conversation: [{ role: 'ai', message: introMessage, timestamp: new Date().toISOString() }],
+              });
 
-        const saved = await this.aiStudyRepo.save(session);
+        const saved = await this.aiStudyRepo.save(session as any);
 
         return {
             id: saved.id,
@@ -1894,6 +1911,17 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             .replace(/\s+/g, ' ')
             .trim();
         return plain.slice(0, 1200);
+    }
+
+    private shouldRegenerateLesson(markdown: string | null | undefined): boolean {
+        const text = String(markdown || '');
+        if (!text.trim()) return true;
+        // Too short for a "complete" lesson.
+        if (text.length < 2400) return true;
+        // Missing key structural sections indicates truncated output.
+        const required = ['Core Concepts', 'Formulas', 'Derivation', 'Solved Examples'];
+        const missingCount = required.filter((k) => !new RegExp(k, 'i').test(text)).length;
+        return missingCount >= 2;
     }
 
     private extractFormulaCandidates(markdown: string): string[] {
