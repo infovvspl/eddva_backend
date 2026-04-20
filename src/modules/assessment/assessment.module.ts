@@ -6,6 +6,7 @@ import { AssessmentService } from './assessment.service';
 import { GradingService } from './grading.service';
 import { StudyPlanModule } from '../study-plan/study-plan.module';
 import { AiBridgeModule } from '../ai-bridge/ai-bridge.module';
+import { NotificationModule } from '../notification/notification.module';
 
 import {
   MockTest,
@@ -23,6 +24,7 @@ import { WeakTopic } from '../../database/entities/analytics.entity';
   imports: [
     StudyPlanModule,
     AiBridgeModule,
+    NotificationModule,
     TypeOrmModule.forFeature([
       MockTest,
       TestSession,

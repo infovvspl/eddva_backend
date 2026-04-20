@@ -38,7 +38,7 @@ export class TeacherAnalyticsController {
     @TenantId() tenantId: string,
     @Query() query: TeacherAnalyticsQueryDto,
   ) {
-    return this.service.getOverview(user.id, tenantId, query);
+    return this.service.getOverview(user, tenantId, query);
   }
 
   @Get('class-performance')
@@ -48,7 +48,7 @@ export class TeacherAnalyticsController {
     @TenantId() tenantId: string,
     @Query() query: ClassPerformanceQueryDto,
   ) {
-    return this.service.getClassPerformance(user.id, tenantId, query);
+    return this.service.getClassPerformance(user, tenantId, query);
   }
 
   @Get('topic-coverage')
@@ -58,7 +58,7 @@ export class TeacherAnalyticsController {
     @TenantId() tenantId: string,
     @Query() query: TeacherAnalyticsQueryDto,
   ) {
-    return this.service.getTopicCoverage(user.id, tenantId, query);
+    return this.service.getTopicCoverage(user, tenantId, query);
   }
 
   @Get('engagement-heatmap/:lectureId')
@@ -68,7 +68,7 @@ export class TeacherAnalyticsController {
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
   ) {
-    return this.service.getEngagementHeatmap(user.id, tenantId, lectureId);
+    return this.service.getEngagementHeatmap(user, tenantId, lectureId);
   }
 
   @Get('doubt-analytics')
@@ -78,7 +78,7 @@ export class TeacherAnalyticsController {
     @TenantId() tenantId: string,
     @Query() query: TeacherAnalyticsQueryDto,
   ) {
-    return this.service.getDoubtAnalytics(user.id, tenantId, query);
+    return this.service.getDoubtAnalytics(user, tenantId, query);
   }
 
   @Get('student/:studentId')
@@ -89,7 +89,7 @@ export class TeacherAnalyticsController {
     @TenantId() tenantId: string,
     @Query() query: TeacherAnalyticsQueryDto,
   ) {
-    return this.service.getStudentDeepDive(user.id, tenantId, studentId, query);
+    return this.service.getStudentDeepDive(user, tenantId, studentId, query);
   }
 
   @Get('batch-comparison')
@@ -99,7 +99,7 @@ export class TeacherAnalyticsController {
     @TenantId() tenantId: string,
     @Query() query: TeacherAnalyticsQueryDto,
   ) {
-    return this.service.getBatchComparison(user.id, tenantId, query);
+    return this.service.getBatchComparison(user, tenantId, query);
   }
 
   @Get('smart-insights')
@@ -109,7 +109,7 @@ export class TeacherAnalyticsController {
     @TenantId() tenantId: string,
     @Query() query: TeacherAnalyticsQueryDto,
   ) {
-    return this.service.getSmartInsights(user.id, tenantId, query.batchId);
+    return this.service.getSmartInsights(user, tenantId, query.batchId);
   }
 
   @Get('export')
@@ -120,7 +120,7 @@ export class TeacherAnalyticsController {
     @Query() query: ExportQueryDto,
     @Res() res: Response,
   ) {
-    const rows = await this.service.exportCsv(user.id, tenantId, query);
+    const rows = await this.service.exportCsv(user, tenantId, query);
     if (!rows.length) {
       return res.status(200).json([]);
     }

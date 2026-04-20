@@ -121,6 +121,11 @@ export class UploadController {
           throw new BadRequestException('Materials and lecture attachments must be PDF or image');
         }
         break;
+      case UploadType.DOUBT_RESPONSE_IMAGE:
+        if (!contentType.startsWith('image/')) {
+          throw new BadRequestException('Doubt response images must use an image content type');
+        }
+        break;
       case UploadType.SOURCE:
         if (contentType !== 'application/zip' && contentType !== 'application/x-zip-compressed') {
           throw new BadRequestException('Source files must be ZIP archives');
@@ -157,6 +162,8 @@ export class UploadController {
         return `tenants/${tenantId}/courses/${dto.courseId}/lectures/${dto.lectureId}/thumbnail/${fileName}`;
       case UploadType.LECTURE_ATTACHMENT:
         return `tenants/${tenantId}/courses/${dto.courseId}/lectures/${dto.lectureId}/attachments/${fileName}`;
+      case UploadType.DOUBT_RESPONSE_IMAGE:
+        return `tenants/${tenantId}/doubts/response-images/${fileName}`;
       default:
         throw new BadRequestException('Unsupported upload type');
     }

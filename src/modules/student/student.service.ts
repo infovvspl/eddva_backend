@@ -466,19 +466,20 @@ export class StudentService {
     if (!topic) throw new NotFoundException('Topic not found');
 
     const [lectures, topicProgress] = await Promise.all([
-      this.lectureRepo.find({
-        where: {
-          batchId,
-          topicId,
-          status: In([
+      this.lectureRepo
+        .createQueryBuilder('l')
+        .where('l.topicId = :topicId', { topicId })
+        .andWhere('(l.batchId = :batchId OR l.batchId IS NULL)', { batchId })
+        .andWhere('l.status IN (:...statuses)', {
+          statuses: [
             LectureStatus.PUBLISHED,
             LectureStatus.SCHEDULED,
             LectureStatus.LIVE,
             LectureStatus.ENDED,
-          ]),
-        },
-        order: { createdAt: 'ASC' },
-      }),
+          ],
+        })
+        .orderBy('l.createdAt', 'ASC')
+        .getMany(),
       this.topicProgressRepo.findOne({ where: { studentId: student.id, topicId } }),
     ]);
 

@@ -204,6 +204,54 @@ export class DoubtService {
     return this.serializeDoubt(doubt);
   }
 
+  async generateAiDraft(id: string, user: any, tenantId: string) {
+    const doubt = await this.getDoubtWithRelations(id);
+    await this.assertCanAccessDoubt(doubt, user, tenantId);
+
+    const promptText =
+      doubt.questionText?.trim() ||
+      doubt.ocrExtractedText?.trim() ||
+      doubt.questionImageUrl?.trim();
+
+    if (!promptText) {
+      throw new BadRequestException('No doubt content found for AI draft generation');
+    }
+
+    try {
+      const aiResult = (await this.aiBridgeService.resolveDoubt(
+        {
+          questionText: promptText,
+          topicId: doubt.topicId || undefined,
+          mode: ((doubt.explanationMode as string) || 'detailed') as 'short' | 'detailed',
+          studentContext: {
+            source: doubt.source,
+            sourceRefId: doubt.sourceRefId ?? undefined,
+            doubtId: doubt.id,
+            batchId: doubt.batchId ?? undefined,
+          },
+        },
+        doubt.tenantId || tenantId,
+      )) as {
+        explanation?: string;
+        answer?: string;
+        conceptLinks?: string[];
+        key_concepts?: string[];
+      };
+
+      const explanation = aiResult?.explanation ?? aiResult?.answer ?? '';
+      if (!String(explanation).trim()) {
+        throw new BadRequestException('AI returned an empty response for this doubt');
+      }
+
+      return {
+        explanation,
+        conceptLinks: aiResult?.conceptLinks ?? aiResult?.key_concepts ?? [],
+      };
+    } catch {
+      throw new BadRequestException('AI service is temporarily unavailable. Please try again later.');
+    }
+  }
+
   async markHelpful(id: string, dto: MarkDoubtHelpfulDto, userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
     const doubt = await this.getDoubtWithRelations(id);
@@ -295,6 +343,27 @@ export class DoubtService {
     return this.serializeDoubt(doubt);
   }
 
+  /** Runs AI bridge and mutates doubt in memory — caller must save. */
+  private async applyAiBridgeToDoubt(doubt: Doubt): Promise<void> {
+    const aiResult = (await this.aiBridgeService.resolveDoubt({
+      questionText: doubt.questionText || doubt.questionImageUrl || '',
+      topicId: doubt.topicId || undefined,
+      mode: ((doubt.explanationMode as string) || 'short') as 'short' | 'detailed',
+      studentContext: { source: doubt.source, sourceRefId: doubt.sourceRefId ?? undefined },
+    })) as {
+      explanation?: string;
+      answer?: string;
+      conceptLinks?: string[];
+      key_concepts?: string[];
+      similarQuestionIds?: string[];
+    };
+
+    doubt.aiExplanation = aiResult?.explanation ?? aiResult?.answer ?? null;
+    doubt.aiConceptLinks = aiResult?.conceptLinks ?? aiResult?.key_concepts ?? [];
+    doubt.aiSimilarQuestionIds = aiResult?.similarQuestionIds ?? [];
+    doubt.status = DoubtStatus.AI_RESOLVED;
+  }
+
   async requestAiResolution(id: string, userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
     const doubt = await this.getDoubtWithRelations(id);
@@ -310,20 +379,65 @@ export class DoubtService {
     }
 
     try {
-      const aiResult = (await this.aiBridgeService.resolveDoubt({
-        questionText: doubt.questionText || doubt.questionImageUrl || '',
-        topicId: doubt.topicId || undefined,
-        mode: ((doubt.explanationMode as string) || 'short') as 'short' | 'detailed',
-        studentContext: { source: doubt.source, sourceRefId: doubt.sourceRefId ?? undefined },
-      })) as any;
-
-      doubt.aiExplanation = aiResult?.explanation ?? aiResult?.answer ?? null;
-      doubt.aiConceptLinks = aiResult?.conceptLinks ?? aiResult?.key_concepts ?? [];
-      doubt.aiSimilarQuestionIds = aiResult?.similarQuestionIds ?? [];
-      doubt.status = DoubtStatus.AI_RESOLVED;
+      await this.applyAiBridgeToDoubt(doubt);
       await this.doubtRepo.save(doubt);
     } catch {
       throw new BadRequestException('AI service is temporarily unavailable. Please try again later.');
+    }
+
+    return this.serializeDoubt(doubt);
+  }
+
+  /**
+   * Teacher (or institute admin) runs full AI resolution for an escalated / open doubt
+   * so the student receives the same AI answer flow as on first submission.
+   */
+  async resolveEscalatedWithAiAsTeacher(id: string, userId: string, tenantId: string) {
+    const doubt = await this.getDoubtWithRelations(id);
+    const canHandle = await this.canTeacherHandleDoubt(doubt, userId, tenantId);
+    if (!canHandle) {
+      throw new ForbiddenException('You are not assigned to this doubt');
+    }
+
+    if (doubt.status === DoubtStatus.TEACHER_RESOLVED) {
+      throw new BadRequestException('This doubt is already resolved');
+    }
+    if (doubt.status === DoubtStatus.AI_RESOLVED) {
+      throw new BadRequestException(
+        'This doubt already has an AI answer — use “How accurate is the AI answer?” below, or ask the student to request a new explanation.',
+      );
+    }
+    if (doubt.status !== DoubtStatus.ESCALATED && doubt.status !== DoubtStatus.OPEN) {
+      throw new BadRequestException('AI resolution is only available for open or escalated doubts');
+    }
+
+    const teacher = await this.userRepo.findOne({ where: { id: userId, tenantId } });
+    if (!teacher) {
+      throw new NotFoundException('User not found');
+    }
+
+    try {
+      await this.applyAiBridgeToDoubt(doubt);
+      await this.doubtRepo.save(doubt);
+    } catch {
+      throw new BadRequestException('AI service is temporarily unavailable. Please try again later.');
+    }
+
+    const student = await this.studentRepo.findOne({
+      where: { id: doubt.studentId },
+      relations: ['user'],
+    });
+    const notifyTenantId = student?.user?.tenantId ?? doubt.tenantId;
+    if (student?.userId) {
+      await this.notificationService.send({
+        userId: student.userId,
+        tenantId: notifyTenantId,
+        title: `${teacher.fullName} shared an AI explanation for your doubt`,
+        body: (doubt.aiExplanation || 'Open the app to read the full answer.').slice(0, 120),
+        channels: ['push', 'in_app'],
+        refType: 'doubt_ai_answer',
+        refId: doubt.id,
+      });
     }
 
     return this.serializeDoubt(doubt);

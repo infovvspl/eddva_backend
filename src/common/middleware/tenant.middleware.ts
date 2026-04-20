@@ -52,7 +52,30 @@ export class TenantMiddleware implements NestMiddleware {
       }
     }
 
-    // ── 4. Fallback: platform tenant (B2C) ───────────────────────────────
+    // ── 4. JWT fallback — decode (no verify) to extract tenantId ─────────
+    // Covers dev on bare localhost where no subdomain header is sent.
+    // Safe: the JWT guard still verifies the token for protected routes.
+    if (!tenant) {
+      const authHeader = req.headers['authorization'] as string | undefined;
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        try {
+          const payloadB64 = token.split('.')[1];
+          if (payloadB64) {
+            const decoded = JSON.parse(
+              Buffer.from(payloadB64, 'base64url').toString('utf8'),
+            ) as { tenantId?: string };
+            if (decoded.tenantId) {
+              tenant = await this.tenantRepo.findOne({ where: { id: decoded.tenantId } });
+            }
+          }
+        } catch {
+          // malformed token — ignore, fall through to platform fallback
+        }
+      }
+    }
+
+    // ── 5. Fallback: platform tenant (B2C) ───────────────────────────────
     if (!tenant) {
       tenant = await this.tenantRepo.findOne({
         where: { subdomain: 'platform' },

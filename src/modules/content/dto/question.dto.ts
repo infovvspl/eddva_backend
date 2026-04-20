@@ -49,10 +49,10 @@ export class CreateOptionDto {
 }
 
 export class CreateQuestionDto {
-    @ApiProperty({ example: 'uuid-of-topic' })
+    @ApiPropertyOptional({ example: 'uuid-of-topic' })
+    @IsOptional()
     @IsUUID()
-    @IsNotEmpty()
-    topicId: string;
+    topicId?: string;
 
     @ApiProperty({ example: 'A Carnot engine operates between 500 K and 300 K. What is its efficiency?' })
     @IsString()

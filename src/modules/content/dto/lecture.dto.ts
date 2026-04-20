@@ -123,6 +123,11 @@ export class CreateLectureDto {
     @IsString()
     thumbnailUrl?: string;
 
+    @ApiPropertyOptional({ enum: ['en', 'hi'], default: 'en', description: 'Language the lecture is recorded in' })
+    @IsOptional()
+    @IsString()
+    lectureLanguage?: string;
+
     @ApiPropertyOptional({ description: 'Required if type=live', example: '2026-03-15T10:00:00Z' })
     @IsOptional()
     @IsDateString()

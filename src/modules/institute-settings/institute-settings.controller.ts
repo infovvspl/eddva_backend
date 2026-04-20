@@ -156,8 +156,12 @@ export class InstituteSettingsController {
 
   @Post('calendar')
   @ApiOperation({ summary: 'Create a calendar event' })
-  createCalendarEvent(@TenantId() tenantId: string, @Body() dto: CreateCalendarEventDto) {
-    return this.svc.createCalendarEvent(tenantId, dto);
+  createCalendarEvent(
+    @TenantId() tenantId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateCalendarEventDto,
+  ) {
+    return this.svc.createCalendarEvent(tenantId, dto, userId);
   }
 
   @Delete('calendar/:eventId')

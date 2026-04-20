@@ -128,6 +128,13 @@ export enum LectureStatus {
   DRAFT = 'draft',
 }
 
+export enum TranscriptStatus {
+  PENDING = 'pending',
+  PROCESSING = 'processing',
+  DONE = 'done',
+  FAILED = 'failed',
+}
+
 @Entity('lectures')
 export class Lecture extends Base {
   @Column({ name: 'tenant_id' })
@@ -190,8 +197,22 @@ export class Lecture extends Base {
   @Column({ name: 'ai_formulas', type: 'jsonb', default: [] })
   aiFormulas: string[];
 
+  // Language the teacher recorded in ('en' | 'hi'). Drives STT language selection.
+  @Column({ name: 'lecture_language', nullable: true, default: 'en' })
+  lectureLanguage: string;
+
   @Column({ name: 'transcript', type: 'text', nullable: true })
   transcript: string;
+
+  // Cached Hindi translation of the transcript (generated on-demand by students).
+  @Column({ name: 'transcript_hi', type: 'text', nullable: true })
+  transcriptHi: string;
+
+  @Column({ name: 'transcript_status', type: 'enum', enum: TranscriptStatus, default: TranscriptStatus.PENDING, nullable: true })
+  transcriptStatus: TranscriptStatus;
+
+  @Column({ name: 'transcript_language', nullable: true, default: 'en' })
+  transcriptLanguage: string;
 
   // ── Quiz checkpoints — full MCQ data stored in JSONB ─────────────────────
   @Column({ name: 'quiz_checkpoints', type: 'jsonb', default: [] })
