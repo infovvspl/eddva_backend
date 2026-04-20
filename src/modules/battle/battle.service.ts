@@ -198,6 +198,64 @@ export class BattleService {
     return this.formatRoom(battle, tenantId);
   }
 
+  // ─── Create private room for challenge flow (gateway) ─────────────────────
+
+  async createPrivateChallengeRoom(challengerStudentId: string, targetStudentId: string, tenantId: string) {
+    if (!challengerStudentId || !targetStudentId) {
+      throw new BadRequestException('Both challenger and target are required');
+    }
+    if (challengerStudentId === targetStudentId) {
+      throw new BadRequestException('Cannot challenge yourself');
+    }
+
+    const roomCode = this.generateRoomCode();
+    const qCount = 10;
+    const secs = 45;
+
+    const battle = await this.battleRepo.save(
+      this.battleRepo.create({
+        tenantId,
+        topicId: null,
+        roomCode,
+        mode: BattleMode.TOPIC_BATTLE,
+        status: BattleStatus.WAITING,
+        maxParticipants: 2,
+        totalRounds: qCount,
+        secondsPerRound: secs,
+      }),
+    );
+
+    const questions = await this.questionRepo
+      .createQueryBuilder('q')
+      .where('q.tenantId = :tenantId AND q.isActive = true', { tenantId })
+      .orderBy('RANDOM()')
+      .limit(qCount)
+      .getMany();
+
+    battle.questionIds = questions.map(q => q.id);
+    await this.battleRepo.save(battle);
+
+    const [challengerElo, targetElo] = await Promise.all([
+      this.getOrCreateElo(challengerStudentId, tenantId),
+      this.getOrCreateElo(targetStudentId, tenantId),
+    ]);
+
+    await this.participantRepo.save([
+      this.participantRepo.create({
+        battleId: battle.id,
+        studentId: challengerStudentId,
+        eloBefore: challengerElo.eloRating,
+      }),
+      this.participantRepo.create({
+        battleId: battle.id,
+        studentId: targetStudentId,
+        eloBefore: targetElo.eloRating,
+      }),
+    ]);
+
+    return this.formatRoom(battle, tenantId);
+  }
+
   // ─── Join Battle (HTTP) ───────────────────────────────────────────────────
 
   async joinBattleByCode(roomCode: string, userId: string, tenantId: string) {
@@ -511,6 +569,43 @@ export class BattleService {
       where: { battleId: battle.id },
       relations: ['student', 'student.user'],
     });
+  }
+
+  // ─── Lobby users (real profiles + elo) ────────────────────────────────────
+
+  async getLobbyUsersByStudentIds(studentIds: string[], tenantId: string) {
+    if (!studentIds.length) return [];
+
+    const rows = await this.dataSource
+      .getRepository(Student)
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.user', 'u')
+      .leftJoin(StudentElo, 'elo', 'elo.student_id = s.id')
+      .select([
+        's.id AS "studentId"',
+        'u.full_name AS "name"',
+        'u.profile_picture_url AS "avatarUrl"',
+        'COALESCE(elo.elo_rating, 1000) AS "eloRating"',
+        'COALESCE(elo.tier, :defaultTier) AS "tier"',
+      ])
+      .where('s.tenant_id = :tenantId', { tenantId })
+      .andWhere('s.id IN (:...studentIds)', { studentIds })
+      .setParameter('defaultTier', EloTier.IRON)
+      .getRawMany<{
+        studentId: string;
+        name: string | null;
+        avatarUrl: string | null;
+        eloRating: string | number;
+        tier: string;
+      }>();
+
+    return rows.map(r => ({
+      studentId: r.studentId,
+      name: r.name ?? 'Player',
+      avatarUrl: r.avatarUrl ?? null,
+      eloRating: Number(r.eloRating ?? 1000),
+      tier: (r.tier ?? EloTier.IRON).toLowerCase(),
+    }));
   }
 
   // ─── Get battle questions by roomCode (for gateway) ──────────────────────

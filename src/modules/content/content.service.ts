@@ -1454,7 +1454,7 @@ export class ContentService {
         const existing = await this.aiStudyRepo.findOne({
             where: { studentId: student.id, topicId },
         });
-        if (existing) {
+        if (existing && !this.shouldRegenerateLesson(existing.lessonMarkdown)) {
             // Backfill practice questions if missing (e.g., sessions created before this feature)
             if (!existing.practiceQuestions || existing.practiceQuestions.length === 0) {
                 try {
@@ -1492,6 +1492,9 @@ export class ContentService {
                 completedAt: existing.completedAt ?? null,
                 isNew: false,
             };
+        }
+        if (existing && this.shouldRegenerateLesson(existing.lessonMarkdown)) {
+            this.logger.log(`Regenerating weak/incomplete AI lesson for session ${existing.id}, topic ${topicId}`);
         }
 
         const examTarget = student.examTarget?.toUpperCase() ?? 'JEE';
@@ -1619,10 +1622,37 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             aiSessionRef = this.extractAiSessionRef(lessonResponse);
             keyConcepts = this.extractBulletSection(lessonMarkdown, 'Core Concepts');
             formulas = this.extractBulletSection(lessonMarkdown, 'Key Formulas');
+            if (!formulas.length) {
+                formulas = this.extractFormulaCandidates(lessonMarkdown);
+            }
             commonMistakes = this.extractBulletSection(lessonMarkdown, 'Common Mistakes Students Make');
         } catch (err) {
             this.logger.warn(`AI lesson generation failed for topic ${topicId}: ${err.message}`);
-            lessonMarkdown = 'AI lesson generation is temporarily unavailable. Please try again or ask your teacher.';
+            // Preserve existing real content if available — never overwrite good data with an error string
+            if (existing?.lessonMarkdown && !this.shouldRegenerateLesson(existing.lessonMarkdown)) {
+                lessonMarkdown = existing.lessonMarkdown;
+                keyConcepts = existing.keyConcepts ?? [];
+                formulas = existing.formulas ?? [];
+                commonMistakes = existing.commonMistakes ?? [];
+                aiSessionRef = existing.aiSessionRef ?? null;
+            } else {
+                // No real content exists — return a transient error without saving to DB
+                return {
+                    id: existing?.id ?? null,
+                    topicId,
+                    topicName: topic.name,
+                    lessonMarkdown: 'AI lesson generation is temporarily unavailable. Please try again in a moment.',
+                    keyConcepts: [],
+                    formulas: [],
+                    practiceQuestions: [],
+                    commonMistakes: [],
+                    conversation: [],
+                    isCompleted: false,
+                    timeSpentSeconds: 0,
+                    completedAt: null,
+                    isNew: false,
+                };
+            }
         }
 
         // Second call: practice questions via dedicated question-generation endpoint
@@ -1649,20 +1679,34 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         const introMessage = lessonMarkdown.split('\n').find((l) => l.trim() && !l.startsWith('#'))
             ?? `Here is your AI-generated lesson on ${topicName}.`;
 
-        const session = this.aiStudyRepo.create({
-            tenantId,
-            studentId: student.id,
-            topicId,
-            lessonMarkdown,
-            keyConcepts,
-            formulas,
-            practiceQuestions,
-            commonMistakes,
-            aiSessionRef,
-            conversation: [{ role: 'ai', message: introMessage, timestamp: new Date().toISOString() }],
-        });
+        const session = existing
+            ? {
+                ...existing,
+                lessonMarkdown,
+                keyConcepts,
+                formulas,
+                practiceQuestions,
+                commonMistakes,
+                aiSessionRef,
+                conversation: [{ role: 'ai', message: introMessage, timestamp: new Date().toISOString() }],
+                isCompleted: false,
+                completedAt: null,
+                timeSpentSeconds: 0,
+              }
+            : this.aiStudyRepo.create({
+                tenantId,
+                studentId: student.id,
+                topicId,
+                lessonMarkdown,
+                keyConcepts,
+                formulas,
+                practiceQuestions,
+                commonMistakes,
+                aiSessionRef,
+                conversation: [{ role: 'ai', message: introMessage, timestamp: new Date().toISOString() }],
+              });
 
-        const saved = await this.aiStudyRepo.save(session);
+        const saved = await this.aiStudyRepo.save(session as any);
 
         return {
             id: saved.id,
@@ -1698,8 +1742,12 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
 
         let aiResponse = '';
         try {
+            const lessonContext = this.buildLessonContextForPrompt(session.lessonMarkdown);
+            const contextualQuestion = lessonContext
+                ? `Topic: ${topicId}\nUse the existing lesson context below to answer precisely.\n${lessonContext}\n\nStudent question: ${dto.question}`
+                : dto.question;
             const response = await this.aiBridgeService.continueTutorSession(
-                { sessionId: session.aiSessionRef ?? sessionId, studentMessage: dto.question },
+                { sessionId: session.aiSessionRef ?? sessionId, studentMessage: contextualQuestion },
                 tenantId,
             ) as any;
             aiResponse = this.extractAiText(response);
@@ -1807,6 +1855,15 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         });
         if (!session) return null;
 
+        // If the stored lesson is weak/broken, regenerate it now
+        if (tenantId && this.shouldRegenerateLesson(session.lessonMarkdown)) {
+            try {
+                return await this.startAiStudy(topicId, userId, tenantId);
+            } catch (err) {
+                this.logger.warn(`Auto-regeneration failed for session ${session.id}: ${err.message}`);
+            }
+        }
+
         // Backfill practice questions if missing
         if ((!session.practiceQuestions || session.practiceQuestions.length === 0) && tenantId) {
             try {
@@ -1833,6 +1890,18 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             }
         }
 
+        // Backfill formulas for older sessions where extraction failed earlier
+        if ((!session.formulas || session.formulas.length === 0) && session.lessonMarkdown) {
+            const extracted =
+                this.extractBulletSection(session.lessonMarkdown, 'Key Formulas').length
+                    ? this.extractBulletSection(session.lessonMarkdown, 'Key Formulas')
+                    : this.extractFormulaCandidates(session.lessonMarkdown);
+            if (extracted.length) {
+                session.formulas = extracted;
+                await this.aiStudyRepo.save(session);
+            }
+        }
+
         return {
             id: session.id,
             topicId,
@@ -1853,12 +1922,44 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     private extractAiText(response: any): string {
         if (!response) return '';
         if (typeof response === 'string') return response;
-        return response.response
+        const candidate =
+            response.response
             ?? response.message
             ?? response.data?.response
             ?? response.data?.message
             ?? response.text
             ?? '';
+
+        // AI can return nested JSON or JSON-like strings; always unwrap to readable text.
+        const unwrap = (v: any): string => {
+            if (!v) return '';
+            if (typeof v === 'string') {
+                const trimmed = v.trim();
+                if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+                    try {
+                        return unwrap(JSON.parse(trimmed));
+                    } catch {
+                        return v;
+                    }
+                }
+                return v;
+            }
+            if (typeof v === 'object') {
+                if (typeof v.response === 'string') return v.response;
+                if (typeof v.answer === 'string') return v.answer;
+                if (typeof v.message === 'string') return v.message;
+                if (Array.isArray(v.hints) && v.hints.length) {
+                    const lead = typeof v.response === 'string' ? v.response : '';
+                    const hints = v.hints.map((h: any) => `- ${String(h)}`).join('\n');
+                    const concept = v.concept_check ? `\nConcept check: ${String(v.concept_check)}` : '';
+                    return `${lead}${lead ? '\n\n' : ''}Hints:\n${hints}${concept}`.trim();
+                }
+                return JSON.stringify(v);
+            }
+            return String(v);
+        };
+
+        return unwrap(candidate);
     }
 
     private extractAiSessionRef(response: any): string | null {
@@ -1867,13 +1968,52 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     }
 
     private extractBulletSection(markdown: string, header: string): string[] {
-        const regex = new RegExp(`##\\s+${header}([^#]*)`, 'i');
+        const regex = new RegExp(`#{2,4}\\s+[^\\n]*${header}[^\\n]*([^#]*)`, 'i');
         const match = markdown.match(regex);
         if (!match) return [];
         return match[1]
             .split('\n')
             .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
             .filter((l) => l.length > 3 && !l.startsWith('['));
+    }
+
+    private buildLessonContextForPrompt(markdown: string | null | undefined): string {
+        if (!markdown) return '';
+        const plain = markdown
+            .replace(/```[\s\S]*?```/g, ' ')
+            .replace(/[#>*_`~-]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        return plain.slice(0, 1200);
+    }
+
+    private shouldRegenerateLesson(markdown: string | null | undefined): boolean {
+        const text = String(markdown || '');
+        if (!text.trim()) return true;
+        // Too short for a "complete" lesson.
+        if (text.length < 4500) return true;
+        // Missing key structural sections indicates truncated output.
+        const required = ['Core Concepts', 'Formulas', 'Derivation', 'Solved Examples', 'Exam Strategy'];
+        const missingCount = required.filter((k) => !new RegExp(k, 'i').test(text)).length;
+        if (missingCount >= 1) return true;
+        // Truncated-looking formulas/derivations (e.g. "$U =" with no RHS).
+        if (/\$[^$\n]{0,25}=\s*(?:\n|$)/m.test(text)) return true;
+        if (/Derivation[\s\S]{0,120}:\s*(?:\n|$)/i.test(text)) return true;
+        if (/[=:]\s*$/.test(text.trim())) return true;
+        return false;
+    }
+
+    private extractFormulaCandidates(markdown: string): string[] {
+        const lines = String(markdown || '')
+            .split('\n')
+            .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
+            .filter(Boolean);
+        const candidates = lines.filter((l) =>
+            /[=∑√Δπ]/.test(l) ||
+            /\b(sin|cos|tan|log|ln|velocity|acceleration|force|energy|mole|concentration|probability)\b/i.test(l),
+        );
+        const unique = Array.from(new Set(candidates.map((c) => c.replace(/\s+/g, ' ').trim())));
+        return unique.slice(0, 10);
     }
 
 

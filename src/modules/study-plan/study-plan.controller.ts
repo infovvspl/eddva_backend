@@ -40,6 +40,13 @@ export class StudyPlanController {
     return this.studyPlanService.generatePlan(user.id, tenantId, true);
   }
 
+  @Post('clear')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Remove current student study plan and items' })
+  clear(@CurrentUser() user: any, @TenantId() tenantId: string) {
+    return this.studyPlanService.clearCurrentPlan(user.id, tenantId);
+  }
+
   @Get('today')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: "Get today's study plan items in IST" })
