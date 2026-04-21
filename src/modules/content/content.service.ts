@@ -2213,6 +2213,12 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         };
     }
 
+    async getTopicResourceById(resourceId: string, tenantId: string): Promise<TopicResource> {
+        const resource = await this.topicResourceRepo.findOne({ where: { id: resourceId, tenantId } });
+        if (!resource) throw new NotFoundException(`Resource ${resourceId} not found`);
+        return resource;
+    }
+
     async generateTopicAiContent(
         topicId: string,
         dto: { contentType: string; difficulty: string; length: string; extraContext?: string },

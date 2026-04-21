@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Readable } from 'stream';
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
   S3Client,
@@ -93,6 +94,27 @@ export class S3Service implements OnModuleInit {
     }
 
     return this.toPublicUrl(key);
+  }
+
+  /** Generate a presigned GET URL so private S3 objects can be downloaded by the browser. */
+  async presignDownload(key: string, filename?: string): Promise<string> {
+    const disposition = filename
+      ? `attachment; filename="${filename.replace(/"/g, '')}"`
+      : 'attachment';
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ResponseContentDisposition: disposition,
+    });
+    return getSignedUrl(this.client, command, { expiresIn: 300 });
+  }
+
+  /** Extract the S3 object key from a public URL previously returned by toPublicUrl(). */
+  keyFromUrl(publicUrl: string): string {
+    const base = this.publicUrl
+      ? this.publicUrl.replace(/\/$/, '')
+      : `https://${this.bucket}.s3.${this.config.get<string>('storage.s3.region')}.amazonaws.com`;
+    return publicUrl.replace(`${base}/`, '');
   }
 
   async delete(key: string): Promise<void> {
