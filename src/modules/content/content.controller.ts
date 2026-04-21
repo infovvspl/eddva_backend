@@ -786,6 +786,33 @@ export class ContentController {
         return this.contentService.deleteTopicResource(resourceId, tenantId);
     }
 
+    @Post('topics/:topicId/generate-ai-content')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Generate AI content (DPP, notes, PYQ, etc.) for a topic' })
+    @ApiParam({ name: 'topicId', type: 'string' })
+    generateTopicAiContent(
+        @Param('topicId', ParseUUIDPipe) topicId: string,
+        @Body() dto: { contentType: string; difficulty: string; length: string; extraContext?: string },
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.generateTopicAiContent(topicId, dto, tenantId);
+    }
+
+    @Post('topics/:topicId/save-ai-resource')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Save AI-generated content as a topic resource' })
+    @ApiParam({ name: 'topicId', type: 'string' })
+    saveAiResource(
+        @Param('topicId', ParseUUIDPipe) topicId: string,
+        @Body() dto: { title: string; content: string; resourceType?: string },
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.saveTopicAiResource(topicId, dto, user.id, tenantId);
+    }
+
     // ─── BATCH THUMBNAIL ──────────────────────────────────────────────────────
 
     // ─── BATCH THUMBNAIL (S3 pre-signed flow) ────────────────────────────────
