@@ -110,6 +110,29 @@ export class S3Service implements OnModuleInit {
     return getSignedUrl(this.client, command, { expiresIn: 300 });
   }
 
+  /** Presigned GET URL with configurable TTL (e.g. study material full PDF download). */
+  async presignGet(key: string, expiresIn = 900): Promise<string> {
+    const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
+    return getSignedUrl(this.client, command, { expiresIn });
+  }
+
+  /** Fetch object bytes from S3 (server-side PDF processing, etc.). */
+  async getBuffer(key: string): Promise<Buffer> {
+    const out = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    const body = out.Body;
+    if (!body) {
+      throw new Error(`S3 GetObject returned empty body for key: ${key}`);
+    }
+    const stream = body as NodeReadable;
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+  }
+
   /** Extract the S3 object key from a public URL previously returned by toPublicUrl(). */
   keyFromUrl(publicUrl: string): string {
     const base = this.publicUrl

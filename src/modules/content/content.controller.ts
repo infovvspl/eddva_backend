@@ -493,7 +493,7 @@ export class ContentController {
         @CurrentUser() user: any,
         @TenantId() tenantId: string,
     ) {
-        return this.contentService.getProgress(id, user.id, user.role, tenantId, query.studentId);
+        return this.contentService.getProgress(id, user, tenantId, query.studentId);
     }
 
     @Get('lectures/:id/stats')

@@ -854,6 +854,22 @@ export class ContentService {
         }
     }
 
+    /**
+     * Request `tenantId` (from Host / JWT) may not match `lecture.tenant_id` for students
+     * (e.g. LAN IP → platform tenant vs institute lecture). Students: load by id only; others: tenant-scoped.
+     */
+    private async findLectureForRole(
+        id: string,
+        tenantId: string,
+        user: { id?: string; role?: UserRole } | undefined,
+        relations?: string[],
+    ): Promise<Lecture | null> {
+        if (user?.role === UserRole.STUDENT) {
+            return this.lectureRepo.findOne({ where: { id }, relations });
+        }
+        return this.lectureRepo.findOne({ where: { id, tenantId }, relations });
+    }
+
     async getLectures(
         query: LectureQueryDto,
         userId: string,
@@ -1015,10 +1031,7 @@ export class ContentService {
     }
 
     async getLectureById(id: string, tenantId: string, user?: any): Promise<Lecture> {
-        const lecture = await this.lectureRepo.findOne({
-            where: { id, tenantId },
-            relations: ['topic', 'batch'],
-        });
+        const lecture = await this.findLectureForRole(id, tenantId, user, ['topic', 'batch']);
         if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
 
         if (user?.role === UserRole.STUDENT) {
@@ -1028,7 +1041,7 @@ export class ContentService {
         // For students, enforce sequential unlock: check if previous lecture is completed
         if (user?.role === UserRole.STUDENT && lecture.topicId) {
             const allLectures = await this.lectureRepo.find({
-                where: { tenantId, topicId: lecture.topicId },
+                where: { tenantId: lecture.tenantId, topicId: lecture.topicId },
                 order: { createdAt: 'ASC' },
             });
             const idx = allLectures.findIndex((l) => l.id === id);
@@ -1135,7 +1148,7 @@ export class ContentService {
     ): Promise<any> {
         this.logger.log(`Upserting progress for lecture ${lectureId}, user ${userId}`);
 
-        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
+        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId } });
         if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
 
         const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
@@ -1153,7 +1166,7 @@ export class ContentService {
             progress = this.progressRepo.create({
                 lectureId,
                 studentId: student.id,
-                tenantId,
+                tenantId: lecture.tenantId,
             });
         }
 
@@ -1174,7 +1187,7 @@ export class ContentService {
                 topicProg = this.topicProgressRepo.create({
                     studentId: student.id,
                     topicId: lecture.topicId,
-                    tenantId,
+                    tenantId: lecture.tenantId,
                     status: TopicStatus.IN_PROGRESS,
                     unlockedAt: new Date(),
                 });
@@ -1196,7 +1209,7 @@ export class ContentService {
 
             // Auto-complete the plan item for this lecture (if any, pending/in-progress)
             const plan = await this.studyPlanRepo.findOne({
-                where: { studentId: student.id, tenantId },
+                where: { studentId: student.id, tenantId: lecture.tenantId },
                 order: { createdAt: 'DESC' },
             });
             if (plan) {
@@ -1213,7 +1226,7 @@ export class ContentService {
 
             // Auto-complete topic when all its lectures have been watched (90%+)
             const topicLectures = await this.lectureRepo.find({
-                where: { topicId: lecture.topicId, tenantId },
+                where: { topicId: lecture.topicId, tenantId: lecture.tenantId },
                 select: ['id'],
             });
             if (topicLectures.length > 0) {
@@ -1238,7 +1251,7 @@ export class ContentService {
 
             // Find quiz (mock test) linked to this topic so the frontend knows it's available
             const quiz = await this.mockTestRepo.findOne({
-                where: { topicId: lecture.topicId, tenantId },
+                where: { topicId: lecture.topicId, tenantId: lecture.tenantId },
                 select: ['id', 'topicId', 'questionIds', 'durationMinutes'],
             });
 
@@ -1264,29 +1277,28 @@ export class ContentService {
 
     async getProgress(
         lectureId: string,
-        userId: string,
-        userRole: UserRole,
+        user: { id: string; role: UserRole },
         tenantId: string,
         studentIdOverride?: string,
     ): Promise<LectureProgress | null> {
-        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
+        const lecture = await this.findLectureForRole(lectureId, tenantId, user);
         if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
 
         let studentId: string;
 
         const isAdmin =
-            userRole === UserRole.INSTITUTE_ADMIN ||
-            userRole === UserRole.SUPER_ADMIN ||
-            userRole === UserRole.TEACHER;
+            user.role === UserRole.INSTITUTE_ADMIN ||
+            user.role === UserRole.SUPER_ADMIN ||
+            user.role === UserRole.TEACHER;
 
         if (isAdmin && studentIdOverride) {
             // Admin viewing a specific student
             studentId = studentIdOverride;
         } else {
-            const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
+            const student = await this.dataSource.getRepository(Student).findOne({ where: { userId: user.id } });
             if (!student) throw new NotFoundException('Student profile not found');
-            if (userRole === UserRole.STUDENT) {
-                await this.assertStudentEnrolledInBatch(userId, lecture.batchId);
+            if (user.role === UserRole.STUDENT) {
+                await this.assertStudentEnrolledInBatch(user.id, lecture.batchId);
             }
             studentId = student.id;
         }
@@ -1346,7 +1358,7 @@ export class ContentService {
     }
 
     async getQuizCheckpoints(lectureId: string, tenantId: string, user?: { id: string; role: UserRole }) {
-        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
+        const lecture = await this.findLectureForRole(lectureId, tenantId, user);
         if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
         if (user?.role === UserRole.STUDENT) {
             await this.assertStudentEnrolledInBatch(user.id, lecture.batchId);
@@ -1360,7 +1372,7 @@ export class ContentService {
         userId: string,
         tenantId: string,
     ) {
-        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
+        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId } });
         if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
 
         const question = (lecture.quizCheckpoints ?? []).find((q) => q.id === dto.questionId);
@@ -1375,7 +1387,7 @@ export class ContentService {
 
         let progress = await this.progressRepo.findOne({ where: { lectureId, studentId: student.id } });
         if (!progress) {
-            progress = this.progressRepo.create({ lectureId, studentId: student.id, tenantId });
+            progress = this.progressRepo.create({ lectureId, studentId: student.id, tenantId: lecture.tenantId });
         }
 
         const existing = (progress.quizResponses ?? []).findIndex((r) => r.questionId === dto.questionId);
