@@ -42,7 +42,7 @@ export class BattleGateway
   // Maps socketId → { studentId, roomCode }
   private connectedPlayers = new Map<string, { studentId: string; roomCode: string }>();
   // Lobby presence maps
-  private onlineUsers = new Map<string, { socketId: string; studentId: string; tenantId: string }>();
+  private onlineUsers = new Map<string, { socketId: string; studentId: string; tenantId: string; examTarget: string | null }>();
   private socketToStudent = new Map<string, string>();
   private pendingChallenges = new Map<
     string,
@@ -109,10 +109,13 @@ export class BattleGateway
       return;
     }
 
+    const examTarget = await this.battleService.getStudentExamTarget(data.studentId);
+
     this.onlineUsers.set(data.studentId, {
       socketId: client.id,
       studentId: data.studentId,
       tenantId: resolvedTenantId,
+      examTarget,
     });
     this.socketToStudent.set(client.id, data.studentId);
     void this.broadcastOnlineUsers(resolvedTenantId);
@@ -123,9 +126,10 @@ export class BattleGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { targetStudentId: string; fromStudentId: string; tenantId: string },
   ) {
-    const { targetStudentId, fromStudentId } = data ?? {};
+    const { targetStudentId, fromStudentId, tenantId: payloadTenantId } = data ?? {};
+    // Prefer onlineUsers entry; fall back to tenantId in payload (survives hot-reload)
     const senderOnline = fromStudentId ? this.onlineUsers.get(fromStudentId) : undefined;
-    const tenantId = senderOnline?.tenantId;
+    const tenantId = senderOnline?.tenantId ?? payloadTenantId;
 
     if (!targetStudentId || !fromStudentId || !tenantId) {
       client.emit('battle:challenge_error', { message: 'Invalid challenge payload' });
@@ -142,10 +146,6 @@ export class BattleGateway
       client.emit('battle:challenge_error', { message: 'Target student is not online' });
       return;
     }
-    if (target.tenantId !== tenantId) {
-      client.emit('battle:challenge_error', { message: 'Target student is in a different tenant lobby' });
-      return;
-    }
 
     const challengeId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const timeout = setTimeout(() => {
@@ -156,9 +156,9 @@ export class BattleGateway
         challengeId,
         targetStudentId,
         fallback: 'bot',
-        message: 'No response in 10 seconds. Starting bot battle.',
+        message: 'No response in 30 seconds. Starting bot battle.',
       });
-    }, 10_000);
+    }, 30_000);
 
     this.pendingChallenges.set(challengeId, {
       challengeId,
@@ -171,7 +171,7 @@ export class BattleGateway
     this.server.to(target.socketId).emit('battle:incoming_request', {
       challengeId,
       fromStudentId,
-      expiresInSeconds: 10,
+      expiresInSeconds: 30,
     });
 
     client.emit('battle:challenge_sent', { challengeId, targetStudentId });
@@ -216,13 +216,14 @@ export class BattleGateway
 
       // Put both clients in the private socket room and start immediately.
       client.join(room.roomCode);
-      this.server.sockets.sockets.get(sender.socketId)?.join(room.roomCode);
+      (this.server.sockets as any).get(sender.socketId)?.join(room.roomCode);
 
       this.connectedPlayers.set(client.id, { studentId: pending.toStudentId, roomCode: room.roomCode });
       this.connectedPlayers.set(sender.socketId, { studentId: pending.fromStudentId, roomCode: room.roomCode });
 
       await this.battleService.startBattle(room.battleId);
       const questions = await this.battleService.getBattleQuestions(room.battleId);
+      const challengeParticipants = await this.battleService.getRoomParticipantsFormatted(room.roomCode);
 
       this.server.to(room.roomCode).emit('battle:start', {
         battle: {
@@ -232,6 +233,7 @@ export class BattleGateway
           secondsPerRound: room.secondsPerRound ?? 45,
         },
         room,
+        participants: challengeParticipants,
         firstQuestion: questions[0],
         totalRounds: room.totalRounds ?? 10,
         timePerRound: room.secondsPerRound ?? 45,
@@ -266,17 +268,35 @@ export class BattleGateway
       const tenantId = this.onlineUsers.get(studentId)?.tenantId;
       if (tenantId) await this.broadcastOnlineUsers(tenantId);
 
-      // Notify all in room about new participant
-      const participants = await this.battleService.getRoomParticipants(roomCode);
+      // If battle is already ACTIVE (late-joiner / reconnect), send start only to this socket
+      if (battle.status === 'active') {
+        const questions = await this.battleService.getBattleQuestions(battle.id);
+        const reconnectParticipants = await this.battleService.getRoomParticipantsFormatted(roomCode);
+        client.emit('battle:start', {
+          battle,
+          participants: reconnectParticipants,
+          firstQuestion: questions[0],
+          totalRounds: battle.totalRounds,
+          timePerRound: battle.secondsPerRound,
+        });
+        return;
+      }
+
+      // Notify all in room about new participant (formatted with name + avatarUrl)
+      const participants = await this.battleService.getRoomParticipantsFormatted(roomCode);
       this.server.to(roomCode).emit('battle:player_joined', { participants });
 
-      // Start battle when room is full
+      // Start battle only when room is full AND battle is still waiting
       if (participants.length >= battle.maxParticipants) {
-        // Mark battle as ACTIVE in the database so REST polling detects it
-        await this.battleService.startBattle(battle.id);
         const questions = await this.battleService.getBattleQuestions(battle.id);
+        if (!questions.length) {
+          client.emit('battle:error', { message: 'Questions not ready yet. Please try again in a moment.' });
+          return;
+        }
+        await this.battleService.startBattle(battle.id);
         this.server.to(roomCode).emit('battle:start', {
           battle,
+          participants,
           firstQuestion: questions[0],
           totalRounds: battle.totalRounds,
           timePerRound: battle.secondsPerRound,
@@ -300,7 +320,7 @@ export class BattleGateway
     }
     const inBattleStudentIds = new Set(Array.from(this.connectedPlayers.values()).map(v => v.studentId));
 
-    const users = profiles.map(p => ({
+    const allUsers = profiles.map(p => ({
       studentId: p.studentId,
       socketId: this.onlineUsers.get(p.studentId)?.socketId ?? '',
       name: p.name,
@@ -308,6 +328,7 @@ export class BattleGateway
       xpPoints: p.xpPoints ?? 0,
       eloRating: p.eloRating,
       tier: p.tier,
+      examTarget: this.onlineUsers.get(p.studentId)?.examTarget ?? null,
       status: inBattleStudentIds.has(p.studentId)
         ? 'in_battle'
         : waitingStudentIds.has(p.studentId)
@@ -315,8 +336,19 @@ export class BattleGateway
           : 'online',
     }));
 
+    // Each student only sees peers preparing for the same exam (JEE / NEET / both).
+    // "both" is treated as compatible with either JEE or NEET.
+    // If examTarget is unknown, fall back to showing all tenant users.
     for (const u of tenantUsers) {
-      this.server.to(u.socketId).emit('lobby:online_users', { users });
+      const myExam = u.examTarget;
+      const visibleUsers = myExam
+        ? allUsers.filter(usr => {
+            if (!usr.examTarget) return true; // unknown → always visible
+            if (myExam === 'both' || usr.examTarget === 'both') return true;
+            return usr.examTarget === myExam;
+          })
+        : allUsers;
+      this.server.to(u.socketId).emit('lobby:online_users', { users: visibleUsers });
     }
   }
 

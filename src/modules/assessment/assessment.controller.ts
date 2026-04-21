@@ -12,6 +12,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -54,6 +55,7 @@ export class AssessmentController {
   }
 
   @Get('mock-tests/:id')
+  @SkipThrottle()
   @ApiOperation({ summary: 'Get a mock test by id' })
   @ApiParam({ name: 'id', type: 'string' })
   getMockTestById(
@@ -109,6 +111,7 @@ export class AssessmentController {
   }
 
   @Post('sessions/start')
+  @SkipThrottle()
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Start a test session' })
   startSession(
@@ -120,6 +123,7 @@ export class AssessmentController {
   }
 
   @Post('sessions/:id/answer')
+  @SkipThrottle()
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Save or update an answer attempt' })
   answerQuestion(
@@ -132,6 +136,7 @@ export class AssessmentController {
   }
 
   @Post('sessions/:id/submit')
+  @SkipThrottle()
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Submit a test session' })
   submitSession(
@@ -143,6 +148,7 @@ export class AssessmentController {
   }
 
   @Get('sessions/:id/result')
+  @SkipThrottle()
   @ApiOperation({ summary: 'Get session result and analysis' })
   getSessionResult(
     @Param('id', ParseUUIDPipe) id: string,
@@ -153,6 +159,7 @@ export class AssessmentController {
   }
 
   @Get('sessions/:id')
+  @SkipThrottle()
   @ApiOperation({ summary: 'Get a session by id' })
   getSessionById(
     @Param('id', ParseUUIDPipe) id: string,
@@ -174,6 +181,7 @@ export class AssessmentController {
   }
 
   @Get('sessions')
+  @SkipThrottle()
   @ApiOperation({ summary: 'List sessions' })
   getSessions(
     @Query() query: SessionListQueryDto,

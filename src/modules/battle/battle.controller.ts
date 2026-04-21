@@ -8,6 +8,7 @@ import { BattleMode } from '../../database/entities/battle.entity';
 
 class CreateBattleDto {
   @IsOptional() @IsString() topicId?: string;
+  @IsOptional() @IsString() topicName?: string;
   @IsOptional() @IsEnum(BattleMode) mode?: BattleMode;
 }
 
@@ -29,7 +30,7 @@ export class BattleController {
     @TenantId() tenantId: string,
     @Body() dto: CreateBattleDto,
   ) {
-    return this.battleService.createBattleRoom(userId, tenantId, dto.mode, dto.topicId);
+    return this.battleService.createBattleRoom(userId, tenantId, dto.mode, dto.topicId, dto.topicName);
   }
 
   @Post('join')
