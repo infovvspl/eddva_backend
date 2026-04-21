@@ -45,6 +45,8 @@ type MockTestBatchSchema = { batchId: boolean };
 export class BatchService {
   private mockTestBatchSchemaPromise: Promise<MockTestBatchSchema> | null = null;
   private readonly logger = new Logger(BatchService.name);
+  private static readonly presetExamTargets = new Set(['jee', 'neet', 'both']);
+  private static readonly presetClasses = new Set(['9', '10', '11', '12', 'dropper']);
 
   constructor(
     @InjectRepository(Batch)
@@ -84,6 +86,26 @@ export class BatchService {
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
+  private normalizeBatchExamTarget(value: string) {
+    const cleaned = value.trim().replace(/\s+/g, ' ');
+    if (!cleaned) {
+      throw new BadRequestException('Exam target is required.');
+    }
+
+    const lowered = cleaned.toLowerCase();
+    return BatchService.presetExamTargets.has(lowered) ? lowered : cleaned;
+  }
+
+  private normalizeBatchClass(value: string) {
+    const cleaned = value.trim().replace(/\s+/g, ' ');
+    if (!cleaned) {
+      throw new BadRequestException('Class level is required.');
+    }
+
+    const lowered = cleaned.toLowerCase();
+    return BatchService.presetClasses.has(lowered) ? lowered : cleaned;
+  }
+
   async createBatch(dto: CreateBatchDto, tenantId: string) {
     if (dto.teacherId) {
       await this.validateTeacher(dto.teacherId, tenantId);
@@ -98,8 +120,8 @@ export class BatchService {
       tenantId,
       name: dto.name,
       description: dto.description ?? null,
-      examTarget: dto.examTarget,
-      class: dto.class,
+      examTarget: this.normalizeBatchExamTarget(dto.examTarget),
+      class: this.normalizeBatchClass(dto.class),
       teacherId: dto.teacherId ?? null,
       isPaid,
       feeAmount: isPaid ? dto.feeAmount : null,
@@ -120,7 +142,11 @@ export class BatchService {
       .andWhere('batch.deletedAt IS NULL');
 
     if (query.status) qb.andWhere('batch.status = :status', { status: query.status });
-    if (query.examTarget) qb.andWhere('batch.examTarget = :examTarget', { examTarget: query.examTarget });
+    if (query.examTarget) {
+      qb.andWhere('batch.examTarget = :examTarget', {
+        examTarget: this.normalizeBatchExamTarget(query.examTarget),
+      });
+    }
 
     if (user.role === UserRole.TEACHER) {
       // Include batches assigned directly OR via subject-teacher assignment
@@ -303,8 +329,17 @@ export class BatchService {
       batch.feeAmount = null;
     }
 
+    const nextExamTarget = dto.examTarget != null
+      ? this.normalizeBatchExamTarget(dto.examTarget)
+      : batch.examTarget;
+    const nextClass = dto.class != null
+      ? this.normalizeBatchClass(dto.class)
+      : batch.class;
+
     Object.assign(batch, {
       ...dto,
+      examTarget: nextExamTarget,
+      class: nextClass,
       feeAmount: dto.isPaid === false ? null : (dto.feeAmount ?? batch.feeAmount),
     });
     return this.batchRepo.save(batch);

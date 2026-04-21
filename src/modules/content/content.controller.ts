@@ -38,6 +38,9 @@ import {
 import { ContentService } from './content.service';
 
 import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subject.dto';
+
+const MAX_LECTURE_VIDEO_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_TOPIC_RESOURCE_UPLOAD_BYTES = 100 * 1024 * 1024;
 import { BulkImportCurriculumDto } from './dto/bulk-import.dto';
 import { CreateChapterDto, UpdateChapterDto, ChapterQueryDto } from './dto/chapter.dto';
 import { CreateTopicDto, UpdateTopicDto, TopicQueryDto } from './dto/topic.dto';
@@ -297,7 +300,7 @@ export class ContentController {
                     cb(null, `${Date.now()}-${uuidv4()}${ext}`);
                 },
             }),
-            limits: { fileSize: 10 * 1024 * 1024 * 1024 }, // 10 GB — temp file on disk, streamed to S3
+            limits: { fileSize: MAX_LECTURE_VIDEO_UPLOAD_BYTES }, // 2 GB — temp file on disk, streamed to S3
             fileFilter: (_req, file, cb) => {
                 if (!file.mimetype.startsWith('video/')) {
                     return cb(new BadRequestException('Only video files are allowed'), false);
@@ -693,7 +696,7 @@ export class ContentController {
     @UseInterceptors(
         FileInterceptor('file', {
             storage: memoryStorage(),
-            limits: { fileSize: 10 * 1024 * 1024 },
+            limits: { fileSize: MAX_TOPIC_RESOURCE_UPLOAD_BYTES },
             fileFilter: (_req, file, cb) => {
                 const allowed =
                     file.mimetype === 'application/pdf' ||

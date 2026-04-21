@@ -484,10 +484,11 @@ export class LiveClassService {
   }
 
   async recordStudentJoin(liveSessionId: string, studentUserId: string, tenantId: string, agoraUid: number) {
-    const session = await this.getSessionByIdOrThrow(liveSessionId, tenantId);
+    // Look up session by ID only — student tenantId may differ from lecture/session tenantId
+    const session = await this.getSessionByIdOnly(liveSessionId);
     const student = await this.getStudentByUserId(studentUserId, tenantId);
     const existing = await this.liveAttendanceRepo.findOne({
-      where: { tenantId, liveSessionId, studentId: student.id },
+      where: { liveSessionId, studentId: student.id },
     });
 
     if (existing) {
@@ -500,7 +501,7 @@ export class LiveClassService {
     } else {
       await this.liveAttendanceRepo.save(
         this.liveAttendanceRepo.create({
-          tenantId,
+          tenantId: session.tenantId,
           liveSessionId,
           studentId: student.id,
           agoraUid,
@@ -508,7 +509,7 @@ export class LiveClassService {
       );
     }
 
-    const currentCount = await this.getCurrentViewerCount(liveSessionId, tenantId);
+    const currentCount = await this.getCurrentViewerCount(liveSessionId);
     if (currentCount > session.peakViewerCount) {
       session.peakViewerCount = currentCount;
       await this.liveSessionRepo.save(session);
@@ -551,12 +552,13 @@ export class LiveClassService {
     senderName: string,
     senderRole: 'teacher' | 'student',
     message: string,
-    tenantId: string,
+    _callerTenantId: string,
   ) {
-    await this.getSessionByIdOrThrow(liveSessionId, tenantId);
+    // Look up by ID only — student callerTenantId may differ from session tenantId
+    const session = await this.getSessionByIdOnly(liveSessionId);
     return this.liveChatMessageRepo.save(
       this.liveChatMessageRepo.create({
-        tenantId,
+        tenantId: session.tenantId,
         liveSessionId,
         senderId,
         senderName,
@@ -604,9 +606,9 @@ export class LiveClassService {
     return this.buildPollResults(poll);
   }
 
-  async getCurrentViewerCount(liveSessionId: string, tenantId: string) {
+  async getCurrentViewerCount(liveSessionId: string, _tenantId?: string) {
     return this.liveAttendanceRepo.count({
-      where: { tenantId, liveSessionId, leftAt: IsNull() },
+      where: { liveSessionId, leftAt: IsNull() },
     });
   }
 
@@ -663,6 +665,15 @@ export class LiveClassService {
     if (!session) {
       throw new NotFoundException('Live session not found');
     }
+    return session;
+  }
+
+  private async getSessionByIdOnly(sessionId: string) {
+    const session = await this.liveSessionRepo.findOne({
+      where: { id: sessionId },
+      relations: ['lecture', 'lecture.topic'],
+    });
+    if (!session) throw new NotFoundException('Live session not found');
     return session;
   }
 
