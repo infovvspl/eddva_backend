@@ -1,0 +1,44 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy NestJS Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -e
+            cd /home/ubuntu/eddva_backend
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Installing dependencies..."
+            npm ci --production=false
+
+            echo "Building TypeScript..."
+            npm run build
+
+            echo "Running migrations..."
+            npm run migration:run || echo "No pending migrations"
+
+            echo "Reloading PM2 (zero-downtime)..."
+            mkdir -p /home/ubuntu/logs
+            pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
+
+            echo "Backend deployed successfully at $(date)"
+            pm2 status

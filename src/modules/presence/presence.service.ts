@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LiveSession, LiveSessionStatus } from '../../database/entities/live-class.entity';
+import { Student } from '../../database/entities/student.entity';
+import { Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 
 const ONLINE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -18,10 +20,15 @@ export class PresenceService {
   constructor(
     @InjectRepository(LiveSession)
     private readonly liveSessionRepo: Repository<LiveSession>,
+    @InjectRepository(Student)
+    private readonly studentRepo: Repository<Student>,
+    @InjectRepository(Enrollment)
+    private readonly enrollmentRepo: Repository<Enrollment>,
   ) {}
 
-  beat(userId: string, role: string, tenantId: string): void {
-    this.map.set(userId, { role, tenantId, ts: Date.now() });
+  async beat(userId: string, role: string, tenantId: string): Promise<void> {
+    const effectiveTenantId = await this.resolveTenantForPresence(userId, role, tenantId);
+    this.map.set(userId, { role, tenantId: effectiveTenantId, ts: Date.now() });
   }
 
   async getAdminStats(tenantId: string): Promise<{
@@ -56,5 +63,23 @@ export class PresenceService {
     }
 
     return { studentsOnline };
+  }
+
+  private async resolveTenantForPresence(userId: string, role: string, tenantId: string): Promise<string> {
+    if (role !== 'student') return tenantId;
+
+    const student = await this.studentRepo.findOne({
+      where: { userId },
+      select: ['id', 'tenantId'],
+    });
+    if (!student) return tenantId;
+
+    const enrollment = await this.enrollmentRepo.findOne({
+      where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
+      relations: ['batch'],
+      order: { enrolledAt: 'DESC' },
+    });
+
+    return enrollment?.batch?.tenantId ?? student.tenantId ?? tenantId;
   }
 }

@@ -2255,4 +2255,55 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 : `You scored ${dto.accuracy.toFixed(0)}%. Need 70%+ to pass. Keep practising!`,
         };
     }
+
+    async getTopicResourceById(resourceId: string, tenantId: string): Promise<TopicResource> {
+        const resource = await this.topicResourceRepo.findOne({ where: { id: resourceId, tenantId } });
+        if (!resource) throw new NotFoundException(`Resource ${resourceId} not found`);
+        return resource;
+    }
+
+    async generateTopicAiContent(
+        topicId: string,
+        dto: { contentType: string; difficulty: string; length: string; extraContext?: string },
+        tenantId: string,
+    ): Promise<{ content: string; contentType: string }> {
+        const topic = await this.topicRepo.findOne({
+            where: { id: topicId, tenantId },
+            relations: ['chapter', 'chapter.subject'],
+        });
+        if (!topic) throw new NotFoundException(`Topic ${topicId} not found`);
+
+        const result = await this.aiBridgeService.generateTopicContent(
+            {
+                topicName: topic.name,
+                subjectName: (topic as any).chapter?.subject?.name ?? '',
+                chapterName: (topic as any).chapter?.name ?? '',
+                contentType: dto.contentType,
+                difficulty: dto.difficulty,
+                length: dto.length,
+                extraContext: dto.extraContext,
+            },
+            tenantId,
+        );
+        return { content: result.content, contentType: result.contentType };
+    }
+
+    async saveTopicAiResource(
+        topicId: string,
+        dto: { title: string; content: string; resourceType?: string },
+        userId: string,
+        tenantId: string,
+    ): Promise<TopicResource> {
+        const typeMap: Record<string, ResourceType> = {
+            dpp: ResourceType.DPP,
+            pyq: ResourceType.PYQ,
+            notes: ResourceType.NOTES,
+        };
+        const rType = typeMap[dto.resourceType ?? 'notes'] ?? ResourceType.NOTES;
+        return this.createTopicResource(
+            topicId,
+            { uploadedBy: userId, type: rType, title: dto.title, description: dto.content },
+            tenantId,
+        );
+    }
 }

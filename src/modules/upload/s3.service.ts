@@ -97,34 +97,25 @@ export class S3Service implements OnModuleInit {
     return this.toPublicUrl(key);
   }
 
-  /** Generate a time-limited pre-signed GET URL (for enrolled-student downloads). */
-  async presignGet(key: string, expiresIn = 900): Promise<string> {
+  /** Generate a presigned GET URL so private S3 objects can be downloaded by the browser. */
+  async presignDownload(key: string, filename?: string): Promise<string> {
+    const disposition = filename
+      ? `attachment; filename="${filename.replace(/"/g, '')}"`
+      : 'attachment';
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
-      ResponseContentDisposition: 'attachment',
+      ResponseContentDisposition: disposition,
     });
-    return getSignedUrl(this.client, command, { expiresIn });
+    return getSignedUrl(this.client, command, { expiresIn: 300 });
   }
 
-  /** Fetch an S3 object and return its full buffer (used for PDF page extraction). */
-  async getBuffer(key: string): Promise<Buffer> {
-    const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
-    const stream = res.Body as NodeReadable;
-    return new Promise<Buffer>((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-      stream.on('end', () => resolve(Buffer.concat(chunks)));
-      stream.on('error', reject);
-    });
-  }
-
-  /** Extract the S3 key from a public URL (reverses toPublicUrl). */
-  keyFromUrl(url: string): string {
+  /** Extract the S3 object key from a public URL previously returned by toPublicUrl(). */
+  keyFromUrl(publicUrl: string): string {
     const base = this.publicUrl
       ? this.publicUrl.replace(/\/$/, '')
       : `https://${this.bucket}.s3.${this.config.get<string>('storage.s3.region')}.amazonaws.com`;
-    return url.replace(`${base}/`, '');
+    return publicUrl.replace(`${base}/`, '');
   }
 
   async delete(key: string): Promise<void> {

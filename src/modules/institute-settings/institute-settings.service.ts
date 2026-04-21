@@ -264,20 +264,40 @@ export class InstituteSettingsService {
 
   // ── Academic Calendar ─────────────────────────────────────────────────────────
 
-  async getCalendarEvents(tenantId: string, year?: number, month?: number) {
+  async getCalendarEvents(
+    tenantId: string,
+    year?: number,
+    month?: number,
+    visibleBatchIds?: string[] | null,
+  ) {
     const t = await this.getTenant(tenantId);
     let events: any[] = t.metadata?.[CALENDAR_KEY] ?? [];
     if (year) events = events.filter((e: any) => new Date(e.date).getFullYear() === year);
     if (month) events = events.filter((e: any) => new Date(e.date).getMonth() + 1 === month);
+
+    if (Array.isArray(visibleBatchIds)) {
+      const visible = new Set(visibleBatchIds);
+      events = events.filter((e: any) => {
+        const targetBatchIds = Array.isArray(e?.batchIds)
+          ? e.batchIds.filter((id: unknown) => typeof id === 'string')
+          : [];
+        // No targeting -> visible to everyone in tenant.
+        if (targetBatchIds.length === 0) return true;
+        return targetBatchIds.some((id: string) => visible.has(id));
+      });
+    }
+
     return events.sort((a: any, b: any) => a.date.localeCompare(b.date));
   }
 
   async createCalendarEvent(tenantId: string, dto: CreateCalendarEventDto, createdByUserId?: string) {
     const t = await this.getTenant(tenantId);
     const events: any[] = t.metadata?.[CALENDAR_KEY] ?? [];
+    const targetBatchIds = Array.isArray(dto.batchIds) ? [...new Set(dto.batchIds.filter(Boolean))] : [];
     const newEvent = {
       id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       ...dto,
+      batchIds: targetBatchIds,
       createdAt: new Date().toISOString(),
     };
     events.push(newEvent);
@@ -303,7 +323,14 @@ export class InstituteSettingsService {
     const bodyExtra = event.description ? `. ${String(event.description).slice(0, 100)}` : '';
     const body = `${bodyBase}${bodyExtra}`;
 
-    const batches = await this.batchRepo.find({ where: { tenantId }, select: ['id'] });
+    const eventBatchIds = Array.isArray(event?.batchIds)
+      ? event.batchIds.filter((id: unknown) => typeof id === 'string')
+      : [];
+
+    const batches = eventBatchIds.length > 0
+      ? await this.batchRepo.find({ where: { tenantId, id: In(eventBatchIds) }, select: ['id'] })
+      : await this.batchRepo.find({ where: { tenantId }, select: ['id'] });
+
     const batchIds = batches.map((b) => b.id);
     if (!batchIds.length) return;
 

@@ -486,4 +486,20 @@ export class AiBridgeService {
 
     return { questions: checkpoints };
   }
+
+  // ── AI #16 — Topic Content Generator (DPP, notes, PYQ, etc.) ─────────────
+  async generateTopicContent(
+    payload: {
+      topicName: string;
+      subjectName: string;
+      chapterName: string;
+      contentType: string;
+      difficulty: string;
+      length: string;
+      extraContext?: string;
+    },
+    tenantId?: string,
+  ): Promise<{ content: string; contentType: string; topicName: string }> {
+    return this.post('/content/generate', payload, tenantId, 120_000);
+  }
 }

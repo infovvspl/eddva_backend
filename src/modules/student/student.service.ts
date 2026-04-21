@@ -52,10 +52,9 @@ export class StudentService {
   ) {}
 
   async getDashboard(userId: string, tenantId: string) {
-    const student = await this.studentRepo.findOne({
-      where: { userId, tenantId },
-      relations: ['user'],
-    });
+    const student =
+      await this.studentRepo.findOne({ where: { userId, tenantId }, relations: ['user'] })
+      ?? await this.studentRepo.findOne({ where: { userId }, relations: ['user'] });
     if (!student) throw new NotFoundException('Student not found');
 
     const enrollment = await this.enrollmentRepo.findOne({
@@ -64,11 +63,12 @@ export class StudentService {
       order: { enrolledAt: 'DESC' },
     });
     const batchId = enrollment?.batchId;
+    const effectiveTenantId = enrollment?.batch?.tenantId ?? student.tenantId ?? tenantId;
     const effectiveExamTarget = enrollment?.batch?.examTarget ?? student.examTarget;
 
     const [profile, weakTopics, todayPlan, globalRank, pendingRow, testsRow] = await Promise.all([
       this.profileRepo.findOne({ where: { studentId: student.id } }),
-      this.computeWeakTopicsLastMonth(student.id, tenantId, batchId),
+      this.computeWeakTopicsLastMonth(student.id, effectiveTenantId, batchId),
       this.getTodayPlanItems(student.id),
       this.leaderboardRepo.findOne({
         where: { studentId: student.id, scope: LeaderboardScope.GLOBAL },

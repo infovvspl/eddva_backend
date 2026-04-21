@@ -94,22 +94,28 @@ export class BattleGateway
   }
 
   @SubscribeMessage('lobby:join')
-  handleLobbyJoin(
+  async handleLobbyJoin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { studentId: string; tenantId: string },
+    @MessageBody() data: { studentId: string; tenantId?: string },
   ) {
-    if (!data?.studentId || !data?.tenantId) {
-      client.emit('battle:error', { message: 'Missing studentId or tenantId for lobby join' });
+    if (!data?.studentId) {
+      client.emit('battle:error', { message: 'Missing studentId for lobby join' });
+      return;
+    }
+
+    const resolvedTenantId = await this.battleService.getStudentTenantByStudentId(data.studentId);
+    if (!resolvedTenantId) {
+      client.emit('battle:error', { message: 'Student tenant not found for lobby join' });
       return;
     }
 
     this.onlineUsers.set(data.studentId, {
       socketId: client.id,
       studentId: data.studentId,
-      tenantId: data.tenantId,
+      tenantId: resolvedTenantId,
     });
     this.socketToStudent.set(client.id, data.studentId);
-    void this.broadcastOnlineUsers(data.tenantId);
+    void this.broadcastOnlineUsers(resolvedTenantId);
   }
 
   @SubscribeMessage('battle:challenge')
@@ -117,7 +123,10 @@ export class BattleGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { targetStudentId: string; fromStudentId: string; tenantId: string },
   ) {
-    const { targetStudentId, fromStudentId, tenantId } = data ?? {};
+    const { targetStudentId, fromStudentId } = data ?? {};
+    const senderOnline = fromStudentId ? this.onlineUsers.get(fromStudentId) : undefined;
+    const tenantId = senderOnline?.tenantId;
+
     if (!targetStudentId || !fromStudentId || !tenantId) {
       client.emit('battle:challenge_error', { message: 'Invalid challenge payload' });
       return;
@@ -296,6 +305,7 @@ export class BattleGateway
       socketId: this.onlineUsers.get(p.studentId)?.socketId ?? '',
       name: p.name,
       avatarUrl: p.avatarUrl,
+      xpPoints: p.xpPoints ?? 0,
       eloRating: p.eloRating,
       tier: p.tier,
       status: inBattleStudentIds.has(p.studentId)

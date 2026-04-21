@@ -78,32 +78,33 @@ export class StudyPlanService {
 
   async generatePlan(userId: string, tenantId: string, force: boolean) {
     const student = await this.getStudentByUserId(userId, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
 
     // Return existing plan if still valid and not forced
-    const existing = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId } });
+    const existing = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId: effectiveTenantId } });
     if (existing && !force && existing.validUntil && new Date(existing.validUntil) > new Date()) {
-      return this.getPlanWithItems(existing.id, tenantId);
+      return this.getPlanWithItems(existing.id, effectiveTenantId);
     }
 
     // ── Gather context ──────────────────────────────────────────────────────
     // Determine student's enrolled batch for accurate content filtering
     const enrollment = await this.enrollmentRepo.findOne({
-      where: { studentId: student.id, tenantId, status: EnrollmentStatus.ACTIVE },
+      where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
       relations: ['batch'],
     }).catch(() => null);
     const batchId = enrollment?.batchId;
     const effectiveExamTarget = enrollment?.batch?.examTarget || student.examTarget;
 
     const lectureWhere: any = batchId
-      ? { batchId, tenantId, status: LectureStatus.PUBLISHED }
-      : { tenantId, status: LectureStatus.PUBLISHED };
+      ? { batchId, tenantId: effectiveTenantId, status: LectureStatus.PUBLISHED }
+      : { tenantId: effectiveTenantId, status: LectureStatus.PUBLISHED };
     const mockTestWhere: any = batchId
-      ? { batchId, tenantId, isPublished: true }
-      : { tenantId, isPublished: true };
+      ? { batchId, tenantId: effectiveTenantId, isPublished: true }
+      : { tenantId: effectiveTenantId, isPublished: true };
 
     const [monthlyWeakTopics, monthlyInsights, allProgress, availableLectures, availableMockTests, availableTopics, batchSubjects, batchSubjectAssignments] = await Promise.all([
-      this.computeWeakTopicsFromLastMonth(student.id, tenantId, batchId),
-      this.computeRecentMonthTestInsights(student.id, tenantId, batchId),
+      this.computeWeakTopicsFromLastMonth(student.id, effectiveTenantId, batchId),
+      this.computeRecentMonthTestInsights(student.id, effectiveTenantId, batchId),
       this.topicProgressRepo.find({ where: { studentId: student.id } }),
       this.lectureRepo.find({
         where: lectureWhere,
@@ -115,22 +116,22 @@ export class StudyPlanService {
         order: { createdAt: 'ASC' },
       }),
       this.topicRepo.find({
-        where: { tenantId, isActive: true },
+        where: { tenantId: effectiveTenantId, isActive: true },
         relations: ['chapter', 'chapter.subject'],
         order: { sortOrder: 'ASC' },
       }),
       batchId
-        ? this.subjectRepo.find({ where: { tenantId, batchId, isActive: true }, order: { sortOrder: 'ASC' } })
+        ? this.subjectRepo.find({ where: { tenantId: effectiveTenantId, batchId, isActive: true }, order: { sortOrder: 'ASC' } })
         : Promise.resolve([] as Subject[]),
       batchId
-        ? this.batchSubjectTeacherRepo.find({ where: { tenantId, batchId } })
+        ? this.batchSubjectTeacherRepo.find({ where: { tenantId: effectiveTenantId, batchId } })
         : Promise.resolve([] as BatchSubjectTeacher[]),
     ]);
 
     // Attach topic names using a separate query with tenantId (relations JOIN can miss tenant-scoped rows)
     const topicIds = [...new Set(monthlyWeakTopics.map((wt) => wt.topicId).filter(Boolean))];
     const topicsForWeak = topicIds.length
-      ? await this.topicRepo.find({ where: { id: In(topicIds), tenantId }, relations: ['chapter', 'chapter.subject'] })
+      ? await this.topicRepo.find({ where: { id: In(topicIds), tenantId: effectiveTenantId }, relations: ['chapter', 'chapter.subject'] })
       : [];
     const topicMap = new Map(topicsForWeak.map((t) => [t.id, t]));
     monthlyWeakTopics.forEach((wt) => { wt.topic = topicMap.get(wt.topicId) ?? null as any; });
@@ -282,29 +283,34 @@ export class StudyPlanService {
     const finalItems = items.filter((item) => !!item.date && !!item.type);
 
     const plan = await this.studyPlanRepo.manager.transaction(async (manager) => {
-      const current = await manager.findOne(StudyPlan, { where: { studentId: student.id, tenantId } });
-      if (current) {
-        await manager.delete(PlanItem, { studyPlanId: current.id });
-        await manager.delete(StudyPlan, { id: current.id });
-      }
+      let planRecord = await manager.findOne(StudyPlan, { where: { studentId: student.id, tenantId: effectiveTenantId } });
 
-      const created = await manager.save(
-        manager.create(StudyPlan, {
-          studentId: student.id,
-          tenantId,
-          generatedAt: new Date(),
-          validUntil,
-          aiVersion: 'comprehensive-v2',
-        }),
-      );
+      if (planRecord) {
+        // Delete child items first, then update the plan in-place to avoid unique constraint violation
+        await manager.delete(PlanItem, { studyPlanId: planRecord.id });
+        planRecord.generatedAt = new Date();
+        planRecord.validUntil = validUntil;
+        planRecord.aiVersion = 'comprehensive-v2';
+        planRecord.deletedAt = null;
+        planRecord = await manager.save(planRecord);
+      } else {
+        planRecord = await manager.save(
+          manager.create(StudyPlan, {
+            studentId: student.id,
+            tenantId: effectiveTenantId,
+            generatedAt: new Date(),
+            validUntil,
+            aiVersion: 'comprehensive-v2',
+          }),
+        );
+      }
 
       const planItems = finalItems.map((item, i) =>
           manager.create(PlanItem, {
-            studyPlanId: created.id,
+            studyPlanId: planRecord.id,
             scheduledDate: item.date,
             type: this.mapPlanItemType(item.type),
             refId: item.refId ?? null,
-            // AI bridge may return null/undefined titles — use a safe fallback
             title: item.title || `${item.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} Session`,
             estimatedMinutes: item.estimatedMinutes ?? 30,
             sortOrder: i,
@@ -313,16 +319,16 @@ export class StudyPlanService {
         );
 
       if (planItems.length) await manager.save(planItems);
-      return created;
+      return planRecord;
     });
 
     // ── Spaced repetition: add revision tasks for topics passed 7/21/45 days ago ──
-    await this.addRevisionTasks(student.id, tenantId).catch(() => {});
+    await this.addRevisionTasks(student.id, effectiveTenantId).catch(() => {});
 
     if (force) {
       await this.notificationService.send({
         userId,
-        tenantId,
+        tenantId: effectiveTenantId,
         title: 'Your study plan has been updated!',
         body: '📅 Your personalised study plan has been refreshed based on your latest progress.',
         channels: ['push', 'in_app'],
@@ -331,12 +337,13 @@ export class StudyPlanService {
       });
     }
 
-    return this.getPlanWithItems(plan.id, tenantId);
+    return this.getPlanWithItems(plan.id, effectiveTenantId);
   }
 
   async clearCurrentPlan(userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const existing = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId } });
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const existing = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId: effectiveTenantId } });
     if (!existing) {
       return { message: 'No existing study plan to clear.' };
     }
@@ -351,10 +358,11 @@ export class StudyPlanService {
 
   async getToday(userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    let plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId } });
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    let plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId: effectiveTenantId } });
     if (!plan) {
-      await this.generatePlan(userId, tenantId, false);
-      plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId } });
+      await this.generatePlan(userId, effectiveTenantId, false);
+      plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId: effectiveTenantId } });
       if (!plan) return [];
     }
 
@@ -364,12 +372,13 @@ export class StudyPlanService {
       order: { sortOrder: 'ASC' },
     });
 
-    return this.resolvePlanItems(items, tenantId, student.id);
+    return this.resolvePlanItems(items, effectiveTenantId, student.id);
   }
 
   async getRange(userId: string, tenantId: string, query: StudyPlanRangeQueryDto) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId } });
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId: effectiveTenantId } });
     if (!plan) return {};
 
     const { startDate, endDate } = this.resolveRange(query);
@@ -382,7 +391,7 @@ export class StudyPlanService {
       .addOrderBy('item.sortOrder', 'ASC')
       .getMany();
 
-    const resolved = await this.resolvePlanItems(items, tenantId, student.id);
+    const resolved = await this.resolvePlanItems(items, effectiveTenantId, student.id);
     return resolved.reduce<Record<string, typeof resolved>>((acc, item) => {
       if (!acc[item.scheduledDate]) acc[item.scheduledDate] = [];
       acc[item.scheduledDate].push(item);
@@ -606,7 +615,8 @@ export class StudyPlanService {
 
   async getNextAction(userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId } });
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId: effectiveTenantId } });
     if (!plan) {
       return { action: 'all_done', title: 'No study plan yet!', description: 'Generate your personalised plan to get started.', xpReward: 0 };
     }
@@ -621,7 +631,7 @@ export class StudyPlanService {
       if (!pending.length) continue;
 
       const item = pending[0];
-      const resolved = await this.resolvePlanItems([item], tenantId, student.id);
+      const resolved = await this.resolvePlanItems([item], effectiveTenantId, student.id);
       const r = resolved[0] as any;
       const content = r.content ?? {};
 
@@ -1577,8 +1587,19 @@ export class StudyPlanService {
   }
 
   private async getStudentByUserId(userId: string, tenantId: string): Promise<Student> {
-    const student = await this.studentRepo.findOne({ where: { userId, tenantId } });
+    const student =
+      await this.studentRepo.findOne({ where: { userId, tenantId } }) ??
+      await this.studentRepo.findOne({ where: { userId } });
     if (!student) throw new NotFoundException('Student not found');
     return student;
+  }
+
+  private async resolveEffectiveTenantId(student: Student, fallbackTenantId: string): Promise<string> {
+    const enrollment = await this.enrollmentRepo.findOne({
+      where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
+      relations: ['batch'],
+      order: { enrolledAt: 'DESC' },
+    }).catch(() => null);
+    return enrollment?.batch?.tenantId ?? student.tenantId ?? fallbackTenantId;
   }
 }

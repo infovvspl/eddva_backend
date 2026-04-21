@@ -18,11 +18,11 @@ export class PresenceController {
   @Post('heartbeat')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update online presence (call every 30 s)' })
-  heartbeat(
+  async heartbeat(
     @CurrentUser() user: { id: string; role: string },
     @TenantId() tenantId: string,
-  ): { ok: true } {
-    this.presenceService.beat(user.id, user.role, tenantId);
+  ): Promise<{ ok: true }> {
+    await this.presenceService.beat(user.id, user.role, tenantId);
     return { ok: true };
   }
 
