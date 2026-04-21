@@ -438,8 +438,9 @@ export class ContentController {
     translateTranscript(
         @Param('id', ParseUUIDPipe) id: string,
         @TenantId() tenantId: string,
+        @CurrentUser() user: any,
     ) {
-        return this.contentService.translateLectureTranscript(id, tenantId);
+        return this.contentService.translateLectureTranscript(id, tenantId, user);
     }
 
     @Post('lectures/:id/translate-notes')
@@ -449,8 +450,9 @@ export class ContentController {
     translateNotesToEnglish(
         @Param('id', ParseUUIDPipe) id: string,
         @TenantId() tenantId: string,
+        @CurrentUser() user: any,
     ) {
-        return this.contentService.translateLectureNotesToEnglish(id, tenantId);
+        return this.contentService.translateLectureNotesToEnglish(id, tenantId, user);
     }
 
     @Post('lectures/:id/retranscribe')
@@ -528,8 +530,9 @@ export class ContentController {
     getQuizCheckpoints(
         @Param('id', ParseUUIDPipe) id: string,
         @TenantId() tenantId: string,
+        @CurrentUser() user: any,
     ) {
-        return this.contentService.getQuizCheckpoints(id, tenantId);
+        return this.contentService.getQuizCheckpoints(id, tenantId, user);
     }
 
     @Post('lectures/:id/quiz-response')

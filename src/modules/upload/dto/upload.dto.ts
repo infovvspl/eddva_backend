@@ -20,6 +20,8 @@ export enum UploadType {
   LECTURE_ATTACHMENT = 'lecture-attachment',
   /** Teacher/student doubt attachments — image only, tenant-scoped, no courseId */
   DOUBT_RESPONSE_IMAGE = 'doubt-response-image',
+  /** Notes / PYQ PDFs for the study-material library (JEE/NEET) */
+  STUDY_MATERIAL = 'study-material',
 }
 
 export class GenerateUploadUrlDto {
