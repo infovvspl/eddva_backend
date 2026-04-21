@@ -771,7 +771,7 @@ export class ContentController {
     }
 
     @Get('topics/:topicId/resources')
-    @ApiOperation({ summary: 'List all resources for a topic (PDF, DPP, quiz, notes)' }}
+    @ApiOperation({ summary: 'List all resources for a topic (PDF, DPP, quiz, notes)' })
     @ApiParam({ name: 'topicId', type: 'string' })
     getTopicResources(
         @Param('topicId', ParseUUIDPipe) topicId: string,
