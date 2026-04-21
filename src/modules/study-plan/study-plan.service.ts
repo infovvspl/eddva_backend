@@ -283,29 +283,34 @@ export class StudyPlanService {
     const finalItems = items.filter((item) => !!item.date && !!item.type);
 
     const plan = await this.studyPlanRepo.manager.transaction(async (manager) => {
-      const current = await manager.findOne(StudyPlan, { where: { studentId: student.id, tenantId: effectiveTenantId } });
-      if (current) {
-        await manager.delete(PlanItem, { studyPlanId: current.id });
-        await manager.delete(StudyPlan, { id: current.id });
-      }
+      let planRecord = await manager.findOne(StudyPlan, { where: { studentId: student.id, tenantId: effectiveTenantId } });
 
-      const created = await manager.save(
-        manager.create(StudyPlan, {
-          studentId: student.id,
-          tenantId: effectiveTenantId,
-          generatedAt: new Date(),
-          validUntil,
-          aiVersion: 'comprehensive-v2',
-        }),
-      );
+      if (planRecord) {
+        // Delete child items first, then update the plan in-place to avoid unique constraint violation
+        await manager.delete(PlanItem, { studyPlanId: planRecord.id });
+        planRecord.generatedAt = new Date();
+        planRecord.validUntil = validUntil;
+        planRecord.aiVersion = 'comprehensive-v2';
+        planRecord.deletedAt = null;
+        planRecord = await manager.save(planRecord);
+      } else {
+        planRecord = await manager.save(
+          manager.create(StudyPlan, {
+            studentId: student.id,
+            tenantId: effectiveTenantId,
+            generatedAt: new Date(),
+            validUntil,
+            aiVersion: 'comprehensive-v2',
+          }),
+        );
+      }
 
       const planItems = finalItems.map((item, i) =>
           manager.create(PlanItem, {
-            studyPlanId: created.id,
+            studyPlanId: planRecord.id,
             scheduledDate: item.date,
             type: this.mapPlanItemType(item.type),
             refId: item.refId ?? null,
-            // AI bridge may return null/undefined titles — use a safe fallback
             title: item.title || `${item.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} Session`,
             estimatedMinutes: item.estimatedMinutes ?? 30,
             sortOrder: i,
@@ -314,7 +319,7 @@ export class StudyPlanService {
         );
 
       if (planItems.length) await manager.save(planItems);
-      return created;
+      return planRecord;
     });
 
     // ── Spaced repetition: add revision tasks for topics passed 7/21/45 days ago ──
