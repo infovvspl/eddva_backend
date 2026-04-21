@@ -11,7 +11,6 @@ export enum ResourceType {
 }
 import { Base } from './base.entity';
 import { Tenant } from './tenant.entity';
-import { ExamTarget } from './student.entity';
 
 // ─── Subject ─────────────────────────────────────────────────────────────────
 @Entity('subjects')
@@ -29,8 +28,8 @@ export class Subject extends Base {
   @Column()
   name: string; // Physics, Chemistry, Mathematics, Biology
 
-  @Column({ name: 'exam_target', type: 'enum', enum: ExamTarget })
-  examTarget: ExamTarget;
+  @Column({ name: 'exam_target', type: 'varchar', length: 120 })
+  examTarget: string;
 
   @Column({ nullable: true })
   icon: string;

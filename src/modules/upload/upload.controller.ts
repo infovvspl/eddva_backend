@@ -24,7 +24,8 @@ import { S3Service } from './s3.service';
 @Controller()
 export class UploadController {
   private static readonly MAX_STANDARD_FILE_SIZE = 10 * 1024 * 1024;
-  private static readonly MAX_VIDEO_FILE_SIZE = 10 * 1024 * 1024 * 1024;
+  private static readonly MAX_MATERIAL_FILE_SIZE = 100 * 1024 * 1024;
+  private static readonly MAX_VIDEO_FILE_SIZE = 2 * 1024 * 1024 * 1024;
 
   constructor(private readonly s3Service: S3Service) {}
 
@@ -73,10 +74,16 @@ export class UploadController {
   private validateFileSize(type: UploadType, fileSize: number) {
     const maxBytes = type === UploadType.LECTURE_VIDEO
       ? UploadController.MAX_VIDEO_FILE_SIZE
-      : UploadController.MAX_STANDARD_FILE_SIZE;
+      : type === UploadType.MATERIAL
+        ? UploadController.MAX_MATERIAL_FILE_SIZE
+        : UploadController.MAX_STANDARD_FILE_SIZE;
 
     if (fileSize > maxBytes) {
-      const limitLabel = type === UploadType.LECTURE_VIDEO ? '10 GB' : '10 MB';
+      const limitLabel = type === UploadType.LECTURE_VIDEO
+        ? '2 GB'
+        : type === UploadType.MATERIAL
+          ? '100 MB'
+          : '10 MB';
       throw new BadRequestException(`File size must be less than or equal to ${limitLabel}`);
     }
   }

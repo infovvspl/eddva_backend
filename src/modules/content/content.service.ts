@@ -51,6 +51,7 @@ import {
 @Injectable()
 export class ContentService {
     private readonly logger = new Logger(ContentService.name);
+    private static readonly presetExamTargets = new Set(['jee', 'neet', 'both']);
 
     constructor(
         @InjectRepository(Subject)
@@ -92,17 +93,51 @@ export class ContentService {
         private readonly notificationService: NotificationService,
     ) { }
 
+    private normalizeSubjectExamTarget(value: string) {
+        const cleaned = value.trim().replace(/\s+/g, ' ');
+        if (!cleaned) {
+            throw new BadRequestException('Exam target is required.');
+        }
+
+        const lowered = cleaned.toLowerCase();
+        return ContentService.presetExamTargets.has(lowered) ? lowered : cleaned;
+    }
+
+    private async ensureEnglishLectureNotes(notes: string, tenantId: string): Promise<string> {
+        const cleaned = notes.trim();
+        if (!cleaned) return notes;
+
+        try {
+            const result = await this.aiBridgeService.translateText(
+                { text: cleaned, targetLanguage: 'en' },
+                tenantId,
+            ) as any;
+
+            const translated: string = result?.translatedText ?? result?.text ?? result?.translation ?? '';
+            return translated.trim() || cleaned;
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Failed to normalize lecture notes to English; storing original notes. ${msg}`);
+            return cleaned;
+        }
+    }
+
     // ─── SUBJECTS ─────────────────────────────────────────────────────────────
 
     async createSubject(dto: CreateSubjectDto, tenantId: string): Promise<Subject> {
         this.logger.log(`Creating subject for tenant ${tenantId}`);
-        const subject = this.subjectRepo.create({ ...dto, tenantId, batchId: dto.batchId ?? null });
+        const subject = this.subjectRepo.create({
+            ...dto,
+            tenantId,
+            batchId: dto.batchId ?? null,
+            examTarget: this.normalizeSubjectExamTarget(dto.examTarget),
+        });
         return this.subjectRepo.save(subject);
     }
 
     async getSubjects(query: SubjectQueryDto, tenantId: string): Promise<Subject[]> {
         const where: FindOptionsWhere<Subject> = { tenantId, isActive: true };
-        if (query.examTarget) where.examTarget = query.examTarget;
+        if (query.examTarget) where.examTarget = this.normalizeSubjectExamTarget(query.examTarget);
 
         // When a batchId is given, align with student curriculum resolution:
         // 1) Prefer subjects linked by subjects.batch_id (batch-scoped curriculum)
@@ -256,7 +291,12 @@ export class ContentService {
         this.logger.log(`Updating subject ${id} for tenant ${tenantId}`);
         const subject = await this.subjectRepo.findOne({ where: { id, tenantId } });
         if (!subject) throw new NotFoundException(`Subject ${id} not found`);
-        Object.assign(subject, dto);
+        Object.assign(subject, {
+            ...dto,
+            examTarget: dto.examTarget != null
+                ? this.normalizeSubjectExamTarget(dto.examTarget)
+                : subject.examTarget,
+        });
         return this.subjectRepo.save(subject);
     }
 
@@ -753,7 +793,7 @@ export class ContentService {
             const rawTranscript = result?.rawTranscript ?? result?.transcript ?? result?.text ?? null;
             if (rawTranscript) updates.transcript = rawTranscript;
             const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? result?.raw ?? null;
-            if (notes) updates.aiNotesMarkdown = notes;
+            if (notes) updates.aiNotesMarkdown = await this.ensureEnglishLectureNotes(String(notes), tenantId);
             const concepts = result?.key_concepts ?? result?.keyConcepts;
             if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
 
