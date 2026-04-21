@@ -3,7 +3,6 @@ import { Base } from './base.entity';
 import { Tenant } from './tenant.entity';
 import { User } from './user.entity';
 import { Student } from './student.entity';
-import { ExamTarget, StudentClass } from './student.entity';
 
 export enum BatchStatus {
   ACTIVE = 'active',
@@ -26,11 +25,11 @@ export class Batch extends Base {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ name: 'exam_target', type: 'enum', enum: ExamTarget })
-  examTarget: ExamTarget;
+  @Column({ name: 'exam_target', type: 'varchar', length: 120 })
+  examTarget: string;
 
-  @Column({ type: 'enum', enum: StudentClass })
-  class: StudentClass;
+  @Column({ type: 'varchar', length: 120 })
+  class: string;
 
   @Column({ name: 'teacher_id', nullable: true })
   teacherId: string;

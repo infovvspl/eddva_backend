@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
@@ -12,11 +12,16 @@ import {
   ValidateIf,
   ValidateNested,
   IsArray,
+  MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import { BatchStatus } from '../../../database/entities/batch.entity';
-import { ExamTarget, StudentClass } from '../../../database/entities/student.entity';
+
+const normalizeBatchField = ({ value }: { value: unknown }) => {
+  if (typeof value !== 'string') return value;
+  return value.trim().replace(/\s+/g, ' ');
+};
 
 export class CreateBatchDto {
   @ApiProperty()
@@ -28,13 +33,17 @@ export class CreateBatchDto {
   @IsString()
   description?: string;
 
-  @ApiProperty({ enum: ExamTarget })
-  @IsEnum(ExamTarget)
-  examTarget: ExamTarget;
+  @ApiProperty({ example: 'jee', description: 'Preset or custom exam target label for the course' })
+  @Transform(normalizeBatchField)
+  @IsString()
+  @MinLength(1)
+  examTarget: string;
 
-  @ApiProperty({ enum: StudentClass })
-  @IsEnum(StudentClass)
-  class: StudentClass;
+  @ApiProperty({ example: '11', description: 'Preset or custom class level label for the course' })
+  @Transform(normalizeBatchField)
+  @IsString()
+  @MinLength(1)
+  class: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -75,15 +84,19 @@ export class UpdateBatchDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ enum: ExamTarget })
+  @ApiPropertyOptional({ example: 'neet', description: 'Preset or custom exam target label for the course' })
   @IsOptional()
-  @IsEnum(ExamTarget)
-  examTarget?: ExamTarget;
+  @Transform(normalizeBatchField)
+  @IsString()
+  @MinLength(1)
+  examTarget?: string;
 
-  @ApiPropertyOptional({ enum: StudentClass })
+  @ApiPropertyOptional({ example: 'dropper', description: 'Preset or custom class level label for the course' })
   @IsOptional()
-  @IsEnum(StudentClass)
-  class?: StudentClass;
+  @Transform(normalizeBatchField)
+  @IsString()
+  @MinLength(1)
+  class?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -148,10 +161,12 @@ export class BatchListQueryDto {
   @IsEnum(BatchStatus)
   status?: BatchStatus;
 
-  @ApiPropertyOptional({ enum: ExamTarget })
+  @ApiPropertyOptional({ example: 'jee' })
   @IsOptional()
-  @IsEnum(ExamTarget)
-  examTarget?: ExamTarget;
+  @Transform(normalizeBatchField)
+  @IsString()
+  @MinLength(1)
+  examTarget?: string;
 }
 
 export class RosterQueryDto {

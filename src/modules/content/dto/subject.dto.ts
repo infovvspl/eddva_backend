@@ -1,14 +1,19 @@
 import {
     IsString,
     IsNotEmpty,
-    IsEnum,
     IsOptional,
     IsNumber,
     IsBoolean,
     Min,
+    MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { ExamTarget } from '../../../database/entities/student.entity';
+
+const normalizeSubjectField = ({ value }: { value: unknown }) => {
+    if (typeof value !== 'string') return value;
+    return value.trim().replace(/\s+/g, ' ');
+};
 
 export class CreateSubjectDto {
     @ApiProperty({ example: 'Physics' })
@@ -16,9 +21,11 @@ export class CreateSubjectDto {
     @IsNotEmpty()
     name: string;
 
-    @ApiProperty({ enum: ExamTarget })
-    @IsEnum(ExamTarget)
-    examTarget: ExamTarget;
+    @ApiProperty({ example: 'jee', description: 'Preset or custom exam target label for the subject' })
+    @Transform(normalizeSubjectField)
+    @IsString()
+    @MinLength(1)
+    examTarget: string;
 
     @ApiPropertyOptional({ description: 'Batch/Course this subject belongs to' })
     @IsOptional()
@@ -50,10 +57,12 @@ export class UpdateSubjectDto extends PartialType(CreateSubjectDto) {
 }
 
 export class SubjectQueryDto {
-    @ApiPropertyOptional({ enum: ExamTarget })
+    @ApiPropertyOptional({ example: 'neet' })
     @IsOptional()
-    @IsEnum(ExamTarget)
-    examTarget?: ExamTarget;
+    @Transform(normalizeSubjectField)
+    @IsString()
+    @MinLength(1)
+    examTarget?: string;
 
     @ApiPropertyOptional({ description: 'Filter subjects assigned to this batch' })
     @IsOptional()
