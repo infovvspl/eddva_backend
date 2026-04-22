@@ -268,11 +268,26 @@ export class AssessmentService {
 
   async getMockTestById(id: string, user: any, tenantId: string) {
     const schema = await this.getMockTestSchema();
-    const mockTest = await this.getMockTestRecord(id, tenantId, schema);
-    await this.assertMockTestReadAccess(mockTest, user, tenantId, schema);
+
+    // For students, resolve tenant from this specific mock test + enrollment join
+    // (avoids wrong tenant when a user has multiple batch enrollments / tenants).
+    let effectiveTenantId = tenantId;
+    if (user.role === UserRole.STUDENT) {
+      const student = await this.getStudentByUserId(user.id, tenantId);
+      const fromTest = await this.resolveMockTestTenantForStudent(id, student.id);
+      if (fromTest) {
+        effectiveTenantId = fromTest;
+      } else {
+        const { batchTenantId } = await this.getStudentBatchIds(user.id, tenantId);
+        if (batchTenantId) effectiveTenantId = batchTenantId;
+      }
+    }
+
+    const mockTest = await this.getMockTestRecord(id, effectiveTenantId, schema);
+    await this.assertMockTestReadAccess(mockTest, user, effectiveTenantId, schema);
 
     const questions = await this.questionRepo.find({
-      where: { tenantId, id: In(mockTest.questionIds || []) },
+      where: { tenantId: mockTest.tenantId, id: In(mockTest.questionIds || []) },
       relations: ['options', 'topic'],
     });
 
@@ -344,9 +359,13 @@ export class AssessmentService {
       );
     }
 
-    const justPublished = dto.isPublished === true && !wasPublished && !!mockTest.batchId;
+    // Use the DTO's batchId if it was updated in this same request, otherwise fall back
+    // to the existing value. This ensures notifications go to the correct batch when
+    // batchId and isPublished are set together in a single PATCH.
+    const resolvedBatchId = dto.batchId ?? mockTest.batchId;
+    const justPublished = dto.isPublished === true && !wasPublished && !!resolvedBatchId;
     if (justPublished) {
-      this.notifyBatchStudentsOfNewTest(mockTest.id, mockTest.title, mockTest.batchId, tenantId)
+      this.notifyBatchStudentsOfNewTest(mockTest.id, mockTest.title, resolvedBatchId, tenantId)
         .catch((err: unknown) => this.logger.warn(`Mock test notification failed: ${(err as Error).message}`));
     }
 
@@ -359,31 +378,38 @@ export class AssessmentService {
     batchId: string,
     tenantId: string,
   ): Promise<void> {
+    // Batch id is globally unique — do not filter enrollments by institute tenantId.
+    // Some rows may have enrollment.tenant_id out of sync with batch.tenant_id; those
+    // students would otherwise never get notified or see the test under strict filters.
     const enrollments = await this.enrollmentRepo.find({
-      where: { batchId, tenantId, status: EnrollmentStatus.ACTIVE },
+      where: { batchId, status: EnrollmentStatus.ACTIVE },
       relations: ['student', 'student.user'],
     });
 
     const batch = await this.batchRepo.findOne({ where: { id: batchId } });
     const batchName = batch?.name ?? 'your course';
 
+    const targets = enrollments.filter(e => e.student?.user?.id);
     await Promise.allSettled(
-      enrollments
-        .filter(e => e.student?.user?.id)
-        .map(e =>
-          this.notificationService.send({
-            userId: e.student.user.id,
-            tenantId,
-            title: '📝 New Mock Test Available',
-            body: `"${testTitle}" has been published in ${batchName}. Attempt it now!`,
-            channels: ['in_app'],
-            refType: 'mock_test_available',
-            refId: mockTestId,
-          }),
-        ),
+      targets.map(e => {
+        // In-app list is scoped by the student's user tenant, not the institute id.
+        const recipientTenantId =
+          e.student!.user!.tenantId ?? e.student!.tenantId ?? tenantId;
+        return this.notificationService.send({
+          userId: e.student!.user!.id,
+          tenantId: recipientTenantId,
+          title: '📝 New Mock Test Available',
+          body: `"${testTitle}" has been published in ${batchName}. Attempt it now!`,
+          channels: ['in_app', 'push'],
+          refType: 'mock_test_available',
+          refId: mockTestId,
+        });
+      }),
     );
 
-    this.logger.log(`Notified ${enrollments.length} students about mock test "${testTitle}"`);
+    this.logger.log(
+      `Notified ${targets.length}/${enrollments.length} students about mock test "${testTitle}" (batch ${batchId})`,
+    );
   }
 
   async deleteMockTest(id: string, user: any, tenantId: string) {
@@ -397,10 +423,14 @@ export class AssessmentService {
   async startSession(dto: StartSessionDto, userId: string, tenantId: string) {
     const schema = await this.getMockTestSchema();
     const student = await this.getStudentByUserId(userId, tenantId);
-    const mockTest = await this.getMockTestRecord(dto.mockTestId, tenantId, schema);
+
+    const fromTest = await this.resolveMockTestTenantForStudent(dto.mockTestId, student.id);
+    const { batchTenantId } = await this.getStudentBatchIds(userId, tenantId);
+    const effectiveTenantId = fromTest ?? batchTenantId ?? tenantId;
+    const mockTest = await this.getMockTestRecord(dto.mockTestId, effectiveTenantId, schema);
 
     if (schema.batchId && mockTest.batchId) {
-      await this.assertStudentEnrollment(student.id, mockTest.batchId, tenantId);
+      await this.assertStudentEnrollment(student.id, mockTest.batchId, effectiveTenantId);
     }
 
     if (schema.isPublished && !mockTest.isPublished) {
@@ -409,7 +439,7 @@ export class AssessmentService {
 
     const activeSession = await this.sessionRepo.findOne({
       where: {
-        tenantId,
+        tenantId: effectiveTenantId,
         studentId: student.id,
         mockTestId: dto.mockTestId,
         status: TestSessionStatus.IN_PROGRESS,
@@ -421,7 +451,7 @@ export class AssessmentService {
 
     const session = await this.sessionRepo.save(
       this.sessionRepo.create({
-        tenantId,
+        tenantId: effectiveTenantId,
         studentId: student.id,
         mockTestId: dto.mockTestId,
         status: TestSessionStatus.IN_PROGRESS,
@@ -429,7 +459,7 @@ export class AssessmentService {
       }),
     );
 
-    const payload = await this.getSessionPayload(session.id, tenantId);
+    const payload = await this.getSessionPayload(session.id);
     return this.serializeSession(payload, true);
   }
 
@@ -437,14 +467,15 @@ export class AssessmentService {
     const schema = await this.getMockTestSchema();
     const student = await this.getStudentByUserId(userId, tenantId);
     const session = await this.sessionRepo.findOne({
-      where: { id: sessionId, tenantId, studentId: student.id },
+      where: { id: sessionId, studentId: student.id },
     });
     if (!session) throw new NotFoundException(`Session ${sessionId} not found`);
     if (session.status !== TestSessionStatus.IN_PROGRESS) {
       throw new BadRequestException('Session is not in progress');
     }
 
-    const mockTest = await this.getMockTestRecord(session.mockTestId, tenantId, schema);
+    const sessionTenant = session.tenantId;
+    const mockTest = await this.getMockTestRecord(session.mockTestId, sessionTenant, schema);
     if (this.isSessionExpired(session.startedAt, mockTest.durationMinutes)) {
       await this.submitSession(sessionId, userId, tenantId, true);
       throw new BadRequestException('Session expired and was auto-submitted');
@@ -455,7 +486,7 @@ export class AssessmentService {
     }
 
     const question = await this.questionRepo.findOne({
-      where: { id: dto.questionId, tenantId },
+      where: { id: dto.questionId, tenantId: sessionTenant },
       relations: ['options'],
     });
     if (!question) throw new NotFoundException(`Question ${dto.questionId} not found`);
@@ -469,13 +500,13 @@ export class AssessmentService {
         testSessionId: sessionId,
         questionId: dto.questionId,
         studentId: student.id,
-        tenantId,
+        tenantId: sessionTenant,
       },
     });
 
     if (!attempt) {
       attempt = this.attemptRepo.create({
-        tenantId,
+        tenantId: sessionTenant,
         testSessionId: sessionId,
         studentId: student.id,
         questionId: dto.questionId,
@@ -495,14 +526,15 @@ export class AssessmentService {
     const schema = await this.getMockTestSchema();
     const student = await this.getStudentByUserId(userId, tenantId);
     const existing = await this.sessionRepo.findOne({
-      where: { id: sessionId, tenantId, studentId: student.id },
+      where: { id: sessionId, studentId: student.id },
     });
     if (!existing) throw new NotFoundException(`Session ${sessionId} not found`);
     if (existing.status !== TestSessionStatus.IN_PROGRESS) {
       return this.getSessionResult(sessionId, { id: userId, role: UserRole.STUDENT }, tenantId);
     }
 
-    const mockTest = await this.getMockTestRecord(existing.mockTestId, tenantId, schema);
+    const sessionTenant = existing.tenantId;
+    const mockTest = await this.getMockTestRecord(existing.mockTestId, sessionTenant, schema);
     const now = new Date();
 
     // Capture BEFORE the transaction so we know if this is the first diagnostic completion
@@ -513,18 +545,18 @@ export class AssessmentService {
 
     await this.dataSource.transaction(async (manager) => {
       const questions = await manager.find(Question, {
-        where: { tenantId, id: In(mockTest.questionIds || []) },
+        where: { tenantId: sessionTenant, id: In(mockTest.questionIds || []) },
         relations: ['options', 'topic'],
       });
       const attempts = await manager.find(QuestionAttempt, {
-        where: { tenantId, testSessionId: sessionId, studentId: student.id },
+        where: { tenantId: sessionTenant, testSessionId: sessionId, studentId: student.id },
       });
       const attemptMap = new Map(attempts.map((attempt) => [attempt.questionId, attempt]));
 
       for (const questionId of mockTest.questionIds || []) {
         if (!attemptMap.has(questionId)) {
           const skipped = manager.create(QuestionAttempt, {
-            tenantId,
+            tenantId: sessionTenant,
             testSessionId: sessionId,
             studentId: student.id,
             questionId,
@@ -642,11 +674,11 @@ export class AssessmentService {
 
         const scorePercentage = stats.totalMarks > 0 ? (stats.marksAwarded / stats.totalMarks) * 100 : 0;
         const current = await manager.findOne(TopicProgress, {
-          where: { tenantId, studentId: student.id, topicId },
+          where: { tenantId: sessionTenant, studentId: student.id, topicId },
         });
         const next = this.gradingService.computeTopicProgressUpdate(current, topic, scorePercentage, now);
         next.studentId = student.id;
-        next.tenantId = tenantId;
+        next.tenantId = sessionTenant;
         await manager.save(TopicProgress, next);
 
         // Track topics that newly transitioned to COMPLETED for gate-unlock side effects
@@ -661,14 +693,14 @@ export class AssessmentService {
 
     // Unlock next topic in sequence for each topic that just passed its gate (fire-and-forget)
     for (const topicId of newlyCompletedTopicIds) {
-      this.studyPlanService.onTopicGatePassed(student.id, topicId, tenantId).catch((err) =>
+      this.studyPlanService.onTopicGatePassed(student.id, topicId, sessionTenant).catch((err) =>
         this.logger.warn(`onTopicGatePassed failed for topic ${topicId}: ${err?.message}`),
       );
     }
 
     // Auto-generate study plan after diagnostic completion (fire-and-forget, non-blocking)
     if (wasDiagnosticPending) {
-      this.studyPlanService.generatePlan(userId, tenantId, false).catch((err) =>
+      this.studyPlanService.generatePlan(userId, sessionTenant, false).catch((err) =>
         this.logger.warn(`Auto study-plan generation failed for ${userId}: ${err?.message}`),
       );
     }
@@ -677,20 +709,28 @@ export class AssessmentService {
   }
 
   async getSessionById(id: string, user: any, tenantId: string) {
-    const payload = await this.getSessionPayload(id, tenantId);
+    const payload = await this.getSessionPayload(id);
     await this.assertSessionReadAccess(payload.session, payload.mockTest, user, tenantId);
     return this.serializeSession(payload, user.role === UserRole.STUDENT);
   }
 
   async getSessionResult(id: string, user: any, tenantId: string) {
-    const payload = await this.getSessionPayload(id, tenantId);
+    const payload = await this.getSessionPayload(id);
     await this.assertSessionReadAccess(payload.session, payload.mockTest, user, tenantId);
+
+    const showSolutionsAfterSubmit = payload.mockTest?.showAnswersAfterSubmit !== false;
 
     const attempts = payload.attempts.map((attempt) => {
       const question = payload.questions.find((item) => item.id === attempt.questionId);
+      const questionForAttempt =
+        user.role === UserRole.STUDENT
+          ? (showSolutionsAfterSubmit
+            ? this.toPlainQuestionForReview(question)
+            : this.sanitizeQuestionForStudent(question))
+          : this.toPlainQuestionForReview(question);
       return {
         ...attempt,
-        question: user.role === UserRole.STUDENT ? this.sanitizeQuestionForStudent(question) : question,
+        question: questionForAttempt,
         analysis: {
           isCorrect: attempt.isCorrect,
           marksAwarded: attempt.marksAwarded,
@@ -726,22 +766,27 @@ export class AssessmentService {
     const qb = this.sessionRepo
       .createQueryBuilder('session')
       .leftJoinAndSelect('session.mockTest', 'mockTest')
-      .where('session.tenantId = :tenantId', { tenantId })
-      .andWhere('session.deletedAt IS NULL');
+      .where('session.deletedAt IS NULL');
+
+    // Students may have sessions under the batch institute tenant while JWT tenant differs.
+    // Teachers/admins stay scoped to the request tenant.
+    if (user.role === UserRole.STUDENT) {
+      const student = await this.getStudentByUserId(user.id, tenantId);
+      qb.andWhere('session.studentId = :studentId', { studentId: student.id });
+    } else {
+      qb.andWhere('session.tenantId = :tenantId', { tenantId });
+    }
 
     if (query.mockTestId) {
       qb.andWhere('session.mockTestId = :mockTestId', { mockTestId: query.mockTestId });
     }
 
-    if (user.role === UserRole.STUDENT) {
-      const student = await this.getStudentByUserId(user.id, tenantId);
-      qb.andWhere('session.studentId = :studentId', { studentId: student.id });
-    } else if (user.role === UserRole.TEACHER) {
+    if (user.role === UserRole.TEACHER) {
       qb.andWhere('mockTest.createdBy = :createdBy', { createdBy: user.id });
       if (query.studentId) {
         qb.andWhere('session.studentId = :studentId', { studentId: query.studentId });
       }
-    } else if (query.studentId) {
+    } else if (query.studentId && user.role !== UserRole.STUDENT) {
       qb.andWhere('session.studentId = :studentId', { studentId: query.studentId });
     }
 
@@ -1065,21 +1110,23 @@ export class AssessmentService {
     };
   }
 
-  private async getSessionPayload(id: string, tenantId: string) {
+  /** Load session by id only; use row tenant so concurrent batch exams work across JWT/batch tenant mismatch. */
+  private async getSessionPayload(id: string) {
     const session = await this.sessionRepo.findOne({
-      where: { id, tenantId },
+      where: { id },
       relations: ['mockTest'],
     });
     if (!session) throw new NotFoundException(`Session ${id} not found`);
 
+    const sessionTenant = session.tenantId;
     const schema = await this.getMockTestSchema();
-    const mockTest = await this.getMockTestRecord(session.mockTestId, tenantId, schema);
+    const mockTest = await this.getMockTestRecord(session.mockTestId, sessionTenant, schema);
     const attempts = await this.attemptRepo.find({
-      where: { tenantId, testSessionId: id },
+      where: { tenantId: sessionTenant, testSessionId: id },
       order: { createdAt: 'ASC' },
     });
     const questions = await this.questionRepo.find({
-      where: { tenantId, id: In(mockTest.questionIds || []) },
+      where: { tenantId: sessionTenant, id: In(mockTest.questionIds || []) },
       relations: ['options', 'topic'],
     });
 
@@ -1106,14 +1153,70 @@ export class AssessmentService {
     };
   }
 
+  /**
+   * Strip answer key and explanations while a student is taking the test (anti-cheat).
+   * Do not spread TypeORM entities — column values can be missing from `{...entity}`.
+   */
   private sanitizeQuestionForStudent(question: Question) {
     return {
-      ...question,
-      integerAnswer: undefined,
+      id: question.id,
+      content: question.content,
+      contentImageUrl: question.contentImageUrl ?? undefined,
+      type: question.type,
+      difficulty: question.difficulty,
+      marksCorrect: question.marksCorrect,
+      marksWrong: question.marksWrong,
+      topicId: question.topicId,
+      topic: question.topic ? { id: question.topic.id, name: question.topic.name } : undefined,
       options: (question.options || []).map((option) => ({
-        ...option,
+        id: option.id,
+        optionLabel: option.optionLabel,
+        content: option.content,
         isCorrect: null,
+        sortOrder: option.sortOrder,
       })),
+    };
+  }
+
+  /**
+   * Plain JSON for post-submit review (students + teachers). Reads solution text from
+   * accessors and snake_case fallbacks so `solution_text` is never dropped in the API.
+   */
+  private toPlainQuestionForReview(question: Question | undefined): Record<string, unknown> | null {
+    if (!question) return null;
+    const row = question as unknown as Record<string, unknown>;
+    const solutionTextRaw =
+      question.solutionText ??
+      (typeof row.solution_text === 'string' ? row.solution_text : null) ??
+      null;
+    const solutionText =
+      typeof solutionTextRaw === 'string' && solutionTextRaw.trim() ? solutionTextRaw.trim() : null;
+
+    const videoRaw = question.solutionVideoUrl ?? row.solution_video_url;
+    const solutionVideoUrl =
+      typeof videoRaw === 'string' && videoRaw.trim() ? videoRaw.trim() : null;
+
+    return {
+      id: question.id,
+      content: question.content,
+      contentImageUrl: question.contentImageUrl ?? null,
+      type: question.type,
+      difficulty: question.difficulty,
+      marksCorrect: question.marksCorrect,
+      marksWrong: question.marksWrong,
+      topicId: question.topicId,
+      topic: question.topic ? { id: question.topic.id, name: question.topic.name } : undefined,
+      integerAnswer: question.integerAnswer ?? null,
+      solutionText,
+      solutionVideoUrl,
+      options: (question.options || []).map((option) => ({
+        id: option.id,
+        optionLabel: option.optionLabel,
+        content: option.content,
+        isCorrect: !!option.isCorrect,
+        sortOrder: option.sortOrder,
+      })),
+      reviewMode: 'full_solution',
     };
   }
 
@@ -1157,7 +1260,7 @@ export class AssessmentService {
         order: { createdAt: 'DESC' },
       });
       if (existing) {
-        const payload = await this.getSessionPayload(existing.id, tenantId);
+        const payload = await this.getSessionPayload(existing.id);
         return { alreadyCompleted: true, session: this.serializeSession(payload, true) };
       }
       return { alreadyCompleted: true, session: null };
@@ -1314,7 +1417,7 @@ export class AssessmentService {
       }),
     );
 
-    const payload = await this.getSessionPayload(session.id, tenantId);
+    const payload = await this.getSessionPayload(session.id);
     return { alreadyCompleted: false, session: this.serializeSession(payload, true) };
   }
 
@@ -1340,9 +1443,9 @@ export class AssessmentService {
     return student;
   }
 
-  private async assertStudentEnrollment(studentId: string, batchId: string, tenantId: string) {
+  private async assertStudentEnrollment(studentId: string, batchId: string, _tenantId: string) {
     const enrollment = await this.enrollmentRepo.findOne({
-      where: { tenantId, studentId, batchId, status: EnrollmentStatus.ACTIVE },
+      where: { studentId, batchId, status: EnrollmentStatus.ACTIVE },
     });
     if (!enrollment) {
       throw new ForbiddenException('Student is not enrolled in the test batch');
@@ -1418,6 +1521,36 @@ export class AssessmentService {
     };
   }
 
+  /**
+   * Tenant id on mock_tests for a test this student may access (same batch enrollment).
+   * Used so we do not pick the wrong tenant when a student has several active enrollments.
+   */
+  private async resolveMockTestTenantForStudent(
+    mockTestId: string,
+    studentId: string,
+  ): Promise<string | null> {
+    const rows = await this.dataSource.query(
+      `
+      SELECT mt.tenant_id AS "tenantId"
+      FROM mock_tests mt
+      WHERE mt.id = $1
+        AND mt.deleted_at IS NULL
+        AND (
+          mt.batch_id IS NULL
+          OR EXISTS (
+            SELECT 1 FROM enrollments e
+            WHERE e.batch_id = mt.batch_id
+              AND e.student_id = $2
+              AND e.status = $3
+          )
+        )
+      LIMIT 1
+      `,
+      [mockTestId, studentId, EnrollmentStatus.ACTIVE],
+    );
+    return rows[0]?.tenantId ?? null;
+  }
+
   private async getStudentBatchIds(
     userId: string,
     tenantId: string,
@@ -1428,25 +1561,30 @@ export class AssessmentService {
       this.logger.warn(`[getStudentBatchIds] No student profile for userId=${userId}`);
       return { batchIds: [], batchTenantId: null };
     }
-    // First try with the JWT tenant; if no results try without tenant filter
-    let enrollments = await this.enrollmentRepo.find({
-      where: { tenantId, studentId: student.id, status: EnrollmentStatus.ACTIVE },
+
+    // Always load all active enrollments — filtering only by JWT tenant hides batches
+    // where enrollment.tenant_id differs from the token (common after payment/self-enroll).
+    const enrollments = await this.enrollmentRepo.find({
+      where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
     });
+
     let batchTenantId: string | null = null;
-    if (enrollments.length === 0) {
-      // Fallback: find enrollments ignoring tenant (handles cross-tenant students)
-      enrollments = await this.enrollmentRepo.find({
-        where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
-      });
-      if (enrollments.length > 0) {
-        batchTenantId = enrollments[0].tenantId;
-      }
-    }
-    // If caller specified a batchId, use that batch's tenantId
     if (preferBatchId) {
       const hit = enrollments.find(e => e.batchId === preferBatchId);
       if (hit) batchTenantId = hit.tenantId;
+    } else {
+      const jwtMatch = enrollments.filter(e => e.tenantId === tenantId);
+      if (jwtMatch.length === 1) {
+        batchTenantId = jwtMatch[0].tenantId;
+      } else if (enrollments.length === 1) {
+        batchTenantId = enrollments[0].tenantId;
+      } else if (jwtMatch.length > 0) {
+        batchTenantId = jwtMatch[0].tenantId;
+      } else if (enrollments.length > 0) {
+        batchTenantId = enrollments[0].tenantId;
+      }
     }
+
     this.logger.debug(
       `[getStudentBatchIds] userId=${userId} tenantId=${tenantId} studentId=${student.id} ` +
       `enrollments=${enrollments.length} batchTenantId=${batchTenantId} ` +

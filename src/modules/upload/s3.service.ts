@@ -9,6 +9,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import type { Readable as NodeReadable } from 'stream';
 
 export interface PresignResult {
   uploadUrl: string;
@@ -107,6 +108,29 @@ export class S3Service implements OnModuleInit {
       ResponseContentDisposition: disposition,
     });
     return getSignedUrl(this.client, command, { expiresIn: 300 });
+  }
+
+  /** Presigned GET URL with configurable TTL (e.g. study material full PDF download). */
+  async presignGet(key: string, expiresIn = 900): Promise<string> {
+    const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
+    return getSignedUrl(this.client, command, { expiresIn });
+  }
+
+  /** Fetch object bytes from S3 (server-side PDF processing, etc.). */
+  async getBuffer(key: string): Promise<Buffer> {
+    const out = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    const body = out.Body;
+    if (!body) {
+      throw new Error(`S3 GetObject returned empty body for key: ${key}`);
+    }
+    const stream = body as NodeReadable;
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 
   /** Extract the S3 object key from a public URL previously returned by toPublicUrl(). */

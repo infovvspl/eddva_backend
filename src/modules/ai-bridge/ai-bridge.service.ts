@@ -359,10 +359,21 @@ export class AiBridgeService {
         );
       }
 
+      const explanation = (
+        q.explanation ||
+        q.solutionText ||
+        q.solution_text ||
+        q.solution ||
+        q.rationale ||
+        q.reasoning ||
+        q.elaboration ||
+        ''
+      ).trim();
+
       return {
         content,
         options,
-        explanation: q.explanation || '',
+        explanation,
         integerAnswer: type === 'integer' ? (rawAnswer || null) : null,
       };
     });

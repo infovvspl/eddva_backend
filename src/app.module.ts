@@ -36,6 +36,7 @@ import {
 import { Announcement } from './database/entities/announcement.entity';
 import { TeacherProfile } from './database/entities/teacher.entity';
 import { PYQAttempt, PYQYearStats } from './database/entities/pyq.entity';
+import { StudyMaterial } from './modules/study-material/study-material.entity';
 
 
 // ── Modules ───────────────────────────────────────────────────────────────────
@@ -56,6 +57,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { InstituteSettingsModule } from './modules/institute-settings/institute-settings.module';
 import { PYQModule } from './modules/pyq/pyq.module';
 import { PresenceModule } from './modules/presence/presence.module';
+import { StudyMaterialModule } from './modules/study-material/study-material.module';
 import { AIModule } from './ai/ai.module';
 
 // ── Common ────────────────────────────────────────────────────────────────────
@@ -79,6 +81,7 @@ const ALL_ENTITIES = [
   AiStudySession,
   PYQAttempt,
   PYQYearStats,
+  StudyMaterial,
 ];
 
 @Module({
@@ -156,6 +159,7 @@ const ALL_ENTITIES = [
     PYQModule,
     PresenceModule,
     AIModule,
+    StudyMaterialModule,
 
     // TODO: Add as you build them:
 

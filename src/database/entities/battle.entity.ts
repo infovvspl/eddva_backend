@@ -3,8 +3,6 @@ import { Base } from './base.entity';
 import { Tenant } from './tenant.entity';
 import { Student } from './student.entity';
 import { Topic } from './subject.entity';
-import { Question } from './question.entity';
-
 export enum BattleMode {
   QUICK_DUEL = 'quick_duel',
   TOPIC_BATTLE = 'topic_battle',
@@ -13,6 +11,7 @@ export enum BattleMode {
   CLAN_WAR = 'clan_war',
   BOT_PRACTICE = 'bot_practice',
   DAILY = 'daily',
+  CHALLENGE_FRIEND = 'challenge_friend',
 }
 
 export enum BattleStatus {
@@ -142,18 +141,14 @@ export class BattleAnswer extends Base {
   @JoinColumn({ name: 'participant_id' })
   participant: BattleParticipant;
 
-  @Column({ name: 'question_id' })
-  questionId: string;
-
-  @ManyToOne(() => Question)
-  @JoinColumn({ name: 'question_id' })
-  question: Question;
+  @Column({ name: 'question_id', type: 'text', nullable: true })
+  questionId: string | null;
 
   @Column({ name: 'round_number' })
   roundNumber: number;
 
-  @Column({ name: 'selected_option_id', nullable: true })
-  selectedOptionId: string;
+  @Column({ name: 'selected_option_id', type: 'text', nullable: true })
+  selectedOptionId: string | null;
 
   @Column({ name: 'is_correct', nullable: true })
   isCorrect: boolean;
