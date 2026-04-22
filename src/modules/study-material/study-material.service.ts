@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { PDFDocument } from 'pdf-lib';
 
+import { Tenant, TenantStatus } from '../../database/entities/tenant.entity';
 import { StudyMaterial } from './study-material.entity';
 import {
   CreateStudyMaterialDto, UpdateStudyMaterialDto, ListStudyMaterialDto,
@@ -71,6 +72,18 @@ export class StudyMaterialService {
    */
   async getPreviewBuffer(id: string, tenantId: string): Promise<{ buffer: Buffer; pages: number }> {
     const mat = await this.findOneOrFail(id, tenantId);
+    return this.buildPreviewFromMaterial(mat);
+  }
+
+  /**
+   * Public marketplace preview — resolves material by id only (any institute), no tenant header.
+   */
+  async getPublicPreviewBuffer(id: string): Promise<{ buffer: Buffer; pages: number }> {
+    const mat = await this.findPublicOrFail(id);
+    return this.buildPreviewFromMaterial(mat);
+  }
+
+  private async buildPreviewFromMaterial(mat: StudyMaterial): Promise<{ buffer: Buffer; pages: number }> {
     const fullBuffer = await this.s3.getBuffer(mat.s3Key);
     const srcDoc = await PDFDocument.load(fullBuffer);
 
@@ -113,6 +126,19 @@ export class StudyMaterialService {
 
   private async findOneOrFail(id: string, tenantId: string) {
     const mat = await this.repo.findOne({ where: { id, tenantId } });
+    if (!mat) throw new NotFoundException('Study material not found');
+    return mat;
+  }
+
+  /** Active material from a non-suspended tenant (for public / cross-tenant preview). */
+  private async findPublicOrFail(id: string): Promise<StudyMaterial> {
+    const mat = await this.repo
+      .createQueryBuilder('m')
+      .innerJoin(Tenant, 't', 't.id = m.tenant_id::uuid')
+      .where('m.id = :id', { id })
+      .andWhere('m.isActive = :active', { active: true })
+      .andWhere('t.status IN (:...ok)', { ok: [TenantStatus.ACTIVE, TenantStatus.TRIAL] })
+      .getOne();
     if (!mat) throw new NotFoundException('Study material not found');
     return mat;
   }

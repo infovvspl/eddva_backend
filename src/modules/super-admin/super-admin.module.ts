@@ -12,12 +12,15 @@ import { Batch, Enrollment } from '../../database/entities/batch.entity';
 import { Lecture } from '../../database/entities/learning.entity';
 import { TestSession } from '../../database/entities/assessment.entity';
 import { Announcement } from '../../database/entities/announcement.entity';
+import { StudyMaterial } from '../study-material/study-material.entity';
 import { NotificationModule } from '../notification/notification.module';
+import { StudyMaterialModule } from '../study-material/study-material.module';
 
 @Module({
   imports: [
     NotificationModule,
-    TypeOrmModule.forFeature([Tenant, User, Student, Batch, Enrollment, Lecture, TestSession, Announcement]),
+    StudyMaterialModule,
+    TypeOrmModule.forFeature([Tenant, User, Student, Batch, Enrollment, Lecture, TestSession, Announcement, StudyMaterial]),
   ],
   controllers: [SuperAdminController, PublicTenantController],
   providers: [SuperAdminService],

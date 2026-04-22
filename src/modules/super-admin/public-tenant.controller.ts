@@ -1,10 +1,20 @@
-import { Controller, Get, Param, ParseUUIDPipe, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  NotFoundException,
+  Query,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Public } from '../../common/decorators/auth.decorator';
 import { Tenant, TenantStatus } from '../../database/entities/tenant.entity';
 import { SuperAdminService } from './super-admin.service';
+import { StudyMaterialService } from '../study-material/study-material.service';
 
 @ApiTags('Public Tenant')
 @Controller('tenants')
@@ -13,6 +23,7 @@ export class PublicTenantController {
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
     private readonly superAdminService: SuperAdminService,
+    private readonly studyMaterialService: StudyMaterialService,
   ) {}
 
   @Get('public/catalog')
@@ -24,6 +35,53 @@ export class PublicTenantController {
   })
   async listPublicPlatformCourses() {
     return this.superAdminService.getPublicPlatformCoursesCatalog();
+  }
+
+  @Get('public/study-materials')
+  @Public()
+  @ApiOperation({
+    summary: 'Public study materials marketplace (all institutes)',
+    description:
+      'Lists active study materials (notes/PYQs/formula sheets/DPP) across non-suspended institutes. No auth required.',
+  })
+  async listPublicStudyMaterials(
+    @Query('exam') exam?: 'jee' | 'neet',
+    @Query('type') type?: 'notes' | 'pyq' | 'formula_sheet' | 'dpp',
+    @Query('subject') subject?: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? Number(limit) : undefined;
+    return this.superAdminService.getPublicStudyMaterialsCatalog({
+      exam,
+      type,
+      subject,
+      search,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+    });
+  }
+
+  @Get('public/study-materials/:id/preview')
+  @Public()
+  @ApiOperation({
+    summary: 'Stream PDF preview for a catalog study material (no tenant header)',
+    description:
+      'Same 2-page preview as /study-materials/:id/preview, but works for any institute in the public marketplace.',
+  })
+  async previewPublicStudyMaterial(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, pages } = await this.studyMaterialService.getPublicPreviewBuffer(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Length': buffer.length,
+      'Content-Disposition': 'inline; filename="preview.pdf"',
+      'X-Preview-Pages': String(pages),
+      'X-Watermark': 'Preview only — register to unlock full document',
+      'Cache-Control': 'no-store',
+    });
+    res.send(buffer);
   }
 
   @Get('resolve/:subdomain')

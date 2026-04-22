@@ -20,6 +20,7 @@ import { Student } from '../../database/entities/student.entity';
 import { Tenant, TenantPlan, TenantStatus, TenantType } from '../../database/entities/tenant.entity';
 import { User, UserRole, UserStatus } from '../../database/entities/user.entity';
 import { Announcement } from '../../database/entities/announcement.entity';
+import { StudyMaterial } from '../study-material/study-material.entity';
 
 import {
   AdminUserListQueryDto,
@@ -60,6 +61,8 @@ export class SuperAdminService {
     private readonly sessionRepo: Repository<TestSession>,
     @InjectRepository(Announcement)
     private readonly announcementRepo: Repository<Announcement>,
+    @InjectRepository(StudyMaterial)
+    private readonly studyMaterialRepo: Repository<StudyMaterial>,
     private readonly notificationService: NotificationService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
@@ -676,6 +679,42 @@ export class SuperAdminService {
     }));
 
     return { catalogScope: 'platform' as const, institute: instituteShell, courses };
+  }
+
+  /**
+   * Public study-material marketplace across all active institutes.
+   * Returns only active rows and never exposes private S3 keys.
+   */
+  async getPublicStudyMaterialsCatalog(query: {
+    exam?: 'jee' | 'neet';
+    type?: 'notes' | 'pyq' | 'formula_sheet' | 'dpp';
+    subject?: string;
+    search?: string;
+    limit?: number;
+  }) {
+    // List by exam (and type/subject) as stored on study_materials; optional tenant join only
+    // filters out materials from suspended institutes. tenant_id must match tenants.id (uuid).
+    const qb = this.studyMaterialRepo
+      .createQueryBuilder('m')
+      // Cast: legacy DBs had tenant_id as varchar; tenants.id is uuid
+      .innerJoin(Tenant, 't', 't.id = m.tenant_id::uuid')
+      .where('m.isActive = :active', { active: true })
+      .andWhere('t.status IN (:...tenantOk)', { tenantOk: [TenantStatus.ACTIVE, TenantStatus.TRIAL] });
+
+    if (query.exam) qb.andWhere('m.exam = :exam', { exam: query.exam });
+    if (query.type) qb.andWhere('m.type = :type', { type: query.type });
+    if (query.subject) qb.andWhere('m.subject ILIKE :subject', { subject: `%${query.subject}%` });
+    if (query.search) {
+      qb.andWhere('(m.title ILIKE :search OR m.chapter ILIKE :search OR m.description ILIKE :search)', {
+        search: `%${query.search}%`,
+      });
+    }
+
+    const limit = Math.min(Math.max(query.limit ?? 120, 1), 300);
+    qb.orderBy('m.sortOrder', 'ASC').addOrderBy('m.createdAt', 'DESC').take(limit);
+
+    const rows = await qb.getMany();
+    return rows.map(({ s3Key: _omit, ...m }) => m);
   }
 
   private generateTempPassword() {
