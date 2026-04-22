@@ -47,7 +47,9 @@ import {
     LectureQueryDto,
     UpsertProgressDto,
 } from './dto/lecture.dto';
-import { YoutubeTranscript } from 'youtube-transcript';
+type YoutubeTranscriptApi = {
+    fetchTranscript: (videoIdOrUrl: string, opts?: { lang?: string }) => Promise<{ text: string }[]>;
+};
 
 @Injectable()
 export class ContentService {
@@ -783,6 +785,17 @@ export class ContentService {
     }
 
     /**
+     * `youtube-transcript@1.3.0` has a packaging issue (`type: module` with CJS main).
+     * Load its ESM build through native dynamic import so Node 24 doesn't crash.
+     */
+    private async loadYoutubeTranscriptApi(): Promise<YoutubeTranscriptApi> {
+        const mod = await import('youtube-transcript/dist/youtube-transcript.esm.js');
+        const api = (mod as { YoutubeTranscript?: YoutubeTranscriptApi }).YoutubeTranscript;
+        if (!api) throw new Error('Failed to load youtube-transcript ESM API');
+        return api;
+    }
+
+    /**
      * Fetch the auto-generated or manual captions for a YouTube video and join
      * them into one plain-text transcript string.
      *
@@ -790,12 +803,13 @@ export class ContentService {
      * available language so we always get something.
      */
     private async _fetchYouTubeTranscript(videoId: string): Promise<string> {
+        const youtubeTranscript = await this.loadYoutubeTranscriptApi();
         let segments: { text: string }[];
         try {
-            segments = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'en' });
+            segments = await youtubeTranscript.fetchTranscript(videoId, { lang: 'en' });
         } catch {
             // Retry without a lang preference — takes whatever YouTube makes available
-            segments = await YoutubeTranscript.fetchTranscript(videoId);
+            segments = await youtubeTranscript.fetchTranscript(videoId);
         }
         if (!segments || segments.length === 0) {
             throw new Error(`YouTube captions are empty for video ${videoId}`);
