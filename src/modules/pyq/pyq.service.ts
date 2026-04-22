@@ -1144,7 +1144,7 @@ Return ONLY a valid JSON array, no markdown:
   private parseCSV(buffer: Buffer): Promise<Record<string, string>[]> {
     return new Promise((resolve, reject) => {
       const rows: Record<string, string>[] = [];
-      const stream = Readable.from(buffer);
+      const stream = Readable.from([buffer]);
       stream
         .pipe(csvParser())
         .on('data', (row: Record<string, string>) => rows.push(row))

@@ -47,6 +47,7 @@ import {
     LectureQueryDto,
     UpsertProgressDto,
 } from './dto/lecture.dto';
+import { YoutubeTranscript } from 'youtube-transcript';
 
 @Injectable()
 export class ContentService {
@@ -767,12 +768,127 @@ export class ContentService {
         return url.replace(/\/api\/v\d+\/uploads\//, '/uploads/');
     }
 
+    // ── YouTube helpers ───────────────────────────────────────────────────────
+
+    private isYouTubeUrl(url: string): boolean {
+        return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)/.test(url);
+    }
+
+    private extractYouTubeId(url: string): string | null {
+        const m =
+            url.match(/[?&]v=([A-Za-z0-9_-]{11})/) ||
+            url.match(/youtu\.be\/([A-Za-z0-9_-]{11})/) ||
+            url.match(/\/(?:shorts|embed)\/([A-Za-z0-9_-]{11})/);
+        return m ? m[1] : null;
+    }
+
+    /**
+     * Fetch the auto-generated or manual captions for a YouTube video and join
+     * them into one plain-text transcript string.
+     *
+     * Tries English first; if unavailable, lets the library pick the first
+     * available language so we always get something.
+     */
+    private async _fetchYouTubeTranscript(videoId: string): Promise<string> {
+        let segments: { text: string }[];
+        try {
+            segments = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'en' });
+        } catch {
+            // Retry without a lang preference — takes whatever YouTube makes available
+            segments = await YoutubeTranscript.fetchTranscript(videoId);
+        }
+        if (!segments || segments.length === 0) {
+            throw new Error(`YouTube captions are empty for video ${videoId}`);
+        }
+        return segments
+            .map(s => s.text.replace(/\[.*?\]/g, '').trim())  // strip [Music], [Applause] etc.
+            .filter(Boolean)
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    /**
+     * Full AI pipeline for a YouTube lecture:
+     *   1. Fetch captions via the YouTube transcript API (no yt-dlp, no OAuth)
+     *   2. Send plain-text transcript to the LLM summariser (bypass Whisper)
+     *   3. Persist transcript + AI notes to the DB
+     */
+    private async _processYouTubeLecture(
+        lectureId: string,
+        videoId: string,
+        topicId: string | undefined,
+        tenantId: string,
+    ): Promise<void> {
+        const current = await this.lectureRepo.findOne({
+            where: { id: lectureId },
+            select: ['id', 'status', 'lectureLanguage'],
+        });
+        const isNewLecture = current?.status === LectureStatus.PROCESSING;
+        const lang: 'en' | 'hi' = current?.lectureLanguage === 'hi' ? 'hi' : 'en';
+
+        this.logger.log(`YouTube AI processing started for lecture ${lectureId} videoId=${videoId}`);
+        await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.PROCESSING });
+
+        try {
+            // ── Step 1: Fetch captions ───────────────────────────────────────
+            const transcript = await this._fetchYouTubeTranscript(videoId);
+            this.logger.log(`Fetched ${transcript.length} chars of captions for lecture ${lectureId}`);
+
+            // ── Step 2: Generate notes from transcript (no Whisper) ──────────
+            const result = await this.aiBridgeService.generateNotesFromTranscript(
+                { transcript, topicId: topicId ?? '', language: lang },
+                tenantId,
+            ) as any;
+
+            // ── Step 3: Persist ───────────────────────────────────────────────
+            const updates: Partial<Lecture> = {
+                status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
+                transcriptStatus: TranscriptStatus.DONE,
+                transcriptLanguage: lang,
+                transcript,  // save raw caption text
+            };
+            const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? result?.raw ?? null;
+            if (notes) {
+                updates.aiNotesMarkdown = await this.ensureEnglishLectureNotes(String(notes), tenantId);
+            }
+            const concepts = result?.key_concepts ?? result?.keyConcepts;
+            if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
+
+            await this.lectureRepo.update(lectureId, updates);
+            this.logger.log(`YouTube AI processing complete for lecture ${lectureId} → status: ${updates.status}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.error(`YouTube AI processing failed for lecture ${lectureId}: ${msg}`);
+            await this.lectureRepo.update(lectureId, {
+                status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
+                transcriptStatus: TranscriptStatus.FAILED,
+            });
+        }
+    }
+
     private async _processLectureAI(
         lectureId: string,
         videoUrl: string,
         topicId: string | undefined,
         tenantId: string,
     ): Promise<void> {
+        // ── YouTube branch: fetch captions instead of running Whisper ────────
+        if (this.isYouTubeUrl(videoUrl)) {
+            const videoId = this.extractYouTubeId(videoUrl);
+            if (!videoId) {
+                this.logger.error(`Cannot extract YouTube video ID from URL: ${videoUrl}`);
+                const cur = await this.lectureRepo.findOne({ where: { id: lectureId }, select: ['id', 'status'] });
+                await this.lectureRepo.update(lectureId, {
+                    status: cur?.status === LectureStatus.PROCESSING ? LectureStatus.DRAFT : (cur?.status ?? LectureStatus.DRAFT),
+                    transcriptStatus: TranscriptStatus.FAILED,
+                });
+                return;
+            }
+            return this._processYouTubeLecture(lectureId, videoId, topicId, tenantId);
+        }
+
+        // ── Existing direct-media / Whisper branch ────────────────────────────
         const cleanUrl = this._fixVideoUrl(videoUrl);
         this.logger.log(`AI processing started for lecture ${lectureId} url=${cleanUrl}`);
 
