@@ -119,6 +119,30 @@ export class AiBridgeService {
     return this.post('/stt/notes', payload, tenantId, 300_000); // 5 min — Whisper + LLM
   }
 
+  // ── AI #7b — Notes from pre-existing Transcript (YouTube / manual) ────────
+  /**
+   * Skips Whisper entirely.  Sends a plain-text transcript to the Django AI
+   * backend which feeds it directly into the LLM summarisation step.
+   *
+   * Django endpoint: POST /stt/notes-from-text
+   * Expected body:   { transcript, topicId, language }
+   * Expected shape:  same as /stt/notes → { notes, rawTranscript, key_concepts }
+   *
+   * If the Django backend does not yet expose /stt/notes-from-text, it can be
+   * implemented as a thin wrapper around the existing notes LLM chain, minus
+   * the Whisper step.
+   */
+  async generateNotesFromTranscript(
+    payload: {
+      transcript: string;
+      topicId: string;
+      language: 'en' | 'hi';
+    },
+    tenantId?: string,
+  ) {
+    return this.post('/stt/notes-from-text', payload, tenantId, 300_000); // 5 min — LLM only
+  }
+
   // ── AI #8 — Student Feedback Engine ──────────────────────────────────────
   async generateFeedback(
     payload: {

@@ -65,7 +65,8 @@
     "socket.io": "^4.5.0",
     "twilio": "^4.14.0",
     "typeorm": "^0.3.17",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "youtube-transcript": "^1.0.6"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
