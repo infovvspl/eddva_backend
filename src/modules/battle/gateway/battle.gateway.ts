@@ -52,6 +52,8 @@ export class BattleGateway
       toStudentId: string;
       tenantId: string;
       timer: NodeJS.Timeout;
+      batchId?: string;
+      batchName?: string;
     }
   >();
 
@@ -124,9 +126,9 @@ export class BattleGateway
   @SubscribeMessage('battle:challenge')
   handleChallengeRequest(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { targetStudentId: string; fromStudentId: string; tenantId: string },
+    @MessageBody() data: { targetStudentId: string; fromStudentId: string; tenantId: string; batchId?: string; batchName?: string },
   ) {
-    const { targetStudentId, fromStudentId, tenantId: payloadTenantId } = data ?? {};
+    const { targetStudentId, fromStudentId, tenantId: payloadTenantId, batchId, batchName } = data ?? {};
     // Prefer onlineUsers entry; fall back to tenantId in payload (survives hot-reload)
     const senderOnline = fromStudentId ? this.onlineUsers.get(fromStudentId) : undefined;
     const tenantId = senderOnline?.tenantId ?? payloadTenantId;
@@ -166,12 +168,16 @@ export class BattleGateway
       toStudentId: targetStudentId,
       tenantId,
       timer: timeout,
+      batchId,
+      batchName,
     });
 
     this.server.to(target.socketId).emit('battle:incoming_request', {
       challengeId,
       fromStudentId,
       expiresInSeconds: 30,
+      batchId,
+      batchName,
     });
 
     client.emit('battle:challenge_sent', { challengeId, targetStudentId });
@@ -212,6 +218,8 @@ export class BattleGateway
         pending.fromStudentId,
         pending.toStudentId,
         pending.tenantId,
+        pending.batchId,
+        pending.batchName,
       );
 
       // Put both clients in the private socket room and start immediately.
@@ -334,6 +342,7 @@ export class BattleGateway
         : waitingStudentIds.has(p.studentId)
           ? 'waiting'
           : 'online',
+      batchIds: p.batchIds,
     }));
 
     // Each student only sees peers preparing for the same exam (JEE / NEET / both).

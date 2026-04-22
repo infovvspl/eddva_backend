@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import {
   Battle,
   BattleParticipant,
@@ -221,7 +221,7 @@ export class BattleService {
 
   // ─── Create private room for challenge flow (gateway) ─────────────────────
 
-  async createPrivateChallengeRoom(challengerStudentId: string, targetStudentId: string, tenantId: string) {
+  async createPrivateChallengeRoom(challengerStudentId: string, targetStudentId: string, tenantId: string, batchId?: string, batchName?: string) {
     if (!challengerStudentId || !targetStudentId) {
       throw new BadRequestException('Both challenger and target are required');
     }
@@ -251,7 +251,7 @@ export class BattleService {
       .findOne({ where: { id: challengerStudentId } });
     const examTarget = challengerStudent?.examTarget ?? undefined;
 
-    const aiQuestions = await this.buildAiBattleQuestions(tenantId, qCount, null, examTarget);
+    const aiQuestions = await this.buildAiBattleQuestions(tenantId, qCount, null, examTarget, batchName);
     this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
     battle.questionIds = [];
     battle.replayData = { ...(battle.replayData ?? {}), aiQuestions };
@@ -779,6 +779,17 @@ export class BattleService {
         tier: string;
       }>();
 
+    const enrollments = await this.dataSource.getRepository(Enrollment).find({
+      where: { studentId: In(studentIds), status: EnrollmentStatus.ACTIVE },
+      select: ['studentId', 'batchId']
+    });
+
+    const userMap = new Map<string, string[]>();
+    for (const enr of enrollments) {
+      if (!userMap.has(enr.studentId)) userMap.set(enr.studentId, []);
+      userMap.get(enr.studentId)!.push(enr.batchId);
+    }
+
     return rows.map(r => ({
       studentId: r.studentId,
       name: r.name ?? 'Player',
@@ -786,6 +797,7 @@ export class BattleService {
       xpPoints: Number(r.xpPoints ?? 0),
       eloRating: Number(r.eloRating ?? 1000),
       tier: (r.tier ?? EloTier.IRON).toLowerCase(),
+      batchIds: userMap.get(r.studentId) || [],
     }));
   }
 
