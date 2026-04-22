@@ -224,51 +224,74 @@ export class AiBridgeService {
     // 1. Already a plain array
     if (Array.isArray(raw)) return raw;
 
-    // 2. Object with a questions array
-    if (Array.isArray(raw?.questions) && raw.questions.length > 0) {
-      const first = raw.questions[0];
+    // 2. Object with a questions array (handle common envelopes)
+    const questionsArray = 
+      Array.isArray(raw?.questions) ? raw.questions :
+      Array.isArray(raw?.data?.questions) ? raw.data.questions :
+      Array.isArray(raw?.data) ? raw.data :
+      null;
+
+    if (questionsArray && questionsArray.length > 0) {
+      const first = questionsArray[0];
       // Degenerate: the AI crammed the whole JSON response into the first "question" field
       const possibleJson: string = (
         typeof first === 'string' ? first :
         (first?.question || first?.questionText || first?.content || first?.text || '')
       );
-      if (typeof possibleJson === 'string' && possibleJson.trim().startsWith('`')) {
+      if (typeof possibleJson === 'string' && possibleJson.includes('`')) {
         const parsed = this.stripMarkdownAndParse(possibleJson);
         if (parsed) {
           if (Array.isArray(parsed?.questions)) return parsed.questions;
           if (Array.isArray(parsed)) return parsed;
         }
       }
-      return raw.questions;
+      return questionsArray;
     }
 
-    // 3. String — may be plain JSON or markdown-fenced JSON
+    // 3. String — may be plain JSON or have conversational preamble
     if (typeof raw === 'string') {
       const t = raw.trim();
-      // Markdown fence
-      if (t.startsWith('`')) {
-        const parsed = this.stripMarkdownAndParse(t);
-        if (parsed) {
-          if (Array.isArray(parsed?.questions)) return parsed.questions;
-          if (Array.isArray(parsed)) return parsed;
+      
+      // Try parsing the whole thing first
+      try {
+        const parsed = JSON.parse(t);
+        if (Array.isArray(parsed?.questions)) return parsed.questions;
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // Not a direct JSON string, try to find JSON block using regex
+        const jsonBlockMatch = t.match(/\[\s*{[\s\S]*}\]/); // Slightly more restrictive to find actual arrays
+        if (jsonBlockMatch) {
+          try {
+            const parsed = JSON.parse(jsonBlockMatch[0]);
+            return parsed;
+          } catch { /* skip */ }
         }
-      }
-      // Plain JSON
-      if (t.startsWith('{') || t.startsWith('[')) {
-        try {
-          const parsed = JSON.parse(t);
-          if (Array.isArray(parsed?.questions)) return parsed.questions;
-          if (Array.isArray(parsed)) return parsed;
-        } catch { /* not JSON */ }
+
+        const jsonObjectMatch = t.match(/{\s*"(?:questions|data)"\s*:\s*\[[\s\S]*?\]\s*}/);
+        if (jsonObjectMatch) {
+          try {
+            const parsed = JSON.parse(jsonObjectMatch[0]);
+            if (Array.isArray(parsed.questions)) return parsed.questions;
+            if (Array.isArray(parsed.data)) return parsed.data;
+          } catch { /* skip */ }
+        }
+
+        // Try markdown fence extractor
+        const fenced = this.stripMarkdownAndParse(t);
+        if (fenced) {
+          if (Array.isArray(fenced?.questions)) return fenced.questions;
+          if (Array.isArray(fenced)) return fenced;
+        }
       }
     }
 
+    this.logger.debug(`[AiBridge] resolveToQuestionList failed to find questions in: ${typeof raw === 'string' ? raw.slice(0, 100) : JSON.stringify(raw).slice(0, 100)}`);
     return [];
   }
 
   // ── AI #13 — Quiz Question Generator from Topic ───────────────────────────
   async generateQuestionsFromTopic(
-    payload: {
+    dto: {
       topicId: string;
       topicName: string;
       count: number;
@@ -277,24 +300,18 @@ export class AiBridgeService {
     },
     tenantId?: string,
   ) {
-    const typeMap: Record<string, string> = {
-      mcq_single: 'mcq',
-      mcq_multi: 'mcq',
-      integer: 'short_answer',
-    };
-    const questionTypes = typeMap[payload.type] || 'mcq';
-
+    const questionTypes = dto.type === 'mcq_single' ? ['mcq'] : [dto.type];
     const raw = await this.post<any>('/test/generate/', {
-      topic: payload.topicName,
-      num_questions: payload.count,
-      difficulty: payload.difficulty,
+      topic: `${dto.topicName} (Respond in English only)`,
+      num_questions: dto.count,
+      difficulty: dto.difficulty,
       question_types: questionTypes,
     }, tenantId);
 
     const questions = this.resolveToQuestionList(raw);
 
     if (questions.length > 0) {
-      return this.normaliseStructuredQuestions(questions, payload.type);
+      return this.normaliseStructuredQuestions(questions, dto.type);
     }
 
     // Last resort: free-form Q.N text parser
@@ -308,7 +325,7 @@ export class AiBridgeService {
 
     if (rawText.trim()) {
       this.logger.warn(`[AI #13] Falling back to raw text parser (${rawText.length} chars)`);
-      return this.parseRawTextQuestions(rawText, payload.type);
+      return this.parseRawTextQuestions(rawText, dto.type);
     }
 
     this.logger.warn('[AI #13] No questions in AI response');
@@ -492,18 +509,37 @@ export class AiBridgeService {
 
   // ── AI #14 — In-Video Quiz Generator ──────────────────────────────────────
   async generateQuizForLecture(
-    payload: {
+    dto: {
       transcript: string;
       lectureTitle: string;
       topicId?: string;
     },
     tenantId?: string,
   ) {
+    const payload = {
+      ...dto,
+      // Enforce English instructions for the LLM
+      lectureTitle: `${dto.lectureTitle} (Generate questions and explanation in English only)`,
+    };
     const raw = await this.post<any>('/quiz/generate', payload, tenantId);
+    this.logger.log(`[AI #14] Received raw response from Django: ${JSON.stringify(raw)}`);
     const questions = this.resolveToQuestionList(raw);
-    const normalised = questions.length > 0
+    let normalised = questions.length > 0
       ? this.normaliseStructuredQuestions(questions, 'mcq_single')
       : [];
+
+    // Fallback: raw text parser
+    if (normalised.length === 0) {
+      const rawText: string =
+        typeof raw === 'string' ? raw :
+        typeof raw?.text === 'string' ? raw.text :
+        typeof raw?.content === 'string' ? raw.content :
+        '';
+      if (rawText.trim()) {
+        this.logger.warn(`[AI #14] Falling back to raw text parser for quiz generation`);
+        normalised = this.parseRawTextQuestions(rawText, 'mcq_single');
+      }
+    }
 
     const checkpoints = normalised.map((q: any, i: number) => {
       const correctOption =
@@ -524,7 +560,7 @@ export class AiBridgeService {
 
   // ── AI #16 — Topic Content Generator (DPP, notes, PYQ, etc.) ─────────────
   async generateTopicContent(
-    payload: {
+    dto: {
       topicName: string;
       subjectName: string;
       chapterName: string;
@@ -535,6 +571,10 @@ export class AiBridgeService {
     },
     tenantId?: string,
   ): Promise<{ content: string; contentType: string; topicName: string }> {
+    const payload = {
+      ...dto,
+      extraContext: `${dto.extraContext || ''} (Generate all content in English only)`.trim(),
+    };
     return this.post('/content/generate', payload, tenantId, 120_000);
   }
 }

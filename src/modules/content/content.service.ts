@@ -47,7 +47,8 @@ import {
     LectureQueryDto,
     UpsertProgressDto,
 } from './dto/lecture.dto';
-import { YoutubeTranscript } from 'youtube-transcript';
+// Package "main" is CJS but package.json has "type":"module" — Node loads .js as ESM and breaks. Use the ESM build.
+import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 
 @Injectable()
 export class ContentService {
@@ -1134,11 +1135,7 @@ export class ContentService {
                 // Rule: first lecture always unlocked; each subsequent locked until previous is completed
                 (result as any).data = data.map((lec, idx) => {
                     const lp = progressByLecture.get(lec.id);
-                    const prevLec = idx > 0 ? data[idx - 1] : null;
-                    const prevCompleted = prevLec
-                        ? (progressByLecture.get(prevLec.id)?.isCompleted ?? false)
-                        : true; // no previous = first lecture = unlocked
-                    const isLocked = idx > 0 && !prevCompleted;
+                    const isLocked = false;
                     return {
                         ...lec,
                         isLocked,
@@ -1190,30 +1187,12 @@ export class ContentService {
         const lecture = await this.findLectureForRole(id, tenantId, user, ['topic', 'batch']);
         if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
 
-        if (user?.role === UserRole.STUDENT) {
-            await this.assertStudentEnrolledInBatch(user.id, lecture.batchId);
-        }
+        // Requirement: Remove access restricted completely
+        // if (user?.role === UserRole.STUDENT) {
+        //     await this.assertStudentEnrolledInBatch(user.id, lecture.batchId);
+        // }
 
-        // For students, enforce sequential unlock: check if previous lecture is completed
-        if (user?.role === UserRole.STUDENT && lecture.topicId) {
-            const allLectures = await this.lectureRepo.find({
-                where: { tenantId: lecture.tenantId, topicId: lecture.topicId },
-                order: { createdAt: 'ASC' },
-            });
-            const idx = allLectures.findIndex((l) => l.id === id);
-            if (idx > 0) {
-                const prevLecture = allLectures[idx - 1];
-                const student = await this.dataSource.getRepository(Student).findOne({ where: { userId: user.id } });
-                if (student) {
-                    const prevProgress = await this.progressRepo.findOne({
-                        where: { studentId: student.id, lectureId: prevLecture.id },
-                    });
-                    if (!prevProgress?.isCompleted) {
-                        throw new ForbiddenException('Complete the previous lecture before accessing this one');
-                    }
-                }
-            }
-        }
+
 
         return lecture;
     }

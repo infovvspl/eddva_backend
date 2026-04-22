@@ -884,11 +884,15 @@ export class BattleService {
       .getOne();
   }
 
-  // Maps ExamTarget enum values to human-readable exam level labels for AI prompting
+  // Maps exam target keys to human-readable labels for AI prompting
   private readonly examLevelLabel: Record<string, string> = {
-    [ExamTarget.JEE]:  'JEE Advanced level',
-    [ExamTarget.NEET]: 'NEET level',
-    [ExamTarget.BOTH]: 'JEE/NEET level',
+    [ExamTarget.JEE]:          'JEE Advanced level',
+    [ExamTarget.NEET]:         'NEET level',
+    [ExamTarget.BOTH]:         'JEE/NEET level',
+    [ExamTarget.JEE_MAINS]:    'JEE Mains level',
+    [ExamTarget.JEE_ADVANCED]: 'JEE Advanced level',
+    [ExamTarget.FOUNDATION]:   'Foundation level (Class 8-10)',
+    [ExamTarget.OTHER]:        'Competitive level',
   };
 
   private getTopicCacheKey(topicId: string, examTarget?: string): string {
@@ -941,7 +945,7 @@ export class BattleService {
     tenantId: string,
     count: number,
     preferredTopicId?: string | null,
-    examTarget?: ExamTarget,
+    examTarget?: string | ExamTarget,
     explicitTopicName?: string,
   ): Promise<AiBattleQuestion[]> {
     const safeCount = Math.min(Math.max(count || 10, 3), 20);
@@ -968,7 +972,11 @@ export class BattleService {
           topicId: topic?.id ?? preferredTopicId ?? 'unknown',
           topicName: enrichedTopicName,
           count: safeCount,
-          difficulty: examTarget === ExamTarget.JEE ? 'hard' : 'medium',
+          difficulty: 
+            examTarget === ExamTarget.JEE || 
+            examTarget === ExamTarget.JEE_ADVANCED || 
+            examTarget === 'jee_advanced' 
+              ? 'hard' : 'medium',
           type: 'mcq_single',
         },
         tenantId,

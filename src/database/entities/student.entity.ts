@@ -7,6 +7,10 @@ export enum ExamTarget {
   JEE = 'jee',
   NEET = 'neet',
   BOTH = 'both',
+  JEE_MAINS = 'jee_mains',
+  JEE_ADVANCED = 'jee_advanced',
+  FOUNDATION = 'foundation',
+  OTHER = 'other',
 }
 
 export enum StudentClass {
@@ -54,8 +58,8 @@ export class Student extends Base {
   user: User;
 
   // ── Academic profile ──────────────────────────────────────────────────────
-  @Column({ name: 'exam_target', type: 'enum', enum: ExamTarget, nullable: true })
-  examTarget: ExamTarget;
+  @Column({ name: 'exam_target', type: 'varchar', length: 120, nullable: true })
+  examTarget: string | ExamTarget;
 
   @Column({ name: 'class', type: 'enum', enum: StudentClass, nullable: true })
   class: StudentClass;

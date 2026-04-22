@@ -135,7 +135,11 @@ export class AiBridgeController {
   ) {
     const audioUrl = this._fixAudioUrl(dto.audioUrl);
     return this.aiBridgeService.generateLectureNotes(
-      { audioUrl, topicId: dto.topicId || '', language: dto.language || 'en' },
+      {
+        audioUrl,
+        topicId: dto.topicId || '',
+        language: 'en', // Enforced English as per requirement
+      },
       tenantId,
     );
   }
@@ -257,7 +261,7 @@ export class AiBridgeController {
   //  AI #13 — Quiz Question Generator from Topic (for quiz builder)
   // ══════════════════════════════════════════════════════════════════════════
   @Post('questions/generate')
-  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
   async generateQuestionsFromTopic(
     @Body() body: { topicId: string; topicName: string; count?: number; difficulty?: string; type?: string },
@@ -279,7 +283,7 @@ export class AiBridgeController {
   //  AI #14 — In-Video Quiz Generator
   // ══════════════════════════════════════════════════════════════════════════
   @Post('quiz/generate')
-  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
   async generateQuizForLecture(
     @Body() dto: { transcript: string; lectureTitle?: string; topicId?: string },

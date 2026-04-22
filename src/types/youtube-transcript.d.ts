@@ -1,4 +1,5 @@
-declare module 'youtube-transcript' {
+/** ESM entry — use this import path (see content.service.ts). */
+declare module 'youtube-transcript/dist/youtube-transcript.esm.js' {
   export interface TranscriptSegment {
     text: string;
     duration: number;
