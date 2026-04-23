@@ -12,6 +12,7 @@ import { User } from '../../database/entities/user.entity';
 import { MockTest, TopicProgress } from '../../database/entities/assessment.entity';
 import { PlanItem, StudyPlan } from '../../database/entities/learning.entity';
 import { Student } from '../../database/entities/student.entity';
+import { StudyMaterial } from '../study-material/study-material.entity';
 import { AiBridgeModule } from '../ai-bridge/ai-bridge.module';
 import { UploadModule } from '../upload/upload.module';
 import { NotificationModule } from '../notification/notification.module';
