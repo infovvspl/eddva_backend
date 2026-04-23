@@ -19,6 +19,7 @@ import { Chapter, Subject, Topic } from '../../database/entities/subject.entity'
 import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
 import { Student } from '../../database/entities/student.entity';
 import { WeakTopic } from '../../database/entities/analytics.entity';
+import { ExamSyllabusCache } from '../../database/entities/exam-syllabus.entity';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { WeakTopic } from '../../database/entities/analytics.entity';
       Enrollment,
       Student,
       WeakTopic,
+      ExamSyllabusCache,
     ]),
   ],
   controllers: [AssessmentController],

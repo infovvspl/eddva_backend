@@ -199,6 +199,17 @@ export class AiBridgeService {
     return this.post('/plan/generate', payload, tenantId);
   }
 
+  async generateSyllabus(
+    payload: {
+      examTarget: string;
+      examYear: string;
+      subjects: string[];
+    },
+    tenantId?: string,
+  ) {
+    return this.post('/syllabus/generate', payload, tenantId);
+  }
+
   /**
    * Strip markdown code fences and parse the inner JSON.
    * Handles: ```json ... ```, ``` ... ```, or plain JSON strings.

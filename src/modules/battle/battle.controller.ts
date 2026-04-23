@@ -67,6 +67,15 @@ export class BattleController {
     return this.battleService.getMyElo(userId, tenantId);
   }
 
+  @Get('leaderboard')
+  @ApiOperation({ summary: 'Get battle XP leaderboard' })
+  getBattleLeaderboard(
+    @CurrentUser('id') userId: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.battleService.getBattleLeaderboard(userId, tenantId);
+  }
+
   @Get('bot-questions')
   @ApiOperation({ summary: 'Fetch questions for bot practice by scope (subject / chapter / topic)' })
   @ApiQuery({ name: 'scope', enum: ['subject', 'chapter', 'topic'] })

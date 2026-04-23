@@ -27,9 +27,11 @@ import { PlanItem, PlanItemStatus, PlanItemType, StudyPlan } from '../../databas
 import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { User, UserRole } from '../../database/entities/user.entity';
 import { Student } from '../../database/entities/student.entity';
+import { StudyMaterial, StudyMaterialExam, StudyMaterialType } from '../study-material/study-material.entity';
 
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 import { NotificationService } from '../notification/notification.service';
+import { StudyPlanService } from '../study-plan/study-plan.service';
 import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto } from './dto/ai-study.dto';
 import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subject.dto';
 import { CreateChapterDto, UpdateChapterDto } from './dto/chapter.dto';
@@ -92,11 +94,14 @@ export class ContentService {
         private readonly planItemRepo: Repository<PlanItem>,
         @InjectRepository(TopicResource)
         private readonly topicResourceRepo: Repository<TopicResource>,
+        @InjectRepository(StudyMaterial)
+        private readonly studyMaterialRepo: Repository<StudyMaterial>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly dataSource: DataSource,
         private readonly aiBridgeService: AiBridgeService,
         private readonly notificationService: NotificationService,
+        private readonly studyPlanService: StudyPlanService,
     ) { }
 
     private normalizeSubjectExamTarget(value: string) {
@@ -1701,7 +1706,7 @@ export class ContentService {
                 id: existing.id,
                 topicId,
                 topicName: topic.name,
-                lessonMarkdown: existing.lessonMarkdown,
+                lessonMarkdown: this.normalizeSolvedExamplesFormatting(existing.lessonMarkdown),
                 keyConcepts: existing.keyConcepts,
                 formulas: existing.formulas,
                 practiceQuestions: existing.practiceQuestions,
@@ -1777,19 +1782,25 @@ Step-by-step derivation with:
 ## 💡 Solved Examples
 ### Example 1 — Basic (Concept check)
 [Full problem statement]
+
 **Solution:**
 Step 1: ...
 Step 2: ...
+
 **Answer:** ...
+
 **Key takeaway:** ...
 
 ### Example 2 — Intermediate
 [Full problem with 2-3 steps]
+
 **Solution:** (detailed)
 
 ### Example 3 — ${examTarget} Level (Hard)
 [A tricky exam-style question]
+
 **Solution:** (complete step-by-step)
+
 **Examiner's Trap:** explain the trick/trap they set
 
 ## 🧠 Connections to Other Topics
@@ -1838,7 +1849,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 tenantId,
             ) as any;
 
-            lessonMarkdown = this.extractAiText(lessonResponse);
+            lessonMarkdown = this.normalizeSolvedExamplesFormatting(this.extractAiText(lessonResponse));
             aiSessionRef = this.extractAiSessionRef(lessonResponse);
             keyConcepts = this.extractBulletSection(lessonMarkdown, 'Core Concepts');
             formulas = this.extractBulletSection(lessonMarkdown, 'Key Formulas');
@@ -1850,7 +1861,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             this.logger.warn(`AI lesson generation failed for topic ${topicId}: ${err.message}`);
             // Preserve existing real content if available — never overwrite good data with an error string
             if (existing?.lessonMarkdown && !this.shouldRegenerateLesson(existing.lessonMarkdown)) {
-                lessonMarkdown = existing.lessonMarkdown;
+                lessonMarkdown = this.normalizeSolvedExamplesFormatting(existing.lessonMarkdown);
                 keyConcepts = existing.keyConcepts ?? [];
                 formulas = existing.formulas ?? [];
                 commonMistakes = existing.commonMistakes ?? [];
@@ -1932,7 +1943,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             id: saved.id,
             topicId,
             topicName: topic.name,
-            lessonMarkdown: saved.lessonMarkdown,
+            lessonMarkdown: this.normalizeSolvedExamplesFormatting(saved.lessonMarkdown),
             keyConcepts: saved.keyConcepts,
             formulas: saved.formulas,
             practiceQuestions: saved.practiceQuestions,
@@ -2125,7 +2136,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         return {
             id: session.id,
             topicId,
-            lessonMarkdown: session.lessonMarkdown,
+            lessonMarkdown: this.normalizeSolvedExamplesFormatting(session.lessonMarkdown),
             keyConcepts: session.keyConcepts,
             formulas: session.formulas,
             practiceQuestions: session.practiceQuestions,
@@ -2185,6 +2196,17 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     private extractAiSessionRef(response: any): string | null {
         if (!response || typeof response !== 'object') return null;
         return response.sessionId ?? response.session_id ?? response.id ?? null;
+    }
+
+    private normalizeSolvedExamplesFormatting(markdown: string | null | undefined): string {
+        const text = String(markdown || '');
+        if (!text) return text;
+        return text
+            // Ensure heading labels begin on their own line.
+            .replace(/([^\n])\s*\*\*Solution:\*\*/g, '$1\n\n**Solution:**')
+            .replace(/([^\n])\s*\*\*Answer:\*\*/g, '$1\n\n**Answer:**')
+            .replace(/([^\n])\s*\*\*Key takeaway:\*\*/gi, '$1\n\n**Key takeaway:**')
+            .replace(/([^\n])\s*\*\*Examiner's Trap:\*\*/gi, '$1\n\n**Examiner\'s Trap:**');
     }
 
     private extractBulletSection(markdown: string, header: string): string[] {
@@ -2294,6 +2316,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             type: ResourceType;
             title: string;
             fileUrl?: string | null;
+            fileKey?: string | null;
             externalUrl?: string | null;
             fileSizeKb?: number;
             description?: string;
@@ -2311,7 +2334,9 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             fileUrl: data.fileUrl ?? null,
             externalUrl: data.externalUrl ?? null,
         });
-        return this.topicResourceRepo.save(resource);
+        const saved = await this.topicResourceRepo.save(resource);
+        await this.mirrorTopicResourceToStudyMaterial(topicId, tenantId, data);
+        return saved;
     }
 
     async createTopicResourceByUrl(
@@ -2416,10 +2441,16 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         }
         await this.topicProgressRepo.save(progress);
 
-        const xpEarned = passed ? 15 : 0;
+        // Award XP on quiz completion (higher reward when passed).
+        const xpEarned = passed ? 15 : 8;
         if (xpEarned > 0) {
             await this.dataSource.getRepository(Student).increment({ id: student.id }, 'xpTotal', xpEarned);
         }
+
+        // If this topic exists as a practice plan item, auto-complete it.
+        await this.studyPlanService
+            .completeByReference(student.id, tenantId, topicId, PlanItemType.PRACTICE)
+            .catch(() => {});
 
         return {
             passed,
@@ -2482,5 +2513,75 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             { uploadedBy: userId, type: rType, title: dto.title, description: dto.content },
             tenantId,
         );
+    }
+
+    private toStudyMaterialType(type: ResourceType): StudyMaterialType | null {
+        if (type === ResourceType.PYQ) return StudyMaterialType.PYQ;
+        if (type === ResourceType.DPP) return StudyMaterialType.DPP;
+        if (type === ResourceType.NOTES || type === ResourceType.PDF) return StudyMaterialType.NOTES;
+        return null;
+    }
+
+    private toStudyMaterialExams(raw?: string): StudyMaterialExam[] {
+        const v = String(raw ?? '').toLowerCase();
+        const hasJee = v.includes('jee');
+        const hasNeet = v.includes('neet');
+        const hasBothKeyword = v.includes('both');
+        if (hasBothKeyword || (hasJee && hasNeet)) {
+            return [StudyMaterialExam.JEE, StudyMaterialExam.NEET];
+        }
+        if (hasJee) return [StudyMaterialExam.JEE];
+        if (hasNeet) return [StudyMaterialExam.NEET];
+        return [];
+    }
+
+    private async mirrorTopicResourceToStudyMaterial(
+        topicId: string,
+        tenantId: string,
+        data: {
+            uploadedBy: string;
+            type: ResourceType;
+            title: string;
+            fileUrl?: string | null;
+            fileKey?: string | null;
+            externalUrl?: string | null;
+            fileSizeKb?: number;
+            description?: string;
+            sortOrder?: number;
+        },
+    ): Promise<void> {
+        // Only file-based resources can be listed/downloaded via study_materials.
+        if (!data.fileUrl || !data.fileKey) return;
+        const mappedType = this.toStudyMaterialType(data.type);
+        if (!mappedType) return;
+
+        const topic = await this.topicRepo.findOne({
+            where: { id: topicId, tenantId },
+            relations: ['chapter', 'chapter.subject'],
+        });
+        const exams = this.toStudyMaterialExams((topic as any)?.chapter?.subject?.examTarget);
+        if (exams.length === 0) return;
+
+        const subjectName = (topic as any)?.chapter?.subject?.name ?? undefined;
+        const chapterName = (topic as any)?.chapter?.name ?? undefined;
+
+        for (const exam of exams) {
+            const row = this.studyMaterialRepo.create({
+                tenantId,
+                exam,
+                type: mappedType,
+                title: data.title,
+                subject: subjectName,
+                chapter: chapterName,
+                description: data.description,
+                s3Key: data.fileKey,
+                fileSizeKb: data.fileSizeKb,
+                previewPages: 2,
+                uploadedBy: data.uploadedBy,
+                isActive: true,
+                sortOrder: data.sortOrder ?? 0,
+            });
+            await this.studyMaterialRepo.save(row);
+        }
     }
 }

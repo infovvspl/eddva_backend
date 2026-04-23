@@ -359,6 +359,19 @@ export class BattleService {
     return { success: true };
   }
 
+  async abandonBattleByRoomCode(roomCode: string) {
+    const battle = await this.battleRepo.findOne({ where: { roomCode } });
+    if (!battle) return null;
+    if (battle.status === BattleStatus.FINISHED || battle.status === BattleStatus.ABANDONED) {
+      return battle;
+    }
+    await this.battleRepo.update(battle.id, {
+      status: BattleStatus.ABANDONED,
+      endedAt: new Date(),
+    });
+    return battle;
+  }
+
   // ─── My History ───────────────────────────────────────────────────────────
 
   async getMyHistory(userId: string, tenantId: string) {
@@ -400,6 +413,42 @@ export class BattleService {
       battlesPlayed: elo.battlesPlayed,
       battlesWon: elo.battlesWon,
       winStreak: elo.winStreak,
+    };
+  }
+
+  async getBattleLeaderboard(userId: string, tenantId: string) {
+    const rows = await this.dataSource.query(
+      `
+      SELECT
+        s.id AS "studentId",
+        u.full_name AS "name",
+        COALESCE(se.battle_xp, 0)::int AS "score",
+        COALESCE(se.tier::text, 'iron') AS "eloTier",
+        u.profile_picture_url AS "avatarUrl"
+      FROM students s
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN student_elo se ON se.student_id = s.id
+      WHERE s.tenant_id = $1
+      ORDER BY COALESCE(se.battle_xp, 0) DESC, u.full_name ASC
+      `,
+      [tenantId],
+    );
+
+    const data = (rows || []).map((row: any, idx: number) => ({
+      rank: idx + 1,
+      studentId: row.studentId,
+      name: row.name || 'Student',
+      score: Number(row.score || 0),
+      eloTier: row.eloTier || 'iron',
+      avatarUrl: row.avatarUrl || null,
+    }));
+
+    const me = await this.getStudent(userId);
+    const myRow = data.find((x: any) => x.studentId === me.id);
+
+    return {
+      data: data.slice(0, 100),
+      currentStudentRank: myRow ? { rank: myRow.rank, score: myRow.score } : null,
     };
   }
 

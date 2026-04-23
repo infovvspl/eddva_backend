@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -17,7 +18,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../database/entities/user.entity';
 
 import { StudyPlanService } from './study-plan.service';
-import { StudyPlanRangeQueryDto } from './dto/study-plan.dto';
+import { GenerateStudyPlanDto, StudyPlanRangeQueryDto } from './dto/study-plan.dto';
 
 @ApiTags('Study Plan')
 @ApiBearerAuth()
@@ -29,15 +30,23 @@ export class StudyPlanController {
   @Post('generate')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Generate a new study plan for the current student' })
-  generate(@CurrentUser() user: any, @TenantId() tenantId: string) {
-    return this.studyPlanService.generatePlan(user.id, tenantId, false);
+  generate(
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+    @Body() body: GenerateStudyPlanDto,
+  ) {
+    return this.studyPlanService.generatePlan(user.id, tenantId, false, body);
   }
 
   @Post('regenerate')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Force regenerate the current student study plan' })
-  regenerate(@CurrentUser() user: any, @TenantId() tenantId: string) {
-    return this.studyPlanService.generatePlan(user.id, tenantId, true);
+  regenerate(
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+    @Body() body: GenerateStudyPlanDto,
+  ) {
+    return this.studyPlanService.generatePlan(user.id, tenantId, true, body);
   }
 
   @Post('clear')
