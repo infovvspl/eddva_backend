@@ -257,13 +257,17 @@ export class StudentService {
     if (!student) throw new NotFoundException('Student profile not found');
 
     const enrollments = await this.enrollmentRepo.find({
-      where: { studentId: student.id },
+      where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
       relations: ['batch', 'batch.teacher'],
       order: { enrolledAt: 'DESC' },
     });
 
+    // Filter out enrollments where the batch was soft-deleted
+    // (TypeORM loads the relation as null when the batch has deletedAt set)
+    const activeEnrollments = enrollments.filter(e => e.batch != null && e.batch.id);
+
     const results = await Promise.all(
-      enrollments.map(async (e) => {
+      activeEnrollments.map(async (e) => {
         const batch = e.batch;
 
         // Count subjects assigned to this batch

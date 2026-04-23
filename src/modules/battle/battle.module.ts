@@ -11,10 +11,12 @@ import {
 } from '../../database/entities/battle.entity';
 import { Question } from '../../database/entities/question.entity';
 import { AiBridgeModule } from '../ai-bridge/ai-bridge.module';
+import { PresenceModule } from '../presence/presence.module';
 
 @Module({
   imports: [
     AiBridgeModule,
+    PresenceModule,
     TypeOrmModule.forFeature([Battle, BattleParticipant, BattleAnswer, StudentElo, Question]),
   ],
   controllers: [BattleController],

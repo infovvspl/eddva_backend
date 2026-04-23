@@ -37,6 +37,7 @@ import { Announcement } from './database/entities/announcement.entity';
 import { TeacherProfile } from './database/entities/teacher.entity';
 import { PYQAttempt, PYQYearStats } from './database/entities/pyq.entity';
 import { StudyMaterial } from './modules/study-material/study-material.entity';
+import { ExamSyllabusCache } from './database/entities/exam-syllabus.entity';
 
 
 // ── Modules ───────────────────────────────────────────────────────────────────
@@ -82,6 +83,7 @@ const ALL_ENTITIES = [
   PYQAttempt,
   PYQYearStats,
   StudyMaterial,
+  ExamSyllabusCache,
 ];
 
 @Module({

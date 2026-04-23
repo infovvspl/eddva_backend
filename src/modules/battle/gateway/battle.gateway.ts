@@ -11,6 +11,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards } from '@nestjs/common';
 import { BattleService } from '../battle.service';
+import { PresenceService } from '../../presence/presence.service';
 
 // ── WebSocket Events ──────────────────────────────────────────────────────────
 // Client → Server:
@@ -44,6 +45,8 @@ export class BattleGateway
   // Lobby presence maps
   private onlineUsers = new Map<string, { socketId: string; studentId: string; tenantId: string; examTarget: string | null }>();
   private socketToStudent = new Map<string, string>();
+  private studentSockets = new Map<string, Set<string>>();
+  private refreshTimer: NodeJS.Timeout | null = null;
   private pendingChallenges = new Map<
     string,
     {
@@ -57,10 +60,19 @@ export class BattleGateway
     }
   >();
 
-  constructor(private readonly battleService: BattleService) {}
+  constructor(
+    private readonly battleService: BattleService,
+    private readonly presenceService: PresenceService,
+  ) {}
 
   afterInit(server: Server) {
     this.logger.log('Battle WebSocket Gateway initialised');
+    this.refreshTimer = setInterval(() => {
+      const tenantIds = new Set(Array.from(this.onlineUsers.values()).map((u) => u.tenantId));
+      for (const tenantId of tenantIds) {
+        void this.broadcastOnlineUsers(tenantId);
+      }
+    }, 10_000);
   }
 
   handleConnection(client: Socket) {
@@ -70,29 +82,52 @@ export class BattleGateway
   async handleDisconnect(client: Socket) {
     const disconnectedStudentId = this.socketToStudent.get(client.id);
     if (disconnectedStudentId) {
-      const tenantId = this.onlineUsers.get(disconnectedStudentId)?.tenantId;
-      this.onlineUsers.delete(disconnectedStudentId);
       this.socketToStudent.delete(client.id);
-
-      // Cancel challenge requests where disconnected user is sender/receiver
-      for (const [challengeId, req] of this.pendingChallenges.entries()) {
-        if (req.fromStudentId === disconnectedStudentId || req.toStudentId === disconnectedStudentId) {
-          clearTimeout(req.timer);
-          this.pendingChallenges.delete(challengeId);
-        }
+      const sockets = this.studentSockets.get(disconnectedStudentId);
+      if (sockets) {
+        sockets.delete(client.id);
+        if (!sockets.size) this.studentSockets.delete(disconnectedStudentId);
       }
-      if (tenantId) await this.broadcastOnlineUsers(tenantId);
+
+      const remainingSockets = this.studentSockets.get(disconnectedStudentId);
+      const stillOnline = Boolean(remainingSockets && remainingSockets.size > 0);
+      const onlineEntry = this.onlineUsers.get(disconnectedStudentId);
+
+      if (!stillOnline) {
+        const tenantId = onlineEntry?.tenantId;
+        this.onlineUsers.delete(disconnectedStudentId);
+        // Keep pending challenges until explicit accept/reject/timeout.
+        // Do not auto-cancel on disconnect because brief reconnects during
+        // page navigation can otherwise invalidate a still-active challenge.
+        if (tenantId) await this.broadcastOnlineUsers(tenantId);
+      } else if (onlineEntry?.socketId === client.id) {
+        const nextSocketId = Array.from(remainingSockets!)[0];
+        this.onlineUsers.set(disconnectedStudentId, { ...onlineEntry, socketId: nextSocketId });
+        await this.broadcastOnlineUsers(onlineEntry.tenantId);
+      }
     }
 
     const player = this.connectedPlayers.get(client.id);
     if (player) {
       this.logger.debug(`Player ${player.studentId} disconnected from room ${player.roomCode}`);
-      // Notify opponent
+      await this.battleService.abandonBattleByRoomCode(player.roomCode);
+      // Notify opponent and force-close room on their side
       client.to(player.roomCode).emit('battle:opponent_left', {
-        message: 'Your opponent disconnected',
+        message: 'Battle ended: opponent left the match.',
+        reason: 'opponent_left',
+        closeRoom: true,
       });
-      this.connectedPlayers.delete(client.id);
+      const tenantIds = this.clearConnectedPlayersByRoom(player.roomCode);
+      for (const tenantId of tenantIds) {
+        await this.broadcastOnlineUsers(tenantId);
+      }
     }
+
+  }
+
+  private normalizeExamTarget(examTarget: string | null | undefined): string | null {
+    if (!examTarget) return null;
+    return String(examTarget).trim().toLowerCase();
   }
 
   @SubscribeMessage('lobby:join')
@@ -111,7 +146,9 @@ export class BattleGateway
       return;
     }
 
-    const examTarget = await this.battleService.getStudentExamTarget(data.studentId);
+    const examTarget = this.normalizeExamTarget(
+      await this.battleService.getStudentExamTarget(data.studentId),
+    );
 
     this.onlineUsers.set(data.studentId, {
       socketId: client.id,
@@ -120,6 +157,9 @@ export class BattleGateway
       examTarget,
     });
     this.socketToStudent.set(client.id, data.studentId);
+    const sockets = this.studentSockets.get(data.studentId) ?? new Set<string>();
+    sockets.add(client.id);
+    this.studentSockets.set(data.studentId, sockets);
     void this.broadcastOnlineUsers(resolvedTenantId);
   }
 
@@ -317,7 +357,9 @@ export class BattleGateway
 
   private async broadcastOnlineUsers(tenantId: string) {
     const tenantUsers = Array.from(this.onlineUsers.values()).filter(u => u.tenantId === tenantId);
-    const studentIds = tenantUsers.map(u => u.studentId);
+    const lobbyStudentIds = tenantUsers.map(u => u.studentId);
+    const globallyOnlineStudentIds = await this.presenceService.getOnlineStudentIdsByTenant(tenantId);
+    const studentIds = Array.from(new Set([...lobbyStudentIds, ...globallyOnlineStudentIds]));
     const profiles = await this.battleService.getLobbyUsersByStudentIds(studentIds, tenantId);
 
     const waitingStudentIds = new Set<string>();
@@ -331,6 +373,7 @@ export class BattleGateway
     const allUsers = profiles.map(p => ({
       studentId: p.studentId,
       socketId: this.onlineUsers.get(p.studentId)?.socketId ?? '',
+      isChallengeable: Boolean(this.onlineUsers.get(p.studentId)?.socketId),
       name: p.name,
       avatarUrl: p.avatarUrl,
       xpPoints: p.xpPoints ?? 0,
@@ -345,19 +388,11 @@ export class BattleGateway
       batchIds: p.batchIds,
     }));
 
-    // Each student only sees peers preparing for the same exam (JEE / NEET / both).
-    // "both" is treated as compatible with either JEE or NEET.
-    // If examTarget is unknown, fall back to showing all tenant users.
+    // Show all tenant online users in battle lobby.
+    // Do not hide by exam target because users expect same batch/course peers
+    // to be visible regardless of preference selection.
     for (const u of tenantUsers) {
-      const myExam = u.examTarget;
-      const visibleUsers = myExam
-        ? allUsers.filter(usr => {
-            if (!usr.examTarget) return true; // unknown → always visible
-            if (myExam === 'both' || usr.examTarget === 'both') return true;
-            return usr.examTarget === myExam;
-          })
-        : allUsers;
-      this.server.to(u.socketId).emit('lobby:online_users', { users: visibleUsers });
+      this.server.to(u.socketId).emit('lobby:online_users', { users: allUsers });
     }
   }
 

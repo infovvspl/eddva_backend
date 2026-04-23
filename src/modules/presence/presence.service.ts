@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LiveSession, LiveSessionStatus } from '../../database/entities/live-class.entity';
 import { Student } from '../../database/entities/student.entity';
 import { Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
@@ -63,6 +63,26 @@ export class PresenceService {
     }
 
     return { studentsOnline };
+  }
+
+  async getOnlineStudentIdsByTenant(tenantId: string): Promise<string[]> {
+    const now = Date.now();
+    const onlineStudentUserIds: string[] = [];
+
+    for (const [userId, v] of this.map) {
+      if (v.role !== 'student') continue;
+      if (v.tenantId !== tenantId || now - v.ts > ONLINE_TTL_MS) continue;
+      onlineStudentUserIds.push(userId);
+    }
+
+    if (!onlineStudentUserIds.length) return [];
+
+    const students = await this.studentRepo.find({
+      where: { userId: In(onlineStudentUserIds) },
+      select: ['id'],
+    });
+
+    return students.map((s) => s.id);
   }
 
   private async resolveTenantForPresence(userId: string, role: string, tenantId: string): Promise<string> {

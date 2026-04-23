@@ -11,5 +11,6 @@ import { PresenceService } from './presence.service';
   imports: [TypeOrmModule.forFeature([LiveSession, Student, Enrollment, Batch])],
   controllers: [PresenceController],
   providers: [PresenceService],
+  exports: [PresenceService],
 })
 export class PresenceModule {}
