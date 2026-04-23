@@ -31,6 +31,7 @@ import { StudyMaterial, StudyMaterialExam, StudyMaterialType } from '../study-ma
 
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 import { NotificationService } from '../notification/notification.service';
+import { StudyPlanService } from '../study-plan/study-plan.service';
 import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto } from './dto/ai-study.dto';
 import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subject.dto';
 import { CreateChapterDto, UpdateChapterDto } from './dto/chapter.dto';
@@ -99,6 +100,7 @@ export class ContentService {
         private readonly dataSource: DataSource,
         private readonly aiBridgeService: AiBridgeService,
         private readonly notificationService: NotificationService,
+        private readonly studyPlanService: StudyPlanService,
     ) { }
 
     private normalizeSubjectExamTarget(value: string) {
@@ -1689,7 +1691,7 @@ export class ContentService {
                 id: existing.id,
                 topicId,
                 topicName: topic.name,
-                lessonMarkdown: existing.lessonMarkdown,
+                lessonMarkdown: this.normalizeSolvedExamplesFormatting(existing.lessonMarkdown),
                 keyConcepts: existing.keyConcepts,
                 formulas: existing.formulas,
                 practiceQuestions: existing.practiceQuestions,
@@ -1765,19 +1767,25 @@ Step-by-step derivation with:
 ## 💡 Solved Examples
 ### Example 1 — Basic (Concept check)
 [Full problem statement]
+
 **Solution:**
 Step 1: ...
 Step 2: ...
+
 **Answer:** ...
+
 **Key takeaway:** ...
 
 ### Example 2 — Intermediate
 [Full problem with 2-3 steps]
+
 **Solution:** (detailed)
 
 ### Example 3 — ${examTarget} Level (Hard)
 [A tricky exam-style question]
+
 **Solution:** (complete step-by-step)
+
 **Examiner's Trap:** explain the trick/trap they set
 
 ## 🧠 Connections to Other Topics
@@ -1826,7 +1834,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 tenantId,
             ) as any;
 
-            lessonMarkdown = this.extractAiText(lessonResponse);
+            lessonMarkdown = this.normalizeSolvedExamplesFormatting(this.extractAiText(lessonResponse));
             aiSessionRef = this.extractAiSessionRef(lessonResponse);
             keyConcepts = this.extractBulletSection(lessonMarkdown, 'Core Concepts');
             formulas = this.extractBulletSection(lessonMarkdown, 'Key Formulas');
@@ -1838,7 +1846,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             this.logger.warn(`AI lesson generation failed for topic ${topicId}: ${err.message}`);
             // Preserve existing real content if available — never overwrite good data with an error string
             if (existing?.lessonMarkdown && !this.shouldRegenerateLesson(existing.lessonMarkdown)) {
-                lessonMarkdown = existing.lessonMarkdown;
+                lessonMarkdown = this.normalizeSolvedExamplesFormatting(existing.lessonMarkdown);
                 keyConcepts = existing.keyConcepts ?? [];
                 formulas = existing.formulas ?? [];
                 commonMistakes = existing.commonMistakes ?? [];
@@ -1920,7 +1928,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             id: saved.id,
             topicId,
             topicName: topic.name,
-            lessonMarkdown: saved.lessonMarkdown,
+            lessonMarkdown: this.normalizeSolvedExamplesFormatting(saved.lessonMarkdown),
             keyConcepts: saved.keyConcepts,
             formulas: saved.formulas,
             practiceQuestions: saved.practiceQuestions,
@@ -2113,7 +2121,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         return {
             id: session.id,
             topicId,
-            lessonMarkdown: session.lessonMarkdown,
+            lessonMarkdown: this.normalizeSolvedExamplesFormatting(session.lessonMarkdown),
             keyConcepts: session.keyConcepts,
             formulas: session.formulas,
             practiceQuestions: session.practiceQuestions,
@@ -2173,6 +2181,17 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     private extractAiSessionRef(response: any): string | null {
         if (!response || typeof response !== 'object') return null;
         return response.sessionId ?? response.session_id ?? response.id ?? null;
+    }
+
+    private normalizeSolvedExamplesFormatting(markdown: string | null | undefined): string {
+        const text = String(markdown || '');
+        if (!text) return text;
+        return text
+            // Ensure heading labels begin on their own line.
+            .replace(/([^\n])\s*\*\*Solution:\*\*/g, '$1\n\n**Solution:**')
+            .replace(/([^\n])\s*\*\*Answer:\*\*/g, '$1\n\n**Answer:**')
+            .replace(/([^\n])\s*\*\*Key takeaway:\*\*/gi, '$1\n\n**Key takeaway:**')
+            .replace(/([^\n])\s*\*\*Examiner's Trap:\*\*/gi, '$1\n\n**Examiner\'s Trap:**');
     }
 
     private extractBulletSection(markdown: string, header: string): string[] {
@@ -2407,10 +2426,16 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         }
         await this.topicProgressRepo.save(progress);
 
-        const xpEarned = passed ? 15 : 0;
+        // Award XP on quiz completion (higher reward when passed).
+        const xpEarned = passed ? 15 : 8;
         if (xpEarned > 0) {
             await this.dataSource.getRepository(Student).increment({ id: student.id }, 'xpTotal', xpEarned);
         }
+
+        // If this topic exists as a practice plan item, auto-complete it.
+        await this.studyPlanService
+            .completeByReference(student.id, tenantId, topicId, PlanItemType.PRACTICE)
+            .catch(() => {});
 
         return {
             passed,

@@ -443,13 +443,6 @@ export class BatchService {
     const batch = await this.batchRepo.findOne({ where: { id, tenantId } });
     if (!batch) throw new NotFoundException(`Batch ${id} not found`);
 
-    const activeCount = await this.enrollmentRepo.count({
-      where: { tenantId, batchId: id, status: EnrollmentStatus.ACTIVE },
-    });
-    if (activeCount > 0) {
-      throw new BadRequestException('Cannot delete a batch with active students enrolled');
-    }
-
     await this.batchRepo.softDelete(id);
     return { message: 'Batch deleted successfully' };
   }

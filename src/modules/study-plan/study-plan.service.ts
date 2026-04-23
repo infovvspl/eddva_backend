@@ -1,9 +1,13 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject } from '@nestjs/common';
+import { Cache } from 'cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
@@ -14,11 +18,12 @@ import { NotificationService } from '../notification/notification.service';
 import { WeakTopic, WeakTopicSeverity } from '../../database/entities/analytics.entity';
 import { MockTest, MockTestType, TopicProgress, TopicStatus } from '../../database/entities/assessment.entity';
 import { AiStudySession, Lecture, LectureProgress, LectureStatus, PlanItem, PlanItemStatus, PlanItemType, StudyPlan } from '../../database/entities/learning.entity';
-import { ExamTarget, ExamYear, Student } from '../../database/entities/student.entity';
+import { ExamTarget, ExamYear, Student, StudentClass } from '../../database/entities/student.entity';
 import { Chapter, ResourceType, Subject, Topic, TopicResource } from '../../database/entities/subject.entity';
 import { BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 
 import { StudyPlanRangeQueryDto } from './dto/study-plan.dto';
+import { GenerateStudyPlanDto } from './dto/study-plan.dto';
 
 // ─── Plan item shape ──────────────────────────────────────────────────────────
 type RawPlanItem = {
@@ -29,10 +34,18 @@ type RawPlanItem = {
   estimatedMinutes?: number;
 };
 
+type PlanGenerationChoices = {
+  targetExam: string;
+  examYear: string;
+  currentClass: string;
+  dailyStudyHours: number;
+};
+
 // ─── JEE / NEET subject labels ────────────────────────────────────────────────
 const JEE_SUBJECTS  = ['Physics', 'Chemistry', 'Mathematics'];
 const NEET_SUBJECTS = ['Physics', 'Chemistry', 'Biology'];
 const BOTH_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
+const MONTHLY_PLAN_CACHE_VERSION = 'monthly-v2';
 
 @Injectable()
 export class StudyPlanService {
@@ -73,12 +86,20 @@ export class StudyPlanService {
     private readonly dataSource: DataSource,
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: NotificationService,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
   ) {}
 
   // ─── Public API ─────────────────────────────────────────────────────────────
 
-  async generatePlan(userId: string, tenantId: string, force: boolean) {
+  async generatePlan(
+    userId: string,
+    tenantId: string,
+    force: boolean,
+    preferences?: GenerateStudyPlanDto,
+  ) {
     const student = await this.getStudentByUserId(userId, tenantId);
+    const choices = await this.resolvePlanGenerationChoices(student, preferences);
     const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
 
     // Fetch enrollment early to use in concurrency checks and downstream logic
@@ -101,7 +122,7 @@ export class StudyPlanService {
 
     const generationPromise = (async () => {
       try {
-        return await this.doGeneratePlan(userId, effectiveTenantId, student, force, enrollment);
+        return await this.doGeneratePlan(userId, effectiveTenantId, student, force, enrollment, choices);
       } finally {
         this.activeGenerations.delete(lockKey);
       }
@@ -116,42 +137,21 @@ export class StudyPlanService {
     effectiveTenantId: string, 
     student: Student, 
     force: boolean, 
-    enrollment: Enrollment | null
+    enrollment: Enrollment | null,
+    choices: PlanGenerationChoices,
   ) {
     const batchId = enrollment?.batchId;
-    const effectiveExamTarget = enrollment?.batch?.examTarget || student.examTarget;
+    const effectiveExamTarget = choices.targetExam;
+    const previousPlannedTopicIds = await this.getPreviouslyPlannedTopicIds(student.id, force);
+    const completedTopicIds = await this.getCompletedTopicIds(student.id);
 
-    const lectureWhere: any = batchId
-      ? { batchId, status: LectureStatus.PUBLISHED }
-      : { tenantId: effectiveTenantId, status: LectureStatus.PUBLISHED };
-    const mockTestWhere: any = batchId
-      ? { batchId, tenantId: effectiveTenantId, isPublished: true }
-      : { tenantId: effectiveTenantId, isPublished: true };
-
-    const [monthlyWeakTopics, monthlyInsights, allProgress, availableLectures, availableMockTests, availableTopics, batchSubjects, batchSubjectAssignments] = await Promise.all([
+    const [monthlyWeakTopics, availableTopics] = await Promise.all([
       this.computeWeakTopics(student.id, effectiveTenantId, batchId),
-      this.computeTestInsights(student.id, effectiveTenantId, batchId),
-      this.topicProgressRepo.find({ where: { studentId: student.id } }),
-      this.lectureRepo.find({
-        where: lectureWhere,
-        relations: ['topic', 'topic.chapter', 'topic.chapter.subject'],
-        order: { createdAt: 'ASC' },
-      }),
-      this.mockTestRepo.find({
-        where: mockTestWhere,
-        order: { createdAt: 'ASC' },
-      }),
       this.topicRepo.find({
         where: { tenantId: effectiveTenantId, isActive: true },
         relations: ['chapter', 'chapter.subject'],
         order: { sortOrder: 'ASC' },
       }),
-      batchId
-        ? this.subjectRepo.find({ where: { tenantId: effectiveTenantId, batchId, isActive: true }, order: { sortOrder: 'ASC' } })
-        : Promise.resolve([] as Subject[]),
-      batchId
-        ? this.batchSubjectTeacherRepo.find({ where: { tenantId: effectiveTenantId, batchId } })
-        : Promise.resolve([] as BatchSubjectTeacher[]),
     ]);
 
     // Attach topic names using a separate query with tenantId (relations JOIN can miss tenant-scoped rows)
@@ -165,148 +165,39 @@ export class StudyPlanService {
       ? monthlyWeakTopics
       : await this.weakTopicRepo.find({ where: { studentId: student.id } });
 
-    const defaultSubjects = this.defaultSubjectsForExamTarget(effectiveExamTarget);
+    // Strictly use target-exam subjects for daily monthly plan generation.
+    const subjectRotation = this.defaultSubjectsForExamTarget(effectiveExamTarget);
 
-    // ── Derive subject rotation from strongest curriculum sources first ───────
-    const subjectNamesFromBatchSubjects = [...new Set(
-      batchSubjects
-        .map((s) => s.name?.trim())
-        .filter((n): n is string => !!n),
-    )];
-    const subjectNamesFromAssignments = [...new Set(
-      batchSubjectAssignments
-        .map((a) => a.subjectName?.trim())
-        .filter((n): n is string => !!n),
-    )];
-    const subjectNamesFromLectures = [...new Set(
-      availableLectures
-        .map((l) => l.topic?.chapter?.subject?.name)
-        .filter((n): n is string => !!n),
-    )];
-    const derivedSubjects =
-      subjectNamesFromBatchSubjects.length
-        ? subjectNamesFromBatchSubjects
-        : subjectNamesFromAssignments.length
-          ? subjectNamesFromAssignments
-          : subjectNamesFromLectures;
-    const subjectRotation = Array.from(new Set([...derivedSubjects, ...defaultSubjects]));
-
-    const examDate = this.deriveExamDate(student.examYear);
-    const rawDaysToExam = Math.ceil((examDate.getTime() - Date.now()) / 86400000);
-    const daysToExam = Number.isFinite(rawDaysToExam) ? Math.max(1, rawDaysToExam) : 120;
-
-    let items: RawPlanItem[] = [];
-
-    // ── Try AI first ────────────────────────────────────────────────────────
-    try {
-      const aiResult = (await this.aiBridgeService.generateStudyPlan({
-        studentId: student.id,
-        examTarget: effectiveExamTarget,
-        examYear: student.examYear,
-        dailyHours: student.dailyStudyHours,
-        weakTopics: weakTopics.map((t) => t.topic?.name ?? t.topicId),
-        targetCollege: student.targetCollege,
-        academicCalendar: {
-          examDate: examDate.toISOString().slice(0, 10),
-          assignedSubjects: subjectRotation,
-          strongTopics: allProgress
-            .filter((p) => p.status === TopicStatus.COMPLETED)
-            .map((p) => p.topicId),
-          daysToExam,
-          recentMonthTestInsights: monthlyInsights,
-          batchContext: {
-            batchId,
-            batchName: enrollment?.batch?.name ?? null,
-            examTarget: effectiveExamTarget,
-            class: enrollment?.batch?.class ?? student.class,
-          },
-        },
-      })) as { planItems?: RawPlanItem[]; items?: RawPlanItem[] };
-
-      // Normalize AI response — map old field names (activity/duration_min/topic/subject) to expected ones
-      const rawItems: any[] = aiResult.items || aiResult.planItems || [];
-      const mappedItems = rawItems.map((item: any) => ({
-        date:               item.date,
-        type:               this.normalizePlanItemType(item.type || item.activity || 'practice'),
-        title:              this.normalizePlanItemTitle(item.title || item.topic || item.subject || null),
-        refId:              item.refId ?? null,
-        estimatedMinutes:   item.estimatedMinutes ?? item.duration_min ?? 30,
-      }));
-      // Keep only structurally valid items; otherwise allow fallback engine to run.
-      items = mappedItems.filter((item) => {
-        if (!item.date || !item.type) return false;
-        const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(String(item.date));
-        return dateOk;
-      });
-
-      // Re-anchor AI plan to start from today (IST) — AI may return future-dated items
-      if (items.length) {
-        const todayStr = this.todayIst();
-        const firstItemDate = [...items]
-          .filter((i) => !!i.date)
-          .sort((a, b) => (a.date < b.date ? -1 : 1))[0]?.date;
-        if (firstItemDate && firstItemDate !== todayStr) {
-          const shiftDays = Math.round(
-            (new Date(`${todayStr}T00:00:00Z`).getTime() -
-              new Date(`${firstItemDate}T00:00:00Z`).getTime()) /
-              86400000,
-          );
-          items = items.map((item) => {
-            if (!item.date) return item;
-            const d = new Date(`${item.date}T00:00:00Z`);
-            d.setUTCDate(d.getUTCDate() + shiftDays);
-            return { ...item, date: d.toISOString().slice(0, 10) };
-          });
-        }
-      }
-    } catch {
-      this.logger.warn(`AI study-plan unavailable for student ${student.id} — using comprehensive engine`);
-    }
-
-    // ── Fallback: comprehensive rule-based engine ───────────────────────────
-    if (!items.length) {
-      items = this.buildComprehensivePlan(
-        student,
-        weakTopics,
-        availableLectures,
-        availableMockTests,
-        availableTopics,
-        daysToExam,
+    const currentMonth = this.todayIst().slice(0, 7);
+    const cacheKey = this.buildMonthlyCacheKey(
+      effectiveTenantId,
+      choices.targetExam,
+      choices.examYear,
+      choices.currentClass,
+      choices.dailyStudyHours,
+      subjectRotation,
+      currentMonth,
+    );
+    // For explicit regenerate, always rebuild a fresh plan and overwrite cache.
+    let items = force ? null : await this.cacheManager.get<RawPlanItem[]>(cacheKey);
+    if (!items?.length || force) {
+      items = this.buildMonthlySubjectBalancedPlan(
+        choices,
         subjectRotation,
+        availableTopics,
+        weakTopics,
+        previousPlannedTopicIds,
+        completedTopicIds,
       );
+      await this.cacheManager.set(cacheKey, items, 60 * 60 * 24 * 14);
     }
-
-    // ── Fix refIds: map AI-generated topic names to real lecture/quiz IDs ──
-    items = this.applyBatchRefIds(items, availableLectures, availableMockTests);
-
-    // Never force teacher lecture refs for personalized plans.
-    // For student-specific tasks, use topic refs (practice/revision) when available.
-    items = this.assignFallbackTopicRefs(items, availableTopics, weakTopics);
-    items = this.ensureTodaySubjectCoverage(items, subjectRotation, availableTopics, weakTopics);
-    items = this.reorderTodayItems(items, availableTopics);
-    items = this.capTodayToOneNotesAndOnePracticePerSubject(items, availableTopics);
-    items = this.removeDuplicatePlanItems(items);
 
     // ── Persist ─────────────────────────────────────────────────────────────
-    const planDays = Math.min(30, Math.max(7, (Number.isFinite(daysToExam) ? daysToExam : 120) - 5));
+    const planDays = 30;
     const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + (Number.isFinite(planDays) ? planDays : 30));
+    validUntil.setDate(validUntil.getDate() + planDays);
 
-    const validItems = items.filter((item) => !!item.date && !!item.type);
-    // Final safety net: if AI/fallback somehow produced nothing, generate a deterministic starter month.
-    if (!validItems.length) {
-      items = this.buildComprehensivePlan(
-        student,
-        weakTopics,
-        availableLectures,
-        availableMockTests,
-        availableTopics,
-        daysToExam,
-        subjectRotation,
-      );
-    }
-
-    const finalItems = items.filter((item) => !!item.date && !!item.type);
+    const finalItems = (items || []).filter((item) => !!item.date && !!item.type);
 
     const plan = await this.studyPlanRepo.manager.transaction(async (manager) => {
       await manager.upsert(StudyPlan, {
@@ -314,7 +205,7 @@ export class StudyPlanService {
         tenantId: effectiveTenantId,
         generatedAt: new Date(),
         validUntil,
-        aiVersion: 'comprehensive-v2',
+        aiVersion: MONTHLY_PLAN_CACHE_VERSION,
         deletedAt: null,
       }, ['studentId']);
 
@@ -378,11 +269,7 @@ export class StudyPlanService {
     const student = await this.getStudentByUserId(userId, tenantId);
     const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
     let plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id }, withDeleted: true });
-    if (!plan) {
-      await this.generatePlan(userId, effectiveTenantId, false);
-      plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id }, withDeleted: true });
-      if (!plan) return [];
-    }
+    if (!plan) return [];
 
     const today = this.todayIst();
     const items = await this.planItemRepo.find({
@@ -397,11 +284,7 @@ export class StudyPlanService {
     const student = await this.getStudentByUserId(userId, tenantId);
     const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
     let plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id }, withDeleted: true });
-    
-    if (!plan) {
-      await this.generatePlan(userId, effectiveTenantId, false);
-      plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id }, withDeleted: true });
-    }
+
     if (!plan) return {};
 
     const { startDate, endDate } = this.resolveRange(query);
@@ -435,6 +318,37 @@ export class StudyPlanService {
     return { item, xpAwarded: xp, totalXp: student.xpTotal };
   }
 
+  async completeByReference(
+    studentId: string,
+    tenantId: string,
+    refId: string,
+    type: PlanItemType,
+  ): Promise<boolean> {
+    if (!refId) return false;
+    const plan = await this.studyPlanRepo.findOne({
+      where: { studentId },
+      order: { createdAt: 'DESC' },
+      withDeleted: true,
+    });
+    if (!plan) return false;
+
+    const item = await this.planItemRepo.findOne({
+      where: {
+        studyPlanId: plan.id,
+        refId,
+        type,
+        status: PlanItemStatus.PENDING,
+      },
+      order: { scheduledDate: 'ASC', sortOrder: 'ASC' },
+    });
+    if (!item) return false;
+
+    item.status = PlanItemStatus.COMPLETED;
+    item.completedAt = new Date();
+    await this.planItemRepo.save(item);
+    return true;
+  }
+
   async skipItem(itemId: string, userId: string, tenantId: string) {
     const { item } = await this.getOwnedItem(itemId, userId, tenantId);
     item.status = PlanItemStatus.SKIPPED;
@@ -459,49 +373,9 @@ export class StudyPlanService {
 
   @Cron('0 1 * * 1', { timeZone: 'Asia/Kolkata' })
   async weeklyPlanReview() {
-    const students = await this.studentRepo.find({ where: { diagnosticCompleted: true } });
-    for (const student of students) {
-      const plan = await this.studyPlanRepo.findOne({
-        where: { studentId: student.id },
-        withDeleted: true,
-      });
-
-      if (!plan) {
-        // Auto-generate plan for students who completed diagnostic but have no plan
-        await this.generatePlan(student.userId, student.tenantId, false).catch(() => {});
-        continue;
-      }
-
-      if (plan.validUntil && new Date(plan.validUntil) <= new Date()) {
-        // Plan expired — regenerate
-        await this.generatePlan(student.userId, student.tenantId, true).catch(() => {});
-        continue;
-      }
-
-      const items = await this.planItemRepo.find({ where: { studyPlanId: plan.id } });
-      if (!items.length) continue;
-
-      const completed = items.filter((i) => i.status === PlanItemStatus.COMPLETED).length;
-      const percent = (completed / items.length) * 100;
-
-      // Always run spaced repetition revision tasks on Monday
-      await this.addRevisionTasks(student.id, student.tenantId).catch(() => {});
-
-      if (percent > 60) {
-        // Student is ahead — regenerate with higher difficulty
-        await this.generatePlan(student.userId, student.tenantId, true).catch(() => {});
-      } else if (percent < 20) {
-        await this.notificationService.send({
-          userId: student.userId,
-          tenantId: student.tenantId,
-          title: `Only ${Math.round(percent)}% of your plan done — let's catch up!`,
-          body: `⚠️ You've completed only ${Math.round(percent)}% of this week's plan. Small steps add up!`,
-          channels: ['push', 'in_app'],
-          refType: 'study_plan_nudge',
-          refId: plan.id,
-        });
-      }
-    }
+    // Intentionally disabled: study plans are fully manual
+    // and should only be generated/regenerated by explicit student action.
+    return;
   }
 
   // ─── Learning loop: gate pass → unlock next topic ────────────────────────────
@@ -1145,6 +1019,211 @@ export class StudyPlanService {
 
   // ─── Helper methods ──────────────────────────────────────────────────────────
 
+  private async resolvePlanGenerationChoices(
+    student: Student,
+    preferences?: GenerateStudyPlanDto,
+  ): Promise<PlanGenerationChoices> {
+    const existingPlan = await this.studyPlanRepo.findOne({
+      where: { studentId: student.id },
+      withDeleted: true,
+    });
+    const isFirstGenerate = !existingPlan;
+
+    const targetExam = (preferences?.targetExam ?? student.examTarget) as string | undefined;
+    const examYear = String(preferences?.examYear ?? student.examYear ?? this.defaultExamYear());
+    const currentClass = String(preferences?.currentClass ?? student.class ?? StudentClass.CLASS_11);
+    const dailyStudyHours = Number(preferences?.dailyStudyHours ?? student.dailyStudyHours ?? 4);
+
+    if (isFirstGenerate) {
+      const missingFields: string[] = [];
+      if (!preferences?.targetExam) missingFields.push('targetExam');
+      if (!preferences?.examYear) missingFields.push('examYear');
+      if (!preferences?.currentClass) missingFields.push('currentClass');
+      if (typeof preferences?.dailyStudyHours !== 'number') missingFields.push('dailyStudyHours');
+      if (missingFields.length) {
+        throw new BadRequestException({
+          message: 'First-time generation requires popup choices.',
+          requiredFields: ['targetExam', 'examYear', 'currentClass', 'dailyStudyHours'],
+          missingFields,
+        });
+      }
+    }
+
+    if (!targetExam) {
+      throw new BadRequestException({
+        message: 'targetExam is required to generate study plan subjects.',
+        requiredFields: ['targetExam'],
+      });
+    }
+
+    // Persist latest choices so monthly regenerate can reuse them.
+    student.examTarget = targetExam as any;
+    student.examYear = examYear as any;
+    student.class = currentClass as any;
+    student.dailyStudyHours = dailyStudyHours;
+    await this.studentRepo.save(student);
+
+    return {
+      targetExam,
+      examYear,
+      currentClass,
+      dailyStudyHours,
+    };
+  }
+
+  private buildMonthlyCacheKey(
+    tenantId: string,
+    examTarget: string,
+    examYear: string,
+    currentClass: string,
+    dailyStudyHours: number,
+    subjects: string[],
+    monthKey: string,
+  ) {
+    const normalizedSubjects = [...subjects].map((s) => s.toLowerCase().trim()).sort().join(',');
+    return [
+      'study-plan',
+      MONTHLY_PLAN_CACHE_VERSION,
+      tenantId,
+      examTarget,
+      examYear,
+      currentClass,
+      String(dailyStudyHours),
+      normalizedSubjects,
+      monthKey,
+    ].join(':');
+  }
+
+  private buildMonthlySubjectBalancedPlan(
+    choices: PlanGenerationChoices,
+    subjects: string[],
+    topics: Topic[],
+    weakTopics: WeakTopic[],
+    previousPlannedTopicIds: Set<string>,
+    completedTopicIds: Set<string>,
+  ): RawPlanItem[] {
+    const today = this.todayIst();
+    const totalDays = 30;
+    const normalizedSubjects = subjects.filter(Boolean).length
+      ? subjects.filter(Boolean)
+      : this.defaultSubjectsForExamTarget(choices.targetExam);
+    const weakTopicIds = new Set(weakTopics.map((w) => w.topicId).filter(Boolean));
+    const topicsBySubject = new Map<string, Topic[]>();
+    for (const topic of topics) {
+      const subjectName = String(topic.chapter?.subject?.name || '').trim();
+      if (!subjectName) continue;
+      if (!topicsBySubject.has(subjectName)) topicsBySubject.set(subjectName, []);
+      topicsBySubject.get(subjectName)!.push(topic);
+    }
+
+    const perSubjectCursor = new Map<string, number>();
+    const totalSlotsPerDay = Math.max(1, normalizedSubjects.length * 2);
+    const minutesPerSlot = Math.max(
+      20,
+      Math.floor(((choices.dailyStudyHours || 4) * 60) / totalSlotsPerDay),
+    );
+    const items: RawPlanItem[] = [];
+
+    for (let day = 0; day < totalDays; day++) {
+      const date = this.addDays(today, day);
+      for (const subject of normalizedSubjects) {
+        const subjectTopics = topicsBySubject.get(subject) || [];
+        const prioritizedSubjectTopics = this.prioritizeExamReadyTopics(
+          choices.targetExam,
+          subjectTopics,
+          previousPlannedTopicIds,
+          completedTopicIds,
+        );
+        const cursor = perSubjectCursor.get(subject) ?? 0;
+        const weakSubjectTopic =
+          prioritizedSubjectTopics.find((t) => weakTopicIds.has(t.id)) ??
+          null;
+        const topic = weakSubjectTopic ?? (prioritizedSubjectTopics.length ? prioritizedSubjectTopics[cursor % prioritizedSubjectTopics.length] : null);
+        if (prioritizedSubjectTopics.length) perSubjectCursor.set(subject, cursor + 1);
+
+        items.push({
+          date,
+          type: 'revision',
+          title: `AI Notes + Quick Revision: ${topic?.name ?? subject} (${subject})`,
+          refId: topic?.id ?? null,
+          estimatedMinutes: minutesPerSlot,
+        });
+        items.push({
+          date,
+          type: 'practice',
+          title: `Practice Questions: ${topic?.name ?? subject} (${subject})`,
+          refId: topic?.id ?? null,
+          estimatedMinutes: minutesPerSlot,
+        });
+      }
+    }
+
+    return this.removeDuplicatePlanItems(items);
+  }
+
+  private prioritizeUnplannedTopics(subjectTopics: Topic[], previouslyPlanned: Set<string>): Topic[] {
+    if (!subjectTopics.length) return subjectTopics;
+    const unplanned = subjectTopics.filter((t) => !previouslyPlanned.has(t.id));
+    const planned = subjectTopics.filter((t) => previouslyPlanned.has(t.id));
+    return unplanned.length ? [...unplanned, ...planned] : subjectTopics;
+  }
+
+  private prioritizeExamReadyTopics(
+    targetExam: string,
+    subjectTopics: Topic[],
+    previouslyPlanned: Set<string>,
+    completedTopicIds: Set<string>,
+  ): Topic[] {
+    if (!subjectTopics.length) return subjectTopics;
+    const pending = subjectTopics.filter((t) => !completedTopicIds.has(t.id));
+    const completed = subjectTopics.filter((t) => completedTopicIds.has(t.id));
+
+    const pendingUnplanned = pending.filter((t) => !previouslyPlanned.has(t.id));
+    const pendingPlanned = pending.filter((t) => previouslyPlanned.has(t.id));
+    const completedUnplanned = completed.filter((t) => !previouslyPlanned.has(t.id));
+    const completedPlanned = completed.filter((t) => previouslyPlanned.has(t.id));
+
+    const ordered = [
+      ...pendingUnplanned,
+      ...pendingPlanned,
+      ...completedUnplanned,
+      ...completedPlanned,
+    ];
+
+    // Keep deterministic order and mild difficulty progression by sortOrder.
+    ordered.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    return ordered;
+  }
+
+  private async getPreviouslyPlannedTopicIds(studentId: string, force: boolean): Promise<Set<string>> {
+    if (!force) return new Set<string>();
+    const existingPlan = await this.studyPlanRepo.findOne({
+      where: { studentId },
+      withDeleted: true,
+    });
+    if (!existingPlan) return new Set<string>();
+    const previousItems = await this.planItemRepo.find({
+      where: { studyPlanId: existingPlan.id },
+      select: ['refId', 'type'],
+    });
+    return new Set(
+      previousItems
+        .filter((item) =>
+          !!item.refId &&
+          (item.type === PlanItemType.PRACTICE || item.type === PlanItemType.REVISION),
+        )
+        .map((item) => item.refId as string),
+    );
+  }
+
+  private async getCompletedTopicIds(studentId: string): Promise<Set<string>> {
+    const completed = await this.topicProgressRepo.find({
+      where: { studentId, status: TopicStatus.COMPLETED },
+      select: ['topicId'],
+    });
+    return new Set(completed.map((row) => row.topicId).filter(Boolean));
+  }
+
   private async getOwnedItem(itemId: string, userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
     const item = await this.planItemRepo.findOne({ where: { id: itemId } });
@@ -1304,6 +1383,13 @@ export class StudyPlanService {
     const fallbackYear = new Date().getUTCFullYear() + 1;
     const y = Number.isFinite(yearNum) && yearNum > 2000 ? yearNum : fallbackYear;
     return new Date(Date.UTC(y, 3, 30, 0, 0, 0, 0)); // Apr 30 (month is 0-based)
+  }
+
+  private defaultExamYear(): string {
+    const y = new Date().getUTCFullYear() + 1;
+    const allowed = new Set(Object.values(ExamYear).map((v) => String(v)));
+    if (allowed.has(String(y))) return String(y);
+    return String(ExamYear.Y2028);
   }
 
   private defaultSubjectsForExamTarget(examTarget?: string): string[] {

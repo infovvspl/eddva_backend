@@ -19,12 +19,14 @@ import {
   TopicProgress,
   TopicStatus,
 } from '../../database/entities/assessment.entity';
+import { PlanItemType } from '../../database/entities/learning.entity';
 import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { DifficultyLevel, Question, QuestionOption, QuestionSource, QuestionType } from '../../database/entities/question.entity';
 import { Chapter, Subject, Topic } from '../../database/entities/subject.entity';
 import { ExamTarget, Student } from '../../database/entities/student.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { WeakTopic, WeakTopicSeverity } from '../../database/entities/analytics.entity';
+import { ExamSyllabusCache } from '../../database/entities/exam-syllabus.entity';
 
 import { GradingService } from './grading.service';
 import { StudyPlanService } from '../study-plan/study-plan.service';
@@ -76,6 +78,8 @@ export class AssessmentService {
     private readonly subjectRepo: Repository<Subject>,
     @InjectRepository(Chapter)
     private readonly chapterRepo: Repository<Chapter>,
+    @InjectRepository(ExamSyllabusCache)
+    private readonly examSyllabusCacheRepo: Repository<ExamSyllabusCache>,
     private readonly gradingService: GradingService,
     private readonly dataSource: DataSource,
     private readonly studyPlanService: StudyPlanService,
@@ -705,6 +709,15 @@ export class AssessmentService {
       );
     }
 
+    // Award XP for mock-test completion.
+    const MOCK_TEST_XP = 20;
+    await this.studentRepo.increment({ id: student.id }, 'xpTotal', MOCK_TEST_XP).catch(() => {});
+
+    // If this mock test exists in study-plan, mark it complete automatically.
+    await this.studyPlanService
+      .completeByReference(student.id, sessionTenant, existing.mockTestId, PlanItemType.MOCK_TEST)
+      .catch(() => {});
+
     return this.getSessionResult(sessionId, { id: userId, role: UserRole.STUDENT }, tenantId);
   }
 
@@ -921,13 +934,18 @@ export class AssessmentService {
 
   async getProgressReport(user: any, tenantId: string, studentIdOverride?: string) {
     const studentId = await this.resolveProgressStudentId(user, tenantId, studentIdOverride);
+    const studentProfile = await this.studentRepo.findOne({ where: { id: studentId, tenantId } });
 
     // 1. Content tree
-    const subjects = await this.subjectRepo.find({
+    const allSubjects = await this.subjectRepo.find({
       where: { tenantId },
       order: { sortOrder: 'ASC', name: 'ASC' } as any,
     });
-    const subjectIds = subjects.map(s => s.id);
+    const filteredSubjects = this.filterAndDedupeSubjectsForExamTarget(
+      allSubjects,
+      studentProfile?.examTarget as string | undefined,
+    );
+    const subjectIds = filteredSubjects.map(s => s.id);
     if (!subjectIds.length) return this.emptyProgressReport(studentId);
 
     const chapters = await this.chapterRepo.find({
@@ -1007,25 +1025,38 @@ export class AssessmentService {
       chapterTopicsMap.get(t.chapterId)!.push(t);
     }
 
+    const subjectById = new Map(filteredSubjects.map((s) => [s.id, s]));
+    const chapterById = new Map(chapters.map((c) => [c.id, c]));
+
+    const syllabusSubjects =
+      await this.getOrCreateAiRoadmapSyllabus(tenantId, studentProfile, filteredSubjects, chapters, chapterTopicsMap);
+
     // 7. Assemble tree + summary
     let totalTopics = 0, completedTopics = 0, inProgressTopics = 0;
     let totalPYQAttempted = 0, totalPYQCorrect = 0, totalLecturesCompleted = 0;
     let accuracySum = 0, accuracyCount = 0;
 
-    const subjectsResult = subjects.map(s => {
-      const chaps = subjectChaptersMap.get(s.id) ?? [];
+    const subjectsResult = syllabusSubjects.map((sylSubject, subjectIdx) => {
+      const fallbackSubject = filteredSubjects[subjectIdx] ?? filteredSubjects[0];
       let sTopics = 0, sCompleted = 0, sAccSum = 0, sAccCount = 0;
 
-      const chaptersResult = chaps.map(c => {
-        const tops = chapterTopicsMap.get(c.id) ?? [];
+      const chaptersResult = sylSubject.chapters.map((sylChapter, chapterIdx) => {
         let cTopics = 0, cCompleted = 0, cAccSum = 0, cAccCount = 0;
 
-        const topicsResult = tops.map(t => {
+        const topicsResult = sylChapter.topics.map((sylTopic, topicIdx) => {
+          const matchedTopicId = this.matchTopicForSyllabusNode(
+            sylSubject.subjectName,
+            sylChapter.chapterName,
+            sylTopic.topicName,
+            topics,
+            chapterById,
+            subjectById,
+          );
           totalTopics++; sTopics++; cTopics++;
-          const prog = progressMap.get(t.id);
-          const lec = lectureMap.get(t.id);
-          const pyq = pyqMap.get(t.id);
-          const ai = aiMap.get(t.id);
+          const prog = matchedTopicId ? progressMap.get(matchedTopicId) : null;
+          const lec = matchedTopicId ? lectureMap.get(matchedTopicId) : null;
+          const pyq = matchedTopicId ? pyqMap.get(matchedTopicId) : null;
+          const ai = matchedTopicId ? aiMap.get(matchedTopicId) : null;
           const status = prog?.status ?? TopicStatus.LOCKED;
           if (status === TopicStatus.COMPLETED) { completedTopics++; sCompleted++; cCompleted++; }
           else if (status === TopicStatus.IN_PROGRESS) inProgressTopics++;
@@ -1041,12 +1072,12 @@ export class AssessmentService {
           totalPYQCorrect   += pyqCorrect;
           if (lec?.any_completed) totalLecturesCompleted++;
           return {
-            topicId: t.id,
-            topicName: t.name,
+            topicId: matchedTopicId ?? `ai-topic-${subjectIdx}-${chapterIdx}-${topicIdx}`,
+            topicName: sylTopic.topicName,
             status,
             bestAccuracy: accuracy,
             attemptCount: prog?.attemptCount ?? 0,
-            gatePassPercentage: (t as any).gatePassPercentage ?? 70,
+            gatePassPercentage: 70,
             completedAt: prog?.completedAt ?? null,
             lecture: lec ? {
               avgWatchPct: lec.avg_watch ?? 0,
@@ -1062,8 +1093,8 @@ export class AssessmentService {
         });
 
         return {
-          chapterId: c.id,
-          chapterName: c.name,
+          chapterId: `ai-chapter-${subjectIdx}-${chapterIdx}`,
+          chapterName: sylChapter.chapterName,
           topicsTotal: cTopics,
           topicsCompleted: cCompleted,
           overallAccuracy: cAccCount > 0 ? Math.round(cAccSum / cAccCount) : 0,
@@ -1072,10 +1103,10 @@ export class AssessmentService {
       });
 
       return {
-        subjectId: s.id,
-        subjectName: s.name,
-        examTarget: (s as any).examTarget ?? null,
-        colorCode: (s as any).colorCode ?? null,
+        subjectId: `ai-subject-${subjectIdx}`,
+        subjectName: this.preferredSubjectLabel(sylSubject.subjectName),
+        examTarget: studentProfile?.examTarget ?? null,
+        colorCode: (fallbackSubject as any)?.colorCode ?? null,
         topicsTotal: sTopics,
         topicsCompleted: sCompleted,
         overallAccuracy: sAccCount > 0 ? Math.round(sAccSum / sAccCount) : 0,
@@ -1108,6 +1139,206 @@ export class AssessmentService {
       },
       subjects: [],
     };
+  }
+
+  private filterAndDedupeSubjectsForExamTarget(subjects: Subject[], examTarget?: string): Subject[] {
+    const allowed = this.allowedCanonicalSubjects(examTarget);
+    const filtered = allowed
+      ? subjects.filter((s) => allowed.has(this.canonicalSubjectName(s.name)))
+      : subjects;
+
+    // Deduplicate by canonical subject key (e.g. Math/Mathematics -> Mathematics)
+    const map = new Map<string, Subject>();
+    for (const s of filtered) {
+      const key = this.canonicalSubjectName(s.name);
+      if (!map.has(key)) map.set(key, s);
+    }
+    return Array.from(map.values());
+  }
+
+  private canonicalSubjectName(name: string): string {
+    const raw = String(name || '').trim().toLowerCase();
+    if (!raw) return raw;
+    if (raw === 'math' || raw === 'maths' || raw === 'mathematics') return 'mathematics';
+    if (raw === 'phy' || raw === 'physics') return 'physics';
+    if (raw === 'chem' || raw === 'chemistry') return 'chemistry';
+    if (raw === 'bio' || raw === 'biology') return 'biology';
+    return raw;
+  }
+
+  private preferredSubjectLabel(name: string): string {
+    const key = this.canonicalSubjectName(name);
+    if (key === 'mathematics') return 'Mathematics';
+    if (key === 'physics') return 'Physics';
+    if (key === 'chemistry') return 'Chemistry';
+    if (key === 'biology') return 'Biology';
+    return name;
+  }
+
+  private allowedCanonicalSubjects(examTarget?: string): Set<string> | null {
+    const exam = String(examTarget || '').toLowerCase();
+    if (!exam) return null;
+    if (exam.includes('neet')) return new Set(['physics', 'chemistry', 'biology']);
+    if (exam.includes('jee')) return new Set(['physics', 'chemistry', 'mathematics']);
+    if (exam === 'both') return new Set(['physics', 'chemistry', 'mathematics', 'biology']);
+    return null;
+  }
+
+  private normalizeLabel(value: string): string {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private matchTopicForSyllabusNode(
+    subjectName: string,
+    chapterName: string,
+    topicName: string,
+    topics: Topic[],
+    chapterById: Map<string, Chapter>,
+    subjectById: Map<string, Subject>,
+  ): string | null {
+    const targetSubject = this.normalizeLabel(subjectName);
+    const targetChapter = this.normalizeLabel(chapterName);
+    const targetTopic = this.normalizeLabel(topicName);
+
+    const exact = topics.find((t) => {
+      const chapter = chapterById.get(t.chapterId);
+      const subject = chapter ? subjectById.get(chapter.subjectId) : null;
+      return (
+        this.normalizeLabel(subject?.name || '') === targetSubject &&
+        this.normalizeLabel(chapter?.name || '') === targetChapter &&
+        this.normalizeLabel(t.name || '') === targetTopic
+      );
+    });
+    if (exact) return exact.id;
+
+    const topicOnlyInSubject = topics.find((t) => {
+      const chapter = chapterById.get(t.chapterId);
+      const subject = chapter ? subjectById.get(chapter.subjectId) : null;
+      return (
+        this.normalizeLabel(subject?.name || '') === targetSubject &&
+        this.normalizeLabel(t.name || '') === targetTopic
+      );
+    });
+    return topicOnlyInSubject?.id ?? null;
+  }
+
+  private buildFallbackSyllabusFromContent(
+    subjects: Subject[],
+    subjectChaptersMap: Map<string, Chapter[]>,
+    chapterTopicsMap: Map<string, Topic[]>,
+  ): Array<{ subjectName: string; chapters: Array<{ chapterName: string; topics: Array<{ topicName: string }> }> }> {
+    return subjects.map((s) => ({
+      subjectName: this.preferredSubjectLabel(s.name),
+      chapters: (subjectChaptersMap.get(s.id) ?? []).map((c) => ({
+        chapterName: c.name,
+        topics: (chapterTopicsMap.get(c.id) ?? []).map((t) => ({ topicName: t.name })),
+      })),
+    }));
+  }
+
+  private async getOrCreateAiRoadmapSyllabus(
+    tenantId: string,
+    studentProfile: Student | null,
+    subjects: Subject[],
+    chapters: Chapter[],
+    chapterTopicsMap: Map<string, Topic[]>,
+  ): Promise<Array<{ subjectName: string; chapters: Array<{ chapterName: string; topics: Array<{ topicName: string }> }> }>> {
+    const AI_ROADMAP_SOURCE = 'ai-roadmap-v2';
+    const examTarget = String(studentProfile?.examTarget || '').trim() || 'jee';
+    const examYear = String(studentProfile?.examYear || new Date().getUTCFullYear() + 1).trim();
+
+    const cached = await this.examSyllabusCacheRepo.findOne({
+      where: { tenantId, examTarget, examYear },
+    });
+    if (cached?.payload && cached?.source === AI_ROADMAP_SOURCE) {
+      const parsed = this.parseSyllabusPayload(cached.payload);
+      if (parsed.length) return parsed;
+    }
+
+    const generated = await this.generateAiSyllabus(tenantId, examTarget, examYear);
+    // Strict AI-only roadmap: do not fall back to teacher/content syllabus.
+    const finalPayload = generated;
+
+    if (!finalPayload.length) return [];
+
+    try {
+      await this.examSyllabusCacheRepo.save(
+        {
+          ...(cached ? { id: cached.id } : {}),
+          tenantId,
+          examTarget,
+          examYear,
+          payload: { subjects: finalPayload },
+          source: AI_ROADMAP_SOURCE,
+        } as any,
+      );
+    } catch {
+      // If another request writes first, just continue with generated payload.
+    }
+
+    return finalPayload;
+  }
+
+  private groupChaptersBySubject(chapters: Chapter[]): Map<string, Chapter[]> {
+    const map = new Map<string, Chapter[]>();
+    for (const chapter of chapters) {
+      const arr = map.get(chapter.subjectId) ?? [];
+      arr.push(chapter);
+      map.set(chapter.subjectId, arr);
+    }
+    return map;
+  }
+
+  private parseSyllabusPayload(payload: Record<string, unknown> | null | undefined) {
+    const root = (payload || {}) as { subjects?: unknown[] };
+    if (!Array.isArray(root.subjects)) return [];
+    return root.subjects
+      .map((s: any) => ({
+        subjectName: String(s?.subjectName || '').trim(),
+        chapters: Array.isArray(s?.chapters)
+          ? s.chapters
+              .map((c: any) => ({
+                chapterName: String(c?.chapterName || '').trim(),
+                topics: Array.isArray(c?.topics)
+                  ? c.topics
+                      .map((t: any) =>
+                        typeof t === 'string'
+                          ? { topicName: String(t).trim() }
+                          : { topicName: String(t?.topicName || '').trim() },
+                      )
+                      .filter((t: any) => t.topicName)
+                  : [],
+              }))
+              .filter((c: any) => c.chapterName && c.topics.length > 0)
+          : [],
+      }))
+      .filter((s: any) => s.subjectName && s.chapters.length > 0);
+  }
+
+  private async generateAiSyllabus(tenantId: string, examTarget: string, examYear: string) {
+    const allowedSubjects = Array.from(this.allowedCanonicalSubjects(examTarget) ?? []);
+    if (!allowedSubjects.length) return [];
+    const labels = allowedSubjects.map((s) => this.preferredSubjectLabel(s));
+    try {
+      const generated = await this.aiBridgeService.generateSyllabus(
+        {
+          examTarget,
+          examYear,
+          subjects: labels,
+        },
+        tenantId,
+      );
+      return this.parseSyllabusPayload(generated as Record<string, unknown>);
+    } catch (error) {
+      this.logger.warn(
+        `AI syllabus generation failed (${examTarget} ${examYear}): ${(error as Error)?.message || error}`,
+      );
+      return [];
+    }
   }
 
   /** Load session by id only; use row tenant so concurrent batch exams work across JWT/batch tenant mismatch. */
