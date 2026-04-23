@@ -15,6 +15,7 @@ import { Student } from '../../database/entities/student.entity';
 import { AiBridgeModule } from '../ai-bridge/ai-bridge.module';
 import { UploadModule } from '../upload/upload.module';
 import { NotificationModule } from '../notification/notification.module';
+import { StudyMaterial } from '../study-material/study-material.entity';
 
 @Module({
     imports: [
@@ -40,6 +41,7 @@ import { NotificationModule } from '../notification/notification.module';
             Student,
             User,
             TopicResource,
+            StudyMaterial,
         ]),
     ],
     controllers: [ContentController],

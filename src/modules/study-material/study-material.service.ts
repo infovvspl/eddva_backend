@@ -2,7 +2,7 @@ import {
   Injectable, NotFoundException, ForbiddenException, Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { DataSource, Repository, ILike } from 'typeorm';
 import { PDFDocument } from 'pdf-lib';
 
 import { Tenant, TenantStatus } from '../../database/entities/tenant.entity';
@@ -25,6 +25,7 @@ export class StudyMaterialService {
     private readonly repo: Repository<StudyMaterial>,
     @InjectRepository(Enrollment)
     private readonly enrollmentRepo: Repository<Enrollment>,
+    private readonly dataSource: DataSource,
     private readonly s3: S3Service,
   ) {}
 
@@ -120,6 +121,191 @@ export class StudyMaterialService {
   async accessStatus(tenantId: string, studentId: string): Promise<{ enrolled: boolean }> {
     const enrolled = await this.hasActiveEnrollment(studentId, tenantId);
     return { enrolled };
+  }
+
+  /**
+   * One-time repair utility:
+   * Copies already uploaded topic resources (pdf/notes/pyq/dpp) into study_materials.
+   */
+  async backfillFromTopicResources(tenantId: string) {
+    const rows: Array<{
+      tenant_id: string;
+      uploaded_by: string;
+      title: string;
+      description: string | null;
+      type: string;
+      file_url: string;
+      file_size_kb: number | null;
+      sort_order: number | null;
+      subject_name: string | null;
+      chapter_name: string | null;
+      exam_target: string | null;
+    }> = await this.dataSource.query(
+      `
+      SELECT
+        tr.tenant_id,
+        tr.uploaded_by,
+        tr.title,
+        tr.description,
+        tr.type,
+        tr.file_url,
+        tr.file_size_kb,
+        tr.sort_order,
+        s.name AS subject_name,
+        c.name AS chapter_name,
+        s.exam_target
+      FROM topic_resources tr
+      JOIN topics t ON t.id = tr.topic_id
+      JOIN chapters c ON c.id = t.chapter_id
+      JOIN subjects s ON s.id = c.subject_id
+      WHERE tr.tenant_id = $1
+        AND tr.is_active = true
+        AND tr.file_url IS NOT NULL
+        AND tr.type IN ('pdf', 'notes', 'pyq', 'dpp')
+      `,
+      [tenantId],
+    );
+
+    let inserted = 0;
+    let skipped = 0;
+
+    for (const r of rows) {
+      const lowered = String(r.exam_target ?? '').toLowerCase();
+      const exams: Array<'jee' | 'neet'> =
+        lowered.includes('both') || (lowered.includes('jee') && lowered.includes('neet'))
+          ? ['jee', 'neet']
+          : lowered.includes('jee')
+            ? ['jee']
+            : lowered.includes('neet')
+              ? ['neet']
+              : [];
+      if (exams.length === 0) {
+        skipped += 1;
+        continue;
+      }
+
+      const mappedType =
+        r.type === 'pyq' ? 'pyq'
+          : r.type === 'dpp' ? 'dpp'
+            : r.type === 'notes' || r.type === 'pdf' ? 'notes'
+              : null;
+      if (!mappedType) {
+        skipped += 1;
+        continue;
+      }
+
+      let s3Key = '';
+      try {
+        s3Key = this.s3.keyFromUrl(r.file_url);
+      } catch {
+        skipped += 1;
+        continue;
+      }
+      if (!s3Key) {
+        skipped += 1;
+        continue;
+      }
+
+      for (const exam of exams) {
+        const exists = await this.repo.exist({
+          where: { tenantId: r.tenant_id, s3Key, exam: exam as any },
+        });
+        if (exists) {
+          skipped += 1;
+          continue;
+        }
+
+        const row = this.repo.create({
+          tenantId: r.tenant_id,
+          exam: exam as any,
+          type: mappedType as any,
+          title: r.title,
+          subject: r.subject_name ?? undefined,
+          chapter: r.chapter_name ?? undefined,
+          description: r.description ?? undefined,
+          s3Key,
+          fileSizeKb: r.file_size_kb ?? undefined,
+          totalPages: undefined,
+          previewPages: 2,
+          uploadedBy: r.uploaded_by,
+          isActive: true,
+          sortOrder: r.sort_order ?? 0,
+        });
+        await this.repo.save(row);
+        inserted += 1;
+      }
+    }
+
+    return { tenantId, scanned: rows.length, inserted, skipped };
+  }
+
+  /**
+   * Debug helper to compare source uploads vs catalog rows for a tenant.
+   * Useful when UI returns success + empty data.
+   */
+  async debugStats(tenantId: string) {
+    const [studyMaterialByExam, studyMaterialByType, topicResourceByType] = await Promise.all([
+      this.dataSource.query(
+        `
+        SELECT exam, COUNT(*)::int AS count
+        FROM study_materials
+        WHERE tenant_id = $1 AND is_active = true
+        GROUP BY exam
+        ORDER BY exam ASC
+        `,
+        [tenantId],
+      ),
+      this.dataSource.query(
+        `
+        SELECT type, COUNT(*)::int AS count
+        FROM study_materials
+        WHERE tenant_id = $1 AND is_active = true
+        GROUP BY type
+        ORDER BY type ASC
+        `,
+        [tenantId],
+      ),
+      this.dataSource.query(
+        `
+        SELECT tr.type, COUNT(*)::int AS count
+        FROM topic_resources tr
+        WHERE tr.tenant_id = $1
+          AND tr.is_active = true
+          AND tr.file_url IS NOT NULL
+        GROUP BY tr.type
+        ORDER BY tr.type ASC
+        `,
+        [tenantId],
+      ),
+    ]);
+
+    const [studyMaterialsTotalRow, topicResourcesTotalRow] = await Promise.all([
+      this.dataSource.query(
+        `SELECT COUNT(*)::int AS count FROM study_materials WHERE tenant_id = $1 AND is_active = true`,
+        [tenantId],
+      ),
+      this.dataSource.query(
+        `SELECT COUNT(*)::int AS count FROM topic_resources WHERE tenant_id = $1 AND is_active = true AND file_url IS NOT NULL`,
+        [tenantId],
+      ),
+    ]);
+
+    return {
+      tenantId,
+      totals: {
+        studyMaterials: studyMaterialsTotalRow?.[0]?.count ?? 0,
+        topicResources: topicResourcesTotalRow?.[0]?.count ?? 0,
+      },
+      studyMaterials: {
+        byExam: studyMaterialByExam,
+        byType: studyMaterialByType,
+      },
+      topicResources: {
+        byType: topicResourceByType,
+      },
+      hint:
+        'If topicResources > 0 and studyMaterials == 0, run POST /admin/study-materials/backfill-topic-resources',
+    };
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

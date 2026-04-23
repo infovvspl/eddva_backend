@@ -60,6 +60,20 @@ export class StudyMaterialAdminController {
   remove(@Param('id', ParseUUIDPipe) id: string, @TenantId() tenantId: string) {
     return this.svc.remove(id, tenantId);
   }
+
+  @Post('backfill-topic-resources')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Backfill study_materials from existing topic_resources for this tenant' })
+  backfillTopicResources(@TenantId() tenantId: string) {
+    return this.svc.backfillFromTopicResources(tenantId);
+  }
+
+  @Get('debug-stats')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Debug DB stats for topic_resources vs study_materials for this tenant' })
+  debugStats(@TenantId() tenantId: string) {
+    return this.svc.debugStats(tenantId);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -27,6 +27,7 @@ import { PlanItem, PlanItemStatus, PlanItemType, StudyPlan } from '../../databas
 import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { User, UserRole } from '../../database/entities/user.entity';
 import { Student } from '../../database/entities/student.entity';
+import { StudyMaterial, StudyMaterialExam, StudyMaterialType } from '../study-material/study-material.entity';
 
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 import { NotificationService } from '../notification/notification.service';
@@ -91,6 +92,8 @@ export class ContentService {
         private readonly planItemRepo: Repository<PlanItem>,
         @InjectRepository(TopicResource)
         private readonly topicResourceRepo: Repository<TopicResource>,
+        @InjectRepository(StudyMaterial)
+        private readonly studyMaterialRepo: Repository<StudyMaterial>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly dataSource: DataSource,
@@ -2279,6 +2282,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             type: ResourceType;
             title: string;
             fileUrl?: string | null;
+            fileKey?: string | null;
             externalUrl?: string | null;
             fileSizeKb?: number;
             description?: string;
@@ -2296,7 +2300,9 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             fileUrl: data.fileUrl ?? null,
             externalUrl: data.externalUrl ?? null,
         });
-        return this.topicResourceRepo.save(resource);
+        const saved = await this.topicResourceRepo.save(resource);
+        await this.mirrorTopicResourceToStudyMaterial(topicId, tenantId, data);
+        return saved;
     }
 
     async createTopicResourceByUrl(
@@ -2467,5 +2473,75 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             { uploadedBy: userId, type: rType, title: dto.title, description: dto.content },
             tenantId,
         );
+    }
+
+    private toStudyMaterialType(type: ResourceType): StudyMaterialType | null {
+        if (type === ResourceType.PYQ) return StudyMaterialType.PYQ;
+        if (type === ResourceType.DPP) return StudyMaterialType.DPP;
+        if (type === ResourceType.NOTES || type === ResourceType.PDF) return StudyMaterialType.NOTES;
+        return null;
+    }
+
+    private toStudyMaterialExams(raw?: string): StudyMaterialExam[] {
+        const v = String(raw ?? '').toLowerCase();
+        const hasJee = v.includes('jee');
+        const hasNeet = v.includes('neet');
+        const hasBothKeyword = v.includes('both');
+        if (hasBothKeyword || (hasJee && hasNeet)) {
+            return [StudyMaterialExam.JEE, StudyMaterialExam.NEET];
+        }
+        if (hasJee) return [StudyMaterialExam.JEE];
+        if (hasNeet) return [StudyMaterialExam.NEET];
+        return [];
+    }
+
+    private async mirrorTopicResourceToStudyMaterial(
+        topicId: string,
+        tenantId: string,
+        data: {
+            uploadedBy: string;
+            type: ResourceType;
+            title: string;
+            fileUrl?: string | null;
+            fileKey?: string | null;
+            externalUrl?: string | null;
+            fileSizeKb?: number;
+            description?: string;
+            sortOrder?: number;
+        },
+    ): Promise<void> {
+        // Only file-based resources can be listed/downloaded via study_materials.
+        if (!data.fileUrl || !data.fileKey) return;
+        const mappedType = this.toStudyMaterialType(data.type);
+        if (!mappedType) return;
+
+        const topic = await this.topicRepo.findOne({
+            where: { id: topicId, tenantId },
+            relations: ['chapter', 'chapter.subject'],
+        });
+        const exams = this.toStudyMaterialExams((topic as any)?.chapter?.subject?.examTarget);
+        if (exams.length === 0) return;
+
+        const subjectName = (topic as any)?.chapter?.subject?.name ?? undefined;
+        const chapterName = (topic as any)?.chapter?.name ?? undefined;
+
+        for (const exam of exams) {
+            const row = this.studyMaterialRepo.create({
+                tenantId,
+                exam,
+                type: mappedType,
+                title: data.title,
+                subject: subjectName,
+                chapter: chapterName,
+                description: data.description,
+                s3Key: data.fileKey,
+                fileSizeKb: data.fileSizeKb,
+                previewPages: 2,
+                uploadedBy: data.uploadedBy,
+                isActive: true,
+                sortOrder: data.sortOrder ?? 0,
+            });
+            await this.studyMaterialRepo.save(row);
+        }
     }
 }

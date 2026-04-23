@@ -734,6 +734,7 @@ export class ContentController {
             description: body.description,
             sortOrder: body.sortOrder ? Number(body.sortOrder) : 0,
             fileUrl,
+            fileKey: key,
             fileSizeKb: body.fileSizeKb ? Number(body.fileSizeKb) : Math.ceil(file.size / 1024),
             uploadedBy: user.id,
         }, tenantId);
