@@ -18,7 +18,7 @@ export interface PresignResult {
 
 @Injectable()
 export class S3Service implements OnModuleInit {
-  private static readonly PRESIGN_TTL_SECONDS = 300;
+  private static readonly PRESIGN_TTL_SECONDS = 7200; // 2 hours — needed for large video uploads
 
   private readonly logger = new Logger(S3Service.name);
   private client: S3Client;

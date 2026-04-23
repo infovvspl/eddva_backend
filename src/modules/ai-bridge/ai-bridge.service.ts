@@ -112,7 +112,7 @@ export class AiBridgeService {
     payload: {
       audioUrl: string;
       topicId: string;
-      language: 'en' | 'hi';
+      language: 'en' | 'hi' | 'hinglish' | 'hi-in';
     },
     tenantId?: string,
   ) {
@@ -136,7 +136,7 @@ export class AiBridgeService {
     payload: {
       transcript: string;
       topicId: string;
-      language: 'en' | 'hi';
+      language: 'en' | 'hi' | 'hinglish' | 'hi-in';
     },
     tenantId?: string,
   ) {

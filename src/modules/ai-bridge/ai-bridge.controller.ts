@@ -138,7 +138,7 @@ export class AiBridgeController {
       {
         audioUrl,
         topicId: dto.topicId || '',
-        language: 'en', // Enforced English as per requirement
+        language: dto.language || 'en',
       },
       tenantId,
     );

@@ -57,6 +57,7 @@ type YoutubeTranscriptApi = {
 export class ContentService {
     private readonly logger = new Logger(ContentService.name);
     private static readonly presetExamTargets = new Set(['jee', 'neet', 'both']);
+    private static readonly hindiLikeLectureLanguages = new Set(['hi', 'hinglish', 'hi-in']);
 
     constructor(
         @InjectRepository(Subject)
@@ -125,6 +126,15 @@ export class ContentService {
             this.logger.warn(`Failed to normalize lecture notes to English; storing original notes. ${msg}`);
             return cleaned;
         }
+    }
+
+    private normalizeLectureLanguage(language?: string | null): string {
+        return String(language ?? 'en').trim().toLowerCase() || 'en';
+    }
+
+    private getAiProcessingLanguage(language?: string | null): 'en' | 'hi' {
+        const normalized = this.normalizeLectureLanguage(language);
+        return ContentService.hindiLikeLectureLanguages.has(normalized) ? 'hi' : 'en';
     }
 
     // ─── SUBJECTS ─────────────────────────────────────────────────────────────
@@ -841,7 +851,7 @@ export class ContentService {
             select: ['id', 'status', 'lectureLanguage'],
         });
         const isNewLecture = current?.status === LectureStatus.PROCESSING;
-        const lang: 'en' | 'hi' = current?.lectureLanguage === 'hi' ? 'hi' : 'en';
+        const lectureLanguage = this.normalizeLectureLanguage(current?.lectureLanguage);
 
         this.logger.log(`YouTube AI processing started for lecture ${lectureId} videoId=${videoId}`);
         await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.PROCESSING });
@@ -853,7 +863,11 @@ export class ContentService {
 
             // ── Step 2: Generate notes from transcript (no Whisper) ──────────
             const result = await this.aiBridgeService.generateNotesFromTranscript(
-                { transcript, topicId: topicId ?? '', language: lang },
+                {
+                    transcript,
+                    topicId: topicId ?? '',
+                    language: lectureLanguage as 'en' | 'hi' | 'hinglish' | 'hi-in',
+                },
                 tenantId,
             ) as any;
 
@@ -861,7 +875,7 @@ export class ContentService {
             const updates: Partial<Lecture> = {
                 status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
                 transcriptStatus: TranscriptStatus.DONE,
-                transcriptLanguage: lang,
+                transcriptLanguage: lectureLanguage,
                 transcript,  // save raw caption text
             };
             const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? result?.raw ?? null;
@@ -909,18 +923,19 @@ export class ContentService {
         this.logger.log(`AI processing started for lecture ${lectureId} url=${cleanUrl}`);
 
         const current = await this.lectureRepo.findOne({ where: { id: lectureId }, select: ['id', 'status', 'lectureLanguage'] });
-        const lang: 'en' | 'hi' = (current?.lectureLanguage === 'hi') ? 'hi' : 'en';
+        const lectureLanguage = this.normalizeLectureLanguage(current?.lectureLanguage);
+        const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
 
         await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.PROCESSING });
         try {
             const result = await this.aiBridgeService.generateLectureNotes(
-                { audioUrl: cleanUrl, topicId: topicId ?? '', language: lang },
+                { audioUrl: cleanUrl, topicId: topicId ?? '', language: aiLanguage },
                 tenantId,
             ) as any;
 
             const updates: Partial<Lecture> = {
                 transcriptStatus: TranscriptStatus.DONE,
-                transcriptLanguage: lang,
+                transcriptLanguage: lectureLanguage,
             };
             const rawTranscript = result?.rawTranscript ?? result?.transcript ?? result?.text ?? null;
             if (rawTranscript) updates.transcript = rawTranscript;
