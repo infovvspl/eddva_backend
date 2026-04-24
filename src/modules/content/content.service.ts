@@ -59,6 +59,7 @@ type YoutubeTranscriptApi = {
 export class ContentService {
     private readonly logger = new Logger(ContentService.name);
     private static readonly presetExamTargets = new Set(['jee', 'neet', 'both']);
+    private static readonly hindiLikeLectureLanguages = new Set(['hi', 'hinglish', 'hi-in']);
 
     constructor(
         @InjectRepository(Subject)
@@ -130,6 +131,16 @@ export class ContentService {
             this.logger.warn(`Failed to normalize lecture notes to English; storing original notes. ${msg}`);
             return cleaned;
         }
+    }
+
+    private normalizeLectureLanguage(language?: string | null): string {
+        return String(language ?? 'en').trim().toLowerCase() || 'en';
+    }
+
+    private getAiProcessingLanguage(language?: string | null): 'en' | 'hi' | 'hinglish' {
+        const normalized = this.normalizeLectureLanguage(language);
+        if (normalized === 'hinglish') return 'hinglish';
+        return ContentService.hindiLikeLectureLanguages.has(normalized) ? 'hi' : 'en';
     }
 
     // ─── SUBJECTS ─────────────────────────────────────────────────────────────
@@ -886,45 +897,93 @@ export class ContentService {
             select: ['id', 'status', 'lectureLanguage'],
         });
         const isNewLecture = current?.status === LectureStatus.PROCESSING;
-        const lang: 'en' | 'hi' = current?.lectureLanguage === 'hi' ? 'hi' : 'en';
+        const lectureLanguage = this.normalizeLectureLanguage(current?.lectureLanguage);
 
         this.logger.log(`YouTube AI processing started for lecture ${lectureId} videoId=${videoId}`);
         await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.PROCESSING });
 
+        // ── Step 1: Try captions first; fall back to Whisper via yt-dlp ─────
+        let captionTranscript: string | null = null;
         try {
-            // ── Step 1: Fetch captions ───────────────────────────────────────
-            const transcript = await this._fetchYouTubeTranscript(videoId);
-            this.logger.log(`Fetched ${transcript.length} chars of captions for lecture ${lectureId}`);
+            captionTranscript = await this._fetchYouTubeTranscript(videoId);
+            this.logger.log(`Fetched ${captionTranscript.length} chars of captions for lecture ${lectureId}`);
+        } catch (captionErr: unknown) {
+            const captionMsg = captionErr instanceof Error ? captionErr.message : String(captionErr);
+            this.logger.warn(`YouTube captions unavailable for ${videoId} (${captionMsg}) — falling back to Whisper via yt-dlp`);
+        }
 
-            // ── Step 2: Generate notes from transcript (no Whisper) ──────────
-            const result = await this.aiBridgeService.generateNotesFromTranscript(
-                { transcript, topicId: topicId ?? '', language: lang },
-                tenantId,
-            ) as any;
+        if (captionTranscript) {
+            // ── Caption path: send transcript directly to LLM ────────────────
+            try {
+                const result = await this.aiBridgeService.generateNotesFromTranscript(
+                    {
+                        transcript: captionTranscript,
+                        topicId: topicId ?? '',
+                        language: lectureLanguage as 'en' | 'hi' | 'hinglish' | 'hi-in',
+                    },
+                    tenantId,
+                ) as any;
 
-            // ── Step 3: Persist ───────────────────────────────────────────────
-            const updates: Partial<Lecture> = {
-                status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
-                transcriptStatus: TranscriptStatus.DONE,
-                transcriptLanguage: lang,
-                transcript,  // save raw caption text
-            };
-            const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? result?.raw ?? null;
-            if (notes) {
-                updates.aiNotesMarkdown = await this.ensureEnglishLectureNotes(String(notes), tenantId);
+                const englishTranscript: string | null = result?.englishTranscript ?? null;
+                const transcriptToStore = (englishTranscript && englishTranscript !== captionTranscript)
+                    ? englishTranscript : captionTranscript;
+                const updates: Partial<Lecture> = {
+                    status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
+                    transcriptStatus: TranscriptStatus.DONE,
+                    transcriptLanguage: lectureLanguage,
+                    transcript: transcriptToStore,
+                };
+                const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? result?.raw ?? null;
+                if (notes) updates.aiNotesMarkdown = String(notes);
+                const concepts = result?.key_concepts ?? result?.keyConcepts;
+                if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
+
+                await this.lectureRepo.update(lectureId, updates);
+                this.logger.log(`YouTube caption AI processing complete for lecture ${lectureId}`);
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                this.logger.error(`YouTube caption AI processing failed for lecture ${lectureId}: ${msg}`);
+                await this.lectureRepo.update(lectureId, {
+                    status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
+                    transcriptStatus: TranscriptStatus.FAILED,
+                });
             }
-            const concepts = result?.key_concepts ?? result?.keyConcepts;
-            if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
+        } else {
+            // ── Whisper fallback: send YouTube URL to Django which uses yt-dlp ─
+            const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            this.logger.log(`Whisper fallback for YouTube lecture ${lectureId} url=${youtubeUrl}`);
+            try {
+                const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
+                const result = await this.aiBridgeService.generateLectureNotes(
+                    { audioUrl: youtubeUrl, topicId: topicId ?? '', language: aiLanguage },
+                    tenantId,
+                ) as any;
 
-            await this.lectureRepo.update(lectureId, updates);
-            this.logger.log(`YouTube AI processing complete for lecture ${lectureId} → status: ${updates.status}`);
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
-            this.logger.error(`YouTube AI processing failed for lecture ${lectureId}: ${msg}`);
-            await this.lectureRepo.update(lectureId, {
-                status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
-                transcriptStatus: TranscriptStatus.FAILED,
-            });
+                const updates: Partial<Lecture> = {
+                    status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
+                    transcriptStatus: TranscriptStatus.DONE,
+                    transcriptLanguage: lectureLanguage,
+                };
+                const rawTranscript = result?.rawTranscript ?? result?.transcript ?? null;
+                const englishTranscript = result?.englishTranscript ?? null;
+                const transcriptToStore = (englishTranscript && englishTranscript !== rawTranscript)
+                    ? englishTranscript : rawTranscript;
+                if (transcriptToStore) updates.transcript = transcriptToStore;
+                const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? null;
+                if (notes) updates.aiNotesMarkdown = String(notes);
+                const concepts = result?.key_concepts ?? result?.keyConcepts;
+                if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
+
+                await this.lectureRepo.update(lectureId, updates);
+                this.logger.log(`YouTube Whisper fallback complete for lecture ${lectureId}`);
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                this.logger.error(`YouTube Whisper fallback also failed for lecture ${lectureId}: ${msg}`);
+                await this.lectureRepo.update(lectureId, {
+                    status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
+                    transcriptStatus: TranscriptStatus.FAILED,
+                });
+            }
         }
     }
 
@@ -954,23 +1013,34 @@ export class ContentService {
         this.logger.log(`AI processing started for lecture ${lectureId} url=${cleanUrl}`);
 
         const current = await this.lectureRepo.findOne({ where: { id: lectureId }, select: ['id', 'status', 'lectureLanguage'] });
-        const lang: 'en' | 'hi' = (current?.lectureLanguage === 'hi') ? 'hi' : 'en';
+        const lectureLanguage = this.normalizeLectureLanguage(current?.lectureLanguage);
+        const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
 
         await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.PROCESSING });
         try {
             const result = await this.aiBridgeService.generateLectureNotes(
-                { audioUrl: cleanUrl, topicId: topicId ?? '', language: lang },
+                { audioUrl: cleanUrl, topicId: topicId ?? '', language: aiLanguage },
                 tenantId,
             ) as any;
 
             const updates: Partial<Lecture> = {
                 transcriptStatus: TranscriptStatus.DONE,
-                transcriptLanguage: lang,
+                transcriptLanguage: lectureLanguage,
             };
+            // Prefer englishTranscript (AI already normalised Hinglish/Hindi → English)
+            // so downstream quiz generation and search work on clean English text.
             const rawTranscript = result?.rawTranscript ?? result?.transcript ?? result?.text ?? null;
-            if (rawTranscript) updates.transcript = rawTranscript;
+            const englishTranscript = result?.englishTranscript ?? null;
+            const transcriptToStore = (englishTranscript && englishTranscript !== rawTranscript)
+                ? englishTranscript
+                : rawTranscript;
+            if (transcriptToStore) updates.transcript = transcriptToStore;
+
             const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? result?.raw ?? null;
-            if (notes) updates.aiNotesMarkdown = await this.ensureEnglishLectureNotes(String(notes), tenantId);
+            // Do NOT call ensureEnglishLectureNotes — the AI service already translated
+            // the transcript to English before generating notes, so calling Sarvam again
+            // would corrupt already-English content.
+            if (notes) updates.aiNotesMarkdown = String(notes);
             const concepts = result?.key_concepts ?? result?.keyConcepts;
             if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
 

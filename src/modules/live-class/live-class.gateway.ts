@@ -129,8 +129,8 @@ export class LiveClassGateway
         pinnedMessage: await this.liveClassService.getPinnedMessage(data.sessionId, data.tenantId),
         participants,
       });
-    } catch (error) {
-      client.emit('live:error', { message: error.message });
+    } catch (error: any) {
+      client.emit('live:error', { message: error?.message ?? 'Unknown error' });
     }
   }
 
@@ -162,8 +162,8 @@ export class LiveClassGateway
       });
 
       this.connections.delete(client.id);
-    } catch (error) {
-      client.emit('live:error', { message: error.message });
+    } catch (error: any) {
+      client.emit('live:error', { message: error?.message ?? 'Unknown error' });
     }
   }
 
@@ -172,20 +172,39 @@ export class LiveClassGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { sessionId: string; message: string },
   ) {
+    const meta = this.connections.get(client.id);
+    if (!meta) {
+      client.emit('live:error', { message: 'Socket is not joined to a live class' });
+      return;
+    }
+
+    const trimmed = data.message?.trim();
+    if (!trimmed) {
+      client.emit('live:error', { message: 'Message must not be empty' });
+      return;
+    }
+    if (trimmed.length > 500) {
+      client.emit('live:error', { message: 'Message must be 500 characters or less' });
+      return;
+    }
+
+    // Build an optimistic message for broadcast — DB save is best-effort
+    const now = new Date().toISOString();
+    const optimistic = {
+      id: `tmp_${Date.now()}`,
+      senderId: meta.userId,
+      senderName: meta.name,
+      senderRole: meta.role,
+      message: trimmed,
+      sentAt: now,
+      isPinned: false,
+    };
+
+    // Broadcast immediately so chat is never blocked by a DB failure
+    this.server.to(data.sessionId).emit('live:new-message', optimistic);
+
+    // Persist in background; update id if save succeeds
     try {
-      const meta = this.connections.get(client.id);
-      if (!meta) {
-        throw new Error('Socket is not joined to a live class');
-      }
-
-      const trimmed = data.message?.trim();
-      if (!trimmed) {
-        throw new Error('Message must not be empty');
-      }
-      if (trimmed.length > 500) {
-        throw new Error('Message must be 500 characters or less');
-      }
-
       const saved = await this.liveClassService.saveChatMessage(
         data.sessionId,
         meta.userId,
@@ -194,19 +213,25 @@ export class LiveClassGateway
         trimmed,
         meta.tenantId,
       );
-
-      this.server.to(data.sessionId).emit('live:new-message', {
+      // Replace the optimistic entry with the persisted one
+      this.server.to(data.sessionId).emit('live:message-saved', {
+        tempId: optimistic.id,
         id: saved.id,
-        senderId: saved.senderId,
-        senderName: saved.senderName,
-        senderRole: saved.senderRole,
-        message: saved.message,
         sentAt: saved.sentAt,
-        isPinned: saved.isPinned,
       });
-    } catch (error) {
-      client.emit('live:error', { message: error.message });
+    } catch (err) {
+      this.logger.warn(`Chat DB save failed for session ${data.sessionId}: ${err.message}`);
     }
+  }
+
+  @SubscribeMessage('live:reaction')
+  handleReaction(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { sessionId: string; emoji: string },
+  ) {
+    if (!data.sessionId || !data.emoji) return;
+    // Relay to everyone else in the session (sender sees it locally already)
+    client.to(data.sessionId).emit('live:reaction', { emoji: data.emoji });
   }
 
   @SubscribeMessage('live:raise-hand')
@@ -229,8 +254,8 @@ export class LiveClassGateway
       this.server.to(data.sessionId).emit('live:hand-raise-update', {
         queue: this.buildHandRaiseQueue(data.sessionId),
       });
-    } catch (error) {
-      client.emit('live:error', { message: error.message });
+    } catch (error: any) {
+      client.emit('live:error', { message: error?.message ?? 'Unknown error' });
     }
   }
 
@@ -249,8 +274,8 @@ export class LiveClassGateway
       this.server.to(data.sessionId).emit('live:hand-raise-update', {
         queue: this.buildHandRaiseQueue(data.sessionId),
       });
-    } catch (error) {
-      client.emit('live:error', { message: error.message });
+    } catch (error: any) {
+      client.emit('live:error', { message: error?.message ?? 'Unknown error' });
     }
   }
 
@@ -270,8 +295,8 @@ export class LiveClassGateway
         pollId: data.pollId,
         results: await this.liveClassService.getPollResultsForBroadcast(data.pollId),
       });
-    } catch (error) {
-      client.emit('live:error', { message: error.message });
+    } catch (error: any) {
+      client.emit('live:error', { message: error?.message ?? 'Unknown error' });
     }
   }
 
@@ -301,8 +326,8 @@ export class LiveClassGateway
 
       // Broadcast to everyone in session
       this.server.to(data.sessionId).emit('live:new-doubt', doubt);
-    } catch (error) {
-      client.emit('live:error', { message: error.message });
+    } catch (error: any) {
+      client.emit('live:error', { message: error?.message ?? 'Unknown error' });
     }
   }
 
@@ -317,8 +342,8 @@ export class LiveClassGateway
       if (!doubt) return;
       doubt.resolved = true;
       this.server.to(data.sessionId).emit('live:doubt-resolved', { doubtId: data.doubtId });
-    } catch (error) {
-      client.emit('live:error', { message: error.message });
+    } catch (error: any) {
+      client.emit('live:error', { message: error?.message ?? 'Unknown error' });
     }
   }
 
@@ -338,8 +363,8 @@ export class LiveClassGateway
         answer: doubt.answer,
         answeredBy: doubt.answeredBy,
       });
-    } catch (error) {
-      client.emit('live:error', { message: error.message });
+    } catch (error: any) {
+      client.emit('live:error', { message: error?.message ?? 'Unknown error' });
     }
   }
 
@@ -351,8 +376,8 @@ export class LiveClassGateway
     try {
       this.doubtEnabled.set(data.sessionId, !!data.enabled);
       this.server.to(data.sessionId).emit('live:doubts-toggled', { enabled: !!data.enabled });
-    } catch (error) {
-      client.emit('live:error', { message: error.message });
+    } catch (error: any) {
+      client.emit('live:error', { message: error?.message ?? 'Unknown error' });
     }
   }
 

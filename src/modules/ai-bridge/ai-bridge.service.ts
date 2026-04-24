@@ -120,11 +120,11 @@ export class AiBridgeService {
     payload: {
       audioUrl: string;
       topicId: string;
-      language: 'en' | 'hi';
+      language: 'en' | 'hi' | 'hinglish' | 'hi-in';
     },
     tenantId?: string,
   ) {
-    return this.post('/stt/notes', payload, tenantId, 300_000); // 5 min — Whisper + LLM
+    return this.post('/stt/notes', payload, tenantId, 900_000); // 15 min — Whisper (multi-chunk) + LLM
   }
 
   // ── AI #7b — Notes from pre-existing Transcript (YouTube / manual) ────────
@@ -144,11 +144,11 @@ export class AiBridgeService {
     payload: {
       transcript: string;
       topicId: string;
-      language: 'en' | 'hi';
+      language: 'en' | 'hi' | 'hinglish' | 'hi-in';
     },
     tenantId?: string,
   ) {
-    return this.post('/stt/notes-from-text', payload, tenantId, 300_000); // 5 min — LLM only
+    return this.post('/stt/notes-from-text', payload, tenantId, 900_000); // 15 min — LLM only
   }
 
   // ── AI #8 — Student Feedback Engine ──────────────────────────────────────
