@@ -28,7 +28,7 @@ import { UserRole } from '../../database/entities/user.entity';
 import { WeakTopic, WeakTopicSeverity } from '../../database/entities/analytics.entity';
 import { ExamSyllabusCache } from '../../database/entities/exam-syllabus.entity';
 
-import { GradingService } from './grading.service';
+import { GradingService, type DescriptiveGradingContext } from './grading.service';
 import { StudyPlanService } from '../study-plan/study-plan.service';
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 import { NotificationService } from '../notification/notification.service';
@@ -548,6 +548,11 @@ export class AssessmentService {
 
     const newlyCompletedTopicIds: string[] = [];
 
+    const batchForGrading = mockTest.batchId
+      ? await this.batchRepo.findOne({ where: { id: mockTest.batchId } })
+      : null;
+    const batchGradingCtx = this.buildDescriptiveGradingContext(mockTest, batchForGrading);
+
     await this.dataSource.transaction(async (manager) => {
       const questions = await manager.find(Question, {
         where: { tenantId: sessionTenant, id: In(mockTest.questionIds || []) },
@@ -587,7 +592,7 @@ export class AssessmentService {
 
       for (const question of questions) {
         const attempt = attemptMap.get(question.id);
-        const graded = this.gradingService.gradeAttempt(question, attempt);
+        const graded = this.gradingService.gradeAttempt(question, attempt, batchGradingCtx);
         attempt.isCorrect = graded.isCorrect;
         attempt.marksAwarded = graded.marksAwarded;
         attempt.errorType = graded.errorType;
@@ -734,12 +739,14 @@ export class AssessmentService {
       const q = qMap.get(attempt.questionId);
       if (!q || q.type !== QuestionType.DESCRIPTIVE) continue;
       const current = String(attempt.integerAnswer || '').trim();
-      // Keep student-typed answer as source of truth; OCR only fills missing text.
-      if (current) continue;
       const imageUrls = Array.isArray((attempt as any).answerImageUrls) ? (attempt as any).answerImageUrls as string[] : [];
       if (!imageUrls.length) continue;
       const extracted = await this.extractOcrTextForImages(imageUrls, tenantId);
-      if (extracted) {
+      if (!extracted) continue;
+      // Merge typed + vision transcription so handwritten work is graded together with the text box.
+      if (current) {
+        attempt.integerAnswer = `${current}\n\n[Transcribed from uploaded handwritten / diagram page(s)]\n${extracted}`;
+      } else {
         attempt.integerAnswer = extracted;
       }
     }
@@ -747,16 +754,24 @@ export class AssessmentService {
 
   private async extractOcrTextForImages(imageUrls: string[], tenantId: string): Promise<string> {
     const chunks: string[] = [];
+    const seen = new Set<string>();
     for (const imageUrl of imageUrls.slice(0, 5)) {
       try {
-        const out = await this.aiBridgeService.extractImageText({ imageUrl }, tenantId);
+        const out = await this.aiBridgeService.extractImageText(
+          { imageUrl, purpose: 'grading' },
+          tenantId,
+        );
         const t = String(out?.text || '').trim();
-        if (t) chunks.push(t);
+        if (!t) continue;
+        const key = t.toLowerCase().replace(/\s+/g, ' ').trim();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        chunks.push(t);
       } catch (err: any) {
         this.logger.warn(`OCR failed for descriptive answer image: ${err?.message || err}`);
       }
     }
-    return chunks.join('\n').trim();
+    return chunks.join('\n\n').trim();
   }
 
   async getSessionById(id: string, user: any, tenantId: string) {
@@ -770,6 +785,11 @@ export class AssessmentService {
     await this.assertSessionReadAccess(payload.session, payload.mockTest, user, tenantId);
 
     const showSolutionsAfterSubmit = payload.mockTest?.showAnswersAfterSubmit !== false;
+
+    const batchForResult = payload.mockTest?.batchId
+      ? await this.batchRepo.findOne({ where: { id: payload.mockTest.batchId } })
+      : null;
+    const sessionGradingCtx = this.buildDescriptiveGradingContext(payload.mockTest, batchForResult);
 
     const attempts = payload.attempts.map((attempt) => {
       const question = payload.questions.find((item) => item.id === attempt.questionId);
@@ -788,7 +808,11 @@ export class AssessmentService {
           errorType: attempt.errorType,
           timeTakenSeconds: attempt.timeSpentSeconds,
           rubricBreakdown: question
-            ? this.gradingService.getDescriptiveRubricBreakdown(question as any, attempt as any)
+            ? this.gradingService.getDescriptiveRubricBreakdown(
+                question as any,
+                attempt as any,
+                sessionGradingCtx,
+              )
             : null,
         },
       };
@@ -1380,6 +1404,38 @@ export class AssessmentService {
       );
       return [];
     }
+  }
+
+  /**
+   * Merges batch cohort (`examTarget`, `class`) with CBSE-style board marking. When the mock title
+   * or batch clearly indicates school-board / CBSE prep, `preferBoardMarking` keeps the full 2–5m
+   * step-rubric and board leniency while still using cohort fields for band inference.
+   */
+  private buildDescriptiveGradingContext(
+    mockTest: { title?: string | null; batchId?: string | null },
+    batch: Batch | null,
+  ): DescriptiveGradingContext | undefined {
+    const title = (mockTest?.title || '').toLowerCase();
+    const ex = (batch?.examTarget || '').toLowerCase();
+    const cl = (batch?.class || '').toLowerCase();
+    const combined = `${title} ${ex} ${cl}`.trim();
+
+    const preferBoardMarking = /\b(cbse|icse|ncert|hsc|ssc|board|10th|12th|matric|state board|half yearly|annual|unit test|pre-?board)\b/i.test(
+      combined,
+    );
+
+    if (!batch) {
+      if (!preferBoardMarking) {
+        return undefined;
+      }
+      return { examTarget: null, classLabel: null, preferBoardMarking: true };
+    }
+
+    return {
+      examTarget: batch.examTarget,
+      classLabel: batch.class,
+      ...(preferBoardMarking ? { preferBoardMarking: true as const } : {}),
+    };
   }
 
   /** Load session by id only; use row tenant so concurrent batch exams work across JWT/batch tenant mismatch. */
