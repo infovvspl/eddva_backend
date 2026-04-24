@@ -97,6 +97,18 @@ export class LiveClassController {
     return this.liveClassService.getAttendance(lectureId, tenantId);
   }
 
+  @Patch(':lectureId/attach-recording')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Attach a recording URL to an ended live class and promote it to recorded' })
+  attachRecording(
+    @Param('lectureId', ParseUUIDPipe) lectureId: string,
+    @Body('recordingUrl') recordingUrl: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.liveClassService.attachRecording(lectureId, recordingUrl, user.id, tenantId, user.role);
+  }
+
   @Post(':liveSessionId/polls')
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Create a live poll' })

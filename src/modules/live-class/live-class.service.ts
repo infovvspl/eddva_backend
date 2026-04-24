@@ -216,7 +216,22 @@ export class LiveClassService {
       await this.liveAttendanceRepo.save(openAttendances);
     }
 
-    // Stop cloud recording and promote lecture to a watchable recording
+    // Stop cloud recording and promote lecture to a watchable recording.
+    // If recording IDs are not yet saved (startRecordingAsync still in flight),
+    // wait up to 15 s for them to appear before giving up.
+    if (!session.recordingResourceId || !session.recordingSid) {
+      for (let i = 0; i < 5; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const fresh = await this.liveSessionRepo.findOne({ where: { id: session.id } });
+        if (fresh?.recordingResourceId && fresh?.recordingSid) {
+          session.recordingResourceId = fresh.recordingResourceId;
+          session.recordingSid = fresh.recordingSid;
+          this.logger.log(`Recording IDs appeared after ${(i + 1) * 3}s wait`);
+          break;
+        }
+      }
+    }
+
     let recordingUrl: string | null = session.recordingUrl || null;
     if (session.recordingResourceId && session.recordingSid) {
       const url = await this.agoraService.stopCloudRecording(
@@ -276,6 +291,26 @@ export class LiveClassService {
       sessionId: session.id,
       recordingUrl,
     };
+  }
+
+  async attachRecording(
+    lectureId: string,
+    recordingUrl: string,
+    requesterId: string,
+    tenantId: string,
+    userRole?: UserRole,
+  ) {
+    const lecture = await this.getLectureOrThrow(lectureId, tenantId);
+    if (userRole !== UserRole.INSTITUTE_ADMIN && lecture.teacherId !== requesterId) {
+      throw new ForbiddenException('Only the assigned teacher can attach a recording');
+    }
+    if (!recordingUrl?.trim()) {
+      throw new BadRequestException('recordingUrl must not be empty');
+    }
+    return this.contentService.promoteLectureToRecorded(lectureId, recordingUrl.trim(), tenantId, {
+      notifyStudents: false,
+      triggerAi: true,
+    });
   }
 
   async getSession(lectureId: string, _tenantId: string) {
