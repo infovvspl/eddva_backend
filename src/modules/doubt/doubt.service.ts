@@ -383,7 +383,7 @@ export class DoubtService {
       // If this is our tenant-scoped S3 URL, hand AI service a short-lived signed GET URL.
       const key = this.s3Service.keyFromUrl(raw);
       if (key?.startsWith('tenants/')) {
-        return await this.s3Service.presignGet(key, 900);
+        return await this.s3Service.presignGet(key, 3600);
       }
       return raw;
     } catch {
