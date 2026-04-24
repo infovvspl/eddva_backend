@@ -11,11 +11,13 @@ import { Student } from '../../database/entities/student.entity';
 import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
 import { AiBridgeModule } from '../ai-bridge/ai-bridge.module';
 import { NotificationModule } from '../notification/notification.module';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [
     AiBridgeModule,
     NotificationModule,
+    UploadModule,
     TypeOrmModule.forFeature([Doubt, Topic, User, Student, Batch, BatchSubjectTeacher, Enrollment]),
   ],
   controllers: [DoubtController],

@@ -38,6 +38,7 @@ import {
   StudentRegisterDto,
 } from './dto/auth.dto';
 import { MailService } from '../mail/mail.service';
+import { S3Service } from '../upload/s3.service';
 import { toJsonSafeDeep } from '../../common/utils/json-safe';
 
 @Injectable()
@@ -69,6 +70,7 @@ export class AuthService {
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly mailService: MailService,
+    private readonly s3Service: S3Service,
   ) {}
 
   // ── Student Self-Registration ─────────────────────────────────────────────
@@ -624,8 +626,18 @@ export class AuthService {
   }
 
   async updateAvatar(userId: string, avatarUrl: string) {
+    this.assertTenantS3ImageUrl(avatarUrl);
     await this.userRepo.update(userId, { profilePictureUrl: avatarUrl });
     return { avatarUrl };
+  }
+
+  private assertTenantS3ImageUrl(url: string) {
+    const raw = String(url || '').trim();
+    if (!raw) throw new BadRequestException('Avatar URL is required');
+    const key = this.s3Service.keyFromUrl(raw);
+    if (!key?.startsWith('tenants/')) {
+      throw new BadRequestException('Image must be uploaded to tenant S3 storage');
+    }
   }
 
   async getMe(userId: string) {

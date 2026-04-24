@@ -217,6 +217,9 @@ export class QuestionAttempt extends Base {
   @Column({ name: 'integer_answer', nullable: true })
   integerAnswer: string;
 
+  @Column({ name: 'answer_image_urls', type: 'jsonb', default: [] })
+  answerImageUrls: string[];
+
   @Column({ name: 'is_correct', nullable: true })
   isCorrect: boolean;
 

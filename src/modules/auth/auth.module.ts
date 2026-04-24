@@ -16,9 +16,11 @@ import { StudentElo } from '../../database/entities/battle.entity';
 import { Batch } from '../../database/entities/batch.entity';
 import { Doubt, Lecture } from '../../database/entities/learning.entity';
 import { TeacherProfile } from '../../database/entities/teacher.entity';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [
+    UploadModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

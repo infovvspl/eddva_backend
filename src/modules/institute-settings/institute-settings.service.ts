@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { toJsonSafeDeep } from '../../common/utils/json-safe';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -7,6 +7,7 @@ import { User } from '../../database/entities/user.entity';
 import { Student } from '../../database/entities/student.entity';
 import { Batch, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { NotificationService } from '../notification/notification.service';
+import { S3Service } from '../upload/s3.service';
 import {
   UpdateBrandingDto,
   UpdateNotificationPrefsDto,
@@ -37,9 +38,11 @@ export class InstituteSettingsService {
     @InjectRepository(Batch) private readonly batchRepo: Repository<Batch>,
     @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
     private readonly notificationService: NotificationService,
+    private readonly s3Service: S3Service,
   ) {}
 
   async updateProfileImage(userId: string, imageUrl: string) {
+    this.assertTenantS3ImageUrl(imageUrl, 'imageUrl');
     await this.userRepo.update(userId, { profilePictureUrl: imageUrl });
     return { avatarUrl: imageUrl, url: imageUrl };
   }
@@ -64,6 +67,8 @@ export class InstituteSettingsService {
   }
 
   async updateProfile(tenantId: string, userId: string, dto: UpdateInstituteProfileDto) {
+    if (dto.orgImageUrl !== undefined) this.assertTenantS3ImageUrl(dto.orgImageUrl, 'orgImageUrl');
+
     const [tenant, user] = await Promise.all([
       this.getTenant(tenantId),
       this.userRepo.findOne({ where: { id: userId } }),
@@ -122,6 +127,8 @@ export class InstituteSettingsService {
   }
 
   async saveOnboarding(tenantId: string, dto: InstituteOnboardingDto) {
+    if (dto.logoUrl !== undefined) this.assertTenantS3ImageUrl(dto.logoUrl, 'logoUrl');
+
     const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException('Tenant not found');
 
@@ -173,11 +180,21 @@ export class InstituteSettingsService {
 
   async updateBranding(tenantId: string, dto: UpdateBrandingDto) {
     const t = await this.getTenant(tenantId);
+    if (dto.logoUrl !== undefined) this.assertTenantS3ImageUrl(dto.logoUrl, 'logoUrl');
     if (dto.logoUrl     !== undefined) t.logoUrl     = dto.logoUrl;
     if (dto.brandColor  !== undefined) t.brandColor  = dto.brandColor;
     if (dto.welcomeMessage !== undefined) t.welcomeMessage = dto.welcomeMessage;
     await this.tenantRepo.save(t);
     return this.getBranding(tenantId);
+  }
+
+  private assertTenantS3ImageUrl(url: string | undefined, fieldName: string) {
+    const raw = String(url || '').trim();
+    if (!raw) return;
+    const key = this.s3Service.keyFromUrl(raw);
+    if (!key?.startsWith('tenants/')) {
+      throw new BadRequestException(`${fieldName} must be uploaded to tenant S3 storage`);
+    }
   }
 
   // ── Subscription ─────────────────────────────────────────────────────────────
