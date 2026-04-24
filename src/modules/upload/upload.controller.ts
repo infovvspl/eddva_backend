@@ -3,12 +3,18 @@ import {
   Body,
   Controller,
   Delete,
+  HttpException,
   HttpCode,
   HttpStatus,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { TenantId } from '../../common/decorators/auth.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -28,6 +34,40 @@ export class UploadController {
   private static readonly MAX_VIDEO_FILE_SIZE = 2 * 1024 * 1024 * 1024;
 
   constructor(private readonly s3Service: S3Service) {}
+
+  @Post('upload/doubt-response-image')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Upload doubt response image via backend (avoids browser→S3 CORS)' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: UploadController.MAX_STANDARD_FILE_SIZE },
+      fileFilter: (_req, file, cb) => {
+        if (!file?.mimetype?.startsWith('image/')) {
+          return cb(new BadRequestException('Only image files are allowed'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadDoubtResponseImage(
+    @UploadedFile() file: Express.Multer.File,
+    @TenantId() tenantId: string,
+  ) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    if (!tenantId) {
+      throw new BadRequestException('Tenant ID could not be determined from the authenticated user');
+    }
+    const ext = extname(file.originalname).toLowerCase() || '.jpg';
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `doubt-image${ext}`;
+    const key = `tenants/${tenantId}/doubts/response-images/${Date.now()}-${uuidv4()}-${safeName}`;
+    try {
+      const url = await this.s3Service.upload(key, file.buffer, file.mimetype || 'image/jpeg');
+      return { url, key };
+    } catch (err) {
+      throw new HttpException(err?.message || 'Upload failed', HttpStatus.BAD_REQUEST);
+    }
+  }
 
   @Post('upload-url')
   @ApiOperation({ summary: 'Generate a tenant-scoped pre-signed S3 PUT URL' })

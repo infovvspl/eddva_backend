@@ -62,6 +62,7 @@ export class AiBridgeService {
   async resolveDoubt(
     payload: {
       questionText: string;
+      questionImageUrl?: string;
       topicId?: string;
       mode: 'short' | 'detailed';
       studentContext?: any;
@@ -69,6 +70,13 @@ export class AiBridgeService {
     tenantId?: string,
   ) {
     return this.post('/doubt/resolve', payload, tenantId);
+  }
+
+  async extractImageText(
+    payload: { imageUrl: string },
+    tenantId?: string,
+  ): Promise<{ text: string }> {
+    return this.post('/doubt/ocr-image', payload, tenantId, 120_000);
   }
 
   // ── AI #2 — AI Tutor ──────────────────────────────────────────────────────
@@ -300,6 +308,58 @@ export class AiBridgeService {
     return [];
   }
 
+  private djangoQuestionTypes(requestType: string): string[] {
+    // FastAPI /test/generate/ only accepts: mcq, true_false, short_answer, long_answer, fill_blank, mix
+    if (requestType === 'mcq_single' || requestType === 'mcq_multi' || requestType === 'integer') {
+      return ['mcq'];
+    }
+    if (requestType === 'descriptive' || requestType === 'long_answer' || requestType === 'subjective') {
+      return ['long_answer'];
+    }
+    if (requestType === 'short_descriptive' || requestType === 'short_answer') {
+      return ['short_answer'];
+    }
+    if (requestType === 'mix' || requestType === 'board_mix' || requestType === 'cbse_paper') {
+      return ['mix'];
+    }
+    if (['mcq', 'true_false', 'short_answer', 'long_answer', 'fill_blank', 'mix'].includes(requestType)) {
+      return [requestType];
+    }
+    return ['mcq'];
+  }
+
+  private topicSuffixForQuestionType(t: string): string {
+    if (t === 'integer') {
+      return (
+        ' Each item must be a single-numerical-answer (integer 0–999) competitive-exam style. ' +
+        'Output exactly four options; only one is correct; the options should be the candidate answers.'
+      );
+    }
+    if (t === 'mcq_multi') {
+      return (
+        ' Each item is multiple-correct: two or more options can be true. ' +
+        'In JSON, list every correct option label in a field "correctOptions" (e.g. ["A","C"]) in addition to options with isCorrect flags.'
+      );
+    }
+    if (t === 'descriptive' || t === 'long_answer' || t === 'subjective') {
+      return (
+        ' Output short- or long-answer (constructed response) only — no A/B/C/D options. ' +
+        'Include a model answer in the "answer" field using CBSE markwise structure: ' +
+        '2m => definition + one point/example, ' +
+        '3m => definition/principle + two explanation points, ' +
+        '4m => statement/formula + 2-3 explanation steps + support (diagram/example/conclusion), ' +
+        '5m => intro/definition + 3 core points + one support element.'
+      );
+    }
+    if (t === 'short_descriptive' || t === 'short_answer') {
+      return (
+        ' Keep answers concise (2–4 sentences) for short constructed response; include a model answer in the "answer" field. ' +
+        'For 2-mark style answers, keep exactly two clear components (definition/statement + second point/example).'
+      );
+    }
+    return '';
+  }
+
   // ── AI #13 — Quiz Question Generator from Topic ───────────────────────────
   async generateQuestionsFromTopic(
     dto: {
@@ -311,9 +371,11 @@ export class AiBridgeService {
     },
     tenantId?: string,
   ) {
-    const questionTypes = dto.type === 'mcq_single' ? ['mcq'] : [dto.type];
+    const questionTypes = this.djangoQuestionTypes(dto.type);
+    const topic =
+      `${dto.topicName} (Respond in English only)${this.topicSuffixForQuestionType(dto.type)}`.trim();
     const raw = await this.post<any>('/test/generate/', {
-      topic: `${dto.topicName} (Respond in English only)`,
+      topic,
       num_questions: dto.count,
       difficulty: dto.difficulty,
       question_types: questionTypes,
@@ -346,6 +408,8 @@ export class AiBridgeService {
   /** Transform any known AI question array shape into the frontend shape. */
   private normaliseStructuredQuestions(questions: any[], type: string) {
     const fallbackLabels = ['A', 'B', 'C', 'D', 'E'];
+    const looksLikeOptionKey = (v: string) =>
+      /^[A-E]$/i.test(v.trim()) || /^\(?[A-E]\)?[).:]?$/i.test(v.trim());
     return questions.map((q: any) => {
       // ── Question text — support multiple field names ──────────────────────
       const content: string = (
@@ -363,6 +427,21 @@ export class AiBridgeService {
       const letterMatch = rawAnswer.match(/^([A-Ea-e])[.):\s]*/)?.[1]?.toUpperCase() ?? null;
       const numericIndex = /^\d+$/.test(rawAnswer) ? parseInt(rawAnswer, 10) - 1 : -1;
 
+      // ── Multi-correct (MSQ) — from LLM or comma-separated key ─────────────
+      const multiFromRaw: string[] = (() => {
+        const a = (q as any).correctOptions ?? (q as any).correct_options;
+        if (Array.isArray(a) && a.length) {
+          return a.map((s: any) => String(s).toUpperCase().replace(/[^A-E]/g, '')).filter(Boolean);
+        }
+        if (type === 'mcq_multi' && rawAnswer) {
+          return rawAnswer
+            .split(/[,;/|]|\s+and\s+|\s+&\s+/i)
+            .map((s) => s.trim().toUpperCase().match(/^([A-E])\b/)?.[1] ?? '')
+            .filter(Boolean);
+        }
+        return [];
+      })();
+
       // ── Options — support {label,text}, {label,content}, strings ─────────
       let correctLabelFound = false;
       const options = (q.options || []).map((opt: any, i: number) => {
@@ -373,10 +452,13 @@ export class AiBridgeService {
           ? String(opt.label).toUpperCase()
           : (fallbackLabels[i] || String.fromCharCode(65 + i));
 
-        const isCorrect =
+        let isCorrect =
           (letterMatch !== null && label === letterMatch) ||
           (numericIndex >= 0 && i === numericIndex) ||
           text.trim().toLowerCase() === rawAnswer.toLowerCase();
+        if (multiFromRaw.length) {
+          isCorrect = multiFromRaw.includes(label);
+        }
         if (isCorrect) correctLabelFound = true;
         return { label, content: text, isCorrect };
       });
@@ -398,11 +480,54 @@ export class AiBridgeService {
         ''
       ).trim();
 
+      const isSubjective = ['descriptive', 'long_answer', 'subjective', 'short_descriptive', 'short_answer'].includes(
+        type,
+      );
+      if (isSubjective) {
+        const modelFromFields = String((q as any).modelAnswer ?? (q as any).rubric ?? (q as any).answer ?? '').trim();
+        const model = [modelFromFields, rawAnswer]
+          .find((m) => m && !looksLikeOptionKey(m)) || '';
+        return {
+          content,
+          options: [],
+          explanation: [explanation, model && `Model answer: ${model}`].filter(Boolean).join('\n\n').trim(),
+          integerAnswer: null,
+        };
+      }
+
+      let intAns: string | null = type === 'integer' ? (rawAnswer || null) : null;
+      if (type === 'integer' && intAns) {
+        const m = intAns.toUpperCase().match(/^([A-E])\b/);
+        if (m) {
+          const opt = options.find((o) => o.label === m[1]);
+          if (opt?.content && /^-?\d+$/.test(String(opt.content).trim())) {
+            intAns = String(opt.content).trim();
+          }
+        } else if (!/^-?\d+$/.test(intAns) && intAns) {
+          const onlyDigits = intAns.replace(/[^0-9-]/g, '');
+          if (/^-?\d+$/.test(onlyDigits)) intAns = onlyDigits;
+        }
+      }
+      if (type === 'integer' && !intAns) {
+        const c = options.find((o) => o.isCorrect);
+        if (c && /^-?\d+$/.test(String(c.content).trim())) {
+          intAns = String(c.content).trim();
+        }
+      }
+      if (type === 'integer' && intAns) {
+        return {
+          content,
+          options: [],
+          explanation,
+          integerAnswer: intAns,
+        };
+      }
+
       return {
         content,
         options,
         explanation,
-        integerAnswer: type === 'integer' ? (rawAnswer || null) : null,
+        integerAnswer: null,
       };
     });
   }

@@ -10,6 +10,7 @@ import { In, Repository } from 'typeorm';
 
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 import { NotificationService } from '../notification/notification.service';
+import { S3Service } from '../upload/s3.service';
 import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { Student } from '../../database/entities/student.entity';
 import { Topic } from '../../database/entities/subject.entity';
@@ -52,12 +53,14 @@ export class DoubtService {
     private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: NotificationService,
+    private readonly s3Service: S3Service,
   ) {}
 
   async createDoubt(dto: CreateDoubtDto, userId: string, tenantId: string) {
     if (!dto.questionText && !dto.questionImageUrl) {
       throw new BadRequestException('Either questionText or questionImageUrl is required');
     }
+    if (dto.questionImageUrl) this.assertTenantS3ImageUrl(dto.questionImageUrl, 'questionImageUrl');
 
     const student = await this.getStudentByUserId(userId, tenantId);
     let topic: Topic | null = null;
@@ -108,8 +111,10 @@ export class DoubtService {
       await this.notifyEscalatedDoubtTeachers(doubt);
     } else {
       try {
+        const aiImageUrl = await this.toAccessibleImageUrl(dto.questionImageUrl ?? undefined);
         const aiResult = (await this.aiBridgeService.resolveDoubt({
-          questionText: dto.questionText || dto.questionImageUrl || '',
+          questionText: dto.questionText || '',
+          questionImageUrl: aiImageUrl,
           topicId: dto.topicId,
           mode: dto.explanationMode as 'short' | 'detailed',
           studentContext: { source: dto.source, sourceRefId: dto.sourceRefId },
@@ -218,9 +223,11 @@ export class DoubtService {
     }
 
     try {
+      const aiImageUrl = await this.toAccessibleImageUrl(doubt.questionImageUrl || undefined);
       const aiResult = (await this.aiBridgeService.resolveDoubt(
         {
           questionText: promptText,
+          questionImageUrl: aiImageUrl,
           topicId: doubt.topicId || undefined,
           mode: ((doubt.explanationMode as string) || 'detailed') as 'short' | 'detailed',
           studentContext: {
@@ -285,7 +292,10 @@ export class DoubtService {
     doubt.resolvedAt = new Date();
     if (dto.aiQualityRating) doubt.aiQualityRating = dto.aiQualityRating;
     if (dto.lectureRef) doubt.teacherLectureRef = dto.lectureRef;
-    if (dto.responseImageUrl) doubt.teacherResponseImageUrl = dto.responseImageUrl;
+    if (dto.responseImageUrl) {
+      this.assertTenantS3ImageUrl(dto.responseImageUrl, 'responseImageUrl');
+      doubt.teacherResponseImageUrl = dto.responseImageUrl;
+    }
     await this.doubtRepo.save(doubt);
 
     const student = await this.studentRepo.findOne({
@@ -345,8 +355,10 @@ export class DoubtService {
 
   /** Runs AI bridge and mutates doubt in memory — caller must save. */
   private async applyAiBridgeToDoubt(doubt: Doubt): Promise<void> {
+    const aiImageUrl = await this.toAccessibleImageUrl(doubt.questionImageUrl || undefined);
     const aiResult = (await this.aiBridgeService.resolveDoubt({
-      questionText: doubt.questionText || doubt.questionImageUrl || '',
+      questionText: doubt.questionText || doubt.ocrExtractedText || '',
+      questionImageUrl: aiImageUrl,
       topicId: doubt.topicId || undefined,
       mode: ((doubt.explanationMode as string) || 'short') as 'short' | 'detailed',
       studentContext: { source: doubt.source, sourceRefId: doubt.sourceRefId ?? undefined },
@@ -362,6 +374,30 @@ export class DoubtService {
     doubt.aiConceptLinks = aiResult?.conceptLinks ?? aiResult?.key_concepts ?? [];
     doubt.aiSimilarQuestionIds = aiResult?.similarQuestionIds ?? [];
     doubt.status = DoubtStatus.AI_RESOLVED;
+  }
+
+  private async toAccessibleImageUrl(imageUrl?: string): Promise<string | undefined> {
+    const raw = String(imageUrl || '').trim();
+    if (!raw) return undefined;
+    try {
+      // If this is our tenant-scoped S3 URL, hand AI service a short-lived signed GET URL.
+      const key = this.s3Service.keyFromUrl(raw);
+      if (key?.startsWith('tenants/')) {
+        return await this.s3Service.presignGet(key, 900);
+      }
+      return raw;
+    } catch {
+      return raw;
+    }
+  }
+
+  private assertTenantS3ImageUrl(url: string, fieldName: string) {
+    const raw = String(url || '').trim();
+    if (!raw) return;
+    const key = this.s3Service.keyFromUrl(raw);
+    if (!key?.startsWith('tenants/')) {
+      throw new BadRequestException(`${fieldName} must be uploaded to tenant S3 storage`);
+    }
   }
 
   async requestAiResolution(id: string, userId: string, tenantId: string) {

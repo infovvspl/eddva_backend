@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  IsUrl,
   Min,
 } from 'class-validator';
 
@@ -28,4 +29,10 @@ export class AnswerQuestionDto {
   @IsInt()
   @Min(0)
   timeTakenSeconds?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUrl({}, { each: true })
+  answerImageUrls?: string[];
 }

@@ -519,6 +519,7 @@ export class AssessmentService {
 
     attempt.selectedOptionIds = dto.selectedOptionIds || [];
     attempt.integerAnswer = dto.integerResponse ?? null;
+    attempt.answerImageUrls = dto.answerImageUrls || [];
     attempt.timeSpentSeconds = dto.timeTakenSeconds;
     attempt.answeredAt = new Date();
 
@@ -566,6 +567,7 @@ export class AssessmentService {
             questionId,
             selectedOptionIds: [],
             integerAnswer: null,
+            answerImageUrls: [],
             timeSpentSeconds: 0,
             answeredAt: now,
           });
@@ -575,6 +577,7 @@ export class AssessmentService {
       }
 
       const allAttempts = Array.from(attemptMap.values());
+      await this.enrichDescriptiveAttemptsFromImages(questions, allAttempts, sessionTenant);
       let totalScore = 0;
       let correctCount = 0;
       let wrongCount = 0;
@@ -721,6 +724,41 @@ export class AssessmentService {
     return this.getSessionResult(sessionId, { id: userId, role: UserRole.STUDENT }, tenantId);
   }
 
+  private async enrichDescriptiveAttemptsFromImages(
+    questions: Question[],
+    attempts: QuestionAttempt[],
+    tenantId: string,
+  ) {
+    const qMap = new Map(questions.map((q) => [q.id, q]));
+    for (const attempt of attempts) {
+      const q = qMap.get(attempt.questionId);
+      if (!q || q.type !== QuestionType.DESCRIPTIVE) continue;
+      const current = String(attempt.integerAnswer || '').trim();
+      // Keep student-typed answer as source of truth; OCR only fills missing text.
+      if (current) continue;
+      const imageUrls = Array.isArray((attempt as any).answerImageUrls) ? (attempt as any).answerImageUrls as string[] : [];
+      if (!imageUrls.length) continue;
+      const extracted = await this.extractOcrTextForImages(imageUrls, tenantId);
+      if (extracted) {
+        attempt.integerAnswer = extracted;
+      }
+    }
+  }
+
+  private async extractOcrTextForImages(imageUrls: string[], tenantId: string): Promise<string> {
+    const chunks: string[] = [];
+    for (const imageUrl of imageUrls.slice(0, 5)) {
+      try {
+        const out = await this.aiBridgeService.extractImageText({ imageUrl }, tenantId);
+        const t = String(out?.text || '').trim();
+        if (t) chunks.push(t);
+      } catch (err: any) {
+        this.logger.warn(`OCR failed for descriptive answer image: ${err?.message || err}`);
+      }
+    }
+    return chunks.join('\n').trim();
+  }
+
   async getSessionById(id: string, user: any, tenantId: string) {
     const payload = await this.getSessionPayload(id);
     await this.assertSessionReadAccess(payload.session, payload.mockTest, user, tenantId);
@@ -749,6 +787,9 @@ export class AssessmentService {
           marksAwarded: attempt.marksAwarded,
           errorType: attempt.errorType,
           timeTakenSeconds: attempt.timeSpentSeconds,
+          rubricBreakdown: question
+            ? this.gradingService.getDescriptiveRubricBreakdown(question as any, attempt as any)
+            : null,
         },
       };
     });
