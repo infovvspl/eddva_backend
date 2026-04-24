@@ -302,8 +302,8 @@ export class ContentController {
             }),
             limits: { fileSize: MAX_LECTURE_VIDEO_UPLOAD_BYTES }, // 2 GB — temp file on disk, streamed to S3
             fileFilter: (_req, file, cb) => {
-                if (!file.mimetype.startsWith('video/')) {
-                    return cb(new BadRequestException('Only video files are allowed'), false);
+                if (!file.mimetype.startsWith('video/') && !file.mimetype.startsWith('audio/')) {
+                    return cb(new BadRequestException('Only video or audio files are allowed'), false);
                 }
                 cb(null, true);
             },
