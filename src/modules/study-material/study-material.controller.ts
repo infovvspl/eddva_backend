@@ -121,7 +121,7 @@ export class StudyMaterialPublicController {
       'Content-Length':      buffer.length,
       'Content-Disposition': 'inline; filename="preview.pdf"',
       'X-Preview-Pages':     String(pages),
-      'X-Watermark':         'Preview only — register to unlock full document',
+      'X-Watermark':         'Preview only - register to unlock full document',
       'Cache-Control':       'no-store',
     });
     res.send(buffer);
