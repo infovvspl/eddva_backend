@@ -25,6 +25,7 @@ import {
 import { Student } from '../../database/entities/student.entity';
 import { User, UserRole } from '../../database/entities/user.entity';
 import { NotificationService } from '../notification/notification.service';
+import { ContentService } from '../content/content.service';
 
 import { AgoraService } from './agora.service';
 import { CreatePollDto } from './dto/live-class.dto';
@@ -53,6 +54,7 @@ export class LiveClassService {
     @InjectRepository(Enrollment)
     private readonly enrollmentRepo: Repository<Enrollment>,
     private readonly notificationService: NotificationService,
+    private readonly contentService: ContentService,
     private readonly agoraService: AgoraService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
@@ -106,7 +108,7 @@ export class LiveClassService {
   }
 
   async startClass(lectureId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
-    const lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId, userRole);
+    let lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId, userRole);
     if (![LectureStatus.SCHEDULED, LectureStatus.DRAFT].includes(lecture.status)) {
       throw new BadRequestException('Class can only be started from scheduled or draft state');
     }
@@ -187,7 +189,7 @@ export class LiveClassService {
   }
 
   async endClass(lectureId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
-    const lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId, userRole);
+    let lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId, userRole);
     const session = await this.findSessionByLectureOrThrow(lectureId, tenantId);
 
     if (session.status !== LiveSessionStatus.LIVE) {
@@ -227,10 +229,10 @@ export class LiveClassService {
         session.recordingUrl = url;
         await this.liveSessionRepo.save(session);
 
-        lecture.videoUrl = url;
-        lecture.type = LectureType.RECORDED;
-        lecture.status = LectureStatus.PUBLISHED;
-        await this.lectureRepo.save(lecture);
+        lecture = await this.contentService.promoteLectureToRecorded(lecture.id, url, lecture.tenantId, {
+          notifyStudents: false,
+          triggerAi: true,
+        });
         this.logger.log(`Lecture ${lectureId} promoted to RECORDED: ${url}`);
       } else {
         this.logger.warn(`Recording stop returned no URL for session ${session.id}`);
