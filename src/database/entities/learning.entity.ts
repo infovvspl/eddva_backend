@@ -381,7 +381,12 @@ export class AiStudySession extends Base {
   formulas: string[];
 
   @Column({ name: 'practice_questions', type: 'jsonb', default: [] })
-  practiceQuestions: Array<{ question: string; answer: string; explanation: string }>;
+  practiceQuestions: Array<{
+    question: string;
+    answer: string;
+    explanation: string;
+    options?: string[];
+  }>;
 
   @Column({ name: 'common_mistakes', type: 'jsonb', default: [] })
   commonMistakes: string[];

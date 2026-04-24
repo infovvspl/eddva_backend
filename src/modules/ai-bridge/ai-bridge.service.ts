@@ -69,7 +69,10 @@ export class AiBridgeService {
     },
     tenantId?: string,
   ) {
-    return this.post('/doubt/resolve', payload, tenantId);
+    return this.post('/doubt/resolve', {
+      ...payload,
+      questionText: this.withMathDerivationStyleHint(payload.questionText),
+    }, tenantId);
   }
 
   async extractImageText(
@@ -91,7 +94,19 @@ export class AiBridgeService {
     payload: { sessionId: string; studentMessage: string },
     tenantId?: string,
   ) {
-    return this.post('/tutor/continue', payload, tenantId);
+    return this.post('/tutor/continue', {
+      ...payload,
+      studentMessage: this.withMathDerivationStyleHint(payload.studentMessage),
+    }, tenantId);
+  }
+
+  private withMathDerivationStyleHint(text: string): string {
+    const base = String(text || '').trim();
+    if (!base) return base;
+    const hint =
+      'Formatting preference: For mathematical/derivation questions, respond in equation-first style with minimal prose, clear symbolic steps, and a final result line.';
+    if (base.includes(hint)) return base;
+    return `${base}\n\n${hint}`;
   }
 
   // ── AI #6 — Content Recommendation ───────────────────────────────────────

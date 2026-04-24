@@ -1807,21 +1807,16 @@ export class ContentService {
         });
         if (existing && !this.shouldRegenerateLesson(existing.lessonMarkdown)) {
             // Backfill practice questions if missing (e.g., sessions created before this feature)
-            if (!existing.practiceQuestions || existing.practiceQuestions.length === 0) {
+            if (!existing.practiceQuestions || existing.practiceQuestions.length === 0 || !this.hasStructuredPracticeOptions(existing.practiceQuestions)) {
                 try {
                     const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
                         { topicId, topicName: topic.name, count: 8, difficulty: 'mixed', type: 'mcq_single' },
                         tenantId,
                     ) as any[];
                     if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
-                        existing.practiceQuestions = rawQuestions.map((q: any) => {
-                            const correctOption = (q.options || []).find((o: any) => o.isCorrect);
-                            return {
-                                question: q.content || '',
-                                answer: correctOption?.content || '',
-                                explanation: q.explanation || '',
-                            };
-                        }).filter((q: any) => q.question);
+                        existing.practiceQuestions = rawQuestions
+                            .map((q: any) => this.mapRawPracticeQuestion(q))
+                            .filter((q: any) => q.question);
                         await this.aiStudyRepo.save(existing);
                     }
                 } catch (err) {
@@ -1967,7 +1962,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         let keyConcepts: string[] = [];
         let formulas: string[] = [];
         let commonMistakes: string[] = [];
-        let practiceQuestions: Array<{ question: string; answer: string; explanation: string }> = [];
+        let practiceQuestions: Array<{ question: string; answer: string; explanation: string; options?: string[] }> = [];
 
         try {
             const lessonResponse = await this.aiBridgeService.startTutorSession(
@@ -2020,14 +2015,9 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             ) as any[];
 
             if (Array.isArray(rawQuestions)) {
-                practiceQuestions = rawQuestions.map((q: any) => {
-                    const correctOption = (q.options || []).find((o: any) => o.isCorrect);
-                    return {
-                        question: q.content || '',
-                        answer: correctOption?.content || '',
-                        explanation: q.explanation || '',
-                    };
-                }).filter((q: any) => q.question);
+                practiceQuestions = rawQuestions
+                    .map((q: any) => this.mapRawPracticeQuestion(q))
+                    .filter((q: any) => q.question);
             }
         } catch (err) {
             this.logger.warn(`Practice question generation failed for topic ${topicId}: ${err.message}`);
@@ -2222,7 +2212,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         }
 
         // Backfill practice questions if missing
-        if ((!session.practiceQuestions || session.practiceQuestions.length === 0) && tenantId) {
+        if ((!session.practiceQuestions || session.practiceQuestions.length === 0 || !this.hasStructuredPracticeOptions(session.practiceQuestions)) && tenantId) {
             try {
                 const topic = await this.topicRepo.findOne({ where: { id: topicId } });
                 if (topic) {
@@ -2231,14 +2221,9 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                         tenantId,
                     ) as any[];
                     if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
-                        session.practiceQuestions = rawQuestions.map((q: any) => {
-                            const correctOption = (q.options || []).find((o: any) => o.isCorrect);
-                            return {
-                                question: q.content || '',
-                                answer: correctOption?.content || '',
-                                explanation: q.explanation || '',
-                            };
-                        }).filter((q: any) => q.question);
+                        session.practiceQuestions = rawQuestions
+                            .map((q: any) => this.mapRawPracticeQuestion(q))
+                            .filter((q: any) => q.question);
                         await this.aiStudyRepo.save(session);
                     }
                 }
@@ -2317,6 +2302,28 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         };
 
         return unwrap(candidate);
+    }
+
+    private mapRawPracticeQuestion(q: any): { question: string; answer: string; explanation: string; options?: string[] } {
+        const rawOptions = Array.isArray(q?.options) ? q.options : [];
+        const options = rawOptions
+            .map((o: any) => String(o?.content ?? o?.text ?? '').trim())
+            .filter((v: string) => Boolean(v));
+        const correctOption = rawOptions.find((o: any) => o?.isCorrect);
+        const fallbackAnswer = String(q?.answer ?? '').trim();
+        return {
+            question: String(q?.content ?? q?.question ?? '').trim(),
+            answer: String(correctOption?.content ?? fallbackAnswer).trim(),
+            explanation: String(q?.explanation ?? '').trim(),
+            options: options.length ? options : undefined,
+        };
+    }
+
+    private hasStructuredPracticeOptions(
+        questions: Array<{ question: string; answer: string; explanation: string; options?: string[] }> | null | undefined,
+    ): boolean {
+        if (!Array.isArray(questions) || questions.length === 0) return false;
+        return questions.some((q) => Array.isArray(q?.options) && q.options.length >= 2);
     }
 
     private extractAiSessionRef(response: any): string | null {

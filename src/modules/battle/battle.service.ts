@@ -136,7 +136,14 @@ export class BattleService {
 
   // ─── Create Battle (with auto-matchmaking queue) ──────────────────────────
 
-  async createBattleRoom(userId: string, tenantId: string, mode = BattleMode.QUICK_DUEL, topicId?: string, topicName?: string) {
+  async createBattleRoom(
+    userId: string,
+    tenantId: string,
+    mode = BattleMode.QUICK_DUEL,
+    topicId?: string,
+    topicName?: string,
+    requestedDifficulty?: 'easy' | 'medium' | 'hard',
+  ) {
     const student = await this.getStudent(userId);
 
     // ── Auto-matchmaking: for quick_duel, topic_battle, and daily mode
@@ -199,7 +206,14 @@ export class BattleService {
       }),
     );
 
-    const aiQuestions = await this.buildAiBattleQuestions(tenantId, qCount, topicId, student.examTarget ?? undefined, topicName);
+    const aiQuestions = await this.buildAiBattleQuestions(
+      tenantId,
+      qCount,
+      topicId,
+      student.examTarget ?? undefined,
+      topicName,
+      requestedDifficulty,
+    );
     this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
     // Persist questions to DB so they survive server restarts
     battle.questionIds = [];
@@ -944,8 +958,12 @@ export class BattleService {
     [ExamTarget.OTHER]:        'Competitive level',
   };
 
-  private getTopicCacheKey(topicId: string, examTarget?: string): string {
-    return `${topicId}:${examTarget ?? 'general'}`;
+  private getTopicCacheKey(
+    topicId: string,
+    examTarget?: string,
+    difficulty?: 'easy' | 'medium' | 'hard',
+  ): string {
+    return `${topicId}:${examTarget ?? 'general'}:${difficulty ?? 'auto'}`;
   }
 
   private getFromTopicCache(key: string): AiBattleQuestion[] | null {
@@ -996,6 +1014,7 @@ export class BattleService {
     preferredTopicId?: string | null,
     examTarget?: string | ExamTarget,
     explicitTopicName?: string,
+    requestedDifficulty?: 'easy' | 'medium' | 'hard',
   ): Promise<AiBattleQuestion[]> {
     const safeCount = Math.min(Math.max(count || 10, 3), 20);
 
@@ -1009,7 +1028,19 @@ export class BattleService {
     const examLabel = examTarget ? this.examLevelLabel[examTarget] : null;
     const enrichedTopicName = examLabel ? `${baseName} (${examLabel})` : baseName;
 
-    const cacheKey = this.getTopicCacheKey(preferredTopicId ?? topic?.id ?? 'random', examTarget);
+    const derivedDifficulty: 'easy' | 'medium' | 'hard' =
+      requestedDifficulty ??
+      (examTarget === ExamTarget.JEE ||
+      examTarget === ExamTarget.JEE_ADVANCED ||
+      examTarget === 'jee_advanced'
+        ? 'hard'
+        : 'medium');
+
+    const cacheKey = this.getTopicCacheKey(
+      preferredTopicId ?? topic?.id ?? 'random',
+      examTarget,
+      derivedDifficulty,
+    );
 
     if (!topic && !explicitTopicName) {
       this.logger.warn(`No topic resolved for AI battle generation (tenant=${tenantId})`);
@@ -1021,11 +1052,7 @@ export class BattleService {
           topicId: topic?.id ?? preferredTopicId ?? 'unknown',
           topicName: enrichedTopicName,
           count: safeCount,
-          difficulty: 
-            examTarget === ExamTarget.JEE || 
-            examTarget === ExamTarget.JEE_ADVANCED || 
-            examTarget === 'jee_advanced' 
-              ? 'hard' : 'medium',
+          difficulty: derivedDifficulty,
           type: 'mcq_single',
         },
         tenantId,
