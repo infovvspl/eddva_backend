@@ -777,6 +777,46 @@ export class ContentService {
         return url.replace(/\/api\/v\d+\/uploads\//, '/uploads/');
     }
 
+    async promoteLectureToRecorded(
+        lectureId: string,
+        videoUrl: string,
+        tenantId: string,
+        opts?: { notifyStudents?: boolean; triggerAi?: boolean },
+    ): Promise<Lecture> {
+        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
+        if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
+
+        const cleanUrl = this._fixVideoUrl(videoUrl.trim());
+        const wasPublished = lecture.status === LectureStatus.PUBLISHED;
+
+        lecture.videoUrl = cleanUrl;
+        lecture.type = LectureType.RECORDED;
+        lecture.status = LectureStatus.PUBLISHED;
+        lecture.transcriptStatus = TranscriptStatus.PENDING;
+        lecture.transcript = null as any;
+        lecture.transcriptHi = null as any;
+        lecture.aiNotesMarkdown = null as any;
+        lecture.aiKeyConcepts = [];
+        lecture.aiFormulas = [];
+        lecture.quizCheckpoints = [];
+
+        const saved = await this.lectureRepo.save(lecture);
+
+        if (!wasPublished && saved.batchId && opts?.notifyStudents !== false) {
+            this._notifyStudentsOnPublish(saved).catch(err =>
+                this.logger.warn(`Failed to send publish notifications for lecture ${saved.id}: ${err.message}`),
+            );
+        }
+
+        if (opts?.triggerAi !== false) {
+            this._processLectureAI(saved.id, cleanUrl, saved.topicId, tenantId).catch(err =>
+                this.logger.warn(`Failed to start AI processing for lecture ${saved.id}: ${err instanceof Error ? err.message : String(err)}`),
+            );
+        }
+
+        return saved;
+    }
+
     // ── YouTube helpers ───────────────────────────────────────────────────────
 
     private isYouTubeUrl(url: string): boolean {
@@ -1236,13 +1276,44 @@ export class ContentService {
         }
 
         const wasPublished = lecture.status === LectureStatus.PUBLISHED;
+        const incomingVideoUrl = typeof dto.videoUrl === 'string' ? dto.videoUrl.trim() : undefined;
+        const videoUrlChanged = !!incomingVideoUrl && incomingVideoUrl !== (lecture.videoUrl ?? '');
+        const shouldPromoteToRecorded =
+            videoUrlChanged &&
+            (dto.type === LectureType.RECORDED ||
+                lecture.type === LectureType.LIVE ||
+                lecture.status === LectureStatus.ENDED);
+
         Object.assign(lecture, dto);
+
+        if (videoUrlChanged && incomingVideoUrl) {
+            lecture.videoUrl = this._fixVideoUrl(incomingVideoUrl);
+            lecture.transcriptStatus = TranscriptStatus.PENDING;
+            lecture.transcript = null as any;
+            lecture.transcriptHi = null as any;
+            lecture.aiNotesMarkdown = null as any;
+            lecture.aiKeyConcepts = [];
+            lecture.aiFormulas = [];
+            lecture.quizCheckpoints = [];
+        }
+
+        if (shouldPromoteToRecorded) {
+            lecture.type = LectureType.RECORDED;
+            lecture.status = dto.status ?? LectureStatus.PUBLISHED;
+        }
+
         const saved = await this.lectureRepo.save(lecture);
 
         // Fire in-app notifications to all enrolled students when a lecture is first published
         if (!wasPublished && saved.status === LectureStatus.PUBLISHED && saved.batchId) {
             this._notifyStudentsOnPublish(saved).catch(err =>
                 this.logger.warn(`Failed to send publish notifications for lecture ${saved.id}: ${err.message}`)
+            );
+        }
+
+        if (videoUrlChanged && saved.videoUrl) {
+            this._processLectureAI(saved.id, saved.videoUrl, saved.topicId, tenantId).catch(err =>
+                this.logger.warn(`Failed to start AI processing for lecture ${saved.id}: ${err instanceof Error ? err.message : String(err)}`),
             );
         }
 

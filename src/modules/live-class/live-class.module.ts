@@ -12,6 +12,7 @@ import {
 } from '../../database/entities/live-class.entity';
 import { Student } from '../../database/entities/student.entity';
 import { User } from '../../database/entities/user.entity';
+import { ContentModule } from '../content/content.module';
 import { NotificationModule } from '../notification/notification.module';
 
 import { AgoraService } from './agora.service';
@@ -34,6 +35,7 @@ import { LiveClassService } from './live-class.service';
       Enrollment,
     ]),
     NotificationModule,
+    ContentModule,
   ],
   controllers: [LiveClassController],
   providers: [LiveClassService, AgoraService, LiveClassGateway],
