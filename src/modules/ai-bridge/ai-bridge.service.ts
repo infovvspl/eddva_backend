@@ -146,14 +146,6 @@ export class AiBridgeService {
   /**
    * Skips Whisper entirely.  Sends a plain-text transcript to the Django AI
    * backend which feeds it directly into the LLM summarisation step.
-   *
-   * Django endpoint: POST /stt/notes-from-text
-   * Expected body:   { transcript, topicId, language }
-   * Expected shape:  same as /stt/notes → { notes, rawTranscript, key_concepts }
-   *
-   * If the Django backend does not yet expose /stt/notes-from-text, it can be
-   * implemented as a thin wrapper around the existing notes LLM chain, minus
-   * the Whisper step.
    */
   async generateNotesFromTranscript(
     payload: {
@@ -163,7 +155,28 @@ export class AiBridgeService {
     },
     tenantId?: string,
   ) {
-    return this.post('/stt/notes-from-text', payload, tenantId, 900_000); // 15 min — LLM only
+    return this.post('/stt/notes-from-text', payload, tenantId, 900_000);
+  }
+
+  // ── AI #7c — YouTube video ID → captions fetched server-side → notes ────────
+  /**
+   * Production-safe YouTube notes pipeline.  Sends just the videoId to Django
+   * which fetches captions using the Python youtube-transcript-api library
+   * (more reliable on VPS/cloud IPs than the npm youtube-transcript package).
+   *
+   * Django endpoint: POST /stt/notes-from-youtube
+   * Expected body:   { videoId, topicId, language }
+   * Expected shape:  same as /stt/notes → { notes, rawTranscript, ... }
+   */
+  async generateNotesFromYouTube(
+    payload: {
+      videoId: string;
+      topicId: string;
+      language: 'en' | 'hi' | 'hinglish' | 'hi-in';
+    },
+    tenantId?: string,
+  ) {
+    return this.post('/stt/notes-from-youtube', payload, tenantId, 900_000);
   }
 
   // ── AI #8 — Student Feedback Engine ──────────────────────────────────────

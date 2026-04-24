@@ -902,88 +902,43 @@ export class ContentService {
         this.logger.log(`YouTube AI processing started for lecture ${lectureId} videoId=${videoId}`);
         await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.PROCESSING });
 
-        // ── Step 1: Try captions first; fall back to Whisper via yt-dlp ─────
-        let captionTranscript: string | null = null;
+        // Delegate caption-fetch + LLM to Django (uses Python youtube-transcript-api,
+        // which works on server/VPS IPs unlike the npm youtube-transcript package).
         try {
-            captionTranscript = await this._fetchYouTubeTranscript(videoId);
-            this.logger.log(`Fetched ${captionTranscript.length} chars of captions for lecture ${lectureId}`);
-        } catch (captionErr: unknown) {
-            const captionMsg = captionErr instanceof Error ? captionErr.message : String(captionErr);
-            this.logger.warn(`YouTube captions unavailable for ${videoId} (${captionMsg}) — falling back to Whisper via yt-dlp`);
-        }
+            const result = await this.aiBridgeService.generateNotesFromYouTube(
+                {
+                    videoId,
+                    topicId: topicId ?? '',
+                    language: lectureLanguage as 'en' | 'hi' | 'hinglish' | 'hi-in',
+                },
+                tenantId,
+            ) as any;
 
-        if (captionTranscript) {
-            // ── Caption path: send transcript directly to LLM ────────────────
-            try {
-                const result = await this.aiBridgeService.generateNotesFromTranscript(
-                    {
-                        transcript: captionTranscript,
-                        topicId: topicId ?? '',
-                        language: lectureLanguage as 'en' | 'hi' | 'hinglish' | 'hi-in',
-                    },
-                    tenantId,
-                ) as any;
+            const rawTranscript: string | null = result?.rawTranscript ?? result?.transcript ?? null;
+            const englishTranscript: string | null = result?.englishTranscript ?? null;
+            const transcriptToStore = (englishTranscript && englishTranscript !== rawTranscript)
+                ? englishTranscript : (rawTranscript ?? '');
 
-                const englishTranscript: string | null = result?.englishTranscript ?? null;
-                const transcriptToStore = (englishTranscript && englishTranscript !== captionTranscript)
-                    ? englishTranscript : captionTranscript;
-                const updates: Partial<Lecture> = {
-                    status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
-                    transcriptStatus: TranscriptStatus.DONE,
-                    transcriptLanguage: lectureLanguage,
-                    transcript: transcriptToStore,
-                };
-                const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? result?.raw ?? null;
-                if (notes) updates.aiNotesMarkdown = String(notes);
-                const concepts = result?.key_concepts ?? result?.keyConcepts;
-                if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
+            const updates: Partial<Lecture> = {
+                status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
+                transcriptStatus: TranscriptStatus.DONE,
+                transcriptLanguage: lectureLanguage,
+                transcript: transcriptToStore,
+            };
+            const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? result?.raw ?? null;
+            if (notes) updates.aiNotesMarkdown = String(notes);
+            const concepts = result?.key_concepts ?? result?.keyConcepts;
+            if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
 
-                await this.lectureRepo.update(lectureId, updates);
-                this.logger.log(`YouTube caption AI processing complete for lecture ${lectureId}`);
-            } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : String(err);
-                this.logger.error(`YouTube caption AI processing failed for lecture ${lectureId}: ${msg}`);
-                await this.lectureRepo.update(lectureId, {
-                    status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
-                    transcriptStatus: TranscriptStatus.FAILED,
-                });
-            }
-        } else {
-            // ── Whisper fallback: send YouTube URL to Django which uses yt-dlp ─
-            const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-            this.logger.log(`Whisper fallback for YouTube lecture ${lectureId} url=${youtubeUrl}`);
-            try {
-                const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
-                const result = await this.aiBridgeService.generateLectureNotes(
-                    { audioUrl: youtubeUrl, topicId: topicId ?? '', language: aiLanguage },
-                    tenantId,
-                ) as any;
-
-                const updates: Partial<Lecture> = {
-                    status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
-                    transcriptStatus: TranscriptStatus.DONE,
-                    transcriptLanguage: lectureLanguage,
-                };
-                const rawTranscript = result?.rawTranscript ?? result?.transcript ?? null;
-                const englishTranscript = result?.englishTranscript ?? null;
-                const transcriptToStore = (englishTranscript && englishTranscript !== rawTranscript)
-                    ? englishTranscript : rawTranscript;
-                if (transcriptToStore) updates.transcript = transcriptToStore;
-                const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? null;
-                if (notes) updates.aiNotesMarkdown = String(notes);
-                const concepts = result?.key_concepts ?? result?.keyConcepts;
-                if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
-
-                await this.lectureRepo.update(lectureId, updates);
-                this.logger.log(`YouTube Whisper fallback complete for lecture ${lectureId}`);
-            } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : String(err);
-                this.logger.error(`YouTube Whisper fallback also failed for lecture ${lectureId}: ${msg}`);
-                await this.lectureRepo.update(lectureId, {
-                    status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
-                    transcriptStatus: TranscriptStatus.FAILED,
-                });
-            }
+            await this.lectureRepo.update(lectureId, updates);
+            this.logger.log(`YouTube AI notes complete for lecture ${lectureId} (${transcriptToStore.length} chars transcript)`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.error(`YouTube AI processing failed for lecture ${lectureId}: ${msg}`);
+            await this.lectureRepo.update(lectureId, {
+                status: isNewLecture ? LectureStatus.DRAFT : (current?.status ?? LectureStatus.PUBLISHED),
+                transcriptStatus: TranscriptStatus.FAILED,
+            });
         }
     }
 
