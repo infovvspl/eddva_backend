@@ -75,8 +75,12 @@ export class AiBridgeService {
     }, tenantId);
   }
 
+  /**
+   * @param purpose `grading` = transcribe the student's answer only (no "the image shows…");
+   *                `doubt` = richer extraction for doubt flows (default).
+   */
   async extractImageText(
-    payload: { imageUrl: string },
+    payload: { imageUrl: string; purpose?: 'doubt' | 'grading' },
     tenantId?: string,
   ): Promise<{ text: string }> {
     return this.post('/doubt/ocr-image', payload, tenantId, 120_000);

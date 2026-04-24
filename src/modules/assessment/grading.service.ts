@@ -16,14 +16,34 @@ type GradeAttemptResult = {
   rubricBreakdown?: Record<string, number>;
 };
 
+/** Tuned from batch / mock context so board vs entrance-style expectations differ. */
+export type DescriptiveGradingContext = {
+  examTarget?: string | null;
+  classLabel?: string | null;
+  /**
+   * When true, keep the full CBSE-style step mark bands (2–5m structure below) and board
+   * leniency, merged with `examTarget` / `classLabel` (cohort) — does not remove board marking
+   * just because the batch also mentions a competitive exam.
+   */
+  preferBoardMarking?: boolean;
+};
+
 @Injectable()
 export class GradingService {
-  getDescriptiveRubricBreakdown(question: Question, attempt: QuestionAttempt): Record<string, number> | null {
+  getDescriptiveRubricBreakdown(
+    question: Question,
+    attempt: QuestionAttempt,
+    ctx?: DescriptiveGradingContext,
+  ): Record<string, number> | null {
     if (question.type !== QuestionType.DESCRIPTIVE) return null;
-    return this.computeDescriptiveRubric(question, attempt).breakdown;
+    return this.computeDescriptiveRubric(question, attempt, ctx).breakdown;
   }
 
-  gradeAttempt(question: Question, attempt: QuestionAttempt): GradeAttemptResult {
+  gradeAttempt(
+    question: Question,
+    attempt: QuestionAttempt,
+    ctx?: DescriptiveGradingContext,
+  ): GradeAttemptResult {
     const answered = this.isAnswered(question, attempt);
     if (!answered) {
       return { isCorrect: false, marksAwarded: 0, errorType: ErrorType.SKIPPED };
@@ -46,7 +66,7 @@ export class GradingService {
     }
 
     if (question.type === QuestionType.DESCRIPTIVE) {
-      return this.gradeDescriptive(question, attempt);
+      return this.gradeDescriptive(question, attempt, ctx);
     }
 
     if (isCorrect) {
@@ -105,7 +125,9 @@ export class GradingService {
     }
 
     if (question.type === QuestionType.DESCRIPTIVE) {
-      return Boolean(attempt.integerAnswer?.trim() || (attempt.selectedOptionIds || []).length);
+      const hasImages =
+        Array.isArray((attempt as any).answerImageUrls) && ((attempt as any).answerImageUrls as string[]).length > 0;
+      return Boolean(attempt.integerAnswer?.trim() || (attempt.selectedOptionIds || []).length || hasImages);
     }
 
     return (attempt.selectedOptionIds || []).length > 0;
@@ -128,8 +150,12 @@ export class GradingService {
     return ErrorType.CONCEPTUAL;
   }
 
-  private gradeDescriptive(question: Question, attempt: QuestionAttempt): GradeAttemptResult {
-    const scored = this.computeDescriptiveRubric(question, attempt);
+  private gradeDescriptive(
+    question: Question,
+    attempt: QuestionAttempt,
+    ctx?: DescriptiveGradingContext,
+  ): GradeAttemptResult {
+    const scored = this.computeDescriptiveRubric(question, attempt, ctx);
     return {
       isCorrect: scored.isCorrect,
       marksAwarded: scored.marksAwarded,
@@ -138,9 +164,38 @@ export class GradingService {
     };
   }
 
+  /**
+   * Board band → integer CBSE-style step marks + board overlap/leniency (`ov=0`, `passFactor=0.6`).
+   * Competitive → stricter keyword alignment. Merged cohort: if `preferBoardMarking` is set from
+   * mock title / batch, board (CBSE) marking wins; otherwise test board keywords before competitive
+   * so "CBSE + class" is not lost to a single JEE token in the same string.
+   */
+  private inferGradingBand(ctx?: DescriptiveGradingContext): 'board' | 'competitive' | 'general' {
+    if (ctx?.preferBoardMarking) {
+      return 'board';
+    }
+    const t = `${ctx?.examTarget || ''} ${ctx?.classLabel || ''}`.toLowerCase();
+    if (
+      /\b(cbse|icse|hsc|ssc|ncert|matric|state board|board exam|10th|12th|class\s*10|class\s*12)\b/.test(
+        t,
+      ) ||
+      /\b(board|school board)\b/.test(t)
+    ) {
+      return 'board';
+    }
+    if (/\b(jee|neet|iit|bits|kvpy|nda|mains|advanced|entrance|competitive|gate|cat|jee\s*main)\b/.test(t)) {
+      return 'competitive';
+    }
+    if (/\b(class\s*9|class\s*11)\b/.test(t)) {
+      return 'board';
+    }
+    return 'general';
+  }
+
   private computeDescriptiveRubric(
     question: Question,
     attempt: QuestionAttempt,
+    ctx?: DescriptiveGradingContext,
   ): { isCorrect: boolean; marksAwarded: number; errorType: ErrorType | null; breakdown: Record<string, number> } {
     const answer = String(attempt.integerAnswer ?? '').trim();
     const hasImage = Array.isArray((attempt as any).answerImageUrls) && ((attempt as any).answerImageUrls || []).length > 0;
@@ -148,10 +203,15 @@ export class GradingService {
       return { isCorrect: false, marksAwarded: 0, errorType: ErrorType.SKIPPED, breakdown: {} };
     }
 
-    // If only image is present, consider attempted but conservative until OCR/manual review exists.
+    // If only image is present, consider attempted but conservative until OCR (vision) runs (submitSession enriches first).
     if (!answer && hasImage) {
       return { isCorrect: false, marksAwarded: 0, errorType: ErrorType.CONCEPTUAL, breakdown: {} };
     }
+
+    const band = this.inferGradingBand(ctx);
+    /** Competitive papers expect closer alignment to the model’s key terms; board uses baseline gates. */
+    const ov = band === 'competitive' ? 0.04 : band === 'general' ? 0.01 : 0;
+    const passFactor = band === 'competitive' ? 0.65 : 0.6;
 
     const maxMarks = Math.max(1, Number(question.marksCorrect || 1));
     const model = String((question as any).solutionText || '').trim();
@@ -192,33 +252,33 @@ export class GradingService {
     let awarded = 0;
     const breakdown: Record<string, number> = {};
     if (maxMarks <= 2) {
-      if (hasDefinitionLead || overlap >= 0.22) { awarded += 1; breakdown.definition = 1; }
-      if (pointsProvided >= 2 || hasExampleOrConclusion || overlap >= 0.35) { awarded += 1; breakdown.secondPoint = 1; }
+      if (hasDefinitionLead || overlap >= 0.22 + ov) { awarded += 1; breakdown.definition = 1; }
+      if (pointsProvided >= 2 || hasExampleOrConclusion || overlap >= 0.35 + ov) { awarded += 1; breakdown.secondPoint = 1; }
       awarded = Math.min(2, awarded);
     } else if (maxMarks === 3) {
-      if (hasDefinitionLead || overlap >= 0.2) { awarded += 1; breakdown.definition = 1; }
+      if (hasDefinitionLead || overlap >= 0.2 + ov) { awarded += 1; breakdown.definition = 1; }
       if (pointsProvided >= 2) { awarded += 1; breakdown.explanationPoint1 = 1; }
-      if (pointsProvided >= 3 || overlap >= 0.38) { awarded += 1; breakdown.explanationPoint2 = 1; }
+      if (pointsProvided >= 3 || overlap >= 0.38 + ov) { awarded += 1; breakdown.explanationPoint2 = 1; }
       awarded = Math.min(3, awarded);
     } else if (maxMarks === 4) {
-      if (hasDefinitionLead || overlap >= 0.2) { awarded += 1; breakdown.definitionOrFormula = 1; }
+      if (hasDefinitionLead || overlap >= 0.2 + ov) { awarded += 1; breakdown.definitionOrFormula = 1; }
       if (pointsProvided >= 2) { awarded += 1; breakdown.explanationPoint1 = 1; }
-      if (pointsProvided >= 3 || overlap >= 0.35) { awarded += 1; breakdown.explanationPoint2 = 1; }
-      if (hasExampleOrConclusion || pointsProvided >= 4 || overlap >= 0.5) { awarded += 1; breakdown.supportingElement = 1; }
+      if (pointsProvided >= 3 || overlap >= 0.35 + ov) { awarded += 1; breakdown.explanationPoint2 = 1; }
+      if (hasExampleOrConclusion || pointsProvided >= 4 || overlap >= 0.5 + ov) { awarded += 1; breakdown.supportingElement = 1; }
       awarded = Math.min(4, awarded);
     } else {
-      // 5 or higher treated as 5-mark CBSE descriptive band
-      if (hasDefinitionLead || overlap >= 0.2) { awarded += 1; breakdown.introduction = 1; }
+      // 5 or higher: primary band is board (CBSE-style) when batch is board-oriented; else same structure with stricter ov for competitive.
+      if (hasDefinitionLead || overlap >= 0.2 + ov) { awarded += 1; breakdown.introduction = 1; }
       if (pointsProvided >= 2) { awarded += 1; breakdown.corePoint1 = 1; }
       if (pointsProvided >= 3) { awarded += 1; breakdown.corePoint2 = 1; }
-      if (pointsProvided >= 4 || overlap >= 0.4) { awarded += 1; breakdown.corePoint3 = 1; }
-      if (hasExampleOrConclusion || pointsProvided >= 5 || overlap >= 0.55) { awarded += 1; breakdown.supportingElement = 1; }
+      if (pointsProvided >= 4 || overlap >= 0.4 + ov) { awarded += 1; breakdown.corePoint3 = 1; }
+      if (hasExampleOrConclusion || pointsProvided >= 5 || overlap >= 0.55 + ov) { awarded += 1; breakdown.supportingElement = 1; }
       awarded = Math.min(5, awarded);
       if (maxMarks > 5) awarded = Math.min(maxMarks, awarded);
     }
 
     // Never negative for descriptive; wrong => 0 (not negative marking).
-    const isCorrect = awarded >= Math.ceil(Math.min(maxMarks, 5) * 0.6);
+    const isCorrect = awarded >= Math.ceil(Math.min(maxMarks, 5) * passFactor);
 
     return {
       isCorrect,
