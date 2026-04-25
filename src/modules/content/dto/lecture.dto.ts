@@ -18,6 +18,7 @@ import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
     LectureType,
     LectureStatus,
+    TranscriptStatus,
 } from '../../../database/entities/learning.entity';
 
 export class QuizOptionDto {
@@ -149,6 +150,11 @@ export class UpdateLectureDto extends PartialType(CreateLectureDto) {
     @IsOptional()
     @IsString()
     aiNotesMarkdown?: string;
+
+    @ApiPropertyOptional({ enum: TranscriptStatus, description: 'Teacher can set to done after writing manual notes' })
+    @IsOptional()
+    @IsEnum(TranscriptStatus)
+    transcriptStatus?: TranscriptStatus;
 
     @ApiPropertyOptional({ type: [String] })
     @IsOptional()
