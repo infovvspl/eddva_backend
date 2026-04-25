@@ -2290,7 +2290,6 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         const text = String(markdown || '');
         if (!text) return text;
         return text
-            // Ensure heading labels begin on their own line.
             .replace(/([^\n])\s*\*\*Solution:\*\*/g, '$1\n\n**Solution:**')
             .replace(/([^\n])\s*\*\*Answer:\*\*/g, '$1\n\n**Answer:**')
             .replace(/([^\n])\s*\*\*Key takeaway:\*\*/gi, '$1\n\n**Key takeaway:**')
