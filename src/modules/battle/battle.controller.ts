@@ -89,16 +89,23 @@ export class BattleController {
   @ApiQuery({ name: 'scope', enum: ['subject', 'chapter', 'topic'] })
   @ApiQuery({ name: 'scopeId', type: 'string' })
   @ApiQuery({ name: 'count', type: 'number', required: false })
+  @ApiQuery({ name: 'difficulty', enum: ['easy', 'medium', 'hard'], required: false })
   getBotQuestions(
     @Query('scope') scope: string,
     @Query('scopeId') scopeId: string,
     @Query('count') count: string,
+    @Query('difficulty') difficulty: string,
     @TenantId() tenantId: string,
   ) {
     const validScope = (['topic', 'chapter', 'subject'] as const).includes(scope as any)
       ? (scope as 'topic' | 'chapter' | 'subject')
       : 'topic';
-    return this.battleService.getBotPracticeQuestions(validScope, scopeId, parseInt(count ?? '10', 10), tenantId);
+    const d: 'easy' | 'medium' | 'hard' = (['easy', 'medium', 'hard'] as const).includes(
+      difficulty as 'easy' | 'medium' | 'hard',
+    )
+      ? (difficulty as 'easy' | 'medium' | 'hard')
+      : 'medium';
+    return this.battleService.getBotPracticeQuestions(validScope, scopeId, parseInt(count ?? '10', 10), tenantId, d);
   }
 
   @Get(':id')

@@ -11,7 +11,7 @@ import {
   EloTier,
 } from '../../database/entities/battle.entity';
 import { Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
-import { Question } from '../../database/entities/question.entity';
+import { Question, DifficultyLevel } from '../../database/entities/question.entity';
 import { Student, ExamTarget } from '../../database/entities/student.entity';
 import { Topic } from '../../database/entities/subject.entity';
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
@@ -145,6 +145,7 @@ export class BattleService {
     requestedDifficulty?: 'easy' | 'medium' | 'hard',
   ) {
     const student = await this.getStudent(userId);
+    const effectiveDifficulty: 'easy' | 'medium' | 'hard' = requestedDifficulty ?? 'medium';
 
     // ── Auto-matchmaking: for quick_duel, topic_battle, and daily mode
     //    find an existing WAITING room (with <maxParticipants) and join it
@@ -163,6 +164,10 @@ export class BattleService {
       if (mode === BattleMode.TOPIC_BATTLE && topicId) {
         qb.andWhere('b.topicId = :topicId', { topicId });
       }
+      // Same AI question set: only match players who asked for the same difficulty
+      qb.andWhere("COALESCE(b.replay_data->>'difficulty', 'medium') = :effDiff", {
+        effDiff: effectiveDifficulty,
+      });
 
       qb.orderBy('b.createdAt', 'ASC');
       const existingBattle = await qb.getOne();
@@ -212,12 +217,16 @@ export class BattleService {
       topicId,
       student.examTarget ?? undefined,
       topicName,
-      requestedDifficulty,
+      effectiveDifficulty,
     );
     this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
     // Persist questions to DB so they survive server restarts
     battle.questionIds = [];
-    battle.replayData = { ...(battle.replayData ?? {}), aiQuestions };
+    battle.replayData = {
+      ...(battle.replayData ?? {}),
+      difficulty: effectiveDifficulty,
+      aiQuestions,
+    };
     await this.battleRepo.save(battle);
 
     // Add creator as participant
@@ -265,10 +274,21 @@ export class BattleService {
       .findOne({ where: { id: challengerStudentId } });
     const examTarget = challengerStudent?.examTarget ?? undefined;
 
-    const aiQuestions = await this.buildAiBattleQuestions(tenantId, qCount, null, examTarget, batchName);
+    const aiQuestions = await this.buildAiBattleQuestions(
+      tenantId,
+      qCount,
+      null,
+      examTarget,
+      batchName,
+      'medium',
+    );
     this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
     battle.questionIds = [];
-    battle.replayData = { ...(battle.replayData ?? {}), aiQuestions };
+    battle.replayData = {
+      ...(battle.replayData ?? {}),
+      difficulty: 'medium',
+      aiQuestions,
+    };
     await this.battleRepo.save(battle);
 
     const [challengerElo, targetElo] = await Promise.all([
@@ -879,14 +899,18 @@ export class BattleService {
     scopeId: string,
     count: number,
     tenantId: string,
+    difficulty: 'easy' | 'medium' | 'hard' = 'medium',
   ) {
     const limit = Math.min(Math.max(count || 10, 1), 50);
+    const diffEnum =
+      difficulty === 'easy' ? DifficultyLevel.EASY : difficulty === 'hard' ? DifficultyLevel.HARD : DifficultyLevel.MEDIUM;
 
     const qb = this.questionRepo
       .createQueryBuilder('q')
       .leftJoinAndSelect('q.options', 'options')
       .leftJoin('q.topic', 'topic')
-      .where('q.tenantId = :tenantId AND q.isActive = true', { tenantId });
+      .where('q.tenantId = :tenantId AND q.isActive = true', { tenantId })
+      .andWhere('q.difficulty = :botDiff', { botDiff: diffEnum });
 
     if (scope === 'topic') {
       qb.andWhere('q.topicId = :scopeId', { scopeId });
@@ -982,30 +1006,103 @@ export class BattleService {
     }
   }
 
+  /** Group duplicate stems so we can drop repeat questions in one battle. */
+  private _battleQuestionDedupeKey(text: string): string {
+    const t = String(text || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[^a-z0-9\u0900-\u0fff\s]/g, '')
+      .trim();
+    return t.slice(0, 220);
+  }
+
+  /**
+   * MCQ for battle: exactly 4 options (A–D), one correct, no duplicate stems.
+   */
   private normalizeAiQuestions(raw: any[], safeCount: number): AiBattleQuestion[] {
-    return (Array.isArray(raw) ? raw : [])
-      .map((q: any, qIndex: number) => {
-        const text = String(q?.content ?? '').trim();
-        const optionsRaw = Array.isArray(q?.options) ? q.options : [];
-        if (!text || optionsRaw.length < 2) return null;
+    const seen = new Set<string>();
+    const out: AiBattleQuestion[] = [];
+    const rows = Array.isArray(raw) ? raw : [];
 
-        const options = optionsRaw.map((opt: any, oIndex: number) => ({
-          id: String(opt?.label ?? String.fromCharCode(65 + oIndex)).toUpperCase(),
-          text: String(opt?.content ?? opt?.text ?? '').trim(),
-          isCorrect: Boolean(opt?.isCorrect),
-        }));
+    for (const q of rows) {
+      if (out.length >= safeCount) break;
 
-        if (options.some((o) => !o.text)) return null;
-        if (!options.some((o) => o.isCorrect)) return null;
+      const text = String(
+        q?.content ?? q?.questionText ?? q?.question_text ?? q?.question ?? q?.text ?? '',
+      ).trim();
+      if (!text) continue;
 
+      let optionsRaw = Array.isArray(q?.options) ? q.options : [];
+      const mapped = optionsRaw.map((opt: any, oIndex: number) => {
+        const t = String(
+          typeof opt === 'string' ? opt : opt?.content ?? opt?.text ?? opt?.value ?? '',
+        ).trim();
+        const id = String(
+          typeof opt === 'object' && opt?.label
+            ? opt.label
+            : String.fromCharCode(65 + oIndex),
+        )
+          .toUpperCase()
+          .replace(/[^A-Z]/g, '');
         return {
-          id: `ai_${qIndex + 1}_${Math.random().toString(36).slice(2, 7)}`,
-          text,
-          options,
-        } as AiBattleQuestion;
-      })
-      .filter((q): q is AiBattleQuestion => Boolean(q))
-      .slice(0, safeCount);
+          id: id.length ? id[0]! : String.fromCharCode(65 + oIndex),
+          text: t,
+          isCorrect: Boolean(
+            typeof opt === 'object' && opt
+              ? opt.isCorrect
+              : false,
+          ),
+        };
+      });
+
+      if (mapped.length >= 4 && !mapped.some((o) => o.isCorrect)) {
+        const letter = String(
+          (q as any).correctOption ?? (q as any).answer ?? (q as any).correctAnswer ?? '',
+        )
+          .trim()
+          .toUpperCase()
+          .match(/^[A-D]/)?.[0];
+        if (letter) {
+          const idx = letter.charCodeAt(0) - 65;
+          if (idx >= 0 && idx < mapped.length) {
+            mapped.forEach((o, i) => {
+              o.isCorrect = i === idx;
+            });
+          }
+        }
+      }
+
+      if (mapped.length < 4) continue;
+
+      // Keep only A–D for battle; if >4, use first 4 only if the correct option is A–D
+      let slice = mapped;
+      if (mapped.length > 4) {
+        const ci = mapped.findIndex((o) => o.isCorrect);
+        if (ci < 0 || ci > 3) continue;
+        slice = mapped.slice(0, 4);
+      }
+
+      const four = slice.slice(0, 4);
+      if (four.some((o) => !o.text)) continue;
+      if (!four.some((o) => o.isCorrect)) continue;
+
+      const options: AiBattleQuestion['options'] = four.map((o, i) => ({
+        id: String.fromCharCode(65 + i),
+        text: o.text,
+        isCorrect: Boolean(o.isCorrect),
+      }));
+
+      const key = this._battleQuestionDedupeKey(text);
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
+
+      out.push({
+        id: `ai_${out.length + 1}_${Math.random().toString(36).slice(2, 7)}`,
+        text,
+        options,
+      });
+    }
+    return out;
   }
 
   private async buildAiBattleQuestions(
@@ -1046,12 +1143,15 @@ export class BattleService {
       this.logger.warn(`No topic resolved for AI battle generation (tenant=${tenantId})`);
     }
 
+    // Ask for more than needed so we can drop duplicates / bad rows and still have enough 4-option MCQs
+    const requestCount = Math.min(20, Math.max(safeCount + 4, safeCount * 2));
+
     try {
       const ai = await this.aiBridgeService.generateQuestionsFromTopic(
         {
           topicId: topic?.id ?? preferredTopicId ?? 'unknown',
           topicName: enrichedTopicName,
-          count: safeCount,
+          count: requestCount,
           difficulty: derivedDifficulty,
           type: 'mcq_single',
         },
@@ -1081,23 +1181,33 @@ export class BattleService {
     }
 
     // Final fallback: DB questions (use resolved topic id or the preferred id from caller)
-    return this.getFallbackDbQuestions(tenantId, safeCount, topic?.id ?? preferredTopicId ?? undefined);
+    return this.getFallbackDbQuestions(
+      tenantId,
+      safeCount,
+      topic?.id ?? preferredTopicId ?? undefined,
+      derivedDifficulty,
+    );
   }
 
   private async getFallbackDbQuestions(
     tenantId: string,
     count: number,
     preferredTopicId?: string,
+    difficulty: 'easy' | 'medium' | 'hard' = 'medium',
   ): Promise<AiBattleQuestion[]> {
     const baseWhere = 'q.tenantId = :tenantId AND q.isActive = true';
+    const diffEnum: DifficultyLevel =
+      difficulty === 'easy' ? DifficultyLevel.EASY : difficulty === 'hard' ? DifficultyLevel.HARD : DifficultyLevel.MEDIUM;
 
     const buildQb = (topicId?: string) => {
+      const pool = Math.min(50, Math.max(count * 4, count + 6));
       const qb = this.questionRepo
         .createQueryBuilder('q')
         .leftJoinAndSelect('q.options', 'options')
-        .where(baseWhere, { tenantId });
+        .where(baseWhere, { tenantId })
+        .andWhere('q.difficulty = :fbDiff', { fbDiff: diffEnum });
       if (topicId) qb.andWhere('q.topicId = :topicId', { topicId });
-      return qb.orderBy('RANDOM()').limit(count);
+      return qb.orderBy('RANDOM()').limit(pool);
     };
 
     let dbQuestions = preferredTopicId
@@ -1109,25 +1219,29 @@ export class BattleService {
       dbQuestions = await buildQb().getMany();
     }
 
-    return dbQuestions
-      .map((q, idx) => {
-        const options = (q.options ?? [])
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((o, oIndex) => ({
-            id: String.fromCharCode(65 + oIndex),
-            text: o.content,
-            isCorrect: Boolean(o.isCorrect),
-          }));
-
-        if (!q.content || options.length < 2 || !options.some((o) => o.isCorrect)) return null;
-
-        return {
-          id: `db_${idx + 1}_${Math.random().toString(36).slice(2, 7)}`,
-          text: q.content,
-          options,
-        } as AiBattleQuestion;
-      })
-      .filter((q): q is AiBattleQuestion => Boolean(q));
+    const seenDb = new Set<string>();
+    const out: AiBattleQuestion[] = [];
+    for (const q of dbQuestions) {
+      if (out.length >= count) break;
+      const sorted = (q.options ?? []).sort((a, b) => a.sortOrder - b.sortOrder);
+      if (sorted.length < 4) continue;
+      const four = sorted.slice(0, 4).map((o, oIndex) => ({
+        id: String.fromCharCode(65 + oIndex),
+        text: o.content,
+        isCorrect: Boolean(o.isCorrect),
+      }));
+      if (!four.some((o) => o.isCorrect) || four.some((o) => !o.text?.trim())) continue;
+      if (!q.content?.trim()) continue;
+      const dk = this._battleQuestionDedupeKey(q.content);
+      if (dk && seenDb.has(dk)) continue;
+      if (dk) seenDb.add(dk);
+      out.push({
+        id: `db_${out.length + 1}_${Math.random().toString(36).slice(2, 7)}`,
+        text: q.content,
+        options: four,
+      });
+    }
+    return out;
   }
 
   private getEloTier(elo: number): EloTier {

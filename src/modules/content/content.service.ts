@@ -2241,15 +2241,20 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 }
                 return v;
             }
-            if (typeof v === 'object') {
-                if (typeof v.response === 'string') return v.response;
-                if (typeof v.answer === 'string') return v.answer;
-                if (typeof v.message === 'string') return v.message;
+            if (Array.isArray(v) && v.length && v.every((x) => typeof x === 'string')) {
+                // Model sometimes returns only a JSON array of "concept" chips — make readable
+                return v.map((s) => String(s).trim()).filter(Boolean).join(' ');
+            }
+            if (typeof v === 'object' && v !== null) {
+                const r =
+                    (typeof v.response === 'string' && v.response.trim() ? v.response : '') ||
+                    (typeof v.answer === 'string' && v.answer.trim() ? v.answer : '') ||
+                    (typeof v.message === 'string' && v.message.trim() ? v.message : '');
+                if (r) return r;
                 if (Array.isArray(v.hints) && v.hints.length) {
-                    const lead = typeof v.response === 'string' ? v.response : '';
-                    const hints = v.hints.map((h: any) => `- ${String(h)}`).join('\n');
-                    const concept = v.concept_check ? `\nConcept check: ${String(v.concept_check)}` : '';
-                    return `${lead}${lead ? '\n\n' : ''}Hints:\n${hints}${concept}`.trim();
+                    // Model may stuff the "answer" only in hints when response is left empty
+                    const lines = v.hints.map((h: any) => String(h).trim()).filter(Boolean);
+                    return lines.join(' ');
                 }
                 return JSON.stringify(v);
             }
