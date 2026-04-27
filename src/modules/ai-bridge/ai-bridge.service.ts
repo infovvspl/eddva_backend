@@ -341,10 +341,10 @@ export class AiBridgeService {
   }
 
   private djangoQuestionTypes(requestType: string): string[] {
-    // FastAPI /test/generate/ only accepts: mcq, true_false, short_answer, long_answer, fill_blank, mix
-    if (requestType === 'mcq_single' || requestType === 'mcq_multi' || requestType === 'integer') {
-      return ['mcq'];
-    }
+    if (requestType === 'mcq_single' || requestType === 'mcq') return ['mcq'];
+    if (requestType === 'mcq_multi') return ['mcq_multi'];
+    if (requestType === 'integer') return ['integer'];
+    if (requestType === 'match_the_following') return ['match_the_following'];
     if (requestType === 'descriptive' || requestType === 'long_answer' || requestType === 'subjective') {
       return ['long_answer'];
     }
@@ -400,23 +400,33 @@ export class AiBridgeService {
       count: number;
       difficulty: string;
       type: string;
+      examTarget?: string;
     },
     tenantId?: string,
   ) {
     const questionTypes = this.djangoQuestionTypes(dto.type);
-    const topic =
-      `${dto.topicName} (Respond in English only)${this.topicSuffixForQuestionType(dto.type)}`.trim();
+    const difficultyTag = String(dto.difficulty || 'medium').toLowerCase();
+    const levelHint =
+      difficultyTag === 'easy'
+        ? 'easy-foundation level'
+        : difficultyTag === 'hard'
+          ? 'high competitive level (JEE Advanced / Olympiad style reasoning)'
+          : 'competitive level (JEE Main / NEET style reasoning)';
+    const topic = dto.topicName;
     const raw = await this.post<any>('/test/generate/', {
       topic,
       num_questions: dto.count,
       difficulty: dto.difficulty,
-      question_types: questionTypes,
+      type: dto.type, // Pass the actual type directly
+      exam_target: dto.examTarget,
+      question_types: [this.djangoQuestionTypes(dto.type)[0]],
     }, tenantId);
 
     const questions = this.resolveToQuestionList(raw);
 
     if (questions.length > 0) {
-      return this.normaliseStructuredQuestions(questions, dto.type);
+      const normalised = this.normaliseStructuredQuestions(questions, dto.type);
+      return this.postProcessGeneratedQuestions(normalised, dto.type);
     }
 
     // Last resort: free-form Q.N text parser
@@ -430,7 +440,8 @@ export class AiBridgeService {
 
     if (rawText.trim()) {
       this.logger.warn(`[AI #13] Falling back to raw text parser (${rawText.length} chars)`);
-      return this.parseRawTextQuestions(rawText, dto.type);
+      const parsed = this.parseRawTextQuestions(rawText, dto.type);
+      return this.postProcessGeneratedQuestions(parsed, dto.type);
     }
 
     this.logger.warn('[AI #13] No questions in AI response');
@@ -515,19 +526,23 @@ export class AiBridgeService {
       const isSubjective = ['descriptive', 'long_answer', 'subjective', 'short_descriptive', 'short_answer'].includes(
         type,
       );
+      
+      const modelAnswer = String((q as any).modelAnswer ?? (q as any).rubric ?? (q as any).answer ?? '').trim();
+
       if (isSubjective) {
-        const modelFromFields = String((q as any).modelAnswer ?? (q as any).rubric ?? (q as any).answer ?? '').trim();
-        const model = [modelFromFields, rawAnswer]
-          .find((m) => m && !looksLikeOptionKey(m)) || '';
         return {
+          questionText: content,
           content,
           options: [],
-          explanation: [explanation, model && `Model answer: ${model}`].filter(Boolean).join('\n\n').trim(),
+          explanation,
+          solutionText: modelAnswer || rawAnswer || '',
           integerAnswer: null,
+          answer: modelAnswer || rawAnswer || '',
+          meta: q._meta || {},
         };
       }
 
-      let intAns: string | null = type === 'integer' ? (rawAnswer || null) : null;
+      let intAns: string | null = type === 'integer' ? (rawAnswer || (q as any).integerAnswer || (q as any).answer || null) : null;
       if (type === 'integer' && intAns) {
         const m = intAns.toUpperCase().match(/^([A-E])\b/);
         if (m) {
@@ -548,20 +563,96 @@ export class AiBridgeService {
       }
       if (type === 'integer' && intAns) {
         return {
+          questionText: content,
           content,
           options: [],
           explanation,
           integerAnswer: intAns,
+          answer: intAns,
+          meta: q._meta || {},
         };
       }
 
       return {
+        questionText: content,
         content,
         options,
         explanation,
         integerAnswer: null,
+        solutionText: explanation,
+        answer: rawAnswer,
+        meta: q._meta || {},
       };
     });
+  }
+
+  private normalizeTextKey(value: string): string {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\u0900-\u0fff\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Final guardrail pass:
+   * - Drop duplicate question stems
+   * - Remove duplicate/blank options
+   * - Ensure objective MCQs have exactly 4 unique options
+   * - Enforce a single correct option for single-correct MCQ
+   */
+  private postProcessGeneratedQuestions(questions: any[], type: string): any[] {
+    const seenQuestionKeys = new Set<string>();
+    const output: any[] = [];
+
+    for (const row of questions || []) {
+      const content = String(row?.content || '').trim();
+      if (!content) continue;
+
+      const qKey = this.normalizeTextKey(content).slice(0, 220);
+      if (!qKey || seenQuestionKeys.has(qKey)) continue;
+      seenQuestionKeys.add(qKey);
+
+      const next = { ...row, content };
+      const isObjective = !['descriptive', 'long_answer', 'subjective', 'short_descriptive', 'short_answer'].includes(type);
+
+      if (isObjective) {
+        const seenOptionKeys = new Set<string>();
+        const cleanedOptions: Array<{ label: string; content: string; isCorrect: boolean }> = [];
+
+        for (const opt of Array.isArray(next.options) ? next.options : []) {
+          const text = String(opt?.content ?? '').trim();
+          if (!text) continue;
+          const oKey = this.normalizeTextKey(text);
+          if (!oKey || seenOptionKeys.has(oKey)) continue;
+          seenOptionKeys.add(oKey);
+          cleanedOptions.push({
+            label: '',
+            content: text,
+            isCorrect: Boolean(opt?.isCorrect),
+          });
+        }
+
+        if (cleanedOptions.length < 4) continue;
+
+        let finalOptions = cleanedOptions.slice(0, 4);
+        const firstCorrectIdx = finalOptions.findIndex((o) => o.isCorrect);
+        if (firstCorrectIdx < 0) continue;
+
+        if (type === 'mcq_single' || type === 'integer' || type === 'mcq') {
+          finalOptions = finalOptions.map((o, idx) => ({ ...o, isCorrect: idx === firstCorrectIdx }));
+        }
+
+        next.options = finalOptions.map((o, idx) => ({
+          ...o,
+          label: String.fromCharCode(65 + idx),
+        }));
+      }
+
+      output.push(next);
+    }
+
+    return output;
   }
 
   /**

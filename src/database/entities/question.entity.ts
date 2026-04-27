@@ -141,6 +141,9 @@ export class Question extends Base {
   @Column({ name: 'tags', type: 'jsonb', default: [] })
   tags: string[];
 
+  @Column({ name: 'metadata', type: 'jsonb', nullable: true })
+  metadata: any;
+
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 

@@ -20,6 +20,7 @@ interface AiBattleQuestion {
   id: string;
   text: string;
   options: { id: string; text: string; isCorrect: boolean }[];
+  meta?: any;
 }
 
 @Injectable()
@@ -244,7 +245,7 @@ export class BattleService {
 
   // ─── Create private room for challenge flow (gateway) ─────────────────────
 
-  async createPrivateChallengeRoom(challengerStudentId: string, targetStudentId: string, tenantId: string, batchId?: string, batchName?: string) {
+  async createPrivateChallengeRoom(challengerStudentId: string, targetStudentId: string, tenantId: string, batchId?: string, batchName?: string, difficulty?: 'easy'|'medium'|'hard') {
     if (!challengerStudentId || !targetStudentId) {
       throw new BadRequestException('Both challenger and target are required');
     }
@@ -274,19 +275,20 @@ export class BattleService {
       .findOne({ where: { id: challengerStudentId } });
     const examTarget = challengerStudent?.examTarget ?? undefined;
 
+    const effDiff = difficulty ?? 'medium';
     const aiQuestions = await this.buildAiBattleQuestions(
       tenantId,
       qCount,
       null,
       examTarget,
       batchName,
-      'medium',
+      effDiff,
     );
     this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
     battle.questionIds = [];
     battle.replayData = {
       ...(battle.replayData ?? {}),
-      difficulty: 'medium',
+      difficulty: effDiff,
       aiQuestions,
     };
     await this.battleRepo.save(battle);
@@ -948,14 +950,16 @@ export class BattleService {
     if (preferredTopicId) {
       // Try tenant-scoped first, then cross-tenant (topic may belong to a sibling tenant)
       const topic =
-        (await topicRepo.findOne({ where: { id: preferredTopicId, tenantId, isActive: true } })) ??
-        (await topicRepo.findOne({ where: { id: preferredTopicId, isActive: true } }));
+        (await topicRepo.findOne({ where: { id: preferredTopicId, tenantId, isActive: true }, relations: ['chapter', 'chapter.subject'] })) ??
+        (await topicRepo.findOne({ where: { id: preferredTopicId, isActive: true }, relations: ['chapter', 'chapter.subject'] }));
       if (topic) return topic;
     }
 
     // Random active topic in this tenant
     const tenantTopic = await topicRepo
       .createQueryBuilder('t')
+      .leftJoinAndSelect('t.chapter', 'chapter')
+      .leftJoinAndSelect('chapter.subject', 'subject')
       .where('t.tenant_id = :tenantId AND t.is_active = true', { tenantId })
       .orderBy('RANDOM()')
       .limit(1)
@@ -965,6 +969,8 @@ export class BattleService {
     // If the tenant has no topics at all, pick from any tenant (demo / staging scenario)
     return topicRepo
       .createQueryBuilder('t')
+      .leftJoinAndSelect('t.chapter', 'chapter')
+      .leftJoinAndSelect('chapter.subject', 'subject')
       .where('t.is_active = true')
       .orderBy('RANDOM()')
       .limit(1)
@@ -1100,6 +1106,7 @@ export class BattleService {
         id: `ai_${out.length + 1}_${Math.random().toString(36).slice(2, 7)}`,
         text,
         options,
+        meta: (q as any).meta ?? null,
       });
     }
     return out;
@@ -1123,7 +1130,10 @@ export class BattleService {
     // then fall back to the DB record name, then a generic label.
     const baseName = explicitTopicName?.trim() || topic?.name || 'General Science';
     const examLabel = examTarget ? this.examLevelLabel[examTarget] : null;
-    const enrichedTopicName = examLabel ? `${baseName} (${examLabel})` : baseName;
+    let enrichedTopicName = examLabel ? `${baseName} (${examLabel})` : baseName;
+    if (topic && topic.chapter && topic.chapter.subject && !baseName.includes('Chapter:')) {
+      enrichedTopicName = `${enrichedTopicName} (Context: Chapter ${topic.chapter.name}, Subject ${topic.chapter.subject.name})`;
+    }
 
     const derivedDifficulty: 'easy' | 'medium' | 'hard' =
       requestedDifficulty ??
@@ -1154,6 +1164,7 @@ export class BattleService {
           count: requestCount,
           difficulty: derivedDifficulty,
           type: 'mcq_single',
+          examTarget: examTarget ?? undefined,
         },
         tenantId,
       );

@@ -2140,6 +2140,7 @@ export class AssessmentService {
               marksWrong: -1,
               isActive: true,
               isVerified: false,
+              metadata: rq.meta ?? null,
             });
             const savedQ = await mgr.save(Question, question);
 

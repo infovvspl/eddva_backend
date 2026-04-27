@@ -57,6 +57,7 @@ export class BattleGateway
       timer: NodeJS.Timeout;
       batchId?: string;
       batchName?: string;
+      difficulty?: 'easy' | 'medium' | 'hard';
     }
   >();
 
@@ -166,9 +167,9 @@ export class BattleGateway
   @SubscribeMessage('battle:challenge')
   handleChallengeRequest(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { targetStudentId: string; fromStudentId: string; tenantId: string; batchId?: string; batchName?: string },
+    @MessageBody() data: { targetStudentId: string; fromStudentId: string; tenantId: string; batchId?: string; batchName?: string; difficulty?: 'easy' | 'medium' | 'hard' },
   ) {
-    const { targetStudentId, fromStudentId, tenantId: payloadTenantId, batchId, batchName } = data ?? {};
+    const { targetStudentId, fromStudentId, tenantId: payloadTenantId, batchId, batchName, difficulty } = data ?? {};
     // Prefer onlineUsers entry; fall back to tenantId in payload (survives hot-reload)
     const senderOnline = fromStudentId ? this.onlineUsers.get(fromStudentId) : undefined;
     const tenantId = senderOnline?.tenantId ?? payloadTenantId;
@@ -210,15 +211,20 @@ export class BattleGateway
       timer: timeout,
       batchId,
       batchName,
+      difficulty,
     });
 
-    this.server.to(target.socketId).emit('battle:incoming_request', {
-      challengeId,
-      fromStudentId,
-      expiresInSeconds: 30,
-      batchId,
-      batchName,
-    });
+    const targetSockets = this.studentSockets.get(targetStudentId) ?? new Set([target.socketId]);
+    for (const sid of targetSockets) {
+      this.server.to(sid).emit('battle:incoming_request', {
+        challengeId,
+        fromStudentId,
+        expiresInSeconds: 30,
+        batchId,
+        batchName,
+        difficulty,
+      });
+    }
 
     client.emit('battle:challenge_sent', { challengeId, targetStudentId });
     void this.broadcastOnlineUsers(tenantId);
@@ -245,10 +251,14 @@ export class BattleGateway
     }
 
     if (!data.accepted) {
-      this.server.to(sender.socketId).emit('battle:challenge_rejected', {
-        challengeId: data.challengeId,
-        byStudentId: pending.toStudentId,
-      });
+      const senderSockets = this.studentSockets.get(pending.fromStudentId) ?? new Set([sender.socketId]);
+      for (const sid of senderSockets) {
+        this.server.to(sid).emit('battle:challenge_rejected', {
+          challengeId: data.challengeId,
+          byStudentId: pending.toStudentId,
+          reason: 'Opponent rejected the challenge request.',
+        });
+      }
       await this.broadcastOnlineUsers(pending.tenantId);
       return;
     }
@@ -260,6 +270,7 @@ export class BattleGateway
         pending.tenantId,
         pending.batchId,
         pending.batchName,
+        pending.difficulty,
       );
 
       // Put both clients in the private socket room and start immediately.
@@ -287,17 +298,23 @@ export class BattleGateway
         timePerRound: room.secondsPerRound ?? 45,
       });
 
-      this.server.to(sender.socketId).emit('battle:challenge_accepted', {
-        challengeId: data.challengeId,
-        room,
-      });
+      const senderSockets = this.studentSockets.get(pending.fromStudentId) ?? new Set([sender.socketId]);
+      for (const sid of senderSockets) {
+        this.server.to(sid).emit('battle:challenge_accepted', {
+          challengeId: data.challengeId,
+          room,
+        });
+      }
       client.emit('battle:challenge_accepted', {
         challengeId: data.challengeId,
         room,
       });
       await this.broadcastOnlineUsers(pending.tenantId);
     } catch (error) {
-      this.server.to(sender.socketId).emit('battle:challenge_error', { message: error.message });
+      const senderSockets = this.studentSockets.get(pending.fromStudentId) ?? new Set([sender.socketId]);
+      for (const sid of senderSockets) {
+        this.server.to(sid).emit('battle:challenge_error', { message: error.message });
+      }
       client.emit('battle:challenge_error', { message: error.message });
     }
   }
