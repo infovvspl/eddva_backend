@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -147,6 +150,19 @@ export class DoubtController {
     @TenantId() tenantId: string,
   ) {
     return this.doubtService.requestAiResolution(id, user.id, tenantId);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Soft-delete a doubt (teacher / admin only)' })
+  @ApiParam({ name: 'id', type: 'string' })
+  deleteDoubt(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.doubtService.deleteDoubt(id, user, tenantId);
   }
 
   @Patch(':id/rate-teacher')

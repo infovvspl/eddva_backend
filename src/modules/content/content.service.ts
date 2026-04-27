@@ -963,7 +963,7 @@ export class ContentService {
             return this._processYouTubeLecture(lectureId, videoId, topicId, tenantId);
         }
 
-        // ── Existing direct-media / Whisper branch ────────────────────────────
+        // ── Direct-media two-phase pipeline (Whisper → save → LLM notes) ────────
         const cleanUrl = this._fixVideoUrl(videoUrl);
         this.logger.log(`AI processing started for lecture ${lectureId} url=${cleanUrl}`);
 
@@ -972,39 +972,57 @@ export class ContentService {
         const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
 
         await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.PROCESSING });
+
+        // ── Phase 1: Whisper transcription (no LLM, ~2-5 min) ────────────────
+        let transcriptToStore: string;
         try {
-            const result = await this.aiBridgeService.generateLectureNotes(
-                { audioUrl: cleanUrl, topicId: topicId ?? '', language: aiLanguage },
+            const transcribeResult = await this.aiBridgeService.transcribeAudio(
+                { audioUrl: cleanUrl, language: aiLanguage, topicId: topicId ?? '' },
                 tenantId,
             ) as any;
 
-            const updates: Partial<Lecture> = {
+            const rawTranscript: string = transcribeResult?.rawTranscript ?? transcribeResult?.transcript ?? '';
+            if (!rawTranscript || rawTranscript.trim().length < 20) {
+                throw new Error('Transcription returned empty or too-short transcript');
+            }
+            transcriptToStore = rawTranscript;
+
+            // Save transcript immediately so it is never lost even if Phase 2 fails
+            await this.lectureRepo.update(lectureId, {
                 transcriptStatus: TranscriptStatus.DONE,
+                transcript: transcriptToStore,
                 transcriptLanguage: lectureLanguage,
-            };
-            // Prefer englishTranscript (AI already normalised Hinglish/Hindi → English)
-            // so downstream quiz generation and search work on clean English text.
-            const rawTranscript = result?.rawTranscript ?? result?.transcript ?? result?.text ?? null;
-            const englishTranscript = result?.englishTranscript ?? null;
-            const transcriptToStore = (englishTranscript && englishTranscript !== rawTranscript)
-                ? englishTranscript
-                : rawTranscript;
-            if (transcriptToStore) updates.transcript = transcriptToStore;
-
-            const notes = result?.notes ?? result?.notesMarkdown ?? result?.notes_markdown ?? result?.content ?? result?.raw ?? null;
-            // Do NOT call ensureEnglishLectureNotes — the AI service already translated
-            // the transcript to English before generating notes, so calling Sarvam again
-            // would corrupt already-English content.
-            if (notes) updates.aiNotesMarkdown = String(notes);
-            const concepts = result?.key_concepts ?? result?.keyConcepts;
-            if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
-
-            await this.lectureRepo.update(lectureId, updates);
-            this.logger.log(`AI processing complete for lecture ${lectureId}`);
+            });
+            this.logger.log(`Phase 1 done: transcript saved (${transcriptToStore.length} chars) for lecture ${lectureId}`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
-            this.logger.error(`AI processing failed for lecture ${lectureId}: ${msg}`);
+            this.logger.error(`Phase 1 transcription failed for lecture ${lectureId}: ${msg}`);
             await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.FAILED });
+            return;
+        }
+
+        // ── Phase 2: LLM note generation from saved transcript (best-effort) ──
+        try {
+            const notesResult = await this.aiBridgeService.generateNotesFromTranscript(
+                { transcript: transcriptToStore, topicId: topicId ?? '', language: aiLanguage },
+                tenantId,
+            ) as any;
+
+            const notes = notesResult?.notes ?? notesResult?.notesMarkdown ?? notesResult?.notes_markdown ?? null;
+            const concepts = notesResult?.key_concepts ?? notesResult?.keyConcepts;
+            const notesUpdates: Partial<Lecture> = {};
+            // Do NOT call ensureEnglishLectureNotes — AI service already translates during generation.
+            if (notes) notesUpdates.aiNotesMarkdown = String(notes);
+            if (Array.isArray(concepts) && concepts.length) notesUpdates.aiKeyConcepts = concepts;
+
+            if (Object.keys(notesUpdates).length) {
+                await this.lectureRepo.update(lectureId, notesUpdates);
+            }
+            this.logger.log(`Phase 2 done: notes generated for lecture ${lectureId}`);
+        } catch (err: unknown) {
+            // Notes failed but transcript is already saved — student can still read the transcript.
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Phase 2 notes generation failed for lecture ${lectureId}: ${msg} (transcript already saved)`);
         }
     }
 
@@ -1023,6 +1041,47 @@ export class ContentService {
         await this.lectureRepo.update(id, { transcriptStatus: TranscriptStatus.PROCESSING });
         this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => {});
         return { message: 'Transcription started' };
+    }
+
+    async regenerateNotes(id: string, userId: string, userRole: UserRole, tenantId: string): Promise<{ message: string }> {
+        const lecture = await this.lectureRepo.findOne({ where: { id, tenantId } });
+        if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
+        if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
+            throw new ForbiddenException('You can only regenerate notes for your own lectures');
+        }
+        if (!lecture.transcript || lecture.transcript.trim().length < 20) {
+            throw new BadRequestException('No transcript saved — run transcription first');
+        }
+        const lectureLanguage = this.normalizeLectureLanguage(lecture.lectureLanguage);
+        const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
+        this._runNotesFromSavedTranscript(id, lecture.transcript, lecture.topicId, aiLanguage, tenantId).catch(() => {});
+        return { message: 'Notes generation started' };
+    }
+
+    private async _runNotesFromSavedTranscript(
+        lectureId: string,
+        transcript: string,
+        topicId: string | undefined,
+        aiLanguage: 'en' | 'hi' | 'hinglish' | 'hi-in',
+        tenantId: string,
+    ): Promise<void> {
+        this.logger.log(`Regenerating notes for lecture ${lectureId} (${transcript.length} chars)`);
+        try {
+            const notesResult = await this.aiBridgeService.generateNotesFromTranscript(
+                { transcript, topicId: topicId ?? '', language: aiLanguage },
+                tenantId,
+            ) as any;
+            const notes = notesResult?.notes ?? notesResult?.notesMarkdown ?? notesResult?.notes_markdown ?? null;
+            const concepts = notesResult?.key_concepts ?? notesResult?.keyConcepts;
+            const updates: Partial<Lecture> = {};
+            if (notes) updates.aiNotesMarkdown = String(notes);
+            if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
+            if (Object.keys(updates).length) await this.lectureRepo.update(lectureId, updates);
+            this.logger.log(`Notes regenerated for lecture ${lectureId}`);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.error(`Notes regeneration failed for lecture ${lectureId}: ${msg}`);
+        }
     }
 
     async translateLectureTranscript(

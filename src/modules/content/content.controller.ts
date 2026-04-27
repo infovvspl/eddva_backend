@@ -471,6 +471,19 @@ export class ContentController {
         return this.contentService.retranscribeLecture(id, user.id, user.role, tenantId);
     }
 
+    @Post('lectures/:id/regenerate-notes')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Regenerate AI notes from the already-saved transcript (no re-transcription)' })
+    @ApiParam({ name: 'id', type: 'string' })
+    regenerateNotes(
+        @Param('id', ParseUUIDPipe) id: string,
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.regenerateNotes(id, user.id, user.role, tenantId);
+    }
+
     // ─── LECTURE PROGRESS ─────────────────────────────────────────────────────
 
     @Post('lectures/:id/progress')

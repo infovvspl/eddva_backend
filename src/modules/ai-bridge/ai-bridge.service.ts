@@ -146,6 +146,23 @@ export class AiBridgeService {
     return this.post('/stt/notes', payload, tenantId, 900_000); // 15 min — Whisper (multi-chunk) + LLM
   }
 
+  // ── AI #7a — Transcribe-only (Phase 1 of two-phase pipeline) ─────────────
+  /**
+   * Whisper transcription only — no LLM note generation.
+   * Returns { rawTranscript, transcript } in ~2-5 minutes for an 80-min video.
+   * Call generateNotesFromTranscript() afterwards for notes (Phase 2).
+   */
+  async transcribeAudio(
+    payload: {
+      audioUrl: string;
+      language: 'en' | 'hi' | 'hinglish' | 'hi-in';
+      topicId?: string;
+    },
+    tenantId?: string,
+  ) {
+    return this.post('/stt/transcribe', payload, tenantId, 600_000); // 10 min — Whisper only
+  }
+
   // ── AI #7b — Notes from pre-existing Transcript (YouTube / manual) ────────
   /**
    * Skips Whisper entirely.  Sends a plain-text transcript to the Django AI
