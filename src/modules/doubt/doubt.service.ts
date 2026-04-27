@@ -209,6 +209,12 @@ export class DoubtService {
     return this.serializeDoubt(doubt);
   }
 
+  async deleteDoubt(id: string, user: any, tenantId: string) {
+    const doubt = await this.getDoubtWithRelations(id);
+    await this.assertCanAccessDoubt(doubt, user, tenantId);
+    await this.doubtRepo.softDelete(id);
+  }
+
   async generateAiDraft(id: string, user: any, tenantId: string) {
     const doubt = await this.getDoubtWithRelations(id);
     await this.assertCanAccessDoubt(doubt, user, tenantId);
