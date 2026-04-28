@@ -606,6 +606,7 @@ export class AuthService {
       ...(dto.fullName && { fullName: dto.fullName }),
       ...(dto.email && { email: dto.email }),
       ...(dto.fcmToken && { fcmToken: dto.fcmToken }),
+      isFirstLogin: false,
     });
     const studentUpdates: any = {};
     if (dto.city !== undefined) studentUpdates.city = dto.city;
