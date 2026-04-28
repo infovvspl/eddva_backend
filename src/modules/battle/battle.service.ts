@@ -577,7 +577,7 @@ export class BattleService {
     roundNumber: number;
     responseTimeMs: number;
     studentId: string;
-  }) {
+  }): Promise<any> {
     const participant = await this.participantRepo.findOne({
       where: { battleId: data.battleId, studentId: data.studentId },
     });
@@ -667,6 +667,7 @@ export class BattleService {
         scores,
         battleComplete,
         nextQuestion,
+        secondsPerRound: battle.secondsPerRound,
       };
     }
 

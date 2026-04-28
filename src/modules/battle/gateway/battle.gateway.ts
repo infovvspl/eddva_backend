@@ -444,7 +444,7 @@ export class BattleGateway
     },
   ) {
     try {
-      const result = await this.battleService.submitAnswer(data);
+      const result = (await this.battleService.submitAnswer(data)) as any;
 
       // Send round result when both players have answered
       if (result.roundComplete) {
