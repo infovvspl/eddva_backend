@@ -31,6 +31,18 @@ import {
 export class TeacherAnalyticsController {
   constructor(private readonly service: TeacherAnalyticsService) {}
 
+  @Get('student/:studentId/profile')
+  @ApiOperation({ summary: 'Robust student profile & detail for teacher dashboard' })
+  getStudentProfile(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+    @Query() query: TeacherAnalyticsQueryDto,
+  ) {
+    console.log(`[DEBUG] getStudentProfile called for student ${studentId} in tenant ${tenantId}`);
+    return this.service.getStudentProfile(user, tenantId, studentId, query.batchId);
+  }
+
   @Get('overview')
   @ApiOperation({ summary: 'Teacher analytics overview — totals, batch list, avg scores' })
   getOverview(
@@ -91,6 +103,52 @@ export class TeacherAnalyticsController {
   ) {
     return this.service.getStudentDeepDive(user, tenantId, studentId, query);
   }
+
+  @Get('student/:studentId/performance')
+  @ApiOperation({ summary: 'Granular performance analytics for a student' })
+  getStudentPerformance(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+    @Query() query: TeacherAnalyticsQueryDto,
+  ) {
+    return this.service.getStudentPerformance(user, tenantId, studentId, query);
+  }
+
+  @Get('student/:studentId/engagement')
+  @ApiOperation({ summary: 'Granular engagement analytics for a student' })
+  getStudentEngagement(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+    @Query() query: TeacherAnalyticsQueryDto,
+  ) {
+    return this.service.getStudentEngagement(user, tenantId, studentId, query);
+  }
+
+  @Get('student/:studentId/risk-signals')
+  @ApiOperation({ summary: 'Risk signals for a specific student' })
+  getStudentRiskSignals(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+    @Query() query: TeacherAnalyticsQueryDto,
+  ) {
+    return this.service.getStudentRiskSignals(user, tenantId, studentId, query);
+  }
+
+  @Get('student/:studentId/study-plan')
+  @ApiOperation({ summary: 'Study plan adherence analytics for a student' })
+  getStudentStudyPlan(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+    @Query() query: TeacherAnalyticsQueryDto,
+  ) {
+    return this.service.getStudentStudyPlan(user, tenantId, studentId, query);
+  }
+
+
 
   @Get('batch-comparison')
   @ApiOperation({ summary: 'Compare performance across all teacher batches' })

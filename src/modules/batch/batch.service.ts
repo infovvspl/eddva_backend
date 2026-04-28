@@ -757,13 +757,29 @@ export class BatchService {
   // ── Student Detail (teacher view) ────────────────────────────────────────
 
   async getStudentDetail(batchId: string, studentId: string, user: any, tenantId: string) {
-    const batch = await this.getBatchOrThrow(batchId, tenantId);
-    await this.assertTeacherOrAdminBatchAccess(batch, user, tenantId);
+    let batch: Batch | null = null;
+    if (batchId !== 'any' && batchId) {
+      batch = await this.getBatchOrThrow(batchId, tenantId);
+      await this.assertTeacherOrAdminBatchAccess(batch, user, tenantId);
+    }
 
     // Verify the student is actually enrolled in this batch
-    const enrollment = await this.enrollmentRepo.findOne({
-      where: { tenantId, batchId, studentId, status: EnrollmentStatus.ACTIVE },
-    });
+    let enrollment = (batchId === 'any' || !batchId)
+      ? null
+      : await this.enrollmentRepo.findOne({
+          where: { tenantId, batchId, studentId, status: EnrollmentStatus.ACTIVE },
+        });
+
+    if (!enrollment && (batchId === 'any' || !batchId)) {
+      enrollment = await this.enrollmentRepo.findOne({
+        where: { tenantId, studentId, status: EnrollmentStatus.ACTIVE },
+        order: { enrolledAt: 'DESC' },
+      });
+      if (enrollment) {
+        batchId = enrollment.batchId;
+      }
+    }
+
     if (!enrollment) throw new NotFoundException('Student not found in this batch');
 
     const student = await this.studentRepo.findOne({
@@ -771,6 +787,16 @@ export class BatchService {
       relations: ['user'],
     });
     if (!student) throw new NotFoundException('Student not found');
+
+    // If batch was found via 'any' enrollment, load it now and check access
+    if (!batch && enrollment) {
+      batch = await this.batchRepo.findOne({ where: { id: batchId, tenantId }, relations: ['teacher'] });
+      if (batch) {
+        await this.assertTeacherOrAdminBatchAccess(batch, user, tenantId);
+      }
+    }
+
+    if (!batch) throw new NotFoundException('Target batch for student not found');
 
     // Fetch in parallel for performance
     const [engagementLogs, weakTopics, batchLectures, recentSessions] = await Promise.all([

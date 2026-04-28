@@ -193,6 +193,8 @@ export class BatchController {
     return this.batchService.getStudentDetail(id, studentId, user, tenantId);
   }
 
+
+
   @Post(':id/students/:studentId/flag')
   @Roles(UserRole.INSTITUTE_ADMIN, UserRole.TEACHER, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
