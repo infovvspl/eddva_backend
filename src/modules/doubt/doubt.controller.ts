@@ -146,10 +146,11 @@ export class DoubtController {
   @ApiParam({ name: 'id', type: 'string' })
   requestAiResolution(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body('explanationMode') explanationMode: string | undefined,
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
   ) {
-    return this.doubtService.requestAiResolution(id, user.id, tenantId);
+    return this.doubtService.requestAiResolution(id, user.id, tenantId, explanationMode as any);
   }
 
   @Delete(':id')

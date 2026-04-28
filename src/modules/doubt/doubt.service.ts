@@ -406,7 +406,7 @@ export class DoubtService {
     }
   }
 
-  async requestAiResolution(id: string, userId: string, tenantId: string) {
+  async requestAiResolution(id: string, userId: string, tenantId: string, explanationMode?: ExplanationMode) {
     const student = await this.getStudentByUserId(userId, tenantId);
     const doubt = await this.getDoubtWithRelations(id);
 
@@ -421,6 +421,9 @@ export class DoubtService {
     }
 
     try {
+      if (explanationMode) {
+        doubt.explanationMode = explanationMode;
+      }
       await this.applyAiBridgeToDoubt(doubt);
       await this.doubtRepo.save(doubt);
     } catch {
