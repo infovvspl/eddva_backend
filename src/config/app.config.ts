@@ -29,7 +29,8 @@ export const redisConfig = registerAs('redis', () => ({
 export const aiConfig = registerAs('ai', () => ({
   baseUrl: process.env.AI_BASE_URL || 'http://localhost:8000',
   apiKey: process.env.AI_API_KEY || 'apexiq-dev-secret-key-2026',
-  timeoutMs: parseInt(process.env.AI_TIMEOUT_MS) || 30000,
+  // 4 minutes default to support multi-segment mock-test generation.
+  timeoutMs: parseInt(process.env.AI_TIMEOUT_MS) || 240000,
 }));
 
 export const otpConfig = registerAs('otp', () => ({

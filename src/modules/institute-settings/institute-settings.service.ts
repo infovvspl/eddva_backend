@@ -95,6 +95,7 @@ export class InstituteSettingsService {
     // Update User fields
     if (dto.adminName !== undefined) user.fullName = dto.adminName;
     if (dto.email     !== undefined) user.email    = dto.email;
+    user.isFirstLogin = false;
     await this.userRepo.save(user);
 
     return this.getProfile(tenantId, userId);

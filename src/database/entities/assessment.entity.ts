@@ -96,6 +96,9 @@ export class MockTest extends Base {
 
   @Column({ name: 'allow_reattempt', default: false })
   allowReattempt: boolean;
+
+  @Column({ name: 'exam_mode', nullable: true })
+  examMode: string;
 }
 
 // ─── TestSession (one student's attempt) ─────────────────────────────────────

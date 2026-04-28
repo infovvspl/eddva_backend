@@ -56,7 +56,7 @@ export class CreateQuestionDto {
 
     @ApiProperty({ example: 'A Carnot engine operates between 500 K and 300 K. What is its efficiency?' })
     @IsString()
-    @IsNotEmpty()
+    @IsOptional()
     content: string;
 
     @ApiProperty({ enum: QuestionType })

@@ -20,6 +20,7 @@ interface AiBattleQuestion {
   id: string;
   text: string;
   options: { id: string; text: string; isCorrect: boolean }[];
+  meta?: any;
 }
 
 @Injectable()
@@ -244,7 +245,7 @@ export class BattleService {
 
   // ─── Create private room for challenge flow (gateway) ─────────────────────
 
-  async createPrivateChallengeRoom(challengerStudentId: string, targetStudentId: string, tenantId: string, batchId?: string, batchName?: string) {
+  async createPrivateChallengeRoom(challengerStudentId: string, targetStudentId: string, tenantId: string, batchId?: string, batchName?: string, difficulty?: 'easy'|'medium'|'hard') {
     if (!challengerStudentId || !targetStudentId) {
       throw new BadRequestException('Both challenger and target are required');
     }
@@ -274,19 +275,20 @@ export class BattleService {
       .findOne({ where: { id: challengerStudentId } });
     const examTarget = challengerStudent?.examTarget ?? undefined;
 
+    const effDiff = difficulty ?? 'medium';
     const aiQuestions = await this.buildAiBattleQuestions(
       tenantId,
       qCount,
       null,
       examTarget,
       batchName,
-      'medium',
+      effDiff,
     );
     this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
     battle.questionIds = [];
     battle.replayData = {
       ...(battle.replayData ?? {}),
-      difficulty: 'medium',
+      difficulty: effDiff,
       aiQuestions,
     };
     await this.battleRepo.save(battle);
@@ -575,7 +577,7 @@ export class BattleService {
     roundNumber: number;
     responseTimeMs: number;
     studentId: string;
-  }) {
+  }): Promise<any> {
     const participant = await this.participantRepo.findOne({
       where: { battleId: data.battleId, studentId: data.studentId },
     });
@@ -596,6 +598,18 @@ export class BattleService {
       aiCorrectOption?.id ??
       question?.options.find((o) => o.isCorrect)?.id ??
       null;
+
+    const existing = await this.answerRepo.findOne({
+      where: { battleId: data.battleId, participantId: participant.id, roundNumber: data.roundNumber },
+    });
+    if (existing) {
+      const battle = await this.battleRepo.findOne({ where: { id: data.battleId } });
+      const roundAnswersCount = await this.answerRepo.count({
+        where: { battleId: data.battleId, roundNumber: data.roundNumber },
+      });
+      const participantCount = await this.participantRepo.count({ where: { battleId: data.battleId } });
+      return { roundComplete: roundAnswersCount >= participantCount };
+    }
     const isCorrect = correctOptionId !== null && correctOptionId === data.optionId;
 
     // AI question IDs (e.g. "ai_1_xxx") are not real DB UUIDs — store null
@@ -647,16 +661,47 @@ export class BattleService {
 
       return {
         roundComplete: true,
-        battleComplete,
+        roundNumber: data.roundNumber,
         roundWinnerId,
         correctOptionId,
         scores,
+        battleComplete,
         nextQuestion,
         secondsPerRound: battle.secondsPerRound,
       };
     }
 
     return { roundComplete: false };
+  }
+
+  async forceCompleteRound(battleId: string, roundNumber: number) {
+    const battle = await this.battleRepo.findOne({ where: { id: battleId } });
+    if (!battle) return null;
+
+    const participants = await this.participantRepo.find({ where: { battleId } });
+    const answers = await this.answerRepo.find({ where: { battleId, roundNumber } });
+    const answeredParticipantIds = new Set(answers.map(a => a.participantId));
+
+    const questions = await this.getBattleQuestions(battleId);
+    const currentQuestion = questions[roundNumber - 1];
+    const qId = currentQuestion?.id ?? "";
+
+    let lastResult = { roundComplete: false } as any;
+
+    for (const p of participants) {
+      if (!answeredParticipantIds.has(p.id)) {
+        lastResult = await this.submitAnswer({
+          battleId,
+          studentId: p.studentId,
+          questionId: qId,
+          roundNumber,
+          optionId: "",
+          responseTimeMs: (battle.secondsPerRound || 30) * 1000,
+        });
+      }
+    }
+
+    return lastResult.roundComplete ? lastResult : null;
   }
 
   // ─── Finish Battle ────────────────────────────────────────────────────────
@@ -948,14 +993,16 @@ export class BattleService {
     if (preferredTopicId) {
       // Try tenant-scoped first, then cross-tenant (topic may belong to a sibling tenant)
       const topic =
-        (await topicRepo.findOne({ where: { id: preferredTopicId, tenantId, isActive: true } })) ??
-        (await topicRepo.findOne({ where: { id: preferredTopicId, isActive: true } }));
+        (await topicRepo.findOne({ where: { id: preferredTopicId, tenantId, isActive: true }, relations: ['chapter', 'chapter.subject'] })) ??
+        (await topicRepo.findOne({ where: { id: preferredTopicId, isActive: true }, relations: ['chapter', 'chapter.subject'] }));
       if (topic) return topic;
     }
 
     // Random active topic in this tenant
     const tenantTopic = await topicRepo
       .createQueryBuilder('t')
+      .leftJoinAndSelect('t.chapter', 'chapter')
+      .leftJoinAndSelect('chapter.subject', 'subject')
       .where('t.tenant_id = :tenantId AND t.is_active = true', { tenantId })
       .orderBy('RANDOM()')
       .limit(1)
@@ -965,6 +1012,8 @@ export class BattleService {
     // If the tenant has no topics at all, pick from any tenant (demo / staging scenario)
     return topicRepo
       .createQueryBuilder('t')
+      .leftJoinAndSelect('t.chapter', 'chapter')
+      .leftJoinAndSelect('chapter.subject', 'subject')
       .where('t.is_active = true')
       .orderBy('RANDOM()')
       .limit(1)
@@ -1010,8 +1059,9 @@ export class BattleService {
   private _battleQuestionDedupeKey(text: string): string {
     const t = String(text || '')
       .toLowerCase()
+      .replace(/[0-9]+/g, '#')
+      .replace(/[^a-z#\u0900-\u0fff\s]/g, ' ')
       .replace(/\s+/g, ' ')
-      .replace(/[^a-z0-9\u0900-\u0fff\s]/g, '')
       .trim();
     return t.slice(0, 220);
   }
@@ -1086,6 +1136,10 @@ export class BattleService {
       if (four.some((o) => !o.text)) continue;
       if (!four.some((o) => o.isCorrect)) continue;
 
+      // Unique options check
+      const optionTexts = new Set(four.map(o => o.text.trim().toLowerCase()));
+      if (optionTexts.size < 4) continue;
+
       const options: AiBattleQuestion['options'] = four.map((o, i) => ({
         id: String.fromCharCode(65 + i),
         text: o.text,
@@ -1100,6 +1154,7 @@ export class BattleService {
         id: `ai_${out.length + 1}_${Math.random().toString(36).slice(2, 7)}`,
         text,
         options,
+        meta: (q as any).meta ?? null,
       });
     }
     return out;
@@ -1123,7 +1178,10 @@ export class BattleService {
     // then fall back to the DB record name, then a generic label.
     const baseName = explicitTopicName?.trim() || topic?.name || 'General Science';
     const examLabel = examTarget ? this.examLevelLabel[examTarget] : null;
-    const enrichedTopicName = examLabel ? `${baseName} (${examLabel})` : baseName;
+    let enrichedTopicName = examLabel ? `${baseName} (${examLabel})` : baseName;
+    if (topic && topic.chapter && topic.chapter.subject && !baseName.includes('Chapter:')) {
+      enrichedTopicName = `${enrichedTopicName} (Context: Chapter ${topic.chapter.name}, Subject ${topic.chapter.subject.name})`;
+    }
 
     const derivedDifficulty: 'easy' | 'medium' | 'hard' =
       requestedDifficulty ??
@@ -1154,6 +1212,7 @@ export class BattleService {
           count: requestCount,
           difficulty: derivedDifficulty,
           type: 'mcq_single',
+          examTarget: examTarget ?? undefined,
         },
         tenantId,
       );

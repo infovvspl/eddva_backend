@@ -280,9 +280,11 @@ export class GradingService {
     // Never negative for descriptive; wrong => 0 (not negative marking).
     const isCorrect = awarded >= Math.ceil(Math.min(maxMarks, 5) * passFactor);
 
+    const wrongMarks = Math.max(0, Number(question.marksWrong || 0));
+    const marksAwarded = isCorrect ? Math.max(0, awarded) : wrongMarks;
     return {
       isCorrect,
-      marksAwarded: Math.max(0, awarded),
+      marksAwarded,
       errorType: isCorrect ? null : ErrorType.CONCEPTUAL,
       breakdown,
     };

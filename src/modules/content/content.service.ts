@@ -1824,7 +1824,7 @@ export class ContentService {
             if (!existing.practiceQuestions || existing.practiceQuestions.length === 0 || !this.hasStructuredPracticeOptions(existing.practiceQuestions)) {
                 try {
                     const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
-                        { topicId, topicName: topic.name, count: 8, difficulty: 'mixed', type: 'mcq_single' },
+                        { topicId, topicName: topic.name, count: 8, difficulty: 'mixed', type: 'mcq_single', examTarget: student.examTarget ?? undefined },
                         tenantId,
                     ) as any[];
                     if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
@@ -2024,7 +2024,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         // Second call: practice questions via dedicated question-generation endpoint
         try {
             const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
-                { topicId, topicName: topic.name, count: 8, difficulty: 'mixed', type: 'mcq_single' },
+                { topicId, topicName: topic.name, count: 8, difficulty: 'mixed', type: 'mcq_single', examTarget: student.examTarget ?? undefined },
                 tenantId,
             ) as any[];
 

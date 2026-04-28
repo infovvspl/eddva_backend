@@ -44,6 +44,10 @@ export class MockTestListQueryDto {
   isPublished?: boolean;
 
   @IsOptional()
+  @IsString()
+  examMode?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -99,6 +103,10 @@ export class CreateMockTestDto {
   @IsInt()
   @Min(0)
   passingMarks?: number;
+
+  @IsOptional()
+  @IsString()
+  examMode?: string;
 
   @IsOptional()
   @IsDateString()
@@ -201,4 +209,8 @@ export class UpdateMockTestDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   allowReattempt?: boolean;
+
+  @IsOptional()
+  @IsString()
+  examMode?: string;
 }

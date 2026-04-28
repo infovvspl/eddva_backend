@@ -124,6 +124,7 @@ export class AssessmentService {
       durationMinutes: dto.durationMinutes,
       questionIds: questions.map((question) => question.id),
       scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
+      examMode: dto.examMode ?? null,
       createdBy: user.id,
       isActive: true,
     });
@@ -142,6 +143,14 @@ export class AssessmentService {
       },
       schema,
     );
+
+    // Explicitly set examMode via direct query to ensure persistence
+    if (dto.examMode) {
+      await this.dataSource.query(`UPDATE mock_tests SET exam_mode = $1 WHERE id = $2`, [
+        dto.examMode,
+        saved.id,
+      ]);
+    }
 
     // Set subject/chapter via direct query (always available columns)
     if (dto.subjectId || dto.chapterId) {
@@ -231,6 +240,11 @@ export class AssessmentService {
       filters.push(`mt.is_published = $${index++}`);
       params.push(query.isPublished);
     }
+    
+    if (query.examMode) {
+      filters.push(`mt.exam_mode = $${index++}`);
+      params.push(query.examMode);
+    }
 
     if (user.role === UserRole.TEACHER) {
       filters.push(`mt.created_by = $${index++}`);
@@ -264,8 +278,15 @@ export class AssessmentService {
     );
 
     const total = countResult[0]?.total || 0;
+    
+    // Explicitly map raw SQL rows to camelCase for consistency
+    const mappedData = data.map(row => ({
+      ...row,
+      examMode: row.examMode || row.exam_mode || null,
+    }));
+
     return {
-      data,
+      data: mappedData,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 0 },
     };
   }
@@ -339,6 +360,7 @@ export class AssessmentService {
       questionIds,
       scope: newScope,
       type: dto.type ?? this.inferType(newScope, dto as any),
+      examMode: dto.examMode ?? mockTest.examMode,
     });
 
     await this.mockTestRepo.save(mockTest);
@@ -1971,6 +1993,7 @@ export class AssessmentService {
       schema.shuffleQuestions ? 'mt.shuffle_questions AS "shuffleQuestions"' : 'false AS "shuffleQuestions"',
       schema.showAnswersAfterSubmit ? 'mt.show_answers_after_submit AS "showAnswersAfterSubmit"' : 'true AS "showAnswersAfterSubmit"',
       schema.allowReattempt ? 'mt.allow_reattempt AS "allowReattempt"' : 'false AS "allowReattempt"',
+      'mt.exam_mode AS "examMode"',
       // Resolved names via JOIN (queries must alias sub-queries or use LEFT JOIN — handled at call sites)
     ].join(', ');
   }
@@ -2140,6 +2163,7 @@ export class AssessmentService {
               marksWrong: -1,
               isActive: true,
               isVerified: false,
+              metadata: rq.meta ?? null,
             });
             const savedQ = await mgr.save(Question, question);
 
