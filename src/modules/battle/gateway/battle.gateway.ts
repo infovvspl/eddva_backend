@@ -60,6 +60,8 @@ export class BattleGateway
       difficulty?: 'easy' | 'medium' | 'hard';
     }
   >();
+  // Maps battleId → Timeout
+  private roundTimeouts = new Map<string, NodeJS.Timeout>();
 
   constructor(
     private readonly battleService: BattleService,
@@ -310,6 +312,9 @@ export class BattleGateway
         room,
       });
       await this.broadcastOnlineUsers(pending.tenantId);
+
+      // Enforce server-side round skip
+      this.startRoundTimeout(room.battleId, room.roomCode, 1, room.secondsPerRound || 45);
     } catch (error) {
       const senderSockets = this.studentSockets.get(pending.fromStudentId) ?? new Set([sender.socketId]);
       for (const sid of senderSockets) {
@@ -451,6 +456,7 @@ export class BattleGateway
         });
 
         if (result.battleComplete) {
+          this.clearRoundTimeout(data.battleId);
           // Battle over — compute ELO, send final result
           const finalResult = await this.battleService.finishBattle(data.battleId);
           this.server.to(data.roomCode).emit('battle:end', finalResult);
@@ -466,11 +472,57 @@ export class BattleGateway
               roundNumber: data.roundNumber + 1,
               timeLimit: result.secondsPerRound,
             });
+            // Start timeout for the NEW round
+            this.startRoundTimeout(data.battleId, data.roomCode, data.roundNumber + 1, result.secondsPerRound || 45);
           }, 2000);
+          // Clear for CURRENT round because it completed normally
+          this.clearRoundTimeout(data.battleId);
         }
       }
     } catch (error) {
       client.emit('battle:error', { message: error.message });
+    }
+  }
+  private startRoundTimeout(battleId: string, roomCode: string, roundNumber: number, seconds: number) {
+    this.clearRoundTimeout(battleId);
+    // Add 1.5s buffer for client-server sync
+    const timeout = setTimeout(async () => {
+      this.roundTimeouts.delete(battleId);
+      this.logger.log(`Round ${roundNumber} timed out for battle ${battleId}. Forcing completion.`);
+      
+      const result = await this.battleService.forceCompleteRound(battleId, roundNumber);
+      if (result) {
+        this.server.to(roomCode).emit('battle:round_result', {
+          roundNumber: result.roundNumber,
+          winnerId: result.roundWinnerId,
+          correctOptionId: result.correctOptionId,
+          scores: result.scores,
+        });
+
+        if (result.battleComplete) {
+          const finalResult = await this.battleService.finishBattle(battleId);
+          this.server.to(roomCode).emit('battle:end', finalResult);
+        } else {
+          setTimeout(() => {
+            this.server.to(roomCode).emit('battle:question', {
+              question: result.nextQuestion,
+              roundNumber: result.roundNumber + 1,
+              timeLimit: result.secondsPerRound || 45,
+            });
+            this.startRoundTimeout(battleId, roomCode, result.roundNumber + 1, result.secondsPerRound || 45);
+          }, 2000);
+        }
+      }
+    }, (seconds + 1.5) * 1000);
+
+    this.roundTimeouts.set(battleId, timeout);
+  }
+
+  private clearRoundTimeout(battleId: string) {
+    const t = this.roundTimeouts.get(battleId);
+    if (t) {
+      clearTimeout(t);
+      this.roundTimeouts.delete(battleId);
     }
   }
 }

@@ -603,10 +603,13 @@ export class AiBridgeService {
     });
   }
 
-  private normalizeTextKey(value: string): string {
-    return String(value || '')
-      .toLowerCase()
-      .replace(/[^a-z0-9\u0900-\u0fff\s]/g, ' ')
+  private normalizeTextKey(value: string, maskDigits = false): string {
+    let t = String(value || '').toLowerCase();
+    if (maskDigits) {
+      t = t.replace(/[0-9]+/g, '#');
+    }
+    return t
+      .replace(/[^a-z0-9#\u0900-\u0fff\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -626,7 +629,7 @@ export class AiBridgeService {
       const content = String(row?.content || '').trim();
       if (!content) continue;
 
-      const qKey = this.normalizeTextKey(content).slice(0, 220);
+      const qKey = this.normalizeTextKey(content, true).slice(0, 220);
       if (!qKey || seenQuestionKeys.has(qKey)) continue;
       seenQuestionKeys.add(qKey);
 
@@ -640,7 +643,7 @@ export class AiBridgeService {
         for (const opt of Array.isArray(next.options) ? next.options : []) {
           const text = String(opt?.content ?? '').trim();
           if (!text) continue;
-          const oKey = this.normalizeTextKey(text);
+          const oKey = this.normalizeTextKey(text, false);
           if (!oKey || seenOptionKeys.has(oKey)) continue;
           seenOptionKeys.add(oKey);
           cleanedOptions.push({

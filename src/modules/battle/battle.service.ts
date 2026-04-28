@@ -598,6 +598,18 @@ export class BattleService {
       aiCorrectOption?.id ??
       question?.options.find((o) => o.isCorrect)?.id ??
       null;
+
+    const existing = await this.answerRepo.findOne({
+      where: { battleId: data.battleId, participantId: participant.id, roundNumber: data.roundNumber },
+    });
+    if (existing) {
+      const battle = await this.battleRepo.findOne({ where: { id: data.battleId } });
+      const roundAnswersCount = await this.answerRepo.count({
+        where: { battleId: data.battleId, roundNumber: data.roundNumber },
+      });
+      const participantCount = await this.participantRepo.count({ where: { battleId: data.battleId } });
+      return { roundComplete: roundAnswersCount >= participantCount };
+    }
     const isCorrect = correctOptionId !== null && correctOptionId === data.optionId;
 
     // AI question IDs (e.g. "ai_1_xxx") are not real DB UUIDs — store null
@@ -649,16 +661,46 @@ export class BattleService {
 
       return {
         roundComplete: true,
-        battleComplete,
+        roundNumber: data.roundNumber,
         roundWinnerId,
         correctOptionId,
         scores,
+        battleComplete,
         nextQuestion,
-        secondsPerRound: battle.secondsPerRound,
       };
     }
 
     return { roundComplete: false };
+  }
+
+  async forceCompleteRound(battleId: string, roundNumber: number) {
+    const battle = await this.battleRepo.findOne({ where: { id: battleId } });
+    if (!battle) return null;
+
+    const participants = await this.participantRepo.find({ where: { battleId } });
+    const answers = await this.answerRepo.find({ where: { battleId, roundNumber } });
+    const answeredParticipantIds = new Set(answers.map(a => a.participantId));
+
+    const questions = await this.getBattleQuestions(battleId);
+    const currentQuestion = questions[roundNumber - 1];
+    const qId = currentQuestion?.id ?? "";
+
+    let lastResult = { roundComplete: false } as any;
+
+    for (const p of participants) {
+      if (!answeredParticipantIds.has(p.id)) {
+        lastResult = await this.submitAnswer({
+          battleId,
+          studentId: p.studentId,
+          questionId: qId,
+          roundNumber,
+          optionId: "",
+          responseTimeMs: (battle.secondsPerRound || 30) * 1000,
+        });
+      }
+    }
+
+    return lastResult.roundComplete ? lastResult : null;
   }
 
   // ─── Finish Battle ────────────────────────────────────────────────────────
@@ -1016,8 +1058,9 @@ export class BattleService {
   private _battleQuestionDedupeKey(text: string): string {
     const t = String(text || '')
       .toLowerCase()
+      .replace(/[0-9]+/g, '#')
+      .replace(/[^a-z#\u0900-\u0fff\s]/g, ' ')
       .replace(/\s+/g, ' ')
-      .replace(/[^a-z0-9\u0900-\u0fff\s]/g, '')
       .trim();
     return t.slice(0, 220);
   }
@@ -1091,6 +1134,10 @@ export class BattleService {
       const four = slice.slice(0, 4);
       if (four.some((o) => !o.text)) continue;
       if (!four.some((o) => o.isCorrect)) continue;
+
+      // Unique options check
+      const optionTexts = new Set(four.map(o => o.text.trim().toLowerCase()));
+      if (optionTexts.size < 4) continue;
 
       const options: AiBattleQuestion['options'] = four.map((o, i) => ({
         id: String.fromCharCode(65 + i),
