@@ -178,7 +178,7 @@ export class TeacherAnalyticsService {
     const skip = (page - 1) * limit;
 
     const students = await this.studentRepo.find({
-      where: { id: In(studentIds), tenantId },
+      where: { id: In(studentIds) },
       relations: ['user'],
     });
 
@@ -636,7 +636,7 @@ export class TeacherAnalyticsService {
     }
 
     const student = await this.studentRepo.findOne({
-      where: { id: studentId, tenantId },
+      where: { id: studentId },
       relations: ['user'],
     });
     if (!student) return null;
@@ -1157,7 +1157,7 @@ export class TeacherAnalyticsService {
     }
 
     const student = await this.studentRepo.findOne({
-      where: { id: studentId, tenantId },
+      where: { id: studentId },
       relations: ['user'],
     });
 
