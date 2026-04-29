@@ -49,6 +49,25 @@ export class LiveSession extends Base {
 
   @Column({ name: 'recording_url', nullable: true })
   recordingUrl: string;
+
+  // ── Bunny.net live streaming (one-way broadcast / HLS) ──────────────────────
+  @Column({ name: 'stream_type', default: 'agora' })
+  streamType: 'agora' | 'bunny';
+
+  @Column({ name: 'bunny_stream_id', nullable: true })
+  bunnyStreamId: string;
+
+  @Column({ name: 'bunny_stream_key', nullable: true })
+  bunnyStreamKey: string;
+
+  @Column({ name: 'bunny_hls_url', nullable: true })
+  bunnyHlsUrl: string;
+
+  @Column({ name: 'bunny_rtmp_url', nullable: true })
+  bunnyRtmpUrl: string;
+
+  @Column({ name: 'bunny_library_id', nullable: true })
+  bunnyLibraryId: string;
 }
 
 @Entity('live_attendances')

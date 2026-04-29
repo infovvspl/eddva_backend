@@ -53,19 +53,30 @@ export class LiveClassController {
 
   @Post(':lectureId/start')
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
-  @ApiOperation({ summary: 'Start a live class' })
+  @ApiOperation({ summary: 'Start a live class (Agora or Bunny)' })
   async startClass(
     @Param('lectureId', ParseUUIDPipe) lectureId: string,
+    @Body('streamType') streamType: 'agora' | 'bunny' = 'agora',
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
   ) {
-    const result = await this.liveClassService.startClass(lectureId, user.id, tenantId, user.role);
+    const result = await this.liveClassService.startClass(lectureId, user.id, tenantId, user.role, streamType);
     this.liveClassGateway.broadcastClassStarted(result.sessionId, {
       sessionId: result.sessionId,
       teacherName: result.teacherName,
       startedAt: result.startedAt,
     });
     return result;
+  }
+
+  @Get(':lectureId/stream-status')
+  @Roles(UserRole.TEACHER, UserRole.STUDENT, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Get Bunny HLS stream status (students poll this for live URL)' })
+  getStreamStatus(
+    @Param('lectureId', ParseUUIDPipe) lectureId: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.liveClassService.getBunnyStreamStatus(lectureId, tenantId);
   }
 
   @Post(':lectureId/end')

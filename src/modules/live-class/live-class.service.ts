@@ -28,6 +28,7 @@ import { NotificationService } from '../notification/notification.service';
 import { ContentService } from '../content/content.service';
 
 import { AgoraService } from './agora.service';
+import { BunnyStreamService } from './bunny-stream.service';
 import { CreatePollDto } from './dto/live-class.dto';
 
 @Injectable()
@@ -56,6 +57,7 @@ export class LiveClassService {
     private readonly notificationService: NotificationService,
     private readonly contentService: ContentService,
     private readonly agoraService: AgoraService,
+    private readonly bunnyStreamService: BunnyStreamService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER)
@@ -78,6 +80,42 @@ export class LiveClassService {
     }
 
     const session = await this.findOrCreateSession(lecture);
+
+    // ── Bunny mode: return HLS URL (audience) or RTMP credentials (host) ──────
+    if (session.streamType === 'bunny') {
+      if (userRole === UserRole.TEACHER) {
+        if (lecture.teacherId !== userId) {
+          throw new ForbiddenException('Only the assigned teacher can access host credentials');
+        }
+        return {
+          streamType: 'bunny',
+          rtmpUrl: session.bunnyRtmpUrl,
+          streamKey: session.bunnyStreamKey,
+          sessionId: session.id,
+          status: session.status,
+        };
+      } else if (userRole === UserRole.INSTITUTE_ADMIN) {
+        return {
+          streamType: 'bunny',
+          rtmpUrl: session.bunnyRtmpUrl,
+          streamKey: session.bunnyStreamKey,
+          sessionId: session.id,
+          status: session.status,
+        };
+      } else if (userRole === UserRole.STUDENT) {
+        await this.assertStudentEnrollment(lecture, userId, lecture.tenantId);
+        return {
+          streamType: 'bunny',
+          hlsUrl: session.bunnyHlsUrl,
+          sessionId: session.id,
+          status: session.status,
+        };
+      } else {
+        throw new ForbiddenException('Unsupported role for live class access');
+      }
+    }
+
+    // ── Agora mode (default) ──────────────────────────────────────────────────
     let uid = session.teacherAgoraUid;
     let tokenRole: 'host' | 'audience' = 'host';
 
@@ -98,6 +136,7 @@ export class LiveClassService {
     }
 
     return {
+      streamType: 'agora',
       token: this.agoraService.generateRtcToken(session.agoraChannelName, uid, tokenRole),
       channelName: session.agoraChannelName,
       uid,
@@ -107,13 +146,19 @@ export class LiveClassService {
     };
   }
 
-  async startClass(lectureId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
+  async startClass(
+    lectureId: string,
+    teacherId: string,
+    tenantId: string,
+    userRole?: UserRole,
+    streamType: 'agora' | 'bunny' = 'agora',
+  ) {
     let lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId, userRole);
     if (![LectureStatus.SCHEDULED, LectureStatus.DRAFT].includes(lecture.status)) {
       throw new BadRequestException('Class can only be started from scheduled or draft state');
     }
 
-    const session = await this.findOrCreateSession(lecture);
+    const session = await this.findOrCreateSession(lecture, streamType);
     if (session.status !== LiveSessionStatus.WAITING) {
       throw new BadRequestException('Live session has already started or ended');
     }
@@ -127,22 +172,19 @@ export class LiveClassService {
     await this.lectureRepo.save(lecture);
     const savedSession = await this.liveSessionRepo.save(session);
 
-    // Start Agora Cloud Recording (non-blocking — failure must not break the class start)
-    this.startRecordingAsync(savedSession.id, savedSession.agoraChannelName, lectureId).catch(
-      (err) => this.logger.error('Cloud recording start failed silently', err),
-    );
+    const teacher = await this.userRepo.findOne({ where: { id: teacherId, tenantId } });
 
+    // ── Notify enrolled students ──────────────────────────────────────────────
     const enrollments = await this.enrollmentRepo.find({
       where: { tenantId, batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
       relations: ['student'],
     });
-
     await Promise.all(
       enrollments
-        .filter((enrollment) => enrollment.student?.userId)
-        .map((enrollment) =>
+        .filter((e) => e.student?.userId)
+        .map((e) =>
           this.notificationService.send({
-            userId: enrollment.student.userId,
+            userId: e.student.userId,
             tenantId,
             title: '📡 Class is LIVE now!',
             body: `${lecture.title} has started. Join now!`,
@@ -153,9 +195,27 @@ export class LiveClassService {
         ),
     );
 
-    const teacher = await this.userRepo.findOne({ where: { id: teacherId, tenantId } });
+    // ── Bunny mode: return RTMP credentials for OBS ───────────────────────────
+    if (savedSession.streamType === 'bunny') {
+      return {
+        streamType: 'bunny',
+        rtmpUrl: savedSession.bunnyRtmpUrl,
+        streamKey: savedSession.bunnyStreamKey,
+        hlsUrl: savedSession.bunnyHlsUrl,
+        sessionId: savedSession.id,
+        status: savedSession.status,
+        startedAt: savedSession.startedAt,
+        teacherName: teacher?.fullName || null,
+      };
+    }
+
+    // ── Agora mode (default) — start cloud recording, return RTC token ────────
+    this.startRecordingAsync(savedSession.id, savedSession.agoraChannelName, lectureId).catch(
+      (err) => this.logger.error('Cloud recording start failed silently', err),
+    );
 
     return {
+      streamType: 'agora',
       channelName: savedSession.agoraChannelName,
       token: this.agoraService.generateRtcToken(
         savedSession.agoraChannelName,
@@ -216,44 +276,73 @@ export class LiveClassService {
       await this.liveAttendanceRepo.save(openAttendances);
     }
 
-    // Stop cloud recording and promote lecture to a watchable recording.
-    // If recording IDs are not yet saved (startRecordingAsync still in flight),
-    // wait up to 15 s for them to appear before giving up.
-    if (!session.recordingResourceId || !session.recordingSid) {
-      for (let i = 0; i < 5; i++) {
-        await new Promise((r) => setTimeout(r, 3000));
-        const fresh = await this.liveSessionRepo.findOne({ where: { id: session.id } });
-        if (fresh?.recordingResourceId && fresh?.recordingSid) {
-          session.recordingResourceId = fresh.recordingResourceId;
-          session.recordingSid = fresh.recordingSid;
-          this.logger.log(`Recording IDs appeared after ${(i + 1) * 3}s wait`);
-          break;
-        }
-      }
-    }
-
     let recordingUrl: string | null = session.recordingUrl || null;
-    if (session.recordingResourceId && session.recordingSid) {
-      const url = await this.agoraService.stopCloudRecording(
-        session.agoraChannelName,
-        session.recordingResourceId,
-        session.recordingSid,
-      );
-      if (url) {
-        recordingUrl = url;
-        session.recordingUrl = url;
+
+    if (session.streamType === 'bunny') {
+      // ── Bunny mode: HLS URL is the immediate recording (VOD after stream ends)
+      if (session.bunnyHlsUrl) {
+        recordingUrl = session.bunnyHlsUrl;
+        session.recordingUrl = recordingUrl;
         await this.liveSessionRepo.save(session);
 
-        lecture = await this.contentService.promoteLectureToRecorded(lecture.id, url, lecture.tenantId, {
+        // Promote immediately with HLS so the lecture is watchable right away
+        lecture = await this.contentService.promoteLectureToRecorded(lecture.id, recordingUrl, lecture.tenantId, {
           notifyStudents: false,
           triggerAi: true,
         });
-        this.logger.log(`Lecture ${lectureId} promoted to RECORDED: ${url}`);
+        this.logger.log(`Bunny lecture ${lectureId} promoted with HLS URL: ${recordingUrl}`);
+
+        // Background poll: once Bunny finishes encoding the MP4, upgrade the URL
+        this.bunnyStreamService
+          .waitForRecordingAsync(session.bunnyStreamId, async (mp4Url) => {
+            await this.liveSessionRepo.update(session.id, { recordingUrl: mp4Url });
+            await this.contentService.promoteLectureToRecorded(lecture.id, mp4Url, lecture.tenantId, {
+              notifyStudents: false,
+              triggerAi: false,
+            });
+            this.logger.log(`Bunny MP4 recording ready for ${lectureId}: ${mp4Url}`);
+          })
+          .catch((err) => this.logger.warn('Bunny recording poll failed silently', err));
       } else {
-        this.logger.warn(`Recording stop returned no URL for session ${session.id}`);
+        this.logger.warn(`Bunny session ${session.id} ended without HLS URL`);
       }
     } else {
-      this.logger.warn(`No recording resource on session ${session.id} — recording skipped`);
+      // ── Agora mode: stop cloud recording and promote ────────────────────────
+      if (!session.recordingResourceId || !session.recordingSid) {
+        for (let i = 0; i < 5; i++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const fresh = await this.liveSessionRepo.findOne({ where: { id: session.id } });
+          if (fresh?.recordingResourceId && fresh?.recordingSid) {
+            session.recordingResourceId = fresh.recordingResourceId;
+            session.recordingSid = fresh.recordingSid;
+            this.logger.log(`Recording IDs appeared after ${(i + 1) * 3}s wait`);
+            break;
+          }
+        }
+      }
+
+      if (session.recordingResourceId && session.recordingSid) {
+        const url = await this.agoraService.stopCloudRecording(
+          session.agoraChannelName,
+          session.recordingResourceId,
+          session.recordingSid,
+        );
+        if (url) {
+          recordingUrl = url;
+          session.recordingUrl = url;
+          await this.liveSessionRepo.save(session);
+
+          lecture = await this.contentService.promoteLectureToRecorded(lecture.id, url, lecture.tenantId, {
+            notifyStudents: false,
+            triggerAi: true,
+          });
+          this.logger.log(`Agora lecture ${lectureId} promoted to RECORDED: ${url}`);
+        } else {
+          this.logger.warn(`Recording stop returned no URL for session ${session.id}`);
+        }
+      } else {
+        this.logger.warn(`No recording resource on session ${session.id} — recording skipped`);
+      }
     }
 
     const enrollments = await this.enrollmentRepo.find({
@@ -313,6 +402,26 @@ export class LiveClassService {
     });
   }
 
+  async getBunnyStreamStatus(lectureId: string, tenantId: string) {
+    const session = await this.liveSessionRepo.findOne({
+      where: { lectureId },
+    });
+    if (!session) {
+      return { isLive: false, hlsUrl: null, viewerCount: 0 };
+    }
+    if (session.streamType !== 'bunny' || !session.bunnyStreamId) {
+      return { isLive: session.status === LiveSessionStatus.LIVE, hlsUrl: null, viewerCount: 0 };
+    }
+    const status = await this.bunnyStreamService.getStreamStatus(session.bunnyStreamId);
+    return {
+      isLive: status.isLive,
+      hlsUrl: session.bunnyHlsUrl || status.hlsUrl,
+      viewerCount: status.viewerCount,
+      sessionId: session.id,
+      streamType: 'bunny',
+    };
+  }
+
   async getSession(lectureId: string, _tenantId: string) {
     // Look up by lectureId only — the caller's tenantId may differ from the lecture's
     // (e.g. student registered on platform tenant, lecture belongs to institute tenant).
@@ -329,7 +438,9 @@ export class LiveClassService {
     return {
       id: session.id,
       lectureId: session.lectureId,
+      streamType: session.streamType || 'agora',
       agoraChannelName: session.agoraChannelName,
+      hlsUrl: session.bunnyHlsUrl || null,
       status: session.status,
       startedAt: session.startedAt,
       endedAt: session.endedAt,
@@ -672,22 +783,38 @@ export class LiveClassService {
     return lecture;
   }
 
-  private async findOrCreateSession(lecture: Lecture) {
+  private async findOrCreateSession(lecture: Lecture, streamType: 'agora' | 'bunny' = 'agora') {
     let session = await this.liveSessionRepo.findOne({
       where: { tenantId: lecture.tenantId, lectureId: lecture.id },
       relations: ['lecture', 'lecture.topic'],
     });
 
     if (!session) {
-      session = await this.liveSessionRepo.save(
-        this.liveSessionRepo.create({
-          tenantId: lecture.tenantId,
-          lectureId: lecture.id,
-          agoraChannelName: this.agoraService.buildChannelName(lecture.id),
-          status: LiveSessionStatus.WAITING,
-          teacherAgoraUid: this.agoraService.generateUid(),
-        }),
-      );
+      const base: Partial<LiveSession> = {
+        tenantId: lecture.tenantId,
+        lectureId: lecture.id,
+        agoraChannelName: this.agoraService.buildChannelName(lecture.id),
+        status: LiveSessionStatus.WAITING,
+        teacherAgoraUid: this.agoraService.generateUid(),
+        streamType,
+      };
+
+      if (streamType === 'bunny') {
+        const bunny = await this.bunnyStreamService.createLiveStream(lecture.title || 'Live Class');
+        if (bunny) {
+          base.bunnyStreamId = bunny.videoId;
+          base.bunnyStreamKey = bunny.streamKey;
+          base.bunnyHlsUrl = bunny.hlsUrl;
+          base.bunnyRtmpUrl = bunny.rtmpUrl;
+          base.bunnyLibraryId = bunny.libraryId;
+          this.logger.log(`Bunny stream created for lecture ${lecture.id}: videoId=${bunny.videoId}`);
+        } else {
+          this.logger.warn(`Bunny stream creation failed for lecture ${lecture.id} — falling back to agora`);
+          base.streamType = 'agora';
+        }
+      }
+
+      session = await this.liveSessionRepo.save(this.liveSessionRepo.create(base));
       session.lecture = lecture;
     }
 

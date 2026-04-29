@@ -23,6 +23,11 @@ export class GetTokenDto {
   @IsIn(['host', 'audience'])
   @ApiProperty({ enum: ['host', 'audience'] })
   role: 'host' | 'audience';
+
+  @IsOptional()
+  @IsIn(['agora', 'bunny'])
+  @ApiPropertyOptional({ enum: ['agora', 'bunny'], default: 'agora' })
+  streamType?: 'agora' | 'bunny' = 'agora';
 }
 
 export class CreatePollDto {
