@@ -286,14 +286,17 @@ export class AiBridgeController {
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
   async generateQuizForLecture(
-    @Body() dto: { transcript: string; lectureTitle?: string; topicId?: string },
+    @Body() dto: Record<string, any>,
     @TenantId() tenantId: string,
   ) {
     return this.aiBridgeService.generateQuizForLecture(
       {
-        transcript: dto.transcript,
+        transcript: dto.transcript || '',
+        notes: dto.notes || '',
         lectureTitle: dto.lectureTitle || 'Lecture',
         topicId: dto.topicId || '',
+        numQuestions: dto.numQuestions,
+        courseLevel: dto.courseLevel,
       },
       tenantId,
     );

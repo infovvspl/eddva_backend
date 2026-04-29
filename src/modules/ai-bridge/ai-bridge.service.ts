@@ -796,8 +796,11 @@ export class AiBridgeService {
   async generateQuizForLecture(
     dto: {
       transcript: string;
+      notes?: string;
       lectureTitle: string;
       topicId?: string;
+      numQuestions?: number;
+      courseLevel?: string;
     },
     tenantId?: string,
   ) {

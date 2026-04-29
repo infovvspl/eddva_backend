@@ -121,19 +121,37 @@ export class DoubtService {
         })) as {
           explanation?: string;
           answer?: string;
+          brief?: Record<string, any>;
+          detailed?: Record<string, any>;
+          subject?: string;
+          type?: string;
           conceptLinks?: string[];
           key_concepts?: string[];
           similarQuestionIds?: string[];
         };
 
-        // Django returns "answer" + "key_concepts"; fall back to alternate field names
-        doubt.aiExplanation = aiResult?.explanation ?? aiResult?.answer ?? null;
+        // Store full structured JSON (brief + detailed) so the frontend can render
+        // Brief/Detailed mode switching. Fall back to plain explanation/answer if not available.
+        if (aiResult?.brief || aiResult?.detailed) {
+          doubt.aiExplanation = JSON.stringify({
+            brief: aiResult.brief ?? {},
+            detailed: aiResult.detailed ?? {},
+            subject: aiResult.subject,
+            type: aiResult.type,
+          });
+        } else {
+          doubt.aiExplanation = aiResult?.explanation ?? aiResult?.answer ?? null;
+        }
+
         doubt.aiConceptLinks = aiResult?.conceptLinks ?? aiResult?.key_concepts ?? [];
         doubt.aiSimilarQuestionIds = aiResult?.similarQuestionIds ?? [];
         doubt.status = DoubtStatus.AI_RESOLVED;
         await this.doubtRepo.save(doubt);
-      } catch {
+      } catch (err: unknown) {
         // AI service unavailable — escalate to teacher instead of crashing
+        this.logger.warn(
+          `AI service failed for doubt ${doubt.id} (image: ${!!dto.questionImageUrl}): ${(err as Error)?.message ?? err}`,
+        );
         doubt.status = DoubtStatus.ESCALATED;
         await this.doubtRepo.save(doubt);
         await this.notifyEscalatedDoubtTeachers(doubt);

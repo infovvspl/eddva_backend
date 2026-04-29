@@ -1001,29 +1001,7 @@ export class ContentService {
             return;
         }
 
-        // ── Phase 2: LLM note generation from saved transcript (best-effort) ──
-        try {
-            const notesResult = await this.aiBridgeService.generateNotesFromTranscript(
-                { transcript: transcriptToStore, topicId: topicId ?? '', language: aiLanguage },
-                tenantId,
-            ) as any;
-
-            const notes = notesResult?.notes ?? notesResult?.notesMarkdown ?? notesResult?.notes_markdown ?? null;
-            const concepts = notesResult?.key_concepts ?? notesResult?.keyConcepts;
-            const notesUpdates: Partial<Lecture> = {};
-            // Do NOT call ensureEnglishLectureNotes — AI service already translates during generation.
-            if (notes) notesUpdates.aiNotesMarkdown = String(notes);
-            if (Array.isArray(concepts) && concepts.length) notesUpdates.aiKeyConcepts = concepts;
-
-            if (Object.keys(notesUpdates).length) {
-                await this.lectureRepo.update(lectureId, notesUpdates);
-            }
-            this.logger.log(`Phase 2 done: notes generated for lecture ${lectureId}`);
-        } catch (err: unknown) {
-            // Notes failed but transcript is already saved — student can still read the transcript.
-            const msg = err instanceof Error ? err.message : String(err);
-            this.logger.warn(`Phase 2 notes generation failed for lecture ${lectureId}: ${msg} (transcript already saved)`);
-        }
+        // ── Phase 2 (Removed): LLM note generation is now manually triggered via regenerateNotes API ──
     }
 
     async retranscribeLecture(id: string, userId: string, userRole: UserRole, tenantId: string): Promise<{ message: string }> {
@@ -1081,6 +1059,7 @@ export class ContentService {
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             this.logger.error(`Notes regeneration failed for lecture ${lectureId}: ${msg}`);
+            await this.lectureRepo.update(lectureId, { aiNotesMarkdown: '__NOTES_FAILED__' });
         }
     }
 
