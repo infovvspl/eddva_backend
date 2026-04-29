@@ -389,12 +389,28 @@ export class DoubtService {
     })) as {
       explanation?: string;
       answer?: string;
+      brief?: Record<string, any>;
+      detailed?: Record<string, any>;
+      subject?: string;
+      type?: string;
       conceptLinks?: string[];
       key_concepts?: string[];
       similarQuestionIds?: string[];
     };
 
-    doubt.aiExplanation = aiResult?.explanation ?? aiResult?.answer ?? null;
+    // Store full structured JSON (brief + detailed) so the frontend can render
+    // Brief/Detailed mode switching — same logic as createDoubt.
+    if (aiResult?.brief || aiResult?.detailed) {
+      doubt.aiExplanation = JSON.stringify({
+        brief: aiResult.brief ?? {},
+        detailed: aiResult.detailed ?? {},
+        subject: aiResult.subject,
+        type: aiResult.type,
+      });
+    } else {
+      doubt.aiExplanation = aiResult?.explanation ?? aiResult?.answer ?? null;
+    }
+
     doubt.aiConceptLinks = aiResult?.conceptLinks ?? aiResult?.key_concepts ?? [];
     doubt.aiSimilarQuestionIds = aiResult?.similarQuestionIds ?? [];
     doubt.status = DoubtStatus.AI_RESOLVED;
