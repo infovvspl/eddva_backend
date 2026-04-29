@@ -19,7 +19,7 @@ import {
   TopicProgress,
   TopicStatus,
 } from '../../database/entities/assessment.entity';
-import { PlanItemType } from '../../database/entities/learning.entity';
+import { Lecture, PlanItemType } from '../../database/entities/learning.entity';
 import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { DifficultyLevel, Question, QuestionOption, QuestionSource, QuestionType } from '../../database/entities/question.entity';
 import { Chapter, Subject, Topic } from '../../database/entities/subject.entity';
@@ -2125,6 +2125,24 @@ export class AssessmentService {
       const topic = selected[idx];
       const difficulty = difficultyPattern[idx % difficultyPattern.length];
 
+      // Fetch in-video notes (AI notes, concepts, formulas) from lectures for this topic
+      let lectureNotes: string[] = [];
+      if (topic?.id && tenantId) {
+        try {
+          const lectures = await this.dataSource.getRepository(Lecture).find({
+            where: { topicId: topic.id, tenantId },
+            select: ['aiNotesMarkdown', 'aiKeyConcepts', 'aiFormulas'],
+          });
+          for (const lec of lectures) {
+            if (lec.aiNotesMarkdown) lectureNotes.push(lec.aiNotesMarkdown);
+            if (lec.aiKeyConcepts?.length) lectureNotes.push(`Key Concepts: ${lec.aiKeyConcepts.join(', ')}`);
+            if (lec.aiFormulas?.length) lectureNotes.push(`Formulas: ${lec.aiFormulas.join(', ')}`);
+          }
+        } catch (err) {
+          this.logger.warn(`Failed to fetch lecture notes for topic "${topic.name}": ${(err as Error).message}`);
+        }
+      }
+
       let rawQs: any[] = [];
       try {
         rawQs = (await this.aiBridgeService.generateQuestionsFromTopic(
@@ -2134,6 +2152,7 @@ export class AssessmentService {
             count: QUESTIONS_PER_TOPIC,
             difficulty,
             type: 'mcq_single',
+            notes: lectureNotes.length > 0 ? lectureNotes : undefined,
           },
           tenantId,
         )) as any[];

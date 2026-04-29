@@ -14,6 +14,7 @@ import { Enrollment, EnrollmentStatus } from '../../database/entities/batch.enti
 import { Question, DifficultyLevel } from '../../database/entities/question.entity';
 import { Student, ExamTarget } from '../../database/entities/student.entity';
 import { Topic } from '../../database/entities/subject.entity';
+import { Lecture } from '../../database/entities/learning.entity';
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 
 interface AiBattleQuestion {
@@ -144,6 +145,9 @@ export class BattleService {
     topicId?: string,
     topicName?: string,
     requestedDifficulty?: 'easy' | 'medium' | 'hard',
+    batchId?: string,
+    subjectId?: string,
+    chapterId?: string,
   ) {
     const student = await this.getStudent(userId);
     const effectiveDifficulty: 'easy' | 'medium' | 'hard' = requestedDifficulty ?? 'medium';
@@ -212,23 +216,40 @@ export class BattleService {
       }),
     );
 
-    const aiQuestions = await this.buildAiBattleQuestions(
-      tenantId,
-      qCount,
-      topicId,
-      student.examTarget ?? undefined,
-      topicName,
-      effectiveDifficulty,
-    );
-    this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
-    // Persist questions to DB so they survive server restarts
-    battle.questionIds = [];
-    battle.replayData = {
-      ...(battle.replayData ?? {}),
-      difficulty: effectiveDifficulty,
-      aiQuestions,
+    const createQuestions = async () => {
+      try {
+        const aiQuestions = await this.buildAiBattleQuestions(
+          tenantId,
+          qCount,
+          topicId,
+          student.examTarget ?? undefined,
+          topicName,
+          effectiveDifficulty,
+          batchId,
+          subjectId,
+          chapterId,
+        );
+        this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
+        battle.replayData = {
+          ...(battle.replayData ?? {}),
+          difficulty: effectiveDifficulty,
+          aiQuestions,
+        };
+        await this.battleRepo.save(battle);
+      } catch (e) {
+        this.logger.error(`AI battle question generation failed for battle ${battle.id}: ${e.message}`);
+      }
     };
-    await this.battleRepo.save(battle);
+
+    if (mode === BattleMode.CHALLENGE_FRIEND) {
+      // Return room immediately, generate in background
+      void createQuestions();
+      return this.formatRoom(battle, tenantId);
+    }
+
+    // Otherwise (Quick/Daily/Topic), wait for questions to ensure matchmaking is ready
+    await createQuestions();
+    return this.formatRoom(battle, tenantId);
 
     // Add creator as participant
     const elo = await this.getOrCreateElo(student.id, tenantId);
@@ -245,7 +266,20 @@ export class BattleService {
 
   // ─── Create private room for challenge flow (gateway) ─────────────────────
 
-  async createPrivateChallengeRoom(challengerStudentId: string, targetStudentId: string, tenantId: string, batchId?: string, batchName?: string, difficulty?: 'easy'|'medium'|'hard') {
+  async createPrivateChallengeRoom(
+    challengerStudentId: string, 
+    targetStudentId: string, 
+    tenantId: string, 
+    batchId?: string, 
+    batchName?: string, 
+    difficulty?: 'easy'|'medium'|'hard', 
+    topicId?: string, 
+    topicName?: string,
+    subjectId?: string,
+    subjectName?: string,
+    chapterId?: string,
+    chapterName?: string,
+  ) {
     if (!challengerStudentId || !targetStudentId) {
       throw new BadRequestException('Both challenger and target are required');
     }
@@ -260,7 +294,7 @@ export class BattleService {
     const battle = await this.battleRepo.save(
       this.battleRepo.create({
         tenantId,
-        topicId: null,
+        topicId: topicId ?? null,
         roomCode,
         mode: BattleMode.TOPIC_BATTLE,
         status: BattleStatus.WAITING,
@@ -276,22 +310,33 @@ export class BattleService {
     const examTarget = challengerStudent?.examTarget ?? undefined;
 
     const effDiff = difficulty ?? 'medium';
-    const aiQuestions = await this.buildAiBattleQuestions(
-      tenantId,
-      qCount,
-      null,
-      examTarget,
-      batchName,
-      effDiff,
-    );
-    this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
-    battle.questionIds = [];
-    battle.replayData = {
-      ...(battle.replayData ?? {}),
-      difficulty: effDiff,
-      aiQuestions,
+    const createQuestions = async () => {
+      try {
+        const aiQuestions = await this.buildAiBattleQuestions(
+          tenantId,
+          qCount,
+          topicId ?? null,
+          examTarget,
+          topicName ?? batchName,
+          effDiff,
+          batchId,
+          subjectId,
+          chapterId,
+        );
+        this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
+        battle.replayData = {
+          ...(battle.replayData ?? {}),
+          difficulty: effDiff,
+          aiQuestions,
+        };
+        await this.battleRepo.save(battle);
+      } catch (e) {
+        this.logger.error(`AI private battle question generation failed for battle ${battle.id}: ${e.message}`);
+      }
     };
-    await this.battleRepo.save(battle);
+
+    // Generate in background so we can return the room immediately
+    void createQuestions();
 
     const [challengerElo, targetElo] = await Promise.all([
       this.getOrCreateElo(challengerStudentId, tenantId),
@@ -523,49 +568,61 @@ export class BattleService {
   // ─── Get Questions for a Battle ───────────────────────────────────────────
 
   async getBattleQuestions(battleId: string) {
-    // 1. Check in-memory cache (fastest, valid within the same server process)
-    const memQuestions = this.aiBattleQuestionsByBattleId.get(battleId) ?? [];
-    if (memQuestions.length > 0) {
-      return memQuestions.map((q) => ({
-        id: q.id,
-        text: q.text,
-        options: q.options.map((o) => ({ id: o.id, text: o.text })),
-        correctId: q.options.find((o) => o.isCorrect)?.id,
-      }));
+    let attempts = 0;
+    while (attempts < 10) {
+      // 1. Check in-memory cache
+      const memQuestions = this.aiBattleQuestionsByBattleId.get(battleId) ?? [];
+      if (memQuestions.length > 0) {
+        return memQuestions.map((q) => ({
+          id: q.id,
+          text: q.text,
+          options: q.options.map((o) => ({ id: o.id, text: o.text })),
+          correctId: q.options.find((o) => o.isCorrect)?.id,
+        }));
+      }
+
+      const battle = await this.battleRepo.findOne({ where: { id: battleId } });
+      if (!battle) return [];
+
+      // 2. Fall back to aiQuestions persisted in replayData
+      const persisted: AiBattleQuestion[] = battle.replayData?.aiQuestions ?? [];
+      if (persisted.length > 0) {
+        this.aiBattleQuestionsByBattleId.set(battleId, persisted);
+        return persisted.map((q) => ({
+          id: q.id,
+          text: q.text,
+          options: q.options.map((o) => ({ id: o.id, text: o.text })),
+          correctId: q.options.find((o) => o.isCorrect)?.id,
+        }));
+      }
+
+      // 3. Fall back to DB question IDs
+      if (battle.questionIds?.length > 0) {
+        const questions = await this.questionRepo.find({
+          where: battle.questionIds.map(id => ({ id })),
+          relations: ['options'],
+        });
+        return battle.questionIds.map(id => {
+          const q = questions.find(q => q.id === id);
+          if (!q) return null;
+          return {
+            id: q.id,
+            text: q.content,
+            options: q.options.map(o => ({ id: o.id, text: o.content })),
+            correctId: q.options.find(o => o.isCorrect)?.id,
+          };
+        }).filter(Boolean);
+      }
+
+      // If no questions found and it's a battle that should have AI questions, wait a bit
+      if (battle.mode !== BattleMode.BOT_PRACTICE) {
+        await new Promise(resolve => setTimeout(resolve, 800));
+        attempts++;
+      } else {
+        break; // Non-AI battles shouldn't poll if questions are missing
+      }
     }
-
-    const battle = await this.battleRepo.findOne({ where: { id: battleId } });
-    if (!battle) return [];
-
-    // 2. Fall back to aiQuestions persisted in replayData (survives server restarts)
-    const persisted: AiBattleQuestion[] = battle.replayData?.aiQuestions ?? [];
-    if (persisted.length > 0) {
-      // Restore into memory cache for subsequent calls
-      this.aiBattleQuestionsByBattleId.set(battleId, persisted);
-      return persisted.map((q) => ({
-        id: q.id,
-        text: q.text,
-        options: q.options.map((o) => ({ id: o.id, text: o.text })),
-        correctId: q.options.find((o) => o.isCorrect)?.id,
-      }));
-    }
-
-    // 3. Fall back to DB question IDs (for non-AI battles)
-    if (!battle.questionIds?.length) return [];
-    const questions = await this.questionRepo.find({
-      where: battle.questionIds.map(id => ({ id })),
-      relations: ['options'],
-    });
-    return battle.questionIds.map(id => {
-      const q = questions.find(q => q.id === id);
-      if (!q) return null;
-      return {
-        id: q.id,
-        text: q.content,
-        options: q.options.map(o => ({ id: o.id, text: o.content })),
-        correctId: q.options.find(o => o.isCorrect)?.id,
-      };
-    }).filter(Boolean);
+    return [];
   }
 
   // ─── Submit Answer ────────────────────────────────────────────────────────
@@ -612,8 +669,11 @@ export class BattleService {
     }
     const isCorrect = correctOptionId !== null && correctOptionId === data.optionId;
 
-    // AI question IDs (e.g. "ai_1_xxx") are not real DB UUIDs — store null
-    const dbQuestionId = aiQuestion ? null : data.questionId;
+    // AI question IDs (e.g. "ai_1_xxx") are not real DB UUIDs — store null.
+    // Also guard against empty-string ("") which forceCompleteRound passes when
+    // there is no current question — Postgres rejects "" for UUID columns.
+    const dbQuestionId = (aiQuestion || !data.questionId) ? null : data.questionId;
+    const dbOptionId   = data.optionId || null;
 
     await this.answerRepo.save(
       this.answerRepo.create({
@@ -621,7 +681,7 @@ export class BattleService {
         participantId: participant.id,
         questionId: dbQuestionId,
         roundNumber: data.roundNumber,
-        selectedOptionId: data.optionId,
+        selectedOptionId: dbOptionId,
         isCorrect,
         responseTimeMs: data.responseTimeMs,
       }),
@@ -987,37 +1047,65 @@ export class BattleService {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   }
 
-  private async resolveAiTopic(tenantId: string, preferredTopicId?: string | null): Promise<Topic | null> {
+  private async resolveAiTopics(
+    tenantId: string,
+    preferredTopicId?: string | null,
+    batchId?: string,
+    requestedCount: number = 0, // 0 means all topics
+    subjectId?: string,
+    chapterId?: string,
+  ): Promise<Topic[]> {
     const topicRepo = this.dataSource.getRepository(Topic);
 
     if (preferredTopicId) {
-      // Try tenant-scoped first, then cross-tenant (topic may belong to a sibling tenant)
       const topic =
-        (await topicRepo.findOne({ where: { id: preferredTopicId, tenantId, isActive: true }, relations: ['chapter', 'chapter.subject'] })) ??
-        (await topicRepo.findOne({ where: { id: preferredTopicId, isActive: true }, relations: ['chapter', 'chapter.subject'] }));
-      if (topic) return topic;
+        (await topicRepo.findOne({
+          where: { id: preferredTopicId, tenantId, isActive: true },
+          relations: ['chapter', 'chapter.subject'],
+        })) ??
+        (await topicRepo.findOne({
+          where: { id: preferredTopicId, isActive: true },
+          relations: ['chapter', 'chapter.subject'],
+        }));
+      return topic ? [topic] : [];
     }
 
-    // Random active topic in this tenant
-    const tenantTopic = await topicRepo
+    const query = topicRepo
+      .createQueryBuilder('t')
+      .leftJoinAndSelect('t.chapter', 'chapter')
+      .leftJoinAndSelect('chapter.subject', 'subject')
+      .where('t.is_active = true');
+
+    if (batchId) {
+      query.andWhere('subject.batch_id = :batchId', { batchId });
+    }
+    if (subjectId) {
+      query.andWhere('chapter.subject_id = :subjectId', { subjectId });
+    }
+    if (chapterId) {
+      query.andWhere('t.chapter_id = :chapterId', { chapterId });
+    }
+    if (tenantId) {
+      query.andWhere('t.tenant_id = :tenantId', { tenantId });
+    }
+
+    if (requestedCount > 0) {
+      query.limit(requestedCount);
+    }
+
+    const topics = await query.orderBy('RANDOM()').getMany();
+
+    if (topics.length > 0) return topics;
+
+    // Fallback: any active topics in the tenant
+    return topicRepo
       .createQueryBuilder('t')
       .leftJoinAndSelect('t.chapter', 'chapter')
       .leftJoinAndSelect('chapter.subject', 'subject')
       .where('t.tenant_id = :tenantId AND t.is_active = true', { tenantId })
       .orderBy('RANDOM()')
-      .limit(1)
-      .getOne();
-    if (tenantTopic) return tenantTopic;
-
-    // If the tenant has no topics at all, pick from any tenant (demo / staging scenario)
-    return topicRepo
-      .createQueryBuilder('t')
-      .leftJoinAndSelect('t.chapter', 'chapter')
-      .leftJoinAndSelect('chapter.subject', 'subject')
-      .where('t.is_active = true')
-      .orderBy('RANDOM()')
-      .limit(1)
-      .getOne();
+      .limit(requestedCount)
+      .getMany();
   }
 
   // Maps exam target keys to human-readable labels for AI prompting
@@ -1055,6 +1143,28 @@ export class BattleService {
     }
   }
 
+  private _normalizeMathDelimiters(text: string): string {
+    let t = String(text || '')
+      // AI often sends double backslashes in JSON which becomes single, but if it sends single it gets mangled.
+      .replace(/\\\\/g, '\\')
+      // Convert LaTeX bracket math to markdown math delimiters
+      .replace(/\\\[((?:.|\n)*?)\\\]/g, (_, inner) => `\n\n$$${inner}$$\n\n`)
+      .replace(/\\\(((?:.|\n)*?)\\\)/g, (_, inner) => `$${inner}$`)
+      // Common stripping fixes: rac -> \frac, int_ -> \int_, sqrt -> \sqrt
+      .replace(/(^|[^A-Za-z\\])rac\{/g, '$1\\frac{')
+      .replace(/(^|[^A-Za-z\\])(sqrt|int|sum|lim|sin|cos|tan|theta|alpha|beta|gamma|delta|pi|phi|psi|omega|lambda|sigma|mu|nu|zeta|eta|iota|kappa|tau|upsilon|xi|chi|rho)\{/g, '$1\\$2{')
+      .replace(/(^|[^A-Za-z\\])(int_|sum_|lim_|theta|alpha|beta|gamma|delta|pi|phi|psi|omega|lambda|sigma|mu|nu|zeta|eta|iota|kappa|tau|upsilon|xi|chi|rho)([^a-z])/g, '$1\\$2$3')
+      .replace(/x\s*o\s*(\d+|[a-z])/gi, 'x \\to $1')
+      .replace(/x\s*->\s*(\d+|[a-z])/gi, 'x \\to $1');
+
+    // Heuristic: if it looks like it has LaTeX commands but no $ delimiters, wrap the whole string.
+    // We use \text{ } to preserve spaces in KaTeX math mode.
+    if (!t.includes('$') && /[\\^_]/.test(t)) {
+      return `$$${t.replace(/ /g, '\\text{ }')}$$`;
+    }
+    return t;
+  }
+
   /** Group duplicate stems so we can drop repeat questions in one battle. */
   private _battleQuestionDedupeKey(text: string): string {
     const t = String(text || '')
@@ -1077,15 +1187,15 @@ export class BattleService {
     for (const q of rows) {
       if (out.length >= safeCount) break;
 
-      const text = String(
-        q?.content ?? q?.questionText ?? q?.question_text ?? q?.question ?? q?.text ?? '',
+      const text = this._normalizeMathDelimiters(
+        String(q?.content ?? q?.questionText ?? q?.question_text ?? q?.question ?? q?.text ?? ''),
       ).trim();
       if (!text) continue;
 
       let optionsRaw = Array.isArray(q?.options) ? q.options : [];
       const mapped = optionsRaw.map((opt: any, oIndex: number) => {
-        const t = String(
-          typeof opt === 'string' ? opt : opt?.content ?? opt?.text ?? opt?.value ?? '',
+        const t = this._normalizeMathDelimiters(
+          String(typeof opt === 'string' ? opt : opt?.content ?? opt?.text ?? opt?.value ?? ''),
         ).trim();
         const id = String(
           typeof opt === 'object' && opt?.label
@@ -1167,20 +1277,31 @@ export class BattleService {
     examTarget?: string | ExamTarget,
     explicitTopicName?: string,
     requestedDifficulty?: 'easy' | 'medium' | 'hard',
+    batchId?: string,             // when set, restrict random topics to this course
+    subjectId?: string,           // when set, restrict random topics to this subject
+    chapterId?: string,           // when set, restrict random topics to this chapter
   ): Promise<AiBattleQuestion[]> {
     const safeCount = Math.min(Math.max(count || 10, 3), 20);
 
-    // Resolve a DB topic record (cross-tenant fallback included)
-    const topic = await this.resolveAiTopic(tenantId, preferredTopicId);
+    // Resolve the full set of DB topic records for this scope
+    const topics = await this.resolveAiTopics(tenantId, preferredTopicId, batchId, 0, subjectId, chapterId);
+    const firstTopic = topics[0];
 
     // The topic name used for AI generation: prefer the explicitly provided name
     // (from the frontend scope picker) so the AI uses the exact selected topic,
-    // then fall back to the DB record name, then a generic label.
-    const baseName = explicitTopicName?.trim() || topic?.name || 'General Science';
+    // then fall back to the DB record name(s), then a generic label.
+    const topicNames = topics.length > 1 
+      ? (topics.length > 20 ? topics.slice(0, 20).map(t => t.name).join(', ') + ' and more' : topics.map(t => t.name).join(', '))
+      : (topics[0]?.name || '');
+
+    const baseName = explicitTopicName?.trim() || topicNames || 'General Science';
     const examLabel = examTarget ? this.examLevelLabel[examTarget] : null;
     let enrichedTopicName = examLabel ? `${baseName} (${examLabel})` : baseName;
-    if (topic && topic.chapter && topic.chapter.subject && !baseName.includes('Chapter:')) {
-      enrichedTopicName = `${enrichedTopicName} (Context: Chapter ${topic.chapter.name}, Subject ${topic.chapter.subject.name})`;
+    
+    if (topics.length > 1) {
+      enrichedTopicName = `${enrichedTopicName} (COMPREHENSIVE SYLLABUS CHALLENGE: Generate questions covering the ENTIRE syllabus across all these topics: ${topicNames})`;
+    } else if (firstTopic?.chapter?.subject && !baseName.includes('Chapter:')) {
+      enrichedTopicName = `${enrichedTopicName} (Context: Chapter ${firstTopic.chapter.name}, Subject ${firstTopic.chapter.subject.name})`;
     }
 
     const derivedDifficulty: 'easy' | 'medium' | 'hard' =
@@ -1191,28 +1312,68 @@ export class BattleService {
         ? 'hard'
         : 'medium');
 
+    // Strict difficulty enforcement for AI: if requested, it must be the ONLY source of truth.
+    const strictDifficulty = requestedDifficulty || derivedDifficulty;
+
     const cacheKey = this.getTopicCacheKey(
-      preferredTopicId ?? topic?.id ?? 'random',
+      preferredTopicId ?? (topics.length === 1 ? topics[0].id : (batchId || 'mixed')),
       examTarget,
-      derivedDifficulty,
+      strictDifficulty,
     );
 
-    if (!topic && !explicitTopicName) {
-      this.logger.warn(`No topic resolved for AI battle generation (tenant=${tenantId})`);
+    if (topics.length === 0 && !explicitTopicName) {
+      this.logger.warn(`No topics resolved for AI battle generation (tenant=${tenantId})`);
     }
 
     // Ask for more than needed so we can drop duplicates / bad rows and still have enough 4-option MCQs
     const requestCount = Math.min(20, Math.max(safeCount + 4, safeCount * 2));
 
+    // Fetch in-video notes (AI notes, concepts, formulas) from lectures for these topics.
+    // Prioritize lectures assigned to this specific batch (course) if provided.
+    let lectureNotes: string[] = [];
+    if (topics.length > 0 && tenantId) {
+      const lectureRepo = this.dataSource.getRepository(Lecture);
+      
+      for (const t of topics) {
+        // Try fetching batch-specific lectures first
+        let lectures = batchId 
+          ? await lectureRepo.find({
+              where: { topicId: t.id, tenantId, batchId },
+              select: ['aiNotesMarkdown', 'aiKeyConcepts', 'aiFormulas'],
+            })
+          : [];
+        
+        // Fallback to topic-wide lectures in this tenant if no batch-specific notes found
+        if (lectures.length === 0) {
+          lectures = await lectureRepo.find({
+            where: { topicId: t.id, tenantId },
+            select: ['aiNotesMarkdown', 'aiKeyConcepts', 'aiFormulas'],
+          });
+        }
+
+        for (const lec of lectures) {
+          if (lec.aiNotesMarkdown) lectureNotes.push(lec.aiNotesMarkdown);
+          if (lec.aiKeyConcepts?.length) lectureNotes.push(`Topic ${t.name} Concepts: ${lec.aiKeyConcepts.join(', ')}`);
+          if (lec.aiFormulas?.length) lectureNotes.push(`Topic ${t.name} Formulas: ${lec.aiFormulas.join(', ')}`);
+        }
+
+        // Limit notes to avoid hitting context window limits (take top 3 notes per topic)
+        if (lectureNotes.length > 30) break;
+      }
+    }
+
     try {
       const ai = await this.aiBridgeService.generateQuestionsFromTopic(
         {
-          topicId: topic?.id ?? preferredTopicId ?? 'unknown',
+          topicId: preferredTopicId ?? (topics.length === 1 ? topics[0].id : 'mixed'),
           topicName: enrichedTopicName,
           count: requestCount,
-          difficulty: derivedDifficulty,
+          difficulty: strictDifficulty,
           type: 'mcq_single',
           examTarget: examTarget ?? undefined,
+          notes: lectureNotes.length > 0 ? lectureNotes : undefined,
+          subject: (firstTopic?.chapter as any)?.subject?.name ?? undefined,
+          chapter: firstTopic?.chapter?.name ?? undefined,
         },
         tenantId,
       );
@@ -1243,7 +1404,7 @@ export class BattleService {
     return this.getFallbackDbQuestions(
       tenantId,
       safeCount,
-      topic?.id ?? preferredTopicId ?? undefined,
+      topics[0]?.id ?? preferredTopicId ?? undefined,
       derivedDifficulty,
     );
   }
