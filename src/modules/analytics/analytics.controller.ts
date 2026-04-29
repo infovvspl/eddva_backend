@@ -41,6 +41,50 @@ export class AnalyticsController {
     return this.analyticsService.getPerformance(user, tenantId, query.studentId);
   }
 
+  @Get('student/performance')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get advanced student performance tracking' })
+  getStudentAdvancedPerformance(
+    @Query('batchId') batchId: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.analyticsService.getStudentAdvancedPerformance(user, tenantId, batchId);
+  }
+
+  @Get('student/engagement')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get advanced student engagement tracking' })
+  getStudentAdvancedEngagement(
+    @Query('batchId') batchId: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.analyticsService.getStudentAdvancedEngagement(user, tenantId, batchId);
+  }
+
+  @Get('student/study-plan')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get advanced student study plan tracking' })
+  getStudentAdvancedStudyPlan(
+    @Query('batchId') batchId: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.analyticsService.getStudentAdvancedStudyPlan(user, tenantId, batchId);
+  }
+
+  @Get('student/insights')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get overall student insights' })
+  getStudentInsights(
+    @Query('batchId') batchId: string,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.analyticsService.getStudentInsights(user, tenantId, batchId);
+  }
+
   @Post('performance/refresh')
   @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Refresh performance profile from assessment history' })

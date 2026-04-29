@@ -8,7 +8,7 @@ import { TestSession, TestSessionStatus } from '../../database/entities/assessme
 import { Student } from '../../database/entities/student.entity';
 import { WeakTopic, PerformanceProfile, WeakTopicSeverity } from '../../database/entities/analytics.entity';
 import { Topic, Subject, Chapter } from '../../database/entities/subject.entity';
-import { UserRole } from '../../database/entities/user.entity';
+import { User, UserRole } from '../../database/entities/user.entity';
 
 import {
   TeacherAnalyticsQueryDto,
@@ -37,6 +37,7 @@ export class TeacherAnalyticsService {
     @InjectRepository(Topic) private readonly topicRepo: Repository<Topic>,
     @InjectRepository(Subject) private readonly subjectRepo: Repository<Subject>,
     @InjectRepository(Chapter) private readonly chapterRepo: Repository<Chapter>,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly notificationService: NotificationService,
   ) {}
 

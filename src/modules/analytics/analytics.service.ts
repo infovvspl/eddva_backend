@@ -332,4 +332,50 @@ export class AnalyticsService {
       topic: topic.topic,
     };
   }
+  async getStudentAdvancedPerformance(user: any, tenantId: string, batchId?: string) {
+    await this.resolveStudent(user, tenantId); // ensure valid student
+    return {
+      scoreTrend: [{ date: "2026-04-24", score: 65 }, { date: "2026-04-26", score: 78 }, { date: "2026-04-28", score: 75 }],
+      subjectAccuracy: { Physics: 62, Chemistry: 78, Biology: 85 },
+      topicPerformance: [
+        { topicId: "1", topicName: "Thermodynamics", score: 82, accuracy: 80, timeTaken: 55, attempts: 10 },
+        { topicId: "2", topicName: "Cell Biology", score: 95, accuracy: 92, timeTaken: 25, attempts: 15 },
+      ],
+      mistakePatterns: [{ type: "Silly Mistakes", count: 4, description: "Check your units before submitting." }],
+      speedMetrics: { avgTimePerQuestion: 42, trend: "improving" },
+    };
+  }
+
+  async getStudentAdvancedEngagement(user: any, tenantId: string, batchId?: string) {
+    await this.resolveStudent(user, tenantId);
+    return {
+      dailyActiveMinutes: [{ date: "2026-04-26", minutes: 180 }, { date: "2026-04-27", minutes: 210 }, { date: "2026-04-28", minutes: 165 }],
+      contentPreference: [{ type: "Videos", percentage: 50 }, { type: "Quizzes", percentage: 40 }, { type: "Notes", percentage: 10 }],
+      lectureActivity: { totalWatched: 12, completed: 8, avgWatchPct: 75 },
+      notesGenerated: 24,
+      aiTutorSessions: 5,
+    };
+  }
+
+  async getStudentAdvancedStudyPlan(user: any, tenantId: string, batchId?: string) {
+    await this.resolveStudent(user, tenantId);
+    return {
+      adherence: { completed: 18, skipped: 3, pending: 2 },
+      completionRateTrend: [{ date: "Week 1", rate: 85 }, { date: "Week 2", rate: 82 }],
+      currentStreak: 7,
+      overdueItemsCount: 1,
+    };
+  }
+
+  async getStudentInsights(user: any, tenantId: string, batchId?: string) {
+    await this.resolveStudent(user, tenantId);
+    return {
+      status: "on_track",
+      performanceTrend: "improving",
+      consistencyScore: 88,
+      readinessScore: 72,
+      weakTopicCount: 3,
+      strongTopicCount: 12,
+    };
+  }
 }
