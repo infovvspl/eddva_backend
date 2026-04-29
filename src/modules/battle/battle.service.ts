@@ -1401,7 +1401,7 @@ export class BattleService {
     return this.getFallbackDbQuestions(
       tenantId,
       safeCount,
-      topic?.id ?? preferredTopicId ?? undefined,
+      topics[0]?.id ?? preferredTopicId ?? undefined,
       derivedDifficulty,
     );
   }

@@ -60,6 +60,10 @@ export class BattleGateway
       topicId?: string;
       topicName?: string;
       difficulty?: 'easy' | 'medium' | 'hard';
+      subjectId?: string;
+      subjectName?: string;
+      chapterId?: string;
+      chapterName?: string;
     }
   >();
   // Maps battleId → Timeout
