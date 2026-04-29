@@ -1153,11 +1153,14 @@ export class BattleService {
       // Common stripping fixes: rac -> \frac, int_ -> \int_, sqrt -> \sqrt
       .replace(/(^|[^A-Za-z\\])rac\{/g, '$1\\frac{')
       .replace(/(^|[^A-Za-z\\])(sqrt|int|sum|lim|sin|cos|tan|theta|alpha|beta|gamma|delta|pi|phi|psi|omega|lambda|sigma|mu|nu|zeta|eta|iota|kappa|tau|upsilon|xi|chi|rho)\{/g, '$1\\$2{')
-      .replace(/(^|[^A-Za-z\\])(int_|sum_|lim_|theta|alpha|beta|gamma|delta|pi|phi|psi|omega|lambda|sigma|mu|nu|zeta|eta|iota|kappa|tau|upsilon|xi|chi|rho)([^a-z])/g, '$1\\$2$3');
+      .replace(/(^|[^A-Za-z\\])(int_|sum_|lim_|theta|alpha|beta|gamma|delta|pi|phi|psi|omega|lambda|sigma|mu|nu|zeta|eta|iota|kappa|tau|upsilon|xi|chi|rho)([^a-z])/g, '$1\\$2$3')
+      .replace(/x\s*o\s*(\d+|[a-z])/gi, 'x \\to $1')
+      .replace(/x\s*->\s*(\d+|[a-z])/gi, 'x \\to $1');
 
-    // Heuristic: if it looks like it has LaTeX commands but no $ delimiters, wrap it.
+    // Heuristic: if it looks like it has LaTeX commands but no $ delimiters, wrap the whole string.
+    // We use \text{ } to preserve spaces in KaTeX math mode.
     if (!t.includes('$') && /[\\^_]/.test(t)) {
-      return `$$${t}$$`;
+      return `$$${t.replace(/ /g, '\\text{ }')}$$`;
     }
     return t;
   }
