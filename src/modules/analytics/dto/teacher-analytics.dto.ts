@@ -42,3 +42,17 @@ export class ExportQueryDto extends TeacherAnalyticsQueryDto {
   @IsString()
   type?: string;
 }
+export class TeacherInterventionDto {
+  @IsUUID()
+  studentId: string;
+
+  @IsUUID()
+  batchId: string;
+
+  @IsString()
+  type: 'assign_practice' | 'send_reminder' | 'schedule_doubt' | 'regenerate_plan';
+
+  @IsOptional()
+  @IsString()
+  message?: string;
+}

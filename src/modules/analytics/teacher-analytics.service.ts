@@ -14,7 +14,9 @@ import {
   TeacherAnalyticsQueryDto,
   ClassPerformanceQueryDto,
   ExportQueryDto,
+  TeacherInterventionDto,
 } from './dto/teacher-analytics.dto';
+import { NotificationService } from '../notification/notification.service';
 
 /** JWT user shape from JwtStrategy — used for tenant-scoped analytics access. */
 type TeacherAnalyticsActor = { id: string; role: UserRole };
@@ -35,6 +37,7 @@ export class TeacherAnalyticsService {
     @InjectRepository(Topic) private readonly topicRepo: Repository<Topic>,
     @InjectRepository(Subject) private readonly subjectRepo: Repository<Subject>,
     @InjectRepository(Chapter) private readonly chapterRepo: Repository<Chapter>,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -1229,5 +1232,54 @@ export class TeacherAnalyticsService {
     };
   }
 
+  async intervene(user: TeacherAnalyticsActor, tenantId: string, dto: TeacherInterventionDto) {
+    const student = await this.studentRepo.findOne({
+      where: { id: dto.studentId, tenantId },
+      relations: ['user'],
+    });
 
+    if (!student) throw new NotFoundException('Student not found');
+
+    const teacher = await this.userRepo.findOne({ where: { id: user.id } });
+    const teacherName = teacher?.fullName || 'Your Teacher';
+
+    let title = '';
+    let body = '';
+    let refType = 'intervention';
+
+    switch (dto.type) {
+      case 'send_reminder':
+        title = 'Message from your teacher 📝';
+        body = dto.message || `${teacherName} sent you a study reminder. Keep it up!`;
+        refType = 'reminder';
+        break;
+      case 'assign_practice':
+        title = 'New practice assigned! 🎯';
+        body = dto.message || `${teacherName} assigned a new practice session for you. Check it out!`;
+        refType = 'assignment';
+        break;
+      case 'schedule_doubt':
+        title = 'Doubt session scheduled 🗓️';
+        body = dto.message || `${teacherName} scheduled a 1-on-1 doubt session for you.`;
+        refType = 'doubt_session';
+        break;
+      case 'regenerate_plan':
+        title = 'Study plan optimized ✨';
+        body = dto.message || 'Your teacher has optimized your study plan based on your latest performance.';
+        refType = 'study_plan_update';
+        break;
+    }
+
+    await this.notificationService.send({
+      userId: student.userId,
+      tenantId,
+      title,
+      body,
+      channels: ['in_app', 'push', 'whatsapp'],
+      refType,
+      refId: dto.batchId,
+    });
+
+    return { success: true, message: `Intervention (${dto.type}) sent to ${student.user?.fullName}` };
+  }
 }

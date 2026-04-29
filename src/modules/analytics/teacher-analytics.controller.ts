@@ -6,6 +6,8 @@ import {
   Query,
   Res,
   UseGuards,
+  Post,
+  Body,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
@@ -21,6 +23,7 @@ import {
   ClassPerformanceQueryDto,
   ExportQueryDto,
   TeacherAnalyticsQueryDto,
+  TeacherInterventionDto,
 } from './dto/teacher-analytics.dto';
 
 @ApiTags('Teacher Analytics')
@@ -168,6 +171,16 @@ export class TeacherAnalyticsController {
     @Query() query: TeacherAnalyticsQueryDto,
   ) {
     return this.service.getSmartInsights(user, tenantId, query.batchId);
+  }
+
+  @Post('student/intervene')
+  @ApiOperation({ summary: 'Trigger a teacher intervention (reminder, assignment, etc.)' })
+  intervene(
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+    @Body() dto: TeacherInterventionDto,
+  ) {
+    return this.service.intervene(user, tenantId, dto);
   }
 
   @Get('export')
