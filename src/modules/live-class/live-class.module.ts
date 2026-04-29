@@ -16,6 +16,8 @@ import { ContentModule } from '../content/content.module';
 import { NotificationModule } from '../notification/notification.module';
 
 import { AgoraService } from './agora.service';
+import { BroadcastRelayGateway } from './broadcast-relay.gateway';
+import { BunnyStreamService } from './bunny-stream.service';
 import { LiveClassController } from './live-class.controller';
 import { LiveClassGateway } from './live-class.gateway';
 import { LiveClassService } from './live-class.service';
@@ -38,7 +40,7 @@ import { LiveClassService } from './live-class.service';
     ContentModule,
   ],
   controllers: [LiveClassController],
-  providers: [LiveClassService, AgoraService, LiveClassGateway],
+  providers: [LiveClassService, AgoraService, BunnyStreamService, LiveClassGateway, BroadcastRelayGateway],
   exports: [LiveClassService],
 })
 export class LiveClassModule {}
