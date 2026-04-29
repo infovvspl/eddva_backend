@@ -418,6 +418,9 @@ export class AiBridgeService {
       difficulty: string;
       type: string;
       examTarget?: string;
+      notes?: string | string[];
+      subject?: string;   // activates subject-specific prompt rules in Django
+      chapter?: string;   // adds curriculum breadcrumb & scope constraint
     },
     tenantId?: string,
   ) {
@@ -434,9 +437,12 @@ export class AiBridgeService {
       topic,
       num_questions: dto.count,
       difficulty: dto.difficulty,
-      type: dto.type, // Pass the actual type directly
+      type: dto.type,
       exam_target: dto.examTarget,
       question_types: [this.djangoQuestionTypes(dto.type)[0]],
+      notes: dto.notes,
+      subject: dto.subject,   // enables _SUBJECT_RULES_TEST + scope_constraint in Django
+      chapter: dto.chapter,
     }, tenantId);
 
     const questions = this.resolveToQuestionList(raw);

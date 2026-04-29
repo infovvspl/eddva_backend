@@ -57,6 +57,8 @@ export class BattleGateway
       timer: NodeJS.Timeout;
       batchId?: string;
       batchName?: string;
+      topicId?: string;
+      topicName?: string;
       difficulty?: 'easy' | 'medium' | 'hard';
     }
   >();
@@ -169,9 +171,26 @@ export class BattleGateway
   @SubscribeMessage('battle:challenge')
   handleChallengeRequest(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { targetStudentId: string; fromStudentId: string; tenantId: string; batchId?: string; batchName?: string; difficulty?: 'easy' | 'medium' | 'hard' },
+    @MessageBody() data: { 
+      targetStudentId: string; 
+      fromStudentId: string; 
+      tenantId: string; 
+      batchId?: string; 
+      batchName?: string; 
+      subjectId?: string;
+      subjectName?: string;
+      chapterId?: string;
+      chapterName?: string;
+      topicId?: string; 
+      topicName?: string; 
+      difficulty?: 'easy' | 'medium' | 'hard' 
+    },
   ) {
-    const { targetStudentId, fromStudentId, tenantId: payloadTenantId, batchId, batchName, difficulty } = data ?? {};
+    const { 
+      targetStudentId, fromStudentId, tenantId: payloadTenantId, 
+      batchId, batchName, subjectId, subjectName, chapterId, chapterName, 
+      topicId, topicName, difficulty 
+    } = data ?? {};
     // Prefer onlineUsers entry; fall back to tenantId in payload (survives hot-reload)
     const senderOnline = fromStudentId ? this.onlineUsers.get(fromStudentId) : undefined;
     const tenantId = senderOnline?.tenantId ?? payloadTenantId;
@@ -197,12 +216,22 @@ export class BattleGateway
       const pending = this.pendingChallenges.get(challengeId);
       if (!pending) return;
       this.pendingChallenges.delete(challengeId);
+      
+      // Notify challenger
       client.emit('battle:challenge_timeout', {
         challengeId,
         targetStudentId,
-        fallback: 'bot',
-        message: 'No response in 30 seconds. Starting bot battle.',
+        message: 'Challenge request expired - student didn\'t reply',
       });
+
+      // Notify target (Student B)
+      const targetSockets = this.studentSockets.get(targetStudentId) ?? new Set();
+      for (const sid of targetSockets) {
+        this.server.to(sid).emit('battle:challenge_timeout', {
+          challengeId,
+          message: 'Challenge request expired - student didn\'t reply',
+        });
+      }
     }, 30_000);
 
     this.pendingChallenges.set(challengeId, {
@@ -213,6 +242,12 @@ export class BattleGateway
       timer: timeout,
       batchId,
       batchName,
+      subjectId,
+      subjectName,
+      chapterId,
+      chapterName,
+      topicId,
+      topicName,
       difficulty,
     });
 
@@ -224,6 +259,12 @@ export class BattleGateway
         expiresInSeconds: 30,
         batchId,
         batchName,
+        subjectId,
+        subjectName,
+        chapterId,
+        chapterName,
+        topicId,
+        topicName,
         difficulty,
       });
     }
@@ -273,6 +314,12 @@ export class BattleGateway
         pending.batchId,
         pending.batchName,
         pending.difficulty,
+        pending.topicId,
+        pending.topicName,
+        pending.subjectId,
+        pending.subjectName,
+        pending.chapterId,
+        pending.chapterName,
       );
 
       // Put both clients in the private socket room and start immediately.
