@@ -234,6 +234,14 @@ export class SuperAdminService {
     return this.userRepo.save(user);
   }
 
+  async deleteUser(id: string) {
+    const user = await this.userRepo.findOne({ where: { id } });
+    if (!user) throw new NotFoundException(`User ${id} not found`);
+    
+    await this.userRepo.softDelete(id);
+    return { message: 'User deleted successfully' };
+  }
+
   async getPlatformStats() {
     const now = new Date();
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));

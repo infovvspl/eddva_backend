@@ -51,6 +51,9 @@ export class User extends Base {
   @Column({ name: 'phone_verified', default: false })
   phoneVerified: boolean;
 
+  @Column({ name: 'email_verified', default: false })
+  emailVerified: boolean;
+
   @Column({ name: 'is_first_login', default: true })
   isFirstLogin: boolean;
 
