@@ -81,12 +81,15 @@ export class AuthService {
     if (!platformTenant) throw new Error('Platform tenant not configured');
     const tenantId = platformTenant.id;
 
-    // Check duplicate phone
+    // Normalize phone number
+    const normalizedPhone = this.normalizeLoginPhone(dto.phoneNumber);
+
+    // Check duplicate phone GLOBALLY to prevent DB unique constraint violation
     const existingPhone = await this.userRepo.findOne({
-      where: { phoneNumber: dto.phoneNumber, tenantId },
+      where: { phoneNumber: normalizedPhone },
     });
     if (existingPhone) {
-      throw new ConflictException('An account with this phone number already exists');
+      throw new ConflictException('An account with this phone number already exists on the platform.');
     }
 
     // Check duplicate email
@@ -99,13 +102,13 @@ export class AuthService {
 
     return this.dataSource.transaction(async (manager) => {
       const user = manager.create(User, {
-        phoneNumber: dto.phoneNumber,
+        phoneNumber: normalizedPhone,
         fullName: dto.fullName,
         email: dto.email,
         password: dto.password, // @BeforeInsert hook hashes this
         tenantId,
         role: UserRole.STUDENT,
-        status: UserStatus.ACTIVE,
+        status: UserStatus.PENDING_VERIFICATION,
         phoneVerified: false,
         isFirstLogin: false,
       });
@@ -135,7 +138,7 @@ export class AuthService {
         user: this.sanitizeUser(savedUser),
         isNewUser: true,
         onboardingRequired: true,
-        message: 'Registration successful. Please complete your academic profile.',
+        message: 'Account created. Please verify your phone and email to activate your profile.',
       };
     });
   }
@@ -225,9 +228,9 @@ export class AuthService {
       throw new UnauthorizedException('Account suspended. Contact your institute admin.');
     }
 
-    // Activate pending users on first successful login
+    // Require verification for pending users
     if (user.status === UserStatus.PENDING_VERIFICATION) {
-      user.status = UserStatus.ACTIVE;
+      throw new UnauthorizedException('Please verify your phone and email before logging in.');
     }
 
     user.lastLoginAt = new Date();

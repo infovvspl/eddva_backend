@@ -32,7 +32,7 @@ import {
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN)
-@Controller('admin')
+@Controller('admin') // User management and tenant administration
 export class SuperAdminController {
   constructor(private readonly superAdminService: SuperAdminService) {}
 
@@ -88,6 +88,13 @@ export class SuperAdminController {
     @Body() dto: UpdateUserStatusDto,
   ) {
     return this.superAdminService.updateUserStatus(id, dto.status);
+  }
+
+  @Delete('users/:id')
+  @ApiOperation({ summary: 'Delete user permanently across the platform' })
+  deleteUser(@Param('id', ParseUUIDPipe) id: string) {
+    console.log(`[SuperAdmin] Deleting user: ${id}`);
+    return this.superAdminService.deleteUser(id);
   }
 
   @Get('stats')

@@ -395,9 +395,15 @@ export class BatchService {
     );
 
     const batchIds = batches.map(b => b.id);
-    const totalStudents = batchIds.length
-      ? await this.enrollmentRepo.count({ where: { tenantId, status: EnrollmentStatus.ACTIVE } })
-      : 0;
+    const totalStudentsRaw = batchIds.length
+      ? await this.enrollmentRepo
+          .createQueryBuilder('e')
+          .where('e.tenantId = :tenantId', { tenantId })
+          .andWhere('e.status = :status', { status: EnrollmentStatus.ACTIVE })
+          .select('COUNT(DISTINCT e.studentId)', 'count')
+          .getRawOne()
+      : { count: 0 };
+    const totalStudents = Number(totalStudentsRaw?.count || 0);
 
     const activeBatches = batches.filter(b => b.status === BatchStatus.ACTIVE);
 
