@@ -32,8 +32,23 @@ async function bootstrap() {
 
   // ── CORS ──────────────────────────────────────────────────────────────────
   const isDev = cfg.get<string>('app.nodeEnv') !== 'production';
+  const explicitOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
+
   app.enableCors({
-    origin: isDev ? true : cfg.get<string[]>('app.corsOrigins'),
+    origin: isDev
+      ? true
+      : (origin, callback) => {
+          // No origin = server-to-server / same-origin — always allow
+          if (!origin) return callback(null, true);
+          // Any subdomain of eddva.in (http or https)
+          if (/^https?:\/\/([\w-]+\.)?eddva\.in(:\d+)?$/.test(origin)) {
+            return callback(null, true);
+          }
+          // Explicit allow-list from CORS_ORIGINS env var
+          if (explicitOrigins.includes(origin)) return callback(null, true);
+          callback(new Error(`CORS: origin not allowed — ${origin}`), false);
+        },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
