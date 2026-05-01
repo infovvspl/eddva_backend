@@ -447,12 +447,14 @@ export class DoubtService {
     if (doubt.studentId !== student.id) {
       throw new ForbiddenException('You can only update your own doubts');
     }
+    /* 
     if (
       doubt.status === DoubtStatus.AI_RESOLVED ||
       doubt.status === DoubtStatus.TEACHER_RESOLVED
     ) {
       throw new BadRequestException('This doubt is already resolved');
     }
+    */
 
     try {
       if (explanationMode) {
