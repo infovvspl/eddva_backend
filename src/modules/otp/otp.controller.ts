@@ -4,6 +4,7 @@ import {
   SendPhoneOtpDto, VerifyPhoneOtpDto,
   SendEmailOtpDto,  VerifyEmailOtpDto,
   OtpRegisterDto,
+  UpdatePendingContactDto,
 } from './dto/otp.dto';
 import { Public } from '../../common/decorators/auth.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -56,5 +57,13 @@ export class OtpController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async verifyEmailOtp(@Body() dto: VerifyEmailOtpDto) {
     return this.otpService.verifyEmailOtp(dto);
+  }
+
+  @Public()
+  @Post('otp/update-contact')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  async updatePendingContact(@Body() dto: UpdatePendingContactDto) {
+    return this.otpService.updatePendingContact(dto.userId, dto.phoneNumber, dto.email);
   }
 }
