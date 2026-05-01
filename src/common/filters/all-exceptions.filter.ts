@@ -35,7 +35,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
-      this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
+      // Stack traces contain internal file paths — only log in development
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
+      } else {
+        this.logger.error(`Unhandled error: ${exception.message}`);
+      }
     }
 
     response.status(status).json({

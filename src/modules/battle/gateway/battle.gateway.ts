@@ -9,7 +9,8 @@ import {
   OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { BattleService } from '../battle.service';
 import { PresenceService } from '../../presence/presence.service';
 
@@ -69,9 +70,13 @@ export class BattleGateway
   // Maps battleId → Timeout
   private roundTimeouts = new Map<string, NodeJS.Timeout>();
 
+  // Hard cap on in-memory challenge queue to prevent unbounded growth
+  private readonly MAX_PENDING_CHALLENGES = 5000;
+
   constructor(
     private readonly battleService: BattleService,
     private readonly presenceService: PresenceService,
+    private readonly jwtService: JwtService,
   ) {}
 
   afterInit(server: Server) {
@@ -85,7 +90,27 @@ export class BattleGateway
   }
 
   handleConnection(client: Socket) {
-    this.logger.debug(`Client connected: ${client.id}`);
+    const token =
+      (client.handshake.auth as any)?.token ||
+      client.handshake.headers?.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      this.logger.warn(`WS /battle rejected — no token (socket ${client.id})`);
+      client.emit('battle:error', { message: 'Unauthorized: token required' });
+      client.disconnect(true);
+      return;
+    }
+
+    try {
+      const payload = this.jwtService.verify<{ sub: string; tenantId: string }>(token);
+      client.data.userId = payload.sub;
+      client.data.tenantId = payload.tenantId;
+      this.logger.debug(`WS /battle connected: user=${payload.sub} socket=${client.id}`);
+    } catch {
+      this.logger.warn(`WS /battle rejected — invalid token (socket ${client.id})`);
+      client.emit('battle:error', { message: 'Unauthorized: invalid token' });
+      client.disconnect(true);
+    }
   }
 
   async handleDisconnect(client: Socket) {
@@ -237,6 +262,15 @@ export class BattleGateway
         });
       }
     }, 30_000);
+
+    // Evict the oldest pending challenge if the map is full (prevents unbounded growth)
+    if (this.pendingChallenges.size >= this.MAX_PENDING_CHALLENGES) {
+      const oldestKey = this.pendingChallenges.keys().next().value as string;
+      const oldest = this.pendingChallenges.get(oldestKey);
+      if (oldest) clearTimeout(oldest.timer);
+      this.pendingChallenges.delete(oldestKey);
+      this.logger.warn(`pendingChallenges cap reached — evicted oldest challenge ${oldestKey}`);
+    }
 
     this.pendingChallenges.set(challengeId, {
       challengeId,
@@ -540,29 +574,41 @@ export class BattleGateway
     const timeout = setTimeout(async () => {
       this.roundTimeouts.delete(battleId);
       this.logger.log(`Round ${roundNumber} timed out for battle ${battleId}. Forcing completion.`);
-      
-      const result = await this.battleService.forceCompleteRound(battleId, roundNumber);
-      if (result) {
-        this.server.to(roomCode).emit('battle:round_result', {
-          roundNumber: result.roundNumber,
-          winnerId: result.roundWinnerId,
-          correctOptionId: result.correctOptionId,
-          scores: result.scores,
-        });
 
-        if (result.battleComplete) {
-          const finalResult = await this.battleService.finishBattle(battleId);
-          this.server.to(roomCode).emit('battle:end', finalResult);
-        } else {
-          setTimeout(() => {
-            this.server.to(roomCode).emit('battle:question', {
-              question: result.nextQuestion,
-              roundNumber: result.roundNumber + 1,
-              timeLimit: result.secondsPerRound || 45,
-            });
-            this.startRoundTimeout(battleId, roomCode, result.roundNumber + 1, result.secondsPerRound || 45);
-          }, 2000);
+      try {
+        const result = await this.battleService.forceCompleteRound(battleId, roundNumber);
+        if (result) {
+          this.server.to(roomCode).emit('battle:round_result', {
+            roundNumber: result.roundNumber,
+            winnerId: result.roundWinnerId,
+            correctOptionId: result.correctOptionId,
+            scores: result.scores,
+          });
+
+          if (result.battleComplete) {
+            try {
+              const finalResult = await this.battleService.finishBattle(battleId);
+              this.server.to(roomCode).emit('battle:end', finalResult);
+            } catch (err) {
+              this.logger.error(`finishBattle failed in timeout for battle ${battleId}: ${err?.message}`);
+              this.server.to(roomCode).emit('battle:end', { battleId, error: 'Battle ended due to timeout' });
+            } finally {
+              this.clearConnectedPlayersByRoom(roomCode);
+            }
+          } else {
+            setTimeout(() => {
+              this.server.to(roomCode).emit('battle:question', {
+                question: result.nextQuestion,
+                roundNumber: result.roundNumber + 1,
+                timeLimit: result.secondsPerRound || 45,
+              });
+              this.startRoundTimeout(battleId, roomCode, result.roundNumber + 1, result.secondsPerRound || 45);
+            }, 2000);
+          }
         }
+      } catch (err) {
+        this.logger.error(`forceCompleteRound failed for battle ${battleId}: ${err?.message}`);
+        this.roundTimeouts.delete(battleId);
       }
     }, (seconds + 1.5) * 1000);
 

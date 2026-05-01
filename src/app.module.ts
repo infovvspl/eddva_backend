@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ScheduleModule } from '@nestjs/schedule';
+import { BullModule } from '@nestjs/bull';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { redisStore } from 'cache-manager-redis-yet';
 
@@ -100,12 +101,19 @@ const ALL_ENTITIES = [
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
-        ...dbConfig,
-        synchronize: cfg.get('app.nodeEnv') === 'development' && cfg.get('DB_SYNC') === 'true',
-        logging: cfg.get('app.nodeEnv') === 'development',
-        entities: ALL_ENTITIES,
-      }),
+      useFactory: (cfg: ConfigService) => {
+        const isProd = cfg.get('app.nodeEnv') === 'production';
+        const dbSyncRequested = cfg.get('DB_SYNC') === 'true';
+        if (isProd && dbSyncRequested) {
+          throw new Error('DB_SYNC=true is forbidden in production — use migrations instead.');
+        }
+        return {
+          ...dbConfig,
+          synchronize: !isProd && dbSyncRequested,
+          logging: !isProd,
+          entities: ALL_ENTITIES,
+        };
+      },
     }),
 
     // ── Cache (Redis with in-memory fallback) ─────────────────────────────────
@@ -142,6 +150,19 @@ const ALL_ENTITIES = [
 
     // ── Scheduler (for cron jobs) ─────────────────────────────────────────────
     ScheduleModule.forRoot(),
+
+    // ── Bull (async job queues backed by the same Redis as the cache) ─────────
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService) => ({
+        redis: {
+          host: cfg.get<string>('redis.host') || 'localhost',
+          port: cfg.get<number>('redis.port') || 6379,
+          password: cfg.get<string>('redis.password') || undefined,
+        },
+      }),
+    }),
 
     // ── Feature Modules ───────────────────────────────────────────────────────
     AuthModule,

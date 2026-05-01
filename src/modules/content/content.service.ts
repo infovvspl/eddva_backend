@@ -748,11 +748,14 @@ export class ContentService {
     }
 
     private async notifyEnrolledStudentsLiveClass(lecture: Lecture, tenantId: string): Promise<void> {
-        const enrollments = await this.enrollmentRepo.find({
-            where: { batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
-            relations: ['student', 'student.user'],
-        });
-        const teacher = await this.userRepo.findOne({ where: { id: lecture.teacherId } });
+        const [enrollments, teacher] = await Promise.all([
+            this.enrollmentRepo.find({
+                where: { batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
+                relations: ['student', 'student.user'],
+            }),
+            this.userRepo.findOne({ where: { id: lecture.teacherId } }),
+        ]);
+
         const teacherName = teacher?.fullName ?? 'Your teacher';
         const when = lecture.scheduledAt
             ? new Date(lecture.scheduledAt).toLocaleString('en-IN', {
@@ -764,19 +767,24 @@ export class ContentService {
             })
             : '';
 
-        for (const e of enrollments) {
-            const userId = e.student?.userId ?? e.student?.user?.id;
-            if (!userId) continue;
-            const notifyTenantId = e.student?.user?.tenantId ?? tenantId;
-            await this.notificationService.send({
-                userId,
-                tenantId: notifyTenantId,
-                title: `Live class scheduled: ${lecture.title}`,
-                body: `${teacherName} scheduled a live class${when ? ` — ${when}` : ''}. Open Calendar or Lectures to join.`,
-                channels: ['in_app', 'push'],
-                refType: 'live_class_scheduled',
-                refId: lecture.id,
-            });
+        const payloads = enrollments
+            .map((e) => {
+                const userId = e.student?.userId ?? e.student?.user?.id;
+                if (!userId) return null;
+                return {
+                    userId,
+                    tenantId: e.student?.user?.tenantId ?? tenantId,
+                    title: `Live class scheduled: ${lecture.title}`,
+                    body: `${teacherName} scheduled a live class${when ? ` — ${when}` : ''}. Open Calendar or Lectures to join.`,
+                    channels: ['in_app', 'push'] as ('in_app' | 'push')[],
+                    refType: 'live_class_scheduled',
+                    refId: lecture.id,
+                };
+            })
+            .filter((p): p is NonNullable<typeof p> => p !== null);
+
+        if (payloads.length > 0) {
+            await this.notificationService.sendBatch(payloads);
         }
     }
 
@@ -1171,10 +1179,15 @@ export class ContentService {
         if (query.subjectId) qb.andWhere('chapter.subjectId = :subjectId', { subjectId: query.subjectId });
         if (query.status) qb.andWhere('l.status = :status', { status: query.status });
 
+        // Fetch student profile once; reused across all three student-role branches below
+        let student: Student | null = null;
+        if (userRole === UserRole.STUDENT) {
+            student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
+        }
+
         // Role-based filtering
         if (userRole === UserRole.STUDENT) {
             // Students see only lectures from their enrolled batches — cross-tenant safe (no tenantId filter)
-            const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
             if (student) {
                 const enrollments = await this.enrollmentRepo.find({
                     where: {
@@ -1212,7 +1225,6 @@ export class ContentService {
 
         // Attach studentProgress to ALL student lecture requests (not just topicId-scoped ones)
         if (userRole === UserRole.STUDENT && data.length > 0) {
-            const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
             if (student && !query.topicId) {
                 const lectureIds = data.map((l) => l.id);
                 const progresses = lectureIds.length
@@ -1233,7 +1245,6 @@ export class ContentService {
 
         // Attach per-lecture progress, quiz, gate status, AI study status (student + topicId filter)
         if (query.topicId && userRole === UserRole.STUDENT) {
-            const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
             if (student) {
                 const lectureIds = data.map((l) => l.id);
 
