@@ -142,7 +142,7 @@ export class StudyPlanService {
   ) {
     const batchId = enrollment?.batchId;
     const effectiveExamTarget = choices.targetExam;
-    const previousPlannedTopicIds = await this.getPreviouslyPlannedTopicIds(student.id, force);
+    const { planned: previousPlannedTopicIds, completed: previouslyCompletedTopicIds } = await this.getPreviousPlanContext(student.id, force);
     const completedTopicIds = await this.getCompletedTopicIds(student.id);
 
     const [monthlyWeakTopics, availableTopics] = await Promise.all([
@@ -188,6 +188,7 @@ export class StudyPlanService {
         weakTopics,
         previousPlannedTopicIds,
         completedTopicIds,
+        previouslyCompletedTopicIds,
       );
       await this.cacheManager.set(cacheKey, items, 60 * 60 * 24 * 14);
     }
@@ -1101,6 +1102,7 @@ export class StudyPlanService {
     weakTopics: WeakTopic[],
     previousPlannedTopicIds: Set<string>,
     completedTopicIds: Set<string>,
+    previouslyCompletedTopicIds: Set<string> = new Set(),
   ): RawPlanItem[] {
     const today = this.todayIst();
     const totalDays = 30;
@@ -1133,12 +1135,12 @@ export class StudyPlanService {
           subjectTopics,
           previousPlannedTopicIds,
           completedTopicIds,
+          weakTopics,
+          previouslyCompletedTopicIds,
         );
         const cursor = perSubjectCursor.get(subject) ?? 0;
-        const weakSubjectTopic =
-          prioritizedSubjectTopics.find((t) => weakTopicIds.has(t.id)) ??
-          null;
-        const topic = weakSubjectTopic ?? (prioritizedSubjectTopics.length ? prioritizedSubjectTopics[cursor % prioritizedSubjectTopics.length] : null);
+        const topic = prioritizedSubjectTopics.length ? prioritizedSubjectTopics[cursor % prioritizedSubjectTopics.length] : null;
+
         if (prioritizedSubjectTopics.length) perSubjectCursor.set(subject, cursor + 1);
 
         items.push({
@@ -1173,47 +1175,82 @@ export class StudyPlanService {
     subjectTopics: Topic[],
     previouslyPlanned: Set<string>,
     completedTopicIds: Set<string>,
+    weakTopics: WeakTopic[],
+    previouslyCompletedTopicIds: Set<string> = new Set(),
   ): Topic[] {
     if (!subjectTopics.length) return subjectTopics;
-    const pending = subjectTopics.filter((t) => !completedTopicIds.has(t.id));
-    const completed = subjectTopics.filter((t) => completedTopicIds.has(t.id));
 
-    const pendingUnplanned = pending.filter((t) => !previouslyPlanned.has(t.id));
-    const pendingPlanned = pending.filter((t) => previouslyPlanned.has(t.id));
-    const completedUnplanned = completed.filter((t) => !previouslyPlanned.has(t.id));
-    const completedPlanned = completed.filter((t) => previouslyPlanned.has(t.id));
+    const weakMap = new Map(weakTopics.map((wt) => [wt.topicId, wt.severity]));
 
-    const ordered = [
-      ...pendingUnplanned,
-      ...pendingPlanned,
-      ...completedUnplanned,
-      ...completedPlanned,
+    const getSeverityScore = (severity?: WeakTopicSeverity) => {
+      switch (severity) {
+        case WeakTopicSeverity.CRITICAL: return 4;
+        case WeakTopicSeverity.HIGH:     return 3;
+        case WeakTopicSeverity.MEDIUM:   return 2;
+        case WeakTopicSeverity.LOW:      return 1;
+        default:                         return 0;
+      }
+    };
+
+    const pending = subjectTopics.filter((t) => !completedTopicIds.has(t.id) && !previouslyCompletedTopicIds.has(t.id));
+    const completed = subjectTopics.filter((t) => completedTopicIds.has(t.id) || previouslyCompletedTopicIds.has(t.id));
+
+    // 1. Pending Weak Topics (Highest Priority)
+    const pendingWeak = pending
+      .filter((t) => weakMap.has(t.id))
+      .sort((a, b) => {
+        const scoreA = getSeverityScore(weakMap.get(a.id));
+        const scoreB = getSeverityScore(weakMap.get(b.id));
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+      });
+
+    // 2. Pending Previously Planned but Incompleted Topics
+    const pendingIncompleted = pending
+      .filter((t) => previouslyPlanned.has(t.id) && !weakMap.has(t.id))
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+    // 3. Pending New/Unplanned Topics
+    const pendingNew = pending
+      .filter((t) => !previouslyPlanned.has(t.id) && !weakMap.has(t.id))
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+    // 4. Completed Topics (Revision Priority)
+    const completedSorted = completed.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+    return [
+      ...pendingWeak,
+      ...pendingIncompleted,
+      ...pendingNew,
+      ...completedSorted,
     ];
-
-    // Keep deterministic order and mild difficulty progression by sortOrder.
-    ordered.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-    return ordered;
   }
 
-  private async getPreviouslyPlannedTopicIds(studentId: string, force: boolean): Promise<Set<string>> {
-    if (!force) return new Set<string>();
+  private async getPreviousPlanContext(studentId: string, force: boolean): Promise<{ planned: Set<string>; completed: Set<string> }> {
+    if (!force) return { planned: new Set(), completed: new Set() };
     const existingPlan = await this.studyPlanRepo.findOne({
       where: { studentId },
       withDeleted: true,
     });
-    if (!existingPlan) return new Set<string>();
+    if (!existingPlan) return { planned: new Set(), completed: new Set() };
     const previousItems = await this.planItemRepo.find({
       where: { studyPlanId: existingPlan.id },
-      select: ['refId', 'type'],
+      select: ['refId', 'type', 'status'],
     });
-    return new Set(
-      previousItems
-        .filter((item) =>
-          !!item.refId &&
-          (item.type === PlanItemType.PRACTICE || item.type === PlanItemType.REVISION),
-        )
-        .map((item) => item.refId as string),
-    );
+
+    const planned = new Set<string>();
+    const completed = new Set<string>();
+
+    for (const item of previousItems) {
+      if (!item.refId) continue;
+      if (item.type === PlanItemType.PRACTICE || item.type === PlanItemType.REVISION) {
+        planned.add(item.refId);
+        if (item.status === PlanItemStatus.COMPLETED) {
+          completed.add(item.refId);
+        }
+      }
+    }
+    return { planned, completed };
   }
 
   private async getCompletedTopicIds(studentId: string): Promise<Set<string>> {
