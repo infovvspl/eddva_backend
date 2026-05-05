@@ -264,7 +264,19 @@ export class AiBridgeController {
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
   async generateQuestionsFromTopic(
-    @Body() body: { topicId: string; topicName: string; count?: number; difficulty?: string; type?: string },
+    @Body() body: {
+      topicId: string;
+      topicName: string;
+      count?: number;
+      difficulty?: string;
+      type?: string;
+      style?: string;
+      /** "jee main" | "jee advanced" | "neet" | "cbse" — activates exam-specific difficulty heuristic in Django */
+      examTarget?: string;
+      subject?: string;
+      chapter?: string;
+      notes?: string | string[];
+    },
     @TenantId() tenantId: string,
   ) {
     return this.aiBridgeService.generateQuestionsFromTopic(
@@ -274,6 +286,11 @@ export class AiBridgeController {
         count: body.count || 10,
         difficulty: body.difficulty || 'medium',
         type: body.type || 'mcq_single',
+        style: body.style,
+        examTarget: body.examTarget,
+        subject: body.subject,
+        chapter: body.chapter,
+        notes: body.notes,
       },
       tenantId,
     );

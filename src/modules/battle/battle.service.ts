@@ -1005,15 +1005,31 @@ export class BattleService {
     count: number,
     tenantId: string,
     difficulty: 'easy' | 'medium' | 'hard' = 'medium',
+    userId?: string,
   ) {
     const limit = Math.min(Math.max(count || 10, 1), 50);
     const diffEnum =
       difficulty === 'easy' ? DifficultyLevel.EASY : difficulty === 'hard' ? DifficultyLevel.HARD : DifficultyLevel.MEDIUM;
 
+    // ── Resolve student's exam target so we can filter level-appropriate questions ──
+    let examTarget: string | null = null;
+    if (userId) {
+      try {
+        const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
+        if (student) examTarget = await this.getStudentExamTarget(student.id);
+      } catch {
+        // ignore — fallback to no exam filter
+      }
+    }
+    const examTag = examTarget ? `exam:${String(examTarget).toLowerCase()}` : null;
+
+    // ── Step 1: Try DB first, with strict scope + difficulty + (when possible) exam tag ──
     const qb = this.questionRepo
       .createQueryBuilder('q')
       .leftJoinAndSelect('q.options', 'options')
-      .leftJoin('q.topic', 'topic')
+      .leftJoinAndSelect('q.topic', 'topic')
+      .leftJoinAndSelect('topic.chapter', 'chapter')
+      .leftJoinAndSelect('chapter.subject', 'subject')
       .where('q.tenantId = :tenantId AND q.isActive = true', { tenantId })
       .andWhere('q.difficulty = :botDiff', { botDiff: diffEnum });
 
@@ -1022,13 +1038,56 @@ export class BattleService {
     } else if (scope === 'chapter') {
       qb.andWhere('topic.chapterId = :scopeId', { scopeId });
     } else {
-      // subject
-      qb.leftJoin('topic.chapter', 'chapter')
-        .andWhere('chapter.subjectId = :scopeId', { scopeId });
+      qb.andWhere('subject.id = :scopeId', { scopeId });
+    }
+
+    // Prefer questions tagged for this exam if any exist; otherwise fall back to all.
+    if (examTag) {
+      qb.andWhere(
+        '(q.tags IS NULL OR :examTag = ANY(q.tags) OR NOT EXISTS (SELECT 1 FROM questions q2 WHERE q2.tenant_id = q.tenant_id AND q2.is_active = true AND q2.difficulty = q.difficulty AND :examTag = ANY(q2.tags) ' +
+        (scope === 'topic'
+          ? 'AND q2.topic_id = q.topic_id'
+          : scope === 'chapter'
+            ? 'AND q2.topic_id IN (SELECT t2.id FROM topics t2 WHERE t2.chapter_id = topic.chapter_id)'
+            : 'AND q2.topic_id IN (SELECT t2.id FROM topics t2 LEFT JOIN chapters c2 ON c2.id = t2.chapter_id WHERE c2.subject_id = subject.id)') +
+        '))',
+        { examTag },
+      );
     }
 
     qb.orderBy('RANDOM()').limit(limit);
-    const questions = await qb.getMany();
+    let questions = await qb.getMany();
+
+    // ── Step 2: AI fallback if DB has no level-appropriate questions for this scope ──
+    if (questions.length === 0) {
+      this.logger.log(
+        `[bot-questions] DB empty for scope=${scope} scopeId=${scopeId} diff=${difficulty} exam=${examTarget ?? '—'} → AI generating`,
+      );
+      try {
+        const ai = await this.buildAiBattleQuestions(
+          tenantId,
+          limit,
+          scope === 'topic' ? scopeId : null,
+          examTarget ?? undefined,
+          undefined,
+          difficulty,
+          undefined,
+          scope === 'subject' ? scopeId : undefined,
+          scope === 'chapter' ? scopeId : undefined,
+        );
+        // Map AiBattleQuestion → BotPracticeQuestion shape (uses synthetic IDs)
+        return ai.map((q, i) => ({
+          id: q.id || `ai-bot-${Date.now()}-${i}`,
+          text: q.text,
+          options: q.options.map(o => ({ id: o.id, text: o.text })),
+          correctId: q.options.find(o => o.isCorrect)?.id ?? null,
+          difficulty,
+        }));
+      } catch (e: any) {
+        this.logger.warn(`[bot-questions] AI fallback failed: ${e?.message}`);
+        return [];
+      }
+    }
 
     return questions.map(q => ({
       id: q.id,

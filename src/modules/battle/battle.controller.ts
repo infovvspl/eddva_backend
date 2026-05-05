@@ -93,6 +93,7 @@ export class BattleController {
   @ApiQuery({ name: 'count', type: 'number', required: false })
   @ApiQuery({ name: 'difficulty', enum: ['easy', 'medium', 'hard'], required: false })
   getBotQuestions(
+    @CurrentUser('id') userId: string,
     @Query('scope') scope: string,
     @Query('scopeId') scopeId: string,
     @Query('count') count: string,
@@ -107,7 +108,14 @@ export class BattleController {
     )
       ? (difficulty as 'easy' | 'medium' | 'hard')
       : 'medium';
-    return this.battleService.getBotPracticeQuestions(validScope, scopeId, parseInt(count ?? '10', 10), tenantId, d);
+    return this.battleService.getBotPracticeQuestions(
+      validScope,
+      scopeId,
+      parseInt(count ?? '10', 10),
+      tenantId,
+      d,
+      userId,    // pass user so the service can resolve their exam target (JEE / NEET / CBSE)
+    );
   }
 
   @Get(':id')
