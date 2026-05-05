@@ -437,10 +437,11 @@ export class AiBridgeService {
       style: dto.style,                 // forwards lane-specific format prompt
       exam_target: dto.examTarget,      // activates JEE Main / JEE Advanced / NEET difficulty formula
       question_types: [this.djangoQuestionTypes(dto.type)[0]],
-      notes: dto.notes,
+      notes: Array.isArray(dto.notes) ? dto.notes.join('\n').slice(0, 4000) : (dto.notes as string)?.slice(0, 4000),
       subject: dto.subject,             // enables _SUBJECT_RULES_TEST + scope_constraint in Django
       chapter: dto.chapter,
       chapters: dto.chapters,           // subject-test: exact DB chapters to generate from
+      seed: (dto as any).seed,          // force LLM variety
     }, tenantId);
 
     const questions = this.resolveToQuestionList(raw);
@@ -467,6 +468,71 @@ export class AiBridgeService {
     }
 
     this.logger.warn('[AI #13] No questions in AI response');
+    return [];
+  }
+
+  // ── AI #13b — Generate questions STRICTLY from in-video lecture notes ────────
+  /**
+   * Dedicated call that uses the lecture notes content as the PRIMARY source for
+   * question generation. Unlike generateQuestionsFromTopic (which uses notes as
+   * supplementary context), every generated question here must be directly
+   * answerable from the provided notes.
+   */
+  async generateQuestionsFromLectureNotes(
+    dto: {
+      topicName: string;
+      notes: string[];
+      count: number;
+      difficulty: string;
+      examTarget?: string;
+      subject?: string;
+      chapter?: string;
+    },
+    tenantId?: string,
+  ) {
+    if (!dto.notes?.length) return [];
+
+    // Combine notes into a single rich content block (cap at 6 000 chars to stay within context)
+    const combinedNotes = dto.notes.join('\n\n---\n\n').slice(0, 6000);
+
+    // Embed an explicit instruction in the topic field so the AI treats notes as the only source
+    const noteFocusedTopic =
+      `[LECTURE NOTES QUIZ — ${dto.topicName}] ` +
+      `Generate every question STRICTLY from the lecture notes provided below. ` +
+      `Each question must be directly answerable using only the information in these notes. ` +
+      `Do NOT use general textbook knowledge not present in the notes.\n\nNOTES:\n${combinedNotes}`;
+
+    const raw = await this.post<any>('/test/generate/', {
+      topic: noteFocusedTopic,
+      num_questions: dto.count,
+      difficulty: dto.difficulty,
+      type: 'mcq_single',
+      question_types: [this.djangoQuestionTypes('mcq_single')[0]],
+      generate_from_notes: true,
+      exam_target: dto.examTarget,
+      subject: dto.subject,
+      chapter: dto.chapter,
+      seed: (dto as any).seed,
+    }, tenantId);
+
+    const questions = this.resolveToQuestionList(raw);
+    if (questions.length > 0) {
+      const normalised = this.normaliseStructuredQuestions(questions, 'mcq_single');
+      return this.postProcessGeneratedQuestions(normalised, 'mcq_single');
+    }
+
+    const rawText: string =
+      typeof raw === 'string' ? raw :
+      typeof raw?.text === 'string' ? raw.text :
+      typeof raw?.content === 'string' ? raw.content :
+      typeof raw?.result === 'string' ? raw.result : '';
+
+    if (rawText.trim()) {
+      const parsed = this.parseRawTextQuestions(rawText, 'mcq_single');
+      return this.postProcessGeneratedQuestions(parsed, 'mcq_single');
+    }
+
+    this.logger.warn('[AI #13b] No questions generated from lecture notes');
     return [];
   }
 

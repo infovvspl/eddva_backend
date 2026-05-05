@@ -41,7 +41,11 @@ export class BattleService {
     private readonly questionRepo: Repository<Question>,
     private readonly aiBridgeService: AiBridgeService,
     private readonly dataSource: DataSource,
-  ) {}
+  ) {
+    // Force clear topic-level cache on every restart/save to ensure fresh tracking
+    this.topicQuestionsCache.clear();
+    this.logger.log('Battle Arena Topic Cache Cleared');
+  }
 
   // Per-battle cache (cleared on battle end)
   private readonly aiBattleQuestionsByBattleId = new Map<string, AiBattleQuestion[]>();
@@ -218,18 +222,21 @@ export class BattleService {
 
     const createQuestions = async () => {
       try {
+        const isFullSyllabus = !!batchId && !subjectId && !chapterId && !topicId;
         const aiQuestions = await this.buildAiBattleQuestions(
           tenantId,
           qCount,
-          topicId,
+          topicId ?? null,
           student.examTarget ?? undefined,
           topicName,
           effectiveDifficulty,
           batchId,
           subjectId,
           chapterId,
+          isFullSyllabus,
         );
         this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
+        battle.totalRounds = aiQuestions.length; // Update total rounds to match actual generated questions
         battle.replayData = {
           ...(battle.replayData ?? {}),
           difficulty: effectiveDifficulty,
@@ -312,6 +319,7 @@ export class BattleService {
     const effDiff = difficulty ?? 'medium';
     const createQuestions = async () => {
       try {
+        const isFullSyllabus = !!batchId && !topicId && !subjectId && !chapterId;
         const aiQuestions = await this.buildAiBattleQuestions(
           tenantId,
           qCount,
@@ -322,8 +330,10 @@ export class BattleService {
           batchId,
           subjectId,
           chapterId,
+          isFullSyllabus,
         );
         this.aiBattleQuestionsByBattleId.set(battle.id, aiQuestions);
+        battle.totalRounds = aiQuestions.length; // Update total rounds to match actual generated questions
         battle.replayData = {
           ...(battle.replayData ?? {}),
           difficulty: effDiff,
@@ -569,7 +579,7 @@ export class BattleService {
 
   async getBattleQuestions(battleId: string) {
     let attempts = 0;
-    while (attempts < 10) {
+    while (attempts < 25) {
       // 1. Check in-memory cache
       const memQuestions = this.aiBattleQuestionsByBattleId.get(battleId) ?? [];
       if (memQuestions.length > 0) {
@@ -616,7 +626,7 @@ export class BattleService {
 
       // If no questions found and it's a battle that should have AI questions, wait a bit
       if (battle.mode !== BattleMode.BOT_PRACTICE) {
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise(resolve => setTimeout(resolve, 1200));
         attempts++;
       } else {
         break; // Non-AI battles shouldn't poll if questions are missing
@@ -644,7 +654,7 @@ export class BattleService {
     const aiQuestion = aiQuestions.find((q) => q.id === data.questionId);
     const aiCorrectOption = aiQuestion?.options.find((o) => o.isCorrect);
 
-    const question = aiQuestion
+    const question = (aiQuestion || !data.questionId)
       ? null
       : await this.questionRepo.findOne({
           where: { id: data.questionId },
@@ -1136,7 +1146,10 @@ export class BattleService {
       .where('t.is_active = true');
 
     if (batchId) {
-      query.andWhere('subject.batch_id = :batchId', { batchId });
+      query.andWhere(
+        '(subject.batch_id = :batchId OR LOWER(subject.name) IN (SELECT LOWER(subject_name) FROM batch_subject_teachers WHERE batch_id = :batchId))',
+        { batchId }
+      );
     }
     if (subjectId) {
       query.andWhere('chapter.subject_id = :subjectId', { subjectId });
@@ -1157,11 +1170,20 @@ export class BattleService {
     if (topics.length > 0) return topics;
 
     // Fallback: any active topics in the tenant
-    return topicRepo
+    const fallbackQuery = topicRepo
       .createQueryBuilder('t')
       .leftJoinAndSelect('t.chapter', 'chapter')
       .leftJoinAndSelect('chapter.subject', 'subject')
-      .where('t.tenant_id = :tenantId AND t.is_active = true', { tenantId })
+      .where('t.tenant_id = :tenantId AND t.is_active = true', { tenantId });
+      
+    if (batchId) {
+      fallbackQuery.andWhere(
+        '(subject.batch_id = :batchId OR LOWER(subject.name) IN (SELECT LOWER(subject_name) FROM batch_subject_teachers WHERE batch_id = :batchId))',
+        { batchId }
+      );
+    }
+    
+    return fallbackQuery
       .orderBy('RANDOM()')
       .limit(requestedCount)
       .getMany();
@@ -1193,6 +1215,7 @@ export class BattleService {
       this.topicQuestionsCache.delete(key);
       return null;
     }
+    this.logger.log(`[cache-hit] retrieved ${entry.questions.length} questions from key ${key}`);
     return entry.questions;
   }
 
@@ -1233,6 +1256,22 @@ export class BattleService {
       .replace(/\s+/g, ' ')
       .trim();
     return t.slice(0, 220);
+  }
+
+  /**
+   * Round-robin interleave: takes one question from each pool in turn so every
+   * source is represented before any source gets a second slot.
+   * e.g. pools = [[t0,t1,t2], [n0,n1], [c0]] \u2192 [t0, n0, c0, t1, n1, t2]
+   */
+  private _interleaveQuestionPools(pools: AiBattleQuestion[][]): AiBattleQuestion[] {
+    const result: AiBattleQuestion[] = [];
+    const maxLen = Math.max(...pools.map(p => p.length), 0);
+    for (let i = 0; i < maxLen; i++) {
+      for (const pool of pools) {
+        if (i < pool.length) result.push(pool[i]);
+      }
+    }
+    return result;
   }
 
   /**
@@ -1339,6 +1378,7 @@ export class BattleService {
     batchId?: string,             // when set, restrict random topics to this course
     subjectId?: string,           // when set, restrict random topics to this subject
     chapterId?: string,           // when set, restrict random topics to this chapter
+    isChallengeAFriendFullSyllabus?: boolean,
   ): Promise<AiBattleQuestion[]> {
     const safeCount = Math.min(Math.max(count || 10, 3), 20);
 
@@ -1346,22 +1386,25 @@ export class BattleService {
     const topics = await this.resolveAiTopics(tenantId, preferredTopicId, batchId, 0, subjectId, chapterId);
     const firstTopic = topics[0];
 
-    // The topic name used for AI generation: prefer the explicitly provided name
-    // (from the frontend scope picker) so the AI uses the exact selected topic,
-    // then fall back to the DB record name(s), then a generic label.
-    const topicNames = topics.length > 1 
-      ? (topics.length > 20 ? topics.slice(0, 20).map(t => t.name).join(', ') + ' and more' : topics.map(t => t.name).join(', '))
-      : (topics[0]?.name || '');
+    // Calculate unique subjects and chapters for context (deduplicated, used for filter & prompt)
+    const uniqueSubjects = Array.from(new Set(topics.map((t: any) => t.chapter?.subject?.name).filter(Boolean)));
+    const uniqueChapters = Array.from(new Set(topics.map((t: any) => t.chapter?.name).filter(Boolean)));
 
-    const baseName = explicitTopicName?.trim() || topicNames || 'General Science';
-    const examLabel = examTarget ? this.examLevelLabel[examTarget] : null;
-    let enrichedTopicName = examLabel ? `${baseName} (${examLabel})` : baseName;
-    
-    if (topics.length > 1) {
-      enrichedTopicName = `${enrichedTopicName} (COMPREHENSIVE SYLLABUS CHALLENGE: Generate questions covering the ENTIRE syllabus across all these topics: ${topicNames})`;
+    // Separate logic for Full Syllabus to prevent subject leakage and keep prompt size small
+    let baseName = explicitTopicName?.trim() || firstTopic?.name || 'General Science';
+    let promptHint = '';
+
+    if (isChallengeAFriendFullSyllabus) {
+      const subjectStr = uniqueSubjects.join(', ');
+      // Use subjects in the name to anchor the AI specifically to the batch curriculum
+      baseName = uniqueSubjects.length > 0 ? `${subjectStr} Full Syllabus` : baseName;
+      promptHint = ` (COMPREHENSIVE SYLLABUS CHALLENGE: This is a full-course battle for the subjects: ${subjectStr || 'Biology'}. You MUST ONLY generate questions from these subjects. Strictly avoid any other subjects like Physics, Chemistry, or Math if not listed.)`;
     } else if (firstTopic?.chapter?.subject && !baseName.includes('Chapter:')) {
-      enrichedTopicName = `${enrichedTopicName} (Context: Chapter ${firstTopic.chapter.name}, Subject ${firstTopic.chapter.subject.name})`;
+      promptHint = ` (Context: Chapter ${firstTopic.chapter.name}, Subject ${firstTopic.chapter.subject.name})`;
     }
+
+    const examLabel = examTarget ? this.examLevelLabel[examTarget] : null;
+    const enrichedTopicName = examLabel ? `${baseName} (${examLabel})${promptHint}` : `${baseName}${promptHint}`;
 
     const derivedDifficulty: 'easy' | 'medium' | 'hard' =
       requestedDifficulty ??
@@ -1384,29 +1427,30 @@ export class BattleService {
       this.logger.warn(`No topics resolved for AI battle generation (tenant=${tenantId})`);
     }
 
-    // Ask for more than needed so we can drop duplicates / bad rows and still have enough 4-option MCQs
-    const requestCount = Math.min(20, Math.max(safeCount + 4, safeCount * 2));
-
-    // Fetch in-video notes (AI notes, concepts, formulas) from lectures for these topics.
+    // Fetch in-video notes (AI notes, concepts, formulas, transcript) from lectures for these topics.
+    // Also collect quiz checkpoint questions embedded in videos as ready-made battle questions.
     // Prioritize lectures assigned to this specific batch (course) if provided.
+    // Cap at 5 topics to keep DB fetch time bounded regardless of syllabus size.
     let lectureNotes: string[] = [];
+    const checkpointQuestions: AiBattleQuestion[] = [];
     if (topics.length > 0 && tenantId) {
       const lectureRepo = this.dataSource.getRepository(Lecture);
-      
-      for (const t of topics) {
+      const topicsForNotes = topics.slice(0, 5);
+
+      for (const t of topicsForNotes) {
         // Try fetching batch-specific lectures first
-        let lectures = batchId 
+        let lectures = batchId
           ? await lectureRepo.find({
               where: { topicId: t.id, tenantId, batchId },
-              select: ['aiNotesMarkdown', 'aiKeyConcepts', 'aiFormulas'],
+              select: ['id', 'aiNotesMarkdown', 'aiKeyConcepts', 'aiFormulas', 'transcript', 'quizCheckpoints'],
             })
           : [];
-        
+
         // Fallback to topic-wide lectures in this tenant if no batch-specific notes found
         if (lectures.length === 0) {
           lectures = await lectureRepo.find({
             where: { topicId: t.id, tenantId },
-            select: ['aiNotesMarkdown', 'aiKeyConcepts', 'aiFormulas'],
+            select: ['id', 'aiNotesMarkdown', 'aiKeyConcepts', 'aiFormulas', 'transcript', 'quizCheckpoints'],
           });
         }
 
@@ -1414,58 +1458,251 @@ export class BattleService {
           if (lec.aiNotesMarkdown) lectureNotes.push(lec.aiNotesMarkdown);
           if (lec.aiKeyConcepts?.length) lectureNotes.push(`Topic ${t.name} Concepts: ${lec.aiKeyConcepts.join(', ')}`);
           if (lec.aiFormulas?.length) lectureNotes.push(`Topic ${t.name} Formulas: ${lec.aiFormulas.join(', ')}`);
+          // Include a truncated transcript excerpt as additional context
+          if (lec.transcript) lectureNotes.push(`Lecture Transcript (excerpt): ${lec.transcript.slice(0, 1500)}`);
+
+          // Convert quiz checkpoints embedded in the video into battle questions
+          for (const cp of lec.quizCheckpoints ?? []) {
+            if (!cp.questionText?.trim() || !cp.options?.length || !cp.correctOption) continue;
+            const opts = cp.options.map(o => ({
+              id: o.label,
+              text: o.text,
+              isCorrect: o.label === cp.correctOption,
+            }));
+            if (opts.length < 2 || !opts.some(o => o.isCorrect) || opts.some(o => !o.text?.trim())) continue;
+            const dk = this._battleQuestionDedupeKey(cp.questionText);
+            if (checkpointQuestions.some(q => this._battleQuestionDedupeKey(q.text) === dk)) continue;
+            checkpointQuestions.push({
+              id: `cp_${lec.id}_${cp.id}`,
+              text: cp.questionText,
+              options: opts,
+            });
+          }
         }
 
-        // Limit notes to avoid hitting context window limits (take top 3 notes per topic)
+        // Limit notes to avoid hitting context window limits
         if (lectureNotes.length > 30) break;
       }
     }
 
+    const subjectName = uniqueSubjects.length > 0 
+      ? (uniqueSubjects.length > 5 ? uniqueSubjects.slice(0, 5).join(', ') + ' and more' : uniqueSubjects.join(', '))
+      : undefined;
+      
+    // Set chapterName to undefined for full syllabus to completely bypass the single-chapter strict filtering in ai-bridge.
+    const chapterName = topics.length > 1 ? undefined : (firstTopic?.chapter?.name ?? undefined);
+    
+    const hasNotes    = lectureNotes.length > 0;
+
+    // We ask for the FULL safeCount from each source (Topic/Notes) to build a large buffer.
+    // This ensures that even if the strict subject filter drops many questions, we still hit 10.
+    const perSource = safeCount;
+
+    // Shuffle checkpoints so variety differs between battles
+    const shuffledCps = checkpointQuestions.sort(() => Math.random() - 0.5);
+
     try {
-      const ai = await this.aiBridgeService.generateQuestionsFromTopic(
-        {
-          topicId: preferredTopicId ?? (topics.length === 1 ? topics[0].id : 'mixed'),
-          topicName: enrichedTopicName,
-          count: requestCount,
-          difficulty: strictDifficulty,
-          type: 'mcq_single',
-          examTarget: examTarget ?? undefined,
-          notes: lectureNotes.length > 0 ? lectureNotes : undefined,
-          subject: (firstTopic?.chapter as any)?.subject?.name ?? undefined,
-          chapter: firstTopic?.chapter?.name ?? undefined,
-        },
-        tenantId,
+      // ── Fire both AI calls in parallel ───────────────────────────────────────
+      // Source A: brand-new questions generated by reading the actual lecture notes
+      // Source B: general topic knowledge questions (notes used as context only)
+      // Use allSettled so a slow/failing notes call never blocks topic questions.
+      const seed = Math.floor(Math.random() * 1000000);
+      const [notesResult, topicResult] = await Promise.allSettled([
+        hasNotes
+          ? this.aiBridgeService.generateQuestionsFromLectureNotes(
+              {
+                topicName:  enrichedTopicName,
+                notes:      lectureNotes,
+                count:      perSource + 3,
+                difficulty: strictDifficulty,
+                examTarget: examTarget ?? undefined,
+                subject:    subjectName,
+                chapter:    chapterName,
+                seed:       seed, // Add randomness
+              } as any,
+              tenantId,
+            )
+          : Promise.resolve([]),
+        this.aiBridgeService.generateQuestionsFromTopic(
+          {
+            topicId:    preferredTopicId ?? (topics.length === 1 ? topics[0].id : 'mixed'),
+            topicName:  enrichedTopicName,
+            count:      perSource + 4,
+            difficulty: strictDifficulty,
+            type:       'mcq_single',
+            examTarget: examTarget ?? undefined,
+            notes:      hasNotes ? lectureNotes : undefined,
+            subject:    subjectName,
+            chapter:    chapterName,
+            chapters:   uniqueChapters,
+            seed:       seed, // Add randomness
+          } as any,
+          tenantId,
+        ),
+      ]);
+
+      const notesAiRaw = notesResult.status === 'fulfilled' ? notesResult.value : [];
+      const topicAiRaw = topicResult.status === 'fulfilled' ? topicResult.value : [];
+      if (notesResult.status === 'rejected') {
+        this.logger.warn(`Notes-AI call failed (non-blocking): ${notesResult.reason?.message}`);
+      }
+
+      // Normalise each pool independently (validate 4 options, correct answer, etc.)
+      const poolCp    = shuffledCps.slice(0, perSource);                      // Source C: in-video quiz checkpoints
+      const poolNotes = this.normalizeAiQuestions(notesAiRaw, perSource);    // Source A
+      const poolTopic = this.normalizeAiQuestions(topicAiRaw, perSource);    // Source B
+
+      this.logger.log(
+        `Battle question pools — checkpoints: ${poolCp.length}, notes-AI: ${poolNotes.length}, topic-AI: ${poolTopic.length}`,
       );
 
-      const normalized = this.normalizeAiQuestions(ai, safeCount);
+      // ── Hard subject-scope filter ─────────────────────────────────────────
+      // The AI ignores prompt constraints, so we enforce them here by keyword.
+      // Build banned keywords from subjects NOT in the allowed list.
+      const filterByAllowedSubjects = (pool: AiBattleQuestion[]): AiBattleQuestion[] => {
+        if (!isChallengeAFriendFullSyllabus || uniqueSubjects.length === 0) return pool;
 
-      if (normalized.length >= 3) {
-        // Cache successful results for reuse as backup in future battles
-        this.saveToTopicCache(cacheKey, normalized);
-        return normalized;
+        const subjectsLower = uniqueSubjects.map(s => s.toLowerCase());
+        const isBioOnly = subjectsLower.every(s =>
+          s.includes('botany') || s.includes('zoology') || s.includes('biology') ||
+          s.includes('bio') || s.includes('plant') || s.includes('animal'),
+        );
+
+        if (!isBioOnly) return pool; // Mixed batch — no filter needed
+
+        // Physics keywords
+        const physicsKw = [
+          'block of mass', 'velocity', 'acceleration', 'force of', 'newton', 'friction',
+          'momentum', 'kinetic energy', 'potential energy', 'projectile', 'circular motion',
+          'electric current', 'resistance', 'voltage', 'capacitor', 'magnetic field',
+          'refractive index', 'wavelength', 'frequency', 'amplitude', 'spring constant',
+          'm/s', 'kg', 'joule', 'watt', 'ohm', 'ampere', 'coulomb', 'tesla',
+          'horizontal surface', 'inclined plane', 'pulley', 'torque', 'angular velocity',
+          'gravitational', 'centripetal', 'work done by', 'power =', 'displacement',
+          'distance traveled', 'time taken to', 'initial velocity', 'final velocity',
+        ];
+        // Chemistry keywords
+        const chemKw = [
+          'molarity', 'molality', 'moles of', 'molar mass', 'atomic mass', 'avogadro',
+          'ph of', 'acid base', 'buffer solution', 'electrolysis', 'oxidation state',
+          'enthalpy', 'entropy', 'gibbs', 'equilibrium constant', 'rate constant',
+          'coordination compound', 'valence shell', 'hybridization', 'ionic bond',
+          'covalent bond', 'galvanic cell', 'electrolytic cell', 'faraday',
+          'periodic table', 'electron configuration', 'quantum number',
+        ];
+        // Math keywords
+        const mathKw = [
+          'matrix', 'determinant', 'eigenvalue', 'integral of', 'derivative of',
+          'probability of', 'permutation', 'combination', 'binomial theorem',
+          'trigonometric', 'sin(', 'cos(', 'tan(', 'log(', 'arithmetic progression',
+          'geometric progression', 'vectors in', 'coordinate geometry',
+        ];
+
+        const bannedKw = [...physicsKw, ...chemKw, ...mathKw];
+
+        const filtered = pool.filter(q => {
+          const text = q.text.toLowerCase();
+          const match = bannedKw.find(kw => text.includes(kw.toLowerCase()));
+          if (match) {
+            this.logger.warn(`[subject-filter] Dropped off-scope question (matched "${match}"): "${q.text.slice(0, 80)}"`);
+            return false;
+          }
+          return true;
+        });
+
+        this.logger.log(`[subject-filter] ${pool.length - filtered.length} questions dropped as off-scope, ${filtered.length} kept`);
+        return filtered;
+      };
+
+      // ── Round-robin interleave for maximum diversity ─────────────────────────
+      // Apply hard subject filter BEFORE interleaving to remove off-scope questions
+      const filteredTopic = filterByAllowedSubjects(poolTopic);
+      const filteredNotes = filterByAllowedSubjects(poolNotes);
+      const interleaved = this._interleaveQuestionPools([filteredTopic, filteredNotes, poolCp]);
+
+      const seenKeys = new Set<string>();
+      const final: AiBattleQuestion[] = [];
+      for (const q of interleaved) {
+        if (final.length >= safeCount) break;
+        const key = this._battleQuestionDedupeKey(q.text);
+        if (key && seenKeys.has(key)) continue;
+        if (key) seenKeys.add(key);
+        final.push(q);
+      }
+
+      if (final.length >= safeCount) {
+        this.logger.log(`[buildAiBattleQuestions] returning ${final.length} questions. Sources: ${final.map(q => q.id.split('_')[0]).join(', ')}`);
+        if (poolTopic.length >= 3) this.saveToTopicCache(cacheKey, poolTopic);
+        return final;
+      }
+
+      this.logger.warn(`Combined pool short of target (${final.length}/${safeCount}); attempting to top up from DB fallback...`);
+      
+      // Top up from DB fallback to ensure we hit the requested count
+      const dbFallback = await this.getFallbackDbQuestions(
+        tenantId,
+        safeCount - final.length, // Only fetch what we need
+        isChallengeAFriendFullSyllabus ? undefined : (topics[0]?.id ?? preferredTopicId ?? undefined),
+        derivedDifficulty,
+        isChallengeAFriendFullSyllabus ? batchId : undefined,
+      );
+      
+      for (const q of dbFallback) {
+        if (final.length >= safeCount) break;
+        const key = this._battleQuestionDedupeKey(q.text);
+        if (key && seenKeys.has(key)) continue;
+        if (key) seenKeys.add(key);
+        final.push(q);
+      }
+
+      if (final.length >= 3) {
+        this.logger.log(`[buildAiBattleQuestions] returning ${final.length} questions after DB top-up. Sources: ${final.map(q => q.id.split('_')[0]).join(', ')}`);
+        if (poolTopic.length >= 3) this.saveToTopicCache(cacheKey, poolTopic);
+        return final;
       }
 
       this.logger.warn(
-        `AI battle generation returned too few valid questions (${normalized.length}); checking topic cache`,
+        `Combined pool still too small after DB top-up (${final.length}); falling back to cache`,
       );
     } catch (err: any) {
-      this.logger.warn(`AI battle generation failed: ${err?.message ?? 'unknown error'}; checking topic cache`);
+      this.logger.warn(`AI battle generation failed: ${err?.message ?? 'unknown error'}; checking fallbacks`);
     }
 
-    // Use topic-level cache as first fallback (same topic+exam from a prior battle)
+    const dedupePool = (pool: AiBattleQuestion[]) => {
+      const out: AiBattleQuestion[] = [];
+      const seen = new Set<string>();
+      for (const q of pool) {
+        if (out.length >= safeCount) break;
+        const k = this._battleQuestionDedupeKey(q.text);
+        if (k && seen.has(k)) continue;
+        if (k) seen.add(k);
+        out.push(q);
+      }
+      return out;
+    };
+
+    // ── Fallback 1: checkpoints alone (if enough) ────────────────────────────
+    if (shuffledCps.length >= 3) {
+      return dedupePool(shuffledCps);
+    }
+
+    // ── Fallback 2: topic-level cache from a prior battle ────────────────────
     const cached = this.getFromTopicCache(cacheKey);
     if (cached) {
-      this.logger.log(`Using topic cache for ${enrichedTopicName} (${cached.length} questions)`);
-      return cached;
+      this.logger.log(`Using topic cache for ${enrichedTopicName} (${cached.length} q)`);
+      // Mix cache with any checkpoints we have
+      return dedupePool(this._interleaveQuestionPools([cached, shuffledCps]));
     }
 
-    // Final fallback: DB questions (use resolved topic id or the preferred id from caller)
-    return this.getFallbackDbQuestions(
+    // ── Fallback 3: DB questions ─────────────────────────────────────────────
+    const dbFallback = await this.getFallbackDbQuestions(
       tenantId,
       safeCount,
-      topics[0]?.id ?? preferredTopicId ?? undefined,
+      isChallengeAFriendFullSyllabus ? undefined : (topics[0]?.id ?? preferredTopicId ?? undefined),
       derivedDifficulty,
+      isChallengeAFriendFullSyllabus ? batchId : undefined,
     );
+    return dedupePool(this._interleaveQuestionPools([dbFallback, shuffledCps]));
   }
 
   private async getFallbackDbQuestions(
@@ -1473,6 +1710,7 @@ export class BattleService {
     count: number,
     preferredTopicId?: string,
     difficulty: 'easy' | 'medium' | 'hard' = 'medium',
+    filterBatchId?: string,
   ): Promise<AiBattleQuestion[]> {
     const baseWhere = 'q.tenantId = :tenantId AND q.isActive = true';
     const diffEnum: DifficultyLevel =
@@ -1483,8 +1721,20 @@ export class BattleService {
       const qb = this.questionRepo
         .createQueryBuilder('q')
         .leftJoinAndSelect('q.options', 'options')
-        .where(baseWhere, { tenantId })
-        .andWhere('q.difficulty = :fbDiff', { fbDiff: diffEnum });
+        .where(baseWhere, { tenantId });
+
+      if (filterBatchId) {
+        qb.leftJoin('q.topic', 'topic')
+          .leftJoin('topic.chapter', 'chapter')
+          .leftJoin('chapter.subject', 'subject')
+          .andWhere(
+            '(subject.batch_id = :filterBatchId OR LOWER(subject.name) IN (SELECT LOWER(subject_name) FROM batch_subject_teachers WHERE batch_id = :filterBatchId))',
+            { filterBatchId }
+          );
+      }
+
+      qb.andWhere('q.difficulty = :fbDiff', { fbDiff: diffEnum });
+        
       if (topicId) qb.andWhere('q.topicId = :topicId', { topicId });
       return qb.orderBy('RANDOM()').limit(pool);
     };
@@ -1510,6 +1760,10 @@ export class BattleService {
         isCorrect: Boolean(o.isCorrect),
       }));
       if (!four.some((o) => o.isCorrect) || four.some((o) => !o.text?.trim())) continue;
+      
+      const optTexts = new Set(four.map((o) => o.text.trim().toLowerCase()));
+      if (optTexts.size < 4) continue;
+
       if (!q.content?.trim()) continue;
       const dk = this._battleQuestionDedupeKey(q.content);
       if (dk && seenDb.has(dk)) continue;

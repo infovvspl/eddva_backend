@@ -12,6 +12,8 @@ class CreateBattleDto {
   @IsOptional() @IsString() difficulty?: 'easy' | 'medium' | 'hard';
   @IsOptional() @IsEnum(BattleMode) mode?: BattleMode;
   @IsOptional() @IsString() batchId?: string;
+  @IsOptional() @IsString() subjectId?: string;
+  @IsOptional() @IsString() chapterId?: string;
 }
 
 class JoinBattleDto {
@@ -40,6 +42,8 @@ export class BattleController {
       dto.topicName,
       dto.difficulty,
       dto.batchId,
+      dto.subjectId,
+      dto.chapterId,
     );
   }
 
