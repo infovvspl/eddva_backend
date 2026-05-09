@@ -448,14 +448,15 @@ export class ContentController {
 
     @Post('lectures/:id/translate-notes')
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Translate AI notes to English (on-demand)' })
+    @ApiOperation({ summary: 'Translate AI notes to the target language (en or hi)' })
     @ApiParam({ name: 'id', type: 'string' })
-    translateNotesToEnglish(
+    translateNotes(
         @Param('id', ParseUUIDPipe) id: string,
         @TenantId() tenantId: string,
         @CurrentUser() user: any,
+        @Body() body: { targetLanguage?: string },
     ) {
-        return this.contentService.translateLectureNotesToEnglish(id, tenantId, user);
+        return this.contentService.translateLectureNotes(id, tenantId, user, body.targetLanguage ?? 'en');
     }
 
     @Post('lectures/:id/retranscribe')

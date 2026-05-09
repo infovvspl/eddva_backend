@@ -1092,11 +1092,12 @@ export class ContentService {
         return { transcriptHi: translated };
     }
 
-    async translateLectureNotesToEnglish(
+    async translateLectureNotes(
         id: string,
         tenantId: string,
         user?: { id: string; role: UserRole },
-    ): Promise<{ notesEn: string }> {
+        targetLanguage: string = 'en',
+    ): Promise<{ translated: string }> {
         const lecture = await this.lectureRepo.findOne({ where: { id } });
         if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
         if (user?.role === UserRole.STUDENT) {
@@ -1105,13 +1106,23 @@ export class ContentService {
         if (!lecture.aiNotesMarkdown) throw new BadRequestException('No AI notes available to translate');
 
         const result = await this.aiBridgeService.translateText(
-            { text: lecture.aiNotesMarkdown, targetLanguage: 'en' },
+            { text: lecture.aiNotesMarkdown, targetLanguage },
             tenantId,
         ) as any;
 
         const translated: string = result?.translatedText ?? result?.text ?? result?.translation ?? '';
         if (!translated) throw new BadRequestException('Translation returned empty result');
 
+        return { translated };
+    }
+
+    /** @deprecated Use translateLectureNotes instead */
+    async translateLectureNotesToEnglish(
+        id: string,
+        tenantId: string,
+        user?: { id: string; role: UserRole },
+    ): Promise<{ notesEn: string }> {
+        const { translated } = await this.translateLectureNotes(id, tenantId, user, 'en');
         return { notesEn: translated };
     }
 
