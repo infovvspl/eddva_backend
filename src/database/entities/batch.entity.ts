@@ -10,6 +10,12 @@ export enum BatchStatus {
   COMPLETED = 'completed',
 }
 
+export enum BatchDeliveryMode {
+  LIVE = 'live',
+  HYBRID = 'hybrid',
+  RECORDED = 'recorded',
+}
+
 @Entity('batches')
 export class Batch extends Base {
   @Column({ name: 'tenant_id' })
@@ -53,6 +59,9 @@ export class Batch extends Base {
 
   @Column({ type: 'enum', enum: BatchStatus, default: BatchStatus.ACTIVE })
   status: BatchStatus;
+
+  @Column({ name: 'delivery_mode', type: 'enum', enum: BatchDeliveryMode, default: BatchDeliveryMode.HYBRID })
+  deliveryMode: BatchDeliveryMode;
 
   @Column({ name: 'start_date', type: 'date', nullable: true })
   startDate: string;
