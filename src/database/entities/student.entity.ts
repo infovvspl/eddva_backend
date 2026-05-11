@@ -109,6 +109,18 @@ export class Student extends Base {
   @Column({ name: 'xp_total', default: 0 })
   xpTotal: number;
 
+  @Column({ name: 'leaderboard_xp_total', default: 0 })
+  leaderboardXpTotal: number;
+
+  @Column({ name: 'leaderboard_xp_cycle', default: 0 })
+  leaderboardXpCycle: number;
+
+  @Column({ name: 'mock_xp_total', default: 0 })
+  mockXpTotal: number;
+
+  @Column({ name: 'current_level', default: 1 })
+  currentLevel: number;
+
   @Column({ name: 'current_streak', default: 0 })
   currentStreak: number;
 

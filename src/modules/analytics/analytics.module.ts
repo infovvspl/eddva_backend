@@ -4,6 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
 import { LeaderboardService } from './leaderboard.service';
+import { XpLeaderboardController } from './xp-leaderboard.controller';
+import { XpLeaderboardService } from './xp-leaderboard.service';
 import { TeacherAnalyticsController } from './teacher-analytics.controller';
 import { TeacherAnalyticsService } from './teacher-analytics.service';
 
@@ -47,8 +49,8 @@ import { NotificationModule } from '../notification/notification.module';
       Chapter,
     ]),
   ],
-  controllers: [AnalyticsController, TeacherAnalyticsController],
-  providers: [AnalyticsService, LeaderboardService, TeacherAnalyticsService],
+  controllers: [AnalyticsController, TeacherAnalyticsController, XpLeaderboardController],
+  providers: [AnalyticsService, LeaderboardService, TeacherAnalyticsService, XpLeaderboardService],
   exports: [AnalyticsService],
 })
 export class AnalyticsModule {}

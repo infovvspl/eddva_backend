@@ -38,6 +38,10 @@ import { TeacherProfile } from './database/entities/teacher.entity';
 import { PYQAttempt, PYQYearStats } from './database/entities/pyq.entity';
 import { StudyMaterial } from './modules/study-material/study-material.entity';
 import { ExamSyllabusCache } from './database/entities/exam-syllabus.entity';
+import {
+  XpConfig, XpTransaction, LeaderboardCycle, LeaderboardGroup,
+  LeaderboardGroupMember, VideoWatchSession, StudentLevelHistory,
+} from './database/entities/xp.entity';
 
 
 // ── Modules ───────────────────────────────────────────────────────────────────
@@ -85,6 +89,8 @@ const ALL_ENTITIES = [
   PYQYearStats,
   StudyMaterial,
   ExamSyllabusCache,
+  XpConfig, XpTransaction, LeaderboardCycle, LeaderboardGroup,
+  LeaderboardGroupMember, VideoWatchSession, StudentLevelHistory,
 ];
 
 @Module({
