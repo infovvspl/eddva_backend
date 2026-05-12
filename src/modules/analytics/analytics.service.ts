@@ -351,10 +351,13 @@ export class AnalyticsService {
       order: { createdAt: 'DESC' },
       take: 15,
     });
-    const scoreTrend = sessions.reverse().map((s) => ({
-      date: s.createdAt.toISOString().split('T')[0],
-      score: Number(s.accuracy || 0),
-    }));
+    const scoreTrend = sessions.reverse().map((s) => {
+      const attempted = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
+      const score = attempted > 0
+        ? Math.round((s.correctCount || 0) / attempted * 100)
+        : 0;
+      return { date: s.createdAt.toISOString().split('T')[0], score };
+    });
 
     // 2. Subject Accuracy
     const subjectAccuracy = await this.computePerSubjectAccuracy(student.id, tenantId);
@@ -399,8 +402,16 @@ export class AnalyticsService {
       guess: 'Wild Guess',
     };
 
-    const speedVal = sessions.length 
-      ? Math.round(sessions.reduce((acc, s) => acc + (s.avgTimePerQuestion || 0), 0) / sessions.length)
+    const speedVal = sessions.length
+      ? Math.round(
+          sessions.reduce((acc, s) => {
+            const durationSec = s.submittedAt && s.startedAt
+              ? (s.submittedAt.getTime() - s.startedAt.getTime()) / 1000
+              : 0;
+            const attempts = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
+            return acc + (attempts > 0 ? durationSec / attempts : 0);
+          }, 0) / sessions.length,
+        )
       : 0;
 
     return {
