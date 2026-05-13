@@ -350,6 +350,7 @@ export class StudentService {
             endDate:      batch.endDate ?? null,
             thumbnailUrl: batch.thumbnailUrl ?? null,
             status:       batch.status,
+            deliveryMode: batch.deliveryMode,
             teacher:      batch.teacher ? { id: batch.teacher.id, fullName: batch.teacher.fullName } : null,
           },
           subjects: subjectNames,

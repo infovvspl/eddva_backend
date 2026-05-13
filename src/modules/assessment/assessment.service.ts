@@ -1119,7 +1119,7 @@ export class AssessmentService {
       await this.getOrCreateAiRoadmapSyllabus(tenantId, studentProfile, filteredSubjects, chapters, chapterTopicsMap);
 
     // 7. Assemble tree + summary
-    let totalTopics = 0, completedTopics = 0, inProgressTopics = 0;
+    let totalTopics = 0, completedTopics = 0, inProgressTopics = 0, unlockedTopics = 0;
     let totalPYQAttempted = 0, totalPYQCorrect = 0, totalLecturesCompleted = 0;
     let accuracySum = 0, accuracyCount = 0;
 
@@ -1145,8 +1145,11 @@ export class AssessmentService {
           const pyq = matchedTopicId ? pyqMap.get(matchedTopicId) : null;
           const ai = matchedTopicId ? aiMap.get(matchedTopicId) : null;
           const status = prog?.status ?? TopicStatus.LOCKED;
+          
           if (status === TopicStatus.COMPLETED) { completedTopics++; sCompleted++; cCompleted++; }
           else if (status === TopicStatus.IN_PROGRESS) inProgressTopics++;
+          else if (status === TopicStatus.UNLOCKED) unlockedTopics++;
+
           const accuracy = prog?.bestAccuracy ?? 0;
           if (prog && accuracy > 0) {
             accuracySum += accuracy; accuracyCount++;
@@ -1207,7 +1210,8 @@ export class AssessmentService {
         totalTopics,
         completedTopics,
         inProgressTopics,
-        lockedTopics: totalTopics - completedTopics - inProgressTopics,
+        unlockedTopics,
+        lockedTopics: totalTopics - completedTopics - inProgressTopics - unlockedTopics,
         overallAccuracy: accuracyCount > 0 ? Math.round(accuracySum / accuracyCount) : 0,
         totalPYQAttempted,
         pyqAccuracy: totalPYQAttempted > 0 ? Math.round((totalPYQCorrect / totalPYQAttempted) * 100) : 0,
@@ -1347,27 +1351,43 @@ export class AssessmentService {
     }
 
     const generated = await this.generateAiSyllabus(tenantId, examTarget, examYear);
-    // Strict AI-only roadmap: do not fall back to teacher/content syllabus.
-    const finalPayload = generated;
-
-    if (!finalPayload.length) return [];
-
-    try {
-      await this.examSyllabusCacheRepo.save(
-        {
+    
+    // If AI generation succeeded, cache it and return
+    if (generated.length > 0) {
+      try {
+        await this.examSyllabusCacheRepo.save({
           ...(cached ? { id: cached.id } : {}),
           tenantId,
           examTarget,
           examYear,
-          payload: { subjects: finalPayload },
+          payload: { subjects: generated },
           source: AI_ROADMAP_SOURCE,
-        } as any,
-      );
-    } catch {
-      // If another request writes first, just continue with generated payload.
+        } as any);
+      } catch (err) {
+        this.logger.warn(`Failed to save AI syllabus cache: ${err.message}`);
+      }
+      return generated;
     }
 
-    return finalPayload;
+    // FALLBACK: If AI syllabus is empty/failed, build a basic one from current enrolled content
+    // to prevent the "AI syllabus is being prepared" blank screen.
+    this.logger.log(`AI syllabus empty for ${examTarget}, falling back to DB content.`);
+    const subjectMap = this.groupChaptersBySubject(chapters);
+    const fallbackSyllabus = Array.from(subjectMap.entries()).map(([subjId, sChapters]) => {
+      const subject = subjects.find(s => s.id === subjId);
+      return {
+        subjectName: subject?.name || 'Unknown Subject',
+        chapters: sChapters.map(ch => {
+          const chTopics = chapterTopicsMap.get(ch.id) || [];
+          return {
+            chapterName: ch.name,
+            topics: chTopics.map(t => ({ topicName: t.name })),
+          };
+        }).filter(c => c.topics.length > 0),
+      };
+    }).filter(s => s.chapters.length > 0);
+
+    return fallbackSyllabus;
   }
 
   private groupChaptersBySubject(chapters: Chapter[]): Map<string, Chapter[]> {

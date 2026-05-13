@@ -88,6 +88,35 @@ export class OtpService {
     return { userId: user.id, message: 'Account created. Please verify phone and email.' };
   }
 
+  // ── Update Pending Contact Info ─────────────────────────────────────────────
+
+  async updatePendingContact(userId: string, newPhone?: string, newEmail?: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found.');
+    }
+    if (user.status !== 'pending_verification') {
+      throw new BadRequestException('Only pending users can update contact info.');
+    }
+
+    if (newPhone && newPhone !== user.phoneNumber) {
+      const existing = await this.userRepo.findOne({ where: { phoneNumber: newPhone } });
+      if (existing) throw new BadRequestException('Phone number is already registered.');
+      user.phoneNumber = newPhone;
+      user.phoneVerified = false; // Reset verification if changed
+    }
+
+    if (newEmail && newEmail !== user.email) {
+      const existing = await this.userRepo.findOne({ where: { email: newEmail } });
+      if (existing) throw new BadRequestException('Email is already registered.');
+      user.email = newEmail;
+      user.emailVerified = false; // Reset verification if changed
+    }
+
+    await this.userRepo.save(user);
+    return { message: 'Contact info updated successfully.', user: { phoneNumber: user.phoneNumber, email: user.email } };
+  }
+
   // ── Phone OTP (Twilio Verify) ────────────────────────────────────────────────
 
   async sendPhoneOtp(dto: SendPhoneOtpDto) {

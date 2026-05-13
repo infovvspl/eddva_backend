@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn, BeforeInsert, BeforeUpdate, Unique } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, BeforeInsert, BeforeUpdate, Index } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import * as bcrypt from 'bcryptjs';
 import { Base } from './base.entity';
@@ -20,7 +20,7 @@ export enum UserStatus {
 }
 
 @Entity('users')
-@Unique('UQ_user_phone_tenant', ['phoneNumber', 'tenantId'])
+@Index('UQ_user_phone_tenant_partial', ['phoneNumber', 'tenantId'], { unique: true, where: 'deleted_at IS NULL' })
 export class User extends Base {
   // ── Tenant (multi-tenancy) ───────────────────────────────────────────────
   @Column({ name: 'tenant_id' })

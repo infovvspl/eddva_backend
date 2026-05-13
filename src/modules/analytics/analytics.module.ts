@@ -4,6 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
 import { LeaderboardService } from './leaderboard.service';
+import { XpLeaderboardController } from './xp-leaderboard.controller';
+import { XpLeaderboardService } from './xp-leaderboard.service';
 import { TeacherAnalyticsController } from './teacher-analytics.controller';
 import { TeacherAnalyticsService } from './teacher-analytics.service';
 
@@ -18,7 +20,7 @@ import { Student } from '../../database/entities/student.entity';
 import { User } from '../../database/entities/user.entity';
 import { StudentElo } from '../../database/entities/battle.entity';
 import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
-import { Doubt, Lecture, LectureProgress } from '../../database/entities/learning.entity';
+import { AiStudySession, Doubt, Lecture, LectureProgress, PlanItem } from '../../database/entities/learning.entity';
 import { Chapter, Subject, Topic } from '../../database/entities/subject.entity';
 import { NotificationModule } from '../notification/notification.module';
 
@@ -45,10 +47,12 @@ import { NotificationModule } from '../notification/notification.module';
       Topic,
       Subject,
       Chapter,
+      PlanItem,
+      AiStudySession,
     ]),
   ],
-  controllers: [AnalyticsController, TeacherAnalyticsController],
-  providers: [AnalyticsService, LeaderboardService, TeacherAnalyticsService],
+  controllers: [AnalyticsController, TeacherAnalyticsController, XpLeaderboardController],
+  providers: [AnalyticsService, LeaderboardService, TeacherAnalyticsService, XpLeaderboardService],
   exports: [AnalyticsService],
 })
 export class AnalyticsModule {}

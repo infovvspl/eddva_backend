@@ -16,7 +16,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-import { BatchStatus } from '../../../database/entities/batch.entity';
+import { BatchStatus, BatchDeliveryMode } from '../../../database/entities/batch.entity';
 
 const normalizeBatchField = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;
@@ -49,6 +49,11 @@ export class CreateBatchDto {
   @IsOptional()
   @IsUUID()
   teacherId?: string;
+
+  @ApiPropertyOptional({ enum: BatchDeliveryMode, description: 'Delivery mode of the course (Live, Hybrid, Recorded)', default: BatchDeliveryMode.HYBRID })
+  @IsOptional()
+  @IsEnum(BatchDeliveryMode)
+  deliveryMode?: BatchDeliveryMode;
 
   @ApiPropertyOptional({ description: 'Whether this batch requires payment to enroll' })
   @IsOptional()
@@ -102,6 +107,11 @@ export class UpdateBatchDto {
   @IsOptional()
   @IsUUID()
   teacherId?: string | null;
+
+  @ApiPropertyOptional({ enum: BatchDeliveryMode })
+  @IsOptional()
+  @IsEnum(BatchDeliveryMode)
+  deliveryMode?: BatchDeliveryMode;
 
   @ApiPropertyOptional({ description: 'Whether this batch requires payment to enroll' })
   @IsOptional()

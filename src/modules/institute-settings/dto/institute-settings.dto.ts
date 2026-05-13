@@ -159,6 +159,11 @@ export enum CalendarEventType {
   TEST = 'test',
   LECTURE = 'lecture',
   OTHER = 'other',
+  MONTHLY_PLANNER = 'monthly_planner',
+  MOCK_TEST = 'mock_test',
+  PT_EXAM = 'pt_exam',
+  HALF_YEARLY = 'half_yearly',
+  ANNUAL_EXAM = 'annual_exam',
 }
 
 export class CreateCalendarEventDto {

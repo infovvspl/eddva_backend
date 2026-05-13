@@ -375,13 +375,13 @@ export class BattleGateway
         battle: {
           id: room.battleId,
           roomCode: room.roomCode,
-          totalRounds: room.totalRounds ?? 10,
+          totalRounds: questions.length,
           secondsPerRound: room.secondsPerRound ?? 45,
         },
         room,
         participants: challengeParticipants,
         firstQuestion: questions[0],
-        totalRounds: room.totalRounds ?? 10,
+        totalRounds: questions.length,
         timePerRound: room.secondsPerRound ?? 45,
       });
 
@@ -428,10 +428,13 @@ export class BattleGateway
         const questions = await this.battleService.getBattleQuestions(battle.id);
         const reconnectParticipants = await this.battleService.getRoomParticipantsFormatted(roomCode);
         client.emit('battle:start', {
-          battle,
+          battle: {
+            ...battle,
+            totalRounds: questions.length,
+          },
           participants: reconnectParticipants,
           firstQuestion: questions[0],
-          totalRounds: battle.totalRounds,
+          totalRounds: questions.length,
           timePerRound: battle.secondsPerRound,
         });
         return;
@@ -450,10 +453,13 @@ export class BattleGateway
         }
         await this.battleService.startBattle(battle.id);
         this.server.to(roomCode).emit('battle:start', {
-          battle,
+          battle: {
+            ...battle,
+            totalRounds: questions.length,
+          },
           participants,
           firstQuestion: questions[0],
-          totalRounds: battle.totalRounds,
+          totalRounds: questions.length,
           timePerRound: battle.secondsPerRound,
         });
       }

@@ -32,10 +32,10 @@ export class StudentRegisterDto {
   @IsNotEmpty()
   phoneNumber: string;
 
-  @ApiProperty({ example: '+919876543211', description: 'Alternate phone number' })
+  @ApiPropertyOptional({ example: '+919876543211', description: 'Alternate phone number' })
+  @IsOptional()
   @IsPhoneNumber('IN')
-  @IsNotEmpty()
-  alternatePhoneNumber: string;
+  alternatePhoneNumber?: string;
 
   @ApiProperty({ example: 'arjun@gmail.com' })
   @IsEmail()

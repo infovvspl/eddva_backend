@@ -68,3 +68,18 @@ export class OtpRegisterDto {
   @IsString()
   role?: "institute_admin" | "student";
 }
+
+export class UpdatePendingContactDto {
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+[1-9]\d{1,14}$/, { message: "phoneNumber must be in E.164 format" })
+  phoneNumber?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+}
