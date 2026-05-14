@@ -315,8 +315,6 @@ export class AiBridgeController {
         subject: body.subject,
         chapter: body.chapter,
         notes: body.notes,
-        subjectName: body.subjectName,
-        chapterName: body.chapterName,
       },
       tenantId,
     );

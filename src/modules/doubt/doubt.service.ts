@@ -111,15 +111,14 @@ export class DoubtService {
       await this.notifyEscalatedDoubtTeachers(doubt);
     } else {
       try {
-        const aiResult = (await this.aiBridgeService.resolveDoubtDirect(
+        const aiResult = (await this.aiBridgeService.resolveDoubt(
           {
-            question: dto.questionText || '',
+            questionText: dto.questionText || '',
             topicId: dto.topicId,
-            mode: dto.explanationMode || 'detailed',
+            mode: (dto.explanationMode as 'short' | 'detailed') || 'detailed',
             studentContext: { source: dto.source, sourceRefId: dto.sourceRefId },
             questionImageUrl: dto.questionImageUrl || undefined,
           },
-          undefined,
           tenantId,
         )) as any;
 
@@ -488,15 +487,14 @@ export class DoubtService {
     }
 
     try {
-      const aiResult = (await this.aiBridgeService.resolveDoubtDirect(
+      const aiResult = (await this.aiBridgeService.resolveDoubt(
         {
-          question: doubt.questionText || '',
+          questionText: doubt.questionText || '',
           topicId: doubt.topicId || undefined,
-          mode: (doubt.explanationMode as string) || 'detailed',
+          mode: (doubt.explanationMode as 'short' | 'detailed') || 'detailed',
           studentContext: { source: doubt.source, sourceRefId: doubt.sourceRefId ?? undefined },
           questionImageUrl: doubt.questionImageUrl || undefined,
         },
-        undefined,
         tenantId,
       )) as any;
 

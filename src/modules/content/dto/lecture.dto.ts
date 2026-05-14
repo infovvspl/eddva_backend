@@ -139,11 +139,6 @@ export class CreateLectureDto {
     @IsString()
     liveMeetingUrl?: string;
 
-    @ApiPropertyOptional({ enum: ['en', 'hi', 'hinglish'], description: 'Language of the lecture audio' })
-    @IsOptional()
-    @IsString()
-    lectureLanguage?: string;
-
     @ApiPropertyOptional()
     @IsOptional()
     @IsNumber()
@@ -183,10 +178,6 @@ export class UpdateLectureDto extends PartialType(CreateLectureDto) {
     @IsString()
     transcript?: string;
 
-    @ApiPropertyOptional({ enum: ['pending', 'processing', 'done', 'failed'] })
-    @IsOptional()
-    @IsString()
-    transcriptStatus?: 'pending' | 'processing' | 'done' | 'failed';
 
     @ApiPropertyOptional()
     @IsOptional()

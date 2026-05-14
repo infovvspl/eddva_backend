@@ -433,7 +433,7 @@ export class ContentController {
         @CurrentUser() user: any,
         @TenantId() tenantId: string,
     ) {
-        return this.contentService.regenerateNotesFromTranscript(id, user.id, user.role, tenantId);
+        return this.contentService.regenerateNotes(id, user.id, user.role, tenantId);
     }
 
     // ─── LECTURE PROGRESS ─────────────────────────────────────────────────────
@@ -763,7 +763,7 @@ export class ContentController {
         @Body() body: { contentType: string; difficulty: string; length: string; examTarget?: string; courseName?: string; extraContext?: string },
         @TenantId() tenantId: string,
     ) {
-        return this.contentService.generateAiTopicContent(topicId, body, tenantId);
+        return this.contentService.generateTopicAiContent(topicId, body, tenantId);
     }
 
     @Post('topics/:topicId/save-ai-resource')
@@ -776,7 +776,7 @@ export class ContentController {
         @CurrentUser() user: any,
         @TenantId() tenantId: string,
     ) {
-        return this.contentService.saveAiGeneratedResource(topicId, { ...body, uploadedBy: user.id }, tenantId);
+        return this.contentService.saveTopicAiResource(topicId, body, user.id, tenantId);
     }
 
     // ─── BATCH THUMBNAIL ──────────────────────────────────────────────────────
