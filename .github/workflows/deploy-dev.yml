@@ -119,8 +119,9 @@ jobs:
             fi
 
             # Install & build
-            npm ci --production=false
+            npm ci
             npm run build
+            test -f dist/main.js || { echo "BUILD FAILED: dist/main.js not created"; exit 1; }
             mkdir -p /home/ubuntu/logs
 
             # Start or restart PM2 dev process
