@@ -58,7 +58,7 @@ jobs:
           JWT_REFRESH_SECRET: ${{ secrets.DEV_JWT_REFRESH_SECRET }}
           JWT_EXPIRES_IN: "7d"
           JWT_REFRESH_EXPIRES_IN: "30d"
-          AI_BASE_URL: ${{ secrets.DEV_AI_BASE_URL }}
+          AI_BASE_URL: "http://3.111.190.194:8001"
           AI_API_KEY: ${{ secrets.DEV_AI_API_KEY }}
           AI_TIMEOUT_MS: "60000"
           STORAGE_PROVIDER: "r2"
