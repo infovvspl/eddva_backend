@@ -112,6 +112,12 @@ jobs:
             git fetch --all
             git reset --hard origin/dev
 
+            # Ensure Node 20 (server may have Node 18)
+            if ! node --version 2>/dev/null | grep -q '^v20'; then
+              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+              sudo apt-get install -y nodejs
+            fi
+
             # Install & build
             npm ci --production=false
             npm run build
