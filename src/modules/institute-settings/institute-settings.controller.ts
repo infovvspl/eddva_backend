@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { extname } from 'path';
+import { StorageService } from '../storage/storage.service';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
@@ -14,7 +14,6 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../database/entities/user.entity';
 import { InstituteSettingsService } from './institute-settings.service';
-import { S3Service } from '../upload/s3.service';
 import {
   UpdateInstituteProfileDto,
   UpdateBrandingDto,
@@ -32,7 +31,7 @@ import {
 export class InstituteSettingsController {
   constructor(
     private readonly svc: InstituteSettingsService,
-    private readonly s3: S3Service,
+    private readonly storageService: StorageService,
   ) {}
 
   // ── Onboarding ───────────────────────────────────────────────────────────────
@@ -92,10 +91,10 @@ export class InstituteSettingsController {
     @TenantId() tenantId: string,
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
-    const ext = extname(file.originalname).toLowerCase() || '.jpg';
-    const key = `tenants/${tenantId}/admin/profile/${userId}${ext}`;
-    const fileUrl = await this.s3.upload(key, file.buffer, file.mimetype);
-    return this.svc.updateProfileImage(userId, fileUrl);
+    const { url: imageUrl } = await this.storageService.uploadFile(
+      file.buffer, file.originalname, file.mimetype, 'avatars',
+    );
+    return this.svc.updateProfileImage(userId, imageUrl);
   }
 
   // ── Branding ────────────────────────────────────────────────────────────────

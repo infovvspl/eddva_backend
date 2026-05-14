@@ -8,7 +8,6 @@ import {
     Body,
     Param,
     Query,
-    Req,
     UseGuards,
     HttpCode,
     HttpStatus,
@@ -18,15 +17,9 @@ import {
     UseInterceptors,
 } from '@nestjs/common';
 
-import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
-import { mkdirSync, createReadStream, unlinkSync } from 'fs';
-import { tmpdir } from 'os';
-import { v4 as uuidv4 } from 'uuid';
-
 import { memoryStorage } from 'multer';
+import { StorageService } from '../storage/storage.service';
 import {
     ApiTags,
     ApiBearerAuth,
@@ -66,7 +59,6 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { UserRole } from '../../database/entities/user.entity';
-import { S3Service } from '../upload/s3.service';
 
 @ApiTags('Content')
 @ApiBearerAuth()
@@ -75,7 +67,7 @@ import { S3Service } from '../upload/s3.service';
 export class ContentController {
     constructor(
         private readonly contentService: ContentService,
-        private readonly s3Service: S3Service,
+        private readonly storageService: StorageService,
     ) { }
 
     // ─── BULK IMPORT ─────────────────────────────────────────────────────────
@@ -278,74 +270,36 @@ export class ContentController {
 
     // ─── LECTURES ─────────────────────────────────────────────────────────────
 
-    // ─── VIDEO UPLOAD (browser → API → S3) ────────────────────────────────────
-    // Multipart upload avoids S3 bucket CORS for dev origins (e.g. cds.localhost).
-    // Optional body fields courseId + lectureId match the presigned key layout from POST /upload-url.
+    // ─── VIDEO UPLOAD (browser → API → R2) ────────────────────────────────────
 
     @Post('lectures/upload-video')
-    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
-    @HttpCode(HttpStatus.OK)
-    @ApiConsumes('multipart/form-data')
-    @ApiOperation({ summary: 'Upload a lecture video through backend to S3' })
-    @UseInterceptors(
-        FileInterceptor('file', {
-            storage: diskStorage({
-                destination: (_req, _file, cb) => {
-                    const dir = join(tmpdir(), 'eddva-lecture-uploads');
-                    mkdirSync(dir, { recursive: true });
-                    cb(null, dir);
-                },
-                filename: (_req, file, cb) => {
-                    const ext = extname(file.originalname).toLowerCase() || '.mp4';
-                    cb(null, `${Date.now()}-${uuidv4()}${ext}`);
-                },
-            }),
-            limits: { fileSize: MAX_LECTURE_VIDEO_UPLOAD_BYTES }, // 2 GB — temp file on disk, streamed to S3
-            fileFilter: (_req, file, cb) => {
-                if (!file.mimetype.startsWith('video/') && !file.mimetype.startsWith('audio/')) {
-                    return cb(new BadRequestException('Only video or audio files are allowed'), false);
-                }
-                cb(null, true);
-            },
-        }),
-    )
-    async uploadVideo(
-        @UploadedFile() file: Express.Multer.File,
-        @Body('courseId') courseId: string | undefined,
-        @Body('lectureId') lectureId: string | undefined,
-        @TenantId() tenantId: string,
-    ) {
-        if (!file?.path) throw new BadRequestException('No file uploaded');
-        const ext = extname(file.originalname).toLowerCase() || '.mp4';
-        const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `video${ext}`;
-        const objectName = `${Date.now()}-${uuidv4()}-${safeName}`;
-        const key =
-            courseId && lectureId
-                ? `tenants/${tenantId}/courses/${courseId}/lectures/${lectureId}/video/${objectName}`
-                : `tenants/${tenantId}/lectures/${objectName}`;
-
-        const stream = createReadStream(file.path);
-        try {
-            const fileUrl = await this.s3Service.uploadStream(key, stream, file.mimetype);
-            return { url: fileUrl };
-        } finally {
-            try {
-                unlinkSync(file.path);
-            } catch {
-                // ignore
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+    @ApiOperation({ summary: 'Upload a video file to R2; returns the public URL to use as videoUrl' })
+    @UseInterceptors(FileInterceptor('file', {
+        storage: memoryStorage(),
+        limits: { fileSize: MAX_LECTURE_VIDEO_UPLOAD_BYTES },
+        fileFilter: (_req, file, cb) => {
+            if (!file.mimetype.startsWith('video/') && !file.mimetype.startsWith('audio/')) {
+                return cb(new BadRequestException('Only video or audio files are allowed'), false);
             }
-        }
+            cb(null, true);
+        },
+    }))
+    async uploadVideo(@UploadedFile() file: Express.Multer.File) {
+        if (!file) throw new BadRequestException('No file uploaded');
+        const { url } = await this.storageService.uploadFile(file.buffer, file.originalname, file.mimetype, 'videos');
+        return { url, size: file.size, mimetype: file.mimetype };
     }
 
     @Post('lectures/upload-thumbnail')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
     @HttpCode(HttpStatus.OK)
     @ApiConsumes('multipart/form-data')
-    @ApiOperation({ summary: 'Upload a lecture thumbnail image to S3' })
+    @ApiOperation({ summary: 'Upload a lecture thumbnail image to R2' })
     @UseInterceptors(
         FileInterceptor('file', {
             storage: memoryStorage(),
-            limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+            limits: { fileSize: 10 * 1024 * 1024 },
             fileFilter: (_req, file, cb) => {
                 if (!file.mimetype.startsWith('image/')) {
                     return cb(new BadRequestException('Only image files are allowed'), false);
@@ -359,17 +313,14 @@ export class ContentController {
         @TenantId() tenantId: string,
     ) {
         if (!file) throw new BadRequestException('No file uploaded');
-        const ext = extname(file.originalname).toLowerCase() || '.jpg';
-        const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `thumbnail${ext}`;
-        const key = `tenants/${tenantId}/lectures/thumbnails/${Date.now()}-${safeName}`;
-        const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype);
-        return { url: fileUrl };
+        const { url } = await this.storageService.uploadFile(file.buffer, file.originalname, file.mimetype, 'thumbnails');
+        return { url };
     }
 
     @Post('lectures/confirm-video')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Confirm video URL after S3 upload (no-op — videoUrl is set on lecture create/update)' })
+    @ApiOperation({ summary: 'Confirm video URL after upload (no-op — videoUrl is set on lecture create/update)' })
     confirmVideo(@Body('fileUrl') fileUrl: string) {
         if (!fileUrl) throw new BadRequestException('fileUrl is required');
         return { url: fileUrl };
@@ -462,7 +413,7 @@ export class ContentController {
     @Post('lectures/:id/retranscribe')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Re-trigger AI transcription for a recorded lecture' })
+    @ApiOperation({ summary: 'Re-run Whisper transcription for a lecture in the background' })
     @ApiParam({ name: 'id', type: 'string' })
     retranscribeLecture(
         @Param('id', ParseUUIDPipe) id: string,
@@ -475,14 +426,14 @@ export class ContentController {
     @Post('lectures/:id/regenerate-notes')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Regenerate AI notes from the already-saved transcript (no re-transcription)' })
+    @ApiOperation({ summary: 'Regenerate AI notes from the existing transcript' })
     @ApiParam({ name: 'id', type: 'string' })
     regenerateNotes(
         @Param('id', ParseUUIDPipe) id: string,
         @CurrentUser() user: any,
         @TenantId() tenantId: string,
     ) {
-        return this.contentService.regenerateNotes(id, user.id, user.role, tenantId);
+        return this.contentService.regenerateNotesFromTranscript(id, user.id, user.role, tenantId);
     }
 
     // ─── LECTURE PROGRESS ─────────────────────────────────────────────────────
@@ -575,6 +526,18 @@ export class ContentController {
         @TenantId() tenantId: string,
     ) {
         return this.contentService.getWatchAnalytics(id, tenantId);
+    }
+
+    @Post('lectures/:id/translate-notes')
+    @HttpCode(HttpStatus.OK)
+    @Roles(UserRole.STUDENT)
+    @ApiOperation({ summary: 'Translate AI notes for a lecture to English' })
+    @ApiParam({ name: 'id', type: 'string' })
+    translateNotesToEnglish(
+        @Param('id', ParseUUIDPipe) id: string,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.translateLectureNotesToEnglish(id, tenantId);
     }
 
     // ─── AI STUDY ─────────────────────────────────────────────────────────────
@@ -676,57 +639,25 @@ export class ContentController {
         return this.contentService.completeAiQuiz(topicId, dto, user.id, tenantId);
     }
 
-    // ─── TOPIC RESOURCES (PDF / DPP / QUIZ / NOTES) ───────────────────────────
-
-    // ─── TOPIC RESOURCE (S3 pre-signed flow) ─────────────────────────────────
-    // 1. Call POST /upload/url { type:"material", courseId, fileName, contentType, fileSize }
-    // 2. PUT file directly to S3 using the returned uploadUrl
-    // 3. Call this endpoint with the returned fileUrl + metadata to save the record
+    // ─── TOPIC RESOURCES (PDF / DPP / PYQ / NOTES) ───────────────────────────
 
     @Post('topics/:topicId/resources/upload')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
-    @ApiOperation({ summary: 'Save a topic resource after S3 upload' })
-    @ApiParam({ name: 'topicId', type: 'string' })
-    uploadTopicResource(
-        @Param('topicId', ParseUUIDPipe) topicId: string,
-        @Body() body: { title: string; type: string; fileUrl: string; fileSizeKb?: number; description?: string; sortOrder?: number },
-        @CurrentUser() user: any,
-        @TenantId() tenantId: string,
-    ) {
-        if (!body.fileUrl) throw new BadRequestException('fileUrl is required');
-        return this.contentService.createTopicResource(topicId, {
-            title: body.title,
-            type: body.type as any,
-            description: body.description,
-            sortOrder: body.sortOrder ?? 0,
-            fileUrl: body.fileUrl,
-            fileSizeKb: body.fileSizeKb ?? 0,
-            uploadedBy: user.id,
-        }, tenantId);
-    }
-
-    @Post('topics/:topicId/resources/upload-file')
-    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
-    @ApiConsumes('multipart/form-data')
-    @ApiOperation({ summary: 'Upload a topic resource through backend and save the final file URL' })
+    @ApiOperation({ summary: 'Upload a resource file (PDF, DPP, notes) for a topic to R2 storage' })
     @ApiParam({ name: 'topicId', type: 'string' })
     @UseInterceptors(
         FileInterceptor('file', {
             storage: memoryStorage(),
             limits: { fileSize: MAX_TOPIC_RESOURCE_UPLOAD_BYTES },
             fileFilter: (_req, file, cb) => {
-                const allowed =
-                    file.mimetype === 'application/pdf' ||
-                    file.mimetype.startsWith('image/');
-
-                if (!allowed) {
-                    return cb(new BadRequestException('Only PDF or image files are allowed'), false);
-                }
-                cb(null, true);
+                const allowed = ['.pdf', '.pptx', '.docx', '.xlsx', '.png', '.jpg', '.jpeg', '.mp4'];
+                const ext = require('path').extname(file.originalname).toLowerCase();
+                if (allowed.includes(ext)) cb(null, true);
+                else cb(new BadRequestException(`File type ${ext} not allowed`), false);
             },
         }),
     )
-    async uploadTopicResourceFile(
+    async uploadTopicResource(
         @Param('topicId', ParseUUIDPipe) topicId: string,
         @UploadedFile() file: Express.Multer.File,
         @Body() body: { title: string; type: string; description?: string; sortOrder?: string; fileSizeKb?: string },
@@ -737,11 +668,9 @@ export class ContentController {
         if (!body.title) throw new BadRequestException('title is required');
         if (!body.type) throw new BadRequestException('type is required');
 
-        const ext = extname(file.originalname).toLowerCase();
-        const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '');
-        const key = `tenants/${tenantId}/topics/${topicId}/resources/${Date.now()}-${safeName || `resource${ext || ''}`}`;
-        const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype);
-
+        const { url: fileUrl, key } = await this.storageService.uploadFile(
+            file.buffer, file.originalname, file.mimetype, 'resources',
+        );
         return this.contentService.createTopicResource(topicId, {
             title: body.title,
             type: body.type as any,
@@ -775,7 +704,7 @@ export class ContentController {
     }
 
     @Get('topics/:topicId/resources/:resourceId/download-url')
-    @ApiOperation({ summary: 'Get a presigned download URL for a topic resource file' })
+    @ApiOperation({ summary: 'Get the download URL for a topic resource file' })
     @ApiParam({ name: 'topicId', type: 'string' })
     @ApiParam({ name: 'resourceId', type: 'string' })
     async getResourceDownloadUrl(
@@ -786,9 +715,7 @@ export class ContentController {
         const resource = await this.contentService.getTopicResourceById(resourceId, tenantId);
         if (resource.externalUrl) return { url: resource.externalUrl, type: 'external' };
         if (!resource.fileUrl) return { url: null, type: 'ai-content', content: resource.description };
-        const key = this.s3Service.keyFromUrl(resource.fileUrl);
-        const url = await this.s3Service.presignDownload(key, resource.title ?? undefined);
-        return { url, type: 'file' };
+        return { url: resource.fileUrl, type: 'file' };
     }
 
     @Get('topics/:topicId/resources')
@@ -824,84 +751,61 @@ export class ContentController {
         return this.contentService.deleteTopicResource(resourceId, tenantId);
     }
 
+    // ─── AI CONTENT GENERATION ───────────────────────────────────────────────
+
     @Post('topics/:topicId/generate-ai-content')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Generate AI content (DPP, notes, PYQ, etc.) for a topic' })
+    @ApiOperation({ summary: 'Generate AI content (notes, DPP, PYQ, etc.) for a topic' })
     @ApiParam({ name: 'topicId', type: 'string' })
-    generateTopicAiContent(
+    generateAiTopicContent(
         @Param('topicId', ParseUUIDPipe) topicId: string,
-        @Body() dto: { contentType: string; difficulty: string; length: string; extraContext?: string },
+        @Body() body: { contentType: string; difficulty: string; length: string; examTarget?: string; courseName?: string; extraContext?: string },
         @TenantId() tenantId: string,
     ) {
-        return this.contentService.generateTopicAiContent(topicId, dto, tenantId);
+        return this.contentService.generateAiTopicContent(topicId, body, tenantId);
     }
 
     @Post('topics/:topicId/save-ai-resource')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
-    @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Save AI-generated content as a topic resource' })
+    @ApiOperation({ summary: 'Save AI-generated content as a notes/DPP/PYQ resource for a topic' })
     @ApiParam({ name: 'topicId', type: 'string' })
-    saveAiResource(
+    saveAiGeneratedResource(
         @Param('topicId', ParseUUIDPipe) topicId: string,
-        @Body() dto: { title: string; content: string; resourceType?: string },
+        @Body() body: { title: string; content: string; resourceType?: string },
         @CurrentUser() user: any,
         @TenantId() tenantId: string,
     ) {
-        return this.contentService.saveTopicAiResource(topicId, dto, user.id, tenantId);
+        return this.contentService.saveAiGeneratedResource(topicId, { ...body, uploadedBy: user.id }, tenantId);
     }
 
     // ─── BATCH THUMBNAIL ──────────────────────────────────────────────────────
 
-    // ─── BATCH THUMBNAIL (S3 pre-signed flow) ────────────────────────────────
-    // 1. Call POST /upload/url { type:"thumbnail", courseId:batchId, fileName, contentType, fileSize }
-    // 2. PUT image directly to S3 using the returned uploadUrl
-    // 3. Call this endpoint with the returned fileUrl to save it on the batch
-
     @Post('batches/:batchId/thumbnail')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
-    @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Save batch thumbnail after S3 upload' })
-    @ApiParam({ name: 'batchId', type: 'string' })
-    uploadBatchThumbnail(
-        @Param('batchId', ParseUUIDPipe) batchId: string,
-        @Body('fileUrl') fileUrl: string,
-        @TenantId() tenantId: string,
-    ) {
-        if (!fileUrl) throw new BadRequestException('fileUrl is required');
-        return this.contentService.updateBatchThumbnail(batchId, fileUrl, tenantId);
-    }
-
-    @Post('batches/:batchId/thumbnail/upload')
-    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
-    @HttpCode(HttpStatus.OK)
-    @ApiConsumes('multipart/form-data')
-    @ApiOperation({ summary: 'Upload batch thumbnail through backend and save the final URL' })
+    @ApiOperation({ summary: 'Upload a thumbnail image for a batch/course to R2 storage' })
     @ApiParam({ name: 'batchId', type: 'string' })
     @UseInterceptors(
         FileInterceptor('file', {
             storage: memoryStorage(),
-            limits: { fileSize: 10 * 1024 * 1024 },
+            limits: { fileSize: 5 * 1024 * 1024 },
             fileFilter: (_req, file, cb) => {
-                if (!file.mimetype.match(/^image\/(jpeg|jpg|png|webp|gif)$/)) {
-                    return cb(new BadRequestException('Only image files are allowed'), false);
-                }
-                cb(null, true);
+                const allowed = ['.png', '.jpg', '.jpeg', '.webp'];
+                const ext = require('path').extname(file.originalname).toLowerCase();
+                if (allowed.includes(ext)) cb(null, true);
+                else cb(new BadRequestException('Only image files allowed for thumbnails'), false);
             },
         }),
     )
-    async uploadBatchThumbnailFile(
+    async uploadBatchThumbnail(
         @Param('batchId', ParseUUIDPipe) batchId: string,
         @UploadedFile() file: Express.Multer.File,
         @TenantId() tenantId: string,
     ) {
         if (!file) throw new BadRequestException('No file uploaded');
-
-        const ext = extname(file.originalname).toLowerCase() || '.png';
-        const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '');
-        const key = `tenants/${tenantId}/courses/${batchId}/thumbnail/${Date.now()}-${safeName || `thumbnail${ext}`}`;
-        const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype);
-
-        return this.contentService.updateBatchThumbnail(batchId, fileUrl, tenantId);
+        const { url: thumbnailUrl } = await this.storageService.uploadFile(
+            file.buffer, file.originalname, file.mimetype, 'thumbnails',
+        );
+        return this.contentService.updateBatchThumbnail(batchId, thumbnailUrl, tenantId);
     }
 }

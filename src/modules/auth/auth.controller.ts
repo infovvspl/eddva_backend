@@ -11,6 +11,10 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { UploadedFile, UseInterceptors } from '@nestjs/common';
+import { memoryStorage } from 'multer';
+import { StorageService } from '../storage/storage.service';
 import {
   ApiTags,
   ApiOperation,
@@ -49,6 +53,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly storageService: StorageService,
   ) {}
 
   // ── Student Self-Registration ─────────────────────────────────────────────
@@ -254,13 +259,27 @@ export class AuthController {
 
   @Post('profile/avatar')
   @ApiBearerAuth()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Confirm profile avatar after S3 upload — save fileUrl to user record' })
-  async confirmAvatar(
-    @Body('fileUrl') fileUrl: string,
+  @ApiOperation({ summary: 'Upload profile avatar' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.match(/^image\/(jpeg|jpg|png|webp|gif)$/)) {
+          return cb(new BadRequestException('Only image files are allowed (jpg, png, webp)'), false);
+        }
+        cb(null, true);
+      },
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async uploadAvatar(
+    @UploadedFile() file: Express.Multer.File,
     @CurrentUser('id') userId: string,
   ) {
-    if (!fileUrl) throw new BadRequestException('fileUrl is required');
-    return this.authService.updateAvatar(userId, fileUrl);
+    if (!file) throw new BadRequestException('No file uploaded');
+    const { url: avatarUrl } = await this.storageService.uploadFile(
+      file.buffer, file.originalname, file.mimetype, 'avatars',
+    );
+    return this.authService.updateAvatar(userId, avatarUrl);
   }
 }

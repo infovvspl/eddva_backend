@@ -58,9 +58,9 @@ jobs:
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
         with:
-          host: ${{ secrets.APP_SERVER_HOST }}
-          username: ubuntu
-          key: ${{ secrets.APP_SERVER_SSH_KEY }}
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           envs: NODE_ENV,PORT,DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,DB_SSL,JWT_SECRET,JWT_REFRESH_SECRET,JWT_EXPIRES_IN,JWT_REFRESH_EXPIRES_IN,AI_BASE_URL,AI_API_KEY,AI_TIMEOUT_MS,STORAGE_PROVIDER,R2_ACCOUNT_ID,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,R2_BUCKET_NAME,R2_PUBLIC_URL,RAZORPAY_KEY_ID,RAZORPAY_KEY_SECRET,CORS_ORIGINS,OTP_DEV_MODE,AGORA_APP_ID,AGORA_APP_CERTIFICATE,FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL
           script: |
             set -e
@@ -111,7 +111,7 @@ jobs:
             git reset --hard origin/dev
 
             # Install & build
-            npm ci --omit=dev
+            npm ci --production=false
             npm run build
             mkdir -p /home/ubuntu/logs
 

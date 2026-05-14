@@ -1,11 +1,18 @@
 import {
   Controller,
+  Get,
   Post,
   Body,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { AiBridgeService } from './ai-bridge.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -13,6 +20,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { UserRole } from '../../database/entities/user.entity';
 import {
+  ResolveDoubtDirectDto,
   StartTutorSessionDto,
   ContinueTutorSessionDto,
   RecommendContentDto,
@@ -42,24 +50,39 @@ export class AiBridgeController {
   constructor(private readonly aiBridgeService: AiBridgeService) {}
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  AI #1 — Doubt Clearing
-  //  (Also available via POST /doubts — this is for direct AI testing)
+  //  AI #1 — Doubt Clearing (2-step: detect → subject-specific solver)
+  //  Accepts multipart/form-data with optional `image` file field,
+  //  or application/json with optional `questionImageBase64` data URL.
   // ══════════════════════════════════════════════════════════════════════════
   @Post('doubt/resolve')
   @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @HttpCode(HttpStatus.OK)
+  @UseInterceptors(
+    FileInterceptor('image', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+          return cb(new BadRequestException('Only image files are allowed'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
   async resolveDoubt(
-    @Body() body: { questionText: string; topicId?: string; mode?: string },
+    @Body() body: ResolveDoubtDirectDto,
+    @UploadedFile() image: Express.Multer.File | undefined,
     @CurrentUser('id') userId: string,
     @TenantId() tenantId: string,
   ) {
-    return this.aiBridgeService.resolveDoubt(
+    return this.aiBridgeService.resolveDoubtDirect(
       {
-        questionText: body.questionText,
+        question: body.question || body.questionText || '',
         topicId: body.topicId,
-        mode: (body.mode as 'short' | 'detailed') || 'detailed',
+        mode: body.mode || 'detailed',
         studentContext: { userId },
       },
+      image,
       tenantId,
     );
   }
@@ -271,11 +294,12 @@ export class AiBridgeController {
       difficulty?: string;
       type?: string;
       style?: string;
-      /** "jee main" | "jee advanced" | "neet" | "cbse" — activates exam-specific difficulty heuristic in Django */
       examTarget?: string;
       subject?: string;
       chapter?: string;
       notes?: string | string[];
+      subjectName?: string;
+      chapterName?: string;
     },
     @TenantId() tenantId: string,
   ) {
@@ -291,9 +315,24 @@ export class AiBridgeController {
         subject: body.subject,
         chapter: body.chapter,
         notes: body.notes,
+        subjectName: body.subjectName,
+        chapterName: body.chapterName,
       },
       tenantId,
     );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  AI Engine Health — teacher/admin only
+  // ══════════════════════════════════════════════════════════════════════════
+  @Get('engine/health')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async getAiEngineHealth(
+    @Query('refresh') refresh: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.aiBridgeService.getAiEngineHealth(refresh === 'true', tenantId);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -303,16 +342,16 @@ export class AiBridgeController {
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
   async generateQuizForLecture(
-    @Body() dto: Record<string, any>,
+    @Body() dto: { notes?: string; transcript?: string; lectureTitle?: string; topicId?: string; numQuestions?: number; courseLevel?: string },
     @TenantId() tenantId: string,
   ) {
     return this.aiBridgeService.generateQuizForLecture(
       {
-        transcript: dto.transcript || '',
         notes: dto.notes || '',
+        transcript: dto.transcript || '',
         lectureTitle: dto.lectureTitle || 'Lecture',
         topicId: dto.topicId || '',
-        numQuestions: dto.numQuestions,
+        numQuestions: dto.numQuestions ?? 5,
         courseLevel: dto.courseLevel,
       },
       tenantId,
