@@ -33,12 +33,12 @@ jobs:
           echo "$EC2_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           SSH_OPTS="-i /tmp/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-          ssh $SSH_OPTS $EC2_USER@$EC2_HOST "mkdir -p /home/ubuntu/eddva_backend_dev/dist"
+          ssh $SSH_OPTS $EC2_USER@$EC2_HOST "mkdir -p ~/eddva_backend_dev/dist"
           rsync -az --delete -e "ssh $SSH_OPTS" \
             dist/ \
-            $EC2_USER@$EC2_HOST:/home/ubuntu/eddva_backend_dev/dist/
+            $EC2_USER@$EC2_HOST:~/eddva_backend_dev/dist/
           scp $SSH_OPTS package.json package-lock.json \
-            $EC2_USER@$EC2_HOST:/home/ubuntu/eddva_backend_dev/
+            $EC2_USER@$EC2_HOST:~/eddva_backend_dev/
           rm -f /tmp/deploy_key
 
       - name: Deploy to EC2 (DEV)
@@ -81,7 +81,7 @@ jobs:
           envs: NODE_ENV,PORT,DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,DB_SSL,JWT_SECRET,JWT_REFRESH_SECRET,JWT_EXPIRES_IN,JWT_REFRESH_EXPIRES_IN,AI_BASE_URL,AI_API_KEY,AI_TIMEOUT_MS,STORAGE_PROVIDER,R2_ACCOUNT_ID,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,R2_BUCKET_NAME,R2_PUBLIC_URL,RAZORPAY_KEY_ID,RAZORPAY_KEY_SECRET,CORS_ORIGINS,OTP_DEV_MODE,AGORA_APP_ID,AGORA_APP_CERTIFICATE,FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL
           script: |
             set -e
-            APP_DIR=/home/ubuntu/eddva_backend_dev
+            APP_DIR=$HOME/eddva_backend_dev
             cd $APP_DIR
 
             printf 'NODE_ENV=%s\n' "$NODE_ENV" > .env
@@ -116,7 +116,7 @@ jobs:
             printf 'FIREBASE_CLIENT_EMAIL=%s\n' "$FIREBASE_CLIENT_EMAIL" >> .env
 
             npm ci --omit=dev
-            mkdir -p /home/ubuntu/logs
+            mkdir -p $HOME/logs
 
             if pm2 list | grep -q eddva-backend-dev; then
               pm2 restart eddva-backend-dev
@@ -125,7 +125,7 @@ jobs:
                 --name eddva-backend-dev \
                 -i 1 \
                 --max-memory-restart 400M \
-                --log /home/ubuntu/logs/backend-dev.log
+                --log $HOME/logs/backend-dev.log
             fi
             pm2 save
 
