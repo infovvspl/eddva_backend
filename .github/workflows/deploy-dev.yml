@@ -30,15 +30,21 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
+          set -ex
           echo "$EC2_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           SSH_OPTS="-i /tmp/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-          ssh $SSH_OPTS $EC2_USER@$EC2_HOST "mkdir -p ~/eddva_backend_dev/dist"
-          rsync -az --delete -e "ssh $SSH_OPTS" \
+          REMOTE="$EC2_USER@$EC2_HOST"
+          REMOTE_HOME=$(ssh $SSH_OPTS $REMOTE "echo \$HOME")
+          echo "Remote HOME: $REMOTE_HOME"
+          ssh $SSH_OPTS $REMOTE "mkdir -p $REMOTE_HOME/eddva_backend_dev/dist"
+          rsync -avz --delete -e "ssh $SSH_OPTS" \
             dist/ \
-            $EC2_USER@$EC2_HOST:~/eddva_backend_dev/dist/
+            $REMOTE:$REMOTE_HOME/eddva_backend_dev/dist/
           scp $SSH_OPTS package.json package-lock.json \
-            $EC2_USER@$EC2_HOST:~/eddva_backend_dev/
+            $REMOTE:$REMOTE_HOME/eddva_backend_dev/
+          echo "Verifying remote dist..."
+          ssh $SSH_OPTS $REMOTE "ls -la $REMOTE_HOME/eddva_backend_dev/dist/main.js"
           rm -f /tmp/deploy_key
 
       - name: Deploy to EC2 (DEV)
@@ -82,6 +88,8 @@ jobs:
           script: |
             set -e
             APP_DIR=$HOME/eddva_backend_dev
+            echo "=== HOME=$HOME APP_DIR=$APP_DIR ==="
+            ls -la $APP_DIR/dist/main.js 2>&1 || echo "dist/main.js NOT FOUND"
             cd $APP_DIR
 
             printf 'NODE_ENV=%s\n' "$NODE_ENV" > .env
