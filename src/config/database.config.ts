@@ -22,13 +22,7 @@ export const dbConfig: DataSourceOptions = {
   database: process.env.DB_NAME || 'apexiq',
   synchronize: false,
   logging: process.env.NODE_ENV === 'development',
-  // In production: require valid SSL certificate (prevents MITM).
-  // In dev with DB_SSL=true: allow self-signed certs (Supabase local / Docker).
-  ssl: isProd
-    ? { rejectUnauthorized: true }
-    : process.env.DB_SSL === 'true'
-      ? { rejectUnauthorized: false }
-      : false,
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
   extra: {
     family: 4, // Force IPv4 — Supabase host resolves to IPv6 only by default
     // Allow up to 30 connections per process; override with DB_POOL_MAX env var
