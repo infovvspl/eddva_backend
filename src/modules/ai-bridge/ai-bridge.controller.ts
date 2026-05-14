@@ -75,14 +75,16 @@ export class AiBridgeController {
     @CurrentUser('id') userId: string,
     @TenantId() tenantId: string,
   ) {
-    return this.aiBridgeService.resolveDoubtDirect(
+    return this.aiBridgeService.resolveDoubt(
       {
-        question: body.question || body.questionText || '',
+        questionText: body.question || body.questionText || '',
         topicId: body.topicId,
-        mode: body.mode || 'detailed',
+        mode: (body.mode as 'short' | 'detailed') || 'detailed',
         studentContext: { userId },
+        questionImageUrl: image
+          ? `data:${image.mimetype};base64,${image.buffer.toString('base64')}`
+          : undefined,
       },
-      image,
       tenantId,
     );
   }
