@@ -1,6 +1,8 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { DataSource, In, Repository } from 'typeorm';
+import { Cache } from 'cache-manager';
 import { Student } from '../../database/entities/student.entity';
 import {
   PerformanceProfile,
@@ -49,9 +51,15 @@ export class StudentService {
     @InjectRepository(LectureProgress)
     private readonly lectureProgressRepo: Repository<LectureProgress>,
     private readonly dataSource: DataSource,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
   ) {}
 
   async getDashboard(userId: string, tenantId: string) {
+    const cacheKey = `dashboard:${userId}`;
+    const cached = await this.cacheManager.get<Record<string, any>>(cacheKey);
+    if (cached) return cached;
+
     const student =
       await this.studentRepo.findOne({ where: { userId, tenantId }, relations: ['user'] })
       ?? await this.studentRepo.findOne({ where: { userId }, relations: ['user'] });
@@ -96,7 +104,7 @@ export class StudentService {
     const testsAttempted = Number(testsRow?.[0]?.cnt ?? 0);
     const recommendations = this.buildRecommendations(weakTopics, effectiveExamTarget);
 
-    return {
+    const dashboardData = {
       student,
       predictedRank: profile?.predictedRank,
       overallAccuracy: profile?.overallAccuracy ?? 0,
@@ -110,6 +118,11 @@ export class StudentService {
       testsAttempted,
       recommendations,
     };
+
+    // Cache for 5 minutes — stale data for a short window is acceptable here
+    await this.cacheManager.set(cacheKey, dashboardData, 5 * 60 * 1000);
+
+    return dashboardData;
   }
 
   async getTodayPlanItems(studentId: string) {

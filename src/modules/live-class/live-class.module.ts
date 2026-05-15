@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { Batch, Enrollment } from '../../database/entities/batch.entity';
 import { Lecture } from '../../database/entities/learning.entity';
@@ -38,6 +40,13 @@ import { LiveClassService } from './live-class.service';
     ]),
     NotificationModule,
     ContentModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService) => ({
+        secret: cfg.get<string>('jwt.secret'),
+      }),
+    }),
   ],
   controllers: [LiveClassController],
   providers: [LiveClassService, AgoraService, BunnyStreamService, LiveClassGateway, BroadcastRelayGateway],

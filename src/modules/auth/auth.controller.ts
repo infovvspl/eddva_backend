@@ -3,13 +3,13 @@ import {
   Post,
   Get,
   Body,
-  Req,
   Param,
   UseGuards,
   HttpCode,
   HttpStatus,
   Patch,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,6 +17,8 @@ import {
   ApiBearerAuth,
   ApiResponse,
 } from '@nestjs/swagger';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import {
   SendOtpDto,
@@ -43,7 +45,11 @@ import { UserRole } from '../../database/entities/user.entity';
 @Controller('auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
 
   // ── Student Self-Registration ─────────────────────────────────────────────
 
@@ -117,17 +123,18 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
-  refresh(@Body() dto: RefreshTokenDto, @Req() req: any) {
-    // Decode sub from refresh token to get userId
-    // In production: validate signature first using JwtService
+  async refresh(@Body() dto: RefreshTokenDto) {
+    let userId: string;
     try {
-      const payload = JSON.parse(
-        Buffer.from(dto.refreshToken.split('.')[1], 'base64').toString(),
+      const payload = await this.jwtService.verifyAsync<{ sub: string }>(
+        dto.refreshToken,
+        { secret: this.configService.get<string>('jwt.refreshSecret') },
       );
-      return this.authService.refreshTokens(payload.sub, dto.refreshToken);
+      userId = payload.sub;
     } catch {
-      return this.authService.refreshTokens('', dto.refreshToken);
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
+    return this.authService.refreshTokens(userId, dto.refreshToken);
   }
 
   @Post('logout')
