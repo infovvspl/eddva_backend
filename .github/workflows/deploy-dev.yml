@@ -19,105 +19,26 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install & Build (verify no errors before deploying)
+      - name: Install & Build
         run: |
           npm ci
           npm run build
 
       - name: Deploy to EC2 (DEV)
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          NODE_ENV: development
-          PORT: "3001"
-          DB_HOST: ${{ secrets.DEV_DB_HOST }}
-          DB_PORT: ${{ secrets.DEV_DB_PORT }}
-          DB_USERNAME: ${{ secrets.DEV_DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DEV_DB_PASSWORD }}
-          DB_NAME: ${{ secrets.DEV_DB_NAME }}
-          DB_SSL: "true"
-          JWT_SECRET: ${{ secrets.DEV_JWT_SECRET }}
-          JWT_REFRESH_SECRET: ${{ secrets.DEV_JWT_REFRESH_SECRET }}
-          JWT_EXPIRES_IN: "7d"
-          JWT_REFRESH_EXPIRES_IN: "30d"
-          AI_BASE_URL: ${{ secrets.DEV_AI_BASE_URL }}
-          AI_API_KEY: ${{ secrets.DEV_AI_API_KEY }}
-          AI_TIMEOUT_MS: "60000"
-          STORAGE_PROVIDER: "r2"
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
-          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
-          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
-          CORS_ORIGINS: "https://dev.eddva.in,http://localhost:5173"
-          OTP_DEV_MODE: "true"
-          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
-          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
-          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
         with:
-          host: ${{ secrets.APP_SERVER_HOST }}
-          username: ubuntu
-          key: ${{ secrets.APP_SERVER_SSH_KEY }}
-          envs: NODE_ENV,PORT,DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,DB_SSL,JWT_SECRET,JWT_REFRESH_SECRET,JWT_EXPIRES_IN,JWT_REFRESH_EXPIRES_IN,AI_BASE_URL,AI_API_KEY,AI_TIMEOUT_MS,STORAGE_PROVIDER,R2_ACCOUNT_ID,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,R2_BUCKET_NAME,R2_PUBLIC_URL,RAZORPAY_KEY_ID,RAZORPAY_KEY_SECRET,CORS_ORIGINS,OTP_DEV_MODE,AGORA_APP_ID,AGORA_APP_CERTIFICATE,FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
-            APP_DIR=/home/ubuntu/eddva_backend_dev
-
-            # First-time: clone dev branch if directory doesn't exist
-            if [ ! -d "$APP_DIR/.git" ]; then
-              git clone -b dev https://github.com/infovvspl/apexiq-backend.git $APP_DIR
-            fi
-
-            # Write .env
-            cat > $APP_DIR/.env <<EOF
-            NODE_ENV=$NODE_ENV
-            PORT=$PORT
-            DB_HOST=$DB_HOST
-            DB_PORT=$DB_PORT
-            DB_USERNAME=$DB_USERNAME
-            DB_PASSWORD=$DB_PASSWORD
-            DB_NAME=$DB_NAME
-            DB_SSL=$DB_SSL
-            JWT_SECRET=$JWT_SECRET
-            JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET
-            JWT_EXPIRES_IN=$JWT_EXPIRES_IN
-            JWT_REFRESH_EXPIRES_IN=$JWT_REFRESH_EXPIRES_IN
-            AI_BASE_URL=$AI_BASE_URL
-            AI_API_KEY=$AI_API_KEY
-            AI_TIMEOUT_MS=$AI_TIMEOUT_MS
-            STORAGE_PROVIDER=$STORAGE_PROVIDER
-            R2_ACCOUNT_ID=$R2_ACCOUNT_ID
-            R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID
-            R2_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY
-            R2_BUCKET_NAME=$R2_BUCKET_NAME
-            R2_PUBLIC_URL=$R2_PUBLIC_URL
-            RAZORPAY_KEY_ID=$RAZORPAY_KEY_ID
-            RAZORPAY_KEY_SECRET=$RAZORPAY_KEY_SECRET
-            CORS_ORIGINS=$CORS_ORIGINS
-            OTP_DEV_MODE=$OTP_DEV_MODE
-            AGORA_APP_ID=$AGORA_APP_ID
-            AGORA_APP_CERTIFICATE=$AGORA_APP_CERTIFICATE
-            FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID
-            FIREBASE_PRIVATE_KEY="$FIREBASE_PRIVATE_KEY"
-            FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL
-            EOF
-
-            # Pull latest dev branch
-            cd $APP_DIR
+            cd /home/ubuntu/eddva_backend_dev
             git fetch --all
             git reset --hard origin/dev
-
-            # Install & build
-            npm ci --omit=dev
+            npm ci
             npm run build
-            mkdir -p /home/ubuntu/logs
-
-            # Start or restart PM2 dev process
             if pm2 list | grep -q eddva-backend-dev; then
-              pm2 restart eddva-backend-dev
+              pm2 restart eddva-backend-dev --update-env
             else
               pm2 start dist/main.js \
                 --name eddva-backend-dev \
@@ -129,4 +50,4 @@ jobs:
 
       - name: Notify success
         if: success()
-        run: echo "✓ DEV Backend deployed to dev-api.eddva.in (port 3001)"
+        run: echo "DEV Backend deployed to dev-api.eddva.in (port 3001)"
