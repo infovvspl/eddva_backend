@@ -1832,8 +1832,21 @@ export class ContentService {
             // Backfill practice questions if missing (e.g., sessions created before this feature)
             if (!existing.practiceQuestions || existing.practiceQuestions.length === 0 || !this.hasStructuredPracticeOptions(existing.practiceQuestions)) {
                 try {
+                    // Backfill: use exam-tier base count (no keyConcepts yet, use medium complexity)
+                    const bfExam = (student.examTarget ?? '').toLowerCase();
+                    const bfCount = bfExam.includes('advanced') ? 16 : bfExam.includes('jee') ? 14 : bfExam.includes('neet') ? 12 : 10;
+                    const bfDiff  = bfExam.includes('advanced') ? 'hard' : bfExam.includes('jee') ? 'medium_hard' : bfExam.includes('neet') ? 'medium' : 'easy_medium';
                     const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
-                        { topicId, topicName: topic.name, count: 8, difficulty: 'mixed', type: 'mcq_single', examTarget: student.examTarget ?? undefined },
+                        {
+                            topicId,
+                            topicName: topic.name,
+                            count: bfCount,
+                            difficulty: bfDiff,
+                            type: 'mcq_single',
+                            examTarget: student.examTarget ?? undefined,
+                            subject: chapter?.subject?.name || undefined,
+                            chapter: chapter?.name || undefined,
+                        },
                         tenantId,
                     ) as any[];
                     if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
@@ -1870,13 +1883,55 @@ export class ContentService {
 
         const examTarget = student.examTarget?.toUpperCase() ?? 'JEE';
         const studentClass = (student as any).class ?? '12';
+        const targetCollege = (student as any).targetCollege ?? '';
         const topicName = topic.name;
         const chapterName = chapter?.name ?? '';
         const subjectName = subject?.name ?? '';
 
+        // Derive exam tier label and calibration instructions for the lesson prompt
+        const examLower = examTarget.toLowerCase();
+        const isAdvanced  = examLower.includes('advanced');
+        const isJee       = examLower.includes('jee');
+        const isNeet      = examLower.includes('neet');
+        const isFoundation = examLower.includes('foundation');
+
+        const tierLabel = isAdvanced ? 'JEE Advanced (IIT — top 0.1%)'
+          : isJee    ? 'JEE Mains (NIT/IIIT — top 2%)'
+          : isNeet   ? 'NEET (MBBS — top 1% medical)'
+          : isFoundation ? 'Foundation (Class 8–10)'
+          : examTarget;
+
+        const targetLabel = targetCollege
+          ? `${tierLabel} — aiming for ${targetCollege}`
+          : tierLabel;
+
+        const tierCalibration = isAdvanced
+          ? `- Depth of IIT JEE Advanced: integrate multiple sub-concepts in single examples
+- Derivations must be rigorous (starting from first principles)
+- Examples must involve multi-step reasoning with non-obvious intermediate steps
+- Self-check questions should require concept elimination, not just recall
+- Include edge cases, special conditions, and examiner traps`
+          : isJee
+          ? `- Depth of JEE Mains: strong formula application and numerical fluency
+- Cover standard question types (1-mark concept + 4-mark numerical)
+- Examples should be 2–3 step reasoning
+- Highlight commonly tested approximations and shortcuts`
+          : isNeet
+          ? `- Depth of NEET: thorough NCERT alignment with assertion-reason and diagram-based patterns
+- Emphasise definitions, classification, exceptions, and factual recall
+- Examples should test direct application of NCERT facts and diagrams
+- Flag topics with high NEET frequency`
+          : `- Clear, accessible explanations suitable for the student's class
+- NCERT-aligned content with simple worked examples
+- Focus on concept understanding over calculation complexity`;
+
         const selfStudyPrompt = `You are a master ${subjectName || 'Science'} teacher who has helped thousands of students crack ${examTarget}. Your lessons are legendary for being crystal-clear, deeply comprehensive, and exam-focused.
 
-Generate a COMPLETE, THOROUGH self-study lesson. This must be the BEST lesson the student has ever read on this topic. Do not cut corners — depth and clarity are the priority.
+Generate a COMPLETE, THOROUGH self-study lesson calibrated precisely for this student's goal. Do not cut corners — depth and clarity are the priority.
+
+TARGET: ${targetLabel}
+CALIBRATION REQUIREMENTS:
+${tierCalibration}
 
 Topic: ${topicName}
 Chapter: ${chapterName}
@@ -2032,10 +2087,34 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             }
         }
 
+        // Dynamic question count: complexity (key-concept count) × exam-tier
+        const complexity = keyConcepts.length >= 7 ? 'high' : keyConcepts.length >= 4 ? 'medium' : 'low';
+        const qTable: Record<string, Record<string, number>> = {
+            advanced:   { low: 12, medium: 16, high: 20 },
+            jee:        { low: 10, medium: 14, high: 18 },
+            neet:       { low: 8,  medium: 12, high: 15 },
+            foundation: { low: 5,  medium: 8,  high: 10 },
+            default:    { low: 8,  medium: 10, high: 12 },
+        };
+        const qTier = isAdvanced ? 'advanced' : isJee ? 'jee' : isNeet ? 'neet' : isFoundation ? 'foundation' : 'default';
+        const questionCount = qTable[qTier][complexity];
+
+        // Difficulty string aligned to exam tier (Django reads this alongside exam_target)
+        const qDifficulty = isAdvanced ? 'hard' : isJee ? 'medium_hard' : isNeet ? 'medium' : 'easy_medium';
+
         // Second call: practice questions via dedicated question-generation endpoint
         try {
             const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
-                { topicId, topicName: topic.name, count: 8, difficulty: 'mixed', type: 'mcq_single', examTarget: student.examTarget ?? undefined },
+                {
+                    topicId,
+                    topicName: topic.name,
+                    count: questionCount,
+                    difficulty: qDifficulty,
+                    type: 'mcq_single',
+                    examTarget: student.examTarget ?? undefined,
+                    subject: subjectName || undefined,
+                    chapter: chapterName || undefined,
+                },
                 tenantId,
             ) as any[];
 
@@ -2266,8 +2345,18 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             try {
                 const topic = await this.topicRepo.findOne({ where: { id: topicId } });
                 if (topic) {
+                    const bf3Exam = (student.examTarget ?? '').toLowerCase();
+                    const bf3Count = bf3Exam.includes('advanced') ? 16 : bf3Exam.includes('jee') ? 14 : bf3Exam.includes('neet') ? 12 : 10;
+                    const bf3Diff  = bf3Exam.includes('advanced') ? 'hard' : bf3Exam.includes('jee') ? 'medium_hard' : bf3Exam.includes('neet') ? 'medium' : 'easy_medium';
                     const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
-                        { topicId, topicName: topic.name, count: 8, difficulty: 'mixed', type: 'mcq_single' },
+                        {
+                            topicId,
+                            topicName: topic.name,
+                            count: bf3Count,
+                            difficulty: bf3Diff,
+                            type: 'mcq_single',
+                            examTarget: student.examTarget ?? undefined,
+                        },
                         tenantId,
                     ) as any[];
                     if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
@@ -2451,13 +2540,27 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     // ─── AI Quiz ──────────────────────────────────────────────────────────────
 
     async generateAiQuiz(topicId: string, userId: string, tenantId: string) {
-        const topic = await this.topicRepo.findOne({ where: { id: topicId } });
+        const topic = await this.topicRepo.findOne({ where: { id: topicId }, relations: ['chapter', 'chapter.subject'] });
         if (!topic) throw new NotFoundException(`Topic ${topicId} not found`);
+
+        const quizStudent = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
+        const quizExam    = (quizStudent?.examTarget ?? '').toLowerCase();
+        const quizCount   = quizExam.includes('advanced') ? 12 : quizExam.includes('jee') ? 10 : quizExam.includes('neet') ? 8 : 8;
+        const quizDiff    = quizExam.includes('advanced') ? 'hard' : quizExam.includes('jee') ? 'medium_hard' : quizExam.includes('neet') ? 'medium' : 'easy_medium';
 
         let rawQuestions: any[] = [];
         try {
             rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
-                { topicId, topicName: topic.name, count: 5, difficulty: 'mixed', type: 'mcq_single' },
+                {
+                    topicId,
+                    topicName: topic.name,
+                    count: quizCount,
+                    difficulty: quizDiff,
+                    type: 'mcq_single',
+                    examTarget: quizStudent?.examTarget ?? undefined,
+                    subject: (topic as any).chapter?.subject?.name || undefined,
+                    chapter: (topic as any).chapter?.name || undefined,
+                },
                 tenantId,
             ) as any[];
         } catch (err) {

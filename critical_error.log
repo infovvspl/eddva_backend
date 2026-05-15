@@ -763,3 +763,16 @@ Error: NotFoundException: Resource 0a93e391-2705-4421-8d32-08aee42bf843 not foun
     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async ContentController.getResourceDownloadUrl (D:\Edva\eddva_backend\src\modules\content\content.controller.ts:812:26)
 
+[2026-05-15T12:00:58.373Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources
+Status: 404
+Error: NotFoundException: Topic 4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c not found
+    at ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2661:27)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-15T12:02:35.091Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources/0a93e391-2705-4421-8d32-08aee42bf843/download-url
+Status: 404
+Error: NotFoundException: Resource 0a93e391-2705-4421-8d32-08aee42bf843 not found
+    at ContentService.getTopicResourceById (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2761:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ContentController.getResourceDownloadUrl (D:\Edva\eddva_backend\src\modules\content\content.controller.ts:812:26)
+

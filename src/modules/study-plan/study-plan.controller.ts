@@ -131,4 +131,21 @@ export class StudyPlanController {
   ) {
     return this.studyPlanService.getNextAction(user.id, tenantId, batchId);
   }
+
+  @Post('revision-session')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Start a structured spaced-revision session for a topic' })
+  startRevisionSession(
+    @Body() body: { topicId: string; accuracy: number; intervalDays: 1 | 3 | 7 | 21 },
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.studyPlanService.startRevisionSession(
+      user.id,
+      tenantId,
+      body.topicId,
+      body.accuracy,
+      body.intervalDays,
+    );
+  }
 }

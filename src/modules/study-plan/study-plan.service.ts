@@ -636,6 +636,103 @@ export class StudyPlanService {
     return { action: 'all_done', title: "All tasks done today! 🎉 Battle time?", description: 'You crushed today\'s plan. Try a battle or review weak topics.', xpReward: 0 };
   }
 
+  // ─── Structured spaced-revision session ────────────────────────────────────
+
+  async startRevisionSession(
+    userId: string,
+    tenantId: string,
+    topicId: string,
+    accuracy: number,
+    intervalDays: 1 | 3 | 7 | 21,
+  ) {
+    const topic = await this.topicRepo.findOne({
+      where: { id: topicId },
+      relations: ['chapter', 'chapter.subject'],
+    });
+    if (!topic) throw new NotFoundException('Topic not found');
+
+    const sessionType =
+      intervalDays === 1 ? 'INTENSIVE' :
+      intervalDays === 3 ? 'STANDARD'  :
+      intervalDays === 7 ? 'QUICK'     : 'FLASH';
+
+    const estimatedMinutes = intervalDays === 1 ? 20 : intervalDays === 3 ? 15 : intervalDays === 7 ? 10 : 5;
+    const targetAccuracy   = Math.min(accuracy + 15, 85);
+    const drillCount       = sessionType === 'INTENSIVE' ? 10 : sessionType === 'STANDARD' ? 7 : sessionType === 'QUICK' ? 5 : 3;
+    const conceptCount     = sessionType === 'FLASH' ? 0 : 2;
+    const baseDifficulty   = accuracy < 40 ? 'easy' : accuracy < 65 ? 'medium' : 'hard';
+
+    const student = await this.getStudentByUserId(userId, tenantId);
+    const existingSession = await this.aiStudySessionRepo.findOne({
+      where: { studentId: student.id, topicId },
+      order: { createdAt: 'DESC' } as any,
+    });
+
+    const conceptQuestions = (existingSession?.practiceQuestions ?? [])
+      .slice(0, conceptCount)
+      .map(q => ({ question: q.question, answer: q.answer, explanation: q.explanation ?? '' }));
+
+    const keyConcepts = existingSession?.keyConcepts ?? [];
+
+    let drillQuestions: Array<{
+      question: string; options: string[]; correctAnswer: string;
+      explanation: string; difficulty: string;
+    }> = [];
+
+    try {
+      const generated = await this.aiBridgeService.generateQuestionsFromTopic(
+        {
+          topicId,
+          topicName: topic.name,
+          count: drillCount,
+          difficulty: baseDifficulty,
+          type: 'mcq_single',
+          subject: topic.chapter?.subject?.name,
+          chapter: topic.chapter?.name,
+        },
+        tenantId,
+      );
+      if (Array.isArray(generated)) {
+        drillQuestions = generated.map(q => {
+          const rawOpts: any[] = q.options ?? q.choices ?? [];
+          const options = rawOpts.map((o: any) =>
+            typeof o === 'string' ? o : (o.content ?? o.text ?? o.value ?? String(o)),
+          );
+          return {
+            question: q.question ?? q.questionText ?? '',
+            options,
+            correctAnswer: q.answer ?? q.correctAnswer ?? '',
+            explanation: q.explanation ?? '',
+            difficulty: q.difficulty ?? baseDifficulty,
+          };
+        });
+      }
+    } catch (e) {
+      this.logger.warn(`[RevisionSession] Question generation failed: ${(e as Error).message}`);
+    }
+
+    const recallPrompts = keyConcepts.length > 0
+      ? keyConcepts.slice(0, 3).map((c: string) => `Can you recall: "${c}"?`)
+      : [
+          `What are the 3 most important concepts in "${topic.name}"?`,
+          `Write down 1 formula or definition you remember from this topic.`,
+          `What part of "${topic.name}" did you find most challenging?`,
+        ];
+
+    return {
+      sessionType,
+      estimatedMinutes,
+      targetAccuracy,
+      previousAccuracy: accuracy,
+      topicName: topic.name,
+      subjectName: topic.chapter?.subject?.name ?? '',
+      chapterName: topic.chapter?.name ?? '',
+      recallPrompts,
+      conceptQuestions,
+      drillQuestions,
+    };
+  }
+
   // ─── Course list with plan status ───────────────────────────────────────────
 
   async getCoursesWithPlanStatus(userId: string, tenantId: string) {
