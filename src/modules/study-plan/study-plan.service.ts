@@ -11,7 +11,7 @@ import { Cache } from 'cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
-import { Between, In, MoreThan, Not, Repository } from 'typeorm';
+import { Between, In, IsNull, MoreThan, Not, Repository } from 'typeorm';
 
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 import { NotificationService } from '../notification/notification.service';
@@ -20,7 +20,7 @@ import { MockTest, MockTestType, TopicProgress, TopicStatus } from '../../databa
 import { AiStudySession, Lecture, LectureProgress, LectureStatus, PlanItem, PlanItemStatus, PlanItemType, StudyPlan } from '../../database/entities/learning.entity';
 import { ExamTarget, ExamYear, Student, StudentClass } from '../../database/entities/student.entity';
 import { Chapter, ResourceType, Subject, Topic, TopicResource } from '../../database/entities/subject.entity';
-import { BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
+import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 
 import { StudyPlanRangeQueryDto } from './dto/study-plan.dto';
 import { GenerateStudyPlanDto } from './dto/study-plan.dto';
@@ -32,6 +32,7 @@ type RawPlanItem = {
   title: string;
   refId?: string;
   estimatedMinutes?: number;
+  subjectName?: string;
 };
 
 type PlanGenerationChoices = {
@@ -69,6 +70,8 @@ export class StudyPlanService {
     private readonly mockTestRepo: Repository<MockTest>,
     @InjectRepository(Topic)
     private readonly topicRepo: Repository<Topic>,
+    @InjectRepository(Batch)
+    private readonly batchRepo: Repository<Batch>,
     @InjectRepository(Enrollment)
     private readonly enrollmentRepo: Repository<Enrollment>,
     @InjectRepository(BatchSubjectTeacher)
@@ -97,32 +100,40 @@ export class StudyPlanService {
     tenantId: string,
     force: boolean,
     preferences?: GenerateStudyPlanDto,
+    batchId?: string,
   ) {
+    const resolvedBatchId = batchId ?? preferences?.batchId ?? null;
     const student = await this.getStudentByUserId(userId, tenantId);
     const choices = await this.resolvePlanGenerationChoices(student, preferences);
     const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
 
     // Fetch enrollment early to use in concurrency checks and downstream logic
+    const enrollmentWhere = resolvedBatchId
+      ? { studentId: student.id, batchId: resolvedBatchId, status: EnrollmentStatus.ACTIVE }
+      : { studentId: student.id, status: EnrollmentStatus.ACTIVE };
     const enrollment = await this.enrollmentRepo.findOne({
-      where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
+      where: enrollmentWhere,
       relations: ['batch'],
     }).catch(() => null);
 
     // Return existing plan if still valid and not forced
-    const existing = await this.studyPlanRepo.findOne({ where: { studentId: student.id }, withDeleted: true });
+    const planWhere = resolvedBatchId
+      ? { studentId: student.id, batchId: resolvedBatchId }
+      : { studentId: student.id, batchId: IsNull() };
+    const existing = await this.studyPlanRepo.findOne({ where: planWhere as any, withDeleted: true });
     if (existing && !force && existing.validUntil && new Date(existing.validUntil) > new Date()) {
       return this.getPlanWithItems(existing.id, effectiveTenantId);
     }
 
-    // Prevent concurrent duplicate generation for the same student
-    const lockKey = `${student.id}`;
+    // Prevent concurrent duplicate generation for the same student+batch
+    const lockKey = resolvedBatchId ? `${student.id}:${resolvedBatchId}` : student.id;
     if (this.activeGenerations.has(lockKey)) {
       return this.activeGenerations.get(lockKey);
     }
 
     const generationPromise = (async () => {
       try {
-        return await this.doGeneratePlan(userId, effectiveTenantId, student, force, enrollment, choices);
+        return await this.doGeneratePlan(userId, effectiveTenantId, student, force, enrollment, choices, resolvedBatchId);
       } finally {
         this.activeGenerations.delete(lockKey);
       }
@@ -133,22 +144,27 @@ export class StudyPlanService {
   }
 
   private async doGeneratePlan(
-    userId: string, 
-    effectiveTenantId: string, 
-    student: Student, 
-    force: boolean, 
+    userId: string,
+    effectiveTenantId: string,
+    student: Student,
+    force: boolean,
     enrollment: Enrollment | null,
     choices: PlanGenerationChoices,
+    batchId: string | null = null,
   ) {
-    const batchId = enrollment?.batchId;
+    const effectiveBatchId = batchId ?? enrollment?.batchId ?? null;
     const effectiveExamTarget = choices.targetExam;
     const { planned: previousPlannedTopicIds, completed: previouslyCompletedTopicIds } = await this.getPreviousPlanContext(student.id, force);
     const completedTopicIds = await this.getCompletedTopicIds(student.id);
 
+    const topicWhere = effectiveBatchId
+      ? { tenantId: effectiveTenantId, isActive: true, chapter: { subject: { batchId: effectiveBatchId } } }
+      : { tenantId: effectiveTenantId, isActive: true };
+
     const [monthlyWeakTopics, availableTopics] = await Promise.all([
-      this.computeWeakTopics(student.id, effectiveTenantId, batchId),
+      this.computeWeakTopics(student.id, effectiveTenantId, effectiveBatchId ?? undefined),
       this.topicRepo.find({
-        where: { tenantId: effectiveTenantId, isActive: true },
+        where: topicWhere as any,
         relations: ['chapter', 'chapter.subject'],
         order: { sortOrder: 'ASC' },
       }),
@@ -201,17 +217,34 @@ export class StudyPlanService {
     const finalItems = (items || []).filter((item) => !!item.date && !!item.type);
 
     const plan = await this.studyPlanRepo.manager.transaction(async (manager) => {
-      await manager.upsert(StudyPlan, {
-        studentId: student.id,
-        tenantId: effectiveTenantId,
-        generatedAt: new Date(),
-        validUntil,
-        aiVersion: MONTHLY_PLAN_CACHE_VERSION,
-        deletedAt: null,
-      }, ['studentId']);
+      const planWhere = effectiveBatchId
+        ? { studentId: student.id, batchId: effectiveBatchId }
+        : { studentId: student.id, batchId: IsNull() };
+      
+      let planRecord = await manager.findOne(StudyPlan, { 
+        where: planWhere as any,
+        withDeleted: true 
+      });
 
-      const planRecord = await manager.findOne(StudyPlan, { where: { studentId: student.id }, withDeleted: true });
-      if (!planRecord) throw new Error('Failed to create or find study plan');
+      if (planRecord) {
+        // Update existing
+        planRecord.generatedAt = new Date();
+        planRecord.validUntil = validUntil;
+        planRecord.aiVersion = MONTHLY_PLAN_CACHE_VERSION;
+        planRecord.deletedAt = null;
+        await manager.save(planRecord);
+      } else {
+        // Create new
+        planRecord = manager.create(StudyPlan, {
+          studentId: student.id,
+          batchId: effectiveBatchId,
+          tenantId: effectiveTenantId,
+          generatedAt: new Date(),
+          validUntil,
+          aiVersion: MONTHLY_PLAN_CACHE_VERSION,
+        });
+        await manager.save(planRecord);
+      }
 
       await manager.delete(PlanItem, { studyPlanId: planRecord.id });
 
@@ -250,10 +283,13 @@ export class StudyPlanService {
     return this.getPlanWithItems(plan.id, effectiveTenantId);
   }
 
-  async clearCurrentPlan(userId: string, tenantId: string) {
+  async clearCurrentPlan(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
     const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
-    const existing = await this.studyPlanRepo.findOne({ where: { studentId: student.id }, withDeleted: true });
+    const planWhere = batchId
+      ? { studentId: student.id, batchId }
+      : { studentId: student.id, batchId: IsNull() };
+    const existing = await this.studyPlanRepo.findOne({ where: planWhere as any, withDeleted: true });
     if (!existing) {
       return { message: 'No existing study plan to clear.' };
     }
@@ -266,10 +302,13 @@ export class StudyPlanService {
     return { message: 'Previous study plan removed successfully.' };
   }
 
-  async getToday(userId: string, tenantId: string) {
+  async getToday(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
     const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
-    let plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id }, withDeleted: true });
+    const planWhere = batchId
+      ? { studentId: student.id, batchId }
+      : { studentId: student.id, batchId: IsNull() };
+    let plan = await this.studyPlanRepo.findOne({ where: planWhere as any, withDeleted: true });
     if (!plan) return [];
 
     const today = this.todayIst();
@@ -284,7 +323,10 @@ export class StudyPlanService {
   async getRange(userId: string, tenantId: string, query: StudyPlanRangeQueryDto) {
     const student = await this.getStudentByUserId(userId, tenantId);
     const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
-    let plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id }, withDeleted: true });
+    const planWhere = query.batchId
+      ? { studentId: student.id, batchId: query.batchId }
+      : { studentId: student.id, batchId: IsNull() };
+    let plan = await this.studyPlanRepo.findOne({ where: planWhere as any, withDeleted: true });
 
     if (!plan) return {};
 
@@ -512,10 +554,13 @@ export class StudyPlanService {
 
   // ─── What to do next ──────────────────────────────────────────────────────
 
-  async getNextAction(userId: string, tenantId: string) {
+  async getNextAction(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
     const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
-    const plan = await this.studyPlanRepo.findOne({ where: { studentId: student.id, tenantId: effectiveTenantId } });
+    const planWhere = batchId
+      ? { studentId: student.id, batchId }
+      : { studentId: student.id, batchId: IsNull() };
+    const plan = await this.studyPlanRepo.findOne({ where: planWhere as any });
     if (!plan) {
       return { action: 'all_done', title: 'No study plan yet!', description: 'Generate your personalised plan to get started.', xpReward: 0 };
     }
@@ -589,6 +634,97 @@ export class StudyPlanService {
     }
 
     return { action: 'all_done', title: "All tasks done today! 🎉 Battle time?", description: 'You crushed today\'s plan. Try a battle or review weak topics.', xpReward: 0 };
+  }
+
+  // ─── Course list with plan status ───────────────────────────────────────────
+
+  async getCoursesWithPlanStatus(userId: string, tenantId: string) {
+    const student = await this.getStudentByUserId(userId, tenantId);
+
+    const enrollments = await this.enrollmentRepo.find({
+      where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
+      relations: ['batch'],
+    });
+
+    const batchIds = enrollments.map((e) => e.batchId).filter(Boolean);
+    const plans = batchIds.length
+      ? await this.studyPlanRepo.find({ where: { studentId: student.id, batchId: In(batchIds) } })
+      : [];
+    const planByBatch = new Map(plans.map((p) => [p.batchId, p]));
+
+    return enrollments
+      .filter((e) => e.batch)
+      .map((e) => {
+        const plan = planByBatch.get(e.batchId) ?? null;
+        return {
+          batchId: e.batchId,
+          batchName: e.batch!.name,
+          examTarget: e.batch!.examTarget ?? null,
+          thumbnailUrl: (e.batch as any).thumbnailUrl ?? null,
+          enrolledAt: e.enrolledAt,
+          plan: plan
+            ? {
+                id: plan.id,
+                generatedAt: plan.generatedAt,
+                validUntil: plan.validUntil,
+                isValid: plan.validUntil ? new Date(plan.validUntil) > new Date() : false,
+              }
+            : null,
+        };
+      });
+  }
+
+  // ─── Auto-add newly created topic to enrolled students' plans ────────────────
+
+  async onTopicCreated(topicId: string, batchId: string | null, tenantId: string) {
+    if (!batchId) return;
+
+    const topic = await this.topicRepo.findOne({
+      where: { id: topicId, tenantId },
+      relations: ['chapter', 'chapter.subject'],
+    });
+    if (!topic) return;
+
+    const enrollments = await this.enrollmentRepo.find({
+      where: { batchId, status: EnrollmentStatus.ACTIVE },
+    });
+    if (!enrollments.length) return;
+
+    const studentIds = enrollments.map((e) => e.studentId);
+    const plans = await this.studyPlanRepo.find({
+      where: { studentId: In(studentIds), batchId },
+    });
+
+    for (const plan of plans) {
+      const alreadyIn = await this.planItemRepo.findOne({
+        where: {
+          studyPlanId: plan.id,
+          refId: topicId,
+          type: PlanItemType.PRACTICE,
+          status: Not(PlanItemStatus.SKIPPED),
+        },
+      });
+      if (alreadyIn) continue;
+
+      const lastTask = await this.planItemRepo.findOne({
+        where: { studyPlanId: plan.id },
+        order: { scheduledDate: 'DESC', sortOrder: 'DESC' },
+      });
+      const scheduledDate = this.addDays(lastTask?.scheduledDate ?? this.todayIst(), 1);
+
+      await this.planItemRepo.save(
+        this.planItemRepo.create({
+          studyPlanId: plan.id,
+          scheduledDate,
+          type: PlanItemType.PRACTICE,
+          refId: topicId,
+          title: `Study: ${topic.name}`,
+          estimatedMinutes: topic.estimatedStudyMinutes || 45,
+          sortOrder: 0,
+          status: PlanItemStatus.PENDING,
+        }),
+      );
+    }
   }
 
   // ─── Comprehensive plan engine ──────────────────────────────────────────────
@@ -1109,7 +1245,7 @@ export class StudyPlanService {
     const normalizedSubjects = subjects.filter(Boolean).length
       ? subjects.filter(Boolean)
       : this.defaultSubjectsForExamTarget(choices.targetExam);
-    const weakTopicIds = new Set(weakTopics.map((w) => w.topicId).filter(Boolean));
+    
     const topicsBySubject = new Map<string, Topic[]>();
     for (const topic of topics) {
       const subjectName = String(topic.chapter?.subject?.name || '').trim();
@@ -1119,18 +1255,44 @@ export class StudyPlanService {
     }
 
     const perSubjectCursor = new Map<string, number>();
-    const totalSlotsPerDay = Math.max(1, normalizedSubjects.length * 2);
-    const minutesPerSlot = Math.max(
-      20,
-      Math.floor(((choices.dailyStudyHours || 4) * 60) / totalSlotsPerDay),
-    );
+    const dailyStudyMinutes = (choices.dailyStudyHours || 4) * 60;
+    const examDate = this.deriveExamDate(choices.examYear as any);
+    const daysToExam = Math.max(30, Math.floor((examDate.getTime() - new Date().getTime()) / 86400000));
+    
+    // Pacing Logic:
+    // 1. Calculate how many topics we MUST cover per day to finish on time.
+    const minimumTopicsPerDay = Math.ceil(topics.length / daysToExam);
+    
+    // 2. Calculate how many topics we CAN cover per day based on hours.
+    const capacityTopicsPerDay = Math.max(1, Math.floor(dailyStudyMinutes / 50));
+    
+    // 3. Set target topics per day.
+    let targetTopicsPerDay = Math.max(minimumTopicsPerDay, capacityTopicsPerDay);
+    targetTopicsPerDay = Math.min(targetTopicsPerDay, Math.max(normalizedSubjects.length * 2, 8)); 
+
     const items: RawPlanItem[] = [];
+    const subjectsWithPending = normalizedSubjects.filter(s => {
+      const sTopics = topicsBySubject.get(s) || [];
+      return sTopics.some(t => !completedTopicIds.has(t.id));
+    });
+
+    const isGlobalSyllabusCompleted = subjectsWithPending.length === 0;
 
     for (let day = 0; day < totalDays; day++) {
       const date = this.addDays(today, day);
-      for (const subject of normalizedSubjects) {
+      
+      // Determine which subjects to focus on today. 
+      // If we haven't finished the syllabus, we only focus on subjects that have pending topics.
+      const activeSubjects = isGlobalSyllabusCompleted ? normalizedSubjects : subjectsWithPending;
+      
+      // Redistribute topics among active subjects
+      const baseTopicsPerSubject = Math.floor(targetTopicsPerDay / activeSubjects.length);
+      const extraTopics = targetTopicsPerDay % activeSubjects.length;
+      
+      activeSubjects.forEach((subject, index) => {
+        const assignedTopicCount = baseTopicsPerSubject + (index < extraTopics ? 1 : 0);
         const subjectTopics = topicsBySubject.get(subject) || [];
-        const prioritizedSubjectTopics = this.prioritizeExamReadyTopics(
+        const prioritized = this.prioritizeExamReadyTopics(
           choices.targetExam,
           subjectTopics,
           previousPlannedTopicIds,
@@ -1138,26 +1300,53 @@ export class StudyPlanService {
           weakTopics,
           previouslyCompletedTopicIds,
         );
-        const cursor = perSubjectCursor.get(subject) ?? 0;
-        const topic = prioritizedSubjectTopics.length ? prioritizedSubjectTopics[cursor % prioritizedSubjectTopics.length] : null;
 
-        if (prioritizedSubjectTopics.length) perSubjectCursor.set(subject, cursor + 1);
+        // Filter: If we are NOT in global revision mode, ONLY pick pending topics.
+        const pool = isGlobalSyllabusCompleted 
+           ? prioritized 
+           : prioritized.filter(t => !completedTopicIds.has(t.id));
 
-        items.push({
-          date,
-          type: 'revision',
-          title: `AI Notes + Quick Revision: ${topic?.name ?? subject} (${subject})`,
-          refId: topic?.id ?? null,
-          estimatedMinutes: minutesPerSlot,
-        });
-        items.push({
-          date,
-          type: 'practice',
-          title: `Practice Questions: ${topic?.name ?? subject} (${subject})`,
-          refId: topic?.id ?? null,
-          estimatedMinutes: minutesPerSlot,
-        });
-      }
+        const unplannedInSession = pool.filter(t => !items.some(it => it.refId === t.id));
+
+        for (let t = 0; t < assignedTopicCount; t++) {
+          const cursor = perSubjectCursor.get(subject) ?? 0;
+          const topic = unplannedInSession.length ? unplannedInSession[cursor % unplannedInSession.length] : null;
+
+          if (topic) perSubjectCursor.set(subject, cursor + 1);
+
+          const minutesPerSlot = Math.max(20, Math.floor(dailyStudyMinutes / (targetTopicsPerDay * 2)));
+
+          if (isGlobalSyllabusCompleted) {
+            // Intensive Revision Mode (Only if EVERYTHING is done)
+            items.push({
+              date,
+              type: 'revision',
+              title: `Intensive Revision: ${topic?.name ?? subject} (${subject})`,
+              refId: topic?.id ?? null,
+              subjectName: subject,
+              estimatedMinutes: minutesPerSlot * 2,
+            });
+          } else if (topic) {
+            // Standard Study Mode: Notes + Practice for PENDING topics
+            items.push({
+              date,
+              type: 'revision',
+              title: `Study & AI Notes: ${topic.name}`,
+              refId: topic.id,
+              subjectName: subject,
+              estimatedMinutes: minutesPerSlot,
+            });
+            items.push({
+              date,
+              type: 'practice',
+              title: `Practice Questions: ${topic.name}`,
+              refId: topic.id,
+              subjectName: subject,
+              estimatedMinutes: minutesPerSlot,
+            });
+          }
+        }
+      });
     }
 
     return this.removeDuplicatePlanItems(items);
@@ -1216,12 +1405,22 @@ export class StudyPlanService {
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
     // 4. Completed Topics (Revision Priority)
-    const completedSorted = completed.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const completedSorted = completed.sort((a, b) => {
+      if (a.chapter?.sortOrder !== b.chapter?.sortOrder) {
+        return (a.chapter?.sortOrder ?? 0) - (b.chapter?.sortOrder ?? 0);
+      }
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    });
 
     return [
       ...pendingWeak,
       ...pendingIncompleted,
-      ...pendingNew,
+      ...pendingNew.sort((a, b) => {
+        if (a.chapter?.sortOrder !== b.chapter?.sortOrder) {
+          return (a.chapter?.sortOrder ?? 0) - (b.chapter?.sortOrder ?? 0);
+        }
+        return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+      }),
       ...completedSorted,
     ];
   }
@@ -1379,7 +1578,7 @@ export class StudyPlanService {
             topicId: topic?.id ?? item.refId,
             topicName: topic?.name ?? item.title,
             chapterName: topic?.chapter?.name ?? null,
-            subjectName: topic?.chapter?.subject?.name ?? null,
+            subjectName: topic?.chapter?.subject?.name ?? (item as any).subjectName ?? null,
             taskKind,
             videoTitle: videoRes?.title ?? null,
             videoUrl: videoRes?.externalUrl ?? videoRes?.fileUrl ?? null,
@@ -1388,7 +1587,12 @@ export class StudyPlanService {
           },
         };
       }
-      return pub(item);
+      return {
+        ...pub(item),
+        content: {
+          subjectName: (item as any).subjectName ?? null,
+        },
+      };
     });
   }
 

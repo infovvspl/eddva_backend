@@ -10,6 +10,20 @@ export class CompleteAiStudyDto {
   @IsNumber()
   @Min(0)
   timeSpentSeconds: number;
+
+  @IsNotEmpty()
+  highlights: any[];
+
+  @IsNotEmpty()
+  inlineComments: any[];
+}
+
+export class UpdateAiStudyNotesDto {
+  @IsNotEmpty()
+  highlights: any[];
+
+  @IsNotEmpty()
+  inlineComments: any[];
 }
 
 export class CompleteAiQuizDto {

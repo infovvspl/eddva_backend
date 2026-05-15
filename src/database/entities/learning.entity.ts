@@ -283,8 +283,11 @@ export class StudyPlan extends Base {
   @Column({ name: 'tenant_id' })
   tenantId: string;
 
-  @Column({ name: 'student_id', unique: true })
+  @Column({ name: 'student_id' })
   studentId: string;
+
+  @Column({ name: 'batch_id', nullable: true })
+  batchId: string | null;
 
   @ManyToOne(() => Student)
   @JoinColumn({ name: 'student_id' })
@@ -405,4 +408,10 @@ export class AiStudySession extends Base {
 
   @Column({ name: 'ai_session_ref', nullable: true })
   aiSessionRef: string;
+
+  @Column({ name: 'highlights', type: 'jsonb', default: [] })
+  highlights: Array<{ text: string; color: string }>;
+
+  @Column({ name: 'inline_comments', type: 'jsonb', default: [] })
+  inlineComments: Array<{ id: string; text: string; quote: string; top: number }>;
 }

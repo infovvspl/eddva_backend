@@ -32,7 +32,7 @@ import { StudyMaterial, StudyMaterialExam, StudyMaterialType } from '../study-ma
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 import { NotificationService } from '../notification/notification.service';
 import { StudyPlanService } from '../study-plan/study-plan.service';
-import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto } from './dto/ai-study.dto';
+import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto, UpdateAiStudyNotesDto } from './dto/ai-study.dto';
 import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subject.dto';
 import { CreateChapterDto, UpdateChapterDto } from './dto/chapter.dto';
 import { CreateTopicDto, UpdateTopicDto } from './dto/topic.dto';
@@ -493,11 +493,19 @@ export class ContentService {
 
     async createTopic(dto: CreateTopicDto, tenantId: string): Promise<Topic> {
         this.logger.log(`Creating topic for chapter ${dto.chapterId}, tenant ${tenantId}`);
-        const chapter = await this.chapterRepo.findOne({ where: { id: dto.chapterId, tenantId } });
+        const chapter = await this.chapterRepo.findOne({
+            where: { id: dto.chapterId, tenantId },
+            relations: ['subject'],
+        });
         if (!chapter) throw new NotFoundException(`Chapter ${dto.chapterId} not found`);
 
         const topic = this.topicRepo.create({ ...dto, tenantId });
-        return this.topicRepo.save(topic);
+        const saved = await this.topicRepo.save(topic);
+
+        const batchId = chapter.subject?.batchId ?? null;
+        this.studyPlanService.onTopicCreated(saved.id, batchId, tenantId).catch(() => {});
+
+        return saved;
     }
 
     async getTopics(chapterId: string, tenantId: string): Promise<Topic[]> {
@@ -1840,6 +1848,8 @@ export class ContentService {
                 isCompleted: existing.isCompleted,
                 timeSpentSeconds: existing.timeSpentSeconds,
                 completedAt: existing.completedAt ?? null,
+                highlights: existing.highlights ?? [],
+                inlineComments: existing.inlineComments ?? [],
                 isNew: false,
             };
         }
@@ -2072,6 +2082,8 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             isCompleted: saved.isCompleted,
             timeSpentSeconds: saved.timeSpentSeconds,
             completedAt: saved.completedAt ?? null,
+            highlights: saved.highlights ?? [],
+            inlineComments: saved.inlineComments ?? [],
             isNew: true,
         };
     }
@@ -2150,6 +2162,8 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         session.isCompleted = true;
         session.completedAt = now;
         session.timeSpentSeconds = dto.timeSpentSeconds;
+        session.highlights = dto.highlights;
+        session.inlineComments = dto.inlineComments;
         await this.aiStudyRepo.save(session);
 
         // Upsert TopicProgress — unlock topic for quiz
@@ -2195,6 +2209,27 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             mockTestId: mockTest?.id ?? null,
             message: `Great work! You've studied ${topic?.name ?? 'the topic'}. Ready to test yourself?`,
         };
+    }
+
+    async saveAiStudyNotes(
+        topicId: string,
+        sessionId: string,
+        dto: UpdateAiStudyNotesDto,
+        userId: string,
+        tenantId: string,
+    ) {
+        const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
+        if (!student) throw new NotFoundException('Student profile not found');
+
+        const session = await this.aiStudyRepo.findOne({
+            where: { id: sessionId, studentId: student.id, topicId },
+        });
+        if (!session) throw new NotFoundException('AI study session not found');
+
+        session.highlights = dto.highlights;
+        session.inlineComments = dto.inlineComments;
+        await this.aiStudyRepo.save(session);
+        return { success: true };
     }
 
     async getAiStudySession(topicId: string, userId: string, tenantId?: string) {
@@ -2260,6 +2295,8 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             isCompleted: session.isCompleted,
             timeSpentSeconds: session.timeSpentSeconds,
             completedAt: session.completedAt ?? null,
+            highlights: session.highlights ?? [],
+            inlineComments: session.inlineComments ?? [],
         };
     }
 
@@ -2647,6 +2684,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             dpp: ResourceType.DPP,
             pyq: ResourceType.PYQ,
             notes: ResourceType.NOTES,
+            mindmap: ResourceType.MINDMAP,
         };
         const rType = typeMap[dto.resourceType ?? 'notes'] ?? ResourceType.NOTES;
         return this.createTopicResource(
@@ -2659,7 +2697,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     private toStudyMaterialType(type: ResourceType): StudyMaterialType | null {
         if (type === ResourceType.PYQ) return StudyMaterialType.PYQ;
         if (type === ResourceType.DPP) return StudyMaterialType.DPP;
-        if (type === ResourceType.NOTES || type === ResourceType.PDF) return StudyMaterialType.NOTES;
+        if (type === ResourceType.NOTES || type === ResourceType.PDF || type === ResourceType.MINDMAP) return StudyMaterialType.NOTES;
         return null;
     }
 
@@ -2722,7 +2760,33 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 isActive: true,
                 sortOrder: data.sortOrder ?? 0,
             });
-            await this.studyMaterialRepo.save(row);
         }
+    }
+
+    async getAiStudyHistory(userId: string, tenantId: string) {
+        const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
+        if (!student) return [];
+
+        const sessions = await this.aiStudyRepo.find({
+            where: { studentId: student.id },
+            relations: ['topic', 'topic.chapter', 'topic.chapter.subject'],
+            order: { createdAt: 'DESC' },
+        });
+
+        return sessions.map((session) => ({
+            id: session.id,
+            topicId: session.topicId,
+            topicName: session.topic?.name,
+            subjectName: session.topic?.chapter?.subject?.name,
+            lessonMarkdown: this.normalizeSolvedExamplesFormatting(session.lessonMarkdown),
+            keyConcepts: session.keyConcepts,
+            formulas: session.formulas,
+            practiceQuestions: session.practiceQuestions,
+            conversation: session.conversation,
+            isCompleted: session.isCompleted,
+            timeSpentSeconds: session.timeSpentSeconds,
+            createdAt: session.createdAt,
+            completedAt: session.completedAt,
+        }));
     }
 }

@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsNumber,
   IsOptional,
+  IsUUID,
   Max,
   Min,
 } from 'class-validator';
@@ -19,9 +20,19 @@ export class StudyPlanRangeQueryDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @ApiPropertyOptional({ description: 'Scope to a specific enrolled course (batch)' })
+  @IsOptional()
+  @IsUUID()
+  batchId?: string;
 }
 
 export class GenerateStudyPlanDto {
+  @ApiPropertyOptional({ description: 'Scope plan to a specific enrolled course (batch)' })
+  @IsOptional()
+  @IsUUID()
+  batchId?: string;
+
   @ApiPropertyOptional({ enum: ExamTarget })
   @IsOptional()
   @IsEnum(ExamTarget)

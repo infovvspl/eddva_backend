@@ -1,0 +1,765 @@
+[2026-05-13T05:54:26.860Z] GET /api/v1/health
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/health
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T10:06:16.357Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T10:11:21.958Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T10:22:26.780Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T10:22:55.317Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T10:38:42.506Z] GET /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/session
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getAiStudySession (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2212:25)
+
+[2026-05-13T10:38:42.857Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T10:38:44.968Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T10:38:46.327Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T10:38:54.291Z] GET /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/session
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getAiStudySession (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2212:25)
+
+[2026-05-13T10:38:54.656Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T10:39:04.804Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T10:39:26.458Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T10:40:16.439Z] GET /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/session
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getAiStudySession (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2212:25)
+
+[2026-05-13T10:40:16.832Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T10:40:19.591Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T11:06:21.240Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T11:08:47.665Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T11:10:40.402Z] GET /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/session
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getAiStudySession (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2212:25)
+
+[2026-05-13T11:10:40.829Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T11:12:04.103Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T11:15:55.645Z] GET /api/v1/content/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/content/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-13T11:25:11.277Z] GET /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/session
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getAiStudySession (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2212:25)
+
+[2026-05-13T11:25:11.643Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T11:25:15.182Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T11:25:22.486Z] GET /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/session
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getAiStudySession (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2212:25)
+
+[2026-05-13T11:25:22.841Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T11:29:06.975Z] GET /api/v1/content/ai-study/history
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getMany (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1761:25)
+    at async ContentService.getAiStudyHistory (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2769:26)
+
+[2026-05-13T11:29:12.682Z] GET /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/session
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getAiStudySession (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2239:25)
+
+[2026-05-13T11:29:13.365Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T11:30:18.033Z] GET /api/v1/content/ai-study/history
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getMany (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1761:25)
+    at async ContentService.getAiStudyHistory (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2769:26)
+
+[2026-05-13T11:30:21.734Z] GET /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/session
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getAiStudySession (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2239:25)
+
+[2026-05-13T11:30:22.165Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T11:36:42.225Z] GET /api/v1/content/ai-study/history
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getMany (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1761:25)
+    at async ContentService.getAiStudyHistory (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2769:26)
+
+[2026-05-13T11:36:47.035Z] GET /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/session
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getAiStudySession (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2239:25)
+
+[2026-05-13T11:36:47.432Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T11:37:56.316Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T11:38:00.831Z] GET /api/v1/content/ai-study/history
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getMany (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1761:25)
+    at async ContentService.getAiStudyHistory (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2769:26)
+
+[2026-05-13T11:38:02.875Z] GET /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/session
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getAiStudySession (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2239:25)
+
+[2026-05-13T11:38:03.286Z] POST /api/v1/content/topics/2d7259ed-31e0-4537-8fe8-18c6e5ae3467/ai-study/start
+Status: 500
+Error: QueryFailedError: column AiStudySession.highlights does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.startAiStudy (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1817:26)
+
+[2026-05-13T12:17:05.889Z] GET /api/v1/auth/me
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (D:\Edva\eddva_backend\src\common\guards\jwt-auth.guard.ts:29:20)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at D:\Edva\eddva_backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (D:\Edva\eddva_backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (D:\Edva\eddva_backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at strategy.fail (D:\Edva\eddva_backend\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at D:\Edva\eddva_backend\node_modules\passport-jwt\lib\strategy.js:106:33
+    at D:\Edva\eddva_backend\node_modules\jsonwebtoken\verify.js:190:16
+    at getSecret (D:\Edva\eddva_backend\node_modules\jsonwebtoken\verify.js:97:14)
+    at module.exports [as verify] (D:\Edva\eddva_backend\node_modules\jsonwebtoken\verify.js:101:10)
+
+[2026-05-13T12:17:07.197Z] GET /api/v1/content/topics/1/ai-study/session
+Status: 400
+Error: BadRequestException: Validation failed (uuid is expected)
+    at ParseUUIDPipe.exceptionFactory (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\parse-uuid.pipe.js:26:27)
+    at ParseUUIDPipe.transform (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\parse-uuid.pipe.js:33:24)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\pipes\pipes-consumer.js:16:33
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-05-13T12:17:07.999Z] POST /api/v1/content/topics/1/ai-study/start
+Status: 400
+Error: BadRequestException: Validation failed (uuid is expected)
+    at ParseUUIDPipe.exceptionFactory (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\parse-uuid.pipe.js:26:27)
+    at ParseUUIDPipe.transform (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\parse-uuid.pipe.js:33:24)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\pipes\pipes-consumer.js:16:33
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-05-13T12:17:37.085Z] POST /api/v1/content/topics/1/ai-study/start
+Status: 400
+Error: BadRequestException: Validation failed (uuid is expected)
+    at ParseUUIDPipe.exceptionFactory (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\parse-uuid.pipe.js:26:27)
+    at ParseUUIDPipe.transform (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\parse-uuid.pipe.js:33:24)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\pipes\pipes-consumer.js:16:33
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-05-13T12:17:55.520Z] GET /api/v1/content/topics/2/ai-study/session
+Status: 400
+Error: BadRequestException: Validation failed (uuid is expected)
+    at ParseUUIDPipe.exceptionFactory (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\parse-uuid.pipe.js:26:27)
+    at ParseUUIDPipe.transform (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\parse-uuid.pipe.js:33:24)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\pipes\pipes-consumer.js:16:33
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-05-13T12:17:55.693Z] POST /api/v1/content/topics/2/ai-study/start
+Status: 400
+Error: BadRequestException: Validation failed (uuid is expected)
+    at ParseUUIDPipe.exceptionFactory (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\parse-uuid.pipe.js:26:27)
+    at ParseUUIDPipe.transform (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\parse-uuid.pipe.js:33:24)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\pipes\pipes-consumer.js:16:33
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-05-13T12:46:12.291Z] GET /api/v1/students/my-courses
+Status: 500
+Error: error: (EAUTHTIMEOUT) timeout while waiting for message
+    at parseErrorMessage (D:\Edva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Edva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Edva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Edva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-05-14T07:38:16.646Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Edva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-05-14T07:38:16.694Z] GET /favicon.ico
+Status: 404
+Error: NotFoundException: Cannot GET /favicon.ico
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Edva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-05-14T07:38:57.041Z] GET /student/study-plan
+Status: 404
+Error: NotFoundException: Cannot GET /student/study-plan
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Edva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-05-14T07:41:48.497Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Edva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-05-14T07:42:23.306Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Edva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-05-14T09:29:56.212Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Edva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-05-14T09:29:56.309Z] GET /favicon.ico
+Status: 404
+Error: NotFoundException: Cannot GET /favicon.ico
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Edva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-05-14T09:30:33.698Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Edva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-05-14T10:13:11.937Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Edva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-05-14T10:32:35.617Z] PATCH /api/v1/content/topics/494bd049-f650-46a8-8d72-d0d84842f2b2/ai-study/28805826-b1a7-426f-bf7d-5666c085aa19/complete
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-05-14T10:32:41.729Z] PATCH /api/v1/content/topics/494bd049-f650-46a8-8d72-d0d84842f2b2/ai-study/28805826-b1a7-426f-bf7d-5666c085aa19/complete
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-05-15T04:37:53.307Z] POST /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources/upload-file
+Status: 500
+Error: QueryFailedError: invalid input value for enum resource_type_enum: "mindmap"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async InsertQueryBuilder.execute (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\InsertQueryBuilder.ts:164:33)
+    at async SubjectExecutor.executeInsertOperations (D:\Edva\eddva_backend\node_modules\typeorm\persistence\src\persistence\SubjectExecutor.ts:435:42)
+    at async SubjectExecutor.execute (D:\Edva\eddva_backend\node_modules\typeorm\persistence\src\persistence\SubjectExecutor.ts:137:9)
+    at async EntityPersistExecutor.execute (D:\Edva\eddva_backend\node_modules\typeorm\persistence\src\persistence\EntityPersistExecutor.ts:182:21)
+    at async ContentService.createTopicResource (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2515:23)
+
+[2026-05-15T04:39:12.476Z] POST /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources/upload-file
+Status: 500
+Error: QueryFailedError: invalid input value for enum resource_type_enum: "mindmap"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async InsertQueryBuilder.execute (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\InsertQueryBuilder.ts:164:33)
+    at async SubjectExecutor.executeInsertOperations (D:\Edva\eddva_backend\node_modules\typeorm\persistence\src\persistence\SubjectExecutor.ts:435:42)
+    at async SubjectExecutor.execute (D:\Edva\eddva_backend\node_modules\typeorm\persistence\src\persistence\SubjectExecutor.ts:137:9)
+    at async EntityPersistExecutor.execute (D:\Edva\eddva_backend\node_modules\typeorm\persistence\src\persistence\EntityPersistExecutor.ts:182:21)
+    at async ContentService.createTopicResource (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2515:23)
+
+[2026-05-15T04:39:54.283Z] POST /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources/upload-file
+Status: 500
+Error: QueryFailedError: invalid input value for enum resource_type_enum: "mindmap"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async InsertQueryBuilder.execute (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\InsertQueryBuilder.ts:164:33)
+    at async SubjectExecutor.executeInsertOperations (D:\Edva\eddva_backend\node_modules\typeorm\persistence\src\persistence\SubjectExecutor.ts:435:42)
+    at async SubjectExecutor.execute (D:\Edva\eddva_backend\node_modules\typeorm\persistence\src\persistence\SubjectExecutor.ts:137:9)
+    at async EntityPersistExecutor.execute (D:\Edva\eddva_backend\node_modules\typeorm\persistence\src\persistence\EntityPersistExecutor.ts:182:21)
+    at async ContentService.createTopicResource (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2515:23)
+
+[2026-05-15T04:59:19.548Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources/0a93e391-2705-4421-8d32-08aee42bf843/download-url
+Status: 404
+Error: NotFoundException: Resource 0a93e391-2705-4421-8d32-08aee42bf843 not found
+    at ContentService.getTopicResourceById (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2647:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ContentController.getResourceDownloadUrl (D:\Edva\eddva_backend\src\modules\content\content.controller.ts:812:26)
+
+[2026-05-15T05:03:19.833Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources/0a93e391-2705-4421-8d32-08aee42bf843/download-url
+Status: 404
+Error: NotFoundException: Resource 0a93e391-2705-4421-8d32-08aee42bf843 not found
+    at ContentService.getTopicResourceById (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2647:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ContentController.getResourceDownloadUrl (D:\Edva\eddva_backend\src\modules\content\content.controller.ts:812:26)
+
+[2026-05-15T05:04:10.528Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources/0a93e391-2705-4421-8d32-08aee42bf843/download-url
+Status: 404
+Error: NotFoundException: Resource 0a93e391-2705-4421-8d32-08aee42bf843 not found
+    at ContentService.getTopicResourceById (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2647:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ContentController.getResourceDownloadUrl (D:\Edva\eddva_backend\src\modules\content\content.controller.ts:812:26)
+

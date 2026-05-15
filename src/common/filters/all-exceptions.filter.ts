@@ -38,6 +38,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
     }
 
+    try {
+      const fs = require('fs');
+      const logMessage = `[${new Date().toISOString()}] ${request.method} ${request.url}\n` +
+        `Status: ${status}\n` +
+        `Error: ${exception instanceof Error ? exception.stack : JSON.stringify(exception)}\n\n`;
+      fs.appendFileSync('d:\\Edva\\eddva_backend\\critical_error.log', logMessage);
+    } catch (e) {
+      // ignore
+    }
+
     response.status(status).json({
       success: false,
       statusCode: status,

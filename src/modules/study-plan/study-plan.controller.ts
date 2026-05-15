@@ -27,45 +27,70 @@ import { GenerateStudyPlanDto, StudyPlanRangeQueryDto } from './dto/study-plan.d
 export class StudyPlanController {
   constructor(private readonly studyPlanService: StudyPlanService) {}
 
+  @Get('courses')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'List all enrolled courses with their study plan status' })
+  getCourses(@CurrentUser() user: any, @TenantId() tenantId: string) {
+    return this.studyPlanService.getCoursesWithPlanStatus(user.id, tenantId);
+  }
+
   @Post('generate')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Generate a new study plan for the current student' })
-  generate(
+  @ApiOperation({ summary: 'Generate a new study plan for an enrolled course' })
+  async generate(
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
     @Body() body: GenerateStudyPlanDto,
   ) {
-    return this.studyPlanService.generatePlan(user.id, tenantId, false, body);
+    try {
+      return await this.studyPlanService.generatePlan(user.id, tenantId, false, body, body.batchId);
+    } catch (e) {
+      require('fs').writeFileSync('d:/Edva/eddva_backend/error_gen.log', String(e.stack || e));
+      throw e;
+    }
   }
 
   @Post('regenerate')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Force regenerate the current student study plan' })
+  @ApiOperation({ summary: 'Force regenerate a course study plan' })
   regenerate(
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
     @Body() body: GenerateStudyPlanDto,
   ) {
-    return this.studyPlanService.generatePlan(user.id, tenantId, true, body);
+    return this.studyPlanService.generatePlan(user.id, tenantId, true, body, body.batchId);
   }
 
   @Post('clear')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Remove current student study plan and items' })
-  clear(@CurrentUser() user: any, @TenantId() tenantId: string) {
-    return this.studyPlanService.clearCurrentPlan(user.id, tenantId);
+  @ApiOperation({ summary: 'Remove a course study plan and items' })
+  clear(
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+    @Body() body: { batchId?: string },
+  ) {
+    return this.studyPlanService.clearCurrentPlan(user.id, tenantId, body?.batchId);
   }
 
   @Get('today')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: "Get today's study plan items in IST" })
-  getToday(@CurrentUser() user: any, @TenantId() tenantId: string) {
-    return this.studyPlanService.getToday(user.id, tenantId);
+  @ApiOperation({ summary: "Get today's study plan items for a course" })
+  async getToday(
+    @Query('batchId') batchId: string | undefined,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    try {
+      return await this.studyPlanService.getToday(user.id, tenantId, batchId);
+    } catch (e) {
+      require('fs').writeFileSync('d:/Edva/eddva_backend/error.log', String(e.stack || e));
+      throw e;
+    }
   }
 
   @Get()
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Get plan items grouped by date' })
+  @ApiOperation({ summary: 'Get plan items grouped by date for a course' })
   getRange(
     @Query() query: StudyPlanRangeQueryDto,
     @CurrentUser() user: any,
@@ -98,8 +123,12 @@ export class StudyPlanController {
 
   @Get('next-action')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Get the single most important next task for the student' })
-  getNextAction(@CurrentUser() user: any, @TenantId() tenantId: string) {
-    return this.studyPlanService.getNextAction(user.id, tenantId);
+  @ApiOperation({ summary: 'Get the next priority task for a course plan' })
+  getNextAction(
+    @Query('batchId') batchId: string | undefined,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.studyPlanService.getNextAction(user.id, tenantId, batchId);
   }
 }

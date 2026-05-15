@@ -1,13 +1,14 @@
 import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 
 export enum ResourceType {
-  PDF      = 'pdf',
-  DPP      = 'dpp',
-  PYQ      = 'pyq',
-  QUIZ     = 'quiz',
-  NOTES    = 'notes',
-  VIDEO    = 'video',
-  LINK     = 'link',
+  PDF = 'pdf',
+  DPP = 'dpp',
+  PYQ = 'pyq',
+  QUIZ = 'quiz',
+  NOTES = 'notes',
+  MINDMAP = 'mindmap',
+  VIDEO = 'video',
+  LINK = 'link',
 }
 import { Base } from './base.entity';
 import { Tenant } from './tenant.entity';
