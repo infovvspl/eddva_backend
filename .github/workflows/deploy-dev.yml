@@ -24,118 +24,28 @@ jobs:
           npm ci
           npm run build
 
-      - name: Copy dist to EC2
-        env:
-          EC2_KEY: ${{ secrets.EC2_SSH_KEY }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-        run: |
-          echo "$EC2_KEY" > /tmp/deploy_key
-          chmod 600 /tmp/deploy_key
-          SSH_OPTS="-i /tmp/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-          REMOTE="$EC2_USER@$EC2_HOST"
-          REMOTE_HOME=$(ssh $SSH_OPTS $REMOTE "echo \$HOME")
-          ssh $SSH_OPTS $REMOTE "mkdir -p $REMOTE_HOME/eddva_backend_dev/dist"
-          rsync -az --delete -e "ssh $SSH_OPTS" \
-            dist/ \
-            $REMOTE:$REMOTE_HOME/eddva_backend_dev/dist/
-          scp $SSH_OPTS package.json package-lock.json \
-            $REMOTE:$REMOTE_HOME/eddva_backend_dev/
-          rm -f /tmp/deploy_key
-
       - name: Deploy to EC2 (DEV)
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          NODE_ENV: development
-          PORT: "3001"
-          DB_HOST: ${{ secrets.DEV_DB_HOST }}
-          DB_PORT: ${{ secrets.DEV_DB_PORT }}
-          DB_USERNAME: ${{ secrets.DEV_DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DEV_DB_PASSWORD }}
-          DB_NAME: ${{ secrets.DEV_DB_NAME }}
-          DB_SSL: "true"
-          JWT_SECRET: ${{ secrets.DEV_JWT_SECRET }}
-          JWT_REFRESH_SECRET: ${{ secrets.DEV_JWT_REFRESH_SECRET }}
-          JWT_EXPIRES_IN: "7d"
-          JWT_REFRESH_EXPIRES_IN: "30d"
-          AI_BASE_URL: "http://3.111.190.194:8001"
-          AI_API_KEY: ${{ secrets.DEV_AI_API_KEY }}
-          AI_TIMEOUT_MS: "60000"
-          STORAGE_PROVIDER: "r2"
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
-          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
-          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
-          REDIS_HOST: "localhost"
-          REDIS_PORT: "6379"
-          REDIS_PASSWORD: ""
-          REDIS_TTL: "3600"
-          CORS_ORIGINS: "https://dev.eddva.in,http://localhost:5173"
-          OTP_DEV_MODE: "true"
-          AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
-          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
-          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: NODE_ENV,PORT,DB_HOST,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,DB_SSL,JWT_SECRET,JWT_REFRESH_SECRET,JWT_EXPIRES_IN,JWT_REFRESH_EXPIRES_IN,AI_BASE_URL,AI_API_KEY,AI_TIMEOUT_MS,STORAGE_PROVIDER,R2_ACCOUNT_ID,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,R2_BUCKET_NAME,R2_PUBLIC_URL,RAZORPAY_KEY_ID,RAZORPAY_KEY_SECRET,REDIS_HOST,REDIS_PORT,REDIS_PASSWORD,REDIS_TTL,CORS_ORIGINS,OTP_DEV_MODE,AGORA_APP_ID,AGORA_APP_CERTIFICATE,FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL
           script: |
             set -e
-            APP_DIR=$HOME/eddva_backend_dev
-            cd $APP_DIR
-
-            printf 'NODE_ENV=%s\n' "$NODE_ENV" > .env
-            printf 'PORT=%s\n' "$PORT" >> .env
-            printf 'DB_HOST=%s\n' "$DB_HOST" >> .env
-            printf 'DB_PORT=%s\n' "$DB_PORT" >> .env
-            printf 'DB_USERNAME=%s\n' "$DB_USERNAME" >> .env
-            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env
-            printf 'DB_NAME=%s\n' "$DB_NAME" >> .env
-            printf 'DB_SSL=%s\n' "$DB_SSL" >> .env
-            printf 'JWT_SECRET=%s\n' "$JWT_SECRET" >> .env
-            printf 'JWT_REFRESH_SECRET=%s\n' "$JWT_REFRESH_SECRET" >> .env
-            printf 'JWT_EXPIRES_IN=%s\n' "$JWT_EXPIRES_IN" >> .env
-            printf 'JWT_REFRESH_EXPIRES_IN=%s\n' "$JWT_REFRESH_EXPIRES_IN" >> .env
-            printf 'AI_BASE_URL=%s\n' "$AI_BASE_URL" >> .env
-            printf 'AI_API_KEY=%s\n' "$AI_API_KEY" >> .env
-            printf 'AI_TIMEOUT_MS=%s\n' "$AI_TIMEOUT_MS" >> .env
-            printf 'STORAGE_PROVIDER=%s\n' "$STORAGE_PROVIDER" >> .env
-            printf 'R2_ACCOUNT_ID=%s\n' "$R2_ACCOUNT_ID" >> .env
-            printf 'R2_ACCESS_KEY_ID=%s\n' "$R2_ACCESS_KEY_ID" >> .env
-            printf 'R2_SECRET_ACCESS_KEY=%s\n' "$R2_SECRET_ACCESS_KEY" >> .env
-            printf 'R2_BUCKET_NAME=%s\n' "$R2_BUCKET_NAME" >> .env
-            printf 'R2_PUBLIC_URL=%s\n' "$R2_PUBLIC_URL" >> .env
-            printf 'RAZORPAY_KEY_ID=%s\n' "$RAZORPAY_KEY_ID" >> .env
-            printf 'RAZORPAY_KEY_SECRET=%s\n' "$RAZORPAY_KEY_SECRET" >> .env
-            printf 'REDIS_HOST=%s\n' "$REDIS_HOST" >> .env
-            printf 'REDIS_PORT=%s\n' "$REDIS_PORT" >> .env
-            printf 'REDIS_PASSWORD=%s\n' "$REDIS_PASSWORD" >> .env
-            printf 'REDIS_TTL=%s\n' "$REDIS_TTL" >> .env
-            printf 'CORS_ORIGINS=%s\n' "$CORS_ORIGINS" >> .env
-            printf 'OTP_DEV_MODE=%s\n' "$OTP_DEV_MODE" >> .env
-            printf 'AGORA_APP_ID=%s\n' "$AGORA_APP_ID" >> .env
-            printf 'AGORA_APP_CERTIFICATE=%s\n' "$AGORA_APP_CERTIFICATE" >> .env
-            printf 'FIREBASE_PROJECT_ID=%s\n' "$FIREBASE_PROJECT_ID" >> .env
-            printf 'FIREBASE_PRIVATE_KEY="%s"\n' "$FIREBASE_PRIVATE_KEY" >> .env
-            printf 'FIREBASE_CLIENT_EMAIL=%s\n' "$FIREBASE_CLIENT_EMAIL" >> .env
-
-            npm ci --omit=dev
-            mkdir -p $HOME/logs
-
+            cd /home/ubuntu/eddva_backend_dev
+            git fetch --all
+            git reset --hard origin/dev
+            npm ci
+            npm run build
             if pm2 list | grep -q eddva-backend-dev; then
-              pm2 restart eddva-backend-dev
+              pm2 restart eddva-backend-dev --update-env
             else
+              mkdir -p /home/ubuntu/logs
               pm2 start dist/main.js \
                 --name eddva-backend-dev \
                 -i 1 \
                 --max-memory-restart 400M \
-                --log $HOME/logs/backend-dev.log
+                --log /home/ubuntu/logs/backend-dev.log
             fi
             pm2 save
 
