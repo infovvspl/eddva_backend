@@ -40,6 +40,7 @@ jobs:
             if pm2 list | grep -q eddva-backend-dev; then
               pm2 restart eddva-backend-dev --update-env
             else
+              mkdir -p /home/ubuntu/logs
               pm2 start dist/main.js \
                 --name eddva-backend-dev \
                 -i 1 \

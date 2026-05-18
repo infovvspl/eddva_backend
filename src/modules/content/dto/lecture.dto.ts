@@ -138,6 +138,11 @@ export class CreateLectureDto {
     @IsOptional()
     @IsString()
     liveMeetingUrl?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsNumber()
+    videoDurationSeconds?: number;
 }
 
 export class UpdateLectureDto extends PartialType(CreateLectureDto) {
@@ -172,6 +177,12 @@ export class UpdateLectureDto extends PartialType(CreateLectureDto) {
     @IsOptional()
     @IsString()
     transcript?: string;
+
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    transcriptLanguage?: string;
 
     @ApiPropertyOptional({ type: [QuizCheckpointDto] })
     @IsOptional()

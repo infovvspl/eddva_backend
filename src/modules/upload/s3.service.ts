@@ -55,7 +55,7 @@ export class S3Service implements OnModuleInit {
       ContentType: contentType,
     });
 
-    const uploadUrl = await getSignedUrl(this.client, command, {
+    const uploadUrl = await getSignedUrl(this.client as any, command as any, {
       expiresIn: S3Service.PRESIGN_TTL_SECONDS,
     });
 
@@ -107,13 +107,13 @@ export class S3Service implements OnModuleInit {
       Key: key,
       ResponseContentDisposition: disposition,
     });
-    return getSignedUrl(this.client, command, { expiresIn: 300 });
+    return getSignedUrl(this.client as any, command, { expiresIn: 300 });
   }
 
   /** Presigned GET URL with configurable TTL (e.g. study material full PDF download). */
   async presignGet(key: string, expiresIn = 900): Promise<string> {
     const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
-    return getSignedUrl(this.client, command, { expiresIn });
+    return getSignedUrl(this.client as any, command, { expiresIn });
   }
 
   /** Fetch object bytes from S3 (server-side PDF processing, etc.). */

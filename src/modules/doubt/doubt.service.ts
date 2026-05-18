@@ -111,37 +111,26 @@ export class DoubtService {
       await this.notifyEscalatedDoubtTeachers(doubt);
     } else {
       try {
-        const aiImageUrl = await this.toAccessibleImageUrl(dto.questionImageUrl ?? undefined);
-        const aiResult = (await this.aiBridgeService.resolveDoubt({
-          questionText: dto.questionText || '',
-          questionImageUrl: aiImageUrl,
-          topicId: dto.topicId,
-          mode: dto.explanationMode as 'short' | 'detailed',
-          studentContext: { source: dto.source, sourceRefId: dto.sourceRefId },
-        })) as {
-          explanation?: string;
-          answer?: string;
-          brief?: Record<string, any>;
-          detailed?: Record<string, any>;
-          subject?: string;
-          type?: string;
-          conceptLinks?: string[];
-          key_concepts?: string[];
-          similarQuestionIds?: string[];
-        };
+        const aiResult = (await this.aiBridgeService.resolveDoubt(
+          {
+            questionText: dto.questionText || '',
+            topicId: dto.topicId,
+            mode: (dto.explanationMode as 'short' | 'detailed') || 'detailed',
+            studentContext: { source: dto.source, sourceRefId: dto.sourceRefId },
+            questionImageUrl: dto.questionImageUrl || undefined,
+          },
+          tenantId,
+        )) as any;
 
-        // Store full structured JSON (brief + detailed) so the frontend can render
-        // Brief/Detailed mode switching. Fall back to plain explanation/answer if not available.
-        if (aiResult?.brief || aiResult?.detailed) {
-          doubt.aiExplanation = JSON.stringify({
-            brief: aiResult.brief ?? {},
-            detailed: aiResult.detailed ?? {},
-            subject: aiResult.subject,
-            type: aiResult.type,
-          });
-        } else {
-          doubt.aiExplanation = aiResult?.explanation ?? aiResult?.answer ?? null;
-        }
+        const hasStructure = aiResult?.brief || aiResult?.detailed;
+        doubt.aiExplanation = hasStructure
+          ? JSON.stringify({
+              brief: aiResult.brief,
+              detailed: aiResult.detailed,
+              subject: aiResult.subject,
+              type: aiResult.type,
+            })
+          : (aiResult?.explanation ?? aiResult?.answer ?? null);
 
         doubt.aiConceptLinks = aiResult?.conceptLinks ?? aiResult?.key_concepts ?? [];
         doubt.aiSimilarQuestionIds = aiResult?.similarQuestionIds ?? [];
@@ -498,7 +487,29 @@ export class DoubtService {
     }
 
     try {
-      await this.applyAiBridgeToDoubt(doubt);
+      const aiResult = (await this.aiBridgeService.resolveDoubt(
+        {
+          questionText: doubt.questionText || '',
+          topicId: doubt.topicId || undefined,
+          mode: (doubt.explanationMode as 'short' | 'detailed') || 'detailed',
+          studentContext: { source: doubt.source, sourceRefId: doubt.sourceRefId ?? undefined },
+          questionImageUrl: doubt.questionImageUrl || undefined,
+        },
+        tenantId,
+      )) as any;
+
+      const hasStructure = aiResult?.brief || aiResult?.detailed;
+      doubt.aiExplanation = hasStructure
+        ? JSON.stringify({
+            brief: aiResult.brief,
+            detailed: aiResult.detailed,
+            subject: aiResult.subject,
+            type: aiResult.type,
+          })
+        : (aiResult?.explanation ?? aiResult?.answer ?? null);
+      doubt.aiConceptLinks = aiResult?.conceptLinks ?? aiResult?.key_concepts ?? [];
+      doubt.aiSimilarQuestionIds = aiResult?.similarQuestionIds ?? [];
+      doubt.status = DoubtStatus.AI_RESOLVED;
       await this.doubtRepo.save(doubt);
     } catch {
       throw new BadRequestException('AI service is temporarily unavailable. Please try again later.');

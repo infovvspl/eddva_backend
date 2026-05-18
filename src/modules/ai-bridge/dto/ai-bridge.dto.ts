@@ -11,7 +11,23 @@ import {
 } from 'class-validator';
 
 // ── AI #1 — Doubt Clearing ──────────────────────────────────────────────────
-// (Already handled by doubt module — kept here for direct testing)
+export class ResolveDoubtDirectDto {
+  @IsOptional()
+  @IsString()
+  question?: string;
+
+  @IsOptional()
+  @IsString()
+  questionText?: string;
+
+  @IsOptional()
+  @IsString()
+  topicId?: string;
+
+  @IsOptional()
+  @IsString()
+  mode?: string;
+}
 
 // ── AI #2 — AI Tutor ────────────────────────────────────────────────────────
 export class StartTutorSessionDto {
