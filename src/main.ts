@@ -107,7 +107,7 @@ async function bootstrap() {
   }
 
   const port = cfg.get<number>('app.port') || 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   logger.log(`🚀 APEXIQ API running on: http://localhost:${port}/${apiPrefix}`);
   logger.log(`📡 WebSocket (Battle Arena): ws://localhost:${port}/battle`);

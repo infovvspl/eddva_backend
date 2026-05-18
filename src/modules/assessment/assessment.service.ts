@@ -651,6 +651,15 @@ export class AssessmentService {
       existing.timeDistribution = Object.fromEntries(
         allAttempts.map((attempt) => [attempt.questionId, attempt.timeSpentSeconds || 0]),
       );
+
+      const totalAttempted = correctCount + wrongCount;
+      existing.accuracy = totalAttempted > 0 ? Number(((correctCount / totalAttempted) * 100).toFixed(2)) : 0;
+
+      const timeValues = Object.values(existing.timeDistribution);
+      existing.avgTimePerQuestion = timeValues.length > 0
+        ? Number((timeValues.reduce((acc, t) => acc + t, 0) / timeValues.length).toFixed(2))
+        : 0;
+
       existing.errorBreakdown = errorBreakdown;
       await manager.save(TestSession, existing);
 

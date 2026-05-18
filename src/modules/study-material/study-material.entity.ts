@@ -13,6 +13,7 @@ export enum StudyMaterialType {
   PYQ           = 'pyq',
   FORMULA_SHEET = 'formula_sheet',
   DPP           = 'dpp',
+  MINDMAP       = 'mindmap',
 }
 
 @Entity('study_materials')
