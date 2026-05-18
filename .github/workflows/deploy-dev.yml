@@ -1,0 +1,53 @@
+name: Deploy Backend (DEV)
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install & Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to EC2 (DEV)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd /home/ubuntu/eddva_backend_dev
+            git fetch --all
+            git reset --hard origin/dev
+            npm ci
+            npm run build
+            if pm2 list | grep -q eddva-backend-dev; then
+              pm2 restart eddva-backend-dev --update-env
+            else
+              pm2 start dist/main.js \
+                --name eddva-backend-dev \
+                -i 1 \
+                --max-memory-restart 400M \
+                --log /home/ubuntu/logs/backend-dev.log
+            fi
+            pm2 save
+
+      - name: Notify success
+        if: success()
+        run: echo "DEV Backend deployed to dev-api.eddva.in (port 3001)"

@@ -278,97 +278,102 @@ export class LiveClassService {
 
     let recordingUrl: string | null = session.recordingUrl || null;
 
-    if (session.streamType === 'bunny') {
-      // ── Bunny mode: HLS URL is the immediate recording (VOD after stream ends)
-      if (session.bunnyHlsUrl) {
-        recordingUrl = session.bunnyHlsUrl;
-        session.recordingUrl = recordingUrl;
-        await this.liveSessionRepo.save(session);
-
-        // Promote immediately with HLS so the lecture is watchable right away
-        lecture = await this.contentService.promoteLectureToRecorded(lecture.id, recordingUrl, lecture.tenantId, {
-          notifyStudents: false,
-          triggerAi: true,
-        });
-        this.logger.log(`Bunny lecture ${lectureId} promoted with HLS URL: ${recordingUrl}`);
-
-        // Background poll: once Bunny finishes encoding the MP4, upgrade the URL
-        this.bunnyStreamService
-          .waitForRecordingAsync(session.bunnyStreamId, async (mp4Url) => {
-            await this.liveSessionRepo.update(session.id, { recordingUrl: mp4Url });
-            await this.contentService.promoteLectureToRecorded(lecture.id, mp4Url, lecture.tenantId, {
-              notifyStudents: false,
-              triggerAi: false,
-            });
-            this.logger.log(`Bunny MP4 recording ready for ${lectureId}: ${mp4Url}`);
-          })
-          .catch((err) => this.logger.warn('Bunny recording poll failed silently', err));
-      } else {
-        this.logger.warn(`Bunny session ${session.id} ended without HLS URL`);
-      }
-    } else {
-      // ── Agora mode: stop cloud recording and promote ────────────────────────
-      if (!session.recordingResourceId || !session.recordingSid) {
-        for (let i = 0; i < 5; i++) {
-          await new Promise((r) => setTimeout(r, 3000));
-          const fresh = await this.liveSessionRepo.findOne({ where: { id: session.id } });
-          if (fresh?.recordingResourceId && fresh?.recordingSid) {
-            session.recordingResourceId = fresh.recordingResourceId;
-            session.recordingSid = fresh.recordingSid;
-            this.logger.log(`Recording IDs appeared after ${(i + 1) * 3}s wait`);
-            break;
-          }
-        }
-      }
-
-      if (session.recordingResourceId && session.recordingSid) {
-        const url = await this.agoraService.stopCloudRecording(
-          session.agoraChannelName,
-          session.recordingResourceId,
-          session.recordingSid,
-        );
-        if (url) {
-          recordingUrl = url;
-          session.recordingUrl = url;
+    // ── Recording stop: errors are swallowed so notifications always fire ────
+    try {
+      if (session.streamType === 'bunny') {
+        if (session.bunnyHlsUrl) {
+          recordingUrl = session.bunnyHlsUrl;
+          session.recordingUrl = recordingUrl;
           await this.liveSessionRepo.save(session);
 
-          lecture = await this.contentService.promoteLectureToRecorded(lecture.id, url, lecture.tenantId, {
+          lecture = await this.contentService.promoteLectureToRecorded(lecture.id, recordingUrl, lecture.tenantId, {
             notifyStudents: false,
             triggerAi: true,
           });
-          this.logger.log(`Agora lecture ${lectureId} promoted to RECORDED: ${url}`);
+          this.logger.log(`Bunny lecture ${lectureId} promoted with HLS URL: ${recordingUrl}`);
+
+          this.bunnyStreamService
+            .waitForRecordingAsync(session.bunnyStreamId, async (mp4Url) => {
+              await this.liveSessionRepo.update(session.id, { recordingUrl: mp4Url });
+              await this.contentService.promoteLectureToRecorded(lecture.id, mp4Url, lecture.tenantId, {
+                notifyStudents: false,
+                triggerAi: false,
+              });
+              this.logger.log(`Bunny MP4 recording ready for ${lectureId}: ${mp4Url}`);
+            })
+            .catch((err) => this.logger.warn('Bunny recording poll failed silently', err));
         } else {
-          this.logger.warn(`Recording stop returned no URL for session ${session.id}`);
+          this.logger.warn(`Bunny session ${session.id} ended without HLS URL`);
         }
       } else {
-        this.logger.warn(`No recording resource on session ${session.id} — recording skipped`);
+        // ── Agora mode: stop cloud recording and promote ──────────────────────
+        if (!session.recordingResourceId || !session.recordingSid) {
+          for (let i = 0; i < 5; i++) {
+            await new Promise((r) => setTimeout(r, 3000));
+            const fresh = await this.liveSessionRepo.findOne({ where: { id: session.id } });
+            if (fresh?.recordingResourceId && fresh?.recordingSid) {
+              session.recordingResourceId = fresh.recordingResourceId;
+              session.recordingSid = fresh.recordingSid;
+              this.logger.log(`Recording IDs appeared after ${(i + 1) * 3}s wait`);
+              break;
+            }
+          }
+        }
+
+        if (session.recordingResourceId && session.recordingSid) {
+          const url = await this.agoraService.stopCloudRecording(
+            session.agoraChannelName,
+            session.recordingResourceId,
+            session.recordingSid,
+          );
+          if (url) {
+            recordingUrl = url;
+            session.recordingUrl = url;
+            await this.liveSessionRepo.save(session);
+
+            lecture = await this.contentService.promoteLectureToRecorded(lecture.id, url, lecture.tenantId, {
+              notifyStudents: false,
+              triggerAi: true,
+            });
+            this.logger.log(`Agora lecture ${lectureId} promoted to RECORDED: ${url}`);
+          } else {
+            this.logger.warn(`Recording stop returned no URL for session ${session.id}`);
+          }
+        } else {
+          this.logger.warn(`No recording resource on session ${session.id} — recording skipped`);
+        }
       }
+    } catch (err) {
+      this.logger.error(`Recording stop failed for session ${session.id} — notifications will still fire`, (err as Error).message);
     }
 
-    const enrollments = await this.enrollmentRepo.find({
-      where: { tenantId, batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
-      relations: ['student'],
-    });
+    // ── Notifications always fire regardless of recording outcome ─────────────
+    try {
+      const enrollments = await this.enrollmentRepo.find({
+        where: { tenantId, batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
+        relations: ['student'],
+      });
 
-    const notificationBody = recordingUrl
-      ? 'Recording is now available. Watch it anytime!'
-      : 'Recording and AI notes will be available shortly.';
+      const notificationBody = recordingUrl
+        ? 'Recording is now available. Watch it anytime!'
+        : 'Recording and AI notes will be available shortly.';
 
-    await Promise.all(
-      enrollments
-        .filter((enrollment) => enrollment.student?.userId)
-        .map((enrollment) =>
-          this.notificationService.send({
-            userId: enrollment.student.userId,
+      await this.notificationService.sendBatch(
+        enrollments
+          .filter((e) => e.student?.userId)
+          .map((e) => ({
+            userId: e.student.userId,
             tenantId,
             title: '📚 Class has ended',
             body: notificationBody,
-            channels: ['push', 'in_app'],
+            channels: ['push', 'in_app'] as ('push' | 'in_app')[],
             refType: 'lecture',
             refId: lectureId,
-          }),
-        ),
-    );
+          })),
+      );
+    } catch (err) {
+      this.logger.error(`endClass notifications failed for lecture ${lectureId}`, (err as Error).message);
+    }
 
     return {
       duration: session.startedAt

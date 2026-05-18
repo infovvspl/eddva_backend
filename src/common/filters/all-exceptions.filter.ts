@@ -35,7 +35,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
-      this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
+      // Stack traces contain internal file paths — only log in development
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
+      } else {
+        this.logger.error(`Unhandled error: ${exception.message}`);
+      }
+    }
+
+    try {
+      const fs = require('fs');
+      const logMessage = `[${new Date().toISOString()}] ${request.method} ${request.url}\n` +
+        `Status: ${status}\n` +
+        `Error: ${exception instanceof Error ? exception.stack : JSON.stringify(exception)}\n\n`;
+      fs.appendFileSync('d:\\Edva\\eddva_backend\\critical_error.log', logMessage);
+    } catch (e) {
+      // ignore
     }
 
     response.status(status).json({

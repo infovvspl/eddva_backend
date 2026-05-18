@@ -65,61 +65,83 @@ export class LeaderboardService {
   @Cron('0 2 * * *')
   async recomputeGlobalLeaderboard() {
     const period = this.getCurrentPeriod();
-    const profiles = await this.profileRepo.find();
-    const elos = await this.eloRepo.find();
-    const profileMap = new Map(profiles.map((profile) => [profile.studentId, profile]));
-    const eloMap = new Map(elos.map((elo) => [elo.studentId, elo]));
-
-    const students = await this.studentRepo.find({ relations: ['user'] });
-    const ranked = students
-      .map((student) => {
-        const profile = profileMap.get(student.id);
-        const elo = eloMap.get(student.id);
-        const totalScore = this.extractAverageScore(profile);
-        const battleXp = elo?.battleXp || 0;
-        const overallAccuracy = profile?.overallAccuracy || 0;
-        const score = overallAccuracy * 0.4 + totalScore * 0.4 + battleXp * 0.2;
-
-        return {
-          studentId: student.id,
-          tenantId: student.tenantId,
-          score: Number(score.toFixed(2)),
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .map((entry, index) => ({ ...entry, rank: index + 1 }));
-
     const monthStart = new Date(`${period}-01T00:00:00.000Z`);
     const monthEnd = new Date(monthStart);
     monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
+    const now = new Date();
 
-    await this.dataSource.transaction(async (manager) => {
-      await manager
-        .createQueryBuilder()
-        .delete()
-        .from(LeaderboardEntry)
-        .where('scope = :scope', { scope: LeaderboardScope.GLOBAL })
-        .andWhere('period = :leaderboardPeriod', { leaderboardPeriod: LeaderboardPeriod.MONTHLY })
-        .andWhere('computed_at >= :monthStart', { monthStart })
-        .andWhere('computed_at < :monthEnd', { monthEnd })
-        .execute();
+    // Process each tenant independently so rankings are tenant-scoped
+    const tenantRows = await this.studentRepo
+      .createQueryBuilder('s')
+      .select('DISTINCT s.tenantId', 'tenantId')
+      .getRawMany<{ tenantId: string }>();
 
-      for (const entry of ranked) {
-        await manager.save(
-          manager.create(LeaderboardEntry, {
-            studentId: entry.studentId,
-            scope: LeaderboardScope.GLOBAL,
-            scopeValue: period,
-            period: LeaderboardPeriod.MONTHLY,
-            score: entry.score,
-            rank: entry.rank,
-            computedAt: new Date(),
-          }),
-        );
+    for (const { tenantId } of tenantRows) {
+      try {
+        const students = await this.studentRepo.find({ where: { tenantId }, relations: ['user'] });
+        if (!students.length) continue;
+
+        const studentIds = students.map((s) => s.id);
+        const [profiles, elos] = await Promise.all([
+          this.profileRepo.find({ where: { studentId: In(studentIds) } }),
+          this.eloRepo.find({ where: { studentId: In(studentIds) } }),
+        ]);
+
+        const profileMap = new Map(profiles.map((p) => [p.studentId, p]));
+        const eloMap = new Map(elos.map((e) => [e.studentId, e]));
+
+        const ranked = students
+          .map((student) => {
+            const profile = profileMap.get(student.id);
+            const elo = eloMap.get(student.id);
+            const totalScore = this.extractAverageScore(profile);
+            const battleXp = elo?.battleXp || 0;
+            const overallAccuracy = profile?.overallAccuracy || 0;
+            const score = overallAccuracy * 0.4 + totalScore * 0.4 + battleXp * 0.2;
+            return { studentId: student.id, score: Number(score.toFixed(2)) };
+          })
+          .sort((a, b) => b.score - a.score)
+          .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+        await this.dataSource.transaction(async (manager) => {
+          // Delete only this tenant's global entries for the current month
+          await manager
+            .createQueryBuilder()
+            .delete()
+            .from(LeaderboardEntry)
+            .where('scope = :scope', { scope: LeaderboardScope.GLOBAL })
+            .andWhere('period = :leaderboardPeriod', { leaderboardPeriod: LeaderboardPeriod.MONTHLY })
+            .andWhere('computed_at >= :monthStart', { monthStart })
+            .andWhere('computed_at < :monthEnd', { monthEnd })
+            .andWhere(
+              'student_id IN (SELECT id FROM students WHERE tenant_id = :tenantId)',
+              { tenantId },
+            )
+            .execute();
+
+          if (ranked.length > 0) {
+            await manager.insert(
+              LeaderboardEntry,
+              ranked.map((entry) => ({
+                studentId: entry.studentId,
+                scope: LeaderboardScope.GLOBAL,
+                scopeValue: period,
+                period: LeaderboardPeriod.MONTHLY,
+                score: entry.score,
+                rank: entry.rank,
+                computedAt: now,
+              })),
+            );
+          }
+        });
+
+        this.logger.log(`Leaderboard recomputed for tenant ${tenantId}: ${ranked.length} entries`);
+      } catch (err) {
+        this.logger.error(`Leaderboard recompute failed for tenant ${tenantId}`, (err as Error).message);
       }
-    });
+    }
 
-    this.logger.log(`Recomputed global leaderboard for ${period}`);
+    this.logger.log(`Global leaderboard recompute complete for ${period}`);
   }
 
   private async queryGlobalLeaderboardRows(tenantId: string) {

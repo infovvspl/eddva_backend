@@ -6,6 +6,8 @@ import { ConfigService } from '@nestjs/config';
 import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
 import * as dotenv from 'dotenv';
+import helmet from 'helmet';
+import compression from 'compression';
 import { AppModule } from './app.module';
 
 // Load env files early with override so .env.local always wins over .env and process.env
@@ -25,6 +27,12 @@ async function bootstrap() {
   app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
 
   const cfg = app.get(ConfigService);
+
+  // ── Security headers ──────────────────────────────────────────────────────
+  app.use(helmet());
+
+  // ── Gzip compression ─────────────────────────────────────────────────────
+  app.use(compression());
 
   // ── Body size limit for video uploads ────────────────────────────────────
   app.use(require('express').json({ limit: '10mb' }));

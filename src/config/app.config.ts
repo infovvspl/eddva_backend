@@ -12,12 +12,25 @@ export default registerAs('app', () => ({
   },
 }));
 
-export const jwtConfig = registerAs('jwt', () => ({
-  secret: process.env.JWT_SECRET || 'dev-secret-change-me',
-  expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret',
-  refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
-}));
+export const jwtConfig = registerAs('jwt', () => {
+  const isProd = process.env.NODE_ENV === 'production';
+  const secret = process.env.JWT_SECRET;
+  const refreshSecret = process.env.JWT_REFRESH_SECRET;
+
+  if (isProd && !secret) {
+    throw new Error('JWT_SECRET environment variable is required in production');
+  }
+  if (isProd && !refreshSecret) {
+    throw new Error('JWT_REFRESH_SECRET environment variable is required in production');
+  }
+
+  return {
+    secret: secret || 'dev-secret-change-me',
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    refreshSecret: refreshSecret || 'dev-refresh-secret',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
+  };
+});
 
 export const redisConfig = registerAs('redis', () => ({
   host: process.env.REDIS_HOST || 'localhost',

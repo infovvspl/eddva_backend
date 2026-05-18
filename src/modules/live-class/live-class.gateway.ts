@@ -9,6 +9,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 
 import { LiveChatMessage, LivePoll } from '../../database/entities/live-class.entity';
@@ -42,14 +43,37 @@ export class LiveClassGateway
   private readonly doubts = new Map<string, { id: string; studentId: string; studentName: string; question: string; askedAt: string; resolved: boolean; answer?: string; answeredBy?: 'teacher' | 'ai' }[]>();
   private readonly doubtEnabled = new Map<string, boolean>();
 
-  constructor(private readonly liveClassService: LiveClassService) {}
+  constructor(
+    private readonly liveClassService: LiveClassService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   afterInit() {
     this.logger.log('Live WebSocket Gateway initialised');
   }
 
   handleConnection(client: Socket) {
-    this.logger.debug(`Client connected: ${client.id}`);
+    const token =
+      (client.handshake.auth as any)?.token ||
+      client.handshake.headers?.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      this.logger.warn(`WS /live rejected — no token (socket ${client.id})`);
+      client.emit('live:error', { message: 'Unauthorized: token required' });
+      client.disconnect(true);
+      return;
+    }
+
+    try {
+      const payload = this.jwtService.verify<{ sub: string; tenantId: string }>(token);
+      client.data.userId = payload.sub;
+      client.data.tenantId = payload.tenantId;
+      this.logger.debug(`WS /live connected: user=${payload.sub} socket=${client.id}`);
+    } catch {
+      this.logger.warn(`WS /live rejected — invalid token (socket ${client.id})`);
+      client.emit('live:error', { message: 'Unauthorized: invalid token' });
+      client.disconnect(true);
+    }
   }
 
   async handleDisconnect(client: Socket) {
@@ -91,14 +115,21 @@ export class LiveClassGateway
     },
   ) {
     try {
+      // Always use the server-verified identity — never trust client-provided userId
+      const verifiedUserId: string = client.data.userId ?? data.userId;
+      const verifiedTenantId: string = client.data.tenantId ?? data.tenantId;
+
       client.join(data.sessionId);
       this.connections.set(client.id, {
-        userId: data.userId,
+        userId: verifiedUserId,
         sessionId: data.sessionId,
-        tenantId: data.tenantId,
+        tenantId: verifiedTenantId,
         role: data.role,
         name: data.name,
       });
+      // Shadow the request-body fields so downstream code uses verified values
+      data.userId = verifiedUserId;
+      data.tenantId = verifiedTenantId;
 
       if (data.role === 'student') {
         await this.liveClassService.recordStudentJoin(

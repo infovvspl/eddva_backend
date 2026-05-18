@@ -59,7 +59,7 @@ import {
     SaveQuizCheckpointsDto,
     SubmitQuizResponseDto,
 } from './dto/lecture.dto';
-import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto } from './dto/ai-study.dto';
+import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto, UpdateAiStudyNotesDto } from './dto/ai-study.dto';
 
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -591,6 +591,16 @@ export class ContentController {
         return this.contentService.getStudyStatus(topicId, user.id, tenantId);
     }
 
+    @Get('ai-study/history')
+    @Roles(UserRole.STUDENT)
+    @ApiOperation({ summary: 'Get all AI study sessions for the current student' })
+    getAiStudyHistory(
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.getAiStudyHistory(user.id, tenantId);
+    }
+
     @Get('topics/:topicId/ai-study/session')
     @Roles(UserRole.STUDENT)
     @ApiOperation({ summary: 'Get existing AI study session for a topic (to resume)' })
@@ -645,6 +655,22 @@ export class ContentController {
         @TenantId() tenantId: string,
     ) {
         return this.contentService.completeAiStudy(topicId, sessionId, dto, user.id, tenantId);
+    }
+
+    @Patch('topics/:topicId/ai-study/:sessionId/save-notes')
+    @Roles(UserRole.STUDENT)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Save student highlights and comments incrementally' })
+    @ApiParam({ name: 'topicId', type: 'string' })
+    @ApiParam({ name: 'sessionId', type: 'string' })
+    saveAiStudyNotes(
+        @Param('topicId', ParseUUIDPipe) topicId: string,
+        @Param('sessionId', ParseUUIDPipe) sessionId: string,
+        @Body() dto: UpdateAiStudyNotesDto,
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.saveAiStudyNotes(topicId, sessionId, dto, user.id, tenantId);
     }
 
     // ─── AI QUIZ ──────────────────────────────────────────────────────────────
