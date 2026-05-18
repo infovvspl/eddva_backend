@@ -889,3 +889,57 @@ Error: QueryFailedError: column Subject__Subject_chapters__Subject__Subject_chap
     at async Promise.all (index 0)
     at async ContentService.getSubjects (D:\Edva\eddva_backend\src\modules\content\content.service.ts:172:48)
 
+[2026-05-18T12:27:51.733Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (D:\Edva\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (D:\Edva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-18T12:28:39.363Z] GET /api/v1/institute/settings/subscription
+Status: 500
+Error: QueryFailedError: relation "u" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeCountQuery (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3101:25)
+    at async SelectQueryBuilder.getCount (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1786:29)
+    at async Promise.all (index 0)
+    at async InstituteSettingsService.getSubscription (D:\Edva\eddva_backend\src\modules\institute-settings\institute-settings.service.ts:206:42)
+
+[2026-05-18T12:28:40.970Z] GET /api/v1/institute/settings/subscription
+Status: 500
+Error: QueryFailedError: relation "u" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeCountQuery (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3101:25)
+    at async SelectQueryBuilder.getCount (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1786:29)
+    at async Promise.all (index 0)
+    at async InstituteSettingsService.getSubscription (D:\Edva\eddva_backend\src\modules\institute-settings\institute-settings.service.ts:206:42)
+
+[2026-05-18T12:28:44.411Z] GET /api/v1/institute/settings/subscription
+Status: 500
+Error: QueryFailedError: relation "u" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeCountQuery (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3101:25)
+    at async SelectQueryBuilder.getCount (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1786:29)
+    at async Promise.all (index 0)
+    at async InstituteSettingsService.getSubscription (D:\Edva\eddva_backend\src\modules\institute-settings\institute-settings.service.ts:206:42)
+
+[2026-05-18T12:28:46.011Z] GET /api/v1/institute/settings/subscription
+Status: 500
+Error: QueryFailedError: relation "u" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeCountQuery (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3101:25)
+    at async SelectQueryBuilder.getCount (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1786:29)
+    at async Promise.all (index 0)
+    at async InstituteSettingsService.getSubscription (D:\Edva\eddva_backend\src\modules\institute-settings\institute-settings.service.ts:206:42)
+

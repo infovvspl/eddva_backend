@@ -173,12 +173,15 @@ export class DoubtService {
 
     if (query.status) qb.andWhere('doubt.status = :status', { status: query.status });
     if (query.topicId) qb.andWhere('doubt.topicId = :topicId', { topicId: query.topicId });
-    if (query.batchId) qb.andWhere('doubt.batchId = :batchId', { batchId: query.batchId });
 
     if (user.role === UserRole.STUDENT) {
       const student = await this.getStudentByUserId(user.id, tenantId);
       qb.andWhere('doubt.studentId = :studentId', { studentId: student.id });
     } else if (user.role === UserRole.TEACHER) {
+      // Do NOT add doubt.batchId = :batchId here — that excludes doubts where
+      // batchId is null but the student is enrolled in the selected batch.
+      // Instead pass query.batchId to the scope helpers so they narrow results
+      // to the selected batch's students, then use the OR condition below.
       const [batchIds, studentIds] = await Promise.all([
         this.getTeacherBatchIds(user.id, tenantId, query.batchId),
         this.getTeacherStudentIds(user.id, tenantId, query.batchId),
@@ -197,8 +200,10 @@ export class DoubtService {
           qb.andWhere('doubt.studentId IN (:...studentIds)', { studentIds });
         }
       }
-    } else if (query.studentId) {
-      qb.andWhere('doubt.studentId = :studentId', { studentId: query.studentId });
+    } else {
+      // Admin / super-admin: explicit filters are safe (they see everything in the tenant)
+      if (query.batchId) qb.andWhere('doubt.batchId = :batchId', { batchId: query.batchId });
+      if (query.studentId) qb.andWhere('doubt.studentId = :studentId', { studentId: query.studentId });
     }
 
     qb.orderBy('doubt.createdAt', 'DESC').skip(skip).take(limit);
