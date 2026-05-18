@@ -371,7 +371,7 @@ export class AnalyticsService {
         FROM question_attempts qa
         INNER JOIN questions q ON q.id = qa.question_id
         INNER JOIN topics t ON t.id = q.topic_id
-        WHERE qa.student_id = $1 AND qa.tenant_id = $2
+        WHERE qa.student_id = $1 AND qa.tenant_id = $2 AND qa.deleted_at IS NULL
         GROUP BY t.id, t.name
         ORDER BY "accuracy" ASC
         LIMIT 10
@@ -386,10 +386,10 @@ export class AnalyticsService {
           error_type AS "type",
           COUNT(*)::int AS "count"
         FROM question_attempts
-        WHERE student_id = $1 AND is_correct = false AND error_type IS NOT NULL
+        WHERE student_id = $1 AND tenant_id = $2 AND is_correct = false AND error_type IS NOT NULL AND deleted_at IS NULL
         GROUP BY error_type
       `,
-      [student.id],
+      [student.id, tenantId],
     );
 
     const errorTypeMap: any = {
@@ -433,7 +433,7 @@ export class AnalyticsService {
           DATE(logged_at) AS "date",
           SUM((signals->>'durationSeconds')::int) / 60 AS "minutes"
         FROM engagement_logs
-        WHERE student_id = $1 AND logged_at > NOW() - INTERVAL '14 days'
+        WHERE student_id = $1 AND logged_at > NOW() - INTERVAL '14 days' AND deleted_at IS NULL
         GROUP BY DATE(logged_at)
         ORDER BY "date" ASC
       `,
@@ -527,15 +527,16 @@ export class AnalyticsService {
     // Strong Topic Count: Topics with accuracy > 80%
     const strongTopicCount = await this.dataSource.query(
       `
-        SELECT COUNT(*) FROM (
+        SELECT COUNT(*)::int AS "count" FROM (
           SELECT AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END) as acc
           FROM question_attempts qa
-          WHERE qa.student_id = $1
-          GROUP BY qa.topic_id
+          INNER JOIN questions q ON q.id = qa.question_id
+          WHERE qa.student_id = $1 AND qa.tenant_id = $2 AND qa.deleted_at IS NULL
+          GROUP BY q.topic_id
           HAVING AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END) > 80
         ) t
       `,
-      [student.id],
+      [student.id, tenantId],
     ).then(res => Number(res[0]?.count || 0));
 
     return {

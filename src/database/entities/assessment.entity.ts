@@ -177,6 +177,12 @@ export class TestSession extends Base {
 
   @Column({ name: 'time_distribution', type: 'jsonb', nullable: true })
   timeDistribution: Record<string, number>; // questionId → seconds spent
+
+  @Column({ type: 'float', nullable: true })
+  accuracy: number;
+
+  @Column({ name: 'avg_time_per_question', type: 'float', nullable: true })
+  avgTimePerQuestion: number;
 }
 
 // ─── QuestionAttempt (one answer) ─────────────────────────────────────────────
