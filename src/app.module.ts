@@ -66,6 +66,7 @@ import { PresenceModule } from './modules/presence/presence.module';
 import { StudyMaterialModule } from './modules/study-material/study-material.module';
 import { AIModule } from './ai/ai.module';
 import { OtpModule } from './modules/otp/otp.module';
+import { StorageModule } from './modules/storage/storage.module';
 
 // ── Common ────────────────────────────────────────────────────────────────────
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
@@ -191,6 +192,7 @@ const ALL_ENTITIES = [
     AIModule,
     StudyMaterialModule,
     OtpModule,
+    StorageModule,
 
     // TODO: Add as you build them:
 

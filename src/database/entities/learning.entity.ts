@@ -214,6 +214,7 @@ export class Lecture extends Base {
   @Column({ name: 'transcript_language', nullable: true, default: 'en' })
   transcriptLanguage: string;
 
+
   // ── Quiz checkpoints — full MCQ data stored in JSONB ─────────────────────
   @Column({ name: 'quiz_checkpoints', type: 'jsonb', default: [] })
   quizCheckpoints: Array<{

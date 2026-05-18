@@ -58,6 +58,14 @@ export class AiBridgeService {
     }
   }
 
+  async getAiEngineHealth(refresh: boolean, tenantId?: string) {
+    try {
+      return await this.post('/health', { refresh }, tenantId);
+    } catch {
+      return { status: 'unavailable', refresh };
+    }
+  }
+
   // ── AI #1 — Doubt Clearing ────────────────────────────────────────────────
   async resolveDoubt(
     payload: {
