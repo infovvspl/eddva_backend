@@ -535,6 +535,28 @@ export class DoubtService {
     return this.serializeDoubt(doubt);
   }
 
+  async reopenDoubt(id: string, reason: string | undefined, userId: string, tenantId: string) {
+    const student = await this.getStudentByUserId(userId, tenantId);
+    const doubt = await this.getDoubtWithRelations(id);
+    if (doubt.studentId !== student.id) throw new ForbiddenException('You can only reopen your own doubts');
+    if (doubt.status !== DoubtStatus.TEACHER_RESOLVED && doubt.status !== DoubtStatus.AI_RESOLVED) {
+      throw new BadRequestException('Only resolved doubts can be reopened');
+    }
+
+    doubt.status = DoubtStatus.ESCALATED;
+    doubt.resolvedAt = null;
+    doubt.isTeacherResponseHelpful = false;
+    if (reason?.trim()) {
+      const existing = (doubt.questionText || '').trim();
+      doubt.questionText = existing
+        ? `${existing}\n\n[Student follow-up]: ${reason.trim()}`
+        : `[Student follow-up]: ${reason.trim()}`;
+    }
+    await this.doubtRepo.save(doubt);
+    await this.notifyEscalatedDoubtTeachers(doubt);
+    return this.serializeDoubt(doubt);
+  }
+
   async rateTeacherResponse(id: string, dto: RateTeacherResponseDto, userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
     const doubt = await this.getDoubtWithRelations(id);

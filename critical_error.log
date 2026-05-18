@@ -776,3 +776,116 @@ Error: NotFoundException: Resource 0a93e391-2705-4421-8d32-08aee42bf843 not foun
     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async ContentController.getResourceDownloadUrl (D:\Edva\eddva_backend\src\modules\content\content.controller.ts:812:26)
 
+[2026-05-15T13:02:03.052Z] GET /api/v1/analytics/student/insights
+Status: 500
+Error: QueryFailedError: column qa.topic_id does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async AnalyticsService.getStudentInsights (D:\Edva\eddva_backend\src\modules\analytics\analytics.service.ts:539:30)
+
+[2026-05-15T13:02:04.418Z] GET /api/v1/analytics/student/insights
+Status: 500
+Error: QueryFailedError: column qa.topic_id does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async AnalyticsService.getStudentInsights (D:\Edva\eddva_backend\src\modules\analytics\analytics.service.ts:539:30)
+
+[2026-05-16T07:13:48.804Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources
+Status: 404
+Error: NotFoundException: Topic 4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c not found
+    at ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2666:27)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-16T07:13:57.949Z] GET /api/v1/analytics/student/insights
+Status: 500
+Error: QueryFailedError: column qa.topic_id does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async AnalyticsService.getStudentInsights (D:\Edva\eddva_backend\src\modules\analytics\analytics.service.ts:539:30)
+
+[2026-05-16T07:13:59.382Z] GET /api/v1/analytics/student/insights
+Status: 500
+Error: QueryFailedError: column qa.topic_id does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async AnalyticsService.getStudentInsights (D:\Edva\eddva_backend\src\modules\analytics\analytics.service.ts:539:30)
+
+[2026-05-16T07:21:48.029Z] GET /api/v1/analytics/student/insights
+Status: 500
+Error: QueryFailedError: column qa.topic_id does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async AnalyticsService.getStudentInsights (D:\Edva\eddva_backend\src\modules\analytics\analytics.service.ts:539:30)
+
+[2026-05-16T07:26:07.054Z] POST /api/v1/study-plans/regenerate
+Status: 500
+Error: QueryFailedError: column "studyPlanId" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DeleteQueryBuilder.execute (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\DeleteQueryBuilder.ts:77:33)
+    at async <anonymous> (D:\Edva\eddva_backend\src\modules\study-plan\study-plan.service.ts:172:9)
+    at async EntityManager.transaction (D:\Edva\eddva_backend\node_modules\typeorm\entity-manager\src\entity-manager\EntityManager.ts:156:28)
+    at async StudyPlanService.doGeneratePlan (D:\Edva\eddva_backend\src\modules\study-plan\study-plan.service.ts:163:18)
+    at async <anonymous> (D:\Edva\eddva_backend\src\modules\study-plan\study-plan.service.ts:118:16)
+
+[2026-05-16T09:56:23.684Z] GET /api/v1/content/topics/31b6de1b-e844-4b0c-a6d0-e8f67b83fd63/resources
+Status: 500
+Error: QueryFailedError: column Topic.faqs does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getOne (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1698:25)
+    at async ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2665:23)
+
+[2026-05-16T09:56:23.734Z] GET /api/v1/content/topics?chapterId=33c2aa0d-6f2a-424e-8680-cbd44aae6353
+Status: 500
+Error: QueryFailedError: column Topic.faqs does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getMany (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1761:25)
+
+[2026-05-16T09:56:23.740Z] GET /api/v1/content/subjects?batchId=2679076f-e84d-4b32-9f88-76ae3b3da213
+Status: 500
+Error: QueryFailedError: column Subject__Subject_chapters__Subject__Subject_chapters_topics.faqs does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getMany (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1761:25)
+    at async Promise.all (index 0)
+    at async ContentService.getSubjects (D:\Edva\eddva_backend\src\modules\content\content.service.ts:172:48)
+
+[2026-05-16T09:56:23.745Z] GET /api/v1/content/lectures?batchId=2679076f-e84d-4b32-9f88-76ae3b3da213&limit=500
+Status: 500
+Error: QueryFailedError: column topic.faqs does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.getRawMany (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1627:29)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3530:26)
+    at async SelectQueryBuilder.getManyAndCount (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1874:36)
+    at async ContentService.getLectures (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1244:31)
+
+[2026-05-16T09:56:24.266Z] GET /api/v1/content/subjects?batchId=2679076f-e84d-4b32-9f88-76ae3b3da213
+Status: 500
+Error: QueryFailedError: column Subject__Subject_chapters__Subject__Subject_chapters_topics.faqs does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SelectQueryBuilder.loadRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3868:25)
+    at async SelectQueryBuilder.executeEntitiesAndRawResults (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:3614:26)
+    at async SelectQueryBuilder.getRawAndEntities (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1671:29)
+    at async SelectQueryBuilder.getMany (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\SelectQueryBuilder.ts:1761:25)
+    at async Promise.all (index 0)
+    at async ContentService.getSubjects (D:\Edva\eddva_backend\src\modules\content\content.service.ts:172:48)
+

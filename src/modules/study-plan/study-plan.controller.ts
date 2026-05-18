@@ -132,6 +132,50 @@ export class StudyPlanController {
     return this.studyPlanService.getNextAction(user.id, tenantId, batchId);
   }
 
+  @Get('revision/spaced')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get spaced-repetition topics due for a course' })
+  getRevisionSpaced(
+    @Query('batchId') batchId: string | undefined,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.studyPlanService.getRevisionSpaced(user.id, tenantId, batchId);
+  }
+
+  @Get('revision/intensive')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get course-scoped subject/chapter/topic hierarchy for intensive revision' })
+  getRevisionIntensive(
+    @Query('batchId') batchId: string | undefined,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.studyPlanService.getRevisionIntensive(user.id, tenantId, batchId);
+  }
+
+  @Get('revision/notes')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get completed AI study notes scoped to a course' })
+  getRevisionNotes(
+    @Query('batchId') batchId: string | undefined,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.studyPlanService.getRevisionNotes(user.id, tenantId, batchId);
+  }
+
+  @Get('revision/practice')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get completed practice sessions scoped to a course' })
+  getRevisionPractice(
+    @Query('batchId') batchId: string | undefined,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.studyPlanService.getRevisionPractice(user.id, tenantId, batchId);
+  }
+
   @Post('revision-session')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Start a structured spaced-revision session for a topic' })

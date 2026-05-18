@@ -27,6 +27,7 @@ import {
   MarkDoubtHelpfulDto,
   MarkDoubtReviewedDto,
   RateTeacherResponseDto,
+  ReopenDoubtDto,
   TeacherResponseDto,
 } from './dto/doubt.dto';
 
@@ -164,6 +165,19 @@ export class DoubtController {
     @TenantId() tenantId: string,
   ) {
     return this.doubtService.deleteDoubt(id, user, tenantId);
+  }
+
+  @Patch(':id/reopen')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Student reopens a resolved doubt — escalates it back to teacher queue' })
+  @ApiParam({ name: 'id', type: 'string' })
+  reopenDoubt(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReopenDoubtDto,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.doubtService.reopenDoubt(id, dto.reason, user.id, tenantId);
   }
 
   @Patch(':id/rate-teacher')

@@ -1,10 +1,13 @@
 import {
     Injectable,
+    Inject,
     Logger,
     NotFoundException,
     ForbiddenException,
     BadRequestException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, Like, FindOptionsWhere, In } from 'typeorm';
 
@@ -102,6 +105,8 @@ export class ContentService {
         private readonly aiBridgeService: AiBridgeService,
         private readonly notificationService: NotificationService,
         private readonly studyPlanService: StudyPlanService,
+        @Inject(CACHE_MANAGER)
+        private readonly cacheManager: Cache,
     ) { }
 
     private normalizeSubjectExamTarget(value: string) {
