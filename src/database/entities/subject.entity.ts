@@ -4,6 +4,7 @@ export enum ResourceType {
   PDF = 'pdf',
   DPP = 'dpp',
   PYQ = 'pyq',
+  FAQ = 'faq',
   QUIZ = 'quiz',
   NOTES = 'notes',
   MINDMAP = 'mindmap',

@@ -1,0 +1,34 @@
+{
+  "userId": "68c93269-426b-4c10-bc9c-b533e468a3fb",
+  "tenantId": "1c5e18a5-782d-46a5-86e7-8322b632191a",
+  "effectiveTenantId": "73a505c3-23eb-4166-b019-8c9bc154a284",
+  "batchId": "2099f7c4-9f66-4287-8621-f6dc8905fe82",
+  "studentId": "5532d95d-5d1a-4f4b-ae18-7cc978db026f",
+  "topicsResolved": 3,
+  "topicSample": [
+    {
+      "id": "4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c",
+      "name": "Photosynthesis"
+    },
+    {
+      "id": "41dda54d-7a5f-4f26-8d25-c4fc777abb1d",
+      "name": "Excretion"
+    },
+    {
+      "id": "9eac715d-af2f-4ad0-9e39-bdaa0da780fa",
+      "name": "Digestion and Absorption"
+    }
+  ],
+  "planId": "df5237a9-e5ae-4047-9c83-56b263f4f0c7",
+  "allPlanItems": 6,
+  "completedPracticeItems": 0,
+  "completedPracticeRefIds": [],
+  "completedAiSessions": 6,
+  "aiSessionTopicIds": [
+    "0f8f124f-fe17-48e0-95b3-4dcd9e8de88e",
+    "31b6de1b-e844-4b0c-a6d0-e8f67b83fd63",
+    "34fe89d8-1651-4d47-9e3c-a0b03b6b8ab3",
+    "494bd049-f650-46a8-8d72-d0d84842f2b2",
+    "b8a20c1c-0a89-4577-97d2-82e918b31d75"
+  ]
+}

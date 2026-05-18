@@ -130,3 +130,10 @@ export class MarkDoubtReviewedDto {
   @IsString()
   aiQualityRating?: string;
 }
+
+export class ReopenDoubtDto {
+  @ApiPropertyOptional({ description: 'Why the student is reopening the doubt' })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
