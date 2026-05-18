@@ -577,11 +577,16 @@ export class DoubtService {
       .andWhere('doubt.status = :status', { status: DoubtStatus.ESCALATED })
       .andWhere('doubt.deletedAt IS NULL');
 
-    if (scopeBatchId) {
-      qb.andWhere('doubt.batchId = :scopeBatchId', { scopeBatchId });
-    }
-
-    if (role !== UserRole.INSTITUTE_ADMIN) {
+    if (role === UserRole.INSTITUTE_ADMIN) {
+      // Admins see all escalated in tenant; scopeBatchId is a strict filter
+      if (scopeBatchId) {
+        qb.andWhere('doubt.batchId = :scopeBatchId', { scopeBatchId });
+      }
+    } else {
+      // For teachers, getTeacherBatchIds/getTeacherStudentIds already scope to
+      // scopeBatchId when provided, so we don't add a separate batchId = :x clause.
+      // That separate clause would exclude legacy doubts where batchId is null but
+      // the student is enrolled in the selected batch.
       const [batchIds, studentIds] = await Promise.all([
         this.getTeacherBatchIds(userId, tenantId, scopeBatchId),
         this.getTeacherStudentIds(userId, tenantId, scopeBatchId),
@@ -591,9 +596,6 @@ export class DoubtService {
         `getTeacherQueue userId=${userId} batchIds=${batchIds.length} studentIds=${studentIds.length}`,
       );
 
-      // Show doubt if batchId matches the teacher's batch (new doubts)
-      // OR studentId is an enrolled student (legacy doubts without batchId)
-      // If neither is set (teacher not linked on batches yet), show all escalated for this tenant.
       if (batchIds.length && studentIds.length) {
         qb.andWhere(
           '(doubt.batchId IN (:...batchIds) OR doubt.studentId IN (:...studentIds))',
