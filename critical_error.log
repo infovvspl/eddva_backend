@@ -943,3 +943,14 @@ Error: QueryFailedError: relation "u" does not exist
     at async Promise.all (index 0)
     at async InstituteSettingsService.getSubscription (D:\Edva\eddva_backend\src\modules\institute-settings\institute-settings.service.ts:206:42)
 
+[2026-05-19T04:23:34.689Z] POST /api/v1/study-plans/regenerate
+Status: 500
+Error: QueryFailedError: column "studyPlanId" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DeleteQueryBuilder.execute (D:\Edva\eddva_backend\node_modules\typeorm\query-builder\src\query-builder\DeleteQueryBuilder.ts:77:33)
+    at async <anonymous> (D:\Edva\eddva_backend\src\modules\study-plan\study-plan.service.ts:172:9)
+    at async EntityManager.transaction (D:\Edva\eddva_backend\node_modules\typeorm\entity-manager\src\entity-manager\EntityManager.ts:156:28)
+    at async StudyPlanService.doGeneratePlan (D:\Edva\eddva_backend\src\modules\study-plan\study-plan.service.ts:163:18)
+    at async <anonymous> (D:\Edva\eddva_backend\src\modules\study-plan\study-plan.service.ts:118:16)
+

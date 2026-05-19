@@ -173,8 +173,8 @@ export class StudyPlanService {
           .createQueryBuilder()
           .delete()
           .from(PlanItem)
-          .where('"studyPlanId" = :planId', { planId: planRecord.id })
-          .andWhere('"scheduledDate" >= :today', { today })
+          .where('study_plan_id = :planId', { planId: planRecord.id })
+          .andWhere('scheduled_date >= :today', { today })
           .andWhere('status = :status', { status: PlanItemStatus.PENDING })
           .execute();
 
