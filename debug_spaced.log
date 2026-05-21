@@ -21,16 +21,17 @@
   ],
   "planId": "df5237a9-e5ae-4047-9c83-56b263f4f0c7",
   "allPlanItems": 12,
-  "completedPracticeItems": 1,
+  "completedPracticeItems": 2,
   "completedPracticeRefIds": [
-    "4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c"
+    "4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c",
+    "41dda54d-7a5f-4f26-8d25-c4fc777abb1d"
   ],
-  "completedAiSessions": 7,
+  "completedAiSessions": 9,
   "aiSessionTopicIds": [
+    "063c5f79-fb87-4954-8492-96eb8900f6d9",
     "0f8f124f-fe17-48e0-95b3-4dcd9e8de88e",
     "31b6de1b-e844-4b0c-a6d0-e8f67b83fd63",
     "34fe89d8-1651-4d47-9e3c-a0b03b6b8ab3",
-    "494bd049-f650-46a8-8d72-d0d84842f2b2",
-    "4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c"
+    "41dda54d-7a5f-4f26-8d25-c4fc777abb1d"
   ]
 }

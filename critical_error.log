@@ -954,3 +954,94 @@ Error: QueryFailedError: column "studyPlanId" does not exist
     at async StudyPlanService.doGeneratePlan (D:\Edva\eddva_backend\src\modules\study-plan\study-plan.service.ts:163:18)
     at async <anonymous> (D:\Edva\eddva_backend\src\modules\study-plan\study-plan.service.ts:118:16)
 
+[2026-05-19T07:27:14.190Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (D:\Edva\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (D:\Edva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-19T11:04:21.658Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:224:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-19T11:04:27.355Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:224:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-19T11:05:10.271Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:224:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-19T11:05:59.265Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:224:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-19T11:09:06.418Z] POST /api/v1/auth/register
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (D:\Edva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 1)
+    at async pipesFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-05-19T11:26:02.448Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:224:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-19T12:26:16.394Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (D:\Edva\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (D:\Edva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-19T12:30:42.425Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources
+Status: 404
+Error: NotFoundException: Topic 4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c not found
+    at ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2666:27)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-19T12:37:00.859Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (D:\Edva\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (D:\Edva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-20T05:28:10.399Z] POST /api/v1/xp/test/submit
+Status: 404
+Error: NotFoundException: Cannot POST /api/v1/xp/test/submit
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+

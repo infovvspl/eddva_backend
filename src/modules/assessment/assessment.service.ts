@@ -866,6 +866,75 @@ export class AssessmentService {
     };
   }
 
+  async gradeSession(
+    sessionId: string,
+    grades: { questionId: string; marksAwarded: number }[],
+    user: any,
+    tenantId: string,
+  ) {
+    const payload = await this.getSessionPayload(sessionId);
+    await this.assertSessionReadAccess(payload.session, payload.mockTest, user, tenantId);
+
+    if (!grades?.length) throw new BadRequestException('No grades provided');
+
+    const questionIds = grades.map(g => g.questionId);
+
+    // Validate all questionIds belong to this mock test
+    const testQuestionIds = payload.mockTest?.questionIds ?? [];
+    const invalidIds = questionIds.filter(qid => !testQuestionIds.includes(qid));
+    if (invalidIds.length) {
+      throw new BadRequestException(`Questions not in this test: ${invalidIds.join(', ')}`);
+    }
+
+    // Load existing attempts for this session
+    const attempts = await this.attemptRepo.find({
+      where: { testSessionId: sessionId, questionId: In(questionIds) },
+    });
+
+    const attemptMap = new Map(attempts.map(a => [a.questionId, a]));
+
+    // Apply grade overrides
+    for (const grade of grades) {
+      const attempt = attemptMap.get(grade.questionId);
+      if (!attempt) continue;
+      const question = payload.questions.find(q => q.id === grade.questionId);
+      const maxMarks = question?.marksCorrect ?? 0;
+      attempt.marksAwarded = Math.max(0, Math.min(grade.marksAwarded, maxMarks));
+      // If marks > 0, mark as correct; if 0, wrong
+      attempt.isCorrect = attempt.marksAwarded > 0;
+    }
+    await this.attemptRepo.save(Array.from(attemptMap.values()));
+
+    // Recalculate session totals from ALL attempts
+    const allAttempts = await this.attemptRepo.find({ where: { testSessionId: sessionId } });
+    let totalScore = 0;
+    let correctCount = 0;
+    let wrongCount = 0;
+    let skippedCount = 0;
+
+    for (const attempt of allAttempts) {
+      totalScore += attempt.marksAwarded ?? 0;
+      if (attempt.errorType === ErrorType.SKIPPED) {
+        skippedCount++;
+      } else if (attempt.isCorrect) {
+        correctCount++;
+      } else {
+        wrongCount++;
+      }
+    }
+
+    const session = payload.session;
+    session.totalScore = totalScore;
+    session.correctCount = correctCount;
+    session.wrongCount = wrongCount;
+    session.skippedCount = skippedCount;
+    const totalEvaluated = correctCount + wrongCount;
+    session.accuracy = totalEvaluated > 0 ? Number(((correctCount / totalEvaluated) * 100).toFixed(2)) : 0;
+    await this.sessionRepo.save(session);
+
+    return { message: 'Grades saved successfully', totalScore, correctCount, wrongCount, skippedCount };
+  }
+
   async getSessions(query: SessionListQueryDto, user: any, tenantId: string) {
     const page = query.page || 1;
     const limit = query.limit || 20;

@@ -158,6 +158,19 @@ export class AssessmentController {
     return this.assessmentService.getSessionResult(id, user, tenantId);
   }
 
+  @Patch('sessions/:id/grade')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Manually override marks for question attempts in a session (teacher grading)' })
+  @ApiParam({ name: 'id', type: 'string' })
+  gradeSession(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: { grades: { questionId: string; marksAwarded: number }[] },
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.assessmentService.gradeSession(id, dto.grades, user, tenantId);
+  }
+
   @Get('sessions/:id')
   @SkipThrottle()
   @ApiOperation({ summary: 'Get a session by id' })
