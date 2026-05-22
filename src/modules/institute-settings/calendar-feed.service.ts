@@ -6,6 +6,8 @@ import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../
 import { Lecture, LectureStatus, LectureType } from '../../database/entities/learning.entity';
 import { Student } from '../../database/entities/student.entity';
 import { UserRole } from '../../database/entities/user.entity';
+import { MockTest } from '../../database/entities/assessment.entity';
+import { LectureAssignment } from '../../database/entities/assignment.entity';
 
 import { InstituteSettingsService } from './institute-settings.service';
 
@@ -23,6 +25,10 @@ export class CalendarFeedService {
     private readonly batchRepo: Repository<Batch>,
     @InjectRepository(BatchSubjectTeacher)
     private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
+    @InjectRepository(MockTest)
+    private readonly mockTestRepo: Repository<MockTest>,
+    @InjectRepository(LectureAssignment)
+    private readonly assignmentRepo: Repository<LectureAssignment>,
   ) {}
 
   /** Batches visible on the calendar for this actor; `null` means all batches in the tenant (institute admin). */
@@ -114,7 +120,85 @@ export class CalendarFeedService {
         liveMeetingUrl: lec.liveMeetingUrl ?? null,
       }));
 
-    return { instituteEvents, liveClasses };
+    // Assignments
+    const assignmentWhere: any = {};
+    if (batchScope === null) {
+      assignmentWhere.tenantId = effectiveTenantId;
+    } else if (batchScope.length > 0) {
+      assignmentWhere.lecture = { batchId: In(batchScope) };
+    } else {
+      assignmentWhere.id = 'none'; // prevent all
+    }
+
+    let assignments: LectureAssignment[] = [];
+    if (assignmentWhere.id !== 'none') {
+      assignments = await this.assignmentRepo.find({
+        where: assignmentWhere,
+        relations: ['lecture', 'lecture.batch'],
+      });
+    }
+
+    const assignmentEvents = assignments
+      .filter((a) => a.dueDate)
+      .filter((a) => {
+        const t = new Date(a.dueDate!).getTime();
+        return t >= monthStart.getTime() && t <= monthEnd.getTime();
+      })
+      .map((a) => ({
+        id: a.id,
+        kind: 'assignment_deadline' as const,
+        title: `Deadline: ${a.title}`,
+        date: new Date(a.dueDate!).toISOString(),
+        scheduledAt: new Date(a.dueDate!).toISOString(),
+        description: a.description ?? null,
+        type: 'assignment' as const,
+        batchId: a.lecture?.batchId ?? null,
+        batchName: a.lecture?.batch?.name ?? null,
+        lectureId: a.lectureId,
+        status: 'scheduled',
+      }));
+
+    // Mock Tests
+    const mockTestWhere: any = {};
+    if (batchScope === null) {
+      mockTestWhere.tenantId = effectiveTenantId;
+    } else if (batchScope.length > 0) {
+      mockTestWhere.batchId = In(batchScope);
+    } else {
+      mockTestWhere.id = 'none';
+    }
+    mockTestWhere.isPublished = true;
+
+    let mockTests: MockTest[] = [];
+    if (mockTestWhere.id !== 'none') {
+      mockTests = await this.mockTestRepo.find({
+        where: mockTestWhere,
+      });
+    }
+
+    const mockTestEvents = mockTests
+      .filter((m) => m.deadlineAt)
+      .filter((m) => {
+        const t = new Date(m.deadlineAt!).getTime();
+        return t >= monthStart.getTime() && t <= monthEnd.getTime();
+      })
+      .map((m) => ({
+        id: m.id,
+        kind: 'mock_test_deadline' as const,
+        title: `Deadline: ${m.title}`,
+        date: new Date(m.deadlineAt!).toISOString(),
+        scheduledAt: new Date(m.deadlineAt!).toISOString(),
+        description: 'Mock Test Deadline',
+        type: 'mock_test' as const,
+        batchId: m.batchId ?? null,
+        batchName: null,
+        status: 'scheduled',
+      }));
+
+    return { 
+      instituteEvents, 
+      liveClasses: [...liveClasses, ...assignmentEvents, ...mockTestEvents] 
+    };
   }
 
   private async resolveTenantForCalendar(

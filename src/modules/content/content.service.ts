@@ -2633,6 +2633,9 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         });
         const saved = await this.topicResourceRepo.save(resource);
         await this.mirrorTopicResourceToStudyMaterial(topicId, tenantId, data);
+        this.notifyBatchStudentsOfNewResource(topic, data.title, tenantId).catch((err) => {
+            this.logger.warn(`Failed to send resource notification: ${err.message}`);
+        });
         return saved;
     }
 
@@ -2658,7 +2661,11 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             fileUrl: null,
             ...data,
         });
-        return this.topicResourceRepo.save(resource);
+        const saved = await this.topicResourceRepo.save(resource);
+        this.notifyBatchStudentsOfNewResource(topic, data.title, tenantId).catch((err) => {
+            this.logger.warn(`Failed to send resource notification: ${err.message}`);
+        });
+        return saved;
     }
 
     async getTopicResources(topicId: string, tenantId: string): Promise<TopicResource[]> {
@@ -2880,6 +2887,52 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 sortOrder: data.sortOrder ?? 0,
             });
         }
+    }
+
+    private async notifyBatchStudentsOfNewResource(topic: Topic, title: string, tenantId: string): Promise<void> {
+        // Fetch topic with chapter and subject to find the batches
+        const topicWithRelations = await this.topicRepo.findOne({
+            where: { id: topic.id },
+            relations: ['chapter', 'chapter.subject'],
+        });
+        const subjectName = (topicWithRelations as any)?.chapter?.subject?.name;
+        if (!subjectName) return;
+
+        // Find batches associated with this subject
+        const batchSubjectTeachers = await this.batchSubjectTeacherRepo.find({
+            where: { subjectName, tenantId },
+            select: ['batchId'],
+        });
+        const batchIds = [...new Set(batchSubjectTeachers.map(b => b.batchId))];
+        if (batchIds.length === 0) return;
+
+        // Find enrolled students in these batches
+        const enrollments = await this.enrollmentRepo.find({
+            where: { batchId: In(batchIds), status: EnrollmentStatus.ACTIVE },
+            relations: ['student', 'student.user'],
+        });
+
+        const targets = enrollments.filter(e => e.student?.user?.id);
+        const uniqueUserIds = new Set<string>();
+
+        await Promise.allSettled(
+            targets.map(e => {
+                const userId = e.student!.user!.id;
+                if (uniqueUserIds.has(userId)) return Promise.resolve();
+                uniqueUserIds.add(userId);
+
+                const recipientTenantId = e.student!.user!.tenantId ?? e.student!.tenantId ?? tenantId;
+                return this.notificationService.send({
+                    userId,
+                    tenantId: recipientTenantId,
+                    title: '📚 New Study Material',
+                    body: `"${title}" has been added to ${topic.name}. Check it out!`,
+                    channels: ['in_app', 'push'],
+                    refType: 'topic_resource',
+                    refId: topic.id,
+                });
+            }),
+        );
     }
 
     async getAiStudyHistory(userId: string, tenantId: string) {

@@ -4,6 +4,7 @@ import { Tenant } from './tenant.entity';
 import { Student } from './student.entity';
 import { Question } from './question.entity';
 import { Chapter, Subject, Topic } from './subject.entity';
+import { Batch } from './batch.entity';
 
 // ─── MockTest (template) ──────────────────────────────────────────────────────
 export enum MockTestType {
@@ -58,12 +59,19 @@ export class MockTest extends Base {
   @Column({ name: 'created_by', nullable: true })
   createdBy: string; // teacher user_id
 
+  @Column({ name: 'deadline_at', type: 'timestamptz', nullable: true })
+  deadlineAt: Date;
+
   // ── Scope: one of batch / subject / chapter / topic will be set ──────────
   @Column({ name: 'scope', type: 'enum', enum: MockTestScope, default: MockTestScope.BATCH })
   scope: MockTestScope;
 
   @Column({ name: 'batch_id', nullable: true })
   batchId: string;
+
+  @ManyToOne(() => Batch, { nullable: true })
+  @JoinColumn({ name: 'batch_id' })
+  batch: Batch;
 
   @Column({ name: 'subject_id', nullable: true })
   subjectId: string;

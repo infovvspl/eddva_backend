@@ -112,6 +112,10 @@ export class CreateMockTestDto {
   @IsDateString()
   scheduledAt?: string;
 
+  @IsOptional()
+  @IsDateString()
+  deadlineAt?: string;
+
   @IsArray()
   @ArrayNotEmpty()
   @IsUUID('4', { each: true })
@@ -183,6 +187,10 @@ export class UpdateMockTestDto {
   @IsOptional()
   @IsDateString()
   scheduledAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  deadlineAt?: string;
 
   @IsOptional()
   @IsArray()

@@ -18,6 +18,7 @@ import { Student } from './database/entities/student.entity';
 import { Subject, Chapter, Topic, TopicResource } from './database/entities/subject.entity';
 import { Question, QuestionOption } from './database/entities/question.entity';
 import { Batch, BatchSubjectTeacher, Enrollment } from './database/entities/batch.entity';
+import { BatchFeedback } from './database/entities/batch-feedback.entity';
 import {
   MockTest, TestSession, QuestionAttempt, TopicProgress,
 } from './database/entities/assessment.entity';
@@ -27,6 +28,7 @@ import {
 import {
   Doubt, Lecture, LectureProgress, StudyPlan, PlanItem, AiStudySession,
 } from './database/entities/learning.entity';
+import { LectureAssignment, AssignmentSubmission } from './database/entities/assignment.entity';
 import {
   PerformanceProfile, WeakTopic, EngagementLog,
   LeaderboardEntry, Notification,
@@ -67,6 +69,7 @@ import { StudyMaterialModule } from './modules/study-material/study-material.mod
 import { AIModule } from './ai/ai.module';
 import { OtpModule } from './modules/otp/otp.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { AssignmentModule } from './modules/assignment/assignment.module';
 
 // ── Common ────────────────────────────────────────────────────────────────────
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
@@ -78,7 +81,7 @@ const ALL_ENTITIES = [
   Tenant, User, Student,
   Subject, Chapter, Topic, TopicResource,
   Question, QuestionOption,
-  Batch, BatchSubjectTeacher, Enrollment,
+  Batch, BatchSubjectTeacher, Enrollment, BatchFeedback,
   MockTest, TestSession, QuestionAttempt, TopicProgress,
   Battle, BattleParticipant, BattleAnswer, StudentElo,
   Doubt, Lecture, LectureProgress, StudyPlan, PlanItem,
@@ -93,6 +96,7 @@ const ALL_ENTITIES = [
   ExamSyllabusCache,
   XpConfig, XpTransaction, LeaderboardCycle, LeaderboardGroup,
   LeaderboardGroupMember, VideoWatchSession, StudentLevelHistory,
+  LectureAssignment, AssignmentSubmission,
 ];
 
 @Module({
@@ -200,6 +204,7 @@ const ALL_ENTITIES = [
     TypeOrmModule.forFeature([Tenant]),
 
     UploadModule,
+    AssignmentModule,
   ],
   providers: [
     // Global exception filter

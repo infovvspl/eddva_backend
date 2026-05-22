@@ -12,11 +12,12 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { createHmac, randomBytes, randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, MoreThan } from 'typeorm';
 
 import { NotificationService } from '../notification/notification.service';
 import { MailService } from '../mail/mail.service';
 import { Batch, BatchStatus, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
+import { BatchFeedback } from '../../database/entities/batch-feedback.entity';
 import { TestSession, TestSessionStatus } from '../../database/entities/assessment.entity';
 import { Doubt, DoubtStatus, Lecture, LectureProgress } from '../../database/entities/learning.entity';
 import { Student, ExamTarget, StudentClass, ExamYear, SubscriptionPlan } from '../../database/entities/student.entity';
@@ -33,6 +34,7 @@ import {
   FlagStudentDto,
   RosterQueryDto,
   UpdateBatchDto,
+  SubmitFeedbackDto,
 } from './dto/batch.dto';
 import { toJsonSafeDeep } from '../../common/utils/json-safe';
 import { AssignSubjectTeacherDto, BulkEnrollDto, BulkCreateBatchStudentsDto, CreateBatchStudentDto, EnrollStudentDto } from './dto/enrollment.dto';
@@ -61,6 +63,8 @@ export class BatchService {
     private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(BatchSubjectTeacher)
     private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
+    @InjectRepository(BatchFeedback)
+    private readonly batchFeedbackRepo: Repository<BatchFeedback>,
     @InjectRepository(LectureProgress)
     private readonly lectureProgressRepo: Repository<LectureProgress>,
     @InjectRepository(Lecture)
@@ -188,9 +192,16 @@ export class BatchService {
       .getRawMany();
 
     const countMap = new Map<string, number>(counts.map(r => [r.batchId, Number(r.count)]));
-    return batches.map((b) => {
+    return Promise.all(batches.map(async (b) => {
       const n = countMap.get(b.id) ?? 0;
-      const t = b.teacher;
+      const bFeedback = await this.batchFeedbackRepo
+        .createQueryBuilder('f')
+        .select('AVG(f.rating)', 'averageRating')
+        .addSelect('COUNT(f.id)', 'ratingCount')
+        .where('f.batchId = :batchId', { batchId: b.id })
+        .andWhere('f.tenantId = :tenantId', { tenantId })
+        .getRawOne();
+        
       return toJsonSafeDeep({
         id: b.id,
         tenantId: b.tenantId,
@@ -199,8 +210,8 @@ export class BatchService {
         examTarget: b.examTarget,
         class: b.class,
         teacherId: b.teacherId ?? null,
-        teacher: t ? { id: t.id, fullName: t.fullName, email: t.email ?? null } : undefined,
-        teacherName: t?.fullName ?? undefined,
+        teacher: b.teacher ? { id: b.teacher.id, fullName: b.teacher.fullName, email: b.teacher.email ?? null } : undefined,
+        teacherName: b.teacher?.fullName ?? undefined,
         maxStudents: b.maxStudents,
         isPaid: b.isPaid,
         feeAmount: b.feeAmount != null ? Number(b.feeAmount) : null,
@@ -215,8 +226,10 @@ export class BatchService {
         updatedAt: b.updatedAt,
         studentCount: n,
         enrolledCount: n,
+        averageRating: bFeedback?.averageRating ? Number(Number(bFeedback.averageRating).toFixed(1)) : 0,
+        ratingCount: bFeedback?.ratingCount ? Number(bFeedback.ratingCount) : 0,
       }) as Record<string, unknown>;
-    });
+    }));
   }
 
   async getBatchById(id: string, user: any, tenantId: string) {
@@ -303,12 +316,72 @@ export class BatchService {
       };
     });
 
+    const bFeedback = await this.batchFeedbackRepo
+      .createQueryBuilder('f')
+      .select('AVG(f.rating)', 'averageRating')
+      .addSelect('COUNT(f.id)', 'ratingCount')
+      .where('f.batchId = :batchId', { batchId: id })
+      .andWhere('f.tenantId = :tenantId', { tenantId })
+      .getRawOne();
+
     return {
       ...batch,
       teacherName: batch.teacher?.fullName ?? null,
       studentCount,
       curriculum,
+      averageRating: bFeedback?.averageRating ? Number(Number(bFeedback.averageRating).toFixed(1)) : 0,
+      ratingCount: bFeedback?.ratingCount ? Number(bFeedback.ratingCount) : 0,
     };
+  }
+
+  async submitFeedback(batchId: string, userId: string, dto: SubmitFeedbackDto, requestTenantId: string) {
+    const student = await this.studentRepo.findOne({ where: { userId } });
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+    
+    const enrollment = await this.enrollmentRepo.findOne({
+      where: { batchId, studentId: student.id, status: EnrollmentStatus.ACTIVE }
+    });
+
+    if (!enrollment) {
+      throw new ForbiddenException('You must be enrolled to submit feedback');
+    }
+
+    // Upsert feedback
+    let feedback = await this.batchFeedbackRepo.findOne({
+      where: { batchId, studentId: student.id }
+    });
+    
+    if (feedback) {
+      feedback.rating = dto.rating;
+      feedback.comment = dto.comment || null;
+    } else {
+      feedback = this.batchFeedbackRepo.create({
+        tenantId: enrollment.tenantId,
+        batchId,
+        studentId: student.id,
+        rating: dto.rating,
+        comment: dto.comment || null,
+      });
+    }
+
+    await this.batchFeedbackRepo.save(feedback);
+    return { message: 'Feedback submitted successfully' };
+  }
+
+  async getFeedback(batchId: string, tenantId: string) {
+    const feedbacks = await this.batchFeedbackRepo.find({
+      where: { batchId, tenantId },
+      order: { createdAt: 'DESC' }
+    });
+    
+    return feedbacks.map(f => ({
+      id: f.id,
+      rating: f.rating,
+      comment: f.comment,
+      createdAt: f.createdAt,
+    }));
   }
 
   async updateBatch(id: string, dto: UpdateBatchDto, tenantId: string) {
@@ -805,7 +878,7 @@ export class BatchService {
     if (!batch) throw new NotFoundException('Target batch for student not found');
 
     // Fetch in parallel for performance
-    const [engagementLogs, weakTopics, batchLectures, recentSessions] = await Promise.all([
+    const [engagementLogs, weakTopics, batchLectures, recentSessions, higherXpCount] = await Promise.all([
       this.engagementLogRepo.find({
         where: { studentId },
         order: { loggedAt: 'DESC' },
@@ -821,7 +894,13 @@ export class BatchService {
         order: { scheduledAt: 'ASC' },
       }),
       this.getRecentTestSessions(studentId, tenantId, 10),
+      this.studentRepo.count({
+        where: { tenantId: student.tenantId, xpTotal: MoreThan(student.xpTotal || 0) }
+      })
     ]);
+
+    const rank = higherXpCount + 1;
+
 
     // Enrich weak topics with topic name
     const topicIds = [...new Set(weakTopics.map(w => w.topicId))];
@@ -861,6 +940,8 @@ export class BatchService {
         streakDays: student.currentStreak,
         longestStreak: student.longestStreak,
         xpTotal: student.xpTotal,
+        level: Math.max(1, Math.floor((student.xpTotal || 0) / 1000) + 1),
+        rank: rank,
         lastActiveDate: student.lastActiveDate ?? null,
         lastLoginAt: student.user?.lastLoginAt ?? null,
         subscriptionPlan: student.subscriptionPlan,

@@ -124,6 +124,7 @@ export class AssessmentService {
       durationMinutes: dto.durationMinutes,
       questionIds: questions.map((question) => question.id),
       scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
+      deadlineAt: dto.deadlineAt ? new Date(dto.deadlineAt) : null,
       examMode: dto.examMode ?? null,
       createdBy: user.id,
       isActive: true,
@@ -356,7 +357,8 @@ export class AssessmentService {
       title: dto.title ?? mockTest.title,
       totalMarks: dto.totalMarks ?? mockTest.totalMarks,
       durationMinutes: dto.durationMinutes ?? mockTest.durationMinutes,
-      scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : mockTest.scheduledAt,
+      scheduledAt: dto.scheduledAt !== undefined ? (dto.scheduledAt ? new Date(dto.scheduledAt) : null) : mockTest.scheduledAt,
+      deadlineAt: dto.deadlineAt !== undefined ? (dto.deadlineAt ? new Date(dto.deadlineAt) : null) : mockTest.deadlineAt,
       questionIds,
       scope: newScope,
       type: dto.type ?? this.inferType(newScope, dto as any),
@@ -461,6 +463,10 @@ export class AssessmentService {
 
     if (schema.isPublished && !mockTest.isPublished) {
       throw new ForbiddenException('This test is not published');
+    }
+
+    if (mockTest.deadlineAt && new Date() > new Date(mockTest.deadlineAt)) {
+      throw new ForbiddenException('The deadline for this mock test has passed and it is now locked.');
     }
 
     const activeSession = await this.sessionRepo.findOne({
@@ -717,11 +723,11 @@ export class AssessmentService {
 
         const scorePercentage = stats.totalMarks > 0 ? (stats.marksAwarded / stats.totalMarks) * 100 : 0;
         const current = await manager.findOne(TopicProgress, {
-          where: { tenantId: sessionTenant, studentId: student.id, topicId },
+          where: { studentId: student.id, topicId },
         });
         const next = this.gradingService.computeTopicProgressUpdate(current, topic, scorePercentage, now);
         next.studentId = student.id;
-        next.tenantId = sessionTenant;
+        next.tenantId = current?.tenantId || sessionTenant;
         await manager.save(TopicProgress, next);
 
         // Track topics that newly transitioned to COMPLETED for gate-unlock side effects

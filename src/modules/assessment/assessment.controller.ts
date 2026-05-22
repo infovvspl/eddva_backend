@@ -41,6 +41,7 @@ export class AssessmentController {
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
   ) {
+    console.log("RECEIVED DTO:", dto);
     return this.assessmentService.createMockTest(dto, user, tenantId);
   }
 

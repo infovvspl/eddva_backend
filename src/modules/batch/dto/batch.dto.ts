@@ -13,6 +13,7 @@ import {
   ValidateNested,
   IsArray,
   MinLength,
+  Max,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -225,4 +226,17 @@ export class FlagStudentDto {
   @IsOptional()
   @IsString()
   note?: string;
+}
+
+export class SubmitFeedbackDto {
+  @ApiProperty({ description: 'Rating from 1 to 5' })
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating: number;
+
+  @ApiPropertyOptional({ description: 'Optional feedback comment' })
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }
