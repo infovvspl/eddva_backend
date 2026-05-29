@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+﻿import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In } from 'typeorm';
 import {
   Battle,
@@ -29,17 +29,18 @@ export class BattleService {
   private readonly logger = new Logger(BattleService.name);
 
   constructor(
-    @InjectRepository(Battle)
+    @InjectRepository(Battle, 'coaching')
     private readonly battleRepo: Repository<Battle>,
-    @InjectRepository(BattleParticipant)
+    @InjectRepository(BattleParticipant, 'coaching')
     private readonly participantRepo: Repository<BattleParticipant>,
-    @InjectRepository(BattleAnswer)
+    @InjectRepository(BattleAnswer, 'coaching')
     private readonly answerRepo: Repository<BattleAnswer>,
-    @InjectRepository(StudentElo)
+    @InjectRepository(StudentElo, 'coaching')
     private readonly eloRepo: Repository<StudentElo>,
-    @InjectRepository(Question)
+    @InjectRepository(Question, 'coaching')
     private readonly questionRepo: Repository<Question>,
     private readonly aiBridgeService: AiBridgeService,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
   ) {
     // Force clear topic-level cache on every restart/save to ensure fresh tracking
@@ -57,7 +58,7 @@ export class BattleService {
   >();
   private readonly TOPIC_CACHE_TTL_MS = 2 * 60 * 60 * 1000;
 
-  // ─── Helper: get or create StudentElo ─────────────────────────────────────
+  // â”€â”€â”€ Helper: get or create StudentElo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async getOrCreateElo(studentId: string, tenantId: string): Promise<StudentElo> {
     let elo = await this.eloRepo.findOne({ where: { studentId } });
@@ -68,7 +69,7 @@ export class BattleService {
     return elo;
   }
 
-  // ─── Helper: get student by userId ────────────────────────────────────────
+  // â”€â”€â”€ Helper: get student by userId â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async getStudent(userId: string): Promise<Student> {
     const student = await this.dataSource
@@ -93,7 +94,7 @@ export class BattleService {
     return student?.tenantId ?? null;
   }
 
-  // ─── Helper: format room response ─────────────────────────────────────────
+  // â”€â”€â”€ Helper: format room response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async formatRoom(battle: Battle, tenantId: string) {
     const participants = await this.participantRepo.find({
@@ -129,9 +130,9 @@ export class BattleService {
     };
   }
 
-  // ─── Create Battle ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Create Battle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // ─── Mark Battle Active ───────────────────────────────────────────────────
+  // â”€â”€â”€ Mark Battle Active â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async startBattle(battleId: string) {
     await this.battleRepo.update(battleId, {
@@ -140,7 +141,7 @@ export class BattleService {
     });
   }
 
-  // ─── Create Battle (with auto-matchmaking queue) ──────────────────────────
+  // â”€â”€â”€ Create Battle (with auto-matchmaking queue) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async createBattleRoom(
     userId: string,
@@ -156,7 +157,7 @@ export class BattleService {
     const student = await this.getStudent(userId);
     const effectiveDifficulty: 'easy' | 'medium' | 'hard' = requestedDifficulty ?? 'medium';
 
-    // ── Auto-matchmaking: for quick_duel, topic_battle, and daily mode
+    // â”€â”€ Auto-matchmaking: for quick_duel, topic_battle, and daily mode
     //    find an existing WAITING room (with <maxParticipants) and join it
     if (
       mode === BattleMode.QUICK_DUEL ||
@@ -271,7 +272,7 @@ export class BattleService {
     return this.formatRoom(battle, tenantId);
   }
 
-  // ─── Create private room for challenge flow (gateway) ─────────────────────
+  // â”€â”€â”€ Create private room for challenge flow (gateway) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async createPrivateChallengeRoom(
     challengerStudentId: string, 
@@ -369,11 +370,11 @@ export class BattleService {
     return this.formatRoom(battle, tenantId);
   }
 
-  // ─── Join Battle (HTTP) ───────────────────────────────────────────────────
+  // â”€â”€â”€ Join Battle (HTTP) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async joinBattleByCode(roomCode: string, userId: string, tenantId: string) {
     const student = await this.getStudent(userId);
-    // roomCode is globally unique — don't filter by tenantId to avoid mismatches
+    // roomCode is globally unique â€” don't filter by tenantId to avoid mismatches
     const battle = await this.battleRepo.findOne({ where: { roomCode } });
     if (!battle) throw new NotFoundException('Battle room not found');
     if (battle.status === BattleStatus.FINISHED || battle.status === BattleStatus.ABANDONED) {
@@ -401,7 +402,7 @@ export class BattleService {
     return this.formatRoom(battle, tenantId);
   }
 
-  // ─── Join Room (Gateway-internal — uses studentId directly) ───────────────
+  // â”€â”€â”€ Join Room (Gateway-internal â€” uses studentId directly) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async joinRoomGateway(roomCode: string, studentId: string) {
     const battle = await this.battleRepo.findOne({ where: { roomCode } });
@@ -431,7 +432,7 @@ export class BattleService {
     return battle;
   }
 
-  // ─── Get Room ─────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Get Room â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getRoom(battleId: string, tenantId: string) {
     const battle = await this.battleRepo.findOne({ where: { id: battleId, tenantId } });
@@ -439,7 +440,7 @@ export class BattleService {
     return this.formatRoom(battle, tenantId);
   }
 
-  // ─── Cancel Battle ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Cancel Battle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async cancelBattle(battleId: string, userId: string, tenantId: string) {
     const student = await this.getStudent(userId);
@@ -463,7 +464,7 @@ export class BattleService {
     return battle;
   }
 
-  // ─── My History ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ My History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getMyHistory(userId: string, tenantId: string) {
     const student = await this.getStudent(userId);
@@ -491,7 +492,7 @@ export class BattleService {
       }));
   }
 
-  // ─── My ELO ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ My ELO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getMyElo(userId: string, tenantId: string) {
     const student = await this.getStudent(userId);
@@ -543,7 +544,7 @@ export class BattleService {
     };
   }
 
-  // ─── Get Daily Battle ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Get Daily Battle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getDailyBattle(tenantId: string) {
     try {
@@ -575,7 +576,7 @@ export class BattleService {
     }
   }
 
-  // ─── Get Questions for a Battle ───────────────────────────────────────────
+  // â”€â”€â”€ Get Questions for a Battle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getBattleQuestions(battleId: string) {
     let attempts = 0;
@@ -635,7 +636,7 @@ export class BattleService {
     return [];
   }
 
-  // ─── Submit Answer ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Submit Answer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async submitAnswer(data: {
     battleId: string;
@@ -679,9 +680,9 @@ export class BattleService {
     }
     const isCorrect = correctOptionId !== null && correctOptionId === data.optionId;
 
-    // AI question IDs (e.g. "ai_1_xxx") are not real DB UUIDs — store null.
+    // AI question IDs (e.g. "ai_1_xxx") are not real DB UUIDs â€” store null.
     // Also guard against empty-string ("") which forceCompleteRound passes when
-    // there is no current question — Postgres rejects "" for UUID columns.
+    // there is no current question â€” Postgres rejects "" for UUID columns.
     const dbQuestionId = (aiQuestion || !data.questionId) ? null : data.questionId;
     const dbOptionId   = data.optionId || null;
 
@@ -774,7 +775,7 @@ export class BattleService {
     return lastResult.roundComplete ? lastResult : null;
   }
 
-  // ─── Finish Battle ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Finish Battle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async finishBattle(battleId: string) {
     const participants = await this.participantRepo.find({ where: { battleId } });
@@ -892,7 +893,7 @@ export class BattleService {
     };
   }
 
-  // ─── Get room participants ────────────────────────────────────────────────
+  // â”€â”€â”€ Get room participants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getRoomParticipants(roomCode: string) {
     const battle = await this.battleRepo.findOne({ where: { roomCode } });
@@ -944,7 +945,7 @@ export class BattleService {
     return (enrollment?.batch as any)?.examTarget ?? null;
   }
 
-  // ─── Lobby users (real profiles + elo) ────────────────────────────────────
+  // â”€â”€â”€ Lobby users (real profiles + elo) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getLobbyUsersByStudentIds(studentIds: string[], tenantId: string) {
     if (!studentIds.length) return [];
@@ -999,7 +1000,7 @@ export class BattleService {
     }));
   }
 
-  // ─── Get battle questions by roomCode (for gateway) ──────────────────────
+  // â”€â”€â”€ Get battle questions by roomCode (for gateway) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getBattleQuestionsByRoom(roomCode: string) {
     const battle = await this.battleRepo.findOne({ where: { roomCode } });
@@ -1007,7 +1008,7 @@ export class BattleService {
     return this.getBattleQuestions(battle.id);
   }
 
-  // ─── Bot Practice Questions ───────────────────────────────────────────────
+  // â”€â”€â”€ Bot Practice Questions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getBotPracticeQuestions(
     scope: 'subject' | 'chapter' | 'topic',
@@ -1021,19 +1022,19 @@ export class BattleService {
     const diffEnum =
       difficulty === 'easy' ? DifficultyLevel.EASY : difficulty === 'hard' ? DifficultyLevel.HARD : DifficultyLevel.MEDIUM;
 
-    // ── Resolve student's exam target so we can filter level-appropriate questions ──
+    // â”€â”€ Resolve student's exam target so we can filter level-appropriate questions â”€â”€
     let examTarget: string | null = null;
     if (userId) {
       try {
         const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
         if (student) examTarget = await this.getStudentExamTarget(student.id);
       } catch {
-        // ignore — fallback to no exam filter
+        // ignore â€” fallback to no exam filter
       }
     }
     const examTag = examTarget ? `exam:${String(examTarget).toLowerCase()}` : null;
 
-    // ── Step 1: Try DB first, with strict scope + difficulty + (when possible) exam tag ──
+    // â”€â”€ Step 1: Try DB first, with strict scope + difficulty + (when possible) exam tag â”€â”€
     const qb = this.questionRepo
       .createQueryBuilder('q')
       .leftJoinAndSelect('q.options', 'options')
@@ -1068,10 +1069,10 @@ export class BattleService {
     qb.orderBy('RANDOM()').limit(limit);
     let questions = await qb.getMany();
 
-    // ── Step 2: AI fallback if DB has no level-appropriate questions for this scope ──
+    // â”€â”€ Step 2: AI fallback if DB has no level-appropriate questions for this scope â”€â”€
     if (questions.length === 0) {
       this.logger.log(
-        `[bot-questions] DB empty for scope=${scope} scopeId=${scopeId} diff=${difficulty} exam=${examTarget ?? '—'} → AI generating`,
+        `[bot-questions] DB empty for scope=${scope} scopeId=${scopeId} diff=${difficulty} exam=${examTarget ?? 'â€”'} â†’ AI generating`,
       );
       try {
         const ai = await this.buildAiBattleQuestions(
@@ -1085,7 +1086,7 @@ export class BattleService {
           scope === 'subject' ? scopeId : undefined,
           scope === 'chapter' ? scopeId : undefined,
         );
-        // Map AiBattleQuestion → BotPracticeQuestion shape (uses synthetic IDs)
+        // Map AiBattleQuestion â†’ BotPracticeQuestion shape (uses synthetic IDs)
         return ai.map((q, i) => ({
           id: q.id || `ai-bot-${Date.now()}-${i}`,
           text: q.text,
@@ -1110,7 +1111,7 @@ export class BattleService {
     }));
   }
 
-  // ─── Private helpers ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private generateRoomCode(): string {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -1275,7 +1276,7 @@ export class BattleService {
   }
 
   /**
-   * MCQ for battle: exactly 4 options (A–D), one correct, no duplicate stems.
+   * MCQ for battle: exactly 4 options (Aâ€“D), one correct, no duplicate stems.
    */
   private normalizeAiQuestions(raw: any[], safeCount: number): AiBattleQuestion[] {
     const seen = new Set<string>();
@@ -1332,7 +1333,7 @@ export class BattleService {
 
       if (mapped.length < 4) continue;
 
-      // Keep only A–D for battle; if >4, use first 4 only if the correct option is A–D
+      // Keep only Aâ€“D for battle; if >4, use first 4 only if the correct option is Aâ€“D
       let slice = mapped;
       if (mapped.length > 4) {
         const ci = mapped.findIndex((o) => o.isCorrect);
@@ -1502,7 +1503,7 @@ export class BattleService {
     const shuffledCps = checkpointQuestions.sort(() => Math.random() - 0.5);
 
     try {
-      // ── Fire both AI calls in parallel ───────────────────────────────────────
+      // â”€â”€ Fire both AI calls in parallel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Source A: brand-new questions generated by reading the actual lecture notes
       // Source B: general topic knowledge questions (notes used as context only)
       // Use allSettled so a slow/failing notes call never blocks topic questions.
@@ -1553,10 +1554,10 @@ export class BattleService {
       const poolTopic = this.normalizeAiQuestions(topicAiRaw, perSource);    // Source B
 
       this.logger.log(
-        `Battle question pools — checkpoints: ${poolCp.length}, notes-AI: ${poolNotes.length}, topic-AI: ${poolTopic.length}`,
+        `Battle question pools â€” checkpoints: ${poolCp.length}, notes-AI: ${poolNotes.length}, topic-AI: ${poolTopic.length}`,
       );
 
-      // ── Hard subject-scope filter ─────────────────────────────────────────
+      // â”€â”€ Hard subject-scope filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // The AI ignores prompt constraints, so we enforce them here by keyword.
       // Build banned keywords from subjects NOT in the allowed list.
       const filterByAllowedSubjects = (pool: AiBattleQuestion[]): AiBattleQuestion[] => {
@@ -1568,7 +1569,7 @@ export class BattleService {
           s.includes('bio') || s.includes('plant') || s.includes('animal'),
         );
 
-        if (!isBioOnly) return pool; // Mixed batch — no filter needed
+        if (!isBioOnly) return pool; // Mixed batch â€” no filter needed
 
         // Physics keywords
         const physicsKw = [
@@ -1614,7 +1615,7 @@ export class BattleService {
         return filtered;
       };
 
-      // ── Round-robin interleave for maximum diversity ─────────────────────────
+      // â”€â”€ Round-robin interleave for maximum diversity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Apply hard subject filter BEFORE interleaving to remove off-scope questions
       const filteredTopic = filterByAllowedSubjects(poolTopic);
       const filteredNotes = filterByAllowedSubjects(poolNotes);
@@ -1681,12 +1682,12 @@ export class BattleService {
       return out;
     };
 
-    // ── Fallback 1: checkpoints alone (if enough) ────────────────────────────
+    // â”€â”€ Fallback 1: checkpoints alone (if enough) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (shuffledCps.length >= 3) {
       return dedupePool(shuffledCps);
     }
 
-    // ── Fallback 2: topic-level cache from a prior battle ────────────────────
+    // â”€â”€ Fallback 2: topic-level cache from a prior battle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const cached = this.getFromTopicCache(cacheKey);
     if (cached) {
       this.logger.log(`Using topic cache for ${enrichedTopicName} (${cached.length} q)`);
@@ -1694,7 +1695,7 @@ export class BattleService {
       return dedupePool(this._interleaveQuestionPools([cached, shuffledCps]));
     }
 
-    // ── Fallback 3: DB questions ─────────────────────────────────────────────
+    // â”€â”€ Fallback 3: DB questions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const dbFallback = await this.getFallbackDbQuestions(
       tenantId,
       safeCount,

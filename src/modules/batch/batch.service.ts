@@ -51,39 +51,39 @@ export class BatchService {
   private static readonly presetClasses = new Set(['9', '10', '11', '12', 'dropper']);
 
   constructor(
-    @InjectRepository(Batch)
+    @InjectRepository(Batch, 'coaching')
     private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(User)
+    @InjectRepository(User, 'coaching')
     private readonly userRepo: Repository<User>,
-    @InjectRepository(Tenant)
+    @InjectRepository(Tenant, 'coaching')
     private readonly tenantRepo: Repository<Tenant>,
-    @InjectRepository(BatchSubjectTeacher)
+    @InjectRepository(BatchSubjectTeacher, 'coaching')
     private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
-    @InjectRepository(BatchFeedback)
+    @InjectRepository(BatchFeedback, 'coaching')
     private readonly batchFeedbackRepo: Repository<BatchFeedback>,
-    @InjectRepository(LectureProgress)
+    @InjectRepository(LectureProgress, 'coaching')
     private readonly lectureProgressRepo: Repository<LectureProgress>,
-    @InjectRepository(Lecture)
+    @InjectRepository(Lecture, 'coaching')
     private readonly lectureRepo: Repository<Lecture>,
-    @InjectRepository(TestSession)
+    @InjectRepository(TestSession, 'coaching')
     private readonly sessionRepo: Repository<TestSession>,
-    @InjectRepository(Doubt)
+    @InjectRepository(Doubt, 'coaching')
     private readonly doubtRepo: Repository<Doubt>,
-    @InjectRepository(WeakTopic)
+    @InjectRepository(WeakTopic, 'coaching')
     private readonly weakTopicRepo: Repository<WeakTopic>,
-    @InjectRepository(EngagementLog)
+    @InjectRepository(EngagementLog, 'coaching')
     private readonly engagementLogRepo: Repository<EngagementLog>,
-    @InjectRepository(Topic)
+    @InjectRepository(Topic, 'coaching')
     private readonly topicRepo: Repository<Topic>,
-    @InjectRepository(Subject)
+    @InjectRepository(Subject, 'coaching')
     private readonly subjectRepo: Repository<Subject>,
-    @InjectRepository(Chapter)
+    @InjectRepository(Chapter, 'coaching')
     private readonly chapterRepo: Repository<Chapter>,
-    @InjectRepository(TopicResource)
+    @InjectRepository(TopicResource, 'coaching')
     private readonly topicResourceRepo: Repository<TopicResource>,
     private readonly notificationService: NotificationService,
     private readonly mailService: MailService,

@@ -17,7 +17,7 @@ import { NotificationModule } from '../notification/notification.module';
       Student,
       Batch,
       Enrollment,
-    ]),
+    ], 'coaching'),
     NotificationModule,
   ],
   controllers: [AssignmentController],

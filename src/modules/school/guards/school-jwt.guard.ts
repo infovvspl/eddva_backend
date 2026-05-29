@@ -1,0 +1,89 @@
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import * as jwt from 'jsonwebtoken';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { IS_PUBLIC_KEY } from '../decorators/school-public.decorator';
+
+@Injectable()
+export class SchoolJwtGuard implements CanActivate {
+  constructor(
+    private readonly reflector: Reflector,
+    @InjectDataSource('school') private readonly ds: DataSource,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
+    const req = context.switchToHttp().getRequest();
+    let token: string | undefined;
+
+    const auth = req.headers['authorization'] as string | undefined;
+    if (auth?.startsWith('Bearer ')) {
+      token = auth.slice(7);
+    } else if (req.cookies?.token) {
+      token = req.cookies.token;
+    }
+
+    if (!token) throw new UnauthorizedException('Not authorized to access this route');
+
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'change_me_in_production');
+    } catch {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+
+    if (decoded.id === 'demo-super-admin') {
+      req.user = {
+        id: 'demo-super-admin',
+        email: decoded.email || 'admin@gmail.com',
+        role: 'SUPER_ADMIN',
+        name: 'Super Admin',
+        instituteId: null,
+        isActive: true,
+      };
+      return true;
+    }
+
+    const rows: any[] = await this.ds.query(
+      `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1`,
+      [decoded.id],
+    );
+
+    if (!rows.length) throw new UnauthorizedException('User no longer exists');
+
+    const row = rows[0];
+    if (!row.is_active) throw new UnauthorizedException('This user account is inactive');
+
+    req.user = {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      role: row.role,
+      instituteId: row.institute_id,
+      isActive: row.is_active,
+      institute: row.inst_id
+        ? {
+            id: row.inst_id,
+            name: row.inst_name,
+            tenantDomain: row.tenant_domain,
+            status: row.inst_status,
+          }
+        : null,
+    };
+    return true;
+  }
+}

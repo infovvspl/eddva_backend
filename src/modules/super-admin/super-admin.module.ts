@@ -1,9 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { SuperAdminController } from './super-admin.controller';
 import { PublicTenantController } from './public-tenant.controller';
 import { SuperAdminService } from './super-admin.service';
+import { PlatformSuperAdminController } from './platform-super-admin.controller';
+import { PlatformSuperAdminService } from './platform-super-admin.service';
+import { SchoolSuperAdminController } from './school-super-admin.controller';
+import { SchoolSuperAdminService } from './school-super-admin.service';
 
 import { Tenant } from '../../database/entities/tenant.entity';
 import { User } from '../../database/entities/user.entity';
@@ -20,9 +26,17 @@ import { StudyMaterialModule } from '../study-material/study-material.module';
   imports: [
     NotificationModule,
     StudyMaterialModule,
-    TypeOrmModule.forFeature([Tenant, User, Student, Batch, Enrollment, Lecture, TestSession, Announcement, StudyMaterial]),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService) => ({
+        secret: cfg.get<string>('jwt.secret'),
+        signOptions: { expiresIn: cfg.get<string>('jwt.expiresIn') },
+      }),
+    }),
+    TypeOrmModule.forFeature([Tenant, User, Student, Batch, Enrollment, Lecture, TestSession, Announcement, StudyMaterial], 'coaching'),
   ],
-  controllers: [SuperAdminController, PublicTenantController],
-  providers: [SuperAdminService],
+  controllers: [SuperAdminController, PublicTenantController, PlatformSuperAdminController, SchoolSuperAdminController],
+  providers: [SuperAdminService, PlatformSuperAdminService, SchoolSuperAdminService],
 })
 export class SuperAdminModule {}

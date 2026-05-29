@@ -46,7 +46,7 @@ export class OtpService {
   constructor(
     private readonly config: ConfigService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
-    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(User, 'coaching') private readonly userRepo: Repository<User>,
   ) {
     // Twilio
     const sid   = config.get<string>('TWILIO_ACCOUNT_SID');

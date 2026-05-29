@@ -5,7 +5,6 @@ dotenv.config();
 
 const isProd = process.env.NODE_ENV === 'production';
 
-// Validate DB_SYNC safety — never allow auto-sync to run in production
 if (isProd && process.env.DB_SYNC === 'true') {
   throw new Error(
     'DB_SYNC=true is forbidden in production — use migrations instead. ' +
@@ -13,27 +12,52 @@ if (isProd && process.env.DB_SYNC === 'true') {
   );
 }
 
-export const dbConfig: DataSourceOptions = {
+// ── Coaching DB (primary, named 'coaching') ─────────────────────────────────
+export const coachingDbConfig: DataSourceOptions = {
+  name: 'coaching',
   type: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT) || 5432,
-  username: process.env.DB_USERNAME || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  database: process.env.DB_NAME || 'apexiq',
+  url: process.env.COACHING_DB_URL,
+  host: !process.env.COACHING_DB_URL ? (process.env.DB_HOST || 'localhost') : undefined,
+  port: !process.env.COACHING_DB_URL ? (parseInt(process.env.DB_PORT) || 5432) : undefined,
+  username: !process.env.COACHING_DB_URL ? (process.env.DB_USERNAME || 'postgres') : undefined,
+  password: !process.env.COACHING_DB_URL ? (process.env.DB_PASSWORD || 'postgres') : undefined,
+  database: !process.env.COACHING_DB_URL ? (process.env.DB_NAME || 'apexiq') : undefined,
   synchronize: false,
   logging: process.env.NODE_ENV === 'development',
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  ssl: { rejectUnauthorized: false },
   extra: {
-    family: 4, // Force IPv4 — Supabase host resolves to IPv6 only by default
-    // Allow up to 30 connections per process; override with DB_POOL_MAX env var
-    max: parseInt(process.env.DB_POOL_MAX || '30'),
-    // Idle connections released after 10 s to keep the pool lean
+    family: 4,
+    max: parseInt(process.env.DB_POOL_MAX || '8'),
     idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 5_000,
   },
-  entities: [__dirname + '/../database/entities/*.entity{.ts,.js}'],
+  entities: [__dirname + '/../database/entities/*.entity{.ts,.js}',
+             __dirname + '/../modules/**/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
   migrationsTableName: 'migrations',
 };
 
-// Used by typeorm CLI for migration:run / migration:generate
-export default new DataSource(dbConfig);
+// ── School DB (secondary, named 'school') ───────────────────────────────────
+export const schoolDbConfig: DataSourceOptions = {
+  name: 'school',
+  type: 'postgres',
+  url: process.env.SCHOOL_DB_URL,
+  synchronize: false,
+  logging: process.env.NODE_ENV === 'development',
+  ssl: { rejectUnauthorized: false },
+  extra: {
+    family: 4,
+    max: parseInt(process.env.SCHOOL_DB_POOL_MAX || '5'),
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 5_000,
+  },
+  entities: [__dirname + '/../modules/school/**/entities/*.entity{.ts,.js}'],
+  migrations: [__dirname + '/../modules/school/migrations/*{.ts,.js}'],
+  migrationsTableName: 'school_migrations',
+};
+
+// Legacy alias kept for typeorm CLI (coaching DB)
+export const dbConfig = coachingDbConfig;
+
+// Used by typeorm CLI for coaching migrations
+export default new DataSource({ ...coachingDbConfig, name: 'default' } as DataSourceOptions);

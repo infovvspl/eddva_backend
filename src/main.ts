@@ -1,14 +1,17 @@
 import { NestFactory, Reflector } from '@nestjs/core';
+import { getDataSourceToken } from '@nestjs/typeorm';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe, VersioningType, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import compression from 'compression';
 import { AppModule } from './app.module';
+import { seedSuperAdmin } from './database/seeds/super-admin.seeder';
 
 // Load env files early with override so .env.local always wins over .env and process.env
 for (const file of ['.env', '.env.local']) {
@@ -104,6 +107,36 @@ async function bootstrap() {
       },
     });
     logger.log(`Swagger docs available at: http://localhost:${cfg.get('app.port')}/docs`);
+  }
+
+  // ── Apply AI feature migration on startup ────────────────────────────────
+  try {
+    const coachingDs = app.get(getDataSourceToken('coaching'));
+    await coachingDs.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+    await coachingDs.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS ai_features JSONB NOT NULL DEFAULT '[]'`);
+    logger.log('AI feature columns ensured on tenants table');
+  } catch (err) {
+    logger.warn(`AI migration skipped: ${err.message}`);
+  }
+
+  // ── Seed super admin on startup ───────────────────────────────────────────
+  try {
+    const dataSource = app.get(getDataSourceToken('coaching'));
+    await seedSuperAdmin(dataSource);
+  } catch (err) {
+    logger.warn(`Super admin seeder skipped: ${err.message}`);
+  }
+
+  // ── Ensure school DB has required indexes ─────────────────────────────────
+  try {
+    const schoolDs = app.get(getDataSourceToken('school'));
+    await schoolDs.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_school_users_email ON users (LOWER(email))`);
+    await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_users_role ON users (role)`);
+    await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_users_institute ON users (institute_id)`);
+    await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_institutes_status ON institutes (status)`);
+    logger.log('School DB indexes ensured');
+  } catch (err) {
+    logger.warn(`School DB index setup skipped: ${err.message}`);
   }
 
   const port = cfg.get<number>('app.port') || 3000;

@@ -15,19 +15,19 @@ import { InstituteSettingsService } from './institute-settings.service';
 export class CalendarFeedService {
   constructor(
     private readonly instituteSettings: InstituteSettingsService,
-    @InjectRepository(Lecture)
+    @InjectRepository(Lecture, 'coaching')
     private readonly lectureRepo: Repository<Lecture>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Batch)
+    @InjectRepository(Batch, 'coaching')
     private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(BatchSubjectTeacher)
+    @InjectRepository(BatchSubjectTeacher, 'coaching')
     private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
-    @InjectRepository(MockTest)
+    @InjectRepository(MockTest, 'coaching')
     private readonly mockTestRepo: Repository<MockTest>,
-    @InjectRepository(LectureAssignment)
+    @InjectRepository(LectureAssignment, 'coaching')
     private readonly assignmentRepo: Repository<LectureAssignment>,
   ) {}
 

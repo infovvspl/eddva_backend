@@ -1,11 +1,11 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
 import { Between, In, IsNull, MoreThan, Not, Repository } from 'typeorm';
@@ -21,7 +21,7 @@ import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../
 
 import { StudyPlanRangeQueryDto, GenerateStudyPlanDto } from './dto/study-plan.dto';
 
-// ─── Internal types ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Internal types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type RawPlanItem = {
   date: string;
   type: string;
@@ -44,44 +44,45 @@ export class StudyPlanService {
   private readonly activeGenerations = new Map<string, Promise<any>>();
 
   constructor(
-    @InjectRepository(StudyPlan)
+    @InjectRepository(StudyPlan, 'coaching')
     private readonly studyPlanRepo: Repository<StudyPlan>,
-    @InjectRepository(PlanItem)
+    @InjectRepository(PlanItem, 'coaching')
     private readonly planItemRepo: Repository<PlanItem>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(WeakTopic)
+    @InjectRepository(WeakTopic, 'coaching')
     private readonly weakTopicRepo: Repository<WeakTopic>,
-    @InjectRepository(TopicProgress)
+    @InjectRepository(TopicProgress, 'coaching')
     private readonly topicProgressRepo: Repository<TopicProgress>,
-    @InjectRepository(Lecture)
+    @InjectRepository(Lecture, 'coaching')
     private readonly lectureRepo: Repository<Lecture>,
-    @InjectRepository(MockTest)
+    @InjectRepository(MockTest, 'coaching')
     private readonly mockTestRepo: Repository<MockTest>,
-    @InjectRepository(Topic)
+    @InjectRepository(Topic, 'coaching')
     private readonly topicRepo: Repository<Topic>,
-    @InjectRepository(Batch)
+    @InjectRepository(Batch, 'coaching')
     private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
-    @InjectRepository(BatchSubjectTeacher)
+    @InjectRepository(BatchSubjectTeacher, 'coaching')
     private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
-    @InjectRepository(LectureProgress)
+    @InjectRepository(LectureProgress, 'coaching')
     private readonly lectureProgressRepo: Repository<LectureProgress>,
-    @InjectRepository(AiStudySession)
+    @InjectRepository(AiStudySession, 'coaching')
     private readonly aiStudySessionRepo: Repository<AiStudySession>,
-    @InjectRepository(Chapter)
+    @InjectRepository(Chapter, 'coaching')
     private readonly chapterRepo: Repository<Chapter>,
-    @InjectRepository(Subject)
+    @InjectRepository(Subject, 'coaching')
     private readonly subjectRepo: Repository<Subject>,
-    @InjectRepository(TopicResource)
+    @InjectRepository(TopicResource, 'coaching')
     private readonly topicResourceRepo: Repository<TopicResource>,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: NotificationService,
   ) {}
 
-  // ─── Plan Generation ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ Plan Generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async generatePlan(
     userId: string,
@@ -168,7 +169,7 @@ export class StudyPlanService {
       let planRecord = await manager.findOne(StudyPlan, { where: planWhere as any, withDeleted: true });
 
       if (planRecord) {
-        // Preserve past items (backlog + history) — only wipe future pending items
+        // Preserve past items (backlog + history) â€” only wipe future pending items
         await manager
           .createQueryBuilder()
           .delete()
@@ -216,7 +217,7 @@ export class StudyPlanService {
         userId,
         tenantId,
         title: 'Your study plan has been updated!',
-        body: '📅 Your personalised study plan has been refreshed based on your latest progress.',
+        body: 'ðŸ“… Your personalised study plan has been refreshed based on your latest progress.',
         channels: ['push', 'in_app'],
         refType: 'study_plan_regenerated',
         refId: plan.id,
@@ -226,7 +227,7 @@ export class StudyPlanService {
     return this.getPlanWithItems(plan.id, tenantId);
   }
 
-  // ─── Topic Resolution (single SQL, all 4 linkage paths) ──────────────────────
+  // â”€â”€â”€ Topic Resolution (single SQL, all 4 linkage paths) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async resolveTopicsForBatch(tenantId: string, batchId: string | null): Promise<Topic[]> {
     if (!batchId) {
@@ -292,7 +293,7 @@ export class StudyPlanService {
     });
   }
 
-  // ─── Plan Builder (round-robin across subjects, 30 days) ─────────────────────
+  // â”€â”€â”€ Plan Builder (round-robin across subjects, 30 days) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private buildPlan(
     topics: Topic[],
@@ -344,7 +345,7 @@ export class StudyPlanService {
     const basePerSubject = Math.floor(topicsPerDay / activeSubjects.length);
     const extra = topicsPerDay % activeSubjects.length;
 
-    // Per-subject cursors — advance linearly through pending, then cycle done
+    // Per-subject cursors â€” advance linearly through pending, then cycle done
     const pendingCursors = new Map<string, number>(activeSubjects.map(s => [s, 0]));
     const doneCursors = new Map<string, number>(activeSubjects.map(s => [s, 0]));
 
@@ -383,7 +384,7 @@ export class StudyPlanService {
               estimatedMinutes: minutesPerSlot,
             });
           } else if (done.length > 0) {
-            // All pending done — cycle through completed topics for revision
+            // All pending done â€” cycle through completed topics for revision
             const dCursor = doneCursors.get(subject) ?? 0;
             const topic = done[dCursor % done.length];
             doneCursors.set(subject, dCursor + 1);
@@ -404,7 +405,7 @@ export class StudyPlanService {
     return items;
   }
 
-  // ─── Plan Management ──────────────────────────────────────────────────────────
+  // â”€â”€â”€ Plan Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async clearCurrentPlan(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
@@ -465,7 +466,7 @@ export class StudyPlanService {
     }, {});
   }
 
-  // ─── Item Actions ─────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Item Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async completeItem(itemId: string, userId: string, tenantId: string) {
     const { item, student } = await this.getOwnedItem(itemId, userId, tenantId);
@@ -527,7 +528,7 @@ export class StudyPlanService {
     return { skipped: item, rescheduled };
   }
 
-  // ─── Revision Tab Endpoints ───────────────────────────────────────────────────
+  // â”€â”€â”€ Revision Tab Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getRevisionSpaced(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
@@ -635,7 +636,7 @@ export class StudyPlanService {
       const topic = topicMap.get(topicId);
       if (!topic) continue;
 
-      // Topics mastered (≥75% accuracy with quiz attempts) don't need spaced revision
+      // Topics mastered (â‰¥75% accuracy with quiz attempts) don't need spaced revision
       if (data.attemptCount > 0 && data.accuracy >= 75) continue;
 
       // Interval: if no quiz data yet, default to 7 days (60% proxy)
@@ -680,7 +681,7 @@ export class StudyPlanService {
     });
     const progressMap = new Map(progressRows.map(tp => [tp.topicId, tp]));
 
-    // Build subject → chapter → topic hierarchy
+    // Build subject â†’ chapter â†’ topic hierarchy
     type SubjectEntry = {
       subjectId: string;
       subjectName: string;
@@ -798,7 +799,7 @@ export class StudyPlanService {
     const topicMap = new Map(topics.map(t => [t.id, t]));
 
     // Only show topics where a dedicated practice plan item was completed.
-    // AI notes sessions are excluded — their embedded practice questions show in Notes.
+    // AI notes sessions are excluded â€” their embedded practice questions show in Notes.
     const plan = await this.studyPlanRepo.findOne({
       where: { studentId: student.id },
       order: { createdAt: 'DESC' },
@@ -814,7 +815,7 @@ export class StudyPlanService {
       order: { completedAt: 'DESC' },
     });
 
-    // Deduplicate by topicId — keep the most recent completion
+    // Deduplicate by topicId â€” keep the most recent completion
     const seenTopics = new Set<string>();
     const practiceTopicIds: Array<{ topicId: string; completedAt: Date }> = [];
     for (const item of completedPracticeItems) {
@@ -858,7 +859,7 @@ export class StudyPlanService {
     });
   }
 
-  // ─── Other Public Methods ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Other Public Methods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Cron('0 1 * * 1', { timeZone: 'Asia/Kolkata' })
   async weeklyPlanReview() {
@@ -892,13 +893,13 @@ export class StudyPlanService {
 
       switch (item.type) {
         case PlanItemType.LECTURE:
-          return { action: 'watch_lecture', title: item.title, description: `${content.topicName ?? ''} · ${content.videoDurationSeconds ? Math.ceil(content.videoDurationSeconds / 60) + ' min' : ''}`.trim(), lectureId: item.refId, planItemId: item.id, topicName: content.topicName, subjectName: content.subjectName, estimatedMinutes: item.estimatedMinutes, xpReward: 10 };
+          return { action: 'watch_lecture', title: item.title, description: `${content.topicName ?? ''} Â· ${content.videoDurationSeconds ? Math.ceil(content.videoDurationSeconds / 60) + ' min' : ''}`.trim(), lectureId: item.refId, planItemId: item.id, topicName: content.topicName, subjectName: content.subjectName, estimatedMinutes: item.estimatedMinutes, xpReward: 10 };
         case PlanItemType.MOCK_TEST:
-          return { action: 'take_quiz', title: item.title, description: `${content.questionCount ?? '?'} questions · ${content.durationMinutes ?? '?'} min`, mockTestId: item.refId, planItemId: item.id, estimatedMinutes: item.estimatedMinutes, xpReward: 20 };
+          return { action: 'take_quiz', title: item.title, description: `${content.questionCount ?? '?'} questions Â· ${content.durationMinutes ?? '?'} min`, mockTestId: item.refId, planItemId: item.id, estimatedMinutes: item.estimatedMinutes, xpReward: 20 };
         case PlanItemType.PRACTICE:
           return { action: 'ai_study', title: item.title, description: `Practice: ${content.topicName ?? item.title}`, topicId: item.refId, planItemId: item.id, topicName: content.topicName, subjectName: content.subjectName, estimatedMinutes: item.estimatedMinutes, xpReward: 8 };
         case PlanItemType.REVISION:
-          return { action: 'revision', title: item.title, description: `Spaced revision · ${content.chapterName ?? ''}`, topicId: item.refId, planItemId: item.id, topicName: content.topicName, subjectName: content.subjectName, estimatedMinutes: item.estimatedMinutes, xpReward: 6 };
+          return { action: 'revision', title: item.title, description: `Spaced revision Â· ${content.chapterName ?? ''}`, topicId: item.refId, planItemId: item.id, topicName: content.topicName, subjectName: content.subjectName, estimatedMinutes: item.estimatedMinutes, xpReward: 6 };
         case PlanItemType.BATTLE:
           return { action: 'battle', title: item.title, description: 'Challenge a classmate and earn XP', estimatedMinutes: 30, xpReward: 25 };
         default:
@@ -906,7 +907,7 @@ export class StudyPlanService {
       }
     }
 
-    return { action: 'all_done', title: "All tasks done today! 🎉 Battle time?", description: "You crushed today's plan. Try a battle or review weak topics.", xpReward: 0 };
+    return { action: 'all_done', title: "All tasks done today! ðŸŽ‰ Battle time?", description: "You crushed today's plan. Try a battle or review weak topics.", xpReward: 0 };
   }
 
   async startRevisionSession(
@@ -1085,7 +1086,7 @@ export class StudyPlanService {
     }
   }
 
-  // ─── Private Helpers ──────────────────────────────────────────────────────────
+  // â”€â”€â”€ Private Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async resolvePlanGenerationChoices(
     student: Student,

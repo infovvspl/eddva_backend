@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiBridgeService } from './ai-bridge.service';
 import { AiBridgeController } from './ai-bridge.controller';
+import { AiFeatureGuard } from '../../common/guards/ai-feature.guard';
+import { Tenant } from '../../database/entities/tenant.entity';
 
 @Module({
   imports: [
@@ -14,9 +17,10 @@ import { AiBridgeController } from './ai-bridge.controller';
         maxRedirects: 3,
       }),
     }),
+    TypeOrmModule.forFeature([Tenant], 'coaching'),
   ],
   controllers: [AiBridgeController],
-  providers: [AiBridgeService],
+  providers: [AiBridgeService, AiFeatureGuard],
   exports: [AiBridgeService],
 })
 export class AiBridgeModule {}

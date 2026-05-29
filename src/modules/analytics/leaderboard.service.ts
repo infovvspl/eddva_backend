@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+﻿import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { DataSource, In, Repository } from 'typeorm';
 
@@ -19,14 +19,15 @@ export class LeaderboardService {
   private readonly logger = new Logger(LeaderboardService.name);
 
   constructor(
-    @InjectRepository(LeaderboardEntry)
+    @InjectRepository(LeaderboardEntry, 'coaching')
     private readonly leaderboardRepo: Repository<LeaderboardEntry>,
-    @InjectRepository(PerformanceProfile)
+    @InjectRepository(PerformanceProfile, 'coaching')
     private readonly profileRepo: Repository<PerformanceProfile>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(StudentElo)
+    @InjectRepository(StudentElo, 'coaching')
     private readonly eloRepo: Repository<StudentElo>,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
   ) {}
 

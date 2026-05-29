@@ -159,6 +159,13 @@ export class AuthController {
     return this.authService.getMe(userId);
   }
 
+  @Get('tenant/features')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get AI feature flags for the current tenant' })
+  getTenantFeatures(@TenantId() tenantId: string) {
+    return this.authService.getTenantFeatures(tenantId);
+  }
+
   @Patch('profile')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update profile (name, email, FCM token)' })

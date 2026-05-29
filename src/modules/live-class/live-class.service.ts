@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Inject,
@@ -9,7 +9,7 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
 
 import { Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
@@ -36,36 +36,37 @@ export class LiveClassService {
   private readonly logger = new Logger(LiveClassService.name);
 
   constructor(
-    @InjectRepository(LiveSession)
+    @InjectRepository(LiveSession, 'coaching')
     private readonly liveSessionRepo: Repository<LiveSession>,
-    @InjectRepository(LiveAttendance)
+    @InjectRepository(LiveAttendance, 'coaching')
     private readonly liveAttendanceRepo: Repository<LiveAttendance>,
-    @InjectRepository(LiveChatMessage)
+    @InjectRepository(LiveChatMessage, 'coaching')
     private readonly liveChatMessageRepo: Repository<LiveChatMessage>,
-    @InjectRepository(LivePoll)
+    @InjectRepository(LivePoll, 'coaching')
     private readonly livePollRepo: Repository<LivePoll>,
-    @InjectRepository(LivePollResponse)
+    @InjectRepository(LivePollResponse, 'coaching')
     private readonly livePollResponseRepo: Repository<LivePollResponse>,
-    @InjectRepository(Lecture)
+    @InjectRepository(Lecture, 'coaching')
     private readonly lectureRepo: Repository<Lecture>,
-    @InjectRepository(User)
+    @InjectRepository(User, 'coaching')
     private readonly userRepo: Repository<User>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
     private readonly notificationService: NotificationService,
     private readonly contentService: ContentService,
     private readonly agoraService: AgoraService,
     private readonly bunnyStreamService: BunnyStreamService,
     private readonly configService: ConfigService,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
   ) {}
 
   async getToken(lectureId: string, userId: string, tenantId: string, userRole: UserRole) {
-    // Look up by ID only — student tenantId may differ from lecture tenantId
+    // Look up by ID only â€” student tenantId may differ from lecture tenantId
     const lecture = await this.lectureRepo.findOne({
       where: { id: lectureId },
       relations: ['topic'],
@@ -81,7 +82,7 @@ export class LiveClassService {
 
     const session = await this.findOrCreateSession(lecture);
 
-    // ── Bunny mode: return HLS URL (audience) or RTMP credentials (host) ──────
+    // â”€â”€ Bunny mode: return HLS URL (audience) or RTMP credentials (host) â”€â”€â”€â”€â”€â”€
     if (session.streamType === 'bunny') {
       if (userRole === UserRole.TEACHER) {
         if (lecture.teacherId !== userId) {
@@ -115,7 +116,7 @@ export class LiveClassService {
       }
     }
 
-    // ── Agora mode (default) ──────────────────────────────────────────────────
+    // â”€â”€ Agora mode (default) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let uid = session.teacherAgoraUid;
     let tokenRole: 'host' | 'audience' = 'host';
 
@@ -174,7 +175,7 @@ export class LiveClassService {
 
     const teacher = await this.userRepo.findOne({ where: { id: teacherId, tenantId } });
 
-    // ── Notify enrolled students ──────────────────────────────────────────────
+    // â”€â”€ Notify enrolled students â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const enrollments = await this.enrollmentRepo.find({
       where: { tenantId, batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
       relations: ['student'],
@@ -186,7 +187,7 @@ export class LiveClassService {
           this.notificationService.send({
             userId: e.student.userId,
             tenantId,
-            title: '📡 Class is LIVE now!',
+            title: 'ðŸ“¡ Class is LIVE now!',
             body: `${lecture.title} has started. Join now!`,
             channels: ['push', 'in_app'],
             refType: 'lecture',
@@ -195,7 +196,7 @@ export class LiveClassService {
         ),
     );
 
-    // ── Bunny mode: return RTMP credentials for OBS ───────────────────────────
+    // â”€â”€ Bunny mode: return RTMP credentials for OBS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (savedSession.streamType === 'bunny') {
       return {
         streamType: 'bunny',
@@ -209,7 +210,7 @@ export class LiveClassService {
       };
     }
 
-    // ── Agora mode (default) — start cloud recording, return RTC token ────────
+    // â”€â”€ Agora mode (default) â€” start cloud recording, return RTC token â”€â”€â”€â”€â”€â”€â”€â”€
     this.startRecordingAsync(savedSession.id, savedSession.agoraChannelName, lectureId).catch(
       (err) => this.logger.error('Cloud recording start failed silently', err),
     );
@@ -278,7 +279,7 @@ export class LiveClassService {
 
     let recordingUrl: string | null = session.recordingUrl || null;
 
-    // ── Recording stop: errors are swallowed so notifications always fire ────
+    // â”€â”€ Recording stop: errors are swallowed so notifications always fire â”€â”€â”€â”€
     try {
       if (session.streamType === 'bunny') {
         if (session.bunnyHlsUrl) {
@@ -306,7 +307,7 @@ export class LiveClassService {
           this.logger.warn(`Bunny session ${session.id} ended without HLS URL`);
         }
       } else {
-        // ── Agora mode: stop cloud recording and promote ──────────────────────
+        // â”€â”€ Agora mode: stop cloud recording and promote â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (!session.recordingResourceId || !session.recordingSid) {
           for (let i = 0; i < 5; i++) {
             await new Promise((r) => setTimeout(r, 3000));
@@ -340,14 +341,14 @@ export class LiveClassService {
             this.logger.warn(`Recording stop returned no URL for session ${session.id}`);
           }
         } else {
-          this.logger.warn(`No recording resource on session ${session.id} — recording skipped`);
+          this.logger.warn(`No recording resource on session ${session.id} â€” recording skipped`);
         }
       }
     } catch (err) {
-      this.logger.error(`Recording stop failed for session ${session.id} — notifications will still fire`, (err as Error).message);
+      this.logger.error(`Recording stop failed for session ${session.id} â€” notifications will still fire`, (err as Error).message);
     }
 
-    // ── Notifications always fire regardless of recording outcome ─────────────
+    // â”€â”€ Notifications always fire regardless of recording outcome â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
       const enrollments = await this.enrollmentRepo.find({
         where: { tenantId, batchId: lecture.batchId, status: EnrollmentStatus.ACTIVE },
@@ -364,7 +365,7 @@ export class LiveClassService {
           .map((e) => ({
             userId: e.student.userId,
             tenantId,
-            title: '📚 Class has ended',
+            title: 'ðŸ“š Class has ended',
             body: notificationBody,
             channels: ['push', 'in_app'] as ('push' | 'in_app')[],
             refType: 'lecture',
@@ -428,7 +429,7 @@ export class LiveClassService {
   }
 
   async getSession(lectureId: string, _tenantId: string) {
-    // Look up by lectureId only — the caller's tenantId may differ from the lecture's
+    // Look up by lectureId only â€” the caller's tenantId may differ from the lecture's
     // (e.g. student registered on platform tenant, lecture belongs to institute tenant).
     // Authorization is enforced later in getToken via enrollment check.
     const lecture = await this.lectureRepo.findOne({
@@ -637,7 +638,7 @@ export class LiveClassService {
   }
 
   async recordStudentJoin(liveSessionId: string, studentUserId: string, tenantId: string, agoraUid: number) {
-    // Look up session by ID only — student tenantId may differ from lecture/session tenantId
+    // Look up session by ID only â€” student tenantId may differ from lecture/session tenantId
     const session = await this.getSessionByIdOnly(liveSessionId);
     const student = await this.getStudentByUserId(studentUserId, tenantId);
     const existing = await this.liveAttendanceRepo.findOne({
@@ -707,7 +708,7 @@ export class LiveClassService {
     message: string,
     _callerTenantId: string,
   ) {
-    // Look up by ID only — student callerTenantId may differ from session tenantId
+    // Look up by ID only â€” student callerTenantId may differ from session tenantId
     const session = await this.getSessionByIdOnly(liveSessionId);
     return this.liveChatMessageRepo.save(
       this.liveChatMessageRepo.create({
@@ -814,7 +815,7 @@ export class LiveClassService {
           base.bunnyLibraryId = bunny.libraryId;
           this.logger.log(`Bunny stream created for lecture ${lecture.id}: videoId=${bunny.videoId}`);
         } else {
-          this.logger.warn(`Bunny stream creation failed for lecture ${lecture.id} — falling back to agora`);
+          this.logger.warn(`Bunny stream creation failed for lecture ${lecture.id} â€” falling back to agora`);
           base.streamType = 'agora';
         }
       }

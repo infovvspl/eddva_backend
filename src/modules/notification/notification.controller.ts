@@ -58,7 +58,7 @@ export class NotificationController {
   }
 
   @Get('unread-count')
-  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT, UserRole.INSTITUTE_ADMIN)
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Get unread notification count' })
   getUnreadCount(@CurrentUser() user: any, @TenantId() tenantId: string) {
     return this.notificationService.getUnreadCount(user.id, tenantId);

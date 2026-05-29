@@ -26,7 +26,7 @@ import { NotificationModule } from '../notification/notification.module';
       BatchSubjectTeacher,
       MockTest,
       LectureAssignment,
-    ]),
+    ], 'coaching'),
     UploadModule,
     NotificationModule,
   ],

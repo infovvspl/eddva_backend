@@ -12,7 +12,7 @@ import { Enrollment } from '../../database/entities/batch.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([StudyMaterial, Enrollment]),
+    TypeOrmModule.forFeature([StudyMaterial, Enrollment], 'coaching'),
     UploadModule, // provides S3Service
   ],
   controllers: [StudyMaterialAdminController, StudyMaterialPublicController],

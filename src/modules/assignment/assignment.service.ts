@@ -12,17 +12,17 @@ import { Logger } from '@nestjs/common';
 @Injectable()
 export class AssignmentService {
   constructor(
-    @InjectRepository(LectureAssignment)
+    @InjectRepository(LectureAssignment, 'coaching')
     private readonly assignmentRepo: Repository<LectureAssignment>,
-    @InjectRepository(AssignmentSubmission)
+    @InjectRepository(AssignmentSubmission, 'coaching')
     private readonly submissionRepo: Repository<AssignmentSubmission>,
-    @InjectRepository(Lecture)
+    @InjectRepository(Lecture, 'coaching')
     private readonly lectureRepo: Repository<Lecture>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Batch)
+    @InjectRepository(Batch, 'coaching')
     private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
     private readonly notificationService: NotificationService,
   ) { }

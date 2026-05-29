@@ -1,5 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsInt,
@@ -13,7 +15,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-import { TenantPlan, TenantStatus } from '../../../database/entities/tenant.entity';
+import { AI_FEATURES, AiFeatureKey, TenantPlan, TenantStatus } from '../../../database/entities/tenant.entity';
 import { UserRole, UserStatus } from '../../../database/entities/user.entity';
 
 export class CreateTenantDto {
@@ -60,6 +62,18 @@ export class CreateTenantDto {
   @IsInt()
   @Min(1)
   trialDays?: number;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  aiEnabled?: boolean;
+
+  @ApiPropertyOptional({ type: [String], enum: AI_FEATURES })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  aiFeatures?: AiFeatureKey[];
 }
 
 export class TenantListQueryDto {
@@ -121,6 +135,18 @@ export class UpdateTenantDto {
   @ApiPropertyOptional()
   @IsOptional()
   trialEndsAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  aiEnabled?: boolean;
+
+  @ApiPropertyOptional({ type: [String], enum: AI_FEATURES })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  aiFeatures?: AiFeatureKey[];
 }
 
 export class AdminUserListQueryDto {
