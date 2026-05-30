@@ -22,7 +22,7 @@ import { NotificationModule } from '../notification/notification.module';
       Batch, BatchSubjectTeacher, Enrollment, BatchFeedback, Student, Tenant, User,
       LectureProgress, Lecture, TestSession, Doubt,
       WeakTopic, EngagementLog, Topic, Subject, Chapter, TopicResource,
-    ]),
+    ], 'coaching'),
   ],
   controllers: [BatchController],
   providers: [BatchService],

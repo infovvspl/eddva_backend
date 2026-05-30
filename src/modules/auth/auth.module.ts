@@ -17,10 +17,12 @@ import { Batch } from '../../database/entities/batch.entity';
 import { Doubt, Lecture } from '../../database/entities/learning.entity';
 import { TeacherProfile } from '../../database/entities/teacher.entity';
 import { UploadModule } from '../upload/upload.module';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
     UploadModule,
+    StorageModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -30,7 +32,7 @@ import { UploadModule } from '../upload/upload.module';
         signOptions: { expiresIn: cfg.get<string>('jwt.expiresIn') },
       }),
     }),
-    TypeOrmModule.forFeature([User, Student, Tenant, PerformanceProfile, StudentElo, Batch, Lecture, Doubt, TeacherProfile]),
+    TypeOrmModule.forFeature([User, Student, Tenant, PerformanceProfile, StudentElo, Batch, Lecture, Doubt, TeacherProfile], 'coaching'),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

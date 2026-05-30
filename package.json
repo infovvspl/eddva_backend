@@ -9,7 +9,7 @@
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "npx kill-port 3000 && nest start",
-    "start:dev": "npx kill-port 3000 && nest start --watch",
+    "start:dev": "npx kill-port 3000 && npx ts-node -r tsconfig-paths/register src/main.ts",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",

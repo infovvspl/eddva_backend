@@ -21,7 +21,7 @@ import { NotificationModule } from '../notification/notification.module';
       StudyPlan, PlanItem, Student, WeakTopic, TopicProgress,
       Lecture, LectureProgress, AiStudySession,
       MockTest, Topic, Chapter, Subject, TopicResource, Enrollment, Batch, BatchSubjectTeacher,
-    ]),
+    ], 'coaching'),
   ],
   controllers: [StudyPlanController],
   providers: [StudyPlanService],

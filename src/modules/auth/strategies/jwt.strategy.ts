@@ -19,7 +19,7 @@ export interface JwtPayload {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
-    @InjectRepository(User)
+    @InjectRepository(User, 'coaching')
     private readonly userRepo: Repository<User>,
   ) {
     super({

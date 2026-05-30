@@ -22,9 +22,9 @@ const client = new pg.Client({
 await client.connect();
 console.log('Connected to DB');
 
-const sqls = [
-  // enums (safe to run if already exists — CREATE TYPE IF NOT EXISTS)
+const sqls = [ EXISTS)
   `DO $$ BEGIN
+  // enums (safe to run if already exists — CREATE TYPE IF NOT
      CREATE TYPE mock_test_type_enum AS ENUM (
        'full_mock','subject_test','chapter_test','topic_test',
        'subtopic_drill','speed_test','pyq','revision','diagnostic'

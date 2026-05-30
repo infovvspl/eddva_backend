@@ -41,11 +41,11 @@ export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
   constructor(
-    @InjectRepository(Notification)
+    @InjectRepository(Notification, 'coaching')
     private readonly notificationRepo: Repository<Notification>,
-    @InjectRepository(User)
+    @InjectRepository(User, 'coaching')
     private readonly userRepo: Repository<User>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
     private readonly configService: ConfigService,
     @InjectQueue(NOTIFICATION_QUEUE)

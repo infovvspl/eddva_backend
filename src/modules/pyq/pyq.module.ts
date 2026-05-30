@@ -25,7 +25,7 @@ import { PYQStudentController } from './pyq-student.controller';
       Student,
       PYQAttempt,
       PYQYearStats,
-    ]),
+    ], 'coaching'),
   ],
   controllers: [PYQAdminController, PYQStudentController],
   providers: [PYQService],

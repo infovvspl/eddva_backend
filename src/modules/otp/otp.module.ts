@@ -5,7 +5,7 @@ import { OtpService } from './otp.service';
 import { User } from '../../database/entities/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User])],
+  imports: [TypeOrmModule.forFeature([User], 'coaching')],
   controllers: [OtpController],
   providers: [OtpService],
   exports: [OtpService],

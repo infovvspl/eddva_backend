@@ -18,7 +18,7 @@ import { UploadModule } from '../upload/upload.module';
     AiBridgeModule,
     NotificationModule,
     UploadModule,
-    TypeOrmModule.forFeature([Doubt, Topic, User, Student, Batch, BatchSubjectTeacher, Enrollment]),
+    TypeOrmModule.forFeature([Doubt, Topic, User, Student, Batch, BatchSubjectTeacher, Enrollment], 'coaching'),
   ],
   controllers: [DoubtController],
   providers: [DoubtService],

@@ -8,7 +8,7 @@ import { PresenceController } from './presence.controller';
 import { PresenceService } from './presence.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LiveSession, Student, Enrollment, Batch])],
+  imports: [TypeOrmModule.forFeature([LiveSession, Student, Enrollment, Batch], 'coaching')],
   controllers: [PresenceController],
   providers: [PresenceService],
   exports: [PresenceService],

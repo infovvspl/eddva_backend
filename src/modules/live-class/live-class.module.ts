@@ -37,7 +37,7 @@ import { LiveClassService } from './live-class.service';
       Student,
       Batch,
       Enrollment,
-    ]),
+    ], 'coaching'),
     NotificationModule,
     ContentModule,
     JwtModule.registerAsync({

@@ -49,7 +49,7 @@ import { NotificationModule } from '../notification/notification.module';
       Chapter,
       PlanItem,
       AiStudySession,
-    ]),
+    ], 'coaching'),
   ],
   controllers: [AnalyticsController, TeacherAnalyticsController, XpLeaderboardController],
   providers: [AnalyticsService, LeaderboardService, TeacherAnalyticsService, XpLeaderboardService],

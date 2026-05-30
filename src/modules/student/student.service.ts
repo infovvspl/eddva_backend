@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { DataSource, In, Repository } from 'typeorm';
 import { Cache } from 'cache-manager';
@@ -18,38 +18,39 @@ import { TopicProgress, TopicStatus } from '../../database/entities/assessment.e
 @Injectable()
 export class StudentService {
   constructor(
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(PerformanceProfile)
+    @InjectRepository(PerformanceProfile, 'coaching')
     private readonly profileRepo: Repository<PerformanceProfile>,
-    @InjectRepository(WeakTopic)
+    @InjectRepository(WeakTopic, 'coaching')
     private readonly weakTopicRepo: Repository<WeakTopic>,
-    @InjectRepository(LeaderboardEntry)
+    @InjectRepository(LeaderboardEntry, 'coaching')
     private readonly leaderboardRepo: Repository<LeaderboardEntry>,
-    @InjectRepository(StudyPlan)
+    @InjectRepository(StudyPlan, 'coaching')
     private readonly planRepo: Repository<StudyPlan>,
-    @InjectRepository(PlanItem)
+    @InjectRepository(PlanItem, 'coaching')
     private readonly planItemRepo: Repository<PlanItem>,
-    @InjectRepository(Batch)
+    @InjectRepository(Batch, 'coaching')
     private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
-    @InjectRepository(BatchSubjectTeacher)
+    @InjectRepository(BatchSubjectTeacher, 'coaching')
     private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
-    @InjectRepository(Subject)
+    @InjectRepository(Subject, 'coaching')
     private readonly subjectRepo: Repository<Subject>,
-    @InjectRepository(Chapter)
+    @InjectRepository(Chapter, 'coaching')
     private readonly chapterRepo: Repository<Chapter>,
-    @InjectRepository(Topic)
+    @InjectRepository(Topic, 'coaching')
     private readonly topicRepo: Repository<Topic>,
-    @InjectRepository(TopicResource)
+    @InjectRepository(TopicResource, 'coaching')
     private readonly resourceRepo: Repository<TopicResource>,
-    @InjectRepository(TopicProgress)
+    @InjectRepository(TopicProgress, 'coaching')
     private readonly topicProgressRepo: Repository<TopicProgress>,
-    @InjectRepository(Lecture)
+    @InjectRepository(Lecture, 'coaching')
     private readonly lectureRepo: Repository<Lecture>,
-    @InjectRepository(LectureProgress)
+    @InjectRepository(LectureProgress, 'coaching')
     private readonly lectureProgressRepo: Repository<LectureProgress>,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,

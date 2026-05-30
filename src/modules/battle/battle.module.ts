@@ -19,7 +19,7 @@ import { PresenceModule } from '../presence/presence.module';
   imports: [
     AiBridgeModule,
     PresenceModule,
-    TypeOrmModule.forFeature([Battle, BattleParticipant, BattleAnswer, StudentElo, Question]),
+    TypeOrmModule.forFeature([Battle, BattleParticipant, BattleAnswer, StudentElo, Question], 'coaching'),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

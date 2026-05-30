@@ -37,19 +37,19 @@ export class DoubtService {
   private readonly logger = new Logger(DoubtService.name);
 
   constructor(
-    @InjectRepository(Doubt)
+    @InjectRepository(Doubt, 'coaching')
     private readonly doubtRepo: Repository<Doubt>,
-    @InjectRepository(Topic)
+    @InjectRepository(Topic, 'coaching')
     private readonly topicRepo: Repository<Topic>,
-    @InjectRepository(User)
+    @InjectRepository(User, 'coaching')
     private readonly userRepo: Repository<User>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Batch)
+    @InjectRepository(Batch, 'coaching')
     private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
-    @InjectRepository(BatchSubjectTeacher)
+    @InjectRepository(BatchSubjectTeacher, 'coaching')
     private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: NotificationService,

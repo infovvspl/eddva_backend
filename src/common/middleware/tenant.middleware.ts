@@ -1,92 +1,71 @@
 import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { Tenant, TenantStatus } from '../../database/entities/tenant.entity';
 
-/**
- * TenantMiddleware
- *
- * Runs on EVERY request. Resolves the tenant from:
- *   1. X-Tenant-ID header (for internal/admin calls)
- *   2. Subdomain (e.g. allen-kota.apexiq.in → subdomain = "allen-kota")
- *   3. Falls back to the PLATFORM tenant (for B2C routes)
- *
- * Sets req.tenantId and req.tenant for downstream use.
- * Also sets PostgreSQL session variable for Row-Level Security.
- */
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
   constructor(
-    @InjectRepository(Tenant)
-    private readonly tenantRepo: Repository<Tenant>,
+    @InjectDataSource('coaching')
+    private readonly ds: DataSource,
   ) {}
+
+  private async findTenant(where: string, param: string): Promise<Tenant | null> {
+    try {
+      const rows = await this.ds.query(
+        `SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE ${where} = $1 LIMIT 1`,
+        [param],
+      );
+      if (!rows.length) return null;
+      const r = rows[0];
+      return Object.assign(new Tenant(), {
+        id: r.id, name: r.name, subdomain: r.subdomain,
+        type: r.type, status: r.status, plan: r.plan,
+        maxStudents: r.max_students, maxTeachers: r.max_teachers,
+      });
+    } catch {
+      return null;
+    }
+  }
 
   async use(req: Request & { tenantId?: string; tenant?: Tenant }, res: Response, next: NextFunction) {
     let tenant: Tenant | null = null;
 
-    // ── 1. Explicit header (admin/internal calls) ──────────────────────────
     const headerTenantId = req.headers['x-tenant-id'] as string;
-    if (headerTenantId) {
-      tenant = await this.tenantRepo.findOne({ where: { id: headerTenantId } });
-    }
+    if (headerTenantId) tenant = await this.findTenant('id', headerTenantId);
 
-    // ── 2. X-Tenant-Subdomain header (sent by frontend on tenant subdomains) ─
     if (!tenant) {
       const headerSubdomain = req.headers['x-tenant-subdomain'] as string;
-      if (headerSubdomain) {
-        tenant = await this.tenantRepo.findOne({ where: { subdomain: headerSubdomain } });
-      }
+      if (headerSubdomain) tenant = await this.findTenant('subdomain', headerSubdomain);
     }
 
-    // ── 3. Subdomain resolution from Host header ─────────────────────────
     if (!tenant) {
-      const host = req.hostname; // e.g. "allen-kota.apexiq.in"
+      const host = req.hostname;
       const parts = host.split('.');
-      // soa.localhost → 2 parts, soa.edva.in → 3 parts
       if (parts.length === 2 && parts[1] === 'localhost') {
-        tenant = await this.tenantRepo.findOne({ where: { subdomain: parts[0] } });
+        tenant = await this.findTenant('subdomain', parts[0]);
       } else if (parts.length >= 3) {
-        const subdomain = parts[0];
-        tenant = await this.tenantRepo.findOne({ where: { subdomain } });
+        tenant = await this.findTenant('subdomain', parts[0]);
       }
     }
 
-    // ── 4. JWT fallback — decode (no verify) to extract tenantId ─────────
-    // Covers dev on bare localhost where no subdomain header is sent.
-    // Safe: the JWT guard still verifies the token for protected routes.
     if (!tenant) {
       const authHeader = req.headers['authorization'] as string | undefined;
       if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.slice(7);
         try {
-          const payloadB64 = token.split('.')[1];
+          const payloadB64 = authHeader.slice(7).split('.')[1];
           if (payloadB64) {
-            const decoded = JSON.parse(
-              Buffer.from(payloadB64, 'base64url').toString('utf8'),
-            ) as { tenantId?: string };
-            if (decoded.tenantId) {
-              tenant = await this.tenantRepo.findOne({ where: { id: decoded.tenantId } });
-            }
+            const decoded = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8')) as { tenantId?: string };
+            if (decoded.tenantId) tenant = await this.findTenant('id', decoded.tenantId);
           }
-        } catch {
-          // malformed token — ignore, fall through to platform fallback
-        }
+        } catch { /* ignore */ }
       }
     }
 
-    // ── 5. Fallback: platform tenant (B2C) ───────────────────────────────
-    if (!tenant) {
-      tenant = await this.tenantRepo.findOne({
-        where: { subdomain: 'platform' },
-      });
-    }
+    if (!tenant) tenant = await this.findTenant('subdomain', 'platform');
 
-    if (!tenant) {
-      // No tenant found and no fallback — this shouldn't happen in production
-      // but guard against it during development
-      return next();
-    }
+    if (!tenant) return next();
 
     if (tenant.status === TenantStatus.SUSPENDED) {
       throw new UnauthorizedException('This institute account has been suspended.');
@@ -94,7 +73,6 @@ export class TenantMiddleware implements NestMiddleware {
 
     req.tenantId = tenant.id;
     req.tenant = tenant;
-
     next();
   }
 }

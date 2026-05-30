@@ -1,0 +1,122 @@
+[2026-05-29T10:44:11.652Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-29T10:44:12.730Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-29T10:46:49.230Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-29T10:46:52.297Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-29T11:07:52.950Z] GET /api/v1/auth/tenant/features
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/auth/tenant/features
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-29T11:08:25.909Z] GET /api/v1/auth/tenant/features
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/auth/tenant/features
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-29T11:48:26.508Z] GET /api/v1/auth/tenant/features
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/auth/tenant/features
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-29T12:27:02.964Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-29T12:44:15.763Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-29T12:44:34.070Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-29T12:44:52.071Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+

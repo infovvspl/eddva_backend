@@ -1,7 +1,7 @@
-import {
+﻿import {
   Injectable, NotFoundException, ForbiddenException, Logger,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, ILike } from 'typeorm';
 import { PDFDocument } from 'pdf-lib';
 
@@ -21,15 +21,16 @@ export class StudyMaterialService {
   private readonly logger = new Logger(StudyMaterialService.name);
 
   constructor(
-    @InjectRepository(StudyMaterial)
+    @InjectRepository(StudyMaterial, 'coaching')
     private readonly repo: Repository<StudyMaterial>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     private readonly s3: S3Service,
   ) {}
 
-  // ── Admin ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Admin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async create(dto: CreateStudyMaterialDto, tenantId: string, userId: string) {
     const mat = this.repo.create({
@@ -58,7 +59,7 @@ export class StudyMaterialService {
     return this.buildQuery(tenantId, query, false);
   }
 
-  // ── Public / Student ───────────────────────────────────────────────────────
+  // â”€â”€ Public / Student â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async list(tenantId: string, query: ListStudyMaterialDto) {
     const items = await this.buildQuery(tenantId, query, true);
@@ -68,7 +69,7 @@ export class StudyMaterialService {
 
   /**
    * Returns first N pages of the PDF as a Buffer.
-   * This is the ONLY way an unauthenticated/non-enrolled user sees the content —
+   * This is the ONLY way an unauthenticated/non-enrolled user sees the content â€”
    * they never get the real S3 key or URL.
    */
   async getPreviewBuffer(id: string, tenantId: string): Promise<{ buffer: Buffer; pages: number }> {
@@ -77,7 +78,7 @@ export class StudyMaterialService {
   }
 
   /**
-   * Public marketplace preview — resolves material by id only (any institute), no tenant header.
+   * Public marketplace preview â€” resolves material by id only (any institute), no tenant header.
    */
   async getPublicPreviewBuffer(id: string): Promise<{ buffer: Buffer; pages: number }> {
     const mat = await this.findPublicOrFail(id);
@@ -98,7 +99,7 @@ export class StudyMaterialService {
   }
 
   /**
-   * Returns a 15-min pre-signed S3 GET URL — only if the student has an
+   * Returns a 15-min pre-signed S3 GET URL â€” only if the student has an
    * active enrollment in this tenant.
    */
   async getDownloadUrl(
@@ -308,7 +309,7 @@ export class StudyMaterialService {
     };
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async findOneOrFail(id: string, tenantId: string) {
     const mat = await this.repo.findOne({ where: { id, tenantId } });

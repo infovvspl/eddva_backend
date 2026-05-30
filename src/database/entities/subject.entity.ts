@@ -142,7 +142,7 @@ export class TopicResource extends Base {
   @JoinColumn({ name: 'topic_id' })
   topic: Topic;
 
-  @Column({ name: 'uploaded_by' })
+  @Column({ name: 'uploaded_by', nullable: true })
   uploadedBy: string; // userId of institute admin
 
   @Column({ type: 'enum', enum: ResourceType })
