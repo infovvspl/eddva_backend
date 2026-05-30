@@ -120,3 +120,1614 @@ Error: UnauthorizedException: Invalid credentials
     at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-05-30T04:23:06.255Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T04:42:02.484Z] POST /api/v1/admin/tenants
+Status: 500
+Error: QueryFailedError: column "is_suspended" of relation "tenants" does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async InsertQueryBuilder.execute (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\query-builder\InsertQueryBuilder.ts:164:33)
+    at async SubjectExecutor.executeInsertOperations (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\persistence\SubjectExecutor.ts:435:42)
+    at async SubjectExecutor.execute (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\persistence\SubjectExecutor.ts:137:9)
+    at async EntityPersistExecutor.execute (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\persistence\EntityPersistExecutor.ts:182:21)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\super-admin\super-admin.service.ts:83:22
+    at async EntityManager.transaction (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\entity-manager\EntityManager.ts:156:28)
+    at async SuperAdminService.createTenant (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\super-admin\super-admin.service.ts:82:20)
+
+[2026-05-30T04:51:34.206Z] GET /api/v1/batches
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "BatchFeedback" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.createQueryBuilder (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:83:18)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:198:10
+    at Array.map (<anonymous>)
+    at BatchService.getBatches (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:195:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T04:51:35.860Z] GET /api/v1/batches
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "BatchFeedback" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.createQueryBuilder (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:83:18)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:198:10
+    at Array.map (<anonymous>)
+    at BatchService.getBatches (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:195:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T04:51:42.078Z] GET /api/v1/batches
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "BatchFeedback" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.createQueryBuilder (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:83:18)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:198:10
+    at Array.map (<anonymous>)
+    at BatchService.getBatches (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:195:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T04:51:43.710Z] GET /api/v1/batches
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "BatchFeedback" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.createQueryBuilder (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:83:18)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:198:10
+    at Array.map (<anonymous>)
+    at BatchService.getBatches (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:195:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T04:51:47.560Z] GET /api/v1/batches
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "BatchFeedback" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.createQueryBuilder (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:83:18)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:198:10
+    at Array.map (<anonymous>)
+    at BatchService.getBatches (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:195:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T04:51:49.505Z] GET /api/v1/batches
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "BatchFeedback" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.createQueryBuilder (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:83:18)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:198:10
+    at Array.map (<anonymous>)
+    at BatchService.getBatches (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:195:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T04:51:51.774Z] GET /api/v1/batches
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "BatchFeedback" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.createQueryBuilder (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:83:18)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:198:10
+    at Array.map (<anonymous>)
+    at BatchService.getBatches (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:195:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T04:51:53.082Z] GET /api/v1/batches
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "BatchFeedback" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.createQueryBuilder (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:83:18)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:198:10
+    at Array.map (<anonymous>)
+    at BatchService.getBatches (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:195:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T04:51:56.285Z] GET /api/v1/batches
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "BatchFeedback" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.createQueryBuilder (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:83:18)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:198:10
+    at Array.map (<anonymous>)
+    at BatchService.getBatches (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:195:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T04:51:57.941Z] GET /api/v1/batches
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "BatchFeedback" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.createQueryBuilder (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:83:18)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:198:10
+    at Array.map (<anonymous>)
+    at BatchService.getBatches (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\batch\batch.service.ts:195:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:23:06.741Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:23:07.690Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T05:23:08.056Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:23:09.185Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T05:23:15.046Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T05:23:15.251Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:23:16.382Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T05:23:17.097Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:26:38.787Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T05:26:38.882Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:26:40.225Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T05:26:40.855Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:27:09.034Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T05:27:09.043Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:30:52.780Z] POST /api/v1/presence/heartbeat
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-05-30T05:30:52.933Z] POST /api/v1/presence/heartbeat
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-05-30T05:43:14.356Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T05:43:14.628Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:43:36.587Z] POST /api/v1/content/lectures/upload-video
+Status: 500
+Error: InternalServerErrorException: File upload failed
+    at StorageService.uploadFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\storage\storage.service.ts:58:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ContentController.uploadVideo (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\content\content.controller.ts:290:25)
+
+[2026-05-30T05:49:04.081Z] GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T05:49:05.460Z] GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T05:50:22.579Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:50:23.371Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T05:50:24.041Z] GET /api/v1/study-plans?startDate=2026-05-01&endDate=2026-05-31
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T05:50:24.195Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T05:52:33.569Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T05:52:34.649Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T05:52:35.053Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T05:52:51.846Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T05:53:04.519Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T05:58:32.281Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T05:58:33.664Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T05:58:55.269Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T06:00:03.385Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T06:00:04.762Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T06:00:28.951Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T06:01:37.761Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:01:47.491Z] GET /api/v1/students/my-courses/148afb7f-19ba-4136-b21f-ffe9f33ee306
+Status: 403
+Error: ForbiddenException: You are not enrolled in this course
+    at StudentService.getCourseDetail (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\student\student.service.ts:384:28)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:02:01.156Z] GET /api/v1/students/my-courses/148afb7f-19ba-4136-b21f-ffe9f33ee306
+Status: 403
+Error: ForbiddenException: You are not enrolled in this course
+    at StudentService.getCourseDetail (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\student\student.service.ts:384:28)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:02:49.540Z] GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T06:02:49.760Z] GET /api/v1/content/topics/d8ca8c1c-d19b-4f25-a683-5598e10c37a3/resources
+Status: 404
+Error: NotFoundException: Topic d8ca8c1c-d19b-4f25-a683-5598e10c37a3 not found
+    at ContentService.getTopicResources (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\content\content.service.ts:2718:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:02:50.916Z] GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T06:09:33.860Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:13:06.442Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:13:07.921Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:13:18.123Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:13:44.221Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:13:53.996Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:13:58.303Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:14:09.154Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T06:14:20.729Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T07:06:16.335Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T07:06:33.358Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T07:08:09.886Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T07:13:28.516Z] GET /api/v1/admin/tenants?page=1&limit=8
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:30.354Z] GET /api/v1/admin/users
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:30.446Z] GET /api/v1/admin/tenants?page=1&limit=8
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:31.857Z] GET /api/v1/admin/users
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:32.657Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T07:13:33.081Z] GET /api/v1/admin/tenants?limit=100
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:34.044Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T07:13:34.406Z] GET /api/v1/admin/announcements
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:35.618Z] GET /api/v1/admin/announcements
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:37.739Z] GET /api/v1/admin/stats
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:38.943Z] GET /api/v1/admin/stats
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:42.423Z] GET /api/v1/admin/stats
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:42.795Z] GET /api/v1/admin/tenants?limit=5
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:43.625Z] GET /api/v1/admin/stats
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:44.312Z] GET /api/v1/admin/tenants?limit=5
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-05-30T07:13:53.599Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T07:13:54.358Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T07:13:59.363Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T07:14:17.751Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T07:14:18.823Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T07:14:25.483Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T07:36:34.993Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T09:11:12.126Z] GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T09:11:12.304Z] GET /api/v1/content/topics/d8ca8c1c-d19b-4f25-a683-5598e10c37a3/resources
+Status: 404
+Error: NotFoundException: Topic d8ca8c1c-d19b-4f25-a683-5598e10c37a3 not found
+    at ContentService.getTopicResources (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\content\content.service.ts:2718:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T09:11:13.499Z] GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/ddcfbb8f-f023-4a2e-8cff-480452ef1124
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T09:11:46.671Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:11:47.411Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:11:51.900Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:11:52.284Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:11:54.098Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:11:54.602Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:12:18.748Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:12:19.807Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:12:32.802Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:12:33.851Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:13:12.192Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:13:12.729Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:13:13.507Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:13:19.754Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:13:19.953Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:13:23.628Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:13:23.826Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:13:37.798Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T09:13:38.533Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:13:41.860Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:13:44.526Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:13:45.048Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:13:48.618Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:13:49.125Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:13:51.592Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:13:55.078Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:13:55.279Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:14:12.121Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:19.260Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:14:20.279Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:14:25.922Z] GET /api/v1/admin/users
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:27.341Z] GET /api/v1/admin/users
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:27.610Z] GET /api/v1/admin/stats
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:27.884Z] GET /api/v1/admin/tenants?limit=5
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:28.731Z] GET /api/v1/admin/stats
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:29.318Z] GET /api/v1/admin/tenants?limit=5
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:29.601Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T09:14:29.947Z] GET /api/v1/admin/tenants?limit=100
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:30.715Z] GET /api/v1/super-admin/enrollments?page=1&limit=20
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/enrollments?page=1&limit=20
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T09:14:31.292Z] GET /api/v1/admin/stats
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:41.870Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:43.078Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:14:43.798Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:14:51.748Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:14:51.937Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:14:52.232Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:14:55.116Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:14:55.309Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:15:04.323Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T09:15:06.228Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T09:18:18.347Z] GET /api/v1/students/dashboard
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-05-30T09:19:34.729Z] GET /api/v1/calendar/feed?year=2026&month=5
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\institute-settings\calendar-feed.service.ts:135:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T09:20:50.144Z] GET /api/v1/auth/tenant/features
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:21:09.389Z] GET /api/v1/admin/tenants?perPage=20
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 0)
+    at async pipesFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-05-30T09:21:21.535Z] GET /api/v1/admin/tenants?perPage=20
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 0)
+    at async pipesFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-05-30T09:25:51.914Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:25:52.522Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+
+[2026-05-30T09:25:53.236Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:21:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:17:18)
+
+[2026-05-30T09:36:42.525Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-05-30T09:37:51.509Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:37:51.832Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:38:51.784Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:38:52.132Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:39:51.492Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:39:51.807Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:40:51.784Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-05-30T09:40:52.109Z] POST /api/v1/presence/heartbeat
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+

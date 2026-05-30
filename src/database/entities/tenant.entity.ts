@@ -63,43 +63,42 @@ export class Tenant extends Base {
   @Column({ name: 'ai_features', type: 'jsonb', default: [] })
   aiFeatures: AiFeatureKey[];
 
-  // ── Columns below exist in entity but not yet in DB — excluded from SELECT ──
-  @Column({ name: 'logo_url', nullable: true, select: false })
+  @Column({ name: 'logo_url', nullable: true })
   logoUrl: string;
 
-  @Column({ name: 'brand_color', nullable: true, default: '#F97316', select: false })
+  @Column({ name: 'brand_color', nullable: true, default: '#F97316' })
   brandColor: string;
 
-  @Column({ name: 'welcome_message', nullable: true, select: false })
+  @Column({ name: 'welcome_message', nullable: true })
   welcomeMessage: string;
 
-  @Column({ nullable: true, select: false })
+  @Column({ nullable: true })
   city: string;
 
-  @Column({ nullable: true, select: false })
+  @Column({ nullable: true })
   state: string;
 
-  @Column({ name: 'onboarding_complete', default: false, select: false })
+  @Column({ name: 'onboarding_complete', default: false })
   onboardingComplete: boolean;
 
-  @Column({ name: 'billing_email', nullable: true, select: false })
+  @Column({ name: 'billing_email', nullable: true })
   billingEmail: string;
 
-  @Column({ name: 'stripe_customer_id', nullable: true, select: false })
+  @Column({ name: 'stripe_customer_id', nullable: true })
   stripeCustomerId: string;
 
-  @Column({ name: 'stripe_subscription_id', nullable: true, select: false })
+  @Column({ name: 'stripe_subscription_id', nullable: true })
   stripeSubscriptionId: string;
 
-  @Column({ name: 'trial_ends_at', type: 'timestamptz', nullable: true, select: false })
+  @Column({ name: 'trial_ends_at', type: 'timestamptz', nullable: true })
   trialEndsAt: Date;
 
-  @Column({ name: 'is_suspended', default: false, select: false })
+  @Column({ name: 'is_suspended', default: false })
   isSuspended: boolean;
 
-  @Column({ name: 'suspension_reason', nullable: true, select: false })
+  @Column({ name: 'suspension_reason', nullable: true })
   suspensionReason: string;
 
-  @Column({ type: 'jsonb', nullable: true, default: {}, select: false })
+  @Column({ type: 'jsonb', nullable: true, default: {} })
   metadata: Record<string, any>;
 }
