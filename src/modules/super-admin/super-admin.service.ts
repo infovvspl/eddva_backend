@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   Inject,
   Injectable,
@@ -77,7 +77,6 @@ export class SuperAdminService {
     }
 
     const tempPassword = this.generateTempPassword();
-    const trialDays = dto.trialDays ?? 14;
 
     const result = await this.dataSource.transaction(async (manager) => {
       const tenant = await manager.save(
@@ -85,12 +84,16 @@ export class SuperAdminService {
           name: dto.name,
           subdomain: dto.subdomain,
           type: TenantType.INSTITUTE,
-          plan: dto.plan,
-          status: TenantStatus.TRIAL,
+          plan: TenantPlan.STARTER,
+          status: TenantStatus.ACTIVE,
           billingEmail: dto.billingEmail ?? null,
           maxStudents: dto.maxStudents ?? 100,
           maxTeachers: dto.maxTeachers ?? 3,
-          trialEndsAt: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
+          address: dto.address ?? null,
+          city: dto.city ?? null,
+          state: dto.state ?? null,
+          pincode: dto.pincode ?? null,
+          trialEndsAt: null,
           aiEnabled: dto.aiEnabled ?? false,
           aiFeatures: dto.aiFeatures ?? [],
         }),
@@ -563,6 +566,18 @@ export class SuperAdminService {
     const monthsActive = Math.max(1, this.diffMonths(tenant.createdAt, now));
     const totalRevenue = monthsActive * (PLAN_PRICES[tenant.plan] || 0);
 
+    const courseAnalytics = await this.dataSource.query(`
+      SELECT 
+        b.id AS batch_id, 
+        b.name AS course_name, 
+        (SELECT COUNT(e.id)::int FROM enrollments e WHERE e.batch_id = b.id AND e.deleted_at IS NULL) AS enrollments,
+        (SELECT COALESCE(SUM(e.fee_paid), 0)::numeric FROM enrollments e WHERE e.batch_id = b.id AND e.deleted_at IS NULL) AS revenue,
+        (SELECT COUNT(ls.id)::int FROM live_sessions ls JOIN lectures l ON l.id = ls.lecture_id WHERE l.batch_id = b.id AND ls.deleted_at IS NULL AND l.deleted_at IS NULL) AS live_classes
+      FROM batches b
+      WHERE b.tenant_id = $1 AND b.deleted_at IS NULL
+      ORDER BY revenue DESC
+    `, [tenant.id]);
+
     return {
       tenant,
       studentCount,
@@ -575,6 +590,7 @@ export class SuperAdminService {
       adminPhone: adminUser?.phoneNumber || null,
       adminName: adminUser?.fullName || null,
       adminEmail: adminUser?.email || null,
+      courseAnalytics,
     };
   }
 

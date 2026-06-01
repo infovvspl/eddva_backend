@@ -78,6 +78,12 @@ export class Tenant extends Base {
   @Column({ nullable: true })
   state: string;
 
+  @Column({ nullable: true })
+  address: string;
+
+  @Column({ nullable: true })
+  pincode: string;
+
   @Column({ name: 'onboarding_complete', default: false })
   onboardingComplete: boolean;
 
