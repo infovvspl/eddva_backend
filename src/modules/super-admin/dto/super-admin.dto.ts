@@ -29,9 +29,25 @@ export class CreateTenantDto {
   @Matches(/^[a-z0-9-]+$/)
   subdomain: string;
 
-  @ApiProperty({ enum: TenantPlan })
-  @IsEnum(TenantPlan)
-  plan: TenantPlan;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  pincode?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -55,13 +71,6 @@ export class CreateTenantDto {
   @ApiProperty()
   @IsString()
   adminPhone: string;
-
-  @ApiPropertyOptional({ default: 14 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  trialDays?: number;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()

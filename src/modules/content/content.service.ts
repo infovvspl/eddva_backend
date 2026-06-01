@@ -110,6 +110,29 @@ export class ContentService {
         private readonly cacheManager: Cache,
     ) { }
 
+    /**
+     * Returns true if the tenant has the given AI feature enabled.
+     * Cached 5min in CACHE_MANAGER under the same key the AiFeatureGuard uses,
+     * so toggling a tenant's AI config invalidates both at once.
+     */
+    private async _tenantHasAiFeature(tenantId: string, feature: string): Promise<boolean> {
+        if (!tenantId) return false;
+        const cacheKey = `tenant_ai:${tenantId}`;
+        let cfg = await this.cacheManager.get<{ aiEnabled: boolean; aiFeatures: string[] }>(cacheKey);
+        if (!cfg) {
+            const rows: any[] = await this.dataSource.query(
+                `SELECT ai_enabled, ai_features FROM tenants WHERE id = $1 LIMIT 1`,
+                [tenantId],
+            );
+            cfg = {
+                aiEnabled: rows[0]?.ai_enabled ?? false,
+                aiFeatures: rows[0]?.ai_features ?? [],
+            };
+            await this.cacheManager.set(cacheKey, cfg, 300_000);
+        }
+        return cfg.aiEnabled && cfg.aiFeatures.includes(feature);
+    }
+
     private normalizeSubjectExamTarget(value: string) {
         const cleaned = value.trim().replace(/\s+/g, ' ');
         if (!cleaned) {
@@ -746,7 +769,18 @@ export class ContentService {
         const saved = await this.lectureRepo.save(lecture);
 
         if (dto.type === LectureType.RECORDED && dto.videoUrl) {
-            this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId).catch(() => {});
+            // Only run transcription / AI notes if the tenant has the STT feature
+            void (async () => {
+                try {
+                    const enabled = await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text');
+                    if (enabled) {
+                        await this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId);
+                    } else {
+                        // No AI: clear transcript status so the UI never shows a perpetual "pending"
+                        await this.lectureRepo.update(saved.id, { transcriptStatus: null as any });
+                    }
+                } catch { /* background task — swallow */ }
+            })();
             this._notifyStudentsOnPublish(saved).catch(() => {});
         }
 
@@ -822,10 +856,12 @@ export class ContentService {
         const cleanUrl = this._fixVideoUrl(videoUrl.trim());
         const wasPublished = lecture.status === LectureStatus.PUBLISHED;
 
+        const sttEnabled = await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text');
+
         lecture.videoUrl = cleanUrl;
         lecture.type = LectureType.RECORDED;
         lecture.status = LectureStatus.PUBLISHED;
-        lecture.transcriptStatus = TranscriptStatus.PENDING;
+        lecture.transcriptStatus = sttEnabled ? TranscriptStatus.PENDING : (null as any);
         lecture.transcript = null as any;
         lecture.transcriptHi = null as any;
         lecture.aiNotesMarkdown = null as any;
@@ -841,7 +877,8 @@ export class ContentService {
             );
         }
 
-        if (opts?.triggerAi !== false) {
+        // Only transcribe if the tenant has STT enabled AND caller didn't opt out
+        if (opts?.triggerAi !== false && sttEnabled) {
             this._processLectureAI(saved.id, cleanUrl, saved.topicId, tenantId).catch(err =>
                 this.logger.warn(`Failed to start AI processing for lecture ${saved.id}: ${err instanceof Error ? err.message : String(err)}`),
             );
@@ -1030,6 +1067,9 @@ export class ContentService {
         if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
         if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
             throw new ForbiddenException('You can only retranscribe your own lectures');
+        }
+        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+            throw new ForbiddenException('AI transcription is not enabled for your institution.');
         }
         if (lecture.type !== LectureType.RECORDED || !lecture.videoUrl) {
             throw new BadRequestException('Only recorded lectures with a video URL can be transcribed');
@@ -1384,9 +1424,13 @@ export class ContentService {
 
         Object.assign(lecture, dto);
 
+        const sttEnabled = videoUrlChanged
+            ? await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text')
+            : false;
+
         if (videoUrlChanged && incomingVideoUrl) {
             lecture.videoUrl = this._fixVideoUrl(incomingVideoUrl);
-            lecture.transcriptStatus = TranscriptStatus.PENDING;
+            lecture.transcriptStatus = sttEnabled ? TranscriptStatus.PENDING : (null as any);
             lecture.transcript = null as any;
             lecture.transcriptHi = null as any;
             lecture.aiNotesMarkdown = null as any;
@@ -1409,7 +1453,7 @@ export class ContentService {
             );
         }
 
-        if (videoUrlChanged && saved.videoUrl) {
+        if (videoUrlChanged && saved.videoUrl && sttEnabled) {
             this._processLectureAI(saved.id, saved.videoUrl, saved.topicId, tenantId).catch(err =>
                 this.logger.warn(`Failed to start AI processing for lecture ${saved.id}: ${err instanceof Error ? err.message : String(err)}`),
             );

@@ -13,7 +13,7 @@ export class SchoolDashboardService {
         this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1`, [instituteId]),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM assignments`),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM assessments`),
-        this.ds.query(`SELECT s.*,c.name AS class_name,sub.name AS subject_name FROM schedules s LEFT JOIN classes c ON s.class_id=c.id LEFT JOIN subjects sub ON s.subject_id=sub.id WHERE s.teacher_id=$1 ORDER BY s.day_of_week,s.start_time LIMIT 6`, [user.id]),
+        this.ds.query(`SELECT s.*,c.name AS class_name,sub.name AS subject_name FROM schedules s LEFT JOIN classes c ON s.class_id::text=c.id::text LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text WHERE s.teacher_id::text=$1::text ORDER BY s.day_of_week,s.start_time LIMIT 6`, [user.id]),
       ]);
       return { totalStudents: students[0].c, assignments: assignments[0].c, assessments: assessments[0].c, upcomingClasses: schedules };
     }

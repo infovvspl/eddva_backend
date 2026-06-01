@@ -109,14 +109,48 @@ async function bootstrap() {
     logger.log(`Swagger docs available at: http://localhost:${cfg.get('app.port')}/docs`);
   }
 
-  // ── Apply AI feature migration on startup ────────────────────────────────
+  // ── Ensure all tenant columns exist (entity ↔ DB drift) ───────────────────
   try {
     const coachingDs = app.get(getDataSourceToken('coaching'));
-    await coachingDs.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
-    await coachingDs.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS ai_features JSONB NOT NULL DEFAULT '[]'`);
-    logger.log('AI feature columns ensured on tenants table');
+    const tenantCols = [
+      `ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
+      `ADD COLUMN IF NOT EXISTS ai_features JSONB NOT NULL DEFAULT '[]'`,
+      `ADD COLUMN IF NOT EXISTS logo_url VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS brand_color VARCHAR DEFAULT '#F97316'`,
+      `ADD COLUMN IF NOT EXISTS welcome_message VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS city VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS state VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN NOT NULL DEFAULT FALSE`,
+      `ADD COLUMN IF NOT EXISTS billing_email VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ`,
+      `ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE`,
+      `ADD COLUMN IF NOT EXISTS suspension_reason VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`,
+    ];
+    for (const col of tenantCols) {
+      await coachingDs.query(`ALTER TABLE tenants ${col}`);
+    }
+    // Ensure batch_feedbacks table exists (added by a later feature, table may be missing)
+    await coachingDs.query(`
+      CREATE TABLE IF NOT EXISTS "batch_feedbacks" (
+        "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+        "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+        "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
+        "deleted_at" TIMESTAMP,
+        "tenant_id" character varying NOT NULL,
+        "batch_id" uuid NOT NULL,
+        "student_id" uuid NOT NULL,
+        "rating" integer NOT NULL,
+        "comment" text,
+        CONSTRAINT "UQ_batch_student_feedback" UNIQUE ("batch_id", "student_id"),
+        CONSTRAINT "PK_batch_feedbacks" PRIMARY KEY ("id")
+      )
+    `);
+    logger.log('Tenant columns + batch_feedbacks table ensured');
   } catch (err) {
-    logger.warn(`AI migration skipped: ${err.message}`);
+    logger.warn(`Tenant column migration skipped: ${err.message}`);
   }
 
   // ── Seed super admin on startup ───────────────────────────────────────────

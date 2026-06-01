@@ -29,7 +29,8 @@ export class AiFeatureGuard implements CanActivate {
     if (!requiredFeature) return true;
 
     const req = context.switchToHttp().getRequest();
-    const tenantId: string | undefined = req.tenantId;
+    // Match @TenantId() decorator resolution: JWT tenant first, middleware fallback
+    const tenantId: string | undefined = req.user?.tenantId || req.tenantId;
 
     // Platform super admin always bypasses feature gates
     if (req.user?.role === 'super_admin') return true;
