@@ -19,12 +19,12 @@ export class SchoolAcademicService {
 
   async createClass(user: any, body: any) {
     const instituteId = await this.resolveInstituteId(user, body.instituteId);
-    const rows: any[] = await this.ds.query(`INSERT INTO classes (institute_id,name,description) VALUES ($1,$2,$3) RETURNING *`, [instituteId,body.name,body.description||null]);
+    const rows: any[] = await this.ds.query(`INSERT INTO classes (institute_id,name) VALUES ($1,$2) RETURNING *`, [instituteId,body.name]);
     return { success: true, data: rows[0] };
   }
 
   async updateClass(id: string, body: any) {
-    await this.ds.query(`UPDATE classes SET name=COALESCE($2,name),description=COALESCE($3,description),updated_at=NOW() WHERE id=$1`, [id,body.name,body.description]);
+    await this.ds.query(`UPDATE classes SET name=COALESCE($2,name),updated_at=NOW() WHERE id=$1`, [id,body.name]);
     return { success: true };
   }
 
@@ -36,7 +36,7 @@ export class SchoolAcademicService {
   // Sections
   async listSections(user: any, query: any) {
     const rows: any[] = await this.ds.query(
-      `SELECT sec.*,c.name AS class_name FROM sections sec LEFT JOIN classes c ON sec.class_id=c.id WHERE sec.class_id=$1 ORDER BY sec.name`,
+      `SELECT sec.*,c.name AS class_name FROM sections sec LEFT JOIN classes c ON sec.class_id::text=c.id::text WHERE sec.class_id::text=$1::text ORDER BY sec.name`,
       [query.classId],
     );
     return { success: true, data: rows };

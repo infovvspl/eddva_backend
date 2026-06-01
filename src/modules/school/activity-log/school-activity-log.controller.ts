@@ -4,7 +4,7 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 
-@Controller('school/activity-logs')
+@Controller('school/admin/audit-logs')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolActivityLogController {
   constructor(private readonly svc: SchoolActivityLogService) {}

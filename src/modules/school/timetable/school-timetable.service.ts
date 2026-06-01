@@ -10,7 +10,7 @@ export class SchoolTimetableService {
   async listTimetables(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
     const rows: any[] = await this.ds.query(
-      `SELECT t.*,c.name AS class_name FROM timetables t LEFT JOIN classes c ON t.class_id=c.id WHERE t.institute_id=$1 ORDER BY t.created_at DESC`,
+      `SELECT t.*,c.name AS class_name FROM timetables t LEFT JOIN classes c ON t.class_id::text=c.id::text WHERE t.institute_id::text=$1::text ORDER BY t.created_at DESC`,
       [instituteId],
     );
     return { success: true, data: rows };
@@ -46,7 +46,7 @@ export class SchoolTimetableService {
 
   // Schedules
   async listSchedules(query: any) {
-    let sql = `SELECT s.*,c.name AS class_name,sub.name AS subject_name,u.name AS teacher_name FROM schedules s LEFT JOIN classes c ON s.class_id=c.id LEFT JOIN subjects sub ON s.subject_id=sub.id LEFT JOIN users u ON s.teacher_id=u.id WHERE 1=1`;
+    let sql = `SELECT s.*,c.name AS class_name,sub.name AS subject_name,u.name AS teacher_name FROM schedules s LEFT JOIN classes c ON s.class_id::text=c.id::text LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text LEFT JOIN users u ON s.teacher_id::text=u.id::text WHERE 1=1`;
     const params: any[] = [];
     if (query.timetableId) { params.push(query.timetableId); sql += ` AND s.timetable_id=$${params.length}`; }
     if (query.classId) { params.push(query.classId); sql += ` AND s.class_id=$${params.length}`; }

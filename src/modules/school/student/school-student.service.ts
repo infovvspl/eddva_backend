@@ -36,21 +36,42 @@ export class SchoolStudentService {
 
     const existing: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1)`, [body.email]);
     if (existing.length) throw new BadRequestException('Email already exists');
+    if (body.phone) {
+      const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=$1 AND phone=$2`, [instituteId, body.phone]);
+      if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
+    }
 
     const enrollmentNo = body.enrollmentNo || await this.generateEnrollmentNo(instituteId);
     const hashed = await bcrypt.hash(body.password, 10);
-    const userRows: any[] = await this.ds.query(
-      `INSERT INTO users (institute_id,name,email,password,role,photo,phone,is_active) VALUES ($1,$2,$3,$4,'STUDENT',$5,$6,TRUE) RETURNING *`,
-      [instituteId, body.name, body.email, hashed, body.photo||null, body.phone||null],
-    );
-    const u = userRows[0];
-    const sRows: any[] = await this.ds.query(
-      `INSERT INTO students (user_id,institute_id,enrollment_no,roll_no,section_id,dob,gender,blood_group,marital_status,national_id,father_name,mother_name,parent_phone,parent_email,parent_occupation,address,city,state,pin_code,admission_date,medical_conditions,allergies,documents)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING *`,
-      [u.id,instituteId,enrollmentNo,body.rollNo||null,body.sectionId||null,body.dob?new Date(body.dob):null,body.gender||null,body.bloodGroup||null,body.maritalStatus||null,body.nationalId||null,body.fatherName||null,body.motherName||null,body.parentPhone||null,body.parentEmail||null,body.parentOccupation||null,body.address||null,body.city||null,body.state||null,body.pinCode||null,body.admissionDate?new Date(body.admissionDate):null,body.medicalConditions||null,body.allergies||null,JSON.stringify(body.documents||{})],
-    );
-    const { password: _p, ...safeUser } = u;
-    return { success: true, message: 'Student created successfully', data: { ...safeUser, studentProfile: sRows[0] } };
+    const sectionId = body.sectionId || null;
+
+    const queryRunner = this.ds.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const userRows: any[] = await queryRunner.query(
+        `INSERT INTO users (institute_id,name,email,password,role,photo,phone,is_active) VALUES ($1,$2,$3,$4,'STUDENT',$5,$6,TRUE) RETURNING *`,
+        [instituteId, body.name, body.email, hashed, body.photo || null, body.phone || null],
+      );
+      const u = userRows[0];
+      
+      const sRows: any[] = await queryRunner.query(
+        `INSERT INTO students (user_id,institute_id,enrollment_no,roll_no,section_id,dob,gender,blood_group,marital_status,national_id,father_name,mother_name,parent_phone,parent_email,parent_occupation,address,city,state,pin_code,admission_date,medical_conditions,allergies,documents)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING *`,
+        [u.id, instituteId, enrollmentNo, body.rollNo || null, sectionId, body.dob ? new Date(body.dob) : null, body.gender || null, body.bloodGroup || null, body.maritalStatus || null, body.nationalId || null, body.fatherName || null, body.motherName || null, body.parentPhone || null, body.parentEmail || null, body.parentOccupation || null, body.address || null, body.city || null, body.state || null, body.pinCode || null, body.admissionDate ? new Date(body.admissionDate) : null, body.medicalConditions || null, body.allergies || null, JSON.stringify(body.documents || {})],
+      );
+
+      await queryRunner.commitTransaction();
+
+      const { password: _p, ...safeUser } = u;
+      return { success: true, message: 'Student created successfully', data: { ...safeUser, studentProfile: sRows[0] } };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(err instanceof Error ? err.message : 'Error creating student profile');
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async list(user: any, query: any) {
@@ -66,7 +87,36 @@ export class SchoolStudentService {
        WHERE u.institute_id=$1 AND u.role='STUDENT' ORDER BY u.name`,
       [instituteId],
     );
-    return { success: true, data: rows };
+    const mapped = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      phone: r.phone,
+      isActive: r.is_active,
+      photo: r.photo,
+      createdAt: r.created_at,
+      studentProfile: {
+        id: r.profile_id,
+        enrollmentNo: r.enrollment_no,
+        rollNo: r.roll_no,
+        sectionId: r.section_id,
+        dob: r.dob,
+        gender: r.gender,
+        bloodGroup: r.blood_group,
+        fatherName: r.father_name,
+        motherName: r.mother_name,
+        parentPhone: r.parent_phone,
+        admissionDate: r.admission_date,
+        section: r.section_id ? {
+          id: r.section_id,
+          name: r.section_name,
+          class: {
+            name: r.class_name
+          }
+        } : null
+      }
+    }));
+    return { success: true, data: mapped };
   }
 
   async findOne(id: string) {
@@ -88,6 +138,10 @@ export class SchoolStudentService {
     }
     if (!userRows.length) throw new NotFoundException('Student not found');
     const userId = userRows[0].id;
+    if (body.phone) {
+      const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=(SELECT institute_id FROM users WHERE id=$1) AND phone=$2 AND id<>$1`, [userId, body.phone]);
+      if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
+    }
     await this.ds.query(
       `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),photo=COALESCE($4,photo),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
       [userId, body.name, body.isActive, body.photo, body.phone],

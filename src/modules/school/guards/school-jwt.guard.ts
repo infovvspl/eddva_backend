@@ -43,16 +43,23 @@ export class SchoolJwtGuard implements CanActivate {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    if (decoded.id === 'demo-super-admin') {
+    const userId = decoded.id || decoded.sub;
+    const userRole = decoded.role;
+
+    if (userId === 'demo-super-admin' || userRole?.toUpperCase() === 'SUPER_ADMIN') {
       req.user = {
-        id: 'demo-super-admin',
+        id: userId || 'demo-super-admin',
         email: decoded.email || 'admin@gmail.com',
         role: 'SUPER_ADMIN',
-        name: 'Super Admin',
+        name: decoded.name || 'Super Admin',
         instituteId: null,
         isActive: true,
       };
       return true;
+    }
+
+    if (!userId) {
+      throw new UnauthorizedException('Invalid token structure: missing user ID');
     }
 
     const rows: any[] = await this.ds.query(
@@ -60,7 +67,7 @@ export class SchoolJwtGuard implements CanActivate {
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE u.id = $1`,
-      [decoded.id],
+      [userId],
     );
 
     if (!rows.length) throw new UnauthorizedException('User no longer exists');
