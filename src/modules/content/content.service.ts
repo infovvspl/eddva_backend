@@ -1,4 +1,4 @@
-﻿import {
+import {
     Injectable,
     Inject,
     Logger,
@@ -52,8 +52,8 @@ import {
     LectureQueryDto,
     UpsertProgressDto,
 } from './dto/lecture.dto';
-// Package "main" is CJS but package.json has "type":"module" â€” Node loads .js as ESM and breaks. Use the ESM build.
-import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
+// Package 1.3.1 fixed the ESM packaging. Use the standard import.
+import { YoutubeTranscript } from 'youtube-transcript';
 type YoutubeTranscriptApi = {
     fetchTranscript: (videoIdOrUrl: string, opts?: { lang?: string }) => Promise<{ text: string }[]>;
 };
@@ -902,11 +902,10 @@ export class ContentService {
     }
 
     /**
-     * `youtube-transcript@1.3.0` has a packaging issue (`type: module` with CJS main).
-     * Load its ESM build through native dynamic import so Node 24 doesn't crash.
+     * Load youtube-transcript.
      */
     private async loadYoutubeTranscriptApi(): Promise<YoutubeTranscriptApi> {
-        const mod = await import('youtube-transcript/dist/youtube-transcript.esm.js');
+        const mod = await import('youtube-transcript');
         const api = (mod as { YoutubeTranscript?: YoutubeTranscriptApi }).YoutubeTranscript;
         if (!api) throw new Error('Failed to load youtube-transcript ESM API');
         return api;

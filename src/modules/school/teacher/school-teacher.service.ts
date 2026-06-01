@@ -29,23 +29,44 @@ export class SchoolTeacherService {
     if (!body.password) throw new BadRequestException('Password is required');
     const existing: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1)`, [body.email]);
     if (existing.length) throw new BadRequestException('Email already exists');
+    if (body.phone) {
+      const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=$1 AND phone=$2`, [instituteId, body.phone]);
+      if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
+    }
     const employeeId = body.employeeId || await this.generateEmployeeId(instituteId);
     const hashed = await bcrypt.hash(body.password, 10);
-    const uRows: any[] = await this.ds.query(
-      `INSERT INTO users (institute_id,name,email,password,role,photo,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,$6,TRUE) RETURNING *`,
-      [instituteId,body.name,body.email,hashed,body.photo||null,body.phone||null],
-    );
-    const u = uRows[0];
-    const tRows: any[] = await this.ds.query(
-      `INSERT INTO teachers (user_id,institute_id,employee_id,blood_group,marital_status,department,joining_date,qualifications,education_details,experience_details)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [u.id,instituteId,employeeId,body.bloodGroup||null,body.maritalStatus||null,body.department||null,body.joiningDate?new Date(body.joiningDate):null,body.qualifications||null,JSON.stringify(body.educationDetails||[]),JSON.stringify(body.experienceDetails||[])],
-    );
-    for (const sid of (body.subjectIds||[])) {
-      await this.ds.query(`INSERT INTO teacher_subjects (teacher_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [tRows[0].id,sid]);
+    
+    const queryRunner = this.ds.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const uRows: any[] = await queryRunner.query(
+        `INSERT INTO users (institute_id,name,email,password,role,photo,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,$6,TRUE) RETURNING *`,
+        [instituteId, body.name, body.email, hashed, body.photo || null, body.phone || null],
+      );
+      const u = uRows[0];
+      
+      const tRows: any[] = await queryRunner.query(
+        `INSERT INTO teachers (user_id,institute_id,employee_id,blood_group,marital_status,department,joining_date,qualifications,education_details,experience_details)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        [u.id, instituteId, employeeId, body.bloodGroup || null, body.maritalStatus || null, body.department || null, body.joiningDate ? new Date(body.joiningDate) : null, body.qualifications || null, JSON.stringify(body.educationDetails || []), JSON.stringify(body.experienceDetails || [])],
+      );
+      
+      for (const sid of (body.subjectIds || [])) {
+        await queryRunner.query(`INSERT INTO teacher_subjects (teacher_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [tRows[0].id, sid]);
+      }
+      
+      await queryRunner.commitTransaction();
+
+      const { password: _p, ...safeUser } = u;
+      return { success: true, message: 'Teacher created successfully', data: { ...safeUser, teacherProfile: tRows[0] } };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(err instanceof Error ? err.message : 'Error creating teacher profile');
+    } finally {
+      await queryRunner.release();
     }
-    const { password: _p, ...safeUser } = u;
-    return { success: true, message: 'Teacher created successfully', data: { ...safeUser, teacherProfile: tRows[0] } };
   }
 
   async list(user: any, query: any) {
@@ -69,6 +90,10 @@ export class SchoolTeacherService {
   }
 
   async update(id: string, body: any) {
+    if (body.phone) {
+      const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=(SELECT institute_id FROM users WHERE id=$1) AND phone=$2 AND id<>$1`, [id, body.phone]);
+      if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
+    }
     await this.ds.query(
       `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),photo=COALESCE($4,photo),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
       [id,body.name,body.isActive,body.photo,body.phone],

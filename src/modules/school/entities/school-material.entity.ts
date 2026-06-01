@@ -3,14 +3,20 @@ import { SchoolBase } from './school-base.entity';
 
 @Entity('study_materials')
 export class SchoolStudyMaterial extends SchoolBase {
-  @Column({ name: 'chapter_id', nullable: true }) chapterId: string;
-  @Column({ name: 'institute_id', nullable: true }) instituteId: string;
+  @Column({ name: 'tenant_id', type: 'uuid' }) tenantId: string;
+  @Column() exam: string;
+  @Column() type: string;
   @Column() title: string;
-  @Column({ name: 'file_name', nullable: true }) fileName: string;
-  @Column({ name: 'file_url', nullable: true }) fileUrl: string;
-  @Column({ name: 'file_type', nullable: true }) fileType: string;
-  @Column({ name: 'file_size', nullable: true }) fileSize: number;
+  @Column({ nullable: true }) subject: string;
+  @Column({ nullable: true }) chapter: string;
+  @Column({ nullable: true }) description: string;
+  @Column({ name: 's3_key' }) s3Key: string;
+  @Column({ name: 'file_size_kb', nullable: true }) fileSizeKb: number;
+  @Column({ name: 'total_pages', nullable: true }) totalPages: number;
+  @Column({ name: 'preview_pages', default: 2 }) previewPages: number;
   @Column({ name: 'uploaded_by', nullable: true }) uploadedBy: string;
+  @Column({ name: 'is_active', default: true }) isActive: boolean;
+  @Column({ name: 'sort_order', default: 0 }) sortOrder: number;
 }
 
 @Entity('presentations')
