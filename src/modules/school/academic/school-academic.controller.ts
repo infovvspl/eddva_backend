@@ -15,7 +15,7 @@ export class SchoolAcademicController {
   @Delete('classes/:id') deleteClass(@Param('id') id: string) { return this.svc.deleteClass(id); }
 
   @Get('sections') listSections(@SchoolUser() user: any, @Query() query: any) { return this.svc.listSections(user, query); }
-  @Post('sections') createSection(@Body() body: any) { return this.svc.createSection(body); }
+  @Post('sections') createSection(@SchoolUser() user: any, @Body() body: any) { return this.svc.createSection(user, body); }
   @Put('sections/:id') updateSection(@Param('id') id: string, @Body() body: any) { return this.svc.updateSection(id, body); }
   @Delete('sections/:id') deleteSection(@Param('id') id: string) { return this.svc.deleteSection(id); }
 }

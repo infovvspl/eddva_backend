@@ -10,35 +10,113 @@ export class SchoolNoticeService {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
     let sql = `SELECT * FROM notices WHERE institute_id=$1`;
     const params: any[] = [instituteId];
-    if (query.type) { params.push(query.type); sql += ` AND type=$${params.length}`; }
-    if (query.isActive !== undefined) { params.push(query.isActive === 'true'); sql += ` AND is_active=$${params.length}`; }
-    sql += ` ORDER BY published_at DESC NULLS LAST, created_at DESC`;
+    if (query.category) { params.push(query.category); sql += ` AND category=$${params.length}`; }
+    sql += ` ORDER BY posted_date DESC NULLS LAST, created_at DESC`;
     const rows: any[] = await this.ds.query(sql, params);
-    return { success: true, data: rows };
+    const mapped = rows.map(r => ({
+      id: r.id,
+      instituteId: r.institute_id,
+      title: r.title,
+      content: r.content,
+      category: r.category,
+      priority: r.priority,
+      postedDate: r.posted_date,
+      expiryDate: r.expiry_date,
+      attachments: r.attachments,
+      targetRoles: r.target_roles,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
+    }));
+    return { success: true, data: mapped };
   }
 
   async create(user: any, body: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
     const rows: any[] = await this.ds.query(
-      `INSERT INTO notices (institute_id,title,content,type,is_active,published_at,expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [instituteId, body.title, body.content, body.type || 'GENERAL', body.isActive !== false, body.publishedAt ? new Date(body.publishedAt) : null, body.expiresAt ? new Date(body.expiresAt) : null],
+      `INSERT INTO notices (institute_id,title,content,category,priority,posted_date,expiry_date,attachments,target_roles)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [
+        instituteId, 
+        body.title, 
+        body.content, 
+        body.category || 'GENERAL', 
+        body.priority || 'NORMAL', 
+        body.postedDate ? new Date(body.postedDate) : new Date(), 
+        body.expiryDate ? new Date(body.expiryDate) : null,
+        body.attachments ? body.attachments : null,
+        body.targetRoles || null
+      ],
     );
-    return { success: true, data: rows[0] };
+    const r = rows[0];
+    return {
+      success: true,
+      data: {
+        id: r.id,
+        instituteId: r.institute_id,
+        title: r.title,
+        content: r.content,
+        category: r.category,
+        priority: r.priority,
+        postedDate: r.posted_date,
+        expiryDate: r.expiry_date,
+        attachments: r.attachments,
+        targetRoles: r.target_roles,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at
+      }
+    };
   }
 
   async findOne(id: string) {
     const rows: any[] = await this.ds.query(`SELECT * FROM notices WHERE id=$1`, [id]);
     if (!rows.length) throw new NotFoundException('Notice not found');
-    return { success: true, data: rows[0] };
+    const r = rows[0];
+    return {
+      success: true,
+      data: {
+        id: r.id,
+        instituteId: r.institute_id,
+        title: r.title,
+        content: r.content,
+        category: r.category,
+        priority: r.priority,
+        postedDate: r.posted_date,
+        expiryDate: r.expiry_date,
+        attachments: r.attachments,
+        targetRoles: r.target_roles,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at
+      }
+    };
   }
 
   async update(id: string, body: any) {
     await this.ds.query(
-      `UPDATE notices SET title=COALESCE($2,title),content=COALESCE($3,content),type=COALESCE($4,type),is_active=COALESCE($5,is_active),published_at=COALESCE($6,published_at),expires_at=COALESCE($7,expires_at),updated_at=NOW() WHERE id=$1`,
-      [id, body.title, body.content, body.type, body.isActive, body.publishedAt ? new Date(body.publishedAt) : null, body.expiresAt ? new Date(body.expiresAt) : null],
+      `UPDATE notices SET 
+         title=COALESCE($2,title),
+         content=COALESCE($3,content),
+         category=COALESCE($4,category),
+         priority=COALESCE($5,priority),
+         posted_date=COALESCE($6,posted_date),
+         expiry_date=COALESCE($7,expiry_date),
+         attachments=COALESCE($8,attachments),
+         target_roles=COALESCE($9,target_roles),
+         updated_at=NOW() 
+       WHERE id=$1`,
+      [
+        id, 
+        body.title, 
+        body.content, 
+        body.category, 
+        body.priority, 
+        body.postedDate ? new Date(body.postedDate) : null, 
+        body.expiryDate ? new Date(body.expiryDate) : null,
+        body.attachments ? body.attachments : null,
+        body.targetRoles || null
+      ],
     );
-    return { success: true };
+    const updated = await this.findOne(id);
+    return updated;
   }
 
   async remove(id: string) {
