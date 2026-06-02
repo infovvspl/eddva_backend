@@ -9,13 +9,85 @@ export class SchoolDashboardService {
   async stats(user: any) {
     if (user.role === 'TEACHER') {
       const instituteId = user.instituteId;
-      const [students, assignments, assessments, schedules] = await Promise.all([
+      
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+
+      let classes = [];
+      let sections = [];
+      let subjects = [];
+      let assignmentsList = [];
+
+      if (teacherId) {
+        classes = await this.ds.query(`
+          SELECT DISTINCT c.id, c.name 
+          FROM teacher_academic_assignments ta 
+          JOIN classes c ON ta.class_id = c.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY c.name
+        `, [teacherId]);
+
+        sections = await this.ds.query(`
+          SELECT DISTINCT s.id, s.name, s.class_id
+          FROM teacher_academic_assignments ta 
+          JOIN sections s ON ta.section_id = s.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY s.name
+        `, [teacherId]);
+
+        subjects = await this.ds.query(`
+          SELECT DISTINCT sub.id, sub.name
+          FROM teacher_academic_assignments ta 
+          JOIN subjects sub ON ta.subject_id = sub.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY sub.name
+        `, [teacherId]);
+
+        assignmentsList = await this.ds.query(`
+          SELECT ta.class_id, c.name AS class_name, ta.section_id, s.name AS section_name, ta.subject_id, sub.name AS subject_name, ta.is_class_teacher
+          FROM teacher_academic_assignments ta
+          LEFT JOIN classes c ON ta.class_id = c.id
+          LEFT JOIN sections s ON ta.section_id = s.id
+          LEFT JOIN subjects sub ON ta.subject_id = sub.id
+          WHERE ta.teacher_id = $1
+        `, [teacherId]);
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const [studentsCount, assignmentsCount, assessmentsCount, schedules, attendanceToday] = await Promise.all([
         this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1`, [instituteId]),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM assignments`),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM assessments`),
         this.ds.query(`SELECT s.*,c.name AS class_name,sub.name AS subject_name FROM schedules s LEFT JOIN classes c ON s.class_id::text=c.id::text LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text WHERE s.teacher_id::text=$1::text ORDER BY s.day_of_week,s.start_time LIMIT 6`, [user.id]),
+        this.ds.query(`SELECT COUNT(*) FILTER (WHERE status='present')::int AS present, COUNT(*)::int AS total FROM attendances WHERE institute_id=$1 AND date::date = $2::date`, [instituteId, todayStr])
       ]);
-      return { totalStudents: students[0].c, assignments: assignments[0].c, assessments: assessments[0].c, upcomingClasses: schedules };
+
+      const totalPresent = attendanceToday[0]?.present || 0;
+      const totalAttended = attendanceToday[0]?.total || 0;
+      const attendancePct = totalAttended > 0 ? Math.round((totalPresent / totalAttended) * 100) : 85;
+
+      return {
+        totalStudents: studentsCount[0].c,
+        assignments: assignmentsCount[0].c,
+        assessments: assessmentsCount[0].c,
+        upcomingClasses: schedules,
+        totalPresent,
+        attendancePct,
+        teacherData: {
+          classes,
+          sections,
+          subjects,
+          assignments: assignmentsList.map((a: any) => ({
+            classId: a.class_id,
+            className: a.class_name,
+            sectionId: a.section_id,
+            sectionName: a.section_name,
+            subjectId: a.subject_id,
+            subjectName: a.subject_name,
+            isClassTeacher: a.is_class_teacher
+          }))
+        }
+      };
     }
 
     if (user.role === 'INSTITUTE_ADMIN') {
