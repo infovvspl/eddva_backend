@@ -120,3 +120,209 @@ Error: UnauthorizedException: Invalid credentials
     at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:225:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-05-30T09:12:09.347Z] HEAD /api/v1/health
+Status: 404
+Error: NotFoundException: Cannot HEAD /api/v1/health
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T09:12:09.612Z] GET /api/v1/health
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/health
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T09:18:02.493Z] GET /api/v1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T09:18:02.793Z] GET /favicon.ico
+Status: 404
+Error: NotFoundException: Cannot GET /favicon.ico
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-05-30T09:18:22.702Z] GET /api/v1/auth/login
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/auth/login
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T09:38:49.197Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-05-30T09:42:43.226Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-05-30T09:44:04.623Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-05-30T09:44:10.676Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-05-30T09:48:50.073Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-05-30T09:51:32.177Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-05-30T10:12:54.272Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-05-30T10:13:01.371Z] GET /api/v1/school/complaints
+Status: 500
+Error: QueryFailedError: column c.raised_by does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolComplaintService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\complaint\school-complaint.service.ts:15:25)
+
+[2026-05-30T10:13:01.599Z] GET /api/v1/school/complaints
+Status: 500
+Error: QueryFailedError: column c.raised_by does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolComplaintService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\complaint\school-complaint.service.ts:15:25)
+
+[2026-05-30T10:13:02.078Z] GET /api/v1/school/admin/stats
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/stats
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T10:13:02.318Z] GET /api/v1/school/admin/stats
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/stats
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T10:13:03.083Z] GET /api/v1/school/fees/analytics
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "analytics"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolFeeService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\fee\school-fee.service.ts:31:25)
+
+[2026-05-30T10:13:03.625Z] GET /api/v1/school/fees/analytics
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "analytics"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolFeeService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\fee\school-fee.service.ts:31:25)
+
+[2026-05-30T10:15:00.580Z] GET /api/v1/school/school/admin/audit-logs
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/school/admin/audit-logs
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T10:15:00.644Z] GET /api/v1/school/school/admin/audit-logs
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/school/admin/audit-logs
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-05-30T10:15:39.364Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
