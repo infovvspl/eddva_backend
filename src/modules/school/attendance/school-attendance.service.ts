@@ -18,12 +18,54 @@ export class SchoolAttendanceService {
 
   async get(user: any, query: any) {
     const instituteId = user.instituteId;
-    let sql = `SELECT a.*,u.name AS user_name,u.email,u.role FROM attendances a JOIN users u ON a.user_id=u.id WHERE a.institute_id=$1`;
+    let sql = `
+      SELECT 
+        a.*,
+        u.name AS user_name,
+        u.email,
+        u.role,
+        s.id AS student_profile_id,
+        sec.id AS section_id,
+        sec.name AS section_name,
+        c.id AS class_id,
+        c.name AS class_name
+      FROM attendances a 
+      JOIN users u ON a.user_id = u.id 
+      LEFT JOIN students s ON s.user_id = u.id
+      LEFT JOIN sections sec ON s.section_id = sec.id
+      LEFT JOIN classes c ON sec.class_id = c.id
+      WHERE a.institute_id = $1
+    `;
     const params: any[] = [instituteId];
     if (query.date) { params.push(new Date(query.date)); sql+=` AND a.date=$${params.length}`; }
     if (query.role) { params.push(query.role); sql+=` AND u.role=$${params.length}`; }
     sql+=` ORDER BY a.date DESC`;
-    return this.ds.query(sql, params);
+    
+    const rows: any[] = await this.ds.query(sql, params);
+    
+    return rows.map(r => ({
+      id: r.id,
+      date: r.date,
+      status: r.status,
+      remarks: r.remarks,
+      user: {
+        id: r.user_id,
+        name: r.user_name,
+        email: r.email,
+        role: r.role,
+        studentProfile: r.role === 'STUDENT' ? {
+          id: r.student_profile_id,
+          section: r.section_id ? {
+            id: r.section_id,
+            name: r.section_name,
+            class: r.class_id ? {
+              id: r.class_id,
+              name: r.class_name
+            } : null
+          } : null
+        } : null
+      }
+    }));
   }
 
   async markSession(user: any, body: any) {
