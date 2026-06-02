@@ -153,6 +153,91 @@ export class SchoolStudentService {
     return { success: true };
   }
 
+  async bulkImport(user: any, body: any) {
+    const instituteId = await this.resolveInstituteId(user, body.instituteId);
+    const records = body.records;
+    if (!Array.isArray(records)) throw new BadRequestException('records must be an array');
+
+    const sections: any[] = await this.ds.query(
+      `SELECT s.id, s.name AS section_name, c.name AS class_name 
+       FROM sections s 
+       JOIN classes c ON s.class_id = c.id 
+       WHERE c.institute_id = $1`,
+      [instituteId]
+    );
+    const sectionMap = new Map<string, string>();
+    for (const s of sections) {
+      const key = `${s.class_name.trim().toLowerCase()} / ${s.section_name.trim().toLowerCase()}`;
+      sectionMap.set(key, s.id);
+    }
+
+    const imported = [];
+    const errors = [];
+
+    for (let i = 0; i < records.length; i++) {
+      const row = i + 1;
+      const rec = records[i];
+      try {
+        if (!rec.name?.trim()) throw new Error('Name is required');
+        if (!rec.email?.trim()) throw new Error('Email is required');
+        if (!rec.password?.trim()) throw new Error('Password is required');
+
+        const existing: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1)`, [rec.email.trim()]);
+        if (existing.length) throw new Error('Email already exists');
+
+        let sectionId: string | null = null;
+        if (rec.class && rec.section) {
+          const key = `${rec.class.trim().toLowerCase()} / ${rec.section.trim().toLowerCase()}`;
+          sectionId = sectionMap.get(key) || null;
+          if (!sectionId) throw new Error(`Class "${rec.class}" and Section "${rec.section}" not found`);
+        }
+
+        const enrollmentNo = rec.enrollmentNo || await this.generateEnrollmentNo(instituteId);
+        const hashed = await bcrypt.hash(rec.password, 10);
+
+        const uRows: any[] = await this.ds.query(
+          `INSERT INTO users (institute_id,name,email,password,role,phone,is_active) VALUES ($1,$2,$3,$4,'STUDENT',$5,TRUE) RETURNING id`,
+          [instituteId, rec.name.trim(), rec.email.trim().toLowerCase(), hashed, rec.phone || null],
+        );
+        const userId = uRows[0].id;
+
+        await this.ds.query(
+          `INSERT INTO students (user_id,institute_id,enrollment_no,roll_no,section_id,dob,gender,blood_group,father_name,mother_name,parent_phone,parent_email,address,city,state,pin_code)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+          [
+            userId,
+            instituteId,
+            enrollmentNo,
+            rec.rollNo || null,
+            sectionId,
+            rec.dob ? new Date(rec.dob) : null,
+            rec.gender || null,
+            rec.bloodGroup || null,
+            rec.fatherName || null,
+            rec.motherName || null,
+            rec.parentPhone || null,
+            rec.parentEmail || null,
+            rec.address || null,
+            rec.city || null,
+            rec.state || null,
+            rec.pinCode || null
+          ]
+        );
+
+        imported.push({ row, email: rec.email });
+      } catch (err: any) {
+        errors.push({ row, email: rec.email || 'N/A', error: err.message });
+      }
+    }
+
+    return {
+      success: true,
+      importedCount: imported.length,
+      failedCount: errors.length,
+      errors
+    };
+  }
+
   async remove(id: string) {
     await this.ds.query(`DELETE FROM users WHERE id=$1`, [id]);
     return { success: true };

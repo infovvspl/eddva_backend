@@ -316,7 +316,21 @@ export class SchoolTeacherService {
       [id,body.employeeId||body.employeeCode,body.bloodGroup,body.maritalStatus,body.department,body.joiningDate?new Date(body.joiningDate):null,body.qualifications],
     );
 
-    const tRows = await this.ds.query(`SELECT id, institute_id FROM teachers WHERE user_id=$1`, [id]);
+    let tRows = await this.ds.query(`SELECT id, institute_id FROM teachers WHERE user_id=$1`, [id]);
+    if (tRows.length === 0) {
+      const userRows = await this.ds.query(`SELECT institute_id FROM users WHERE id=$1`, [id]);
+      if (userRows.length > 0) {
+        const instituteId = userRows[0].institute_id;
+        const employeeId = body.employeeId || body.employeeCode || await this.generateEmployeeId(instituteId);
+        await this.ds.query(
+          `INSERT INTO teachers (user_id, institute_id, employee_id, blood_group, marital_status, department, joining_date, qualifications)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [id, instituteId, employeeId, body.bloodGroup || null, body.maritalStatus || null, body.department || null, body.joiningDate ? new Date(body.joiningDate) : null, body.qualifications || null]
+        );
+        tRows = await this.ds.query(`SELECT id, institute_id FROM teachers WHERE user_id=$1`, [id]);
+      }
+    }
+
     if (tRows.length > 0) {
       const teacherId = tRows[0].id;
       const instituteId = tRows[0].institute_id;
@@ -358,6 +372,63 @@ export class SchoolTeacherService {
     }
 
     return { success: true };
+  }
+
+  async bulkImport(user: any, body: any) {
+    const instituteId = await this.resolveInstituteId(user, body.instituteId);
+    const records = body.records;
+    if (!Array.isArray(records)) throw new BadRequestException('records must be an array');
+
+    const imported = [];
+    const errors = [];
+
+    for (let i = 0; i < records.length; i++) {
+      const row = i + 1;
+      const rec = records[i];
+      try {
+        if (!rec.name?.trim()) throw new Error('Name is required');
+        if (!rec.email?.trim()) throw new Error('Email is required');
+        if (!rec.password?.trim()) throw new Error('Password is required');
+
+        const existing: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1)`, [rec.email.trim()]);
+        if (existing.length) throw new Error('Email already exists');
+
+        const employeeId = rec.employeeId || await this.generateEmployeeId(instituteId);
+        const hashed = await bcrypt.hash(rec.password, 10);
+
+        const uRows: any[] = await this.ds.query(
+          `INSERT INTO users (institute_id,name,email,password,role,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,TRUE) RETURNING id`,
+          [instituteId, rec.name.trim(), rec.email.trim().toLowerCase(), hashed, rec.phone || null],
+        );
+        const userId = uRows[0].id;
+
+        await this.ds.query(
+          `INSERT INTO teachers (user_id,institute_id,employee_id,blood_group,marital_status,department,joining_date,qualifications)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [
+            userId,
+            instituteId,
+            employeeId,
+            rec.bloodGroup || null,
+            rec.maritalStatus || null,
+            rec.department || null,
+            rec.joiningDate ? new Date(rec.joiningDate) : null,
+            rec.qualifications || null
+          ]
+        );
+
+        imported.push({ row, email: rec.email });
+      } catch (err: any) {
+        errors.push({ row, email: rec.email || 'N/A', error: err.message });
+      }
+    }
+
+    return {
+      success: true,
+      importedCount: imported.length,
+      failedCount: errors.length,
+      errors
+    };
   }
 
   async remove(id: string) {

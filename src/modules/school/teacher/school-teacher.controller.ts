@@ -9,6 +9,7 @@ import { SchoolUser } from '../decorators/school-user.decorator';
 export class SchoolTeacherController {
   constructor(private readonly svc: SchoolTeacherService) {}
 
+  @Post('bulk-import') bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
   @Post() create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(id); }
