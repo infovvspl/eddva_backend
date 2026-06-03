@@ -2,10 +2,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import { MailService } from '../../mail/mail.service';
 
 @Injectable()
 export class SchoolStudentService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly mailService: MailService
+  ) {}
 
   private async resolveInstituteId(user: any, bodyInstituteId?: string): Promise<string> {
     if (user.role === 'SUPER_ADMIN') {
@@ -241,5 +245,74 @@ export class SchoolStudentService {
   async remove(id: string) {
     await this.ds.query(`DELETE FROM users WHERE id=$1`, [id]);
     return { success: true };
+  }
+
+  async sendParentCredentials(user: any, studentId: string, body: any) {
+    // Determine student ID (can be user_id or student profile id)
+    const rows: any[] = await this.ds.query(
+      `SELECT u.id, u.name, u.email, u.institute_id, s.parent_email, s.father_name, s.mother_name, i.name as institute_name 
+       FROM users u 
+       LEFT JOIN students s ON s.user_id = u.id 
+       LEFT JOIN institutes i ON u.institute_id = i.id
+       WHERE (u.id=$1 OR s.id=$1) AND u.role='STUDENT'`,
+      [studentId]
+    );
+
+    if (!rows.length) {
+      throw new NotFoundException('Student not found');
+    }
+
+    const student = rows[0];
+    const instituteId = await this.resolveInstituteId(user, student.institute_id);
+    
+    // Ensure the student belongs to the institute the user has access to
+    if (student.institute_id !== instituteId) {
+      throw new BadRequestException('Unauthorized to access this student');
+    }
+
+    // Determine parent email
+    const parentEmail = body.parentEmail || student.parent_email;
+    if (!parentEmail) {
+      throw new BadRequestException('No parent email found for this student. Please provide one.');
+    }
+
+    // Determine parent name
+    const parentName = body.parentName || student.father_name || student.mother_name || `Parent of ${student.name}`;
+
+    // Determine or generate temp password
+    const tempPassword = body.tempPassword || Math.random().toString(36).substring(2, 10);
+    const loginUrl = body.loginUrl || 'https://odm.eddva.in/login';
+    const instituteName = student.institute_name || 'EDDVA School';
+
+    const hashed = await bcrypt.hash(tempPassword, 10);
+    const existingParent: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email) = LOWER($1)`, [parentEmail]);
+    
+    if (existingParent.length > 0) {
+      await this.ds.query(`UPDATE users SET password = $1 WHERE id = $2`, [hashed, existingParent[0].id]);
+    } else {
+      await this.ds.query(
+        `INSERT INTO users (institute_id, name, email, password, role, is_active) VALUES ($1, $2, $3, $4, 'PARENT', TRUE)`,
+        [student.institute_id, parentName, parentEmail, hashed]
+      );
+    }
+
+    const result = await this.mailService.sendParentCredentials({
+      to: parentEmail,
+      parentName,
+      studentName: student.name,
+      tempPassword,
+      loginUrl,
+      instituteName,
+    });
+
+    return {
+      success: true,
+      sent: result.sent,
+      devMode: result.devMode,
+      error: result.error,
+      parentEmail,
+      parentName,
+      studentName: student.name,
+    };
   }
 }

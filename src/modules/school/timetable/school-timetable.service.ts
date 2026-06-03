@@ -2,6 +2,26 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
+const DAY_MAP: Record<string, number> = {
+  'MONDAY': 1,
+  'TUESDAY': 2,
+  'WEDNESDAY': 3,
+  'THURSDAY': 4,
+  'FRIDAY': 5,
+  'SATURDAY': 6,
+  'SUNDAY': 7,
+};
+
+const REV_DAY_MAP: Record<number, string> = {
+  1: 'MONDAY',
+  2: 'TUESDAY',
+  3: 'WEDNESDAY',
+  4: 'THURSDAY',
+  5: 'FRIDAY',
+  6: 'SATURDAY',
+  7: 'SUNDAY',
+};
+
 @Injectable()
 export class SchoolTimetableService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
@@ -10,33 +30,160 @@ export class SchoolTimetableService {
   async listTimetables(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
     const rows: any[] = await this.ds.query(
-      `SELECT t.*,c.name AS class_name FROM timetables t LEFT JOIN classes c ON t.class_id::text=c.id::text WHERE t.institute_id::text=$1::text ORDER BY t.created_at DESC`,
+      `SELECT 
+        t.id AS "id",
+        t.day_of_week AS "dayOfWeekInt",
+        t.start_time AS "startTime",
+        t.end_time AS "endTime",
+        t.room AS "room",
+        t.subject_id AS "subjectId",
+        t.teacher_id AS "teacherId",
+        t.section_id AS "sectionId",
+        sub.id AS "subject_id",
+        sub.name AS "subject_name",
+        sec.id AS "section_id",
+        sec.name AS "section_name",
+        cls.id AS "class_id",
+        cls.name AS "class_name",
+        teach.id AS "teacher_id",
+        u.id AS "user_id",
+        u.name AS "user_name"
+      FROM timetables t
+      LEFT JOIN subjects sub ON t.subject_id = sub.id
+      LEFT JOIN sections sec ON t.section_id = sec.id
+      LEFT JOIN classes cls ON sec.class_id = cls.id
+      LEFT JOIN teachers teach ON t.teacher_id = teach.id
+      LEFT JOIN users u ON teach.user_id = u.id
+      WHERE t.institute_id::text=$1::text
+      ORDER BY t.day_of_week, t.start_time`,
       [instituteId],
     );
-    return { success: true, data: rows };
+
+    const formatted = rows.map((row) => ({
+      id: row.id,
+      dayOfWeek: REV_DAY_MAP[row.dayOfWeekInt] || 'MONDAY',
+      startTime: row.startTime ? row.startTime.substring(0, 5) : '09:00',
+      endTime: row.endTime ? row.endTime.substring(0, 5) : '10:00',
+      room: row.room || '',
+      sectionId: row.sectionId,
+      subjectId: row.subjectId,
+      teacherId: row.teacherId,
+      subject: row.subject_id ? { id: row.subject_id, name: row.subject_name } : null,
+      section: row.section_id ? {
+        id: row.section_id,
+        name: row.section_name,
+        className: row.class_name,
+        class: { id: row.class_id, name: row.class_name }
+      } : null,
+      teacher: row.teacher_id ? {
+        id: row.teacher_id,
+        user: { id: row.user_id, name: row.user_name }
+      } : null,
+    }));
+
+    return { success: true, data: formatted };
   }
 
   async createTimetable(user: any, body: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const dayOfWeekInt = DAY_MAP[body.dayOfWeek] || 1;
     const rows: any[] = await this.ds.query(
-      `INSERT INTO timetables (institute_id,class_id,name,academic_year,is_active) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [instituteId, body.classId || null, body.name, body.academicYear || null, body.isActive !== false],
+      `INSERT INTO timetables (institute_id, section_id, subject_id, teacher_id, day_of_week, start_time, end_time, room) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [
+        instituteId,
+        body.sectionId || null,
+        body.subjectId || null,
+        body.teacherId || null,
+        dayOfWeekInt,
+        body.startTime || '09:00',
+        body.endTime || '10:00',
+        body.room || null
+      ],
     );
-    return { success: true, data: rows[0] };
+    return this.findOneTimetable(rows[0].id);
   }
 
   async findOneTimetable(id: string) {
-    const rows: any[] = await this.ds.query(`SELECT * FROM timetables WHERE id=$1`, [id]);
-    if (!rows.length) throw new NotFoundException('Timetable not found');
-    return { success: true, data: rows[0] };
+    const rows: any[] = await this.ds.query(
+      `SELECT 
+        t.id AS "id",
+        t.day_of_week AS "dayOfWeekInt",
+        t.start_time AS "startTime",
+        t.end_time AS "endTime",
+        t.room AS "room",
+        t.subject_id AS "subjectId",
+        t.teacher_id AS "teacherId",
+        t.section_id AS "sectionId",
+        sub.id AS "subject_id",
+        sub.name AS "subject_name",
+        sec.id AS "section_id",
+        sec.name AS "section_name",
+        cls.id AS "class_id",
+        cls.name AS "class_name",
+        teach.id AS "teacher_id",
+        u.id AS "user_id",
+        u.name AS "user_name"
+      FROM timetables t
+      LEFT JOIN subjects sub ON t.subject_id = sub.id
+      LEFT JOIN sections sec ON t.section_id = sec.id
+      LEFT JOIN classes cls ON sec.class_id = cls.id
+      LEFT JOIN teachers teach ON t.teacher_id = teach.id
+      LEFT JOIN users u ON teach.user_id = u.id
+      WHERE t.id::text=$1::text`,
+      [id],
+    );
+    if (!rows.length) throw new NotFoundException('Timetable slot not found');
+    const row = rows[0];
+    const formatted = {
+      id: row.id,
+      dayOfWeek: REV_DAY_MAP[row.dayOfWeekInt] || 'MONDAY',
+      startTime: row.startTime ? row.startTime.substring(0, 5) : '09:00',
+      endTime: row.endTime ? row.endTime.substring(0, 5) : '10:00',
+      room: row.room || '',
+      sectionId: row.sectionId,
+      subjectId: row.subjectId,
+      teacherId: row.teacherId,
+      subject: row.subject_id ? { id: row.subject_id, name: row.subject_name } : null,
+      section: row.section_id ? {
+        id: row.section_id,
+        name: row.section_name,
+        className: row.class_name,
+        class: { id: row.class_id, name: row.class_name }
+      } : null,
+      teacher: row.teacher_id ? {
+        id: row.teacher_id,
+        user: { id: row.user_id, name: row.user_name }
+      } : null,
+    };
+    return { success: true, data: formatted };
   }
 
   async updateTimetable(id: string, body: any) {
+    const dayOfWeekInt = body.dayOfWeek ? (DAY_MAP[body.dayOfWeek] || 1) : undefined;
     await this.ds.query(
-      `UPDATE timetables SET name=COALESCE($2,name),class_id=COALESCE($3,class_id),academic_year=COALESCE($4,academic_year),is_active=COALESCE($5,is_active),updated_at=NOW() WHERE id=$1`,
-      [id, body.name, body.classId, body.academicYear, body.isActive],
+      `UPDATE timetables SET 
+        section_id = COALESCE($2, section_id),
+        subject_id = COALESCE($3, subject_id),
+        teacher_id = COALESCE($4, teacher_id),
+        day_of_week = COALESCE($5, day_of_week),
+        start_time = COALESCE($6, start_time),
+        end_time = COALESCE($7, end_time),
+        room = COALESCE($8, room),
+        updated_at = NOW() 
+      WHERE id = $1`,
+      [
+        id,
+        body.sectionId || null,
+        body.subjectId || null,
+        body.teacherId || null,
+        dayOfWeekInt,
+        body.startTime || null,
+        body.endTime || null,
+        body.room || null
+      ],
     );
-    return { success: true };
+    return this.findOneTimetable(id);
   }
 
   async removeTimetable(id: string) {

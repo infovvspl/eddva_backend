@@ -15,4 +15,9 @@ export class SchoolStudentController {
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(id); }
   @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
   @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(id); }
+
+  @Post(':id/send-credentials')
+  sendParentCredentials(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.sendParentCredentials(user, id, body);
+  }
 }
