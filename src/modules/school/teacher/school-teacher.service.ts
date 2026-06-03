@@ -22,6 +22,120 @@ export class SchoolTeacherService {
     const max = existing.reduce((h:number,r:any)=>{ const n=Number(String(r.employee_id||'').replace(prefix,'')); return Number.isFinite(n)?Math.max(h,n):h; },0);
     return `${prefix}${String(max+1).padStart(3,'0')}`;
   }
+  
+  private async getTeacherAssignments(teacherId: string) {
+    return this.ds.query(`
+      SELECT ta.*, c.name AS class_name, s.name AS section_name, sub.name AS subject_name
+      FROM teacher_academic_assignments ta
+      LEFT JOIN classes c ON ta.class_id = c.id
+      LEFT JOIN sections s ON ta.section_id = s.id
+      LEFT JOIN subjects sub ON ta.subject_id = sub.id
+      WHERE ta.teacher_id = $1
+    `, [teacherId]);
+  }
+
+  private async saveAssignments(
+    queryRunner: any,
+    teacherId: string,
+    assignments: any[],
+    instituteId: string,
+    adminUserId: string,
+  ) {
+    // 1. Fetch old assignments for audit diff
+    const oldAssignments = await queryRunner.query(`
+      SELECT ta.*, c.name AS class_name, s.name AS section_name, sub.name AS subject_name
+      FROM teacher_academic_assignments ta
+      LEFT JOIN classes c ON ta.class_id = c.id
+      LEFT JOIN sections s ON ta.section_id = s.id
+      LEFT JOIN subjects sub ON ta.subject_id = sub.id
+      WHERE ta.teacher_id = $1
+    `, [teacherId]);
+
+    // Validate that at most one assignment has isClassTeacher = true
+    const classTeacherSectionIds = assignments
+      .filter((a: any) => a.isClassTeacher)
+      .map((a: any) => a.sectionId);
+    
+    // De-duplicate sectionIds where they are class teacher
+    const uniqueClassTeacherSectionIds = [...new Set(classTeacherSectionIds)];
+    if (uniqueClassTeacherSectionIds.length > 1) {
+      throw new BadRequestException('A teacher can be assigned as class teacher for at most one section.');
+    }
+
+    // 2. Delete old assignments
+    await queryRunner.query(`DELETE FROM teacher_academic_assignments WHERE teacher_id = $1`, [teacherId]);
+
+    // 3. Clear old class teacher references in sections table for this teacher
+    await queryRunner.query(`UPDATE sections SET class_teacher_id = NULL WHERE class_teacher_id = $1`, [teacherId]);
+
+    // 4. Insert new assignments
+    const uniqueClasses = new Set<string>();
+    const uniqueSections = new Set<string>();
+    const uniqueSubjects = new Set<string>();
+
+    for (const a of assignments) {
+      const classId = a.classId;
+      const sectionId = a.sectionId;
+      const subjectId = a.subjectId || null;
+      const isClassTeacher = !!a.isClassTeacher;
+
+      if (!classId || !sectionId) continue;
+
+      uniqueClasses.add(classId);
+      uniqueSections.add(sectionId);
+      if (subjectId) uniqueSubjects.add(subjectId);
+
+      await queryRunner.query(
+        `INSERT INTO teacher_academic_assignments (teacher_id, class_id, section_id, subject_id, is_class_teacher)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (teacher_id, class_id, section_id, subject_id) DO UPDATE SET is_class_teacher = EXCLUDED.is_class_teacher`,
+        [teacherId, classId, sectionId, subjectId, isClassTeacher]
+      );
+
+      // If isClassTeacher is true, update the section's class_teacher_id
+      if (isClassTeacher) {
+        // Clear class teacher for this section from any other teacher first
+        await queryRunner.query(`UPDATE sections SET class_teacher_id = NULL WHERE id = $1`, [sectionId]);
+        // Set new class teacher
+        await queryRunner.query(`UPDATE sections SET class_teacher_id = $1 WHERE id = $2`, [teacherId, sectionId]);
+      }
+    }
+
+    // 5. Sync to legacy junction tables
+    await queryRunner.query(`DELETE FROM teacher_classes WHERE teacher_id = $1`, [teacherId]);
+    for (const cid of uniqueClasses) {
+      await queryRunner.query(`INSERT INTO teacher_classes (teacher_id, class_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [teacherId, cid]);
+    }
+
+    await queryRunner.query(`DELETE FROM teacher_sections WHERE teacher_id = $1`, [teacherId]);
+    for (const sid of uniqueSections) {
+      await queryRunner.query(`INSERT INTO teacher_sections (teacher_id, section_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [teacherId, sid]);
+    }
+
+    await queryRunner.query(`DELETE FROM teacher_subjects WHERE teacher_id = $1`, [teacherId]);
+    for (const subid of uniqueSubjects) {
+      await queryRunner.query(`INSERT INTO teacher_subjects (teacher_id, subject_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [teacherId, subid]);
+    }
+
+    // 6. Log activity audit log
+    const auditDetails = {
+      teacherId,
+      old: oldAssignments.map((o: any) => ({
+        classId: o.class_id,
+        className: o.class_name,
+        sectionId: o.section_id,
+        sectionName: o.section_name,
+        subjectId: o.subject_id,
+        subjectName: o.subject_name,
+        isClassTeacher: o.is_class_teacher
+      })),
+      new: assignments
+    };
+    await queryRunner.query(
+      `INSERT INTO activity_logs (institute_id, user_id, action, details) VALUES ($1, $2, $3, $4)`,
+      [instituteId, adminUserId, 'TEACHER_ASSIGNMENT_CHANGE', JSON.stringify(auditDetails)]
+    );
+  }
 
   async create(user: any, body: any) {
     const instituteId = await this.resolveInstituteId(user, body.instituteId);
@@ -53,9 +167,24 @@ export class SchoolTeacherService {
         [u.id, instituteId, employeeId, body.bloodGroup || null, body.maritalStatus || null, body.department || null, body.joiningDate ? new Date(body.joiningDate) : null, body.qualifications || null, JSON.stringify(body.educationDetails || []), JSON.stringify(body.experienceDetails || [])],
       );
       
-      for (const sid of (body.subjectIds || [])) {
-        await queryRunner.query(`INSERT INTO teacher_subjects (teacher_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [tRows[0].id, sid]);
+      let assignments = body.assignments || [];
+      if (!body.assignments && (body.classIds || body.sectionIds || body.subjectIds)) {
+        const classIds = body.classIds || [];
+        const sectionIds = body.sectionIds || [];
+        const subjectIds = body.subjectIds || [];
+        assignments = [];
+        for (const cid of classIds) {
+          for (const secid of sectionIds) {
+            for (const subid of subjectIds) {
+              assignments.push({ classId: cid, sectionId: secid, subjectId: subid, isClassTeacher: false });
+            }
+            if (subjectIds.length === 0) {
+              assignments.push({ classId: cid, sectionId: secid, subjectId: null, isClassTeacher: false });
+            }
+          }
+        }
       }
+      await this.saveAssignments(queryRunner, tRows[0].id, assignments, instituteId, user.id);
       
       await queryRunner.commitTransaction();
 
@@ -72,24 +201,108 @@ export class SchoolTeacherService {
   async list(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const rows: any[] = await this.ds.query(
-      `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications
-       FROM users u JOIN teachers t ON t.user_id=u.id WHERE u.institute_id=$1 AND u.role='TEACHER' ORDER BY u.name`,
+      `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.photo,t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
+       COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM teacher_classes tc JOIN classes c ON tc.class_id=c.id WHERE tc.teacher_id=t.id), '[]'::json) as classes,
+       COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM teacher_sections ts JOIN sections s ON ts.section_id=s.id WHERE ts.teacher_id=t.id), '[]'::json) as sections,
+       COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM teacher_subjects tsub JOIN subjects sub ON tsub.subject_id=sub.id WHERE tsub.teacher_id=t.id), '[]'::json) as subjects
+       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE u.institute_id=$1 AND u.role='TEACHER' ORDER BY u.name`,
       [instituteId],
     );
-    return { success: true, data: rows };
+    const assignmentsRows = await this.ds.query(`
+      SELECT ta.*, c.name AS class_name, s.name AS section_name, sub.name AS subject_name, t.user_id
+      FROM teacher_academic_assignments ta
+      LEFT JOIN classes c ON ta.class_id = c.id
+      LEFT JOIN sections s ON ta.section_id = s.id
+      LEFT JOIN subjects sub ON ta.subject_id = sub.id
+      JOIN teachers t ON ta.teacher_id = t.id
+      WHERE t.institute_id = $1
+    `, [instituteId]);
+
+    const mappedRows = rows.map(r => {
+      const teacherAssignments = assignmentsRows.filter((a: any) => a.user_id === r.id);
+      return {
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        photo: r.photo,
+        isActive: r.is_active,
+        createdAt: r.created_at,
+        classes: r.classes || [],
+        sections: r.sections || [],
+        subjects: r.subjects || [],
+        teacherProfile: r.profile_id ? {
+          id: r.profile_id,
+          employeeId: r.employee_id,
+          bloodGroup: r.blood_group,
+          maritalStatus: r.marital_status,
+          department: r.department,
+          joiningDate: r.joining_date,
+          qualifications: r.qualifications,
+          classes: r.classes,
+          sections: r.sections,
+          subjects: r.subjects,
+          assignments: teacherAssignments.map((a: any) => ({
+            classId: a.class_id,
+            className: a.class_name,
+            sectionId: a.section_id,
+            sectionName: a.section_name,
+            subjectId: a.subject_id,
+            subjectName: a.subject_name,
+            isClassTeacher: a.is_class_teacher
+          }))
+        } : null
+      };
+    });
+    return { success: true, data: mappedRows };
   }
 
   async findOne(id: string) {
     const rows: any[] = await this.ds.query(
-      `SELECT u.*,t.id AS teacher_profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND u.role='TEACHER'`,
+      `SELECT u.*,t.id AS teacher_profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
+       COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM teacher_classes tc JOIN classes c ON tc.class_id=c.id WHERE tc.teacher_id=t.id), '[]'::json) as classes,
+       COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM teacher_sections ts JOIN sections s ON ts.section_id=s.id WHERE ts.teacher_id=t.id), '[]'::json) as sections,
+       COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM teacher_subjects tsub JOIN subjects sub ON tsub.subject_id=sub.id WHERE tsub.teacher_id=t.id), '[]'::json) as subjects
+       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND u.role='TEACHER'`,
       [id],
     );
     if (!rows.length) throw new NotFoundException('Teacher not found');
     const { password: _p, ...rest } = rows[0];
-    return { success: true, data: rest };
+    const tProfileId = rest.teacher_profile_id;
+    let assignments = [];
+    if (tProfileId) {
+      assignments = await this.getTeacherAssignments(tProfileId);
+    }
+    const mappedData = {
+      ...rest,
+      isActive: rest.is_active,
+      createdAt: rest.created_at,
+      teacherProfile: {
+        id: rest.teacher_profile_id,
+        employeeId: rest.employee_id,
+        bloodGroup: rest.blood_group,
+        maritalStatus: rest.marital_status,
+        department: rest.department,
+        joiningDate: rest.joining_date,
+        qualifications: rest.qualifications,
+        classes: rest.classes,
+        sections: rest.sections,
+        subjects: rest.subjects,
+        assignments: assignments.map(a => ({
+          classId: a.class_id,
+          className: a.class_name,
+          sectionId: a.section_id,
+          sectionName: a.section_name,
+          subjectId: a.subject_id,
+          subjectName: a.subject_name,
+          isClassTeacher: a.is_class_teacher
+        }))
+      }
+    };
+    return { success: true, data: mappedData };
   }
 
-  async update(id: string, body: any) {
+  async update(user: any, id: string, body: any) {
     if (body.phone) {
       const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=(SELECT institute_id FROM users WHERE id=$1) AND phone=$2 AND id<>$1`, [id, body.phone]);
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
@@ -102,6 +315,48 @@ export class SchoolTeacherService {
       `UPDATE teachers SET employee_id=COALESCE($2,employee_id),blood_group=COALESCE($3,blood_group),marital_status=COALESCE($4,marital_status),department=COALESCE($5,department),joining_date=COALESCE($6,joining_date),qualifications=COALESCE($7,qualifications),updated_at=NOW() WHERE user_id=$1`,
       [id,body.employeeId||body.employeeCode,body.bloodGroup,body.maritalStatus,body.department,body.joiningDate?new Date(body.joiningDate):null,body.qualifications],
     );
+
+    const tRows = await this.ds.query(`SELECT id, institute_id FROM teachers WHERE user_id=$1`, [id]);
+    if (tRows.length > 0) {
+      const teacherId = tRows[0].id;
+      const instituteId = tRows[0].institute_id;
+      
+      let assignments = body.assignments;
+      if (assignments === undefined) {
+        if (body.classIds !== undefined || body.sectionIds !== undefined || body.subjectIds !== undefined) {
+          const classIds = body.classIds || [];
+          const sectionIds = body.sectionIds || [];
+          const subjectIds = body.subjectIds || [];
+          assignments = [];
+          for (const cid of classIds) {
+            for (const secid of sectionIds) {
+              for (const subid of subjectIds) {
+                assignments.push({ classId: cid, sectionId: secid, subjectId: subid, isClassTeacher: false });
+              }
+              if (subjectIds.length === 0) {
+                assignments.push({ classId: cid, sectionId: secid, subjectId: null, isClassTeacher: false });
+              }
+            }
+          }
+        }
+      }
+
+      if (assignments !== undefined) {
+        const queryRunner = this.ds.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+          await this.saveAssignments(queryRunner, teacherId, assignments, instituteId, user?.id || null);
+          await queryRunner.commitTransaction();
+        } catch (err) {
+          await queryRunner.rollbackTransaction();
+          throw new BadRequestException(err instanceof Error ? err.message : 'Error updating academic assignments');
+        } finally {
+          await queryRunner.release();
+        }
+      }
+    }
+
     return { success: true };
   }
 

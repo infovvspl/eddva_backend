@@ -9,6 +9,9 @@ export class SchoolStudyMaterial extends SchoolBase {
   @Column() title: string;
   @Column({ nullable: true }) subject: string;
   @Column({ nullable: true }) chapter: string;
+  @Column({ name: 'subject_id_fk', type: 'uuid', nullable: true }) subjectIdFk: string;
+  @Column({ name: 'chapter_id', type: 'uuid', nullable: true }) chapterId: string;
+  @Column({ name: 'topic_id', type: 'uuid', nullable: true }) topicId: string;
   @Column({ nullable: true }) description: string;
   @Column({ name: 's3_key' }) s3Key: string;
   @Column({ name: 'file_size_kb', nullable: true }) fileSizeKb: number;

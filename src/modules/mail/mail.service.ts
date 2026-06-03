@@ -142,4 +142,102 @@ export class MailService {
       return { sent: false, error: err.message };
     }
   }
+
+  async sendParentCredentials(opts: {
+    to: string;
+    parentName: string;
+    studentName: string;
+    tempPassword: string;
+    loginUrl: string;
+    instituteName: string;
+  }): Promise<{ sent: boolean; devMode?: boolean; error?: string }> {
+    const subject = `Welcome to ${opts.instituteName} on EDVA — Parent Login Credentials`;
+    const html = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+      <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:40px 0;">
+          <tr><td align="center">
+            <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.07);">
+              <!-- Header -->
+              <tr>
+                <td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:32px 40px;text-align:center;">
+                  <h1 style="margin:0;font-size:26px;font-weight:900;color:#ffffff;letter-spacing:-0.5px;">${opts.instituteName}</h1>
+                  <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.75);font-weight:600;text-transform:uppercase;letter-spacing:1px;">Parent Portal Access</p>
+                </td>
+              </tr>
+              <!-- Body -->
+              <tr>
+                <td style="padding:40px 40px 32px;">
+                  <p style="margin:0 0 8px;font-size:22px;font-weight:800;color:#0f172a;">Hi ${opts.parentName},</p>
+                  <p style="margin:0 0 24px;font-size:15px;color:#64748b;line-height:1.6;">
+                    Welcome! Your child <strong>${opts.studentName}</strong> has been enrolled at <strong>${opts.instituteName}</strong>. You can now track their progress, attendance, and performance using the EDVA Parent Portal.
+                  </p>
+                  
+                  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:24px;margin-bottom:28px;">
+                    <h3 style="margin:0 0 16px;font-size:14px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">Your Login Credentials</h3>
+                    
+                    <div style="margin-bottom:12px;">
+                      <p style="margin:0 0 4px;font-size:12px;color:#64748b;font-weight:600;">Email Address</p>
+                      <p style="margin:0;font-size:16px;font-family:monospace;color:#0f172a;background:#ffffff;padding:10px 16px;border-radius:8px;border:1px solid #e2e8f0;">${opts.to}</p>
+                    </div>
+                    
+                    <div>
+                      <p style="margin:0 0 4px;font-size:12px;color:#64748b;font-weight:600;">Temporary Password</p>
+                      <p style="margin:0;font-size:16px;font-family:monospace;color:#0f172a;background:#ffffff;padding:10px 16px;border-radius:8px;border:1px solid #e2e8f0;letter-spacing:1px;">${opts.tempPassword}</p>
+                    </div>
+                  </div>
+
+                  <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
+                    <tr>
+                      <td style="border-radius:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);">
+                        <a href="${opts.loginUrl}"
+                           style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:800;color:#ffffff;text-decoration:none;border-radius:10px;letter-spacing:0.3px;">
+                          Login to Parent Portal →
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                  
+                  <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:24px;">
+                    <p style="margin:0;font-size:13px;color:#b45309;line-height:1.5;">
+                      <strong>Security Notice:</strong> You will be required to change your password upon your first login to ensure account security.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+              <!-- Footer -->
+              <tr>
+                <td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #f1f5f9;text-align:center;">
+                  <p style="margin:0;font-size:12px;color:#cbd5e1;">© ${new Date().getFullYear()} EDVA Platform · All rights reserved</p>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    if (this.devMode) {
+      this.logger.debug(`[DEV MODE] Parent credentials email for ${opts.to}:`);
+      this.logger.debug(`  Temp Password: ${opts.tempPassword}`);
+      return { sent: false, devMode: true };
+    }
+
+    try {
+      await this.transporter.sendMail({
+        from: this.config.get('mail.from'),
+        to: opts.to,
+        subject,
+        html,
+      });
+      this.logger.log(`Parent credentials email sent to ${opts.to}`);
+      return { sent: true };
+    } catch (err) {
+      this.logger.error(`Failed to send parent email to ${opts.to}: ${err.message}`);
+      return { sent: false, error: err.message };
+    }
+  }
 }
