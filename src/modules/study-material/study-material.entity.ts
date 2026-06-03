@@ -41,6 +41,15 @@ export class StudyMaterial {
   @Column({ nullable: true })
   chapter: string;
 
+  @Column({ name: 'subject_id_fk', type: 'uuid', nullable: true })
+  subjectIdFk: string;
+
+  @Column({ name: 'chapter_id', type: 'uuid', nullable: true })
+  chapterId: string;
+
+  @Column({ name: 'topic_id', type: 'uuid', nullable: true })
+  topicId: string;
+
   @Column({ nullable: true })
   description: string;
 

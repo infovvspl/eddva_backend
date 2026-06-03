@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolChatGateway } from './school-chat.gateway';
 
 @Injectable()
 export class SchoolChatService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly gateway: SchoolChatGateway,
+  ) {}
 
   async getConversations(user: any, query: any) {
     const role = query.role || 'TEACHER';
@@ -99,9 +103,10 @@ export class SchoolChatService {
   }
 
   async createRoom(body: any) {
+    // chat_rooms only has (id, type, created_at) — no institute_id/name columns.
     const rows: any[] = await this.ds.query(
-      `INSERT INTO chat_rooms (institute_id,name,type) VALUES ($1,$2,$3) RETURNING *`,
-      [body.instituteId, body.name, body.type || 'GROUP'],
+      `INSERT INTO chat_rooms (type) VALUES ($1) RETURNING *`,
+      [body.type || 'GROUP'],
     );
     return { success: true, data: rows[0] };
   }
@@ -119,7 +124,8 @@ export class SchoolChatService {
       `SELECT cm.*,u.name AS sender_name,u.photo AS sender_photo FROM chat_messages cm LEFT JOIN users u ON cm.sender_id=u.id WHERE cm.room_id=$1 ORDER BY cm.created_at ASC`,
       [roomId],
     );
-    return { success: true, data: rows };
+    // The column is `text`; expose `content` too so clients reading either work.
+    return { success: true, data: rows.map((r) => ({ ...r, content: r.text })) };
   }
 
   async sendMessage(user: any, body: any) {
@@ -138,9 +144,9 @@ export class SchoolChatService {
       if (rooms.length) {
         roomId = rooms[0].room_id;
       } else {
+        // chat_rooms has no institute_id column — scope is enforced via participants.
         const newRooms = await this.ds.query(
-          `INSERT INTO chat_rooms (institute_id,type) VALUES ($1,'DM') RETURNING id`,
-          [user.instituteId]
+          `INSERT INTO chat_rooms (type) VALUES ('DM') RETURNING id`,
         );
         roomId = newRooms[0].id;
         await this.ds.query(
@@ -161,9 +167,12 @@ export class SchoolChatService {
     }
 
     const rows: any[] = await this.ds.query(
-      `INSERT INTO chat_messages (room_id,sender_id,receiver_id,text,is_read) VALUES ($1,$2,$3,$4,false) RETURNING *`,
-      [roomId, user.id, receiverId ? String(receiverId) : null, text],
+      `INSERT INTO chat_messages (room_id,sender_id,receiver_id,text,is_read,tenant_id) VALUES ($1,$2,$3,$4,false,$5) RETURNING *`,
+      [roomId, user.id, receiverId ? String(receiverId) : null, text, user.instituteId ?? null],
     );
-    return { success: true, data: rows[0] };
+    const message = { ...rows[0], content: rows[0].text };
+    // Push to both participants in real time.
+    this.gateway.emitDirectMessage(message);
+    return { success: true, data: message };
   }
 }

@@ -10,6 +10,13 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { IS_PUBLIC_KEY } from '../decorators/school-public.decorator';
 
+// The guard resolves the user from the DB on every authenticated request.
+// A short-lived cache absorbs request bursts (e.g. a chat panel firing several
+// calls at once) without re-querying. TTL stays small so role/active changes
+// take effect quickly.
+const USER_CACHE = new Map<string, { user: any; exp: number }>();
+const USER_TTL_MS = 30_000;
+
 @Injectable()
 export class SchoolJwtGuard implements CanActivate {
   constructor(
@@ -62,6 +69,12 @@ export class SchoolJwtGuard implements CanActivate {
       throw new UnauthorizedException('Invalid token structure: missing user ID');
     }
 
+    const cached = USER_CACHE.get(userId);
+    if (cached && cached.exp > Date.now()) {
+      req.user = cached.user;
+      return true;
+    }
+
     const rows: any[] = await this.ds.query(
       `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
        FROM users u
@@ -75,7 +88,7 @@ export class SchoolJwtGuard implements CanActivate {
     const row = rows[0];
     if (!row.is_active) throw new UnauthorizedException('This user account is inactive');
 
-    req.user = {
+    const resolvedUser = {
       id: row.id,
       email: row.email,
       name: row.name,
@@ -91,6 +104,8 @@ export class SchoolJwtGuard implements CanActivate {
           }
         : null,
     };
+    USER_CACHE.set(userId, { user: resolvedUser, exp: Date.now() + USER_TTL_MS });
+    req.user = resolvedUser;
     return true;
   }
 }

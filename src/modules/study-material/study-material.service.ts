@@ -1,5 +1,5 @@
-﻿import {
-  Injectable, NotFoundException, ForbiddenException, Logger,
+import {
+  Injectable, NotFoundException, ForbiddenException, Logger, BadRequestException
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, ILike } from 'typeorm';
@@ -33,6 +33,7 @@ export class StudyMaterialService {
   // â”€â”€ Admin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async create(dto: CreateStudyMaterialDto, tenantId: string, userId: string) {
+    await this.validateHierarchyAndResolveNames(dto);
     const mat = this.repo.create({
       ...dto,
       tenantId,
@@ -44,8 +45,29 @@ export class StudyMaterialService {
 
   async update(id: string, dto: UpdateStudyMaterialDto, tenantId: string) {
     const mat = await this.findOneOrFail(id, tenantId);
+    await this.validateHierarchyAndResolveNames(dto);
     Object.assign(mat, dto);
     return this.repo.save(mat);
+  }
+
+  private async validateHierarchyAndResolveNames(dto: any) {
+    if (dto.topicId && dto.chapterId) {
+      const rows = await this.dataSource.query(`SELECT 1 FROM topics WHERE id = $1 AND chapter_id = $2`, [dto.topicId, dto.chapterId]);
+      if (!rows.length) throw new BadRequestException('Invalid hierarchy: Topic does not belong to the selected Chapter');
+    }
+    if (dto.chapterId && dto.subjectIdFk) {
+      const rows = await this.dataSource.query(`SELECT 1 FROM chapters WHERE id = $1 AND subject_id = $2`, [dto.chapterId, dto.subjectIdFk]);
+      if (!rows.length) throw new BadRequestException('Invalid hierarchy: Chapter does not belong to the selected Subject');
+    }
+
+    if (dto.subjectIdFk) {
+      const sRow = await this.dataSource.query(`SELECT name FROM subjects WHERE id = $1`, [dto.subjectIdFk]);
+      if (sRow.length) dto.subject = sRow[0].name;
+    }
+    if (dto.chapterId) {
+      const cRow = await this.dataSource.query(`SELECT name FROM chapters WHERE id = $1`, [dto.chapterId]);
+      if (cRow.length) dto.chapter = cRow[0].name;
+    }
   }
 
   async remove(id: string, tenantId: string) {
@@ -238,6 +260,73 @@ export class StudyMaterialService {
     }
 
     return { tenantId, scanned: rows.length, inserted, skipped };
+  }
+
+  async backfillMaterialHierarchy(tenantId: string) {
+    // 1. Safe idempotent UPDATE with JOINs to resolve IDs
+    await this.dataSource.query(
+      `
+      UPDATE study_materials sm
+      SET 
+        subject_id_fk = s.id,
+        chapter_id = c.id
+      FROM subjects s
+      LEFT JOIN chapters c ON c.subject_id = s.id AND c.tenant_id = sm.tenant_id
+      WHERE sm.subject_id_fk IS NULL
+        AND s.tenant_id = sm.tenant_id
+        AND LOWER(TRIM(s.name)) = LOWER(TRIM(sm.subject))
+        AND (
+          sm.chapter IS NULL OR LOWER(TRIM(c.name)) = LOWER(TRIM(sm.chapter))
+        )
+        AND sm.tenant_id = $1
+      `,
+      [tenantId]
+    );
+
+    // 2. Generate the report for mapped vs orphans
+    const [mappedTotalRow] = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS count FROM study_materials WHERE tenant_id = $1 AND subject_id_fk IS NOT NULL`,
+      [tenantId]
+    );
+
+    const missingSubjectOrphans = await this.dataSource.query(
+      `SELECT id as "materialId", title, subject as "legacySubjectName", chapter as "legacyChapterName", 'SUBJECT_NOT_FOUND' as "errorType"
+       FROM study_materials 
+       WHERE tenant_id = $1 AND subject IS NOT NULL AND subject_id_fk IS NULL`,
+      [tenantId]
+    );
+
+    const missingChapterOrphans = await this.dataSource.query(
+      `SELECT id as "materialId", title, subject_id_fk, chapter as "legacyChapterName", 'CHAPTER_NOT_FOUND' as "errorType"
+       FROM study_materials 
+       WHERE tenant_id = $1 AND chapter IS NOT NULL AND chapter_id IS NULL`,
+      [tenantId]
+    );
+
+    const missingTopicOrphans = await this.dataSource.query(
+      `SELECT id as "materialId", title, chapter_id, 'TOPIC_NOT_FOUND' as "errorType"
+       FROM study_materials 
+       WHERE tenant_id = $1 AND topic_id IS NULL AND subject_id_fk IS NOT NULL AND chapter_id IS NOT NULL`,
+      [tenantId]
+    );
+
+    const orphanRecords = [
+      ...missingSubjectOrphans,
+      ...missingChapterOrphans,
+      ...missingTopicOrphans
+    ];
+
+    return {
+      success: true,
+      data: {
+        mappedRecords: mappedTotalRow?.[0]?.count ?? 0,
+        orphanRecordsCount: orphanRecords.length,
+        missingSubjectMappingCount: missingSubjectOrphans.length,
+        missingChapterMappingCount: missingChapterOrphans.length,
+        missingTopicMappingCount: missingTopicOrphans.length,
+        orphanRecords
+      }
+    };
   }
 
   /**
