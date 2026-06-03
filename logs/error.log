@@ -8690,3 +8690,437 @@ Error: NotFoundException: Student not found
     at SchoolStudentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:133:29)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-03T06:28:48.534Z] GET /api/v1/school/events
+Status: 500
+Error: Error: Connection terminated due to connection timeout
+    at Client._connectionCallback (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:276:17)
+    at Connection.<anonymous> (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg\lib\client.js:193:18)
+    at Object.onceWrapper (node:events:633:28)
+    at Connection.emit (node:events:519:28)
+    at Connection.emit (node:domain:489:12)
+    at Socket.<anonymous> (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg\lib\connection.js:61:12)
+    at Socket.emit (node:events:531:35)
+    at Socket.emit (node:domain:489:12)
+    at TCP.<anonymous> (node:net:346:12)
+
+[2026-06-03T07:02:57.000Z] GET /api/v1/school/topics/chapters?subjectId=6bda44a0-0523-42cc-90f6-97e50286b91e
+Status: 500
+Error: QueryFailedError: column "order_index" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.listChapters (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:37:25)
+
+[2026-06-03T07:51:11.492Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-03T07:51:48.240Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:127:25)
+
+[2026-06-03T07:51:48.395Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-03T07:51:48.531Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:127:25)
+
+[2026-06-03T07:51:56.633Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-03T07:52:08.474Z] GET /api/v1/admin/tenants/c259cd4e-b018-45e2-8e46-52a497ca49a1
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-03T07:52:08.717Z] GET /api/v1/admin/tenants/c259cd4e-b018-45e2-8e46-52a497ca49a1/stats
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-03T07:52:09.744Z] GET /api/v1/admin/tenants/c259cd4e-b018-45e2-8e46-52a497ca49a1
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-03T07:52:10.298Z] GET /api/v1/admin/tenants/c259cd4e-b018-45e2-8e46-52a497ca49a1/stats
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-03T07:52:55.904Z] GET /api/v1/admin/tenants/c259cd4e-b018-45e2-8e46-52a497ca49a1
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-03T07:52:56.178Z] GET /api/v1/admin/tenants/c259cd4e-b018-45e2-8e46-52a497ca49a1/stats
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-03T07:52:57.508Z] GET /api/v1/admin/tenants/c259cd4e-b018-45e2-8e46-52a497ca49a1
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-03T07:52:57.881Z] GET /api/v1/admin/tenants/c259cd4e-b018-45e2-8e46-52a497ca49a1/stats
+Status: 403
+Error: ForbiddenException: Access denied. Required: [super_admin]. Your role: student
+    at RolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-03T07:53:12.302Z] GET /api/v1/tenants/resolve/odm
+Status: 404
+Error: NotFoundException: Institute not found
+    at PublicTenantController.resolveBySubdomain (C:\EDDVA SCHOOL\eddva_backend\src\modules\super-admin\public-tenant.controller.ts:97:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-03T07:53:15.351Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-03T07:54:58.479Z] GET /api/v1/tenants/resolve/odm
+Status: 404
+Error: NotFoundException: Institute not found
+    at PublicTenantController.resolveBySubdomain (C:\EDDVA SCHOOL\eddva_backend\src\modules\super-admin\public-tenant.controller.ts:97:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-03T07:55:01.861Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-03T07:58:02.387Z] GET /api/v1/school/school/teachers
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/school/teachers
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-03T07:59:11.641Z] GET /api/v1/tenants/resolve/odm
+Status: 404
+Error: NotFoundException: Institute not found
+    at PublicTenantController.resolveBySubdomain (C:\EDDVA SCHOOL\eddva_backend\src\modules\super-admin\public-tenant.controller.ts:97:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-03T07:59:14.584Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+
+[2026-06-03T08:00:36.866Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:81:5)
+
+[2026-06-03T08:01:00.223Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:81:5)
+
+[2026-06-03T08:56:31.592Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:81:5)
+
+[2026-06-03T09:57:48.334Z] POST /api/v1/school/topics/chapters
+Status: 500
+Error: QueryFailedError: column "description" of relation "chapters" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:91:25)
+
+[2026-06-03T10:01:38.483Z] POST /api/v1/school/topics/chapters
+Status: 500
+Error: QueryFailedError: null value in column "institute_id" of relation "chapters" violates not-null constraint
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:91:25)
+
+[2026-06-03T10:02:13.349Z] POST /api/v1/school/topics/chapters
+Status: 500
+Error: QueryFailedError: null value in column "institute_id" of relation "chapters" violates not-null constraint
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:91:25)
+
+[2026-06-03T10:10:14.547Z] POST /api/v1/school/topics/chapters
+Status: 500
+Error: QueryFailedError: null value in column "institute_id" of relation "chapters" violates not-null constraint
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:91:25)
+
+[2026-06-03T10:31:18.932Z] POST /api/v1/school/topics
+Status: 500
+Error: QueryFailedError: insert or update on table "topics" violates foreign key constraint "FK_44dc6b6f929c6894f621828e915"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createTopic (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:51:25)
+
+[2026-06-03T10:41:52.899Z] POST /api/v1/school/topics
+Status: 500
+Error: QueryFailedError: insert or update on table "topics" violates foreign key constraint "FK_44dc6b6f929c6894f621828e915"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createTopic (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:52:25)
+
+[2026-06-03T10:43:03.987Z] POST /api/v1/school/topics
+Status: 500
+Error: QueryFailedError: insert or update on table "topics" violates foreign key constraint "FK_44dc6b6f929c6894f621828e915"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createTopic (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:52:25)
+
+[2026-06-03T10:43:17.486Z] POST /api/v1/school/topics
+Status: 500
+Error: QueryFailedError: insert or update on table "topics" violates foreign key constraint "FK_44dc6b6f929c6894f621828e915"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createTopic (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:52:25)
+
+[2026-06-03T10:59:23.664Z] POST /api/v1/school/topics
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createTopic (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:40:5)
+
+[2026-06-03T10:59:40.420Z] POST /api/v1/school/topics
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createTopic (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:40:5)
+
+[2026-06-03T11:14:51.938Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-03T11:14:52.677Z] GET /favicon.ico
+Status: 404
+Error: NotFoundException: Cannot GET /favicon.ico
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-03T11:15:28.806Z] GET /school/login
+Status: 404
+Error: NotFoundException: Cannot GET /school/login
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-03T11:16:04.518Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:83:5)
+
+[2026-06-03T11:16:36.387Z] POST /api/v1/school/topics
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createTopic (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:41:5)
+
+[2026-06-03T11:18:04.623Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:83:5)
+
+[2026-06-03T11:18:09.902Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:83:5)
+
+[2026-06-03T11:18:23.359Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:83:5)
+
+[2026-06-03T11:19:40.531Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:83:5)
+
+[2026-06-03T11:21:49.736Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:83:5)
+
+[2026-06-03T11:25:47.630Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:83:5)
+
+[2026-06-03T11:26:13.368Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:83:5)
+
+[2026-06-03T11:26:42.493Z] POST /api/v1/school/topics/chapters
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolTopicService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolTopicService.createChapter (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:83:5)
+
+[2026-06-03T11:31:36.248Z] POST /api/v1/school/topics
+Status: 500
+Error: QueryFailedError: column "description" of relation "topics" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createTopic (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:47:25)
+
+[2026-06-03T11:32:04.588Z] POST /api/v1/school/topics
+Status: 500
+Error: QueryFailedError: column "description" of relation "topics" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createTopic (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:47:25)
+
+[2026-06-03T11:51:47.770Z] POST /api/v1/school/topics
+Status: 500
+Error: QueryFailedError: insert or update on table "topics" violates foreign key constraint "FK_44dc6b6f929c6894f621828e915"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTopicService.createTopic (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\topic\school-topic.service.ts:47:25)
+
+[2026-06-03T12:02:27.237Z] POST /api/v1/school/materials
+Status: 403
+Error: ForbiddenException: Teacher is not assigned to this subject
+    at SchoolMaterialService.validateTeacherAssignment (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:23:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolMaterialService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:57:5)
+

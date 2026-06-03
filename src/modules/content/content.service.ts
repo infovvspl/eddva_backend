@@ -102,7 +102,7 @@ export class ContentService {
         @InjectRepository(User, 'coaching')
         private readonly userRepo: Repository<User>,
         @InjectDataSource('coaching')
-    private readonly dataSource: DataSource,
+        private readonly dataSource: DataSource,
         private readonly aiBridgeService: AiBridgeService,
         private readonly notificationService: NotificationService,
         private readonly studyPlanService: StudyPlanService,
@@ -418,7 +418,7 @@ export class ContentService {
                             name: cDef.name,
                             tenantId,
                             subjectId: subject.id,
-                            jeeWeightage:  cDef.jeeWeightage  ?? 0,
+                            jeeWeightage: cDef.jeeWeightage ?? 0,
                             neetWeightage: cDef.neetWeightage ?? 0,
                             sortOrder: ci,
                             isActive: true,
@@ -429,7 +429,7 @@ export class ContentService {
                         skipped.chapters++;
                         // Update weightages if provided
                         let dirty = false;
-                        if (cDef.jeeWeightage  != null) { chapter.jeeWeightage  = cDef.jeeWeightage;  dirty = true; }
+                        if (cDef.jeeWeightage != null) { chapter.jeeWeightage = cDef.jeeWeightage; dirty = true; }
                         if (cDef.neetWeightage != null) { chapter.neetWeightage = cDef.neetWeightage; dirty = true; }
                         if (dirty) await manager.save(Chapter, chapter);
                     }
@@ -532,7 +532,7 @@ export class ContentService {
         const saved = await this.topicRepo.save(topic);
 
         const batchId = chapter.subject?.batchId ?? null;
-        this.studyPlanService.onTopicCreated(saved.id, batchId, tenantId).catch(() => {});
+        this.studyPlanService.onTopicCreated(saved.id, batchId, tenantId).catch(() => { });
 
         return saved;
     }
@@ -781,7 +781,7 @@ export class ContentService {
                     }
                 } catch { /* background task — swallow */ }
             })();
-            this._notifyStudentsOnPublish(saved).catch(() => {});
+            this._notifyStudentsOnPublish(saved).catch(() => { });
         }
 
         if (dto.type === LectureType.LIVE && saved.scheduledAt) {
@@ -1078,7 +1078,7 @@ export class ContentService {
             return { message: 'Transcription already in progress' };
         }
         await this.lectureRepo.update(id, { transcriptStatus: TranscriptStatus.PROCESSING });
-        this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => {});
+        this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => { });
         return { message: 'Transcription started' };
     }
 
@@ -1093,7 +1093,7 @@ export class ContentService {
         }
         const lectureLanguage = this.normalizeLectureLanguage(lecture.lectureLanguage);
         const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
-        this._runNotesFromSavedTranscript(id, lecture.transcript, lecture.topicId, aiLanguage, tenantId).catch(() => {});
+        this._runNotesFromSavedTranscript(id, lecture.transcript, lecture.topicId, aiLanguage, tenantId).catch(() => { });
         return { message: 'Notes generation started' };
     }
 
@@ -1273,7 +1273,7 @@ export class ContentService {
             }
         } else if (userRole === UserRole.TEACHER) {
             qb.andWhere('l.tenantId = :tenantId', { tenantId })
-              .andWhere('l.teacherId = :userId', { userId });
+                .andWhere('l.teacherId = :userId', { userId });
         } else {
             // admin/super_admin scoped to their tenant
             qb.andWhere('l.tenantId = :tenantId', { tenantId });
@@ -1884,7 +1884,7 @@ export class ContentService {
                     // Backfill: use exam-tier base count (no keyConcepts yet, use medium complexity)
                     const bfExam = (student.examTarget ?? '').toLowerCase();
                     const bfCount = bfExam.includes('advanced') ? 16 : bfExam.includes('jee') ? 14 : bfExam.includes('neet') ? 12 : 10;
-                    const bfDiff  = bfExam.includes('advanced') ? 'hard' : bfExam.includes('jee') ? 'medium_hard' : bfExam.includes('neet') ? 'medium' : 'easy_medium';
+                    const bfDiff = bfExam.includes('advanced') ? 'hard' : bfExam.includes('jee') ? 'medium_hard' : bfExam.includes('neet') ? 'medium' : 'easy_medium';
                     const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
                         {
                             topicId,
@@ -1939,38 +1939,38 @@ export class ContentService {
 
         // Derive exam tier label and calibration instructions for the lesson prompt
         const examLower = examTarget.toLowerCase();
-        const isAdvanced  = examLower.includes('advanced');
-        const isJee       = examLower.includes('jee');
-        const isNeet      = examLower.includes('neet');
+        const isAdvanced = examLower.includes('advanced');
+        const isJee = examLower.includes('jee');
+        const isNeet = examLower.includes('neet');
         const isFoundation = examLower.includes('foundation');
 
         const tierLabel = isAdvanced ? 'JEE Advanced (IIT â€” top 0.1%)'
-          : isJee    ? 'JEE Mains (NIT/IIIT â€” top 2%)'
-          : isNeet   ? 'NEET (MBBS â€” top 1% medical)'
-          : isFoundation ? 'Foundation (Class 8â€“10)'
-          : examTarget;
+            : isJee ? 'JEE Mains (NIT/IIIT â€” top 2%)'
+                : isNeet ? 'NEET (MBBS â€” top 1% medical)'
+                    : isFoundation ? 'Foundation (Class 8â€“10)'
+                        : examTarget;
 
         const targetLabel = targetCollege
-          ? `${tierLabel} â€” aiming for ${targetCollege}`
-          : tierLabel;
+            ? `${tierLabel} â€” aiming for ${targetCollege}`
+            : tierLabel;
 
         const tierCalibration = isAdvanced
-          ? `- Depth of IIT JEE Advanced: integrate multiple sub-concepts in single examples
+            ? `- Depth of IIT JEE Advanced: integrate multiple sub-concepts in single examples
 - Derivations must be rigorous (starting from first principles)
 - Examples must involve multi-step reasoning with non-obvious intermediate steps
 - Self-check questions should require concept elimination, not just recall
 - Include edge cases, special conditions, and examiner traps`
-          : isJee
-          ? `- Depth of JEE Mains: strong formula application and numerical fluency
+            : isJee
+                ? `- Depth of JEE Mains: strong formula application and numerical fluency
 - Cover standard question types (1-mark concept + 4-mark numerical)
 - Examples should be 2â€“3 step reasoning
 - Highlight commonly tested approximations and shortcuts`
-          : isNeet
-          ? `- Depth of NEET: thorough NCERT alignment with assertion-reason and diagram-based patterns
+                : isNeet
+                    ? `- Depth of NEET: thorough NCERT alignment with assertion-reason and diagram-based patterns
 - Emphasise definitions, classification, exceptions, and factual recall
 - Examples should test direct application of NCERT facts and diagrams
 - Flag topics with high NEET frequency`
-          : `- Clear, accessible explanations suitable for the student's class
+                    : `- Clear, accessible explanations suitable for the student's class
 - NCERT-aligned content with simple worked examples
 - Focus on concept understanding over calculation complexity`;
 
@@ -2139,11 +2139,11 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         // Dynamic question count: complexity (key-concept count) Ã— exam-tier
         const complexity = keyConcepts.length >= 7 ? 'high' : keyConcepts.length >= 4 ? 'medium' : 'low';
         const qTable: Record<string, Record<string, number>> = {
-            advanced:   { low: 12, medium: 16, high: 20 },
-            jee:        { low: 10, medium: 14, high: 18 },
-            neet:       { low: 8,  medium: 12, high: 15 },
-            foundation: { low: 5,  medium: 8,  high: 10 },
-            default:    { low: 8,  medium: 10, high: 12 },
+            advanced: { low: 12, medium: 16, high: 20 },
+            jee: { low: 10, medium: 14, high: 18 },
+            neet: { low: 8, medium: 12, high: 15 },
+            foundation: { low: 5, medium: 8, high: 10 },
+            default: { low: 8, medium: 10, high: 12 },
         };
         const qTier = isAdvanced ? 'advanced' : isJee ? 'jee' : isNeet ? 'neet' : isFoundation ? 'foundation' : 'default';
         const questionCount = qTable[qTier][complexity];
@@ -2192,7 +2192,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 isCompleted: false,
                 completedAt: null,
                 timeSpentSeconds: 0,
-              }
+            }
             : this.aiStudyRepo.create({
                 tenantId,
                 studentId: student.id,
@@ -2204,7 +2204,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 commonMistakes,
                 aiSessionRef,
                 conversation: [{ role: 'ai', message: introMessage, timestamp: new Date().toISOString() }],
-              });
+            });
 
         const saved = await this.aiStudyRepo.save(session as any);
 
@@ -2396,7 +2396,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 if (topic) {
                     const bf3Exam = (student.examTarget ?? '').toLowerCase();
                     const bf3Count = bf3Exam.includes('advanced') ? 16 : bf3Exam.includes('jee') ? 14 : bf3Exam.includes('neet') ? 12 : 10;
-                    const bf3Diff  = bf3Exam.includes('advanced') ? 'hard' : bf3Exam.includes('jee') ? 'medium_hard' : bf3Exam.includes('neet') ? 'medium' : 'easy_medium';
+                    const bf3Diff = bf3Exam.includes('advanced') ? 'hard' : bf3Exam.includes('jee') ? 'medium_hard' : bf3Exam.includes('neet') ? 'medium' : 'easy_medium';
                     const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
                         {
                             topicId,
@@ -2593,9 +2593,9 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         if (!topic) throw new NotFoundException(`Topic ${topicId} not found`);
 
         const quizStudent = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
-        const quizExam    = (quizStudent?.examTarget ?? '').toLowerCase();
-        const quizCount   = quizExam.includes('advanced') ? 12 : quizExam.includes('jee') ? 10 : quizExam.includes('neet') ? 8 : 8;
-        const quizDiff    = quizExam.includes('advanced') ? 'hard' : quizExam.includes('jee') ? 'medium_hard' : quizExam.includes('neet') ? 'medium' : 'easy_medium';
+        const quizExam = (quizStudent?.examTarget ?? '').toLowerCase();
+        const quizCount = quizExam.includes('advanced') ? 12 : quizExam.includes('jee') ? 10 : quizExam.includes('neet') ? 8 : 8;
+        const quizDiff = quizExam.includes('advanced') ? 'hard' : quizExam.includes('jee') ? 'medium_hard' : quizExam.includes('neet') ? 'medium' : 'easy_medium';
 
         let rawQuestions: any[] = [];
         try {
@@ -2798,7 +2798,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         // If this topic exists as a practice plan item, auto-complete it.
         await this.studyPlanService
             .completeByReference(student.id, tenantId, topicId, PlanItemType.PRACTICE)
-            .catch(() => {});
+            .catch(() => { });
 
         return {
             passed,

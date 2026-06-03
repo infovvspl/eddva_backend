@@ -68,6 +68,20 @@ export class CreateStudyMaterialDto {
   @Type(() => Number)
   @IsNumber()
   sortOrder?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  subjectIdFk?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  chapterId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  topicId?: string;
 }
 
 // ── Admin: Update ─────────────────────────────────────────────────────────────
@@ -76,6 +90,9 @@ export class UpdateStudyMaterialDto {
   @ApiPropertyOptional() @IsOptional() @IsString() title?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() subject?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() chapter?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() subjectIdFk?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() chapterId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() topicId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() sortOrder?: number;
