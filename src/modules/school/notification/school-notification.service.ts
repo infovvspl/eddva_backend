@@ -13,7 +13,18 @@ export class SchoolNotificationService {
     if (query.type) { params.push(query.type); sql += ` AND type=$${params.length}`; }
     sql += ` ORDER BY created_at DESC`;
     const rows: any[] = await this.ds.query(sql, params);
-    return { success: true, data: rows };
+    
+    const mapped = rows.map(r => ({
+      id: r.id,
+      userId: r.user_id,
+      type: r.type,
+      title: r.title,
+      message: r.message,
+      isRead: r.is_read,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
+    }));
+    return { success: true, data: mapped };
   }
 
   async create(body: any) {
@@ -25,6 +36,9 @@ export class SchoolNotificationService {
   }
 
   async findOne(id: string) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      throw new NotFoundException('Notification not found');
+    }
     const rows: any[] = await this.ds.query(`SELECT * FROM notifications WHERE id=$1`, [id]);
     if (!rows.length) throw new NotFoundException('Notification not found');
     return { success: true, data: rows[0] };
@@ -41,6 +55,16 @@ export class SchoolNotificationService {
   async markRead(id: string) {
     await this.ds.query(`UPDATE notifications SET is_read=true,updated_at=NOW() WHERE id=$1`, [id]);
     return { success: true };
+  }
+
+  async markAllAsRead(user: any) {
+    await this.ds.query(`UPDATE notifications SET is_read=true,updated_at=NOW() WHERE user_id=$1 AND is_read=false`, [user.id]);
+    return { success: true };
+  }
+
+  async getUnreadCount(user: any) {
+    const rows = await this.ds.query(`SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false`, [user.id]);
+    return { success: true, count: rows[0]?.count || 0 };
   }
 
   async remove(id: string) {

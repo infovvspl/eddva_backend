@@ -10,6 +10,7 @@ export class SchoolAssessmentController {
   constructor(private readonly svc: SchoolAssessmentService) {}
 
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
+  @Get('sessions') listSessions(@SchoolUser() user: any) { return this.svc.listSessions(user); }
   @Post() create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(id); }
   @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }

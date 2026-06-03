@@ -16,7 +16,10 @@ export class TenantMiddleware implements NestMiddleware {
   constructor(
     @InjectDataSource('coaching')
     private readonly ds: DataSource,
-  ) {}
+  ) { }
+
+  private tenantCache = new Map<string, { value: Tenant | null; expiresAt: number }>();
+  private readonly cacheTtlMs = 30000; // 30 seconds
 
   private async findTenant(where: string, param: string): Promise<Tenant | null> {
     const key = `${where}:${param}`;

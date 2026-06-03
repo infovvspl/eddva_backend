@@ -143,6 +143,11 @@ export class CreateLectureDto {
     @IsOptional()
     @IsNumber()
     videoDurationSeconds?: number;
+
+    @ApiPropertyOptional({ example: 'uuid-of-teacher' })
+    @IsOptional()
+    @IsUUID()
+    teacherId?: string;
 }
 
 export class UpdateLectureDto extends PartialType(CreateLectureDto) {

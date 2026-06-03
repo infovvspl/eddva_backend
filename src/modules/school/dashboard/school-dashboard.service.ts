@@ -195,4 +195,149 @@ export class SchoolDashboardService {
       },
     };
   }
+
+  async search(user: any, q: string) {
+    const qTrim = (q || '').trim();
+    if (!qTrim) {
+      return {
+        students: [],
+        teachers: [],
+        classes: [],
+        sections: [],
+        subjects: [],
+        events: [],
+        announcements: [],
+        tickets: [],
+        users: []
+      };
+    }
+
+    const term = `%${qTrim}%`;
+    const isSuperAdmin = user.role === 'SUPER_ADMIN';
+    const instituteId = user.instituteId;
+
+    const runQuery = async (sql: string, params: any[]) => {
+      try {
+        return await this.ds.query(sql, params);
+      } catch (err) {
+        console.error('Search query failed:', sql, err);
+        return [];
+      }
+    };
+
+    const getQueryConfig = (baseSql: string, isUserTable = false) => {
+      let filter = '';
+      const params: any[] = [term];
+      if (!isSuperAdmin) {
+        params.push(instituteId);
+        const col = isUserTable ? 'u.institute_id' : 'institute_id';
+        filter = `AND ${col} = $2`;
+      }
+      const sql = baseSql.replace('__FILTER__', filter);
+      return { sql, params };
+    };
+
+    const studentConf = getQueryConfig(
+      `SELECT u.id, u.name, u.email, u.photo, s.enrollment_no AS "enrollmentNo" 
+       FROM users u 
+       JOIN students s ON s.user_id = u.id 
+       WHERE u.role = 'STUDENT' __FILTER__ AND (u.name ILIKE $1 OR u.email ILIKE $1 OR s.enrollment_no ILIKE $1)
+       LIMIT 10`,
+      true
+    );
+
+    const teacherConf = getQueryConfig(
+      `SELECT u.id, u.name, u.email, u.photo, t.employee_id AS "employeeId" 
+       FROM users u 
+       JOIN teachers t ON t.user_id = u.id 
+       WHERE u.role = 'TEACHER' __FILTER__ AND (u.name ILIKE $1 OR u.email ILIKE $1 OR t.employee_id ILIKE $1)
+       LIMIT 10`,
+      true
+    );
+
+    const classConf = getQueryConfig(
+      `SELECT id, name, academic_year AS "academicYear" 
+       FROM classes 
+       WHERE (name ILIKE $1) __FILTER__ 
+       LIMIT 10`
+    );
+
+    const sectionConf = getQueryConfig(
+      `SELECT s.id, s.name, c.name AS "className" 
+       FROM sections s 
+       JOIN classes c ON s.class_id = c.id 
+       WHERE (s.name ILIKE $1) __FILTER__ 
+       LIMIT 10`
+    );
+
+    const subjectConf = getQueryConfig(
+      `SELECT id, name, code 
+       FROM subjects 
+       WHERE (name ILIKE $1 OR code ILIKE $1) __FILTER__ 
+       LIMIT 10`
+    );
+
+    const eventConf = getQueryConfig(
+      `SELECT id, title, start_date AS "startDate", location 
+       FROM events 
+       WHERE (title ILIKE $1 OR description ILIKE $1) __FILTER__ 
+       LIMIT 10`
+    );
+
+    const noticeConf = getQueryConfig(
+      `SELECT id, title, posted_date AS "postedDate" 
+       FROM notices 
+       WHERE (title ILIKE $1 OR content ILIKE $1) __FILTER__ 
+       LIMIT 10`
+    );
+
+    const ticketConf = getQueryConfig(
+      `SELECT id, title, status 
+       FROM complaints 
+       WHERE (title ILIKE $1 OR description ILIKE $1) __FILTER__ 
+       LIMIT 10`
+    );
+
+    const userConf = getQueryConfig(
+      `SELECT u.id, u.name, u.email, u.role, u.is_active AS "isActive" 
+       FROM users u 
+       WHERE (u.name ILIKE $1 OR u.email ILIKE $1) __FILTER__ 
+       LIMIT 10`,
+      true
+    );
+
+    const [
+      students,
+      teachers,
+      classes,
+      sections,
+      subjects,
+      events,
+      announcements,
+      tickets,
+      users
+    ] = await Promise.all([
+      runQuery(studentConf.sql, studentConf.params),
+      runQuery(teacherConf.sql, teacherConf.params),
+      runQuery(classConf.sql, classConf.params),
+      runQuery(sectionConf.sql, sectionConf.params),
+      runQuery(subjectConf.sql, subjectConf.params),
+      runQuery(eventConf.sql, eventConf.params),
+      runQuery(noticeConf.sql, noticeConf.params),
+      runQuery(ticketConf.sql, ticketConf.params),
+      runQuery(userConf.sql, userConf.params),
+    ]);
+
+    return {
+      students,
+      teachers,
+      classes,
+      sections,
+      subjects,
+      events,
+      announcements,
+      tickets,
+      users
+    };
+  }
 }

@@ -51,4 +51,43 @@ export class SchoolAssessmentService {
     );
     return { success: true, data: rows[0] };
   }
+
+  async listSessions(user: any) {
+    const instituteId = user.instituteId;
+    const rows = await this.ds.query(`
+      SELECT 
+        ts.id,
+        ts.status,
+        ts.total_score AS "totalScore",
+        ts.accuracy,
+        ts.correct_count AS "correctCount",
+        ts.wrong_count AS "wrongCount",
+        u.name AS "student_name",
+        mt.title AS "mock_test_title"
+      FROM test_sessions ts
+      INNER JOIN students s ON ts.student_id = s.id
+      INNER JOIN users u ON s.user_id = u.id
+      INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
+      WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
+      ORDER BY ts.submitted_at DESC NULLS LAST
+    `, [instituteId]);
+
+    const mapped = rows.map(r => ({
+      id: r.id,
+      status: r.status,
+      totalScore: r.totalScore,
+      accuracy: r.accuracy,
+      correctCount: r.correctCount,
+      wrongCount: r.wrongCount,
+      student: {
+        user: {
+          name: r.student_name
+        }
+      },
+      mockTest: {
+        title: r.mock_test_title
+      }
+    }));
+    return { success: true, data: mapped };
+  }
 }
