@@ -760,10 +760,12 @@ export class ContentService {
         const status =
             dto.type === LectureType.LIVE ? LectureStatus.SCHEDULED : LectureStatus.PUBLISHED;
 
+        const finalTeacherId = (isAdmin && dto.teacherId) ? dto.teacherId : userId;
+
         const lecture = this.lectureRepo.create({
             ...dto,
             tenantId,
-            teacherId: userId,
+            teacherId: finalTeacherId,
             status,
         });
         const saved = await this.lectureRepo.save(lecture);
@@ -1409,8 +1411,13 @@ export class ContentService {
         const isAdmin =
             userRole === UserRole.INSTITUTE_ADMIN || userRole === UserRole.SUPER_ADMIN;
 
-        if (!isAdmin && lecture.teacherId !== userId) {
-            throw new ForbiddenException('You can only modify your own lectures');
+        if (!isAdmin) {
+            if (lecture.teacherId !== userId) {
+                throw new ForbiddenException('You can only modify your own lectures');
+            }
+            if (dto.teacherId && dto.teacherId !== lecture.teacherId) {
+                throw new ForbiddenException('Teachers cannot change the assigned teacher');
+            }
         }
 
         const wasPublished = lecture.status === LectureStatus.PUBLISHED;

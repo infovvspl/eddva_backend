@@ -11,19 +11,45 @@ export class TenantMiddleware implements NestMiddleware {
     private readonly ds: DataSource,
   ) {}
 
+  private tenantCache = new Map<string, { value: Tenant | null; expiresAt: number }>();
+  private readonly cacheTtlMs = 30000; // 30 seconds
+
   private async findTenant(where: string, param: string): Promise<Tenant | null> {
+    const cacheKey = `${where}:${param}`;
+    const now = Date.now();
+    const cached = this.tenantCache.get(cacheKey);
+
+    if (cached && cached.expiresAt > now) {
+      return cached.value;
+    }
+
     try {
       const rows = await this.ds.query(
         `SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE ${where} = $1 LIMIT 1`,
         [param],
       );
-      if (!rows.length) return null;
-      const r = rows[0];
-      return Object.assign(new Tenant(), {
-        id: r.id, name: r.name, subdomain: r.subdomain,
-        type: r.type, status: r.status, plan: r.plan,
-        maxStudents: r.max_students, maxTeachers: r.max_teachers,
-      });
+      let tenant: Tenant | null = null;
+      if (rows.length) {
+        const r = rows[0];
+        tenant = Object.assign(new Tenant(), {
+          id: r.id, name: r.name, subdomain: r.subdomain,
+          type: r.type, status: r.status, plan: r.plan,
+          maxStudents: r.max_students, maxTeachers: r.max_teachers,
+        });
+      }
+
+      const expiresAt = now + this.cacheTtlMs;
+      this.tenantCache.set(cacheKey, { value: tenant, expiresAt });
+
+      if (tenant) {
+        // Also cache by other keys to maximize hit rate for next lookup steps
+        this.tenantCache.set(`id:${tenant.id}`, { value: tenant, expiresAt });
+        if (tenant.subdomain) {
+          this.tenantCache.set(`subdomain:${tenant.subdomain}`, { value: tenant, expiresAt });
+        }
+      }
+
+      return tenant;
     } catch {
       return null;
     }

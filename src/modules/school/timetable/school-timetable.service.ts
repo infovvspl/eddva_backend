@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
@@ -25,6 +25,35 @@ const REV_DAY_MAP: Record<number, string> = {
 @Injectable()
 export class SchoolTimetableService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+
+  private async validateAssignment(sectionId: string, subjectId: string, teacherId: string) {
+    if (!sectionId || !subjectId || !teacherId) {
+      throw new BadRequestException('sectionId, subjectId, and teacherId are required');
+    }
+
+    const sectionRows = await this.ds.query(`SELECT class_id FROM sections WHERE id = $1`, [sectionId]);
+    if (!sectionRows.length) {
+      throw new BadRequestException('Selected section not found');
+    }
+    const classId = sectionRows[0].class_id;
+
+    // Check if any teacher is assigned to this combination
+    const assignments: any[] = await this.ds.query(
+      `SELECT * FROM teacher_academic_assignments 
+       WHERE class_id = $1 AND section_id = $2 AND subject_id = $3`,
+      [classId, sectionId, subjectId]
+    );
+
+    if (!assignments.length) {
+      throw new BadRequestException('No teacher is assigned to this subject/class/section combination.');
+    }
+
+    // Check if the selected teacher is the assigned one
+    const isAssigned = assignments.some(a => String(a.teacher_id) === String(teacherId));
+    if (!isAssigned) {
+      throw new BadRequestException('The selected teacher is not assigned to this subject/class/section combination.');
+    }
+  }
 
   // Timetables
   async listTimetables(user: any, query: any) {
@@ -87,6 +116,10 @@ export class SchoolTimetableService {
   async createTimetable(user: any, body: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
     const dayOfWeekInt = DAY_MAP[body.dayOfWeek] || 1;
+
+    // Validate assignment
+    await this.validateAssignment(body.sectionId, body.subjectId, body.teacherId);
+
     const rows: any[] = await this.ds.query(
       `INSERT INTO timetables (institute_id, section_id, subject_id, teacher_id, day_of_week, start_time, end_time, room) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
@@ -161,6 +194,17 @@ export class SchoolTimetableService {
 
   async updateTimetable(id: string, body: any) {
     const dayOfWeekInt = body.dayOfWeek ? (DAY_MAP[body.dayOfWeek] || 1) : undefined;
+
+    // Validate assignment
+    if (body.sectionId || body.subjectId || body.teacherId) {
+      const existing = await this.findOneTimetable(id);
+      const slot = existing.data;
+      const sectionId = body.sectionId || slot.sectionId;
+      const subjectId = body.subjectId || slot.subjectId;
+      const teacherId = body.teacherId || slot.teacherId;
+      await this.validateAssignment(sectionId, subjectId, teacherId);
+    }
+
     await this.ds.query(
       `UPDATE timetables SET 
         section_id = COALESCE($2, section_id),

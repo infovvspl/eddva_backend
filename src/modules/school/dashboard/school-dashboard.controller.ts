@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { SchoolDashboardService } from './school-dashboard.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -12,4 +12,9 @@ export class SchoolDashboardController {
   @Get('dashboard/stats') stats(@SchoolUser() user: any) { return this.svc.stats(user); }
 
   @Get('admin/stats') adminStats(@SchoolUser() user: any) { return this.svc.adminStats(user); }
+
+  @Get('search')
+  search(@SchoolUser() user: any, @Query('q') q = '') {
+    return this.svc.search(user, q);
+  }
 }

@@ -37,7 +37,10 @@ export class SchoolAttendanceService {
       WHERE a.institute_id = $1
     `;
     const params: any[] = [instituteId];
+    if (query.userId) { params.push(query.userId); sql += ` AND a.user_id=$${params.length}`; }
     if (query.date) { params.push(new Date(query.date)); sql+=` AND a.date=$${params.length}`; }
+    if (query.startDate) { params.push(new Date(query.startDate)); sql+=` AND a.date>=$${params.length}`; }
+    if (query.endDate) { params.push(new Date(query.endDate)); sql+=` AND a.date<=$${params.length}`; }
     if (query.role) { params.push(query.role); sql+=` AND u.role=$${params.length}`; }
     sql+=` ORDER BY a.date DESC`;
     
