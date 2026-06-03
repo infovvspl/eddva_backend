@@ -52,9 +52,8 @@ import {
     LectureQueryDto,
     UpsertProgressDto,
 } from './dto/lecture.dto';
-// Package "main" is CJS but package.json has "type":"module" â€” Node loads .js as ESM and breaks. Use the ESM build.
-// @ts-ignore
-import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
+// Package 1.3.1 fixed the ESM packaging. Use the standard import.
+import { YoutubeTranscript } from 'youtube-transcript';
 type YoutubeTranscriptApi = {
     fetchTranscript: (videoIdOrUrl: string, opts?: { lang?: string }) => Promise<{ text: string }[]>;
 };
@@ -103,13 +102,36 @@ export class ContentService {
         @InjectRepository(User, 'coaching')
         private readonly userRepo: Repository<User>,
         @InjectDataSource('coaching')
-    private readonly dataSource: DataSource,
+        private readonly dataSource: DataSource,
         private readonly aiBridgeService: AiBridgeService,
         private readonly notificationService: NotificationService,
         private readonly studyPlanService: StudyPlanService,
         @Inject(CACHE_MANAGER)
         private readonly cacheManager: Cache,
     ) { }
+
+    /**
+     * Returns true if the tenant has the given AI feature enabled.
+     * Cached 5min in CACHE_MANAGER under the same key the AiFeatureGuard uses,
+     * so toggling a tenant's AI config invalidates both at once.
+     */
+    private async _tenantHasAiFeature(tenantId: string, feature: string): Promise<boolean> {
+        if (!tenantId) return false;
+        const cacheKey = `tenant_ai:${tenantId}`;
+        let cfg = await this.cacheManager.get<{ aiEnabled: boolean; aiFeatures: string[] }>(cacheKey);
+        if (!cfg) {
+            const rows: any[] = await this.dataSource.query(
+                `SELECT ai_enabled, ai_features FROM tenants WHERE id = $1 LIMIT 1`,
+                [tenantId],
+            );
+            cfg = {
+                aiEnabled: rows[0]?.ai_enabled ?? false,
+                aiFeatures: rows[0]?.ai_features ?? [],
+            };
+            await this.cacheManager.set(cacheKey, cfg, 300_000);
+        }
+        return cfg.aiEnabled && cfg.aiFeatures.includes(feature);
+    }
 
     private normalizeSubjectExamTarget(value: string) {
         const cleaned = value.trim().replace(/\s+/g, ' ');
@@ -396,7 +418,7 @@ export class ContentService {
                             name: cDef.name,
                             tenantId,
                             subjectId: subject.id,
-                            jeeWeightage:  cDef.jeeWeightage  ?? 0,
+                            jeeWeightage: cDef.jeeWeightage ?? 0,
                             neetWeightage: cDef.neetWeightage ?? 0,
                             sortOrder: ci,
                             isActive: true,
@@ -407,7 +429,7 @@ export class ContentService {
                         skipped.chapters++;
                         // Update weightages if provided
                         let dirty = false;
-                        if (cDef.jeeWeightage  != null) { chapter.jeeWeightage  = cDef.jeeWeightage;  dirty = true; }
+                        if (cDef.jeeWeightage != null) { chapter.jeeWeightage = cDef.jeeWeightage; dirty = true; }
                         if (cDef.neetWeightage != null) { chapter.neetWeightage = cDef.neetWeightage; dirty = true; }
                         if (dirty) await manager.save(Chapter, chapter);
                     }
@@ -510,7 +532,7 @@ export class ContentService {
         const saved = await this.topicRepo.save(topic);
 
         const batchId = chapter.subject?.batchId ?? null;
-        this.studyPlanService.onTopicCreated(saved.id, batchId, tenantId).catch(() => {});
+        this.studyPlanService.onTopicCreated(saved.id, batchId, tenantId).catch(() => { });
 
         return saved;
     }
@@ -747,8 +769,19 @@ export class ContentService {
         const saved = await this.lectureRepo.save(lecture);
 
         if (dto.type === LectureType.RECORDED && dto.videoUrl) {
-            this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId).catch(() => {});
-            this._notifyStudentsOnPublish(saved).catch(() => {});
+            // Only run transcription / AI notes if the tenant has the STT feature
+            void (async () => {
+                try {
+                    const enabled = await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text');
+                    if (enabled) {
+                        await this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId);
+                    } else {
+                        // No AI: clear transcript status so the UI never shows a perpetual "pending"
+                        await this.lectureRepo.update(saved.id, { transcriptStatus: null as any });
+                    }
+                } catch { /* background task — swallow */ }
+            })();
+            this._notifyStudentsOnPublish(saved).catch(() => { });
         }
 
         if (dto.type === LectureType.LIVE && saved.scheduledAt) {
@@ -823,10 +856,12 @@ export class ContentService {
         const cleanUrl = this._fixVideoUrl(videoUrl.trim());
         const wasPublished = lecture.status === LectureStatus.PUBLISHED;
 
+        const sttEnabled = await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text');
+
         lecture.videoUrl = cleanUrl;
         lecture.type = LectureType.RECORDED;
         lecture.status = LectureStatus.PUBLISHED;
-        lecture.transcriptStatus = TranscriptStatus.PENDING;
+        lecture.transcriptStatus = sttEnabled ? TranscriptStatus.PENDING : (null as any);
         lecture.transcript = null as any;
         lecture.transcriptHi = null as any;
         lecture.aiNotesMarkdown = null as any;
@@ -842,7 +877,8 @@ export class ContentService {
             );
         }
 
-        if (opts?.triggerAi !== false) {
+        // Only transcribe if the tenant has STT enabled AND caller didn't opt out
+        if (opts?.triggerAi !== false && sttEnabled) {
             this._processLectureAI(saved.id, cleanUrl, saved.topicId, tenantId).catch(err =>
                 this.logger.warn(`Failed to start AI processing for lecture ${saved.id}: ${err instanceof Error ? err.message : String(err)}`),
             );
@@ -866,12 +902,10 @@ export class ContentService {
     }
 
     /**
-     * `youtube-transcript@1.3.0` has a packaging issue (`type: module` with CJS main).
-     * Load its ESM build through native dynamic import so Node 24 doesn't crash.
+     * Load youtube-transcript.
      */
     private async loadYoutubeTranscriptApi(): Promise<YoutubeTranscriptApi> {
-        // @ts-ignore
-        const mod = await import('youtube-transcript/dist/youtube-transcript.esm.js');
+        const mod = await import('youtube-transcript');
         const api = (mod as { YoutubeTranscript?: YoutubeTranscriptApi }).YoutubeTranscript;
         if (!api) throw new Error('Failed to load youtube-transcript ESM API');
         return api;
@@ -1034,6 +1068,9 @@ export class ContentService {
         if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
             throw new ForbiddenException('You can only retranscribe your own lectures');
         }
+        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+            throw new ForbiddenException('AI transcription is not enabled for your institution.');
+        }
         if (lecture.type !== LectureType.RECORDED || !lecture.videoUrl) {
             throw new BadRequestException('Only recorded lectures with a video URL can be transcribed');
         }
@@ -1041,7 +1078,7 @@ export class ContentService {
             return { message: 'Transcription already in progress' };
         }
         await this.lectureRepo.update(id, { transcriptStatus: TranscriptStatus.PROCESSING });
-        this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => {});
+        this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => { });
         return { message: 'Transcription started' };
     }
 
@@ -1056,7 +1093,7 @@ export class ContentService {
         }
         const lectureLanguage = this.normalizeLectureLanguage(lecture.lectureLanguage);
         const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
-        this._runNotesFromSavedTranscript(id, lecture.transcript, lecture.topicId, aiLanguage, tenantId).catch(() => {});
+        this._runNotesFromSavedTranscript(id, lecture.transcript, lecture.topicId, aiLanguage, tenantId).catch(() => { });
         return { message: 'Notes generation started' };
     }
 
@@ -1236,7 +1273,7 @@ export class ContentService {
             }
         } else if (userRole === UserRole.TEACHER) {
             qb.andWhere('l.tenantId = :tenantId', { tenantId })
-              .andWhere('l.teacherId = :userId', { userId });
+                .andWhere('l.teacherId = :userId', { userId });
         } else {
             // admin/super_admin scoped to their tenant
             qb.andWhere('l.tenantId = :tenantId', { tenantId });
@@ -1387,9 +1424,13 @@ export class ContentService {
 
         Object.assign(lecture, dto);
 
+        const sttEnabled = videoUrlChanged
+            ? await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text')
+            : false;
+
         if (videoUrlChanged && incomingVideoUrl) {
             lecture.videoUrl = this._fixVideoUrl(incomingVideoUrl);
-            lecture.transcriptStatus = TranscriptStatus.PENDING;
+            lecture.transcriptStatus = sttEnabled ? TranscriptStatus.PENDING : (null as any);
             lecture.transcript = null as any;
             lecture.transcriptHi = null as any;
             lecture.aiNotesMarkdown = null as any;
@@ -1412,7 +1453,7 @@ export class ContentService {
             );
         }
 
-        if (videoUrlChanged && saved.videoUrl) {
+        if (videoUrlChanged && saved.videoUrl && sttEnabled) {
             this._processLectureAI(saved.id, saved.videoUrl, saved.topicId, tenantId).catch(err =>
                 this.logger.warn(`Failed to start AI processing for lecture ${saved.id}: ${err instanceof Error ? err.message : String(err)}`),
             );
@@ -1843,7 +1884,7 @@ export class ContentService {
                     // Backfill: use exam-tier base count (no keyConcepts yet, use medium complexity)
                     const bfExam = (student.examTarget ?? '').toLowerCase();
                     const bfCount = bfExam.includes('advanced') ? 16 : bfExam.includes('jee') ? 14 : bfExam.includes('neet') ? 12 : 10;
-                    const bfDiff  = bfExam.includes('advanced') ? 'hard' : bfExam.includes('jee') ? 'medium_hard' : bfExam.includes('neet') ? 'medium' : 'easy_medium';
+                    const bfDiff = bfExam.includes('advanced') ? 'hard' : bfExam.includes('jee') ? 'medium_hard' : bfExam.includes('neet') ? 'medium' : 'easy_medium';
                     const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
                         {
                             topicId,
@@ -1898,38 +1939,38 @@ export class ContentService {
 
         // Derive exam tier label and calibration instructions for the lesson prompt
         const examLower = examTarget.toLowerCase();
-        const isAdvanced  = examLower.includes('advanced');
-        const isJee       = examLower.includes('jee');
-        const isNeet      = examLower.includes('neet');
+        const isAdvanced = examLower.includes('advanced');
+        const isJee = examLower.includes('jee');
+        const isNeet = examLower.includes('neet');
         const isFoundation = examLower.includes('foundation');
 
         const tierLabel = isAdvanced ? 'JEE Advanced (IIT â€” top 0.1%)'
-          : isJee    ? 'JEE Mains (NIT/IIIT â€” top 2%)'
-          : isNeet   ? 'NEET (MBBS â€” top 1% medical)'
-          : isFoundation ? 'Foundation (Class 8â€“10)'
-          : examTarget;
+            : isJee ? 'JEE Mains (NIT/IIIT â€” top 2%)'
+                : isNeet ? 'NEET (MBBS â€” top 1% medical)'
+                    : isFoundation ? 'Foundation (Class 8â€“10)'
+                        : examTarget;
 
         const targetLabel = targetCollege
-          ? `${tierLabel} â€” aiming for ${targetCollege}`
-          : tierLabel;
+            ? `${tierLabel} â€” aiming for ${targetCollege}`
+            : tierLabel;
 
         const tierCalibration = isAdvanced
-          ? `- Depth of IIT JEE Advanced: integrate multiple sub-concepts in single examples
+            ? `- Depth of IIT JEE Advanced: integrate multiple sub-concepts in single examples
 - Derivations must be rigorous (starting from first principles)
 - Examples must involve multi-step reasoning with non-obvious intermediate steps
 - Self-check questions should require concept elimination, not just recall
 - Include edge cases, special conditions, and examiner traps`
-          : isJee
-          ? `- Depth of JEE Mains: strong formula application and numerical fluency
+            : isJee
+                ? `- Depth of JEE Mains: strong formula application and numerical fluency
 - Cover standard question types (1-mark concept + 4-mark numerical)
 - Examples should be 2â€“3 step reasoning
 - Highlight commonly tested approximations and shortcuts`
-          : isNeet
-          ? `- Depth of NEET: thorough NCERT alignment with assertion-reason and diagram-based patterns
+                : isNeet
+                    ? `- Depth of NEET: thorough NCERT alignment with assertion-reason and diagram-based patterns
 - Emphasise definitions, classification, exceptions, and factual recall
 - Examples should test direct application of NCERT facts and diagrams
 - Flag topics with high NEET frequency`
-          : `- Clear, accessible explanations suitable for the student's class
+                    : `- Clear, accessible explanations suitable for the student's class
 - NCERT-aligned content with simple worked examples
 - Focus on concept understanding over calculation complexity`;
 
@@ -2098,11 +2139,11 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         // Dynamic question count: complexity (key-concept count) Ã— exam-tier
         const complexity = keyConcepts.length >= 7 ? 'high' : keyConcepts.length >= 4 ? 'medium' : 'low';
         const qTable: Record<string, Record<string, number>> = {
-            advanced:   { low: 12, medium: 16, high: 20 },
-            jee:        { low: 10, medium: 14, high: 18 },
-            neet:       { low: 8,  medium: 12, high: 15 },
-            foundation: { low: 5,  medium: 8,  high: 10 },
-            default:    { low: 8,  medium: 10, high: 12 },
+            advanced: { low: 12, medium: 16, high: 20 },
+            jee: { low: 10, medium: 14, high: 18 },
+            neet: { low: 8, medium: 12, high: 15 },
+            foundation: { low: 5, medium: 8, high: 10 },
+            default: { low: 8, medium: 10, high: 12 },
         };
         const qTier = isAdvanced ? 'advanced' : isJee ? 'jee' : isNeet ? 'neet' : isFoundation ? 'foundation' : 'default';
         const questionCount = qTable[qTier][complexity];
@@ -2151,7 +2192,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 isCompleted: false,
                 completedAt: null,
                 timeSpentSeconds: 0,
-              }
+            }
             : this.aiStudyRepo.create({
                 tenantId,
                 studentId: student.id,
@@ -2163,7 +2204,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 commonMistakes,
                 aiSessionRef,
                 conversation: [{ role: 'ai', message: introMessage, timestamp: new Date().toISOString() }],
-              });
+            });
 
         const saved = await this.aiStudyRepo.save(session as any);
 
@@ -2355,7 +2396,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 if (topic) {
                     const bf3Exam = (student.examTarget ?? '').toLowerCase();
                     const bf3Count = bf3Exam.includes('advanced') ? 16 : bf3Exam.includes('jee') ? 14 : bf3Exam.includes('neet') ? 12 : 10;
-                    const bf3Diff  = bf3Exam.includes('advanced') ? 'hard' : bf3Exam.includes('jee') ? 'medium_hard' : bf3Exam.includes('neet') ? 'medium' : 'easy_medium';
+                    const bf3Diff = bf3Exam.includes('advanced') ? 'hard' : bf3Exam.includes('jee') ? 'medium_hard' : bf3Exam.includes('neet') ? 'medium' : 'easy_medium';
                     const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
                         {
                             topicId,
@@ -2552,9 +2593,9 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         if (!topic) throw new NotFoundException(`Topic ${topicId} not found`);
 
         const quizStudent = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
-        const quizExam    = (quizStudent?.examTarget ?? '').toLowerCase();
-        const quizCount   = quizExam.includes('advanced') ? 12 : quizExam.includes('jee') ? 10 : quizExam.includes('neet') ? 8 : 8;
-        const quizDiff    = quizExam.includes('advanced') ? 'hard' : quizExam.includes('jee') ? 'medium_hard' : quizExam.includes('neet') ? 'medium' : 'easy_medium';
+        const quizExam = (quizStudent?.examTarget ?? '').toLowerCase();
+        const quizCount = quizExam.includes('advanced') ? 12 : quizExam.includes('jee') ? 10 : quizExam.includes('neet') ? 8 : 8;
+        const quizDiff = quizExam.includes('advanced') ? 'hard' : quizExam.includes('jee') ? 'medium_hard' : quizExam.includes('neet') ? 'medium' : 'easy_medium';
 
         let rawQuestions: any[] = [];
         try {
@@ -2757,7 +2798,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         // If this topic exists as a practice plan item, auto-complete it.
         await this.studyPlanService
             .completeByReference(student.id, tenantId, topicId, PlanItemType.PRACTICE)
-            .catch(() => {});
+            .catch(() => { });
 
         return {
             passed,

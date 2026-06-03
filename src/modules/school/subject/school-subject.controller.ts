@@ -18,3 +18,15 @@ export class SchoolSubjectController {
   @Get('teacher/:teacherId') listTeacherSubjects(@Param('teacherId') id: string) { return this.svc.listTeacherSubjects(id); }
   @Post('teacher') assignTeacherSubject(@Body() body: any) { return this.svc.assignTeacherSubject(body); }
 }
+
+@Controller('school/academic/subjects')
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+export class SchoolAcademicSubjectController {
+  constructor(private readonly svc: SchoolSubjectService) {}
+
+  @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
+  @Post() create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
+  @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
+  @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(id); }
+}
+

@@ -1,4 +1,4 @@
-﻿import {
+import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
@@ -179,7 +179,7 @@ export class AuthService {
 
     // Find or create user
     let user = await this.userRepo.findOne({
-      where: { phoneNumber: dto.phoneNumber, tenantId },
+      where: { phoneNumber: dto.phoneNumber },
     });
 
     let isNewUser = false;
