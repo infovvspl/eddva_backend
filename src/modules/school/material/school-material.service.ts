@@ -13,7 +13,7 @@ export class SchoolMaterialService {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly s3Service: S3Service,
     private readonly aiBridgeService: AiBridgeService,
-  ) {}
+  ) { }
 
   /** Resolve a topic's name + its chapter/subject context from the school DB. */
   private async resolveTopicContext(topicId: string) {
@@ -113,7 +113,9 @@ export class SchoolMaterialService {
       throw new ForbiddenException('Subject context is required for teacher actions');
     }
     const rows = await this.ds.query(
-      `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id=$1 AND subject_id=$2`,
+      `SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2`,
       [user.id, subjectId]
     );
     if (rows.length === 0) {
@@ -161,9 +163,9 @@ export class SchoolMaterialService {
 
   async create(user: any, body: any) {
     await this.validateTeacherAssignment(user, body.subjectIdFk || body.subjectId, 'CREATE_MATERIAL_DENIED');
-    
+
     const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
-    
+
     if (!instituteId) {
       throw new NotFoundException('Institute ID is required to upload materials');
     }
@@ -179,7 +181,7 @@ export class SchoolMaterialService {
 
     let resolvedSubjectName = body.subject || body.subjectId || null;
     let resolvedChapterName = body.chapter || body.fileName || null;
-    
+
     if (body.subjectIdFk) {
       const sRow = await this.ds.query(`SELECT name FROM subjects WHERE id = $1`, [body.subjectIdFk]);
       if (sRow.length) resolvedSubjectName = sRow[0].name;
@@ -191,8 +193,8 @@ export class SchoolMaterialService {
 
     // Map categories ('notes', 'pyq', 'formula_sheet', 'dpp')
     const fileTypeLower = String(body.fileType || '').toLowerCase();
-    const type = ['notes', 'pyq', 'formula_sheet', 'dpp'].includes(fileTypeLower) 
-      ? fileTypeLower 
+    const type = ['notes', 'pyq', 'formula_sheet', 'dpp'].includes(fileTypeLower)
+      ? fileTypeLower
       : 'notes';
 
     const rows: any[] = await this.ds.query(
@@ -228,10 +230,10 @@ export class SchoolMaterialService {
         body.fileSizeKb || 0
       ],
     );
-    
+
     const row = rows[0];
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: {
         id: row.id,
         tenant_id: row.tenant_id,
@@ -244,7 +246,7 @@ export class SchoolMaterialService {
         file_name: row.chapter,
         fileType: row.type,
         file_type: row.type
-      } 
+      }
     };
   }
 
@@ -252,8 +254,8 @@ export class SchoolMaterialService {
     const rows: any[] = await this.ds.query(`SELECT * FROM study_materials WHERE id=$1`, [id]);
     if (!rows.length) throw new NotFoundException('Material not found');
     const row = rows[0];
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: {
         id: row.id,
         tenant_id: row.tenant_id,
@@ -266,7 +268,7 @@ export class SchoolMaterialService {
         file_name: row.chapter,
         fileType: row.type,
         file_type: row.type
-      } 
+      }
     };
   }
 
@@ -274,7 +276,7 @@ export class SchoolMaterialService {
     const topRows = await this.ds.query(`SELECT subject, subject_id_fk FROM study_materials WHERE id=$1`, [id]);
     const currentSubjectStr = topRows.length > 0 ? topRows[0].subject : null;
     const currentSubjectId = topRows.length > 0 ? topRows[0].subject_id_fk : null;
-    
+
     // Fallback to legacy string validation if subject_id_fk is missing but subject string exists
     await this.validateTeacherAssignment(user, body.subjectIdFk || body.subjectId || currentSubjectId || currentSubjectStr, 'UPDATE_MATERIAL_DENIED');
 
@@ -289,7 +291,7 @@ export class SchoolMaterialService {
 
     let resolvedSubjectName = body.subject || body.subjectId || undefined;
     let resolvedChapterName = body.chapter || body.fileName || undefined;
-    
+
     if (body.subjectIdFk) {
       const sRow = await this.ds.query(`SELECT name FROM subjects WHERE id = $1`, [body.subjectIdFk]);
       if (sRow.length) resolvedSubjectName = sRow[0].name;
@@ -300,8 +302,8 @@ export class SchoolMaterialService {
     }
 
     const fileTypeLower = body.fileType ? String(body.fileType).toLowerCase() : undefined;
-    const type = fileTypeLower && ['notes', 'pyq', 'formula_sheet', 'dpp'].includes(fileTypeLower) 
-      ? fileTypeLower 
+    const type = fileTypeLower && ['notes', 'pyq', 'formula_sheet', 'dpp'].includes(fileTypeLower)
+      ? fileTypeLower
       : undefined;
 
     await this.ds.query(
@@ -318,12 +320,12 @@ export class SchoolMaterialService {
         updated_at = NOW() 
        WHERE id = $1`,
       [
-        id, 
-        body.title, 
-        resolvedSubjectName, 
-        resolvedChapterName, 
-        body.description, 
-        body.fileUrl, 
+        id,
+        body.title,
+        resolvedSubjectName,
+        resolvedChapterName,
+        body.description,
+        body.fileUrl,
         type,
         body.subjectIdFk,
         body.chapterId,

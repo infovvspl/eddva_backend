@@ -7,17 +7,52 @@ export class SchoolAssignmentService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
 
   async list(user: any, query: any) {
-    const instituteId = user.role==='SUPER_ADMIN'?(query.instituteId||user.instituteId):user.instituteId;
-    const rows: any[] = await this.ds.query(`SELECT a.*,sub.name AS subject_name,c.name AS class_name FROM assignments a LEFT JOIN subjects sub ON a.subject_id::text=sub.id::text LEFT JOIN classes c ON a.class_id::text=c.id::text WHERE a.tenant_id=$1 ORDER BY a.due_date DESC`, [instituteId]);
+    
+    let sql = `SELECT a.*, sub.name AS subject_name, c.name AS class_name 
+               FROM assignments a 
+               LEFT JOIN subjects sub ON a.subject_id::text = sub.id::text 
+               LEFT JOIN classes c ON a.class_id::text = c.id::text 
+               WHERE a.tenant_id = $1`;
+    const params: any[] = [user.tenantId];
+    
+    if (query.classId) {
+      params.push(query.classId);
+      sql += ` AND a.class_id = $${params.length}`;
+    }
+    if (query.subjectId) {
+      params.push(query.subjectId);
+      sql += ` AND a.subject_id = $${params.length}`;
+    }
+
+    sql += ` ORDER BY a.due_date DESC`;
+    
+    const rows: any[] = await this.ds.query(sql, params);
     return { success: true, data: rows };
   }
 
-  async create(user: any, body: any) {
-    const instituteId = user.role==='SUPER_ADMIN'?(body.instituteId||user.instituteId):user.instituteId;
-    const rows: any[] = await this.ds.query(
-      `INSERT INTO assignments (tenant_id,class_id,subject_id,title,instructions,due_date,teacher_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [instituteId,body.classId||null,body.subjectId||null,body.title,body.description||null,body.dueDate?new Date(body.dueDate):null,user.id],
-    );
+  async create(user: any, body: any, file?: Express.Multer.File) {
+    const filePath = file ? file.path.replace(/\\/g, '/') : null;
+    
+    // Support both snake_case (frontend FormData) and camelCase payloads
+    const classId = body.class_id || body.classId || null;
+    const subjectId = body.subject_id || body.subjectId || null;
+    const instructions = body.instructions || body.description || null;
+    const type = body.type || 'homework';
+
+    const sql = `INSERT INTO assignments (tenant_id, class_id, subject_id, type, title, instructions, due_date, file_path, teacher_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`;
+    const params = [
+        user.tenantId,
+        classId,
+        subjectId,
+        type,
+        body.title,
+        instructions,
+        body.due_date || body.dueDate ? new Date(body.due_date || body.dueDate) : null,
+        filePath,
+        user.id
+      ];
+    const rows: any[] = await this.ds.query(sql, params);
     return { success: true, data: rows[0] };
   }
 
@@ -28,12 +63,16 @@ export class SchoolAssignmentService {
   }
 
   async update(id: string, body: any) {
-    await this.ds.query(`UPDATE assignments SET title=COALESCE($2,title),instructions=COALESCE($3,instructions),due_date=COALESCE($4,due_date),updated_at=NOW() WHERE id=$1`, [id,body.title,body.description,body.dueDate?new Date(body.dueDate):null]);
+    const sql = `UPDATE assignments SET title=COALESCE($2,title),instructions=COALESCE($3,instructions),due_date=COALESCE($4,due_date),updated_at=NOW() WHERE id=$1`;
+    const params = [id,body.title,body.description,body.dueDate?new Date(body.dueDate):null];
+    await this.ds.query(sql, params);
     return { success: true };
   }
 
   async remove(id: string) {
-    await this.ds.query(`DELETE FROM assignments WHERE id=$1`, [id]);
+    const sql = `DELETE FROM assignments WHERE id=$1`;
+    const params = [id];
+    await this.ds.query(sql, params);
     return { success: true };
   }
 }
