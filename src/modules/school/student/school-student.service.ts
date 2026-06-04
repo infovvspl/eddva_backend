@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { MailService } from '../../mail/mail.service';
+import { querySectionSubjects } from '../common/section-subjects';
 
 @Injectable()
 export class SchoolStudentService {
@@ -475,6 +476,301 @@ export class SchoolStudentService {
       parentEmail,
       parentName,
       studentName: student.name,
+    };
+  }
+
+  private async loadStudentContext(userId: string) {
+    const rows: any[] = await this.ds.query(
+      `SELECT s.id AS student_id, s.section_id, s.institute_id, sec.name AS section_name,
+              c.id AS class_id, c.name AS class_name, u.name, u.email
+       FROM users u
+       JOIN students s ON s.user_id = u.id
+       LEFT JOIN sections sec ON s.section_id = sec.id
+       LEFT JOIN classes c ON sec.class_id = c.id
+       WHERE u.id = $1 AND u.role = 'STUDENT'`,
+      [userId],
+    );
+    if (!rows.length) throw new NotFoundException('Student profile not found');
+    return rows[0];
+  }
+
+  async getDashboard(user: any) {
+    const ctx = await this.loadStudentContext(user.id);
+    const instituteId = user.instituteId || ctx.institute_id;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const dayOfWeek = new Date().getDay();
+
+    const [todayPlan, attendanceRows, assignmentRows] = await Promise.all([
+      ctx.class_id
+        ? this.ds.query(
+            `SELECT sch.id, sch.start_time, sch.end_time, sch.room, sch.day_of_week,
+                    sub.name AS subject_name, c.name AS class_name
+             FROM schedules sch
+             LEFT JOIN subjects sub ON sch.subject_id::text = sub.id::text
+             LEFT JOIN classes c ON sch.class_id::text = c.id::text
+             WHERE sch.class_id::text = $1::text AND sch.day_of_week::int = $2
+             ORDER BY sch.start_time`,
+            [ctx.class_id, dayOfWeek],
+          )
+        : Promise.resolve([]),
+      this.ds.query(
+        `SELECT COUNT(*) FILTER (WHERE LOWER(status) = 'present')::float AS present,
+                COUNT(*)::float AS total
+         FROM attendances WHERE user_id = $1`,
+        [user.id],
+      ),
+      ctx.class_id
+        ? this.ds.query(
+            `SELECT COUNT(*)::int AS c FROM assignments
+             WHERE tenant_id = $1 AND class_id::text = $2::text`,
+            [instituteId, ctx.class_id],
+          )
+        : Promise.resolve([{ c: 0 }]),
+    ]);
+
+    const present = Number(attendanceRows[0]?.present ?? 0);
+    const total = Number(attendanceRows[0]?.total ?? 0);
+
+    return {
+      success: true,
+      data: {
+        student: {
+          name: ctx.name,
+          email: ctx.email,
+          class: ctx.class_name,
+          section: ctx.section_name,
+          className: ctx.class_name,
+          sectionName: ctx.section_name,
+        },
+        todayPlan: todayPlan.map((row: any) => ({
+          id: row.id,
+          subject: row.subject_name,
+          className: row.class_name,
+          startTime: row.start_time,
+          endTime: row.end_time,
+          room: row.room,
+        })),
+        attendancePercentage: total > 0 ? Math.round((present / total) * 100) : null,
+        todayClasses: todayPlan.length,
+        pendingAssignments: assignmentRows[0]?.c ?? 0,
+        currentStreak: 0,
+      },
+    };
+  }
+
+  private async loadSubjectTeachers(sectionId: string) {
+    const rows: any[] = await this.ds.query(
+      `SELECT taa.subject_id, u.id AS user_id, u.name, u.email
+       FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       JOIN users u ON u.id = t.user_id
+       WHERE taa.section_id = $1::uuid AND taa.subject_id IS NOT NULL`,
+      [sectionId],
+    );
+    const map = new Map<string, { id: string; name: string; email: string }>();
+    for (const r of rows) {
+      if (!map.has(r.subject_id)) {
+        map.set(r.subject_id, { id: r.user_id, name: r.name, email: r.email });
+      }
+    }
+    return map;
+  }
+
+  private async buildCurriculum(instituteId: string, sectionId: string, classId: string) {
+    const subjectRows = await querySectionSubjects(this.ds, instituteId, sectionId, classId);
+    const teacherMap = await this.loadSubjectTeachers(sectionId);
+    const curriculum: any[] = [];
+
+    for (const subj of subjectRows) {
+      const chapters: any[] = await this.ds.query(
+        `SELECT id, name, sort_order FROM chapters WHERE subject_id = $1::uuid ORDER BY sort_order, name`,
+        [subj.id],
+      );
+      const chapterIds = chapters.map((c) => c.id);
+      let topics: any[] = [];
+      if (chapterIds.length) {
+        topics = await this.ds.query(
+          `SELECT id, chapter_id, name, sort_order FROM topics WHERE chapter_id = ANY($1::uuid[]) ORDER BY sort_order, name`,
+          [chapterIds],
+        );
+      }
+      const topicIds = topics.map((t) => t.id);
+      const materialCounts = new Map<string, number>();
+      if (topicIds.length) {
+        const counts: any[] = await this.ds.query(
+          `SELECT topic_id, COUNT(*)::int AS c FROM study_materials
+           WHERE tenant_id = $1::uuid AND topic_id = ANY($2::uuid[])
+           GROUP BY topic_id`,
+          [instituteId, topicIds],
+        );
+        for (const row of counts) materialCounts.set(row.topic_id, row.c);
+      }
+      const topicsByChapter = new Map<string, any[]>();
+      for (const t of topics) {
+        const list = topicsByChapter.get(t.chapter_id) || [];
+        const mc = materialCounts.get(t.id) || 0;
+        list.push({
+          id: t.id,
+          name: t.name,
+          estimatedStudyMinutes: null,
+          progress: { status: 'available', completedAt: null, bestAccuracy: 0 },
+          lectures: { total: 0, completed: 0 },
+          resourceCounts: { notes: mc, total: mc },
+        });
+        topicsByChapter.set(t.chapter_id, list);
+      }
+      curriculum.push({
+        id: subj.id,
+        name: subj.name,
+        teacher: teacherMap.get(subj.id) || null,
+        chapters: chapters.map((c) => ({
+          id: c.id,
+          name: c.name,
+          topics: topicsByChapter.get(c.id) || [],
+        })),
+      });
+    }
+    return curriculum;
+  }
+
+  private assertStudentClass(ctx: any, classId: string) {
+    if (!ctx.class_id || String(ctx.class_id) !== String(classId)) {
+      throw new NotFoundException('Course not found for your enrollment');
+    }
+  }
+
+  async getMyCourses(user: any) {
+    const ctx = await this.loadStudentContext(user.id);
+    if (!ctx.class_id) {
+      return { success: true, data: [] };
+    }
+    const instituteId = user.instituteId || ctx.institute_id;
+    const subjectRows = await querySectionSubjects(
+      this.ds,
+      instituteId,
+      ctx.section_id,
+      ctx.class_id,
+    );
+    const curriculum = await this.buildCurriculum(instituteId, ctx.section_id, ctx.class_id);
+    let totalTopics = 0;
+    for (const s of curriculum) {
+      for (const c of s.chapters) totalTopics += c.topics.length;
+    }
+    const batchName = ctx.section_name
+      ? `${ctx.class_name} · Section ${ctx.section_name}`
+      : ctx.class_name;
+    return {
+      success: true,
+      data: [
+        {
+          enrollmentId: ctx.student_id,
+          batch: {
+            id: ctx.class_id,
+            name: batchName,
+            class: ctx.class_name,
+            examTarget: 'School',
+            thumbnailUrl: null,
+          },
+          batchId: ctx.class_id,
+          batchName,
+          subjects: subjectRows.map((s) => s.name),
+          progress: {
+            overallPct: 0,
+            watchedLectures: 0,
+            totalLectures: 0,
+            completedTopics: 0,
+            totalTopics,
+          },
+        },
+      ],
+    };
+  }
+
+  async getCourseCurriculum(user: any, classId: string) {
+    const ctx = await this.loadStudentContext(user.id);
+    this.assertStudentClass(ctx, classId);
+    const instituteId = user.instituteId || ctx.institute_id;
+    const curriculum = await this.buildCurriculum(instituteId, ctx.section_id, ctx.class_id);
+    let totalTopics = 0;
+    for (const s of curriculum) {
+      for (const c of s.chapters) totalTopics += c.topics.length;
+    }
+    const batchName = ctx.section_name
+      ? `${ctx.class_name} · Section ${ctx.section_name}`
+      : ctx.class_name;
+    return {
+      success: true,
+      data: {
+        batch: {
+          id: ctx.class_id,
+          name: batchName,
+          class: ctx.class_name,
+          examTarget: 'School',
+        },
+        curriculum,
+        summary: {
+          progressPercent: 0,
+          watchedLectures: 0,
+          totalLectures: 0,
+          completedTopics: 0,
+          totalTopics,
+        },
+      },
+    };
+  }
+
+  async getTopicDetail(user: any, classId: string, topicId: string) {
+    const ctx = await this.loadStudentContext(user.id);
+    this.assertStudentClass(ctx, classId);
+    const instituteId = user.instituteId || ctx.institute_id;
+    const topicRows: any[] = await this.ds.query(
+      `SELECT t.id, t.name, c.id AS chapter_id, c.name AS chapter_name,
+              sub.id AS subject_id, sub.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects sub ON sub.id = c.subject_id
+       WHERE t.id = $1::uuid`,
+      [topicId],
+    );
+    if (!topicRows.length) throw new NotFoundException('Topic not found');
+    const topic = topicRows[0];
+    const allowed = await querySectionSubjects(
+      this.ds,
+      instituteId,
+      ctx.section_id,
+      ctx.class_id,
+    );
+    if (!allowed.some((s) => s.id === topic.subject_id)) {
+      throw new NotFoundException('Topic not found for your class');
+    }
+    const materials: any[] = await this.ds.query(
+      `SELECT id, title, type::text AS type, description, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb"
+       FROM study_materials
+       WHERE tenant_id = $1::uuid AND topic_id = $2::uuid
+       ORDER BY created_at DESC`,
+      [instituteId, topicId],
+    );
+    return {
+      success: true,
+      data: {
+        topic: {
+          id: topic.id,
+          name: topic.name,
+          chapter: { id: topic.chapter_id, name: topic.chapter_name },
+          subject: { id: topic.subject_id, name: topic.subject_name },
+        },
+        progress: { status: 'available', watchPercentage: 0, isCompleted: false },
+        lectures: [],
+        resources: materials.map((m) => ({
+          id: m.id,
+          type: m.type,
+          title: m.title,
+          fileUrl: m.fileUrl,
+          externalUrl: null,
+          fileSizeKb: m.fileSizeKb,
+          description: m.description,
+        })),
+      },
     };
   }
 }

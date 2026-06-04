@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { querySectionSubjects } from '../common/section-subjects';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 
@@ -8,25 +9,62 @@ import * as jwt from 'jsonwebtoken';
 export class SchoolAuthService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
 
-  async login(email: string, password: string, tenantDomain?: string) {
-    if (!email || !password) throw new BadRequestException('Email and password are required');
+  async login(identifier: string, password: string) {
+    if (!identifier?.trim() || !password) {
+      throw new BadRequestException('Email or phone and password are required');
+    }
+
+    const isEmail = identifier.includes('@');
+    const params: unknown[] = [];
+    let whereClause: string;
+
+    if (isEmail) {
+      params.push(identifier.trim());
+      whereClause = 'LOWER(u.email) = LOWER($1)';
+    } else {
+      const phone = this.normalizePhone(identifier.trim());
+      const variants = [
+        ...new Set(
+          [
+            phone,
+            phone.startsWith('+91') && phone.length === 13 ? phone.slice(3) : null,
+            phone.startsWith('+') ? phone.slice(1) : null,
+          ].filter((v): v is string => !!v),
+        ),
+      ];
+      const clauses: string[] = [];
+      variants.forEach((v, i) => {
+        params.push(v);
+        clauses.push(`u.phone = $${i + 1} OR REPLACE(COALESCE(u.phone, ''), ' ', '') = $${i + 1}`);
+      });
+      whereClause = `(${clauses.join(' OR ')})`;
+    }
 
     const rows: any[] = await this.ds.query(
       `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
-       WHERE LOWER(u.email) = LOWER($1)`,
-      [email],
+       WHERE ${whereClause}`,
+      params,
     );
     if (!rows.length) throw new UnauthorizedException('Invalid credentials');
 
-    const user = rows[0];
+    let user = rows[0];
+    if (rows.length > 1) {
+      for (const candidate of rows) {
+        if (candidate.password && (await bcrypt.compare(password, candidate.password))) {
+          user = candidate;
+          break;
+        }
+      }
+    }
+
     if (!user.is_active) throw new UnauthorizedException('Account is inactive');
     if (user.inst_status && user.inst_status === 'SUSPENDED') {
       throw new UnauthorizedException('Institute account is suspended');
     }
 
-    const match = await bcrypt.compare(password, user.password);
+    const match = user.password ? await bcrypt.compare(password, user.password) : false;
     if (!match) throw new UnauthorizedException('Invalid credentials');
 
     const payload = { id: user.id, role: user.role, email: user.email, tenantType: 'school' };
@@ -35,11 +73,67 @@ export class SchoolAuthService {
     } as any);
 
     const { password: _p, ...safeUser } = user;
+    const studentProfile =
+      user.role === 'STUDENT' ? await this.loadStudentAcademic(user.id) : null;
     return {
       token,
-      user: { ...safeUser, id: user.id, email: user.email, name: user.name, role: user.role, isActive: user.is_active, photo: user.photo, phone: user.phone, instituteId: user.institute_id },
+      user: {
+        ...safeUser,
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isActive: user.is_active,
+        photo: user.photo,
+        phone: user.phone,
+        instituteId: user.institute_id,
+        studentProfile,
+      },
       institute: user.inst_id ? { id: user.inst_id, name: user.inst_name, tenantDomain: user.tenant_domain, logo: user.logo } : null,
       tenantDomain: user.tenant_domain,
+    };
+  }
+
+  async loadStudentAcademic(userId: string) {
+    const rows: any[] = await this.ds.query(
+      `SELECT s.id AS student_id, s.section_id, s.institute_id, s.enrollment_no, s.roll_no,
+              sec.name AS section_name, c.id AS class_id, c.name AS class_name
+       FROM students s
+       LEFT JOIN sections sec ON s.section_id = sec.id
+       LEFT JOIN classes c ON sec.class_id = c.id
+       WHERE s.user_id = $1`,
+      [userId],
+    );
+    if (!rows.length) return null;
+    const r = rows[0];
+    const subjectRows =
+      r.section_id && r.institute_id
+        ? await querySectionSubjects(this.ds, r.institute_id, r.section_id, r.class_id)
+        : [];
+    return {
+      id: r.student_id,
+      sectionId: r.section_id,
+      sectionName: r.section_name,
+      classId: r.class_id,
+      className: r.class_name,
+      enrollmentNo: r.enrollment_no,
+      rollNo: r.roll_no,
+      subjects: subjectRows.map((s) => s.name),
+      subjectList: subjectRows,
+      currentClass: r.class_name ? `${r.class_name}${r.section_name ? ` · ${r.section_name}` : ''}` : null,
+    };
+  }
+
+  async getMe(user: any) {
+    const studentProfile =
+      user.role === 'STUDENT' ? await this.loadStudentAcademic(user.id) : null;
+    return {
+      success: true,
+      message: 'User fetched successfully',
+      data: {
+        ...user,
+        studentProfile,
+      },
     };
   }
 
@@ -99,5 +193,15 @@ export class SchoolAuthService {
     const payload = { id: user.id, role: user.role, email: user.email, tenantType: 'school' };
     const token = jwt.sign(payload, process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? (() => { throw new InternalServerErrorException('JWT_SECRET not configured'); })() : 'dev_secret_change_in_prod'), { expiresIn: '7d' } as any);
     return { success: true, token, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
+  }
+
+  private normalizePhone(raw: string): string {
+    let s = raw.replace(/[\s-]/g, '');
+    if (!s) return s;
+    if (!s.startsWith('+')) {
+      if (/^\d{10}$/.test(s)) s = `+91${s}`;
+      else if (/^91\d{10}$/.test(s)) s = `+${s}`;
+    }
+    return s;
   }
 }

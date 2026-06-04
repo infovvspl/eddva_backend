@@ -220,8 +220,15 @@ export class AuthService {
 
     const user = await this.findUserForPasswordLogin(dto, tenantId);
 
-    // Validate password (same error for both cases to avoid user enumeration)
-    if (!user || !(await user.validatePassword(dto.password))) {
+    let passwordValid = false;
+    if (user?.password) {
+      try {
+        passwordValid = await user.validatePassword(dto.password);
+      } catch {
+        passwordValid = false;
+      }
+    }
+    if (!user || !passwordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -306,8 +313,12 @@ export class AuthService {
 
       // Same email on multiple tenants — pick the account whose password matches
       for (const user of candidates) {
-        if (await user.validatePassword(dto.password)) {
-          return user;
+        try {
+          if (user.password && (await user.validatePassword(dto.password))) {
+            return user;
+          }
+        } catch {
+          /* ignore invalid bcrypt hashes */
         }
       }
       return candidates[0];
@@ -335,8 +346,12 @@ export class AuthService {
         return candidates[0];
       }
       for (const user of candidates) {
-        if (await user.validatePassword(dto.password)) {
-          return user;
+        try {
+          if (user.password && (await user.validatePassword(dto.password))) {
+            return user;
+          }
+        } catch {
+          /* ignore invalid bcrypt hashes */
         }
       }
       return candidates[0];

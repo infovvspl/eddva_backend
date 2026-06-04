@@ -185,7 +185,6 @@ const ALL_COACHING_ENTITIES = [
 
     // ── Coaching Feature Modules ──────────────────────────────────────────────
     AuthModule,
-    SchoolAuthModule,
     StudentModule,
     BattleModule,
     AiBridgeModule,
