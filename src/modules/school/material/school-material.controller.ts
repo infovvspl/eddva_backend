@@ -14,6 +14,18 @@ export class SchoolMaterialController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
 
+  @Post('upload-url')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  presignUpload(@SchoolUser() user: any, @Body() body: any) { return this.svc.presignUpload(user, body); }
+
+  @Post('ai-generate')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  aiGenerate(@SchoolUser() user: any, @Body() body: any) { return this.svc.generateAiContent(user, body); }
+
+  @Post('ai-save')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  aiSave(@SchoolUser() user: any, @Body() body: any) { return this.svc.saveAiMaterial(user, body); }
+
   @Post()
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }

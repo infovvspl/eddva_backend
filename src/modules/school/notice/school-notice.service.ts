@@ -48,6 +48,36 @@ export class SchoolNoticeService {
       ],
     );
     const r = rows[0];
+
+    // Dispatch in-app notifications to targeted users
+    try {
+      let userQuery = `SELECT id FROM users WHERE institute_id = $1 AND is_active = TRUE`;
+      const userParams = [instituteId];
+
+      if (body.targetRoles && body.targetRoles.length > 0) {
+        const roles = Array.isArray(body.targetRoles) ? body.targetRoles : [body.targetRoles];
+        userQuery += ` AND role = ANY($2)`;
+        userParams.push(roles);
+      }
+      
+      const targetUsers = await this.ds.query(userQuery, userParams);
+
+      for (const targetUser of targetUsers) {
+        await this.ds.query(
+          `INSERT INTO notifications (user_id, type, title, message, is_read) 
+           VALUES ($1, $2, $3, $4, FALSE)`,
+          [
+            targetUser.id,
+            'ANNOUNCEMENT',
+            body.title,
+            body.content.length > 200 ? body.content.substring(0, 197) + '...' : body.content
+          ]
+        );
+      }
+    } catch (notifErr) {
+      console.error('Failed to dispatch notifications for notice:', notifErr);
+    }
+
     return {
       success: true,
       data: {

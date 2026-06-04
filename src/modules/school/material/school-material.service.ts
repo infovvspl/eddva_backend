@@ -1,12 +1,110 @@
 import { Injectable, NotFoundException, ForbiddenException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { S3Service } from '../../upload/s3.service';
+import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 
 @Injectable()
 export class SchoolMaterialService {
   private readonly logger = new Logger(SchoolMaterialService.name);
-  
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly s3Service: S3Service,
+    private readonly aiBridgeService: AiBridgeService,
+  ) { }
+
+  /** Resolve a topic's name + its chapter/subject context from the school DB. */
+  private async resolveTopicContext(topicId: string) {
+    const rows = await this.ds.query(
+      `SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1`,
+      [topicId],
+    );
+    if (!rows.length) throw new NotFoundException('Topic not found');
+    return rows[0];
+  }
+
+  /** Generate AI study content for a topic (does NOT persist). */
+  async generateAiContent(user: any, body: any) {
+    if (!body.topicId) throw new BadRequestException('topicId is required');
+    const ctx = await this.resolveTopicContext(body.topicId);
+    await this.validateTeacherAssignment(user, ctx.subject_id, 'AI_GENERATE_DENIED');
+
+    const isQuestionType = body.contentType === 'dpp' || body.contentType === 'pyq';
+    const extraContext = [
+      isQuestionType && body.questionCount ? `Generate exactly ${body.questionCount} questions` : '',
+      (body.extraContext || '').trim(),
+    ].filter(Boolean).join('. ') || undefined;
+
+    const result = await this.aiBridgeService.generateTopicContent(
+      {
+        topicName: ctx.topic_name,
+        subjectName: ctx.subject_name ?? '',
+        chapterName: ctx.chapter_name ?? '',
+        contentType: body.contentType,
+        difficulty: isQuestionType ? 'intermediate' : (body.difficulty || 'intermediate'),
+        length: isQuestionType ? 'detailed' : (body.length || 'detailed'),
+        extraContext,
+      },
+      user.instituteId ?? undefined,
+    );
+    return { content: result.content, contentType: result.contentType, topicName: ctx.topic_name };
+  }
+
+  /** Persist AI-generated markdown as a study material (text-based, no file). */
+  async saveAiMaterial(user: any, body: any) {
+    if (!body.topicId) throw new BadRequestException('topicId is required');
+    if (!body.content) throw new BadRequestException('content is required');
+    const ctx = await this.resolveTopicContext(body.topicId);
+    await this.validateTeacherAssignment(user, ctx.subject_id, 'AI_SAVE_DENIED');
+    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute ID is required');
+
+    const map: Record<string, string> = { dpp: 'dpp', pyq: 'pyq', mindmap: 'mindmap', notes: 'notes' };
+    const type = map[String(body.resourceType || 'notes').toLowerCase()] ?? 'notes';
+
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO study_materials (
+        tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
+        subject_id_fk, chapter_id, topic_id, file_size_kb
+      )
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0)
+       RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId"`,
+      [
+        instituteId,
+        type,
+        body.title || `${ctx.topic_name} — AI content`,
+        ctx.subject_name,
+        ctx.chapter_name,
+        body.content,
+        user.id,
+        ctx.subject_id,
+        ctx.chapter_id,
+        ctx.topic_id,
+      ],
+    );
+    return { success: true, data: rows[0] };
+  }
+
+  /** Generate a tenant-scoped presigned S3 PUT URL for a school material file. */
+  async presignUpload(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }) {
+    const instituteId = user.role === 'SUPER_ADMIN' ? (body as any).instituteId || user.instituteId : user.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
+    if (!body.contentType) throw new BadRequestException('contentType is required');
+    const MAX = 100 * 1024 * 1024;
+    if (body.fileSize && body.fileSize > MAX) throw new BadRequestException('File must be ≤ 100 MB');
+    const safeName = (body.fileName || 'file').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'file';
+    const key = `tenants/${instituteId}/school-materials/${Date.now()}-${randomUUID()}-${safeName}`;
+    const { uploadUrl, fileUrl } = await this.s3Service.presign(key, body.contentType);
+    return { uploadUrl, fileUrl, key };
+  }
 
   private async validateTeacherAssignment(user: any, subjectId: string | null, action: string) {
     if (user.role !== 'TEACHER') return;
@@ -32,11 +130,14 @@ export class SchoolMaterialService {
       return { success: true, data: [] };
     }
     let sql = `
-      SELECT 
+      SELECT
         sm.id,
         sm.tenant_id,
         sm.title,
         sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
         sm.description,
         sm.s3_key AS "fileUrl",
         sm.s3_key AS "file_url",
@@ -44,13 +145,17 @@ export class SchoolMaterialService {
         sm.chapter AS "file_name",
         sm.type::text AS "fileType",
         sm.type::text AS "file_type",
-        sm.topic_id AS "topicId",
-        u.name AS uploaded_by_name 
-      FROM study_materials sm 
-      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text 
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
       WHERE sm.tenant_id = $1::uuid
     `;
     const params: any[] = [instituteId];
+    if (query.topicId) { params.push(query.topicId); sql += ` AND sm.topic_id = $${params.length}`; }
+    if (query.chapterId) { params.push(query.chapterId); sql += ` AND sm.chapter_id = $${params.length}`; }
+    if (query.subjectId || query.subjectIdFk) { params.push(query.subjectId || query.subjectIdFk); sql += ` AND sm.subject_id_fk = $${params.length}`; }
     sql += ` ORDER BY sm.created_at DESC`;
     const rows: any[] = await this.ds.query(sql, params);
     return { success: true, data: rows };
@@ -58,9 +163,9 @@ export class SchoolMaterialService {
 
   async create(user: any, body: any) {
     await this.validateTeacherAssignment(user, body.subjectIdFk || body.subjectId, 'CREATE_MATERIAL_DENIED');
-    
+
     const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
-    
+
     if (!instituteId) {
       throw new NotFoundException('Institute ID is required to upload materials');
     }
@@ -76,7 +181,7 @@ export class SchoolMaterialService {
 
     let resolvedSubjectName = body.subject || body.subjectId || null;
     let resolvedChapterName = body.chapter || body.fileName || null;
-    
+
     if (body.subjectIdFk) {
       const sRow = await this.ds.query(`SELECT name FROM subjects WHERE id = $1`, [body.subjectIdFk]);
       if (sRow.length) resolvedSubjectName = sRow[0].name;
@@ -88,8 +193,8 @@ export class SchoolMaterialService {
 
     // Map categories ('notes', 'pyq', 'formula_sheet', 'dpp')
     const fileTypeLower = String(body.fileType || '').toLowerCase();
-    const type = ['notes', 'pyq', 'formula_sheet', 'dpp'].includes(fileTypeLower) 
-      ? fileTypeLower 
+    const type = ['notes', 'pyq', 'formula_sheet', 'dpp'].includes(fileTypeLower)
+      ? fileTypeLower
       : 'notes';
 
     const rows: any[] = await this.ds.query(
@@ -105,9 +210,10 @@ export class SchoolMaterialService {
         uploaded_by,
         subject_id_fk,
         chapter_id,
-        topic_id
+        topic_id,
+        file_size_kb
       )
-       VALUES ($1::uuid, 'jee'::study_material_exam_enum, $2::study_material_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         instituteId,
@@ -120,13 +226,14 @@ export class SchoolMaterialService {
         user.id,
         body.subjectIdFk || null,
         body.chapterId || null,
-        body.topicId || null
+        body.topicId || null,
+        body.fileSizeKb || 0
       ],
     );
-    
+
     const row = rows[0];
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: {
         id: row.id,
         tenant_id: row.tenant_id,
@@ -139,7 +246,7 @@ export class SchoolMaterialService {
         file_name: row.chapter,
         fileType: row.type,
         file_type: row.type
-      } 
+      }
     };
   }
 
@@ -147,8 +254,8 @@ export class SchoolMaterialService {
     const rows: any[] = await this.ds.query(`SELECT * FROM study_materials WHERE id=$1`, [id]);
     if (!rows.length) throw new NotFoundException('Material not found');
     const row = rows[0];
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: {
         id: row.id,
         tenant_id: row.tenant_id,
@@ -161,7 +268,7 @@ export class SchoolMaterialService {
         file_name: row.chapter,
         fileType: row.type,
         file_type: row.type
-      } 
+      }
     };
   }
 
@@ -169,7 +276,7 @@ export class SchoolMaterialService {
     const topRows = await this.ds.query(`SELECT subject, subject_id_fk FROM study_materials WHERE id=$1`, [id]);
     const currentSubjectStr = topRows.length > 0 ? topRows[0].subject : null;
     const currentSubjectId = topRows.length > 0 ? topRows[0].subject_id_fk : null;
-    
+
     // Fallback to legacy string validation if subject_id_fk is missing but subject string exists
     await this.validateTeacherAssignment(user, body.subjectIdFk || body.subjectId || currentSubjectId || currentSubjectStr, 'UPDATE_MATERIAL_DENIED');
 
@@ -184,7 +291,7 @@ export class SchoolMaterialService {
 
     let resolvedSubjectName = body.subject || body.subjectId || undefined;
     let resolvedChapterName = body.chapter || body.fileName || undefined;
-    
+
     if (body.subjectIdFk) {
       const sRow = await this.ds.query(`SELECT name FROM subjects WHERE id = $1`, [body.subjectIdFk]);
       if (sRow.length) resolvedSubjectName = sRow[0].name;
@@ -195,8 +302,8 @@ export class SchoolMaterialService {
     }
 
     const fileTypeLower = body.fileType ? String(body.fileType).toLowerCase() : undefined;
-    const type = fileTypeLower && ['notes', 'pyq', 'formula_sheet', 'dpp'].includes(fileTypeLower) 
-      ? fileTypeLower 
+    const type = fileTypeLower && ['notes', 'pyq', 'formula_sheet', 'dpp'].includes(fileTypeLower)
+      ? fileTypeLower
       : undefined;
 
     await this.ds.query(
@@ -206,19 +313,19 @@ export class SchoolMaterialService {
         chapter = COALESCE($4, chapter),
         description = COALESCE($5, description),
         s3_key = COALESCE($6, s3_key),
-        type = COALESCE($7::study_material_type_enum, type),
+        type = COALESCE($7::study_materials_type_enum, type),
         subject_id_fk = COALESCE($8, subject_id_fk),
         chapter_id = COALESCE($9, chapter_id),
         topic_id = COALESCE($10, topic_id),
         updated_at = NOW() 
        WHERE id = $1`,
       [
-        id, 
-        body.title, 
-        resolvedSubjectName, 
-        resolvedChapterName, 
-        body.description, 
-        body.fileUrl, 
+        id,
+        body.title,
+        resolvedSubjectName,
+        resolvedChapterName,
+        body.description,
+        body.fileUrl,
         type,
         body.subjectIdFk,
         body.chapterId,
