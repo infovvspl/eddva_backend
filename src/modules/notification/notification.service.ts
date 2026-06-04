@@ -8,6 +8,7 @@ import { Queue } from 'bull';
 import Twilio from 'twilio';
 
 import { NOTIFICATION_QUEUE, NotificationJobs } from './notification.constants';
+import { getTemplate } from './notification-templates';
 
 import {
   Notification,
@@ -344,14 +345,20 @@ export class NotificationService {
   async sendMorningNudge() {
     const students = await this.getActiveStudents();
     await this.sendBatch(
-      students.map((s) => ({
-        userId: s.userId,
-        tenantId: s.tenantId,
-        title: 'Good morning! 🌅',
-        body: "Your study plan is ready. Let's go!",
-        channels: ['push', 'in_app'] as SendPayload['channels'],
-        refType: 'daily_nudge',
-      })),
+      students.map((s) => {
+        const { title, body } = getTemplate('morning', {
+          fullName: s.user?.fullName,
+          examTarget: s.examTarget,
+        });
+        return {
+          userId: s.userId,
+          tenantId: s.tenantId,
+          title,
+          body,
+          channels: ['push', 'in_app'] as SendPayload['channels'],
+          refType: 'daily_nudge',
+        };
+      }),
     );
   }
 
@@ -359,14 +366,19 @@ export class NotificationService {
   async sendBattleReminder() {
     const students = await this.getActiveStudents();
     await this.sendBatch(
-      students.map((s) => ({
-        userId: s.userId,
-        tenantId: s.tenantId,
-        title: 'Daily battle starts in 15 minutes ⚔️',
-        body: 'Join the arena and protect your rank.',
-        channels: ['push', 'in_app'] as SendPayload['channels'],
-        refType: 'battle_reminder',
-      })),
+      students.map((s) => {
+        const { title, body } = getTemplate('battle_reminder', {
+          fullName: s.user?.fullName,
+        });
+        return {
+          userId: s.userId,
+          tenantId: s.tenantId,
+          title,
+          body,
+          channels: ['push', 'in_app'] as SendPayload['channels'],
+          refType: 'battle_reminder',
+        };
+      }),
     );
   }
 
@@ -383,14 +395,20 @@ export class NotificationService {
 
     const payloads: SendPayload[] = students
       .filter((s) => s.user?.status === UserStatus.ACTIVE && s.currentStreak > 0)
-      .map((s) => ({
-        userId: s.userId,
-        tenantId: s.tenantId,
-        title: 'Streak danger',
-        body: `⚠️ Study today to save your ${s.currentStreak}-day streak!`,
-        channels: ['push', 'in_app'] as SendPayload['channels'],
-        refType: 'streak_danger',
-      }));
+      .map((s) => {
+        const { title, body } = getTemplate('streak', {
+          streak: s.currentStreak,
+          fullName: s.user?.fullName,
+        });
+        return {
+          userId: s.userId,
+          tenantId: s.tenantId,
+          title,
+          body,
+          channels: ['push', 'in_app'] as SendPayload['channels'],
+          refType: 'streak_danger',
+        };
+      });
 
     await this.sendBatch(payloads);
   }
