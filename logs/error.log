@@ -14364,3 +14364,19 @@ Error: QueryFailedError: invalid input syntax for type uuid: "unread-count"
     at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolNotificationService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\notification\school-notification.service.ts:28:25)
 
+[2026-06-04T07:51:06.810Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "unread-count"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolNotificationService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\notification\school-notification.service.ts:28:25)
+
+[2026-06-04T07:51:32.497Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "unread-count"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolNotificationService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\notification\school-notification.service.ts:28:25)
+

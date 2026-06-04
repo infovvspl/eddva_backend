@@ -10,6 +10,7 @@ export class SchoolNotificationController {
   constructor(private readonly svc: SchoolNotificationService) {}
 
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
+  @Get('unread-count') unreadCount(@SchoolUser() user: any) { return this.svc.unreadCount(user); }
   @Post() create(@Body() body: any) { return this.svc.create(body); }
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(id); }
   @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
