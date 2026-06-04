@@ -4,7 +4,7 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 
-@Controller('school/timetables')
+@Controller(['school/timetables', 'school/timetable'])
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolTimetableController {
   constructor(private readonly svc: SchoolTimetableService) {}

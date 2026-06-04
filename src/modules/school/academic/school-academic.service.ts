@@ -13,28 +13,58 @@ export class SchoolAcademicService {
   // Classes
   async listClasses(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
-    const rows: any[] = await this.ds.query(`
+    let rows: any[];
+    if (query.academicYear) {
+      rows = await this.ds.query(`
+        SELECT c.*, 
+               COALESCE((
+                 SELECT json_agg(json_build_object('id', s.id, 'name', s.name))
+                 FROM sections s WHERE s.class_id::text = c.id::text AND s.academic_year = $2
+               ), '[]'::json) as sections
+        FROM classes c 
+        WHERE c.institute_id=$1 AND c.academic_year=$2
+        ORDER BY c.name
+      `, [instituteId, query.academicYear]);
+    } else {
+      rows = await this.ds.query(`
+        SELECT c.*, 
+               COALESCE((
+                 SELECT json_agg(json_build_object('id', s.id, 'name', s.name))
+                 FROM sections s WHERE s.class_id::text = c.id::text
+               ), '[]'::json) as sections
+        FROM classes c 
+        WHERE c.institute_id=$1 
+        ORDER BY c.name
+      `, [instituteId]);
+    }
+    return { success: true, data: rows };
+  }
+
+  async createClass(user: any, body: any) {
+    const instituteId = await this.resolveInstituteId(user, body.instituteId);
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO classes (institute_id,name,academic_year) VALUES ($1,$2,$3) RETURNING *`,
+      [instituteId, body.name, body.academicYear || '2025-2026']
+    );
+    return { success: true, data: rows[0] };
+  }
+
+  async updateClass(id: string, body: any) {
+    await this.ds.query(
+      `UPDATE classes SET name=COALESCE($2,name),academic_year=COALESCE($3,academic_year),updated_at=NOW() WHERE id=$1`,
+      [id, body.name, body.academicYear]
+    );
+    // Return updated class to UI
+    const rows = await this.ds.query(`
       SELECT c.*, 
              COALESCE((
                SELECT json_agg(json_build_object('id', s.id, 'name', s.name))
                FROM sections s WHERE s.class_id::text = c.id::text
              ), '[]'::json) as sections
       FROM classes c 
-      WHERE c.institute_id=$1 
-      ORDER BY c.name
-    `, [instituteId]);
-    return { success: true, data: rows };
-  }
-
-  async createClass(user: any, body: any) {
-    const instituteId = await this.resolveInstituteId(user, body.instituteId);
-    const rows: any[] = await this.ds.query(`INSERT INTO classes (institute_id,name) VALUES ($1,$2) RETURNING *`, [instituteId,body.name]);
+      WHERE c.id=$1
+    `, [id]);
     return { success: true, data: rows[0] };
-  }
-
-  async updateClass(id: string, body: any) {
-    await this.ds.query(`UPDATE classes SET name=COALESCE($2,name),updated_at=NOW() WHERE id=$1`, [id,body.name]);
-    return { success: true };
   }
 
   async deleteClass(id: string) {
@@ -44,20 +74,35 @@ export class SchoolAcademicService {
 
   // Sections
   async listSections(user: any, query: any) {
-    const rows: any[] = await this.ds.query(
-      `SELECT sec.*,c.name AS class_name FROM sections sec LEFT JOIN classes c ON sec.class_id::text=c.id::text WHERE sec.class_id::text=$1::text ORDER BY sec.name`,
-      [query.classId],
-    );
+    let rows: any[];
+    if (query.academicYear) {
+      rows = await this.ds.query(
+        `SELECT sec.*,c.name AS class_name FROM sections sec LEFT JOIN classes c ON sec.class_id::text=c.id::text WHERE sec.class_id::text=$1::text AND sec.academic_year=$2 ORDER BY sec.name`,
+        [query.classId, query.academicYear],
+      );
+    } else {
+      rows = await this.ds.query(
+        `SELECT sec.*,c.name AS class_name FROM sections sec LEFT JOIN classes c ON sec.class_id::text=c.id::text WHERE sec.class_id::text=$1::text ORDER BY sec.name`,
+        [query.classId],
+      );
+    }
     return { success: true, data: rows };
   }
 
   async createSection(user: any, body: any) {
-    const rows: any[] = await this.ds.query(`INSERT INTO sections (class_id,name) VALUES ($1,$2) RETURNING *`, [body.classId,body.name]);
+    const academicYear = body.academicYear || '2025-2026';
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO sections (class_id,name,academic_year) VALUES ($1,$2,$3) RETURNING *`,
+      [body.classId, body.name, academicYear]
+    );
     return { success: true, data: rows[0] };
   }
 
   async updateSection(id: string, body: any) {
-    await this.ds.query(`UPDATE sections SET name=COALESCE($2,name),updated_at=NOW() WHERE id=$1`, [id,body.name]);
+    await this.ds.query(
+      `UPDATE sections SET name=COALESCE($2,name),academic_year=COALESCE($3,academic_year),updated_at=NOW() WHERE id=$1`,
+      [id, body.name, body.academicYear]
+    );
     return { success: true };
   }
 

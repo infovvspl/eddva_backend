@@ -29,9 +29,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
+  private userCache = new Map<string, { value: any; expiresAt: number }>();
+  private readonly cacheTtlMs = 15000; // 15 seconds
+
   async validate(payload: JwtPayload) {
+    const userId = payload.sub;
+    const now = Date.now();
+    const cached = this.userCache.get(userId);
+
+    if (cached && cached.expiresAt > now) {
+      return {
+        ...cached.value,
+        batchIds: payload.batchIds || [],
+      };
+    }
+
     const user = await this.userRepo.findOne({
-      where: { id: payload.sub },
+      where: { id: userId },
       relations: ['tenant'],
     });
 
@@ -40,7 +54,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Account suspended');
     }
 
-    return {
+    const userData = {
       id: user.id,
       phoneNumber: user.phoneNumber,
       email: user.email,
@@ -48,6 +62,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: user.role,
       tenantId: user.tenantId,
       tenant: user.tenant,
+    };
+
+    this.userCache.set(userId, { value: userData, expiresAt: now + this.cacheTtlMs });
+
+    return {
+      ...userData,
       batchIds: payload.batchIds || [],
     };
   }

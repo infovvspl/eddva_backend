@@ -8,12 +8,11 @@ const client = new Client({
 async function run() {
   await client.connect();
   const res = await client.query(`
-    SELECT table_name 
-    FROM information_schema.tables 
-    WHERE table_schema='public'
-    ORDER BY table_name;
+    SELECT column_name, data_type, is_nullable, column_default 
+    FROM information_schema.columns 
+    WHERE table_name='users';
   `);
-  console.log('Tables:', res.rows.map(r => r.table_name).join(', '));
+  console.log(JSON.stringify(res.rows, null, 2));
   await client.end();
 }
 

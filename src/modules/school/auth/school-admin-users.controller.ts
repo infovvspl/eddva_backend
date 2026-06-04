@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { SchoolUser } from '../decorators/school-user.decorator';
 
 @Controller('school/admin/users')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
@@ -13,6 +14,7 @@ export class SchoolAdminUsersController {
   @Get()
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
   async listUsers(
+    @SchoolUser() user: any,
     @Query('role') role: string,
     @Query('status') status: string,
     @Query('search') search: string,
@@ -20,9 +22,14 @@ export class SchoolAdminUsersController {
     @Query('limit') limit = '50',
   ) {
     // Never select password or sensitive tokens
-    const safeFields = `u.id, u.name, u.email, u.role, u.is_active, u.phone, u.photo, u.institute_id, u.created_at, u.updated_at, i.name AS institute_name`;
-    let where = `WHERE 1=1`;
+    const safeFields = `u.id, u.name, u.email, u.role, u.is_active, u.phone, u.photo, u.institute_id, u.created_at AS "createdAt", u.updated_at AS "updatedAt", u.last_login_at AS "lastLoginAt", i.name AS institute_name`;
+    let where = `WHERE u.role IN ('SUPER_ADMIN', 'INSTITUTE_ADMIN')`;
     const params: any[] = [];
+
+    if (user.role === 'INSTITUTE_ADMIN') {
+      params.push(user.instituteId);
+      where += ` AND u.institute_id = $${params.length}`;
+    }
 
     if (role && role !== 'ALL') { params.push(role); where += ` AND u.role = $${params.length}`; }
     if (status && status !== 'ALL') { params.push(status === 'active' ? true : false); where += ` AND u.is_active = $${params.length}`; }

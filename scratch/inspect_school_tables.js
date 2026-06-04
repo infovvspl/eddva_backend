@@ -1,21 +1,31 @@
 const { Client } = require('pg');
-require('dotenv').config();
 
 const client = new Client({
-  connectionString: process.env.SCHOOL_DB_URL,
-  ssl: { rejectUnauthorized: false }
+  connectionString: "postgresql://postgres.mrirhbcfxpcmcnvrzfld:itEVbOANeXg71Gcw@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres",
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
-async function run() {
-  await client.connect();
-  const res = await client.query(`
-    SELECT table_name 
-    FROM information_schema.tables 
-    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-    ORDER BY table_name;
-  `);
-  console.log('School Tables:', res.rows.map(r => r.table_name));
-  await client.end();
+async function main() {
+  try {
+    await client.connect();
+    
+    const tablesRes = await client.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name;
+    `);
+    
+    console.log("=== TABLES ===");
+    tablesRes.rows.forEach(r => console.log(`- ${r.table_name}`));
+    
+  } catch (err) {
+    console.error(err);
+  } finally {
+    await client.end();
+  }
 }
 
-run().catch(console.error);
+main();
