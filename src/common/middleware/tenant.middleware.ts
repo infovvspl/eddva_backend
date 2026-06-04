@@ -24,6 +24,8 @@ export class TenantMiddleware implements NestMiddleware {
 
   async use(req: Request & { tenantId?: string; tenant?: Tenant }, res: Response, next: NextFunction) {
     let tenant: Tenant | null = null;
+    /** Subdomain explicitly requested via host/header but not yet resolved in DB */
+    let requestedSubdomain: string | null = null;
 
     // ── 1. Explicit header (admin/internal calls) ──────────────────────────
     const headerTenantId = req.headers['x-tenant-id'] as string;
@@ -33,22 +35,34 @@ export class TenantMiddleware implements NestMiddleware {
 
     // ── 2. X-Tenant-Subdomain header (sent by frontend on tenant subdomains) ─
     if (!tenant) {
-      const headerSubdomain = req.headers['x-tenant-subdomain'] as string;
+      const headerSubdomain = (req.headers['x-tenant-subdomain'] as string)?.trim().toLowerCase();
       if (headerSubdomain) {
+        requestedSubdomain = requestedSubdomain ?? headerSubdomain;
         tenant = await this.tenantRepo.findOne({ where: { subdomain: headerSubdomain } });
       }
     }
 
-    // ── 3. Subdomain resolution from Host header ─────────────────────────
+    // ── 3. Subdomain resolution from Host header (skip IPv4 — 127.0.0.1 is not a tenant) ─
     if (!tenant) {
       const host = req.hostname; // e.g. "allen-kota.apexiq.in"
-      const parts = host.split('.');
-      // soa.localhost → 2 parts, soa.edva.in → 3 parts
-      if (parts.length === 2 && parts[1] === 'localhost') {
-        tenant = await this.tenantRepo.findOne({ where: { subdomain: parts[0] } });
-      } else if (parts.length >= 3) {
-        const subdomain = parts[0];
-        tenant = await this.tenantRepo.findOne({ where: { subdomain } });
+      const isIpHost = /^\d+\.\d+\.\d+\.\d+$/.test(host);
+      if (!isIpHost) {
+        const parts = host.split('.');
+        const RESERVED = new Set(['localhost', 'www', 'edva', 'apexiq', 'platform']);
+        // soa.localhost → 2 parts, soa.edva.in → 3 parts
+        if (parts.length === 2 && parts[1] === 'localhost') {
+          const sub = parts[0].toLowerCase();
+          if (!RESERVED.has(sub)) {
+            requestedSubdomain = requestedSubdomain ?? sub;
+            tenant = await this.tenantRepo.findOne({ where: { subdomain: sub } });
+          }
+        } else if (parts.length >= 3) {
+          const sub = parts[0].toLowerCase();
+          if (!RESERVED.has(sub)) {
+            requestedSubdomain = requestedSubdomain ?? sub;
+            tenant = await this.tenantRepo.findOne({ where: { subdomain: sub } });
+          }
+        }
       }
     }
 
@@ -75,8 +89,9 @@ export class TenantMiddleware implements NestMiddleware {
       }
     }
 
-    // ── 5. Fallback: platform tenant (B2C) ───────────────────────────────
-    if (!tenant) {
+    // ── 5. Fallback: platform tenant (bare localhost / main domain only) ─
+    // Do NOT fall back when the URL explicitly names an unknown institute subdomain.
+    if (!tenant && !requestedSubdomain) {
       tenant = await this.tenantRepo.findOne({
         where: { subdomain: 'platform' },
       });

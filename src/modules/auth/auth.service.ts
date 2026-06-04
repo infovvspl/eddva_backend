@@ -217,7 +217,7 @@ export class AuthService {
       throw new BadRequestException('Either email or phone number is required');
     }
 
-    const user = await this.findUserForPasswordLogin(dto);
+    const user = await this.findUserForPasswordLogin(dto, tenantId);
 
     // Validate password (same error for both cases to avoid user enumeration)
     if (!user || !(await user.validatePassword(dto.password))) {
@@ -264,6 +264,15 @@ export class AuthService {
     };
   }
 
+  /** Issue JWT pair for an already-authenticated user (e.g. school registration). */
+  async issueTokensForUser(user: User) {
+    user.lastLoginAt = new Date();
+    const tokens = await this.generateTokens(user);
+    await user.hashRefreshToken(tokens.refreshToken);
+    await this.userRepo.save(user);
+    return tokens;
+  }
+
   /** Normalize phone for lookup (matches common frontend +91 / 10-digit input). */
   private normalizeLoginPhone(raw: string): string {
     let s = raw.replace(/[\s-]/g, '');
@@ -275,22 +284,63 @@ export class AuthService {
     return s;
   }
 
-  private async findUserForPasswordLogin(dto: LoginWithPasswordDto): Promise<User | null> {
+  private async findUserForPasswordLogin(
+    dto: LoginWithPasswordDto,
+    tenantId?: string,
+  ): Promise<User | null> {
     const email = dto.email?.trim();
     if (email) {
-      return this.userRepo.findOne({ where: { email: ILike(email) } });
+      const matches = await this.userRepo.find({ where: { email: ILike(email) } });
+      if (matches.length === 0) return null;
+
+      const scoped =
+        tenantId && matches.length > 1
+          ? matches.filter((u) => u.tenantId === tenantId)
+          : matches;
+      const candidates = scoped.length > 0 ? scoped : matches;
+
+      if (candidates.length === 1) {
+        return candidates[0];
+      }
+
+      // Same email on multiple tenants — pick the account whose password matches
+      for (const user of candidates) {
+        if (await user.validatePassword(dto.password)) {
+          return user;
+        }
+      }
+      return candidates[0];
     }
+
     const raw = dto.phoneNumber?.trim();
     if (!raw) return null;
     const phone = this.normalizeLoginPhone(raw);
-    let found = await this.userRepo.findOne({ where: { phoneNumber: phone } });
-    if (found) return found;
+    const phoneVariants = [phone];
     if (phone.startsWith('+91') && phone.length === 13) {
-      found = await this.userRepo.findOne({ where: { phoneNumber: phone.slice(3) } });
-      if (found) return found;
-      found = await this.userRepo.findOne({ where: { phoneNumber: phone.slice(1) } });
+      phoneVariants.push(phone.slice(3), phone.slice(1));
     }
-    return found || null;
+
+    for (const variant of phoneVariants) {
+      const matches = await this.userRepo.find({ where: { phoneNumber: variant } });
+      if (matches.length === 0) continue;
+
+      const scoped =
+        tenantId && matches.length > 1
+          ? matches.filter((u) => u.tenantId === tenantId)
+          : matches;
+      const candidates = scoped.length > 0 ? scoped : matches;
+
+      if (candidates.length === 1) {
+        return candidates[0];
+      }
+      for (const user of candidates) {
+        if (await user.validatePassword(dto.password)) {
+          return user;
+        }
+      }
+      return candidates[0];
+    }
+    return null;
   }
 
   // ── Forgot / Reset Password ──────────────────────────────────────────────

@@ -10,7 +10,7 @@ import {
 import type { Response } from 'express';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { Public } from '../../common/decorators/auth.decorator';
 import { Tenant, TenantStatus } from '../../database/entities/tenant.entity';
 import { SuperAdminService } from './super-admin.service';
@@ -88,8 +88,9 @@ export class PublicTenantController {
   @Public()
   @ApiOperation({ summary: 'Resolve tenant by subdomain (public)' })
   async resolveBySubdomain(@Param('subdomain') subdomain: string) {
+    const sub = subdomain.trim().toLowerCase();
     const tenant = await this.tenantRepo.findOne({
-      where: { subdomain },
+      where: { subdomain: ILike(sub) },
       select: ['id', 'name', 'subdomain', 'status', 'plan', 'logoUrl', 'brandColor', 'welcomeMessage'],
     });
 

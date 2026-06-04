@@ -67,6 +67,7 @@ import { StudyMaterialModule } from './modules/study-material/study-material.mod
 import { AIModule } from './ai/ai.module';
 import { OtpModule } from './modules/otp/otp.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { SchoolAuthModule } from './modules/school-auth/school-auth.module';
 
 // ── Common ────────────────────────────────────────────────────────────────────
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
@@ -173,6 +174,7 @@ const ALL_ENTITIES = [
 
     // ── Feature Modules ───────────────────────────────────────────────────────
     AuthModule,
+    SchoolAuthModule,
     StudentModule,
     BattleModule,
     AiBridgeModule,
