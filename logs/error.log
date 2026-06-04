@@ -10823,3 +10823,264 @@ Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
     at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
     at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 
+[2026-06-03T12:52:29.343Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-03T12:52:29.773Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-03T12:55:58.934Z] POST /api/v1/upload-url
+Status: 400
+Error: BadRequestException: Study materials must be PDF files
+    at UploadController.validateContentType (C:\EDDVA SCHOOL\eddva_backend\src\modules\upload\upload.controller.ts:178:17)
+    at UploadController.getUploadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\upload\upload.controller.ts:84:10)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-04T05:24:39.120Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-04T05:25:43.133Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+
+[2026-06-04T05:25:52.719Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:00:14.228Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T07:00:14.344Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T07:00:14.378Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T07:00:14.382Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T07:00:15.495Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:00:15.913Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:00:21.735Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:00:28.845Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:07:42.012Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:08:52.977Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:08:53.698Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:08:57.422Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T07:08:59.225Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:09:24.143Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:09:24.553Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:11:30.459Z] GET /api/dashboard/stats
+Status: 404
+Error: NotFoundException: Cannot GET /api/dashboard/stats
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-04T07:41:19.697Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T07:41:19.808Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T08:00:49.846Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T08:00:50.130Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T08:00:50.208Z] GET /api/v1/school/reports/class/1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T08:00:50.353Z] GET /api/v1/school/reports/class/1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
