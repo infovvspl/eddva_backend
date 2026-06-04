@@ -52,6 +52,14 @@ export class SchoolNotificationService {
     return { success: true };
   }
 
+  async unreadCount(user: any) {
+    const rows: any[] = await this.ds.query(
+      `SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read IS NOT TRUE`,
+      [user.id],
+    );
+    return { success: true, count: rows[0]?.count ?? 0 };
+  }
+
   async markRead(id: string) {
     await this.ds.query(`UPDATE notifications SET is_read=true,updated_at=NOW() WHERE id=$1`, [id]);
     return { success: true };
