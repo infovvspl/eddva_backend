@@ -1,10 +1,10 @@
-import {
+﻿import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, DataSource } from 'typeorm';
 import { Readable } from 'stream';
 import csvParser from 'csv-parser';
@@ -29,21 +29,22 @@ export class PYQService {
   private readonly logger = new Logger(PYQService.name);
 
   constructor(
-    @InjectRepository(Question)       private readonly questionRepo: Repository<Question>,
-    @InjectRepository(QuestionOption) private readonly optionRepo: Repository<QuestionOption>,
-    @InjectRepository(Topic)          private readonly topicRepo: Repository<Topic>,
-    @InjectRepository(Subject)        private readonly subjectRepo: Repository<Subject>,
-    @InjectRepository(Chapter)        private readonly chapterRepo: Repository<Chapter>,
-    @InjectRepository(Student)        private readonly studentRepo: Repository<Student>,
-    @InjectRepository(PYQAttempt)     private readonly attemptRepo: Repository<PYQAttempt>,
-    @InjectRepository(PYQYearStats)   private readonly statsRepo: Repository<PYQYearStats>,
+    @InjectRepository(Question, 'coaching')       private readonly questionRepo: Repository<Question>,
+    @InjectRepository(QuestionOption, 'coaching') private readonly optionRepo: Repository<QuestionOption>,
+    @InjectRepository(Topic, 'coaching')          private readonly topicRepo: Repository<Topic>,
+    @InjectRepository(Subject, 'coaching')        private readonly subjectRepo: Repository<Subject>,
+    @InjectRepository(Chapter, 'coaching')        private readonly chapterRepo: Repository<Chapter>,
+    @InjectRepository(Student, 'coaching')        private readonly studentRepo: Repository<Student>,
+    @InjectRepository(PYQAttempt, 'coaching')     private readonly attemptRepo: Repository<PYQAttempt>,
+    @InjectRepository(PYQYearStats, 'coaching')   private readonly statsRepo: Repository<PYQYearStats>,
     private readonly aiBridgeService: AiBridgeService,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
   ) {}
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // ADMIN — CSV IMPORT
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ADMIN â€” CSV IMPORT
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   async importCSV(fileBuffer: Buffer, tenantId: string) {
     const rows = await this.parseCSV(fileBuffer);
@@ -111,7 +112,7 @@ export class PYQService {
       }
     }
 
-    // Batch insert — skip exact duplicates (same topicId + year + exam + content)
+    // Batch insert â€” skip exact duplicates (same topicId + year + exam + content)
     let imported = 0;
     let skipped = 0;
     for (const { q, options } of toInsert) {
@@ -152,9 +153,9 @@ export class PYQService {
     };
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // ADMIN — AI GENERATION
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ADMIN â€” AI GENERATION
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   async generateAIForTopic(dto: GenerateAIPYQDto, tenantId: string) {
     const topic = await this.topicRepo.findOne({
@@ -233,9 +234,9 @@ export class PYQService {
     };
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // ADMIN — REVIEW / VERIFY
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ADMIN â€” REVIEW / VERIFY
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   async getUnverifiedPYQs(query: UnverifiedQueryDto, tenantId: string) {
     const qb = this.questionRepo.createQueryBuilder('q')
@@ -362,9 +363,9 @@ export class PYQService {
     };
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // STUDENT — OVERVIEW
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // STUDENT â€” OVERVIEW
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   async getPYQOverview(topicId: string, userId: string, tenantId: string) {
     const topic = await this.topicRepo.findOne({
@@ -431,9 +432,9 @@ export class PYQService {
     };
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // STUDENT — GET PYQs (filtered)
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // STUDENT â€” GET PYQs (filtered)
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   async getPYQs(topicId: string, userId: string, tenantId: string, filter: PYQFilterDto) {
     const student = await this.studentRepo.findOne({ where: { userId } });
@@ -496,9 +497,9 @@ export class PYQService {
     };
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // STUDENT — SUBMIT ANSWER
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // STUDENT â€” SUBMIT ANSWER
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   async submitPYQAnswer(topicId: string, questionId: string, userId: string, tenantId: string, dto: SubmitPYQAnswerDto) {
     const question = await this.questionRepo.findOne({
@@ -589,9 +590,9 @@ export class PYQService {
     };
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // STUDENT — START SESSION (filtered batch)
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // STUDENT â€” START SESSION (filtered batch)
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   async startPYQSession(topicId: string, userId: string, tenantId: string, dto: StartPYQSessionDto) {
     const student = await this.studentRepo.findOne({ where: { userId } });
@@ -607,7 +608,7 @@ export class PYQService {
     const batchIds: string[] = enrollments.map((e: any) => e.batch_id);
     const primaryBatchId: string | null = batchIds[0] ?? null;
 
-    // Reusable query builder factory — same filters applied each time
+    // Reusable query builder factory â€” same filters applied each time
     const buildQb = () => {
       const qb = this.questionRepo.createQueryBuilder('q')
         .leftJoinAndSelect('q.options', 'o')
@@ -699,9 +700,9 @@ export class PYQService {
     };
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // STUDENT — MY PROGRESS
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // STUDENT â€” MY PROGRESS
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   async getMyProgress(topicId: string, userId: string, tenantId: string) {
     const student = await this.studentRepo.findOne({ where: { userId } });
@@ -779,9 +780,9 @@ export class PYQService {
     return { totalAttempted, totalCorrect, accuracyPct, xpEarned, byYear, byDifficulty, byExam: byExamMap, wrongQuestions };
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // STUDENT — CHAPTER OVERVIEW
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // STUDENT â€” CHAPTER OVERVIEW
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   async getChapterPYQOverview(chapterId: string, userId: string, tenantId: string) {
     const chapter = await this.chapterRepo.findOne({ where: { id: chapterId } });
@@ -847,9 +848,9 @@ export class PYQService {
     };
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // STATS RECOMPUTATION
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   async recomputePYQStats(topicId: string): Promise<void> {
     try {
@@ -895,9 +896,9 @@ export class PYQService {
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // PRIVATE HELPERS
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   private async generatePYQsViaAI(
     topicName: string, chapterName: string, subjectName: string,

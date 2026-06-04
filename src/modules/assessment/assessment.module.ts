@@ -42,7 +42,7 @@ import { ExamSyllabusCache } from '../../database/entities/exam-syllabus.entity'
       Student,
       WeakTopic,
       ExamSyllabusCache,
-    ]),
+    ], 'coaching'),
   ],
   controllers: [AssessmentController],
   providers: [AssessmentService, GradingService],

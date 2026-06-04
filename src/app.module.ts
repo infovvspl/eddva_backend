@@ -9,15 +9,16 @@ import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { redisStore } from 'cache-manager-redis-yet';
 
 import appConfig, { jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig } from './config/app.config';
-import { dbConfig } from './config/database.config';
+import { coachingDbConfig, schoolDbConfig } from './config/database.config';
 
-// ── Entities ──────────────────────────────────────────────────────────────────
+// ── Coaching Entities ──────────────────────────────────────────────────────────
 import { Tenant } from './database/entities/tenant.entity';
 import { User } from './database/entities/user.entity';
 import { Student } from './database/entities/student.entity';
 import { Subject, Chapter, Topic, TopicResource } from './database/entities/subject.entity';
 import { Question, QuestionOption } from './database/entities/question.entity';
 import { Batch, BatchSubjectTeacher, Enrollment } from './database/entities/batch.entity';
+import { BatchFeedback } from './database/entities/batch-feedback.entity';
 import {
   MockTest, TestSession, QuestionAttempt, TopicProgress,
 } from './database/entities/assessment.entity';
@@ -44,8 +45,7 @@ import {
   LeaderboardGroupMember, VideoWatchSession, StudentLevelHistory,
 } from './database/entities/xp.entity';
 
-
-// ── Modules ───────────────────────────────────────────────────────────────────
+// ── Coaching Modules ───────────────────────────────────────────────────────────
 import { AuthModule } from './modules/auth/auth.module';
 import { StudentModule } from './modules/student/student.module';
 import { BattleModule } from './modules/battle/battle.module';
@@ -66,20 +66,21 @@ import { PresenceModule } from './modules/presence/presence.module';
 import { StudyMaterialModule } from './modules/study-material/study-material.module';
 import { AIModule } from './ai/ai.module';
 import { OtpModule } from './modules/otp/otp.module';
-import { StorageModule } from './modules/storage/storage.module';
-import { SchoolAuthModule } from './modules/school-auth/school-auth.module';
+import { UploadModule } from './modules/upload/upload.module';
+
+// ── School Module (all school sub-modules bundled) ────────────────────────────
+import { SchoolModule } from './modules/school/school.module';
 
 // ── Common ────────────────────────────────────────────────────────────────────
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
-import { UploadModule } from './modules/upload/upload.module';
 
-const ALL_ENTITIES = [
+const ALL_COACHING_ENTITIES = [
   Tenant, User, Student,
   Subject, Chapter, Topic, TopicResource,
   Question, QuestionOption,
-  Batch, BatchSubjectTeacher, Enrollment,
+  Batch, BatchSubjectTeacher, Enrollment, BatchFeedback,
   MockTest, TestSession, QuestionAttempt, TopicProgress,
   Battle, BattleParticipant, BattleAnswer, StudentElo,
   Doubt, Lecture, LectureProgress, StudyPlan, PlanItem,
@@ -105,8 +106,9 @@ const ALL_ENTITIES = [
       envFilePath: ['.env.local', '.env'],
     }),
 
-    // ── Database ──────────────────────────────────────────────────────────────
+    // ── Coaching Database (named 'coaching') ─────────────────────────────────
     TypeOrmModule.forRootAsync({
+      name: 'coaching',
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (cfg: ConfigService) => {
@@ -116,12 +118,24 @@ const ALL_ENTITIES = [
           throw new Error('DB_SYNC=true is forbidden in production — use migrations instead.');
         }
         return {
-          ...dbConfig,
+          ...coachingDbConfig,
           synchronize: !isProd && dbSyncRequested,
           logging: !isProd,
-          entities: ALL_ENTITIES,
+          entities: ALL_COACHING_ENTITIES,
         };
       },
+    }),
+
+    // ── School Database (named 'school') ─────────────────────────────────────
+    TypeOrmModule.forRootAsync({
+      name: 'school',
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService) => ({
+        ...schoolDbConfig,
+        synchronize: false,
+        logging: cfg.get('app.nodeEnv') !== 'production',
+      }),
     }),
 
     // ── Cache (Redis with in-memory fallback) ─────────────────────────────────
@@ -133,7 +147,6 @@ const ALL_ENTITIES = [
         const host = cfg.get<string>('redis.host') || 'localhost';
         const isLocal = host === 'localhost' || host === '127.0.0.1';
         if (isLocal) {
-          // No local Redis — use in-memory store for development
           return { ttl: (cfg.get<number>('redis.ttl') || 3600) * 1000 };
         }
         return {
@@ -156,10 +169,8 @@ const ALL_ENTITIES = [
       }]),
     }),
 
-    // ── Scheduler (for cron jobs) ─────────────────────────────────────────────
     ScheduleModule.forRoot(),
 
-    // ── Bull (async job queues backed by the same Redis as the cache) ─────────
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -172,7 +183,7 @@ const ALL_ENTITIES = [
       }),
     }),
 
-    // ── Feature Modules ───────────────────────────────────────────────────────
+    // ── Coaching Feature Modules ──────────────────────────────────────────────
     AuthModule,
     SchoolAuthModule,
     StudentModule,
@@ -194,27 +205,19 @@ const ALL_ENTITIES = [
     AIModule,
     StudyMaterialModule,
     OtpModule,
-    StorageModule,
-
-    // TODO: Add as you build them:
-
-    // Expose Tenant entity for TenantMiddleware
-    TypeOrmModule.forFeature([Tenant]),
-
     UploadModule,
+
+    // ── School Module ─────────────────────────────────────────────────────────
+    SchoolModule,
   ],
   providers: [
-    // Global exception filter
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
-    // Global response wrapper
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
-    // Global rate limiting
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Apply tenant resolution middleware to all routes
     consumer.apply(TenantMiddleware).forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }

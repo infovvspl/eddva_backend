@@ -29,6 +29,7 @@ import {
   RosterQueryDto,
   UpdateBatchDto,
   RazorpayVerifyDto,
+  SubmitFeedbackDto,
 } from './dto/batch.dto';
 import { AssignSubjectTeacherDto, BulkEnrollDto, BulkCreateBatchStudentsDto, CreateBatchStudentDto, EnrollStudentDto, JoinBatchDto } from './dto/enrollment.dto';
 
@@ -310,6 +311,28 @@ export class BatchController {
     @TenantId() tenantId: string,
   ) {
     return this.batchService.getBatchById(id, user, tenantId);
+  }
+
+  @Post(':id/feedback')
+  @Roles(UserRole.STUDENT, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Submit anonymous feedback for a batch' })
+  submitFeedback(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SubmitFeedbackDto,
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.batchService.submitFeedback(id, user.id, dto, tenantId);
+  }
+
+  @Get(':id/feedback')
+  @Roles(UserRole.INSTITUTE_ADMIN, UserRole.TEACHER, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Get anonymous feedback for a batch' })
+  getFeedback(
+    @Param('id', ParseUUIDPipe) id: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.batchService.getFeedback(id, tenantId);
   }
 
   @Patch(':id')

@@ -12,25 +12,34 @@ export class StorageService {
   private readonly publicUrl: string;
 
   constructor(private readonly config: ConfigService) {
-    const r2 = config.get('storage.r2') as {
-      accountId: string;
-      accessKeyId: string;
-      secretAccessKey: string;
-      bucketName: string;
-      publicUrl: string;
-    };
+    const provider = (config.get<string>('storage.provider') || 's3').toLowerCase();
 
-    this.bucket = r2.bucketName;
-    this.publicUrl = r2.publicUrl.replace(/\/$/, '');
-
-    this.s3 = new S3Client({
-      region: 'auto',
-      endpoint: `https://${r2.accountId}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: r2.accessKeyId,
-        secretAccessKey: r2.secretAccessKey,
-      },
-    });
+    if (provider === 'r2') {
+      const r2 = config.get('storage.r2') as {
+        accountId: string; accessKeyId: string; secretAccessKey: string;
+        bucketName: string; publicUrl: string;
+      };
+      this.bucket = r2.bucketName;
+      this.publicUrl = (r2.publicUrl || '').replace(/\/$/, '');
+      this.s3 = new S3Client({
+        region: 'auto',
+        endpoint: `https://${r2.accountId}.r2.cloudflarestorage.com`,
+        credentials: { accessKeyId: r2.accessKeyId, secretAccessKey: r2.secretAccessKey },
+      });
+    } else {
+      // Default: AWS S3
+      const s3 = config.get('storage.s3') as {
+        region: string; accessKeyId: string; secretAccessKey: string;
+        bucketName: string; publicUrl: string;
+      };
+      this.bucket = s3.bucketName;
+      // Fall back to the standard S3 virtual-hosted URL when no CDN/public URL is set
+      this.publicUrl = (s3.publicUrl || `https://${s3.bucketName}.s3.${s3.region}.amazonaws.com`).replace(/\/$/, '');
+      this.s3 = new S3Client({
+        region: s3.region,
+        credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey },
+      });
+    }
   }
 
   async uploadFile(
@@ -54,7 +63,7 @@ export class StorageService {
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`R2 upload failed [${key}]: ${msg}`);
+      this.logger.error(`Storage upload failed [${key}]: ${msg}`);
       throw new InternalServerErrorException('File upload failed');
     }
 
@@ -66,10 +75,10 @@ export class StorageService {
   async deleteFile(key: string): Promise<void> {
     try {
       await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
-      this.logger.log(`Deleted R2 object: ${key}`);
+      this.logger.log(`Deleted storage object: ${key}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`R2 delete failed [${key}]: ${msg}`);
+      this.logger.warn(`Storage delete failed [${key}]: ${msg}`);
     }
   }
 

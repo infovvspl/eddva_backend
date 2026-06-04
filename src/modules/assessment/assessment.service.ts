@@ -1,11 +1,11 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 
 import {
@@ -52,35 +52,36 @@ export class AssessmentService {
   private mockTestSchemaCache: MockTestSchema | null = null;
 
   constructor(
-    @InjectRepository(MockTest)
+    @InjectRepository(MockTest, 'coaching')
     private readonly mockTestRepo: Repository<MockTest>,
-    @InjectRepository(TestSession)
+    @InjectRepository(TestSession, 'coaching')
     private readonly sessionRepo: Repository<TestSession>,
-    @InjectRepository(QuestionAttempt)
+    @InjectRepository(QuestionAttempt, 'coaching')
     private readonly attemptRepo: Repository<QuestionAttempt>,
-    @InjectRepository(TopicProgress)
+    @InjectRepository(TopicProgress, 'coaching')
     private readonly progressRepo: Repository<TopicProgress>,
-    @InjectRepository(Question)
+    @InjectRepository(Question, 'coaching')
     private readonly questionRepo: Repository<Question>,
-    @InjectRepository(Topic)
+    @InjectRepository(Topic, 'coaching')
     private readonly topicRepo: Repository<Topic>,
-    @InjectRepository(Batch)
+    @InjectRepository(Batch, 'coaching')
     private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(WeakTopic)
+    @InjectRepository(WeakTopic, 'coaching')
     private readonly weakTopicRepo: Repository<WeakTopic>,
-    @InjectRepository(BatchSubjectTeacher)
+    @InjectRepository(BatchSubjectTeacher, 'coaching')
     private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
-    @InjectRepository(Subject)
+    @InjectRepository(Subject, 'coaching')
     private readonly subjectRepo: Repository<Subject>,
-    @InjectRepository(Chapter)
+    @InjectRepository(Chapter, 'coaching')
     private readonly chapterRepo: Repository<Chapter>,
-    @InjectRepository(ExamSyllabusCache)
+    @InjectRepository(ExamSyllabusCache, 'coaching')
     private readonly examSyllabusCacheRepo: Repository<ExamSyllabusCache>,
     private readonly gradingService: GradingService,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     private readonly studyPlanService: StudyPlanService,
     private readonly aiBridgeService: AiBridgeService,
@@ -124,6 +125,7 @@ export class AssessmentService {
       durationMinutes: dto.durationMinutes,
       questionIds: questions.map((question) => question.id),
       scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
+      deadlineAt: dto.deadlineAt ? new Date(dto.deadlineAt) : null,
       examMode: dto.examMode ?? null,
       createdBy: user.id,
       isActive: true,
@@ -187,7 +189,7 @@ export class AssessmentService {
     const schema = await this.getMockTestSchema();
 
     // For students: resolve enrollments and derive the correct tenant from the batch
-    // (handles cross-tenant cases where user tenant ≠ batch tenant)
+    // (handles cross-tenant cases where user tenant â‰  batch tenant)
     let effectiveTenantId = tenantId;
     const enrolledBatchIds: string[] = [];
     if (user.role === UserRole.STUDENT) {
@@ -356,7 +358,8 @@ export class AssessmentService {
       title: dto.title ?? mockTest.title,
       totalMarks: dto.totalMarks ?? mockTest.totalMarks,
       durationMinutes: dto.durationMinutes ?? mockTest.durationMinutes,
-      scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : mockTest.scheduledAt,
+      scheduledAt: dto.scheduledAt !== undefined ? (dto.scheduledAt ? new Date(dto.scheduledAt) : null) : mockTest.scheduledAt,
+      deadlineAt: dto.deadlineAt !== undefined ? (dto.deadlineAt ? new Date(dto.deadlineAt) : null) : mockTest.deadlineAt,
       questionIds,
       scope: newScope,
       type: dto.type ?? this.inferType(newScope, dto as any),
@@ -404,7 +407,7 @@ export class AssessmentService {
     batchId: string,
     tenantId: string,
   ): Promise<void> {
-    // Batch id is globally unique — do not filter enrollments by institute tenantId.
+    // Batch id is globally unique â€” do not filter enrollments by institute tenantId.
     // Some rows may have enrollment.tenant_id out of sync with batch.tenant_id; those
     // students would otherwise never get notified or see the test under strict filters.
     const enrollments = await this.enrollmentRepo.find({
@@ -424,7 +427,7 @@ export class AssessmentService {
         return this.notificationService.send({
           userId: e.student!.user!.id,
           tenantId: recipientTenantId,
-          title: '📝 New Mock Test Available',
+          title: 'ðŸ“ New Mock Test Available',
           body: `"${testTitle}" has been published in ${batchName}. Attempt it now!`,
           channels: ['in_app', 'push'],
           refType: 'mock_test_available',
@@ -461,6 +464,10 @@ export class AssessmentService {
 
     if (schema.isPublished && !mockTest.isPublished) {
       throw new ForbiddenException('This test is not published');
+    }
+
+    if (mockTest.deadlineAt && new Date() > new Date(mockTest.deadlineAt)) {
+      throw new ForbiddenException('The deadline for this mock test has passed and it is now locked.');
     }
 
     const activeSession = await this.sessionRepo.findOne({
@@ -665,7 +672,7 @@ export class AssessmentService {
 
       // Mark diagnosticCompleted when:
       //   (a) the mock test is explicitly typed as DIAGNOSTIC, OR
-      //   (b) the student hasn't yet completed their diagnostic — meaning whatever
+      //   (b) the student hasn't yet completed their diagnostic â€” meaning whatever
       //       test they just submitted WAS their diagnostic (the UI falls back to
       //       the first published test when no DIAGNOSTIC-type test exists).
       if (mockTest.type === MockTestType.DIAGNOSTIC || !student.diagnosticCompleted) {
@@ -717,11 +724,11 @@ export class AssessmentService {
 
         const scorePercentage = stats.totalMarks > 0 ? (stats.marksAwarded / stats.totalMarks) * 100 : 0;
         const current = await manager.findOne(TopicProgress, {
-          where: { tenantId: sessionTenant, studentId: student.id, topicId },
+          where: { studentId: student.id, topicId },
         });
         const next = this.gradingService.computeTopicProgressUpdate(current, topic, scorePercentage, now);
         next.studentId = student.id;
-        next.tenantId = sessionTenant;
+        next.tenantId = current?.tenantId || sessionTenant;
         await manager.save(TopicProgress, next);
 
         // Track topics that newly transitioned to COMPLETED for gate-unlock side effects
@@ -866,6 +873,75 @@ export class AssessmentService {
     };
   }
 
+  async gradeSession(
+    sessionId: string,
+    grades: { questionId: string; marksAwarded: number }[],
+    user: any,
+    tenantId: string,
+  ) {
+    const payload = await this.getSessionPayload(sessionId);
+    await this.assertSessionReadAccess(payload.session, payload.mockTest, user, tenantId);
+
+    if (!grades?.length) throw new BadRequestException('No grades provided');
+
+    const questionIds = grades.map(g => g.questionId);
+
+    // Validate all questionIds belong to this mock test
+    const testQuestionIds = payload.mockTest?.questionIds ?? [];
+    const invalidIds = questionIds.filter(qid => !testQuestionIds.includes(qid));
+    if (invalidIds.length) {
+      throw new BadRequestException(`Questions not in this test: ${invalidIds.join(', ')}`);
+    }
+
+    // Load existing attempts for this session
+    const attempts = await this.attemptRepo.find({
+      where: { testSessionId: sessionId, questionId: In(questionIds) },
+    });
+
+    const attemptMap = new Map(attempts.map(a => [a.questionId, a]));
+
+    // Apply grade overrides
+    for (const grade of grades) {
+      const attempt = attemptMap.get(grade.questionId);
+      if (!attempt) continue;
+      const question = payload.questions.find(q => q.id === grade.questionId);
+      const maxMarks = question?.marksCorrect ?? 0;
+      attempt.marksAwarded = Math.max(0, Math.min(grade.marksAwarded, maxMarks));
+      // If marks > 0, mark as correct; if 0, wrong
+      attempt.isCorrect = attempt.marksAwarded > 0;
+    }
+    await this.attemptRepo.save(Array.from(attemptMap.values()));
+
+    // Recalculate session totals from ALL attempts
+    const allAttempts = await this.attemptRepo.find({ where: { testSessionId: sessionId } });
+    let totalScore = 0;
+    let correctCount = 0;
+    let wrongCount = 0;
+    let skippedCount = 0;
+
+    for (const attempt of allAttempts) {
+      totalScore += attempt.marksAwarded ?? 0;
+      if (attempt.errorType === ErrorType.SKIPPED) {
+        skippedCount++;
+      } else if (attempt.isCorrect) {
+        correctCount++;
+      } else {
+        wrongCount++;
+      }
+    }
+
+    const session = payload.session;
+    session.totalScore = totalScore;
+    session.correctCount = correctCount;
+    session.wrongCount = wrongCount;
+    session.skippedCount = skippedCount;
+    const totalEvaluated = correctCount + wrongCount;
+    session.accuracy = totalEvaluated > 0 ? Number(((correctCount / totalEvaluated) * 100).toFixed(2)) : 0;
+    await this.sessionRepo.save(session);
+
+    return { message: 'Grades saved successfully', totalScore, correctCount, wrongCount, skippedCount };
+  }
+
   async getSessions(query: SessionListQueryDto, user: any, tenantId: string) {
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -936,7 +1012,7 @@ export class AssessmentService {
     return this.serializeTopicProgress(progress);
   }
 
-  // ─── Per-question accuracy stats across all sessions for a mock test ─────────
+  // â”€â”€â”€ Per-question accuracy stats across all sessions for a mock test â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getMockTestQuestionStats(mockTestId: string, tenantId: string) {
     // Load the mock test to get question order / metadata
@@ -953,7 +1029,7 @@ export class AssessmentService {
     });
     const sessionIds = sessions.map(s => s.id);
     if (!sessionIds.length) {
-      // No submissions yet — return questions with zero stats
+      // No submissions yet â€” return questions with zero stats
       const questions = await this.questionRepo.find({
         where: { id: In(mockTest.questionIds), tenantId },
         select: ['id', 'content', 'type', 'difficulty'],
@@ -1026,7 +1102,7 @@ export class AssessmentService {
     }));
   }
 
-  // ─── Full progress report: subject → chapter → topic with all dimensions ─────
+  // â”€â”€â”€ Full progress report: subject â†’ chapter â†’ topic with all dimensions â”€â”€â”€â”€â”€
 
   async getProgressReport(user: any, tenantId: string, studentIdOverride?: string) {
     const studentId = await this.resolveProgressStudentId(user, tenantId, studentIdOverride);
@@ -1459,7 +1535,7 @@ export class AssessmentService {
 
   /**
    * Merges batch cohort (`examTarget`, `class`) with CBSE-style board marking. When the mock title
-   * or batch clearly indicates school-board / CBSE prep, `preferBoardMarking` keeps the full 2–5m
+   * or batch clearly indicates school-board / CBSE prep, `preferBoardMarking` keeps the full 2â€“5m
    * step-rubric and board leniency while still using cohort fields for band inference.
    */
   private buildDescriptiveGradingContext(
@@ -1534,7 +1610,7 @@ export class AssessmentService {
 
   /**
    * Strip answer key and explanations while a student is taking the test (anti-cheat).
-   * Do not spread TypeORM entities — column values can be missing from `{...entity}`.
+   * Do not spread TypeORM entities â€” column values can be missing from `{...entity}`.
    */
   private sanitizeQuestionForStudent(question: Question) {
     return {
@@ -1622,7 +1698,7 @@ export class AssessmentService {
     return questions;
   }
 
-  // ─── Diagnostic ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Diagnostic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getDiagnosticStatus(userId: string, tenantId: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
@@ -1652,7 +1728,7 @@ export class AssessmentService {
     });
     const batchId = enrollments[0]?.batchId ?? null;
 
-    // --- Get subjects for this examTarget (BOTH → include JEE + NEET) ---
+    // --- Get subjects for this examTarget (BOTH â†’ include JEE + NEET) ---
     const examTargets =
       student.examTarget === ExamTarget.BOTH
         ? [ExamTarget.JEE, ExamTarget.NEET]
@@ -1737,7 +1813,7 @@ export class AssessmentService {
         .getMany();
 
       if (fallback.length < 1) {
-        this.logger.log(`No questions in bank for tenant ${tenantId} — generating via AI for ${relevantTopics.length} topics`);
+        this.logger.log(`No questions in bank for tenant ${tenantId} â€” generating via AI for ${relevantTopics.length} topics`);
         const aiQuestions = await this.generateAiQuestionsForDiagnostic(relevantTopics, tenantId);
         if (aiQuestions.length < 1) {
           throw new BadRequestException(
@@ -1762,7 +1838,7 @@ export class AssessmentService {
     const mockTest = await this.mockTestRepo.save(
       this.mockTestRepo.create({
         tenantId,
-        title: `Diagnostic Test — ${student.examTarget.toUpperCase()}`,
+        title: `Diagnostic Test â€” ${student.examTarget.toUpperCase()}`,
         type: MockTestType.DIAGNOSTIC,
         totalMarks,
         durationMinutes: 45,
@@ -1785,7 +1861,7 @@ export class AssessmentService {
       schema,
     );
 
-    // --- Create the session directly (bypass published/enrollment guards — diagnostic is special) ---
+    // --- Create the session directly (bypass published/enrollment guards â€” diagnostic is special) ---
     const session = await this.sessionRepo.save(
       this.sessionRepo.create({
         tenantId,
@@ -1941,7 +2017,7 @@ export class AssessmentService {
       return { batchIds: [], batchTenantId: null };
     }
 
-    // Always load all active enrollments — filtering only by JWT tenant hides batches
+    // Always load all active enrollments â€” filtering only by JWT tenant hides batches
     // where enrollment.tenant_id differs from the token (common after payment/self-enroll).
     const enrollments = await this.enrollmentRepo.find({
       where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
@@ -2023,7 +2099,7 @@ export class AssessmentService {
       schema.showAnswersAfterSubmit ? 'mt.show_answers_after_submit AS "showAnswersAfterSubmit"' : 'true AS "showAnswersAfterSubmit"',
       schema.allowReattempt ? 'mt.allow_reattempt AS "allowReattempt"' : 'false AS "allowReattempt"',
       'mt.exam_mode AS "examMode"',
-      // Resolved names via JOIN (queries must alias sub-queries or use LEFT JOIN — handled at call sites)
+      // Resolved names via JOIN (queries must alias sub-queries or use LEFT JOIN â€” handled at call sites)
     ].join(', ');
   }
 
@@ -2110,7 +2186,7 @@ export class AssessmentService {
       };
     } catch (error: unknown) {
       this.logger.warn(`Failed to inspect mock_tests schema: ${(error as Error).message}`);
-      // Don't cache on error — retry next request
+      // Don't cache on error â€” retry next request
       return {
         batchId: false, topicId: false, passingMarks: false,
         isPublished: false, shuffleQuestions: false,
@@ -2121,13 +2197,13 @@ export class AssessmentService {
     return this.mockTestSchemaCache;
   }
 
-  // ── AI Question Generation for Diagnostic ────────────────────────────────────
+  // â”€â”€ AI Question Generation for Diagnostic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async generateAiQuestionsForDiagnostic(
     topics: Topic[],
     tenantId: string,
   ): Promise<Question[]> {
-    // Limit to 5 topics max — avoid overloading local Ollama under parallel load
+    // Limit to 5 topics max â€” avoid overloading local Ollama under parallel load
     const MAX_TOPICS = 5;
     const QUESTIONS_PER_TOPIC = 4;
     const difficultyPattern: DifficultyLevel[] = [

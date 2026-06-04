@@ -68,6 +68,13 @@ export class StudyMaterialAdminController {
     return this.svc.backfillFromTopicResources(tenantId);
   }
 
+  @Post('backfill-material-hierarchy')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Sprint D: Backfill subject_id_fk, chapter_id, topic_id based on legacy strings' })
+  backfillMaterialHierarchy(@TenantId() tenantId: string) {
+    return this.svc.backfillMaterialHierarchy(tenantId);
+  }
+
   @Get('debug-stats')
   @Roles(UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN, UserRole.TEACHER)
   @ApiOperation({ summary: 'Debug DB stats for topic_resources vs study_materials for this tenant' })

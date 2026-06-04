@@ -5,6 +5,8 @@ import { User } from '../../database/entities/user.entity';
 import { Student } from '../../database/entities/student.entity';
 import { Lecture } from '../../database/entities/learning.entity';
 import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
+import { MockTest } from '../../database/entities/assessment.entity';
+import { LectureAssignment } from '../../database/entities/assignment.entity';
 import { InstituteSettingsController } from './institute-settings.controller';
 import { AcademicCalendarController } from './academic-calendar.controller';
 import { InstituteSettingsService } from './institute-settings.service';
@@ -22,7 +24,9 @@ import { NotificationModule } from '../notification/notification.module';
       Enrollment,
       Batch,
       BatchSubjectTeacher,
-    ]),
+      MockTest,
+      LectureAssignment,
+    ], 'coaching'),
     UploadModule,
     NotificationModule,
   ],

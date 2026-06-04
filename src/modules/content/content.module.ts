@@ -44,7 +44,7 @@ import { StudyPlanModule } from '../study-plan/study-plan.module';
             User,
             TopicResource,
             StudyMaterial,
-        ]),
+        ], 'coaching'),
     ],
     controllers: [ContentController],
     providers: [ContentService],

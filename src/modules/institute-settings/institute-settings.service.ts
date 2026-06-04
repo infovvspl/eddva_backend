@@ -32,11 +32,11 @@ export class InstituteSettingsService {
   private readonly logger = new Logger(InstituteSettingsService.name);
 
   constructor(
-    @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
-    @InjectRepository(User)   private readonly userRepo: Repository<User>,
-    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Batch) private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
+    @InjectRepository(Tenant, 'coaching') private readonly tenantRepo: Repository<Tenant>,
+    @InjectRepository(User, 'coaching')   private readonly userRepo: Repository<User>,
+    @InjectRepository(Student, 'coaching') private readonly studentRepo: Repository<Student>,
+    @InjectRepository(Batch, 'coaching') private readonly batchRepo: Repository<Batch>,
+    @InjectRepository(Enrollment, 'coaching') private readonly enrollmentRepo: Repository<Enrollment>,
     private readonly notificationService: NotificationService,
     private readonly s3Service: S3Service,
   ) {}

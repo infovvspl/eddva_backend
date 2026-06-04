@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, MoreThan } from 'typeorm';
 
 import { Batch, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { Doubt, DoubtStatus, Lecture, LectureProgress } from '../../database/entities/learning.entity';
@@ -24,20 +24,20 @@ type TeacherAnalyticsActor = { id: string; role: UserRole };
 @Injectable()
 export class TeacherAnalyticsService {
   constructor(
-    @InjectRepository(Batch) private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(BatchSubjectTeacher) private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
-    @InjectRepository(Enrollment) private readonly enrollmentRepo: Repository<Enrollment>,
-    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
-    @InjectRepository(TestSession) private readonly testSessionRepo: Repository<TestSession>,
-    @InjectRepository(LectureProgress) private readonly lectureProgressRepo: Repository<LectureProgress>,
-    @InjectRepository(Lecture) private readonly lectureRepo: Repository<Lecture>,
-    @InjectRepository(Doubt) private readonly doubtRepo: Repository<Doubt>,
-    @InjectRepository(WeakTopic) private readonly weakTopicRepo: Repository<WeakTopic>,
-    @InjectRepository(PerformanceProfile) private readonly perfProfileRepo: Repository<PerformanceProfile>,
-    @InjectRepository(Topic) private readonly topicRepo: Repository<Topic>,
-    @InjectRepository(Subject) private readonly subjectRepo: Repository<Subject>,
-    @InjectRepository(Chapter) private readonly chapterRepo: Repository<Chapter>,
-    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Batch, 'coaching') private readonly batchRepo: Repository<Batch>,
+    @InjectRepository(BatchSubjectTeacher, 'coaching') private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
+    @InjectRepository(Enrollment, 'coaching') private readonly enrollmentRepo: Repository<Enrollment>,
+    @InjectRepository(Student, 'coaching') private readonly studentRepo: Repository<Student>,
+    @InjectRepository(TestSession, 'coaching') private readonly testSessionRepo: Repository<TestSession>,
+    @InjectRepository(LectureProgress, 'coaching') private readonly lectureProgressRepo: Repository<LectureProgress>,
+    @InjectRepository(Lecture, 'coaching') private readonly lectureRepo: Repository<Lecture>,
+    @InjectRepository(Doubt, 'coaching') private readonly doubtRepo: Repository<Doubt>,
+    @InjectRepository(WeakTopic, 'coaching') private readonly weakTopicRepo: Repository<WeakTopic>,
+    @InjectRepository(PerformanceProfile, 'coaching') private readonly perfProfileRepo: Repository<PerformanceProfile>,
+    @InjectRepository(Topic, 'coaching') private readonly topicRepo: Repository<Topic>,
+    @InjectRepository(Subject, 'coaching') private readonly subjectRepo: Repository<Subject>,
+    @InjectRepository(Chapter, 'coaching') private readonly chapterRepo: Repository<Chapter>,
+    @InjectRepository(User, 'coaching') private readonly userRepo: Repository<User>,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -1167,7 +1167,7 @@ export class TeacherAnalyticsService {
 
     if (!student) throw new NotFoundException(`Student ${studentId} not found in tenant ${tenantId}`);
 
-    const [progresses, sessions, weakTopics, batchLectures] = await Promise.all([
+    const [progresses, sessions, weakTopics, batchLectures, higherXpCount] = await Promise.all([
       this.lectureProgressRepo.find({ where: { studentId, tenantId } }),
       this.testSessionRepo.find({
         where: {
@@ -1182,7 +1182,12 @@ export class TeacherAnalyticsService {
       targetBatchId
         ? this.lectureRepo.find({ where: { batchId: targetBatchId, tenantId } })
         : Promise.resolve([]),
+      this.studentRepo.count({
+        where: { tenantId: student.tenantId, xpTotal: MoreThan(student.xpTotal || 0) }
+      }),
     ]);
+
+    const rank = higherXpCount + 1;
 
     const totalLectures = batchLectures.length || progresses.length;
     const watchedLectures = progresses.filter((p) => p.watchPercentage >= 80).length;
@@ -1200,6 +1205,8 @@ export class TeacherAnalyticsService {
         targetCollege: student.targetCollege ?? null,
         streakDays: student.currentStreak,
         xpTotal: student.xpTotal,
+        level: Math.max(1, Math.floor((student.xpTotal || 0) / 1000) + 1),
+        rank: rank,
         lastLoginAt: student.user?.lastLoginAt ?? null,
       },
       attendance: {

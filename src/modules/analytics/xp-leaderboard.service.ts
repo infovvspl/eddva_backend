@@ -8,9 +8,9 @@ import { Student } from '../../database/entities/student.entity';
 @Injectable()
 export class XpLeaderboardService {
   constructor(
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(TestSession)
+    @InjectRepository(TestSession, 'coaching')
     private readonly sessionRepo: Repository<TestSession>,
   ) {}
 

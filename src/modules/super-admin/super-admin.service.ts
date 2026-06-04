@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
@@ -45,26 +45,27 @@ export class SuperAdminService {
   private readonly OTP_PREFIX = 'otp:onboard:';
 
   constructor(
-    @InjectRepository(Tenant)
+    @InjectRepository(Tenant, 'coaching')
     private readonly tenantRepo: Repository<Tenant>,
-    @InjectRepository(User)
+    @InjectRepository(User, 'coaching')
     private readonly userRepo: Repository<User>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Batch)
+    @InjectRepository(Batch, 'coaching')
     private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
-    @InjectRepository(Lecture)
+    @InjectRepository(Lecture, 'coaching')
     private readonly lectureRepo: Repository<Lecture>,
-    @InjectRepository(TestSession)
+    @InjectRepository(TestSession, 'coaching')
     private readonly sessionRepo: Repository<TestSession>,
-    @InjectRepository(Announcement)
+    @InjectRepository(Announcement, 'coaching')
     private readonly announcementRepo: Repository<Announcement>,
-    @InjectRepository(StudyMaterial)
+    @InjectRepository(StudyMaterial, 'coaching')
     private readonly studyMaterialRepo: Repository<StudyMaterial>,
     private readonly notificationService: NotificationService,
     private readonly configService: ConfigService,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
@@ -76,7 +77,6 @@ export class SuperAdminService {
     }
 
     const tempPassword = this.generateTempPassword();
-    const trialDays = dto.trialDays ?? 14;
 
     const result = await this.dataSource.transaction(async (manager) => {
       const tenant = await manager.save(
@@ -84,12 +84,18 @@ export class SuperAdminService {
           name: dto.name,
           subdomain: dto.subdomain,
           type: TenantType.INSTITUTE,
-          plan: dto.plan,
-          status: TenantStatus.TRIAL,
+          plan: TenantPlan.STARTER,
+          status: TenantStatus.ACTIVE,
           billingEmail: dto.billingEmail ?? null,
           maxStudents: dto.maxStudents ?? 100,
           maxTeachers: dto.maxTeachers ?? 3,
-          trialEndsAt: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
+          address: dto.address ?? null,
+          city: dto.city ?? null,
+          state: dto.state ?? null,
+          pincode: dto.pincode ?? null,
+          trialEndsAt: null,
+          aiEnabled: dto.aiEnabled ?? false,
+          aiFeatures: dto.aiFeatures ?? [],
         }),
       );
 
@@ -136,26 +142,48 @@ export class SuperAdminService {
     qb.orderBy('tenant.createdAt', 'DESC').skip(skip).take(limit);
     const [tenants, total] = await qb.getManyAndCount();
 
-    const items = await Promise.all(
-      tenants.map(async (tenant) => {
-        const [studentCount, teacherCount, lastActivityRow] = await Promise.all([
-          this.studentRepo.count({ where: { tenantId: tenant.id } }),
-          this.userRepo.count({ where: { tenantId: tenant.id, role: UserRole.TEACHER } }),
-          this.userRepo
-            .createQueryBuilder('user')
-            .select('MAX(user.lastLoginAt)', 'lastActivity')
-            .where('user.tenantId = :tenantId', { tenantId: tenant.id })
-            .getRawOne(),
-        ]);
+    // Batch all counts in 3 queries instead of 3×N queries
+    const tenantIds = tenants.map((t) => t.id);
+    const [studentCounts, teacherCounts, lastActivities] = await Promise.all([
+      tenantIds.length
+        ? this.studentRepo
+            .createQueryBuilder('s')
+            .select('s.tenantId', 'tenantId')
+            .addSelect('COUNT(*)', 'cnt')
+            .where('s.tenantId IN (:...ids)', { ids: tenantIds })
+            .groupBy('s.tenantId')
+            .getRawMany()
+        : [],
+      tenantIds.length
+        ? this.userRepo
+            .createQueryBuilder('u')
+            .select('u.tenantId', 'tenantId')
+            .addSelect('COUNT(*)', 'cnt')
+            .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.TEACHER })
+            .groupBy('u.tenantId')
+            .getRawMany()
+        : [],
+      tenantIds.length
+        ? this.userRepo
+            .createQueryBuilder('u')
+            .select('u.tenantId', 'tenantId')
+            .addSelect('MAX(u.lastLoginAt)', 'lastActivity')
+            .where('u.tenantId IN (:...ids)', { ids: tenantIds })
+            .groupBy('u.tenantId')
+            .getRawMany()
+        : [],
+    ]);
 
-        return {
-          ...tenant,
-          studentCount,
-          teacherCount,
-          lastActivity: lastActivityRow?.lastActivity || null,
-        };
-      }),
-    );
+    const scMap = Object.fromEntries(studentCounts.map((r: any) => [r.tenantId, Number(r.cnt)]));
+    const tcMap = Object.fromEntries(teacherCounts.map((r: any) => [r.tenantId, Number(r.cnt)]));
+    const laMap = Object.fromEntries(lastActivities.map((r: any) => [r.tenantId, r.lastActivity]));
+
+    const items = tenants.map((tenant) => ({
+      ...tenant,
+      studentCount: scMap[tenant.id] ?? 0,
+      teacherCount: tcMap[tenant.id] ?? 0,
+      lastActivity: laMap[tenant.id] ?? null,
+    }));
 
     return {
       items,
@@ -184,7 +212,12 @@ export class SuperAdminService {
       trialEndsAt: dto.trialEndsAt ? new Date(dto.trialEndsAt) : tenant.trialEndsAt,
     });
 
-    return this.tenantRepo.save(tenant);
+    const saved = await this.tenantRepo.save(tenant);
+
+    // Invalidate AI feature cache so guard picks up changes immediately
+    await this.cacheManager.del(`tenant_ai:${id}`);
+
+    return saved;
   }
 
   async deleteTenant(id: string) {
@@ -352,7 +385,7 @@ export class SuperAdminService {
     return { message: 'Announcement deleted successfully' };
   }
 
-  // ── Course Enrollments (who bought which course) ──────────────────────
+  // â”€â”€ Course Enrollments (who bought which course) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getCourseEnrollments(query: {
     tenantId?: string;
@@ -467,7 +500,7 @@ export class SuperAdminService {
     };
   }
 
-  // ── Onboarding OTP (verify-only, no user creation) ────────────────────
+  // â”€â”€ Onboarding OTP (verify-only, no user creation) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async sendOnboardingOtp(phoneNumber: string) {
     const otpTtl = this.configService.get<number>('otp.expiresInSeconds') || 300;
@@ -533,6 +566,18 @@ export class SuperAdminService {
     const monthsActive = Math.max(1, this.diffMonths(tenant.createdAt, now));
     const totalRevenue = monthsActive * (PLAN_PRICES[tenant.plan] || 0);
 
+    const courseAnalytics = await this.dataSource.query(`
+      SELECT 
+        b.id AS batch_id, 
+        b.name AS course_name, 
+        (SELECT COUNT(e.id)::int FROM enrollments e WHERE e.batch_id = b.id AND e.deleted_at IS NULL) AS enrollments,
+        (SELECT COALESCE(SUM(e.fee_paid), 0)::numeric FROM enrollments e WHERE e.batch_id = b.id AND e.deleted_at IS NULL) AS revenue,
+        (SELECT COUNT(ls.id)::int FROM live_sessions ls JOIN lectures l ON l.id = ls.lecture_id WHERE l.batch_id = b.id AND ls.deleted_at IS NULL AND l.deleted_at IS NULL) AS live_classes
+      FROM batches b
+      WHERE b.tenant_id = $1 AND b.deleted_at IS NULL
+      ORDER BY revenue DESC
+    `, [tenant.id]);
+
     return {
       tenant,
       studentCount,
@@ -545,10 +590,11 @@ export class SuperAdminService {
       adminPhone: adminUser?.phoneNumber || null,
       adminName: adminUser?.fullName || null,
       adminEmail: adminUser?.email || null,
+      courseAnalytics,
     };
   }
 
-  /** Active batches (courses) for an institute — public catalog for the marketing / courses page. */
+  /** Active batches (courses) for an institute â€” public catalog for the marketing / courses page. */
   async getPublicInstituteCoursesCatalog(tenantId: string) {
     const tenant = await this.tenantRepo.findOne({
       where: { id: tenantId },

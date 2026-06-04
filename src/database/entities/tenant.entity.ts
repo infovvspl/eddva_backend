@@ -1,4 +1,4 @@
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column } from 'typeorm';
 import { Base } from './base.entity';
 
 export enum TenantType {
@@ -18,8 +18,21 @@ export enum TenantPlan {
   GROWTH = 'growth',
   SCALE = 'scale',
   ENTERPRISE = 'enterprise',
-  PLATFORM = 'platform', // reserved for the root tenant
+  PLATFORM = 'platform',
 }
+
+// All AI features available on the coaching platform
+export const AI_FEATURES = [
+  'ai_study_assistant',    // AI tutor session + study page
+  'ai_study_plan',         // AI-generated personalized study plan
+  'ai_battle_arena',       // AI adaptive battle arena
+  'ai_analytics',          // AI weak topic detection + progress
+  'ai_doubt_resolution',   // AI doubt clearing
+  'ai_content_generation', // Teacher question/quiz generation
+  'ai_speech_to_text',     // Lecture transcription (STT)
+] as const;
+
+export type AiFeatureKey = typeof AI_FEATURES[number];
 
 @Entity('tenants')
 export class Tenant extends Base {
@@ -27,7 +40,7 @@ export class Tenant extends Base {
   name: string;
 
   @Column({ name: 'subdomain', unique: true, nullable: true })
-  subdomain: string; // e.g. allen-kota (→ allen-kota.apexiq.in)
+  subdomain: string;
 
   @Column({ type: 'enum', enum: TenantType, default: TenantType.INSTITUTE })
   type: TenantType;
@@ -38,7 +51,18 @@ export class Tenant extends Base {
   @Column({ type: 'enum', enum: TenantPlan, default: TenantPlan.STARTER })
   plan: TenantPlan;
 
-  // Branding
+  @Column({ name: 'max_students', default: 100 })
+  maxStudents: number;
+
+  @Column({ name: 'max_teachers', default: 3 })
+  maxTeachers: number;
+
+  @Column({ name: 'ai_enabled', default: false })
+  aiEnabled: boolean;
+
+  @Column({ name: 'ai_features', type: 'jsonb', default: [] })
+  aiFeatures: AiFeatureKey[];
+
   @Column({ name: 'logo_url', nullable: true })
   logoUrl: string;
 
@@ -48,25 +72,21 @@ export class Tenant extends Base {
   @Column({ name: 'welcome_message', nullable: true })
   welcomeMessage: string;
 
-  // Institute location
   @Column({ nullable: true })
   city: string;
 
   @Column({ nullable: true })
   state: string;
 
-  // Onboarding
+  @Column({ nullable: true })
+  address: string;
+
+  @Column({ nullable: true })
+  pincode: string;
+
   @Column({ name: 'onboarding_complete', default: false })
   onboardingComplete: boolean;
 
-  // Limits
-  @Column({ name: 'max_students', default: 100 })
-  maxStudents: number;
-
-  @Column({ name: 'max_teachers', default: 3 })
-  maxTeachers: number;
-
-  // Billing
   @Column({ name: 'billing_email', nullable: true })
   billingEmail: string;
 
@@ -78,6 +98,12 @@ export class Tenant extends Base {
 
   @Column({ name: 'trial_ends_at', type: 'timestamptz', nullable: true })
   trialEndsAt: Date;
+
+  @Column({ name: 'is_suspended', default: false })
+  isSuspended: boolean;
+
+  @Column({ name: 'suspension_reason', nullable: true })
+  suspensionReason: string;
 
   @Column({ type: 'jsonb', nullable: true, default: {} })
   metadata: Record<string, any>;

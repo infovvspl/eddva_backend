@@ -37,19 +37,19 @@ export class DoubtService {
   private readonly logger = new Logger(DoubtService.name);
 
   constructor(
-    @InjectRepository(Doubt)
+    @InjectRepository(Doubt, 'coaching')
     private readonly doubtRepo: Repository<Doubt>,
-    @InjectRepository(Topic)
+    @InjectRepository(Topic, 'coaching')
     private readonly topicRepo: Repository<Topic>,
-    @InjectRepository(User)
+    @InjectRepository(User, 'coaching')
     private readonly userRepo: Repository<User>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Batch)
+    @InjectRepository(Batch, 'coaching')
     private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
-    @InjectRepository(BatchSubjectTeacher)
+    @InjectRepository(BatchSubjectTeacher, 'coaching')
     private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: NotificationService,
@@ -173,12 +173,15 @@ export class DoubtService {
 
     if (query.status) qb.andWhere('doubt.status = :status', { status: query.status });
     if (query.topicId) qb.andWhere('doubt.topicId = :topicId', { topicId: query.topicId });
-    if (query.batchId) qb.andWhere('doubt.batchId = :batchId', { batchId: query.batchId });
 
     if (user.role === UserRole.STUDENT) {
       const student = await this.getStudentByUserId(user.id, tenantId);
       qb.andWhere('doubt.studentId = :studentId', { studentId: student.id });
     } else if (user.role === UserRole.TEACHER) {
+      // Do NOT add doubt.batchId = :batchId here — that excludes doubts where
+      // batchId is null but the student is enrolled in the selected batch.
+      // Instead pass query.batchId to the scope helpers so they narrow results
+      // to the selected batch's students, then use the OR condition below.
       const [batchIds, studentIds] = await Promise.all([
         this.getTeacherBatchIds(user.id, tenantId, query.batchId),
         this.getTeacherStudentIds(user.id, tenantId, query.batchId),
@@ -197,8 +200,10 @@ export class DoubtService {
           qb.andWhere('doubt.studentId IN (:...studentIds)', { studentIds });
         }
       }
-    } else if (query.studentId) {
-      qb.andWhere('doubt.studentId = :studentId', { studentId: query.studentId });
+    } else {
+      // Admin / super-admin: explicit filters are safe (they see everything in the tenant)
+      if (query.batchId) qb.andWhere('doubt.batchId = :batchId', { batchId: query.batchId });
+      if (query.studentId) qb.andWhere('doubt.studentId = :studentId', { studentId: query.studentId });
     }
 
     qb.orderBy('doubt.createdAt', 'DESC').skip(skip).take(limit);
@@ -588,11 +593,16 @@ export class DoubtService {
       .andWhere('doubt.status = :status', { status: DoubtStatus.ESCALATED })
       .andWhere('doubt.deletedAt IS NULL');
 
-    if (scopeBatchId) {
-      qb.andWhere('doubt.batchId = :scopeBatchId', { scopeBatchId });
-    }
-
-    if (role !== UserRole.INSTITUTE_ADMIN) {
+    if (role === UserRole.INSTITUTE_ADMIN) {
+      // Admins see all escalated in tenant; scopeBatchId is a strict filter
+      if (scopeBatchId) {
+        qb.andWhere('doubt.batchId = :scopeBatchId', { scopeBatchId });
+      }
+    } else {
+      // For teachers, getTeacherBatchIds/getTeacherStudentIds already scope to
+      // scopeBatchId when provided, so we don't add a separate batchId = :x clause.
+      // That separate clause would exclude legacy doubts where batchId is null but
+      // the student is enrolled in the selected batch.
       const [batchIds, studentIds] = await Promise.all([
         this.getTeacherBatchIds(userId, tenantId, scopeBatchId),
         this.getTeacherStudentIds(userId, tenantId, scopeBatchId),
@@ -602,9 +612,6 @@ export class DoubtService {
         `getTeacherQueue userId=${userId} batchIds=${batchIds.length} studentIds=${studentIds.length}`,
       );
 
-      // Show doubt if batchId matches the teacher's batch (new doubts)
-      // OR studentId is an enrolled student (legacy doubts without batchId)
-      // If neither is set (teacher not linked on batches yet), show all escalated for this tenant.
       if (batchIds.length && studentIds.length) {
         qb.andWhere(
           '(doubt.batchId IN (:...batchIds) OR doubt.studentId IN (:...studentIds))',

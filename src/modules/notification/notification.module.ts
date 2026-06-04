@@ -15,7 +15,7 @@ import { Student } from '../../database/entities/student.entity';
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([Notification, User, Student]),
+    TypeOrmModule.forFeature([Notification, User, Student], 'coaching'),
     BullModule.registerQueue({ name: NOTIFICATION_QUEUE }),
   ],
   controllers: [NotificationController],

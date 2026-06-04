@@ -18,11 +18,11 @@ export class PresenceService {
   private readonly map = new Map<string, PresenceRecord>();
 
   constructor(
-    @InjectRepository(LiveSession)
+    @InjectRepository(LiveSession, 'coaching')
     private readonly liveSessionRepo: Repository<LiveSession>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Enrollment)
+    @InjectRepository(Enrollment, 'coaching')
     private readonly enrollmentRepo: Repository<Enrollment>,
   ) {}
 

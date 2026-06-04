@@ -32,7 +32,7 @@ import { TopicProgress } from '../../database/entities/assessment.entity';
       TopicProgress,
       Lecture,
       LectureProgress,
-    ]),
+    ], 'coaching'),
   ],
   controllers: [StudentController],
   providers: [StudentService],

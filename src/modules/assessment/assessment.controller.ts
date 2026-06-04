@@ -41,6 +41,7 @@ export class AssessmentController {
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
   ) {
+    console.log("RECEIVED DTO:", dto);
     return this.assessmentService.createMockTest(dto, user, tenantId);
   }
 
@@ -156,6 +157,19 @@ export class AssessmentController {
     @TenantId() tenantId: string,
   ) {
     return this.assessmentService.getSessionResult(id, user, tenantId);
+  }
+
+  @Patch('sessions/:id/grade')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Manually override marks for question attempts in a session (teacher grading)' })
+  @ApiParam({ name: 'id', type: 'string' })
+  gradeSession(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: { grades: { questionId: string; marksAwarded: number }[] },
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+  ) {
+    return this.assessmentService.gradeSession(id, dto.grades, user, tenantId);
   }
 
   @Get('sessions/:id')

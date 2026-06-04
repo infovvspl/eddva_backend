@@ -1,10 +1,10 @@
-import {
+﻿import {
   BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 
 import {
@@ -27,27 +27,28 @@ import { LogEngagementDto } from './dto/analytics.dto';
 @Injectable()
 export class AnalyticsService {
   constructor(
-    @InjectRepository(PerformanceProfile)
+    @InjectRepository(PerformanceProfile, 'coaching')
     private readonly profileRepo: Repository<PerformanceProfile>,
-    @InjectRepository(WeakTopic)
+    @InjectRepository(WeakTopic, 'coaching')
     private readonly weakTopicRepo: Repository<WeakTopic>,
-    @InjectRepository(EngagementLog)
+    @InjectRepository(EngagementLog, 'coaching')
     private readonly engagementRepo: Repository<EngagementLog>,
-    @InjectRepository(TestSession)
+    @InjectRepository(TestSession, 'coaching')
     private readonly sessionRepo: Repository<TestSession>,
-    @InjectRepository(QuestionAttempt)
+    @InjectRepository(QuestionAttempt, 'coaching')
     private readonly attemptRepo: Repository<QuestionAttempt>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(PlanItem)
+    @InjectRepository(PlanItem, 'coaching')
     private readonly planItemRepo: Repository<PlanItem>,
-    @InjectRepository(AiStudySession)
+    @InjectRepository(AiStudySession, 'coaching')
     private readonly aiStudyRepo: Repository<AiStudySession>,
-    @InjectRepository(LectureProgress)
+    @InjectRepository(LectureProgress, 'coaching')
     private readonly lectureProgressRepo: Repository<LectureProgress>,
-    @InjectRepository(Topic)
+    @InjectRepository(Topic, 'coaching')
     private readonly topicRepo: Repository<Topic>,
     private readonly notificationService: NotificationService,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
   ) {}
 
@@ -160,8 +161,8 @@ export class AnalyticsService {
       await this.notificationService.send({
         userId,
         tenantId,
-        title: "Seems like you're finding this tough. Need help? 💡",
-        body: "Seems like you're finding this tough. Need help? 💡",
+        title: "Seems like you're finding this tough. Need help? ðŸ’¡",
+        body: "Seems like you're finding this tough. Need help? ðŸ’¡",
         channels: ['push', 'in_app'],
         refType: 'engagement_confused',
         refId: dto.lectureId,

@@ -6,7 +6,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, Not, IsNull, ILike } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -47,36 +47,37 @@ export class AuthService {
   private readonly OTP_PREFIX = 'otp:';
 
   constructor(
-    @InjectRepository(User)
+    @InjectRepository(User, 'coaching')
     private readonly userRepo: Repository<User>,
-    @InjectRepository(Student)
+    @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
-    @InjectRepository(Tenant)
+    @InjectRepository(Tenant, 'coaching')
     private readonly tenantRepo: Repository<Tenant>,
-    @InjectRepository(PerformanceProfile)
+    @InjectRepository(PerformanceProfile, 'coaching')
     private readonly profileRepo: Repository<PerformanceProfile>,
-    @InjectRepository(StudentElo)
+    @InjectRepository(StudentElo, 'coaching')
     private readonly eloRepo: Repository<StudentElo>,
-    @InjectRepository(Batch)
+    @InjectRepository(Batch, 'coaching')
     private readonly batchRepo: Repository<Batch>,
-    @InjectRepository(Lecture)
+    @InjectRepository(Lecture, 'coaching')
     private readonly lectureRepo: Repository<Lecture>,
-    @InjectRepository(Doubt)
+    @InjectRepository(Doubt, 'coaching')
     private readonly doubtRepo: Repository<Doubt>,
-    @InjectRepository(TeacherProfile)
+    @InjectRepository(TeacherProfile, 'coaching')
     private readonly teacherProfileRepo: Repository<TeacherProfile>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly mailService: MailService,
     private readonly s3Service: S3Service,
   ) {}
 
-  // ── Student Self-Registration ─────────────────────────────────────────────
+  // â”€â”€ Student Self-Registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async registerStudent(dto: StudentRegisterDto, _tenantId: string) {
-    // Self-registration always goes to the platform tenant — no subdomain dependency
+    // Self-registration always goes to the platform tenant â€” no subdomain dependency
     const platformTenant = await this.tenantRepo.findOne({ where: { subdomain: 'platform' } });
     if (!platformTenant) throw new Error('Platform tenant not configured');
     const tenantId = platformTenant.id;
@@ -143,7 +144,7 @@ export class AuthService {
     });
   }
 
-  // ── OTP ──────────────────────────────────────────────────────────────────
+  // â”€â”€ OTP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async sendOtp(dto: SendOtpDto, tenantId: string) {
     const otpTtl = this.configService.get<number>('otp.expiresInSeconds');
@@ -173,12 +174,12 @@ export class AuthService {
       throw new BadRequestException('Invalid or expired OTP');
     }
 
-    // Consume OTP — delete it
+    // Consume OTP â€” delete it
     await this.cacheManager.del(key);
 
     // Find or create user
     let user = await this.userRepo.findOne({
-      where: { phoneNumber: dto.phoneNumber, tenantId },
+      where: { phoneNumber: dto.phoneNumber },
     });
 
     let isNewUser = false;
@@ -343,7 +344,7 @@ export class AuthService {
     return null;
   }
 
-  // ── Forgot / Reset Password ──────────────────────────────────────────────
+  // â”€â”€ Forgot / Reset Password â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async forgotPassword(dto: ForgotPasswordDto, tenantId: string) {
     const user = await this.userRepo.findOne({
@@ -367,7 +368,7 @@ export class AuthService {
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
     const mailDevMode = this.configService.get<boolean>('mail.devMode');
 
-    // Fire-and-forget — never let a mail failure block the API response
+    // Fire-and-forget â€” never let a mail failure block the API response
     this.mailService
       .sendPasswordResetEmail(user.email, user.fullName, resetLink)
       .catch((err: Error) => this.logger.error(`Failed to send password reset email to ${user.email}: ${err.message}`));
@@ -415,7 +416,7 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  // ── Onboarding ────────────────────────────────────────────────────────────
+  // â”€â”€ Onboarding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async onboardStudent(userId: string, tenantId: string, dto: StudentOnboardingDto) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
@@ -703,7 +704,7 @@ export class AuthService {
 
     const student = await this.studentRepo.findOne({ where: { userId } });
 
-    // Update streak on every /me call (safe — idempotent within same day)
+    // Update streak on every /me call (safe â€” idempotent within same day)
     if (student) {
       try {
         const today = new Date().toISOString().split('T')[0];
@@ -776,7 +777,7 @@ export class AuthService {
     };
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async generateTokens(user: User) {
     const payload = {
@@ -907,5 +908,17 @@ export class AuthService {
   private async isOnboarded(userId: string): Promise<boolean> {
     const student = await this.studentRepo.findOne({ where: { userId } });
     return !!student?.onboardingComplete;
+  }
+
+  async getTenantFeatures(tenantId: string) {
+    if (!tenantId) return { aiEnabled: false, aiFeatures: [] };
+    const tenant = await this.tenantRepo.findOne({
+      where: { id: tenantId },
+      select: ['id', 'aiEnabled', 'aiFeatures'],
+    });
+    return {
+      aiEnabled: tenant?.aiEnabled ?? false,
+      aiFeatures: (tenant?.aiFeatures ?? []) as string[],
+    };
   }
 }

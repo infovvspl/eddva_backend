@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, Like, FindOptionsWhere, In } from 'typeorm';
 
 import { Subject, Chapter, Topic, TopicResource, ResourceType } from '../../database/entities/subject.entity';
@@ -52,8 +52,8 @@ import {
     LectureQueryDto,
     UpsertProgressDto,
 } from './dto/lecture.dto';
-// Package "main" is CJS but package.json has "type":"module" — Node loads .js as ESM and breaks. Use the ESM build.
-import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
+// Package 1.3.1 fixed the ESM packaging. Use the standard import.
+import { YoutubeTranscript } from 'youtube-transcript';
 type YoutubeTranscriptApi = {
     fetchTranscript: (videoIdOrUrl: string, opts?: { lang?: string }) => Promise<{ text: string }[]>;
 };
@@ -65,42 +65,43 @@ export class ContentService {
     private static readonly hindiLikeLectureLanguages = new Set(['hi', 'hinglish', 'hi-in']);
 
     constructor(
-        @InjectRepository(Subject)
+        @InjectRepository(Subject, 'coaching')
         private readonly subjectRepo: Repository<Subject>,
-        @InjectRepository(Chapter)
+        @InjectRepository(Chapter, 'coaching')
         private readonly chapterRepo: Repository<Chapter>,
-        @InjectRepository(Topic)
+        @InjectRepository(Topic, 'coaching')
         private readonly topicRepo: Repository<Topic>,
-        @InjectRepository(Question)
+        @InjectRepository(Question, 'coaching')
         private readonly questionRepo: Repository<Question>,
-        @InjectRepository(QuestionOption)
+        @InjectRepository(QuestionOption, 'coaching')
         private readonly optionRepo: Repository<QuestionOption>,
-        @InjectRepository(Lecture)
+        @InjectRepository(Lecture, 'coaching')
         private readonly lectureRepo: Repository<Lecture>,
-        @InjectRepository(LectureProgress)
+        @InjectRepository(LectureProgress, 'coaching')
         private readonly progressRepo: Repository<LectureProgress>,
-        @InjectRepository(Batch)
+        @InjectRepository(Batch, 'coaching')
         private readonly batchRepo: Repository<Batch>,
-        @InjectRepository(BatchSubjectTeacher)
+        @InjectRepository(BatchSubjectTeacher, 'coaching')
         private readonly batchSubjectTeacherRepo: Repository<BatchSubjectTeacher>,
-        @InjectRepository(Enrollment)
+        @InjectRepository(Enrollment, 'coaching')
         private readonly enrollmentRepo: Repository<Enrollment>,
-        @InjectRepository(AiStudySession)
+        @InjectRepository(AiStudySession, 'coaching')
         private readonly aiStudyRepo: Repository<AiStudySession>,
-        @InjectRepository(TopicProgress)
+        @InjectRepository(TopicProgress, 'coaching')
         private readonly topicProgressRepo: Repository<TopicProgress>,
-        @InjectRepository(MockTest)
+        @InjectRepository(MockTest, 'coaching')
         private readonly mockTestRepo: Repository<MockTest>,
-        @InjectRepository(StudyPlan)
+        @InjectRepository(StudyPlan, 'coaching')
         private readonly studyPlanRepo: Repository<StudyPlan>,
-        @InjectRepository(PlanItem)
+        @InjectRepository(PlanItem, 'coaching')
         private readonly planItemRepo: Repository<PlanItem>,
-        @InjectRepository(TopicResource)
+        @InjectRepository(TopicResource, 'coaching')
         private readonly topicResourceRepo: Repository<TopicResource>,
-        @InjectRepository(StudyMaterial)
+        @InjectRepository(StudyMaterial, 'coaching')
         private readonly studyMaterialRepo: Repository<StudyMaterial>,
-        @InjectRepository(User)
+        @InjectRepository(User, 'coaching')
         private readonly userRepo: Repository<User>,
+        @InjectDataSource('coaching')
         private readonly dataSource: DataSource,
         private readonly aiBridgeService: AiBridgeService,
         private readonly notificationService: NotificationService,
@@ -108,6 +109,29 @@ export class ContentService {
         @Inject(CACHE_MANAGER)
         private readonly cacheManager: Cache,
     ) { }
+
+    /**
+     * Returns true if the tenant has the given AI feature enabled.
+     * Cached 5min in CACHE_MANAGER under the same key the AiFeatureGuard uses,
+     * so toggling a tenant's AI config invalidates both at once.
+     */
+    private async _tenantHasAiFeature(tenantId: string, feature: string): Promise<boolean> {
+        if (!tenantId) return false;
+        const cacheKey = `tenant_ai:${tenantId}`;
+        let cfg = await this.cacheManager.get<{ aiEnabled: boolean; aiFeatures: string[] }>(cacheKey);
+        if (!cfg) {
+            const rows: any[] = await this.dataSource.query(
+                `SELECT ai_enabled, ai_features FROM tenants WHERE id = $1 LIMIT 1`,
+                [tenantId],
+            );
+            cfg = {
+                aiEnabled: rows[0]?.ai_enabled ?? false,
+                aiFeatures: rows[0]?.ai_features ?? [],
+            };
+            await this.cacheManager.set(cacheKey, cfg, 300_000);
+        }
+        return cfg.aiEnabled && cfg.aiFeatures.includes(feature);
+    }
 
     private normalizeSubjectExamTarget(value: string) {
         const cleaned = value.trim().replace(/\s+/g, ' ');
@@ -148,7 +172,7 @@ export class ContentService {
         return ContentService.hindiLikeLectureLanguages.has(normalized) ? 'hi' : 'en';
     }
 
-    // ─── SUBJECTS ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€ SUBJECTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async createSubject(dto: CreateSubjectDto, tenantId: string): Promise<Subject> {
         this.logger.log(`Creating subject for tenant ${tenantId}`);
@@ -292,7 +316,7 @@ export class ContentService {
             order: { sortOrder: 'ASC', createdAt: 'ASC' },
         });
 
-        // Deduplicate by name — prefer global (batchId = null) over batch-scoped copies
+        // Deduplicate by name â€” prefer global (batchId = null) over batch-scoped copies
         const seen = new Map<string, Subject>();
         for (const s of all) {
             const key = s.name.toLowerCase().trim();
@@ -334,7 +358,7 @@ export class ContentService {
         return { message: 'Subject deleted successfully' };
     }
 
-    // ─── BULK CURRICULUM IMPORT ───────────────────────────────────────────────
+    // â”€â”€â”€ BULK CURRICULUM IMPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async bulkImportCurriculum(dto: BulkImportCurriculumDto, tenantId: string) {
         const { batchId, examTarget, subjects } = dto;
@@ -356,7 +380,7 @@ export class ContentService {
             for (let si = 0; si < subjects.length; si++) {
                 const sDef = subjects[si];
 
-                // Upsert subject — match by name + batchId
+                // Upsert subject â€” match by name + batchId
                 let subject = await manager.findOne(Subject, {
                     where: { tenantId, batchId, isActive: true, name: sDef.name },
                 });
@@ -385,7 +409,7 @@ export class ContentService {
                 for (let ci = 0; ci < sDef.chapters.length; ci++) {
                     const cDef = sDef.chapters[ci];
 
-                    // Upsert chapter — match by name + subjectId
+                    // Upsert chapter â€” match by name + subjectId
                     let chapter = await manager.findOne(Chapter, {
                         where: { tenantId, subjectId: subject.id, isActive: true, name: cDef.name },
                     });
@@ -394,7 +418,7 @@ export class ContentService {
                             name: cDef.name,
                             tenantId,
                             subjectId: subject.id,
-                            jeeWeightage:  cDef.jeeWeightage  ?? 0,
+                            jeeWeightage: cDef.jeeWeightage ?? 0,
                             neetWeightage: cDef.neetWeightage ?? 0,
                             sortOrder: ci,
                             isActive: true,
@@ -405,7 +429,7 @@ export class ContentService {
                         skipped.chapters++;
                         // Update weightages if provided
                         let dirty = false;
-                        if (cDef.jeeWeightage  != null) { chapter.jeeWeightage  = cDef.jeeWeightage;  dirty = true; }
+                        if (cDef.jeeWeightage != null) { chapter.jeeWeightage = cDef.jeeWeightage; dirty = true; }
                         if (cDef.neetWeightage != null) { chapter.neetWeightage = cDef.neetWeightage; dirty = true; }
                         if (dirty) await manager.save(Chapter, chapter);
                     }
@@ -415,7 +439,7 @@ export class ContentService {
                     for (let ti = 0; ti < cDef.topics.length; ti++) {
                         const tDef = cDef.topics[ti];
 
-                        // Upsert topic — match by name + chapterId
+                        // Upsert topic â€” match by name + chapterId
                         let topic = await manager.findOne(Topic, {
                             where: { tenantId, chapterId: chapter.id, isActive: true, name: tDef.name },
                         });
@@ -458,7 +482,7 @@ export class ContentService {
         };
     }
 
-    // ─── CHAPTERS ────────────────────────────────────────────────────────────
+    // â”€â”€â”€ CHAPTERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async createChapter(dto: CreateChapterDto, tenantId: string): Promise<Chapter> {
         this.logger.log(`Creating chapter for subject ${dto.subjectId}, tenant ${tenantId}`);
@@ -494,7 +518,7 @@ export class ContentService {
         return { message: 'Chapter deleted successfully' };
     }
 
-    // ─── TOPICS ──────────────────────────────────────────────────────────────
+    // â”€â”€â”€ TOPICS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async createTopic(dto: CreateTopicDto, tenantId: string): Promise<Topic> {
         this.logger.log(`Creating topic for chapter ${dto.chapterId}, tenant ${tenantId}`);
@@ -508,7 +532,7 @@ export class ContentService {
         const saved = await this.topicRepo.save(topic);
 
         const batchId = chapter.subject?.batchId ?? null;
-        this.studyPlanService.onTopicCreated(saved.id, batchId, tenantId).catch(() => {});
+        this.studyPlanService.onTopicCreated(saved.id, batchId, tenantId).catch(() => { });
 
         return saved;
     }
@@ -537,7 +561,7 @@ export class ContentService {
         return { message: 'Topic deleted successfully' };
     }
 
-    // ─── QUESTIONS ───────────────────────────────────────────────────────────
+    // â”€â”€â”€ QUESTIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private validateQuestionOptions(dto: CreateQuestionDto) {
         const { type, options = [], integerAnswer } = dto;
@@ -557,7 +581,7 @@ export class ContentService {
             return;
         }
 
-        // MCQ types — options required
+        // MCQ types â€” options required
         if (!options || options.length < 2) {
             throw new BadRequestException('MCQ questions require at least 2 options');
         }
@@ -576,7 +600,7 @@ export class ContentService {
         this.validateQuestionOptions(dto);
 
         if (dto.topicId) {
-            // Topics are platform-level content — do not filter by institute tenantId
+            // Topics are platform-level content â€” do not filter by institute tenantId
             const topic = await this.topicRepo.findOne({ where: { id: dto.topicId } });
             if (!topic) throw new NotFoundException(`Topic ${dto.topicId} not found`);
         }
@@ -696,7 +720,7 @@ export class ContentService {
         return { created, failed, errors };
     }
 
-    // ─── LECTURES ────────────────────────────────────────────────────────────
+    // â”€â”€â”€ LECTURES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private async validateBatchAccess(batchId: string, userId: string, tenantId: string, isAdminOrAbove: boolean) {
         const batch = await this.batchRepo.findOne({ where: { id: batchId, tenantId } });
@@ -736,17 +760,30 @@ export class ContentService {
         const status =
             dto.type === LectureType.LIVE ? LectureStatus.SCHEDULED : LectureStatus.PUBLISHED;
 
+        const finalTeacherId = (isAdmin && dto.teacherId) ? dto.teacherId : userId;
+
         const lecture = this.lectureRepo.create({
             ...dto,
             tenantId,
-            teacherId: userId,
+            teacherId: finalTeacherId,
             status,
         });
         const saved = await this.lectureRepo.save(lecture);
 
         if (dto.type === LectureType.RECORDED && dto.videoUrl) {
-            this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId).catch(() => {});
-            this._notifyStudentsOnPublish(saved).catch(() => {});
+            // Only run transcription / AI notes if the tenant has the STT feature
+            void (async () => {
+                try {
+                    const enabled = await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text');
+                    if (enabled) {
+                        await this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId);
+                    } else {
+                        // No AI: clear transcript status so the UI never shows a perpetual "pending"
+                        await this.lectureRepo.update(saved.id, { transcriptStatus: null as any });
+                    }
+                } catch { /* background task — swallow */ }
+            })();
+            this._notifyStudentsOnPublish(saved).catch(() => { });
         }
 
         if (dto.type === LectureType.LIVE && saved.scheduledAt) {
@@ -788,7 +825,7 @@ export class ContentService {
                     userId,
                     tenantId: e.student?.user?.tenantId ?? tenantId,
                     title: `Live class scheduled: ${lecture.title}`,
-                    body: `${teacherName} scheduled a live class${when ? ` — ${when}` : ''}. Open Calendar or Lectures to join.`,
+                    body: `${teacherName} scheduled a live class${when ? ` â€” ${when}` : ''}. Open Calendar or Lectures to join.`,
                     channels: ['in_app', 'push'] as ('in_app' | 'push')[],
                     refType: 'live_class_scheduled',
                     refId: lecture.id,
@@ -802,10 +839,10 @@ export class ContentService {
     }
 
     private _fixVideoUrl(url: string): string {
-        // "http://host/api/v1http://host/uploads/..." → "http://host/uploads/..."
+        // "http://host/api/v1http://host/uploads/..." â†’ "http://host/uploads/..."
         const doubleUrl = url.match(/https?:\/\/[^/]+\/api\/v\d+(https?:\/\/.+)/);
         if (doubleUrl) return doubleUrl[1];
-        // "http://host/api/v1/uploads/..." → "http://host/uploads/..."
+        // "http://host/api/v1/uploads/..." â†’ "http://host/uploads/..."
         return url.replace(/\/api\/v\d+\/uploads\//, '/uploads/');
     }
 
@@ -821,10 +858,12 @@ export class ContentService {
         const cleanUrl = this._fixVideoUrl(videoUrl.trim());
         const wasPublished = lecture.status === LectureStatus.PUBLISHED;
 
+        const sttEnabled = await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text');
+
         lecture.videoUrl = cleanUrl;
         lecture.type = LectureType.RECORDED;
         lecture.status = LectureStatus.PUBLISHED;
-        lecture.transcriptStatus = TranscriptStatus.PENDING;
+        lecture.transcriptStatus = sttEnabled ? TranscriptStatus.PENDING : (null as any);
         lecture.transcript = null as any;
         lecture.transcriptHi = null as any;
         lecture.aiNotesMarkdown = null as any;
@@ -840,7 +879,8 @@ export class ContentService {
             );
         }
 
-        if (opts?.triggerAi !== false) {
+        // Only transcribe if the tenant has STT enabled AND caller didn't opt out
+        if (opts?.triggerAi !== false && sttEnabled) {
             this._processLectureAI(saved.id, cleanUrl, saved.topicId, tenantId).catch(err =>
                 this.logger.warn(`Failed to start AI processing for lecture ${saved.id}: ${err instanceof Error ? err.message : String(err)}`),
             );
@@ -849,7 +889,7 @@ export class ContentService {
         return saved;
     }
 
-    // ── YouTube helpers ───────────────────────────────────────────────────────
+    // â”€â”€ YouTube helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private isYouTubeUrl(url: string): boolean {
         return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)/.test(url);
@@ -864,11 +904,10 @@ export class ContentService {
     }
 
     /**
-     * `youtube-transcript@1.3.0` has a packaging issue (`type: module` with CJS main).
-     * Load its ESM build through native dynamic import so Node 24 doesn't crash.
+     * Load youtube-transcript.
      */
     private async loadYoutubeTranscriptApi(): Promise<YoutubeTranscriptApi> {
-        const mod = await import('youtube-transcript/dist/youtube-transcript.esm.js');
+        const mod = await import('youtube-transcript');
         const api = (mod as { YoutubeTranscript?: YoutubeTranscriptApi }).YoutubeTranscript;
         if (!api) throw new Error('Failed to load youtube-transcript ESM API');
         return api;
@@ -887,7 +926,7 @@ export class ContentService {
         try {
             segments = await youtubeTranscript.fetchTranscript(videoId, { lang: 'en' });
         } catch {
-            // Retry without a lang preference — takes whatever YouTube makes available
+            // Retry without a lang preference â€” takes whatever YouTube makes available
             segments = await youtubeTranscript.fetchTranscript(videoId);
         }
         if (!segments || segments.length === 0) {
@@ -969,7 +1008,7 @@ export class ContentService {
         topicId: string | undefined,
         tenantId: string,
     ): Promise<void> {
-        // ── YouTube branch: fetch captions instead of running Whisper ────────
+        // â”€â”€ YouTube branch: fetch captions instead of running Whisper â”€â”€â”€â”€â”€â”€â”€â”€
         if (this.isYouTubeUrl(videoUrl)) {
             const videoId = this.extractYouTubeId(videoUrl);
             if (!videoId) {
@@ -984,7 +1023,7 @@ export class ContentService {
             return this._processYouTubeLecture(lectureId, videoId, topicId, tenantId);
         }
 
-        // ── Direct-media two-phase pipeline (Whisper → save → LLM notes) ────────
+        // â”€â”€ Direct-media two-phase pipeline (Whisper â†’ save â†’ LLM notes) â”€â”€â”€â”€â”€â”€â”€â”€
         const cleanUrl = this._fixVideoUrl(videoUrl);
         this.logger.log(`AI processing started for lecture ${lectureId} url=${cleanUrl}`);
 
@@ -994,7 +1033,7 @@ export class ContentService {
 
         await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.PROCESSING });
 
-        // ── Phase 1: Whisper transcription (no LLM, ~2-5 min) ────────────────
+        // â”€â”€ Phase 1: Whisper transcription (no LLM, ~2-5 min) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         let transcriptToStore: string;
         try {
             const transcribeResult = await this.aiBridgeService.transcribeAudio(
@@ -1022,7 +1061,7 @@ export class ContentService {
             return;
         }
 
-        // ── Phase 2 (Removed): LLM note generation is now manually triggered via regenerateNotes API ──
+        // â”€â”€ Phase 2 (Removed): LLM note generation is now manually triggered via regenerateNotes API â”€â”€
     }
 
     async retranscribeLecture(id: string, userId: string, userRole: UserRole, tenantId: string): Promise<{ message: string }> {
@@ -1031,6 +1070,9 @@ export class ContentService {
         if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
             throw new ForbiddenException('You can only retranscribe your own lectures');
         }
+        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+            throw new ForbiddenException('AI transcription is not enabled for your institution.');
+        }
         if (lecture.type !== LectureType.RECORDED || !lecture.videoUrl) {
             throw new BadRequestException('Only recorded lectures with a video URL can be transcribed');
         }
@@ -1038,7 +1080,7 @@ export class ContentService {
             return { message: 'Transcription already in progress' };
         }
         await this.lectureRepo.update(id, { transcriptStatus: TranscriptStatus.PROCESSING });
-        this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => {});
+        this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => { });
         return { message: 'Transcription started' };
     }
 
@@ -1049,11 +1091,11 @@ export class ContentService {
             throw new ForbiddenException('You can only regenerate notes for your own lectures');
         }
         if (!lecture.transcript || lecture.transcript.trim().length < 20) {
-            throw new BadRequestException('No transcript saved — run transcription first');
+            throw new BadRequestException('No transcript saved â€” run transcription first');
         }
         const lectureLanguage = this.normalizeLectureLanguage(lecture.lectureLanguage);
         const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
-        this._runNotesFromSavedTranscript(id, lecture.transcript, lecture.topicId, aiLanguage, tenantId).catch(() => {});
+        this._runNotesFromSavedTranscript(id, lecture.transcript, lecture.topicId, aiLanguage, tenantId).catch(() => { });
         return { message: 'Notes generation started' };
     }
 
@@ -1100,7 +1142,7 @@ export class ContentService {
 
         if (!lecture.transcript) throw new BadRequestException('No transcript available to translate');
 
-        // Call AI bridge to translate English → Hindi
+        // Call AI bridge to translate English â†’ Hindi
         const result = await this.aiBridgeService.translateText(
             { text: lecture.transcript, targetLanguage: 'hi' },
             tenantId,
@@ -1168,7 +1210,7 @@ export class ContentService {
 
     /**
      * Request `tenantId` (from Host / JWT) may not match `lecture.tenant_id` for students
-     * (e.g. LAN IP → platform tenant vs institute lecture). Students: load by id only; others: tenant-scoped.
+     * (e.g. LAN IP â†’ platform tenant vs institute lecture). Students: load by id only; others: tenant-scoped.
      */
     private async findLectureForRole(
         id: string,
@@ -1211,7 +1253,7 @@ export class ContentService {
 
         // Role-based filtering
         if (userRole === UserRole.STUDENT) {
-            // Students see only lectures from their enrolled batches — cross-tenant safe (no tenantId filter)
+            // Students see only lectures from their enrolled batches â€” cross-tenant safe (no tenantId filter)
             if (student) {
                 const enrollments = await this.enrollmentRepo.find({
                     where: {
@@ -1233,7 +1275,7 @@ export class ContentService {
             }
         } else if (userRole === UserRole.TEACHER) {
             qb.andWhere('l.tenantId = :tenantId', { tenantId })
-              .andWhere('l.teacherId = :userId', { userId });
+                .andWhere('l.teacherId = :userId', { userId });
         } else {
             // admin/super_admin scoped to their tenant
             qb.andWhere('l.tenantId = :tenantId', { tenantId });
@@ -1369,8 +1411,13 @@ export class ContentService {
         const isAdmin =
             userRole === UserRole.INSTITUTE_ADMIN || userRole === UserRole.SUPER_ADMIN;
 
-        if (!isAdmin && lecture.teacherId !== userId) {
-            throw new ForbiddenException('You can only modify your own lectures');
+        if (!isAdmin) {
+            if (lecture.teacherId !== userId) {
+                throw new ForbiddenException('You can only modify your own lectures');
+            }
+            if (dto.teacherId && dto.teacherId !== lecture.teacherId) {
+                throw new ForbiddenException('Teachers cannot change the assigned teacher');
+            }
         }
 
         const wasPublished = lecture.status === LectureStatus.PUBLISHED;
@@ -1384,9 +1431,13 @@ export class ContentService {
 
         Object.assign(lecture, dto);
 
+        const sttEnabled = videoUrlChanged
+            ? await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text')
+            : false;
+
         if (videoUrlChanged && incomingVideoUrl) {
             lecture.videoUrl = this._fixVideoUrl(incomingVideoUrl);
-            lecture.transcriptStatus = TranscriptStatus.PENDING;
+            lecture.transcriptStatus = sttEnabled ? TranscriptStatus.PENDING : (null as any);
             lecture.transcript = null as any;
             lecture.transcriptHi = null as any;
             lecture.aiNotesMarkdown = null as any;
@@ -1409,7 +1460,7 @@ export class ContentService {
             );
         }
 
-        if (videoUrlChanged && saved.videoUrl) {
+        if (videoUrlChanged && saved.videoUrl && sttEnabled) {
             this._processLectureAI(saved.id, saved.videoUrl, saved.topicId, tenantId).catch(err =>
                 this.logger.warn(`Failed to start AI processing for lecture ${saved.id}: ${err instanceof Error ? err.message : String(err)}`),
             );
@@ -1462,7 +1513,7 @@ export class ContentService {
         return { message: 'Lecture deleted successfully' };
     }
 
-    // ─── LECTURE PROGRESS ────────────────────────────────────────────────────
+    // â”€â”€â”€ LECTURE PROGRESS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async upsertProgress(
         lectureId: string,
@@ -1502,7 +1553,7 @@ export class ContentService {
 
         const saved = await this.progressRepo.save(progress);
 
-        // ── Transition TopicProgress UNLOCKED → IN_PROGRESS on first watch ───
+        // â”€â”€ Transition TopicProgress UNLOCKED â†’ IN_PROGRESS on first watch â”€â”€â”€
         if (lecture.topicId && dto.watchPercentage > 0) {
             let topicProg = await this.topicProgressRepo.findOne({
                 where: { studentId: student.id, topicId: lecture.topicId },
@@ -1523,7 +1574,7 @@ export class ContentService {
             }
         }
 
-        // ── On first completion, award XP + auto-complete plan item ──────────
+        // â”€â”€ On first completion, award XP + auto-complete plan item â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (!wasCompleted && saved.isCompleted && lecture.topicId) {
             const XP_PER_LECTURE = 10;
 
@@ -1645,7 +1696,7 @@ export class ContentService {
                 ? allProgress.reduce((sum, p) => sum + p.watchPercentage, 0) / totalStudents
                 : 0;
 
-        // Aggregate confusion flags across all students → top 5 hotspots
+        // Aggregate confusion flags across all students â†’ top 5 hotspots
         const flagMap = new Map<number, number>();
         for (const p of allProgress) {
             if (p.confusionFlags) {
@@ -1671,7 +1722,7 @@ export class ContentService {
         };
     }
 
-    // ── Quiz Checkpoints ──────────────────────────────────────────────────────
+    // â”€â”€ Quiz Checkpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async saveQuizCheckpoints(lectureId: string, questions: any[], userId: string, tenantId: string) {
         const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
@@ -1780,7 +1831,7 @@ export class ContentService {
         return { students, questionStats, totalWatchers: allProgress.length };
     }
 
-    // ─── AI STUDY ─────────────────────────────────────────────────────────────
+    // â”€â”€â”€ AI STUDY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async getStudyStatus(topicId: string, userId: string, tenantId: string) {
         const topic = await this.topicRepo.findOne({ where: { id: topicId } });
@@ -1840,7 +1891,7 @@ export class ContentService {
                     // Backfill: use exam-tier base count (no keyConcepts yet, use medium complexity)
                     const bfExam = (student.examTarget ?? '').toLowerCase();
                     const bfCount = bfExam.includes('advanced') ? 16 : bfExam.includes('jee') ? 14 : bfExam.includes('neet') ? 12 : 10;
-                    const bfDiff  = bfExam.includes('advanced') ? 'hard' : bfExam.includes('jee') ? 'medium_hard' : bfExam.includes('neet') ? 'medium' : 'easy_medium';
+                    const bfDiff = bfExam.includes('advanced') ? 'hard' : bfExam.includes('jee') ? 'medium_hard' : bfExam.includes('neet') ? 'medium' : 'easy_medium';
                     const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
                         {
                             topicId,
@@ -1895,44 +1946,44 @@ export class ContentService {
 
         // Derive exam tier label and calibration instructions for the lesson prompt
         const examLower = examTarget.toLowerCase();
-        const isAdvanced  = examLower.includes('advanced');
-        const isJee       = examLower.includes('jee');
-        const isNeet      = examLower.includes('neet');
+        const isAdvanced = examLower.includes('advanced');
+        const isJee = examLower.includes('jee');
+        const isNeet = examLower.includes('neet');
         const isFoundation = examLower.includes('foundation');
 
-        const tierLabel = isAdvanced ? 'JEE Advanced (IIT — top 0.1%)'
-          : isJee    ? 'JEE Mains (NIT/IIIT — top 2%)'
-          : isNeet   ? 'NEET (MBBS — top 1% medical)'
-          : isFoundation ? 'Foundation (Class 8–10)'
-          : examTarget;
+        const tierLabel = isAdvanced ? 'JEE Advanced (IIT â€” top 0.1%)'
+            : isJee ? 'JEE Mains (NIT/IIIT â€” top 2%)'
+                : isNeet ? 'NEET (MBBS â€” top 1% medical)'
+                    : isFoundation ? 'Foundation (Class 8â€“10)'
+                        : examTarget;
 
         const targetLabel = targetCollege
-          ? `${tierLabel} — aiming for ${targetCollege}`
-          : tierLabel;
+            ? `${tierLabel} â€” aiming for ${targetCollege}`
+            : tierLabel;
 
         const tierCalibration = isAdvanced
-          ? `- Depth of IIT JEE Advanced: integrate multiple sub-concepts in single examples
+            ? `- Depth of IIT JEE Advanced: integrate multiple sub-concepts in single examples
 - Derivations must be rigorous (starting from first principles)
 - Examples must involve multi-step reasoning with non-obvious intermediate steps
 - Self-check questions should require concept elimination, not just recall
 - Include edge cases, special conditions, and examiner traps`
-          : isJee
-          ? `- Depth of JEE Mains: strong formula application and numerical fluency
+            : isJee
+                ? `- Depth of JEE Mains: strong formula application and numerical fluency
 - Cover standard question types (1-mark concept + 4-mark numerical)
-- Examples should be 2–3 step reasoning
+- Examples should be 2â€“3 step reasoning
 - Highlight commonly tested approximations and shortcuts`
-          : isNeet
-          ? `- Depth of NEET: thorough NCERT alignment with assertion-reason and diagram-based patterns
+                : isNeet
+                    ? `- Depth of NEET: thorough NCERT alignment with assertion-reason and diagram-based patterns
 - Emphasise definitions, classification, exceptions, and factual recall
 - Examples should test direct application of NCERT facts and diagrams
 - Flag topics with high NEET frequency`
-          : `- Clear, accessible explanations suitable for the student's class
+                    : `- Clear, accessible explanations suitable for the student's class
 - NCERT-aligned content with simple worked examples
 - Focus on concept understanding over calculation complexity`;
 
         const selfStudyPrompt = `You are a master ${subjectName || 'Science'} teacher who has helped thousands of students crack ${examTarget}. Your lessons are legendary for being crystal-clear, deeply comprehensive, and exam-focused.
 
-Generate a COMPLETE, THOROUGH self-study lesson calibrated precisely for this student's goal. Do not cut corners — depth and clarity are the priority.
+Generate a COMPLETE, THOROUGH self-study lesson calibrated precisely for this student's goal. Do not cut corners â€” depth and clarity are the priority.
 
 TARGET: ${targetLabel}
 CALIBRATION REQUIREMENTS:
@@ -1946,17 +1997,17 @@ Class: ${studentClass}
 
 ---
 
-Write the lesson using this EXACT structure. Each section must be detailed — not a placeholder.
+Write the lesson using this EXACT structure. Each section must be detailed â€” not a placeholder.
 
 # ${topicName}
 
-## 🎯 What You'll Learn
+## ðŸŽ¯ What You'll Learn
 A 2-3 sentence motivating introduction: what this topic is, why it matters for ${examTarget}, and what real-world phenomena it explains. Make it engaging.
 
-## 📖 Introduction & Background
-Give the conceptual foundation. Explain the "big picture" — where this topic fits in ${subjectName}, what prior knowledge it builds on, and the intuition behind it. Use analogies to make abstract ideas concrete. Minimum 150 words.
+## ðŸ“– Introduction & Background
+Give the conceptual foundation. Explain the "big picture" â€” where this topic fits in ${subjectName}, what prior knowledge it builds on, and the intuition behind it. Use analogies to make abstract ideas concrete. Minimum 150 words.
 
-## 🔑 Core Concepts (Explained in Depth)
+## ðŸ”‘ Core Concepts (Explained in Depth)
 For EACH major concept in this topic:
 ### Concept Name
 - Clear definition
@@ -1965,9 +2016,9 @@ For EACH major concept in this topic:
 - What happens as variables change (if applicable)
 - A short illustrative example
 
-Cover ALL concepts — do not skip any.
+Cover ALL concepts â€” do not skip any.
 
-## 📐 Formulas & Equations
+## ðŸ“ Formulas & Equations
 For EVERY formula:
 ### Formula Name
 $$formula$$
@@ -1976,7 +2027,7 @@ $$formula$$
 - Conditions: when it applies / assumptions
 - How to remember it (mnemonic or pattern)
 
-## 📊 Derivations
+## ðŸ“Š Derivations
 For the most important formula(s):
 ### Derivation of [Formula Name]
 Step-by-step derivation with:
@@ -1985,8 +2036,8 @@ Step-by-step derivation with:
 - Physical meaning of each step
 - Final result with units check
 
-## 💡 Solved Examples
-### Example 1 — Basic (Concept check)
+## ðŸ’¡ Solved Examples
+### Example 1 â€” Basic (Concept check)
 [Full problem statement]
 
 **Solution:**
@@ -1997,24 +2048,24 @@ Step 2: ...
 
 **Key takeaway:** ...
 
-### Example 2 — Intermediate
+### Example 2 â€” Intermediate
 [Full problem with 2-3 steps]
 
 **Solution:** (detailed)
 
-### Example 3 — ${examTarget} Level (Hard)
+### Example 3 â€” ${examTarget} Level (Hard)
 [A tricky exam-style question]
 
 **Solution:** (complete step-by-step)
 
 **Examiner's Trap:** explain the trick/trap they set
 
-## 🧠 Connections to Other Topics
+## ðŸ§  Connections to Other Topics
 - How this topic links to [related topic 1]
 - How it connects to [related topic 2]
 - Topics that depend on understanding this one
 
-## ⚠️ Common Mistakes Students Make
+## âš ï¸ Common Mistakes Students Make
 For each mistake:
 - **Mistake:** what students typically get wrong
 - **Why it happens:** root cause
@@ -2022,17 +2073,17 @@ For each mistake:
 
 List at least 4-5 genuine mistakes.
 
-## 🏆 ${examTarget} Exam Strategy
+## ðŸ† ${examTarget} Exam Strategy
 - How this topic typically appears in ${examTarget} (question types, weightage)
 - Which formulas are most tested
 - Speed tricks and shortcuts for calculations
 - 2-3 previous year question patterns (describe the pattern, not actual PYQs)
 
-## 📝 Quick Revision Summary
+## ðŸ“ Quick Revision Summary
 A numbered list of the 8-10 most critical points to memorize. These should be the things a student checks 10 minutes before the exam.
 
-## 🔁 Self-Check Questions
-5 questions the student should be able to answer after reading this lesson (no answers — just the questions to test themselves):
+## ðŸ” Self-Check Questions
+5 questions the student should be able to answer after reading this lesson (no answers â€” just the questions to test themselves):
 1. ...
 2. ...
 3. ...
@@ -2065,7 +2116,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             commonMistakes = this.extractBulletSection(lessonMarkdown, 'Common Mistakes Students Make');
         } catch (err) {
             this.logger.warn(`AI lesson generation failed for topic ${topicId}: ${err.message}`);
-            // Preserve existing real content if available — never overwrite good data with an error string
+            // Preserve existing real content if available â€” never overwrite good data with an error string
             if (existing?.lessonMarkdown && !this.shouldRegenerateLesson(existing.lessonMarkdown)) {
                 lessonMarkdown = this.normalizeSolvedExamplesFormatting(existing.lessonMarkdown);
                 keyConcepts = existing.keyConcepts ?? [];
@@ -2073,7 +2124,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 commonMistakes = existing.commonMistakes ?? [];
                 aiSessionRef = existing.aiSessionRef ?? null;
             } else {
-                // No real content exists — return a transient error without saving to DB
+                // No real content exists â€” return a transient error without saving to DB
                 return {
                     id: existing?.id ?? null,
                     topicId,
@@ -2092,14 +2143,14 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             }
         }
 
-        // Dynamic question count: complexity (key-concept count) × exam-tier
+        // Dynamic question count: complexity (key-concept count) Ã— exam-tier
         const complexity = keyConcepts.length >= 7 ? 'high' : keyConcepts.length >= 4 ? 'medium' : 'low';
         const qTable: Record<string, Record<string, number>> = {
-            advanced:   { low: 12, medium: 16, high: 20 },
-            jee:        { low: 10, medium: 14, high: 18 },
-            neet:       { low: 8,  medium: 12, high: 15 },
-            foundation: { low: 5,  medium: 8,  high: 10 },
-            default:    { low: 8,  medium: 10, high: 12 },
+            advanced: { low: 12, medium: 16, high: 20 },
+            jee: { low: 10, medium: 14, high: 18 },
+            neet: { low: 8, medium: 12, high: 15 },
+            foundation: { low: 5, medium: 8, high: 10 },
+            default: { low: 8, medium: 10, high: 12 },
         };
         const qTier = isAdvanced ? 'advanced' : isJee ? 'jee' : isNeet ? 'neet' : isFoundation ? 'foundation' : 'default';
         const questionCount = qTable[qTier][complexity];
@@ -2148,7 +2199,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 isCompleted: false,
                 completedAt: null,
                 timeSpentSeconds: 0,
-              }
+            }
             : this.aiStudyRepo.create({
                 tenantId,
                 studentId: student.id,
@@ -2160,7 +2211,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 commonMistakes,
                 aiSessionRef,
                 conversation: [{ role: 'ai', message: introMessage, timestamp: new Date().toISOString() }],
-              });
+            });
 
         const saved = await this.aiStudyRepo.save(session as any);
 
@@ -2261,7 +2312,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         session.inlineComments = dto.inlineComments;
         await this.aiStudyRepo.save(session);
 
-        // Upsert TopicProgress — unlock topic for quiz
+        // Upsert TopicProgress â€” unlock topic for quiz
         let progress = await this.topicProgressRepo.findOne({
             where: { studentId: student.id, topicId },
         });
@@ -2352,7 +2403,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 if (topic) {
                     const bf3Exam = (student.examTarget ?? '').toLowerCase();
                     const bf3Count = bf3Exam.includes('advanced') ? 16 : bf3Exam.includes('jee') ? 14 : bf3Exam.includes('neet') ? 12 : 10;
-                    const bf3Diff  = bf3Exam.includes('advanced') ? 'hard' : bf3Exam.includes('jee') ? 'medium_hard' : bf3Exam.includes('neet') ? 'medium' : 'easy_medium';
+                    const bf3Diff = bf3Exam.includes('advanced') ? 'hard' : bf3Exam.includes('jee') ? 'medium_hard' : bf3Exam.includes('neet') ? 'medium' : 'easy_medium';
                     const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
                         {
                             topicId,
@@ -2405,7 +2456,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         };
     }
 
-    // ─── AI helpers ───────────────────────────────────────────────────────────
+    // â”€â”€â”€ AI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private extractAiText(response: any): string {
         if (!response) return '';
@@ -2433,7 +2484,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 return v;
             }
             if (Array.isArray(v) && v.length && v.every((x) => typeof x === 'string')) {
-                // Model sometimes returns only a JSON array of "concept" chips — make readable
+                // Model sometimes returns only a JSON array of "concept" chips â€” make readable
                 return v.map((s) => String(s).trim()).filter(Boolean).join(' ');
             }
             if (typeof v === 'object' && v !== null) {
@@ -2498,7 +2549,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         if (!match) return [];
         return match[1]
             .split('\n')
-            .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
+            .map((l) => l.replace(/^[-â€¢*\d.]+\s*/, '').trim())
             .filter((l) => l.length > 3 && !l.startsWith('['));
     }
 
@@ -2531,10 +2582,10 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     private extractFormulaCandidates(markdown: string): string[] {
         const lines = String(markdown || '')
             .split('\n')
-            .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
+            .map((l) => l.replace(/^[-â€¢*\d.]+\s*/, '').trim())
             .filter(Boolean);
         const candidates = lines.filter((l) =>
-            /[=∑√Δπ]/.test(l) ||
+            /[=âˆ‘âˆšÎ”Ï€]/.test(l) ||
             /\b(sin|cos|tan|log|ln|velocity|acceleration|force|energy|mole|concentration|probability)\b/i.test(l),
         );
         const unique = Array.from(new Set(candidates.map((c) => c.replace(/\s+/g, ' ').trim())));
@@ -2542,16 +2593,16 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     }
 
 
-    // ─── AI Quiz ──────────────────────────────────────────────────────────────
+    // â”€â”€â”€ AI Quiz â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async generateAiQuiz(topicId: string, userId: string, tenantId: string) {
         const topic = await this.topicRepo.findOne({ where: { id: topicId }, relations: ['chapter', 'chapter.subject'] });
         if (!topic) throw new NotFoundException(`Topic ${topicId} not found`);
 
         const quizStudent = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
-        const quizExam    = (quizStudent?.examTarget ?? '').toLowerCase();
-        const quizCount   = quizExam.includes('advanced') ? 12 : quizExam.includes('jee') ? 10 : quizExam.includes('neet') ? 8 : 8;
-        const quizDiff    = quizExam.includes('advanced') ? 'hard' : quizExam.includes('jee') ? 'medium_hard' : quizExam.includes('neet') ? 'medium' : 'easy_medium';
+        const quizExam = (quizStudent?.examTarget ?? '').toLowerCase();
+        const quizCount = quizExam.includes('advanced') ? 12 : quizExam.includes('jee') ? 10 : quizExam.includes('neet') ? 8 : 8;
+        const quizDiff = quizExam.includes('advanced') ? 'hard' : quizExam.includes('jee') ? 'medium_hard' : quizExam.includes('neet') ? 'medium' : 'easy_medium';
 
         let rawQuestions: any[] = [];
         try {
@@ -2604,7 +2655,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         };
     }
 
-    // ─── TOPIC RESOURCES ──────────────────────────────────────────────────────
+    // â”€â”€â”€ TOPIC RESOURCES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async createTopicResource(
         topicId: string,
@@ -2633,6 +2684,9 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         });
         const saved = await this.topicResourceRepo.save(resource);
         await this.mirrorTopicResourceToStudyMaterial(topicId, tenantId, data);
+        this.notifyBatchStudentsOfNewResource(topic, data.title, tenantId).catch((err) => {
+            this.logger.warn(`Failed to send resource notification: ${err.message}`);
+        });
         return saved;
     }
 
@@ -2658,7 +2712,11 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             fileUrl: null,
             ...data,
         });
-        return this.topicResourceRepo.save(resource);
+        const saved = await this.topicResourceRepo.save(resource);
+        this.notifyBatchStudentsOfNewResource(topic, data.title, tenantId).catch((err) => {
+            this.logger.warn(`Failed to send resource notification: ${err.message}`);
+        });
+        return saved;
     }
 
     async getTopicResources(topicId: string, tenantId: string): Promise<TopicResource[]> {
@@ -2747,7 +2805,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         // If this topic exists as a practice plan item, auto-complete it.
         await this.studyPlanService
             .completeByReference(student.id, tenantId, topicId, PlanItemType.PRACTICE)
-            .catch(() => {});
+            .catch(() => { });
 
         return {
             passed,
@@ -2880,6 +2938,52 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 sortOrder: data.sortOrder ?? 0,
             });
         }
+    }
+
+    private async notifyBatchStudentsOfNewResource(topic: Topic, title: string, tenantId: string): Promise<void> {
+        // Fetch topic with chapter and subject to find the batches
+        const topicWithRelations = await this.topicRepo.findOne({
+            where: { id: topic.id },
+            relations: ['chapter', 'chapter.subject'],
+        });
+        const subjectName = (topicWithRelations as any)?.chapter?.subject?.name;
+        if (!subjectName) return;
+
+        // Find batches associated with this subject
+        const batchSubjectTeachers = await this.batchSubjectTeacherRepo.find({
+            where: { subjectName, tenantId },
+            select: ['batchId'],
+        });
+        const batchIds = [...new Set(batchSubjectTeachers.map(b => b.batchId))];
+        if (batchIds.length === 0) return;
+
+        // Find enrolled students in these batches
+        const enrollments = await this.enrollmentRepo.find({
+            where: { batchId: In(batchIds), status: EnrollmentStatus.ACTIVE },
+            relations: ['student', 'student.user'],
+        });
+
+        const targets = enrollments.filter(e => e.student?.user?.id);
+        const uniqueUserIds = new Set<string>();
+
+        await Promise.allSettled(
+            targets.map(e => {
+                const userId = e.student!.user!.id;
+                if (uniqueUserIds.has(userId)) return Promise.resolve();
+                uniqueUserIds.add(userId);
+
+                const recipientTenantId = e.student!.user!.tenantId ?? e.student!.tenantId ?? tenantId;
+                return this.notificationService.send({
+                    userId,
+                    tenantId: recipientTenantId,
+                    title: 'ðŸ“š New Study Material',
+                    body: `"${title}" has been added to ${topic.name}. Check it out!`,
+                    channels: ['in_app', 'push'],
+                    refType: 'topic_resource',
+                    refId: topic.id,
+                });
+            }),
+        );
     }
 
     async getAiStudyHistory(userId: string, tenantId: string) {

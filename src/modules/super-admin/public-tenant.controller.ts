@@ -20,7 +20,7 @@ import { StudyMaterialService } from '../study-material/study-material.service';
 @Controller('tenants')
 export class PublicTenantController {
   constructor(
-    @InjectRepository(Tenant)
+    @InjectRepository(Tenant, 'coaching')
     private readonly tenantRepo: Repository<Tenant>,
     private readonly superAdminService: SuperAdminService,
     private readonly studyMaterialService: StudyMaterialService,
