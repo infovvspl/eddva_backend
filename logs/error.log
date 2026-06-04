@@ -16498,3 +16498,59 @@ Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
     at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
     at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
+[2026-06-04T12:35:23.080Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T12:35:37.633Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T12:36:10.280Z] POST /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" of relation "assessments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
+
+[2026-06-04T12:36:13.844Z] POST /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" of relation "assessments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
+
+[2026-06-04T12:36:25.618Z] POST /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" of relation "assessments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
+
+[2026-06-04T12:50:03.563Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T12:50:24.079Z] POST /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" of relation "assessments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
+
