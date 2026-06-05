@@ -23702,3 +23702,87 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+[2026-06-05T12:27:58.834Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:27:59.244Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:28:01.028Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:28:58.733Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:28:58.918Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:28:58.923Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
