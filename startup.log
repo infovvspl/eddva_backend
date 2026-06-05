@@ -1636,3 +1636,8 @@ query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.stat
 query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
 query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
 query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
