@@ -537,9 +537,9 @@ export class SchoolStudentService {
     };
   }
 
-  async getCourseDetail(user: any, classId: string) {
+  async getCourseCurriculum(user: any, classId: string) {
     const studentRows = await this.ds.query(
-      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+      `SELECT s.id AS profile_id, s.section_id, s.institute_id, sec.class_id, c.name AS class_name, sec.name AS section_name
        FROM students s
        JOIN sections sec ON s.section_id = sec.id
        JOIN classes c ON sec.class_id = c.id
@@ -550,6 +550,7 @@ export class SchoolStudentService {
       throw new NotFoundException('Student profile not found');
     }
     const student = studentRows[0];
+    const instituteId = user.instituteId || student.institute_id;
 
     const subjectRows = await this.ds.query(
       `SELECT DISTINCT sub.id, sub.name, u.name AS teacher_name, u.id AS teacher_user_id
@@ -578,10 +579,10 @@ export class SchoolStudentService {
         const topics = [];
         for (const top of topicRows) {
           const materialRows = await this.ds.query(
-            `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description 
-             FROM study_materials 
-             WHERE topic_id = $1 AND class_id = $2 AND section_id = $3`,
-            [top.id, student.class_id, student.section_id]
+            `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description
+             FROM study_materials
+             WHERE topic_id = $1 AND tenant_id = $2::uuid`,
+            [top.id, instituteId]
           );
 
           const resourceCounts = materialRows.reduce((acc: any, r: any) => {
@@ -654,6 +655,132 @@ export class SchoolStudentService {
         },
         curriculum,
       }
+    };
+  }
+
+  async getDashboard(user: any) {
+    const studentRows = await this.ds.query(
+      `SELECT s.id AS profile_id, s.section_id, s.institute_id, s.enrollment_no,
+              sec.class_id, sec.name AS section_name, c.name AS class_name,
+              u.name AS student_name
+       FROM students s
+       JOIN sections sec ON s.section_id = sec.id
+       JOIN classes c ON sec.class_id = c.id
+       LEFT JOIN users u ON u.id = s.user_id
+       WHERE s.user_id = $1`,
+      [user.id]
+    );
+    if (!studentRows.length) {
+      return {
+        success: true,
+        data: {
+          student: null,
+          message: 'No class/section assigned yet. Ask your school admin to complete enrollment.',
+          attendancePercentage: null,
+          todayClasses: 0,
+          todayPlan: [],
+        },
+      };
+    }
+    const student = studentRows[0];
+
+    // Attendance % (guarded — table/columns may vary across deployments)
+    let attendancePercentage: number | null = null;
+    try {
+      const att = await this.ds.query(
+        `SELECT COUNT(*) FILTER (WHERE status = 'present')::int AS present,
+                COUNT(*)::int AS total
+         FROM attendances
+         WHERE student_id = $1`,
+        [student.profile_id]
+      );
+      const total = att[0]?.total || 0;
+      if (total > 0) attendancePercentage = Math.round((att[0].present / total) * 100);
+    } catch {
+      attendancePercentage = null;
+    }
+
+    // Today's scheduled classes for the student's section (guarded)
+    let todayPlan: any[] = [];
+    try {
+      const dow = new Date().getDay(); // 0=Sun..6=Sat
+      todayPlan = await this.ds.query(
+        `SELECT sch.id, sch.start_time, sch.end_time, sub.name AS subject_name, u.name AS teacher_name
+         FROM schedules sch
+         LEFT JOIN subjects sub ON sub.id = sch.subject_id
+         LEFT JOIN teachers t ON t.id = sch.teacher_id
+         LEFT JOIN users u ON u.id = t.user_id
+         WHERE sch.section_id = $1::uuid AND sch.day_of_week = $2
+         ORDER BY sch.start_time`,
+        [student.section_id, dow]
+      );
+    } catch {
+      todayPlan = [];
+    }
+
+    return {
+      success: true,
+      data: {
+        student: {
+          id: student.profile_id,
+          name: student.student_name,
+          enrollmentNo: student.enrollment_no,
+          className: student.class_name,
+          sectionName: student.section_name,
+        },
+        attendancePercentage,
+        todayClasses: todayPlan.length,
+        todayPlan: todayPlan.map((p: any) => ({
+          id: p.id,
+          subject: p.subject_name,
+          teacher: p.teacher_name,
+          startTime: p.start_time,
+          endTime: p.end_time,
+        })),
+      },
+    };
+  }
+
+  async getTopicDetail(user: any, _classId: string, topicId: string) {
+    const studentRows = await this.ds.query(
+      `SELECT s.institute_id FROM students s WHERE s.user_id = $1`,
+      [user.id]
+    );
+    const instituteId = user.instituteId || studentRows[0]?.institute_id;
+
+    const topicRows = await this.ds.query(
+      `SELECT t.id, t.name, c.id AS chapter_id, c.name AS chapter_name,
+              sub.id AS subject_id, sub.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects sub ON sub.id = c.subject_id
+       WHERE t.id = $1`,
+      [topicId]
+    );
+    if (!topicRows.length) throw new NotFoundException('Topic not found');
+    const t = topicRows[0];
+
+    const resources = await this.ds.query(
+      `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description
+       FROM study_materials
+       WHERE topic_id = $1 AND tenant_id = $2::uuid
+       ORDER BY created_at DESC`,
+      [topicId, instituteId]
+    );
+
+    return {
+      success: true,
+      data: {
+        topic: {
+          id: t.id,
+          name: t.name,
+          subject: { id: t.subject_id, name: t.subject_name },
+          chapter: { id: t.chapter_id, name: t.chapter_name },
+        },
+        progress: { status: 'unlocked' },
+        lectures: [],
+        resources,
+      },
     };
   }
 }

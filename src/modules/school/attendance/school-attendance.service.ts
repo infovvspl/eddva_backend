@@ -225,7 +225,7 @@ export class SchoolAttendanceService {
         COUNT(*) FILTER (WHERE ar.status='present') AS present,
         COUNT(*) FILTER (WHERE ar.status='absent') AS absent,
         COUNT(*) FILTER (WHERE ar.status='late') AS late
-      FROM users u LEFT JOIN attendance_records ar ON ar.student_id=u.id
+      FROM users u LEFT JOIN attendance_records ar ON ar.student_id::text=u.id::text
       WHERE u.role='STUDENT' GROUP BY u.id,u.name ORDER BY u.name
     `);
     return { success: true, count: result.length, data: result };

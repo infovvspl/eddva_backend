@@ -29,6 +29,7 @@ export class SchoolAssessmentService {
   }
 
   async create(user: any, body: any) {
+    const sectionId = body.sectionId || body.section_id || null;
     const rows: any[] = await this.ds.query(
       `INSERT INTO assessments (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
