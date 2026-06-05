@@ -38,8 +38,10 @@ export class SchoolMaterialService {
     await this.validateTeacherAssignment(user, ctx.subject_id, 'AI_GENERATE_DENIED');
 
     const isQuestionType = body.contentType === 'dpp' || body.contentType === 'pyq';
+    const isPresentation = body.contentType === 'presentation' || body.contentType === 'ppt';
     const extraContext = [
       isQuestionType && body.questionCount ? `Generate exactly ${body.questionCount} questions` : '',
+      isPresentation ? 'Format as presentation slides. Use "## Slide N: <title>" headings followed by concise bullet points for each slide.' : '',
       (body.extraContext || '').trim(),
     ].filter(Boolean).join('. ') || undefined;
 
@@ -54,6 +56,7 @@ export class SchoolMaterialService {
         extraContext,
       },
       user.instituteId ?? undefined,
+      'school',
     );
     return { content: result.content, contentType: result.contentType, topicName: ctx.topic_name };
   }
@@ -67,7 +70,7 @@ export class SchoolMaterialService {
     const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
 
-    const map: Record<string, string> = { dpp: 'dpp', pyq: 'pyq', mindmap: 'mindmap', notes: 'notes' };
+    const map: Record<string, string> = { dpp: 'dpp', pyq: 'pyq', mindmap: 'mindmap', ppt: 'ppt', notes: 'notes' };
     const type = map[String(body.resourceType || 'notes').toLowerCase()] ?? 'notes';
 
     const rows: any[] = await this.ds.query(
@@ -113,7 +116,9 @@ export class SchoolMaterialService {
       throw new ForbiddenException('Subject context is required for teacher actions');
     }
     const rows = await this.ds.query(
-      `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id=$1 AND subject_id=$2`,
+      `SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2`,
       [user.id, subjectId]
     );
     if (rows.length === 0) {
@@ -191,7 +196,7 @@ export class SchoolMaterialService {
 
     // Map categories ('notes', 'pyq', 'formula_sheet', 'dpp')
     const fileTypeLower = String(body.fileType || '').toLowerCase();
-    const type = ['notes', 'pyq', 'formula_sheet', 'dpp'].includes(fileTypeLower) 
+    const type = ['notes', 'pyq', 'formula_sheet', 'dpp', 'mindmap', 'ppt'].includes(fileTypeLower) 
       ? fileTypeLower 
       : 'notes';
 
@@ -300,7 +305,7 @@ export class SchoolMaterialService {
     }
 
     const fileTypeLower = body.fileType ? String(body.fileType).toLowerCase() : undefined;
-    const type = fileTypeLower && ['notes', 'pyq', 'formula_sheet', 'dpp'].includes(fileTypeLower) 
+    const type = fileTypeLower && ['notes', 'pyq', 'formula_sheet', 'dpp', 'mindmap', 'ppt'].includes(fileTypeLower) 
       ? fileTypeLower 
       : undefined;
 
