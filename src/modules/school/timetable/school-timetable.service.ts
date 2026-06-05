@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolNotificationService } from '../notification/school-notification.service';
 
 const DAY_MAP: Record<string, number> = {
   'MONDAY': 1,
@@ -24,7 +25,11 @@ const REV_DAY_MAP: Record<number, string> = {
 
 @Injectable()
 export class SchoolTimetableService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly notificationService: SchoolNotificationService,
+  ) {}
+
 
   private async validateAssignment(sectionId: string, subjectId: string, teacherId: string) {
     if (!sectionId || !subjectId || !teacherId) {
@@ -252,7 +257,47 @@ export class SchoolTimetableService {
       `INSERT INTO schedules (timetable_id,class_id,subject_id,teacher_id,day_of_week,start_time,end_time,room) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [body.timetableId || null, body.classId || null, body.subjectId || null, body.teacherId || null, body.dayOfWeek, body.startTime, body.endTime, body.room || null],
     );
-    return { success: true, data: rows[0] };
+    const schedule = rows[0];
+
+    // Notify students and teacher
+    try {
+      if (body.classId && body.subjectId) {
+        const classRows = await this.ds.query(`SELECT name FROM classes WHERE id::text = $1`, [body.classId]);
+        const className = classRows[0]?.name || 'Class';
+        const subjectRows = await this.ds.query(`SELECT name FROM subjects WHERE id::text = $1`, [body.subjectId]);
+        const subjectName = subjectRows[0]?.name || 'Subject';
+
+        // Notify students
+        const studentUsers = await this.ds.query(
+          `SELECT s.user_id FROM students s JOIN sections sec ON s.section_id = sec.id WHERE sec.class_id::text = $1`,
+          [body.classId]
+        );
+        for (const stu of studentUsers) {
+          await this.notificationService.create({
+            recipientId: stu.user_id,
+            type: 'live_class',
+            title: 'New Live Class Scheduled',
+            message: `${className} ${subjectName} Live Class has been scheduled for ${body.dayOfWeek} at ${body.startTime}.`,
+            actionUrl: '/school/student/live-classes',
+          });
+        }
+
+        // Notify teacher (body.teacherId is users.id)
+        if (body.teacherId) {
+          await this.notificationService.create({
+            recipientId: body.teacherId,
+            type: 'live_class',
+            title: 'New Class Assigned',
+            message: `You have been assigned to teach ${className} ${subjectName} Live Class.`,
+            actionUrl: '/school/teacher/classes',
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to send schedule notifications:', notifErr);
+    }
+
+    return { success: true, data: schedule };
   }
 
   async updateSchedule(id: string, body: any) {

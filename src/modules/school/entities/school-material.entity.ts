@@ -20,6 +20,8 @@ export class SchoolStudyMaterial extends SchoolBase {
   @Column({ name: 'uploaded_by', nullable: true }) uploadedBy: string;
   @Column({ name: 'is_active', default: true }) isActive: boolean;
   @Column({ name: 'sort_order', default: 0 }) sortOrder: number;
+  @Column({ name: 'class_id', type: 'uuid', nullable: true }) classId: string;
+  @Column({ name: 'section_id', type: 'uuid', nullable: true }) sectionId: string;
 }
 
 @Entity('presentations')
