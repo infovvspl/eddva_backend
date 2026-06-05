@@ -7,9 +7,15 @@ export class SchoolGrievanceService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
 
   async list(user: any, query: any) {
-    let sql = `SELECT g.*,u.name AS raised_by_name FROM grievances g LEFT JOIN users u ON g.raised_by=u.id WHERE 1=1`;
+    let sql = `SELECT g.*,u.name AS raised_by_name,u.role AS raised_by_role FROM grievances g LEFT JOIN users u ON g.raised_by=u.id WHERE 1=1`;
     const params: any[] = [];
-    if (user.role !== 'SUPER_ADMIN') { params.push(user.id); sql += ` AND g.raised_by=$${params.length}`; }
+    if (user.role === 'INSTITUTE_ADMIN') {
+      params.push(user.instituteId);
+      sql += ` AND u.institute_id=$${params.length}`;
+    } else if (user.role !== 'SUPER_ADMIN') {
+      params.push(user.id);
+      sql += ` AND g.raised_by=$${params.length}`;
+    }
     if (query.status) { params.push(query.status); sql += ` AND g.status=$${params.length}`; }
     if (query.category) { params.push(query.category); sql += ` AND g.category=$${params.length}`; }
     sql += ` ORDER BY g.created_at DESC`;
@@ -33,7 +39,7 @@ export class SchoolGrievanceService {
 
   async update(id: string, body: any) {
     await this.ds.query(
-      `UPDATE grievances SET title=COALESCE($2,title),category=COALESCE($3,category),description=COALESCE($4,description),status=COALESCE($5,status),updated_at=NOW() WHERE id=$1`,
+      `UPDATE grievances SET title=COALESCE($2,title),category=COALESCE($3,category),description=COALESCE($4,description),status=COALESCE($5,status) WHERE id=$1`,
       [id, body.title, body.category, body.description, body.status],
     );
     return { success: true };
