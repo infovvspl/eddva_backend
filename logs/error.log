@@ -13761,6 +13761,268 @@ Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
     at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
     at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 
+<<<<<<< HEAD
+[2026-06-03T12:52:29.343Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-03T12:52:29.773Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-03T12:55:58.934Z] POST /api/v1/upload-url
+Status: 400
+Error: BadRequestException: Study materials must be PDF files
+    at UploadController.validateContentType (C:\EDDVA SCHOOL\eddva_backend\src\modules\upload\upload.controller.ts:178:17)
+    at UploadController.getUploadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\upload\upload.controller.ts:84:10)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-04T05:24:39.120Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-04T05:25:43.133Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+
+[2026-06-04T05:25:52.719Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:00:14.228Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T07:00:14.344Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T07:00:14.378Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T07:00:14.382Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T07:00:15.495Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:00:15.913Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:00:21.735Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:00:28.845Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:07:42.012Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:08:52.977Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:08:53.698Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:08:57.422Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T07:08:59.225Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:09:24.143Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:09:24.553Z] GET /api/v1/school/materials
+Status: 500
+Error: QueryFailedError: column sm.topic_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
+
+[2026-06-04T07:11:30.459Z] GET /api/dashboard/stats
+Status: 404
+Error: NotFoundException: Cannot GET /api/dashboard/stats
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-04T07:41:19.697Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T07:41:19.808Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T08:00:49.846Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T08:00:50.130Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T08:00:50.208Z] GET /api/v1/school/reports/class/1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T08:00:50.353Z] GET /api/v1/school/reports/class/1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+=======
 [2026-06-04T06:16:21.339Z] GET /api/v1/tenants/resolve/odm
 Status: 404
 Error: NotFoundException: Institute not found
@@ -15059,6 +15321,1238 @@ Error: QueryFailedError: invalid input syntax for type uuid: "unread-count"
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolNotificationService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\notification\school-notification.service.ts:28:25)
+>>>>>>> df4c57a6a5eddfb300e7a81aef5609f685eaaae4
+
+[2026-06-04T09:55:47.057Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-04T09:58:46.766Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-04T09:58:47.811Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:58:48.100Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:58:48.760Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T10:01:05.255Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-04T10:01:06.470Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T10:01:06.619Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T10:01:07.199Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T10:05:46.882Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T10:35:22.702Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+
+[2026-06-04T10:35:30.048Z] GET /api/v1/school/assignments?classId=39587a4b-1574-47e1-854a-0904c233c646&sectionId=90eb9f28-a6e9-4683-9a35-5e34a70076fa&subjectId=6bda44a0-0523-42cc-90f6-97e50286b91e
+Status: 500
+Error: QueryFailedError: column a.section_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:34:25)
+
+[2026-06-04T10:36:41.886Z] POST /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: column "section_id" of relation "assignments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:49:25)
+
+[2026-06-04T10:36:55.711Z] POST /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: column "section_id" of relation "assignments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:49:25)
+
+[2026-06-04T10:46:35.429Z] GET /api/v1/school/assignments?classId=39587a4b-1574-47e1-854a-0904c233c646&sectionId=90eb9f28-a6e9-4683-9a35-5e34a70076fa&subjectId=6bda44a0-0523-42cc-90f6-97e50286b91e
+Status: 500
+Error: QueryFailedError: column a.section_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:34:25)
+
+[2026-06-04T10:47:25.454Z] GET /api/v1/school/assignments?classId=39587a4b-1574-47e1-854a-0904c233c646&sectionId=90eb9f28-a6e9-4683-9a35-5e34a70076fa&subjectId=6bda44a0-0523-42cc-90f6-97e50286b91e
+Status: 500
+Error: QueryFailedError: column a.section_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:34:25)
+
+[2026-06-04T10:47:41.897Z] GET /api/v1/school/assignments?classId=39587a4b-1574-47e1-854a-0904c233c646&sectionId=90eb9f28-a6e9-4683-9a35-5e34a70076fa&subjectId=6bda44a0-0523-42cc-90f6-97e50286b91e
+Status: 500
+Error: QueryFailedError: column a.section_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:34:25)
+
+[2026-06-04T10:47:42.067Z] GET /api/v1/school/assignments?classId=39587a4b-1574-47e1-854a-0904c233c646&sectionId=90eb9f28-a6e9-4683-9a35-5e34a70076fa&subjectId=6bda44a0-0523-42cc-90f6-97e50286b91e
+Status: 500
+Error: QueryFailedError: column a.section_id does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:34:25)
+
+[2026-06-04T11:09:31.979Z] POST /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: column "section_id" of relation "assignments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:49:25)
+
+[2026-06-04T11:10:58.451Z] POST /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: column "section_id" of relation "assignments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:49:25)
+
+[2026-06-04T11:11:01.959Z] POST /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: column "section_id" of relation "assignments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:49:25)
+
+[2026-06-04T11:11:31.772Z] POST /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: column "section_id" of relation "assignments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:49:25)
+
+[2026-06-04T11:23:06.918Z] POST /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: insert or update on table "assignments" violates foreign key constraint "FK_bba4db2b1a9a33de6df91266ec0"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:57:25)
+
+[2026-06-04T11:23:15.710Z] POST /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: insert or update on table "assignments" violates foreign key constraint "FK_bba4db2b1a9a33de6df91266ec0"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:57:25)
+
+[2026-06-04T11:27:48.464Z] POST /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: insert or update on table "assignments" violates foreign key constraint "FK_bba4db2b1a9a33de6df91266ec0"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:57:25)
+
+[2026-06-04T11:28:41.158Z] POST /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: insert or update on table "assignments" violates foreign key constraint "FK_bba4db2b1a9a33de6df91266ec0"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssignmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:57:25)
+
+[2026-06-04T08:02:33.433Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T08:02:34.240Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T08:02:34.269Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T08:10:19.894Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T08:10:20.742Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T08:10:20.758Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T08:11:52.419Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T08:11:53.232Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T08:11:53.268Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T08:27:44.828Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T08:28:14.838Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-04T08:30:23.260Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T08:30:23.629Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T08:30:23.638Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T08:32:06.125Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:32:06.145Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:32:17.074Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:32:17.398Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:32:47.048Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:32:47.352Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:33:59.028Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:33:59.031Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:34:59.851Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:35:00.106Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:36:00.864Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:36:00.868Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:37:01.818Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:37:01.829Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:38:02.805Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:38:02.811Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:39:03.791Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:39:03.808Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:40:04.812Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:40:04.816Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:41:05.798Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:41:05.801Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:42:06.797Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T08:42:06.804Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T09:01:05.246Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T09:01:05.288Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-04T09:06:41.527Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-04T09:06:43.452Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:06:43.683Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:06:44.330Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:08:10.601Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:08:13.058Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:08:13.097Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:08:16.332Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:08:16.756Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:08:17.970Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:08:18.060Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:08:18.083Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:15:10.833Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:15:11.166Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:15:11.185Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:15:17.647Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:15:17.842Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:15:18.224Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:16:36.567Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:16:37.383Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:16:37.408Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:22:35.253Z] GET /api/v1/school/students/activity/weekly
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/activity/weekly
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:22:35.993Z] GET /api/v1/school/students/continue-learning
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "continue-learning"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:22:36.002Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:24:15.431Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:24:15.869Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:24:16.503Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:27:44.372Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:27:44.896Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:27:44.913Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:28:58.851Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:28:59.506Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:28:59.752Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:29:12.450Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:29:12.751Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:29:12.772Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:34:14.329Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:34:14.507Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:34:30.826Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:34:31.648Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:34:56.359Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:34:56.382Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:34:56.423Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:34:56.787Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:34:56.842Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:34:56.854Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:36:15.101Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:36:15.204Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:36:15.486Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:36:16.267Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:38:09.122Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:174:25)
+
+[2026-06-04T09:38:09.176Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:26:25)
+
+[2026-06-04T09:38:09.304Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:38:10.868Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T09:38:11.045Z] GET /api/v1/school/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-04T12:35:23.080Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T12:35:37.633Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T12:36:10.280Z] POST /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" of relation "assessments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
+
+[2026-06-04T12:36:13.844Z] POST /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" of relation "assessments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
+
+[2026-06-04T12:36:25.618Z] POST /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" of relation "assessments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
+
+[2026-06-04T12:50:03.563Z] GET /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
+
+[2026-06-04T12:50:24.079Z] POST /api/v1/school/assessments
+Status: 500
+Error: QueryFailedError: column "institute_id" of relation "assessments" does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
 
 [2026-06-04T09:01:01.029Z] GET /api/v1/school/classes/schedules
 Status: 404
