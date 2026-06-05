@@ -8,9 +8,12 @@ import {
   HttpCode,
   HttpStatus,
   Patch,
+  Req,
   BadRequestException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadedFile, UseInterceptors } from '@nestjs/common';
 import { memoryStorage } from 'multer';
@@ -92,8 +95,37 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with phone + password (institute accounts)' })
-  login(@Body() dto: LoginWithPasswordDto, @TenantId() tenantId: string) {
+  login(
+    @Body() dto: LoginWithPasswordDto,
+    @TenantId() tenantId: string,
+    @Req() req: Request & { tenant?: { subdomain: string } },
+  ) {
+    const requestedSubdomain = this.subdomainFromHost(req.hostname);
+    const headerSub = (req.headers['x-tenant-subdomain'] as string)?.trim().toLowerCase() || null;
+    const instituteSub = headerSub ?? requestedSubdomain;
+    if (!req.tenant && instituteSub) {
+      throw new NotFoundException(
+        `Institute "${instituteSub}" was not found. Check the URL or register this school first.`,
+      );
+    }
     return this.authService.loginWithPassword(dto, tenantId);
+  }
+
+  private subdomainFromHost(hostname: string): string | null {
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      return null;
+    }
+    const parts = hostname.split('.');
+    const reserved = new Set(['localhost', 'www', 'edva', 'apexiq', 'platform']);
+    if (parts.length === 2 && parts[1] === 'localhost') {
+      const sub = parts[0].toLowerCase();
+      return reserved.has(sub) ? null : sub;
+    }
+    if (parts.length >= 3) {
+      const sub = parts[0].toLowerCase();
+      return reserved.has(sub) ? null : sub;
+    }
+    return null;
   }
 
   @Post('password')

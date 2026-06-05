@@ -81,11 +81,12 @@ export class AiBridgeService {
       studentContext?: any;
     },
     tenantId?: string,
+    vertical?: string,
   ) {
     return this.post('/doubt/resolve', {
       ...payload,
       questionText: this.withMathDerivationStyleHint(payload.questionText),
-    }, tenantId);
+    }, tenantId, undefined, vertical);
   }
 
   /**

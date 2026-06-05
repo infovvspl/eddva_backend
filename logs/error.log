@@ -13761,268 +13761,6 @@ Error: NotFoundException: Cannot GET /api/v1/school/students/courses/my
     at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
     at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 
-<<<<<<< HEAD
-[2026-06-03T12:52:29.343Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-03T12:52:29.773Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-03T12:55:58.934Z] POST /api/v1/upload-url
-Status: 400
-Error: BadRequestException: Study materials must be PDF files
-    at UploadController.validateContentType (C:\EDDVA SCHOOL\eddva_backend\src\modules\upload\upload.controller.ts:178:17)
-    at UploadController.getUploadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\upload\upload.controller.ts:84:10)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-
-[2026-06-04T05:24:39.120Z] POST /api/v1/auth/login
-Status: 401
-Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-
-[2026-06-04T05:25:43.133Z] POST /api/v1/auth/login
-Status: 401
-Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:225:13)
-
-[2026-06-04T05:25:52.719Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:00:14.228Z] GET /api/v1/school/classes/schedules
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
-    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-04T07:00:14.344Z] GET /api/v1/school/classes/recordings
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
-    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-04T07:00:14.378Z] GET /api/v1/school/classes/schedules
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
-    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-04T07:00:14.382Z] GET /api/v1/school/classes/recordings
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
-    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-04T07:00:15.495Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:00:15.913Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:00:21.735Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:00:28.845Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:07:42.012Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:08:52.977Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:08:53.698Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:08:57.422Z] GET /api/v1/school/assessments
-Status: 500
-Error: QueryFailedError: column "institute_id" does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
-
-[2026-06-04T07:08:59.225Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:09:24.143Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:09:24.553Z] GET /api/v1/school/materials
-Status: 500
-Error: QueryFailedError: column sm.topic_id does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolMaterialService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\material\school-material.service.ts:55:25)
-
-[2026-06-04T07:11:30.459Z] GET /api/dashboard/stats
-Status: 404
-Error: NotFoundException: Cannot GET /api/dashboard/stats
-    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at cors (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:188:7)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:224:17
-    at originCallback (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:214:15)
-
-[2026-06-04T07:41:19.697Z] GET /api/v1/school/assessments
-Status: 500
-Error: QueryFailedError: column "institute_id" does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
-
-[2026-06-04T07:41:19.808Z] GET /api/v1/school/assessments
-Status: 500
-Error: QueryFailedError: column "institute_id" does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
-
-[2026-06-04T08:00:49.846Z] GET /api/v1/school/assessments
-Status: 500
-Error: QueryFailedError: column "institute_id" does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
-
-[2026-06-04T08:00:50.130Z] GET /api/v1/school/assessments
-Status: 500
-Error: QueryFailedError: column "institute_id" does not exist
-    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolAssessmentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:11:25)
-
-[2026-06-04T08:00:50.208Z] GET /api/v1/school/reports/class/1
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
-    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-04T08:00:50.353Z] GET /api/v1/school/reports/class/1
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
-    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-=======
 [2026-06-04T06:16:21.339Z] GET /api/v1/tenants/resolve/odm
 Status: 404
 Error: NotFoundException: Institute not found
@@ -15321,7 +15059,6 @@ Error: QueryFailedError: invalid input syntax for type uuid: "unread-count"
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolNotificationService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\notification\school-notification.service.ts:28:25)
->>>>>>> df4c57a6a5eddfb300e7a81aef5609f685eaaae4
 
 [2026-06-04T09:55:47.057Z] POST /api/v1/auth/login
 Status: 401
@@ -16971,4 +16708,674 @@ Error: ForbiddenException: Teacher is not assigned to this subject
     at SchoolMaterialService.validateTeacherAssignment (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:124:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async SchoolMaterialService.generateAiContent (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:38:5)
+
+[2026-06-05T07:00:41.108Z] GET /api/v1/school/doubts
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/doubts
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:00:48.739Z] GET /api/v1/school/doubts
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/doubts
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:21:53.220Z] GET /api/v1/assessments
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assessments
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:22:00.433Z] GET /api/v1/school/reports/class/1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:22:00.709Z] GET /api/v1/school/reports/class/1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:22:50.219Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assessment\school-assessment.service.ts:46:25)
+
+[2026-06-05T07:22:56.181Z] GET /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+Status: 404
+Error: NotFoundException: Cannot GET /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:188:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-05T07:23:24.180Z] GET /api/v1/assessments/mock-tests?status=published
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-06-05T07:23:24.495Z] GET /api/v1/assessments/mock-tests?status=published
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-06-05T07:26:16.145Z] GET /api/v1/school/reports/class/1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:30:02.314Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-05T07:31:04.980Z] DELETE /api/v1/school/subjects/6bda44a0-0523-42cc-90f6-97e50286b91e
+Status: 500
+Error: QueryFailedError: update or delete on table "chapters" violates foreign key constraint "FK_2f2a189343a6f07bb29954402fb" on table "topics"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolSubjectService.remove (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\subject\school-subject.service.ts:55:5)
+
+[2026-06-05T07:34:22.302Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:22.309Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:22.317Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:22.321Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:41.291Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:41.306Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:41.553Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:41.605Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:41.614Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:41.883Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:41.912Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:41.920Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:42.705Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:42.914Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:34:43.015Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:34:43.190Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:34:44.339Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:34:44.748Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:34:44.969Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:34:45.155Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:35:01.976Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:35:02.124Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:35:02.384Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:35:02.435Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:35:04.351Z] GET /api/v1/school/reports/class/1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:35:04.638Z] GET /api/v1/school/reports/class/1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:35:17.985Z] GET /api/v1/assessments
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assessments
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:35:24.878Z] GET /api/v1/school/reports/class/1
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/reports/class/1
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:36:20.394Z] GET /api/v1/assessments
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assessments
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:48:52.887Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:48:52.985Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:48:53.475Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:48:53.564Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:49:23.488Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:49:24.242Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:49:53.644Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:49:54.297Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:50:23.647Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:50:23.745Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:50:53.666Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:50:53.844Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:51:23.645Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:51:24.308Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+
+[2026-06-05T07:51:53.344Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:51:53.440Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
 
