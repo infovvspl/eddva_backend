@@ -14,10 +14,13 @@ export class SchoolAttendance extends SchoolBase {
 
 @Entity('attendance_sessions')
 export class SchoolAttendanceSession extends SchoolBase {
+  @Column({ name: 'class_id' }) classId: string;
   @Column({ name: 'section_id' }) sectionId: string;
   @Column({ name: 'subject_id', nullable: true }) subjectId: string;
   @Column({ name: 'teacher_id' }) teacherId: string;
+  @Column({ name: 'marked_by' }) markedBy: string;
   @Column({ type: 'date' }) date: Date;
+  @Column({ nullable: true }) period: string;
   @Column({ default: false }) finalized: boolean;
 }
 

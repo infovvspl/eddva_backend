@@ -159,11 +159,14 @@ export class SchoolAssessmentService {
     const assessment = rows[0];
 
     // Notify students
+    const classId = body.classId || body.class_id;
     try {
-      if (sectionId) {
+      if (classId) {
         const studentUsers = await this.ds.query(
-          `SELECT user_id FROM students WHERE section_id::text = $1`,
-          [sectionId]
+          `SELECT s.user_id FROM students s
+           JOIN sections sec ON s.section_id::text = sec.id::text
+           WHERE sec.class_id::text = $1`,
+          [classId]
         );
 
         for (const stu of studentUsers) {

@@ -16291,6 +16291,7 @@ Error: QueryFailedError: column "institute_id" of relation "assessments" does no
     at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
 
+<<<<<<< HEAD
 [2026-06-05T07:01:23.846Z] GET /api/v1/school/notifications/unread-count
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -16298,6 +16299,559 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\edtech\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\edtech\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\edtech\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+=======
+[2026-06-05T09:49:11.780Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:77:25)
+
+[2026-06-05T09:49:12.002Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+
+[2026-06-05T09:53:56.905Z] POST /api/v1/school/complaints
+Status: 500
+Error: QueryFailedError: insert or update on table "complaints" violates foreign key constraint "FK_11ccef611cce7de2527f37e5896"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolComplaintService.create (D:\Program Files\Eddva\eddva_backend\src\modules\school\complaint\school-complaint.service.ts:32:25)
+
+[2026-06-05T09:55:48.070Z] POST /api/v1/school/complaints
+Status: 500
+Error: QueryFailedError: insert or update on table "complaints" violates foreign key constraint "FK_11ccef611cce7de2527f37e5896"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolComplaintService.create (D:\Program Files\Eddva\eddva_backend\src\modules\school\complaint\school-complaint.service.ts:32:25)
+
+[2026-06-05T10:00:50.251Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-05T10:22:32.204Z] PUT /api/v1/school/grievances/97b1a5f1-c26f-4fdc-b58c-9babf245fa76
+Status: 500
+Error: QueryFailedError: column "updated_at" of relation "grievances" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolGrievanceService.update (D:\Program Files\Eddva\eddva_backend\src\modules\school\grievance\school-grievance.service.ts:44:5)
+
+[2026-06-05T10:22:32.861Z] PUT /api/v1/school/grievances/951ae06f-1b53-4ba7-bd0d-457d0624eebb
+Status: 500
+Error: QueryFailedError: column "updated_at" of relation "grievances" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolGrievanceService.update (D:\Program Files\Eddva\eddva_backend\src\modules\school\grievance\school-grievance.service.ts:44:5)
+
+[2026-06-05T10:22:38.643Z] PUT /api/v1/school/grievances/6cc8dc5c-c4a1-43fd-a815-64f00782e2c8
+Status: 500
+Error: QueryFailedError: column "updated_at" of relation "grievances" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolGrievanceService.update (D:\Program Files\Eddva\eddva_backend\src\modules\school\grievance\school-grievance.service.ts:44:5)
+
+[2026-06-05T10:22:41.531Z] PUT /api/v1/school/grievances/6cc8dc5c-c4a1-43fd-a815-64f00782e2c8
+Status: 500
+Error: QueryFailedError: column "updated_at" of relation "grievances" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolGrievanceService.update (D:\Program Files\Eddva\eddva_backend\src\modules\school\grievance\school-grievance.service.ts:44:5)
+
+[2026-06-05T10:47:09.890Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-05T10:47:17.599Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\Program Files\Eddva\eddva_backend\src\modules\school\auth\school-auth.service.ts:91:23)
+    at async SchoolAuthController.login (D:\Program Files\Eddva\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-05T10:47:29.076Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-05T10:47:48.997Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:77:25)
+
+[2026-06-05T10:47:49.410Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+
+[2026-06-05T10:52:58.284Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:77:25)
+
+[2026-06-05T10:52:58.690Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:77:25)
+
+[2026-06-05T10:52:58.810Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+
+[2026-06-05T10:52:59.440Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+
+[2026-06-05T10:58:11.698Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-05T10:58:21.843Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T10:58:21.893Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T10:58:21.977Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T10:58:22.417Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T10:58:34.514Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T10:58:34.742Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T10:58:35.117Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T10:58:35.207Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T10:58:46.586Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T10:58:46.726Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T10:58:53.108Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T10:58:53.190Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T10:59:23.087Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T10:59:23.262Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T10:59:53.101Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T10:59:53.182Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:00:23.073Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:00:23.164Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:00:53.076Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:00:53.244Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:01:23.069Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:01:23.216Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:02:34.094Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:02:35.584Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:03:34.088Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:03:36.117Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:04:34.069Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:04:36.695Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:05:34.090Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:05:34.999Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:06:34.094Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:06:34.912Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:07:34.073Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:07:34.735Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:08:34.105Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:08:35.218Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:09:34.092Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:09:35.432Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -16305,6 +16859,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
 [2026-06-05T07:03:20.273Z] GET /api/v1/assessments/mock-tests?status=published
 Status: 400
 Error: BadRequestException: Bad Request Exception
@@ -16362,4 +16917,489 @@ Error: NotFoundException: Cannot GET /uploads/
 Status: 401
 Error: UnauthorizedException: Invalid credentials
     at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+=======
+[2026-06-05T11:09:35.672Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:10:21.805Z] GET /api/v1/assessments/mock-tests?status=published
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-06-05T11:10:21.819Z] GET /api/v1/assessments/mock-tests?status=published
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-06-05T11:10:22.129Z] GET /api/v1/assessments/mock-tests?status=published
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-06-05T11:10:34.086Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:10:34.297Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:10:36.058Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+
+[2026-06-05T11:10:36.197Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:77:25)
+
+[2026-06-05T11:10:36.590Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+
+[2026-06-05T11:10:37.378Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+
+[2026-06-05T11:10:38.137Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:10:38.649Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:77:25)
+
+[2026-06-05T11:11:34.078Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:11:35.275Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:12:34.086Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:12:34.846Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:223:27)
+
+[2026-06-05T11:12:39.395Z] GET /api/v1/school/attendance/dashboard-stats
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/dashboard-stats
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:14:55.052Z] GET /api/v1/school/attendance/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/history
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:15:00.361Z] GET /api/v1/school/attendance/students?classId=247a5e6f-555a-466a-b560-8604bcf35b0c&sectionId=73642c31-2820-4578-9a2c-9bdbdd95df1e
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students?classId=247a5e6f-555a-466a-b560-8604bcf35b0c&sectionId=73642c31-2820-4578-9a2c-9bdbdd95df1e
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:15:10.382Z] GET /api/v1/school/attendance/students?classId=247a5e6f-555a-466a-b560-8604bcf35b0c&sectionId=73642c31-2820-4578-9a2c-9bdbdd95df1e
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students?classId=247a5e6f-555a-466a-b560-8604bcf35b0c&sectionId=73642c31-2820-4578-9a2c-9bdbdd95df1e
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T11:19:10.156Z] GET /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+Status: 404
+Error: NotFoundException: Cannot GET /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-05T11:19:13.560Z] GET /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+Status: 404
+Error: NotFoundException: Cannot GET /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-05T11:21:01.455Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:21:29.665Z] GET /api/v1/school/academic/classes
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:22:08.798Z] GET /api/v1/school/academic/classes
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:22:08.804Z] GET /api/v1/school/attendance/dashboard-stats
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:23:07.931Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:23:29.263Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:23:38.590Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:24:07.998Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:24:29.627Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:24:38.309Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:25:09.621Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T11:37:03.613Z] POST /api/v1/school/attendance/session
+Status: 500
+Error: QueryFailedError: null value in column "marked_by" of relation "attendance_sessions" violates not-null constraint
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.markSession (D:\Program Files\Eddva\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:174:30)
+
+[2026-06-05T11:38:39.135Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: Connection terminated due to connection timeout
+    at Client._connectionCallback (D:\Program Files\Eddva\eddva_backend\node_modules\pg-pool\index.js:276:17)
+    at Connection.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg\lib\client.js:193:18)
+    at Object.onceWrapper (node:events:622:28)
+    at Connection.emit (node:events:508:28)
+    at Connection.emit (node:domain:489:12)
+    at Socket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg\lib\connection.js:61:12)
+    at Socket.emit (node:events:520:35)
+    at Socket.emit (node:domain:489:12)
+    at TCP.<anonymous> (node:net:346:12)
+
+[2026-06-05T11:58:55.870Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+
+[2026-06-05T11:58:56.162Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:77:25)
+
+[2026-06-05T11:58:57.037Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:77:25)
+
+[2026-06-05T11:58:57.584Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:77:25)
+
+[2026-06-05T11:58:57.599Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+
+[2026-06-05T11:58:58.257Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+
+[2026-06-05T12:00:40.308Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:77:25)
+
+[2026-06-05T12:00:40.784Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
 

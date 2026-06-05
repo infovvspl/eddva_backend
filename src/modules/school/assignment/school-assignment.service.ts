@@ -387,9 +387,10 @@ export class SchoolAssignmentService {
     if (!assignRows.length) {
       throw new NotFoundException('Assignment not found');
     }
+    const assignment = assignRows[0];
     if (
       profile.class_id &&
-      String(assignRows[0].class_id) !== String(profile.class_id)
+      String(assignment.class_id) !== String(profile.class_id)
     ) {
       throw new ForbiddenException('This assignment is not for your class');
     }
@@ -447,8 +448,9 @@ export class SchoolAssignmentService {
       console.error('Failed to send assignment submission notification:', notifErr);
     }
 
-    return { success: true, data: rows[0] };
+    return { success: true, data: submissionRow };
   }
+
 
   async listInbox(user: any) {
     const instituteId = this.resolveInstituteId(user);
