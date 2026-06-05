@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 const isProd = process.env.NODE_ENV === 'production';
+const defaultDbPoolMax = isProd ? '5' : '1';
 
 if (isProd && process.env.DB_SYNC === 'true') {
   throw new Error(
@@ -27,9 +28,9 @@ export const coachingDbConfig: DataSourceOptions = {
   ssl: { rejectUnauthorized: false },
   extra: {
     family: 4,
-    max: parseInt(process.env.DB_POOL_MAX || '8'),
+    max: parseInt(process.env.DB_POOL_MAX || defaultDbPoolMax),
     idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 15_000,
   },
   entities: [__dirname + '/../database/entities/*.entity{.ts,.js}',
              __dirname + '/../modules/**/entities/*.entity{.ts,.js}'],
@@ -47,9 +48,9 @@ export const schoolDbConfig: DataSourceOptions = {
   ssl: { rejectUnauthorized: false },
   extra: {
     family: 4,
-    max: parseInt(process.env.SCHOOL_DB_POOL_MAX || '5'),
+    max: parseInt(process.env.SCHOOL_DB_POOL_MAX || defaultDbPoolMax),
     idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 15_000,
   },
   entities: [__dirname + '/../modules/school/**/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../modules/school/migrations/*{.ts,.js}'],

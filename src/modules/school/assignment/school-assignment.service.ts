@@ -347,23 +347,21 @@ export class SchoolAssignmentService {
 
     // Notify students
     try {
-      if (classId) {
-        const studentUsers = await this.ds.query(
-          `SELECT s.user_id FROM students s
-           JOIN sections sec ON s.section_id::text = sec.id::text
-           WHERE sec.class_id::text = $1`,
-          [classId]
-        );
+      const studentUsers = await this.ds.query(
+        `SELECT s.user_id FROM students s
+         JOIN sections sec ON s.section_id = sec.id
+         WHERE sec.class_id::text = $1`,
+        [classId],
+      );
 
-        for (const stu of studentUsers) {
-          await this.notificationService.create({
-            recipientId: stu.user_id,
-            type: 'assignment',
-            title: 'New Assignment Available',
-            message: `${body.title} has been assigned.`,
-            actionUrl: '/school/student/assignments',
-          });
-        }
+      for (const stu of studentUsers) {
+        await this.notificationService.create({
+          recipientId: stu.user_id,
+          type: 'assignment',
+          title: 'New Assignment',
+          message: `${body.title} has been uploaded.`,
+          actionUrl: '/school/student/assignments',
+        });
       }
     } catch (notifErr) {
       console.error('Failed to send assignment upload notifications:', notifErr);
@@ -408,9 +406,8 @@ export class SchoolAssignmentService {
       [assignmentId, profile.student_id],
     );
 
-    let submissionRow: any;
-    if (existing.length) {
-      const rows: any[] = await this.ds.query(
+    const rows: any[] = existing.length
+      ? await this.ds.query(
         `UPDATE assignment_submissions
          SET file_path = COALESCE($2, file_path),
              attachment_url = COALESCE($2, attachment_url),
@@ -421,33 +418,29 @@ export class SchoolAssignmentService {
          WHERE id::text = $1::text
          RETURNING *`,
         [existing[0].id, filePath, body?.notes?.trim() || null],
-      );
-      submissionRow = rows[0];
-    } else {
-      const rows: any[] = await this.ds.query(
-        `INSERT INTO assignment_submissions
-           (assignment_id, student_id, file_path, attachment_url, notes, status)
-         VALUES ($1, $2, $3, $4, $5, 'submitted')
-         RETURNING *`,
-        [
-          assignmentId,
-          profile.student_id,
-          filePath,
-          filePath,
-          body?.notes?.trim() || null,
-        ],
-      );
-      submissionRow = rows[0];
-    }
+      )
+      : await this.ds.query(
+      `INSERT INTO assignment_submissions
+         (assignment_id, student_id, file_path, attachment_url, notes, status)
+       VALUES ($1, $2, $3, $4, $5, 'submitted')
+       RETURNING *`,
+      [
+        assignmentId,
+        profile.student_id,
+        filePath,
+        filePath,
+        body?.notes?.trim() || null,
+      ],
+    );
 
     // Notify the teacher
     try {
-      if (assignment.teacher_id) {
+      if (assignRows[0].teacher_id) {
         await this.notificationService.create({
-          recipientId: assignment.teacher_id,
+          recipientId: assignRows[0].teacher_id,
           type: 'submission',
           title: 'Assignment Submitted',
-          message: `${user.name || 'A student'} submitted ${assignment.title}.`,
+          message: `${user.name || 'A student'} submitted ${assignRows[0].title}.`,
           actionUrl: '/school/teacher/assignments',
         });
       }
