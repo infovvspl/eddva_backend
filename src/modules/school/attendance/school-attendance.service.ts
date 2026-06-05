@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolNotificationService } from '../notification/school-notification.service';
 
 @Injectable()
 export class SchoolAttendanceService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly notificationService: SchoolNotificationService,
+  ) {}
 
   async mark(user: any, body: any) {
     const instituteId = user.instituteId;
@@ -13,6 +17,74 @@ export class SchoolAttendanceService {
        ON CONFLICT (date,user_id) DO UPDATE SET status=EXCLUDED.status,remarks=EXCLUDED.remarks,updated_at=NOW() RETURNING *`,
       [instituteId,body.userId,new Date(body.date),body.status,body.remarks||null],
     );
+
+    try {
+      if (body.status === 'absent' || body.status === 'Absent') {
+        await this.notificationService.create({
+          recipientId: body.userId,
+          senderId: user.id,
+          role: 'STUDENT',
+          type: 'attendance',
+          title: 'Attendance Alert',
+          message: `You have been marked absent on ${body.date}.`,
+          actionUrl: '/school/student/dashboard',
+        });
+      }
+
+      // Check overall attendance percentage for student in attendances table
+      const attStats = await this.ds.query(
+        `SELECT 
+          COUNT(*) FILTER (WHERE status = 'present' OR status = 'Present' OR status = 'late' OR status = 'Late') AS attended,
+          COUNT(*) AS total
+         FROM attendances
+         WHERE user_id = $1`,
+        [body.userId]
+      );
+      if (attStats && attStats[0] && parseInt(attStats[0].total) > 0) {
+        const attended = parseInt(attStats[0].attended);
+        const total = parseInt(attStats[0].total);
+        const percentage = (attended / total) * 100;
+
+        if (percentage < 75) {
+          await this.notificationService.create({
+            recipientId: body.userId,
+            senderId: user.id,
+            role: 'STUDENT',
+            type: 'attendance_warning',
+            title: 'Low Attendance Alert',
+            message: `Your overall attendance has dropped below 75% (${percentage.toFixed(1)}%).`,
+            actionUrl: '/school/student/dashboard',
+          });
+
+          // Find section class teacher's user ID
+          const teacherRows = await this.ds.query(
+            `SELECT t.user_id, u.name AS student_name
+             FROM students s
+             JOIN sections sec ON s.section_id = sec.id
+             JOIN teachers t ON sec.class_teacher_id = t.id
+             JOIN users u ON s.user_id = u.id
+             WHERE s.user_id = $1`,
+            [body.userId]
+          );
+          if (teacherRows && teacherRows[0]) {
+            const teacherUserId = teacherRows[0].user_id;
+            const studentName = teacherRows[0].student_name;
+            await this.notificationService.create({
+              recipientId: teacherUserId,
+              senderId: user.id,
+              role: 'TEACHER',
+              type: 'attendance_warning',
+              title: 'Low Attendance Warning',
+              message: `${studentName}'s overall attendance has dropped below 75% (${percentage.toFixed(1)}%).`,
+              actionUrl: '/school/teacher/dashboard',
+            });
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to trigger attendance notification:', notifErr);
+    }
+
     return result[0];
   }
 
@@ -76,6 +148,73 @@ export class SchoolAttendanceService {
     const sessionId = session[0].id;
     for (const s of (body.students||[])) {
       await this.ds.query(`INSERT INTO attendance_records (session_id,student_id,status,remarks) VALUES ($1,$2,$3,$4)`, [sessionId,s.student_id,s.status,s.remarks||null]);
+
+      try {
+        if (s.status === 'absent' || s.status === 'Absent') {
+          await this.notificationService.create({
+            recipientId: s.student_id,
+            senderId: user.id,
+            role: 'STUDENT',
+            type: 'attendance',
+            title: 'Attendance Alert',
+            message: `You have been marked absent for class on ${body.date}.`,
+            actionUrl: '/school/student/dashboard',
+          });
+        }
+
+        // Check overall attendance percentage in attendance_records
+        const attStats = await this.ds.query(
+          `SELECT 
+            COUNT(*) FILTER (WHERE status = 'present' OR status = 'late' OR status = 'Present' OR status = 'Late') AS attended,
+            COUNT(*) AS total
+           FROM attendance_records
+           WHERE student_id = $1`,
+          [s.student_id]
+        );
+        if (attStats && attStats[0] && parseInt(attStats[0].total) > 0) {
+          const attended = parseInt(attStats[0].attended);
+          const total = parseInt(attStats[0].total);
+          const percentage = (attended / total) * 100;
+
+          if (percentage < 75) {
+            await this.notificationService.create({
+              recipientId: s.student_id,
+              senderId: user.id,
+              role: 'STUDENT',
+              type: 'attendance_warning',
+              title: 'Low Attendance Alert',
+              message: `Your session attendance has dropped below 75% (${percentage.toFixed(1)}%).`,
+              actionUrl: '/school/student/dashboard',
+            });
+
+            // Find section class teacher
+            const teacherRows = await this.ds.query(
+              `SELECT t.user_id, u.name AS student_name
+               FROM students s
+               JOIN sections sec ON s.section_id = sec.id
+               JOIN teachers t ON sec.class_teacher_id = t.id
+               JOIN users u ON s.user_id = u.id
+               WHERE s.user_id = $1`,
+              [s.student_id]
+            );
+            if (teacherRows && teacherRows[0]) {
+              const teacherUserId = teacherRows[0].user_id;
+              const studentName = teacherRows[0].student_name;
+              await this.notificationService.create({
+                recipientId: teacherUserId,
+                senderId: user.id,
+                role: 'TEACHER',
+                type: 'attendance_warning',
+                title: 'Low Attendance Warning',
+                message: `${studentName}'s session attendance has dropped below 75% (${percentage.toFixed(1)}%).`,
+                actionUrl: '/school/teacher/dashboard',
+              });
+            }
+          }
+        }
+      } catch (notifErr) {
+        console.error('Failed to trigger session attendance notification:', notifErr);
+      }
     }
     return { success: true, message: 'Attendance marked successfully' };
   }

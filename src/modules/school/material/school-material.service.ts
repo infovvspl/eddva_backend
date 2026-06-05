@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolNotificationService } from '../notification/school-notification.service';
 
 @Injectable()
 export class SchoolMaterialService {
@@ -13,7 +14,9 @@ export class SchoolMaterialService {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly s3Service: S3Service,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly notificationService: SchoolNotificationService,
   ) { }
+
 
   /** Resolve a topic's name + its chapter/subject context from the school DB. */
   private async resolveTopicContext(topicId: string) {
@@ -147,12 +150,48 @@ export class SchoolMaterialService {
         sm.type::text AS "file_type",
         sm.file_size_kb AS "fileSizeKb",
         sm.created_at AS "createdAt",
+        sm.class_id AS "classId",
+        sm.section_id AS "sectionId",
+        COALESCE(s.name, sm.subject) AS "subjectName",
+        COALESCE(c.name, sm.chapter) AS "chapterName",
+        t.name AS "topicName",
         u.name AS uploaded_by_name
       FROM study_materials sm
       LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      LEFT JOIN subjects s ON sm.subject_id_fk = s.id
+      LEFT JOIN chapters c ON sm.chapter_id = c.id
+      LEFT JOIN topics t ON sm.topic_id = t.id
       WHERE sm.tenant_id = $1::uuid
     `;
     const params: any[] = [instituteId];
+
+    if (user.role === 'STUDENT') {
+      const studentRows = await this.ds.query(
+        `SELECT s.section_id, sec.class_id 
+         FROM students s
+         LEFT JOIN sections sec ON s.section_id = sec.id
+         WHERE s.user_id = $1`,
+        [user.id]
+      );
+      if (studentRows.length > 0 && studentRows[0].section_id && studentRows[0].class_id) {
+        params.push(studentRows[0].class_id);
+        sql += ` AND sm.class_id = $${params.length}::uuid`;
+        params.push(studentRows[0].section_id);
+        sql += ` AND sm.section_id = $${params.length}::uuid`;
+      } else {
+        return { success: true, data: [] };
+      }
+    } else {
+      if (query.classId) {
+        params.push(query.classId);
+        sql += ` AND sm.class_id = $${params.length}::uuid`;
+      }
+      if (query.sectionId) {
+        params.push(query.sectionId);
+        sql += ` AND sm.section_id = $${params.length}::uuid`;
+      }
+    }
+
     if (query.topicId) { params.push(query.topicId); sql += ` AND sm.topic_id = $${params.length}`; }
     if (query.chapterId) { params.push(query.chapterId); sql += ` AND sm.chapter_id = $${params.length}`; }
     if (query.subjectId || query.subjectIdFk) { params.push(query.subjectId || query.subjectIdFk); sql += ` AND sm.subject_id_fk = $${params.length}`; }
@@ -211,9 +250,11 @@ export class SchoolMaterialService {
         subject_id_fk,
         chapter_id,
         topic_id,
-        file_size_kb
+        file_size_kb,
+        class_id,
+        section_id
       )
-       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14::uuid)
        RETURNING *`,
       [
         instituteId,
@@ -227,11 +268,41 @@ export class SchoolMaterialService {
         body.subjectIdFk || null,
         body.chapterId || null,
         body.topicId || null,
-        body.fileSizeKb || 0
+        body.fileSizeKb || 0,
+        body.classId || null,
+        body.sectionId || null
       ],
     );
 
     const row = rows[0];
+
+    // Notify students
+    try {
+      if (row.class_id) {
+        let studentQuery = `SELECT s.user_id FROM students s JOIN sections sec ON s.section_id = sec.id WHERE sec.class_id::text = $1`;
+        const studentParams = [row.class_id];
+        if (row.section_id) {
+          studentQuery += ` AND s.section_id::text = $2`;
+          studentParams.push(row.section_id);
+        }
+        const studentUsers = await this.ds.query(studentQuery, studentParams);
+
+        const fileTypeWord = type === 'notes' ? 'Notes' : type === 'pyq' ? 'PYQs' : type === 'formula_sheet' ? 'Formula Sheet' : 'DPP';
+
+        for (const stu of studentUsers) {
+          await this.notificationService.create({
+            recipientId: stu.user_id,
+            type: 'study_material',
+            title: 'New Study Material',
+            message: `${body.title} (${fileTypeWord}) has been uploaded.`,
+            actionUrl: '/school/student/study-materials',
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to send study material upload notifications:', notifErr);
+    }
+
     return {
       success: true,
       data: {
@@ -245,7 +316,9 @@ export class SchoolMaterialService {
         fileName: row.chapter,
         file_name: row.chapter,
         fileType: row.type,
-        file_type: row.type
+        file_type: row.type,
+        classId: row.class_id,
+        sectionId: row.section_id
       }
     };
   }
@@ -267,7 +340,9 @@ export class SchoolMaterialService {
         fileName: row.chapter,
         file_name: row.chapter,
         fileType: row.type,
-        file_type: row.type
+        file_type: row.type,
+        classId: row.class_id,
+        sectionId: row.section_id
       }
     };
   }
@@ -317,6 +392,8 @@ export class SchoolMaterialService {
         subject_id_fk = COALESCE($8, subject_id_fk),
         chapter_id = COALESCE($9, chapter_id),
         topic_id = COALESCE($10, topic_id),
+        class_id = COALESCE($11::uuid, class_id),
+        section_id = COALESCE($12::uuid, section_id),
         updated_at = NOW() 
        WHERE id = $1`,
       [
@@ -329,7 +406,9 @@ export class SchoolMaterialService {
         type,
         body.subjectIdFk,
         body.chapterId,
-        body.topicId
+        body.topicId,
+        body.classId || null,
+        body.sectionId || null
       ],
     );
     return { success: true };

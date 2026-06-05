@@ -1,15 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolNotificationService } from '../notification/school-notification.service';
 
 @Injectable()
 export class SchoolAssessmentService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly notificationService: SchoolNotificationService,
+  ) { }
 
   async list(user: any, query: any) {
     let sql = `SELECT * FROM assessments ORDER BY scheduled_date DESC NULLS LAST`;
     const params: any[] = [];
-    
+
     // We cannot filter by institute_id since the column doesn't exist.
     // If a specific class or subject is requested, filter by it.
     if (query.classId) {
@@ -19,7 +23,7 @@ export class SchoolAssessmentService {
       params.push(query.subjectId);
       sql = `SELECT * FROM assessments WHERE subject_id=$1 ORDER BY scheduled_date DESC NULLS LAST`;
     }
-    
+
     const rows: any[] = await this.ds.query(sql, params);
     return { success: true, data: rows };
   }
@@ -39,7 +43,31 @@ export class SchoolAssessmentService {
         body.status || 'draft'
       ],
     );
-    return { success: true, data: rows[0] };
+    const assessment = rows[0];
+
+    // Notify students
+    try {
+      if (sectionId) {
+        const studentUsers = await this.ds.query(
+          `SELECT user_id FROM students WHERE section_id::text = $1`,
+          [sectionId]
+        );
+
+        for (const stu of studentUsers) {
+          await this.notificationService.create({
+            recipientId: stu.user_id,
+            type: 'assessment',
+            title: 'New Assessment Available',
+            message: `${body.title} is now available.`,
+            actionUrl: '/school/student/assessments',
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to send assessment notifications:', notifErr);
+    }
+
+    return { success: true, data: assessment };
   }
 
   async findOne(id: string) {
@@ -49,7 +77,7 @@ export class SchoolAssessmentService {
   }
 
   async update(id: string, body: any) {
-    await this.ds.query(`UPDATE assessments SET title=COALESCE($2,title),status=COALESCE($3,status),scheduled_date=COALESCE($4,scheduled_date) WHERE id=$1`, [id,body.title,body.status,body.scheduledAt || body.scheduledDate ? new Date(body.scheduledAt || body.scheduledDate) : null]);
+    await this.ds.query(`UPDATE assessments SET title=COALESCE($2,title),status=COALESCE($3,status),scheduled_date=COALESCE($4,scheduled_date) WHERE id=$1`, [id, body.title, body.status, body.scheduledAt || body.scheduledDate ? new Date(body.scheduledAt || body.scheduledDate) : null]);
     return { success: true };
   }
 
@@ -67,9 +95,27 @@ export class SchoolAssessmentService {
     const rows: any[] = await this.ds.query(
       `INSERT INTO results (assessment_id,student_id,marks_obtained,is_absent,grade,remarks) VALUES ($1,$2,$3,$4,$5,$6)
        ON CONFLICT (assessment_id,student_id) DO UPDATE SET marks_obtained=EXCLUDED.marks_obtained,is_absent=EXCLUDED.is_absent,grade=EXCLUDED.grade,remarks=EXCLUDED.remarks,updated_at=NOW() RETURNING *`,
-      [body.assessmentId,body.studentId,body.marksObtained||0,body.isAbsent||false,body.grade||null,body.remarks||null],
+      [body.assessmentId, body.studentId, body.marksObtained || 0, body.isAbsent || false, body.grade || null, body.remarks || null],
     );
-    return { success: true, data: rows[0] };
+    const result = rows[0];
+
+    // Notify the student
+    try {
+      const assessmentRows = await this.ds.query(`SELECT title FROM assessments WHERE id = $1`, [body.assessmentId]);
+      const assessmentTitle = assessmentRows[0]?.title || 'Assessment';
+
+      await this.notificationService.create({
+        recipientId: body.studentId,
+        type: 'result',
+        title: 'Result Published',
+        message: `Your result for ${assessmentTitle} is available. Marks: ${body.marksObtained || 0}`,
+        actionUrl: '/school/student/assessments',
+      });
+    } catch (notifErr) {
+      console.error('Failed to send result notification:', notifErr);
+    }
+
+    return { success: true, data: result };
   }
 
   async listSessions(user: any) {

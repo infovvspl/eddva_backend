@@ -32,7 +32,7 @@ const uploadStorage = diskStorage({
 @Controller('school/assignments')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolAssignmentController {
-  constructor(private readonly svc: SchoolAssignmentService) {}
+  constructor(private readonly svc: SchoolAssignmentService) { }
 
   @Get()
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
