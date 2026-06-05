@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { MailService } from '../../mail/mail.service';
+import { querySectionSubjects } from '../common/section-subjects';
 
 @Injectable()
 export class SchoolStudentService {

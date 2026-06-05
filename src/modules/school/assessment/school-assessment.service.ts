@@ -8,28 +8,40 @@ export class SchoolAssessmentService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
-  ) {}
+  ) { }
 
   async list(user: any, query: any) {
-    const instituteId = user.role==='SUPER_ADMIN'?(query.instituteId||user.instituteId):user.instituteId;
-    const rows: any[] = await this.ds.query(`SELECT * FROM assessments WHERE institute_id=$1 ORDER BY scheduled_at DESC NULLS LAST`, [instituteId]);
+    let sql = `SELECT * FROM assessments ORDER BY scheduled_date DESC NULLS LAST`;
+    const params: any[] = [];
+
+    // We cannot filter by institute_id since the column doesn't exist.
+    // If a specific class or subject is requested, filter by it.
+    if (query.classId) {
+      params.push(query.classId);
+      sql = `SELECT * FROM assessments WHERE class_id=$1 ORDER BY scheduled_date DESC NULLS LAST`;
+    } else if (query.subjectId) {
+      params.push(query.subjectId);
+      sql = `SELECT * FROM assessments WHERE subject_id=$1 ORDER BY scheduled_date DESC NULLS LAST`;
+    }
+
+    const rows: any[] = await this.ds.query(sql, params);
     return { success: true, data: rows };
   }
 
   async create(user: any, body: any) {
-    const sectionId = body.sectionId || body.section_id;
-    const subjectId = body.subjectId || body.subject_id;
-    const assessmentType = body.assessmentType || body.assessment_type || 'exam';
-    const scheduledAt = body.scheduledAt || body.scheduled_date || body.scheduledDate;
-    const durationMinutes = body.durationMinutes || body.duration_minutes;
-    const totalMarks = body.totalMarks || body.total_marks;
-    const passingMarks = body.passingMarks || body.passing_marks;
-
-    const instituteId = user.role==='SUPER_ADMIN'?(body.instituteId||user.instituteId):user.instituteId;
     const rows: any[] = await this.ds.query(
-      `INSERT INTO assessments (institute_id,subject_id,section_id,created_by,title,assessment_type,total_marks,passing_marks,scheduled_at,duration_minutes,status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [instituteId,subjectId||null,sectionId||null,user.id,body.title,assessmentType,totalMarks||100,passingMarks||35,scheduledAt?new Date(scheduledAt):null,durationMinutes||60,body.status||'draft'],
+      `INSERT INTO assessments (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [
+        body.title,
+        body.assessmentType || body.type || 'exam',
+        body.subjectId || null,
+        body.classId || body.class_id || null,
+        body.totalMarks || 100,
+        body.durationMinutes || 60,
+        body.scheduledAt || body.scheduledDate ? new Date(body.scheduledAt || body.scheduledDate) : null,
+        body.status || 'draft'
+      ],
     );
     const assessment = rows[0];
 
@@ -65,7 +77,7 @@ export class SchoolAssessmentService {
   }
 
   async update(id: string, body: any) {
-    await this.ds.query(`UPDATE assessments SET title=COALESCE($2,title),status=COALESCE($3,status),scheduled_at=COALESCE($4,scheduled_at),updated_at=NOW() WHERE id=$1`, [id,body.title,body.status,body.scheduledAt?new Date(body.scheduledAt):null]);
+    await this.ds.query(`UPDATE assessments SET title=COALESCE($2,title),status=COALESCE($3,status),scheduled_date=COALESCE($4,scheduled_date) WHERE id=$1`, [id, body.title, body.status, body.scheduledAt || body.scheduledDate ? new Date(body.scheduledAt || body.scheduledDate) : null]);
     return { success: true };
   }
 
@@ -83,7 +95,7 @@ export class SchoolAssessmentService {
     const rows: any[] = await this.ds.query(
       `INSERT INTO results (assessment_id,student_id,marks_obtained,is_absent,grade,remarks) VALUES ($1,$2,$3,$4,$5,$6)
        ON CONFLICT (assessment_id,student_id) DO UPDATE SET marks_obtained=EXCLUDED.marks_obtained,is_absent=EXCLUDED.is_absent,grade=EXCLUDED.grade,remarks=EXCLUDED.remarks,updated_at=NOW() RETURNING *`,
-      [body.assessmentId,body.studentId,body.marksObtained||0,body.isAbsent||false,body.grade||null,body.remarks||null],
+      [body.assessmentId, body.studentId, body.marksObtained || 0, body.isAbsent || false, body.grade || null, body.remarks || null],
     );
     const result = rows[0];
 
@@ -91,7 +103,7 @@ export class SchoolAssessmentService {
     try {
       const assessmentRows = await this.ds.query(`SELECT title FROM assessments WHERE id = $1`, [body.assessmentId]);
       const assessmentTitle = assessmentRows[0]?.title || 'Assessment';
-      
+
       await this.notificationService.create({
         recipientId: body.studentId,
         type: 'result',

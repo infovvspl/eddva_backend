@@ -7,6 +7,13 @@ import { SchoolNotificationModule } from '../notification/school-notification.mo
   imports: [SchoolNotificationModule],
   controllers: [SchoolAssignmentController],
   providers: [SchoolAssignmentService]
-})
-export class SchoolAssignmentModule {}
+import { UploadModule } from '../../upload/upload.module';
+  import { AiBridgeModule } from '../../ai-bridge/ai-bridge.module';
+
+@Module({
+    imports: [UploadModule, AiBridgeModule],
+    controllers: [SchoolAssignmentController],
+    providers: [SchoolAssignmentService],
+  })
+  export class SchoolAssignmentModule { }
 
