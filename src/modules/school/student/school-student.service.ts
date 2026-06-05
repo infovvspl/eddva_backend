@@ -477,4 +477,182 @@ export class SchoolStudentService {
       studentName: student.name,
     };
   }
+
+  async getMyCourses(user: any) {
+    const studentRows = await this.ds.query(
+      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+       FROM students s
+       JOIN sections sec ON s.section_id = sec.id
+       JOIN classes c ON sec.class_id = c.id
+       WHERE s.user_id = $1`,
+      [user.id]
+    );
+    if (!studentRows.length) {
+      return { success: true, data: [] };
+    }
+    const student = studentRows[0];
+
+    const subjectRows = await this.ds.query(
+      `SELECT DISTINCT sub.id, sub.name
+       FROM subjects sub
+       JOIN teacher_academic_assignments taa ON taa.subject_id = sub.id
+       WHERE taa.class_id = $1 AND taa.section_id = $2`,
+      [student.class_id, student.section_id]
+    );
+    const subjectNames = subjectRows.map((s: any) => s.name);
+
+    return {
+      success: true,
+      data: [
+        {
+          enrollmentId: student.profile_id,
+          enrollmentStatus: 'active',
+          enrolledAt: new Date(),
+          feePaid: true,
+          batch: {
+            id: student.class_id,
+            name: `${student.class_name} - Section ${student.section_name}`,
+            description: `Curriculum for ${student.class_name}`,
+            examTarget: 'School',
+            class: student.class_name,
+            startDate: new Date(),
+            endDate: new Date(),
+            thumbnailUrl: null,
+            status: 'active',
+            deliveryMode: 'offline',
+            teacher: null,
+          },
+          subjects: subjectNames,
+          progress: {
+            totalLectures: 0,
+            watchedLectures: 0,
+            completedTopics: 0,
+            inProgressTopics: 0,
+            totalTopics: 0,
+            overallPct: 0,
+          },
+        }
+      ]
+    };
+  }
+
+  async getCourseDetail(user: any, classId: string) {
+    const studentRows = await this.ds.query(
+      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+       FROM students s
+       JOIN sections sec ON s.section_id = sec.id
+       JOIN classes c ON sec.class_id = c.id
+       WHERE s.user_id = $1`,
+      [user.id]
+    );
+    if (!studentRows.length) {
+      throw new NotFoundException('Student profile not found');
+    }
+    const student = studentRows[0];
+
+    const subjectRows = await this.ds.query(
+      `SELECT DISTINCT sub.id, sub.name, u.name AS teacher_name, u.id AS teacher_user_id
+       FROM subjects sub
+       JOIN teacher_academic_assignments taa ON taa.subject_id = sub.id
+       LEFT JOIN teachers t ON taa.teacher_id = t.id
+       LEFT JOIN users u ON t.user_id = u.id
+       WHERE taa.class_id = $1 AND taa.section_id = $2`,
+      [student.class_id, student.section_id]
+    );
+
+    const curriculum = [];
+    for (const sub of subjectRows) {
+      const chapterRows = await this.ds.query(
+        `SELECT id, name FROM chapters WHERE subject_id = $1 ORDER BY sort_order, name`,
+        [sub.id]
+      );
+
+      const chapters = [];
+      for (const chap of chapterRows) {
+        const topicRows = await this.ds.query(
+          `SELECT id, name FROM topics WHERE chapter_id = $1 ORDER BY sort_order, name`,
+          [chap.id]
+        );
+
+        const topics = [];
+        for (const top of topicRows) {
+          const materialRows = await this.ds.query(
+            `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description 
+             FROM study_materials 
+             WHERE topic_id = $1 AND class_id = $2 AND section_id = $3`,
+            [top.id, student.class_id, student.section_id]
+          );
+
+          const resourceCounts = materialRows.reduce((acc: any, r: any) => {
+            acc[r.type] = (acc[r.type] || 0) + 1;
+            return acc;
+          }, {});
+
+          topics.push({
+            id: top.id,
+            name: top.name,
+            estimatedStudyMinutes: 30,
+            gatePassPercentage: 70,
+            progress: {
+              status: 'unlocked',
+              bestAccuracy: 0,
+              studiedWithAi: false,
+              completedAt: null,
+            },
+            lectureCount: 0,
+            lectures: {
+              total: 0,
+              completed: 0,
+            },
+            resourceCounts,
+            resources: materialRows,
+          });
+        }
+
+        chapters.push({
+          id: chap.id,
+          name: chap.name,
+          topics,
+        });
+      }
+
+      curriculum.push({
+        id: sub.id,
+        name: sub.name,
+        teacher: sub.teacher_name ? { id: sub.teacher_user_id, name: sub.teacher_name } : null,
+        chapters,
+      });
+    }
+
+    return {
+      success: true,
+      data: {
+        batch: {
+          id: student.class_id,
+          name: `${student.class_name} - Section ${student.section_name}`,
+          examTarget: 'School',
+          class: student.class_name,
+          startDate: new Date(),
+          endDate: new Date(),
+          thumbnailUrl: null,
+          status: 'active',
+        },
+        enrollment: {
+          id: student.profile_id,
+          status: 'active',
+          enrolledAt: new Date(),
+          feePaid: true,
+        },
+        summary: {
+          totalSubjects: subjectRows.length,
+          totalTopics: curriculum.reduce((s, sub) => s + sub.chapters.reduce((c_s, c) => c_s + c.topics.length, 0), 0),
+          completedTopics: 0,
+          totalLectures: 0,
+          watchedLectures: 0,
+          progressPercent: 0,
+        },
+        curriculum,
+      }
+    };
+  }
 }

@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolNotificationService } from '../notification/school-notification.service';
 
 @Injectable()
 export class SchoolNoticeService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly notificationService: SchoolNotificationService,
+  ) {}
 
   async list(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
@@ -63,16 +67,13 @@ export class SchoolNoticeService {
       const targetUsers = await this.ds.query(userQuery, userParams);
 
       for (const targetUser of targetUsers) {
-        await this.ds.query(
-          `INSERT INTO notifications (user_id, type, title, message, is_read) 
-           VALUES ($1, $2, $3, $4, FALSE)`,
-          [
-            targetUser.id,
-            'ANNOUNCEMENT',
-            body.title,
-            body.content.length > 200 ? body.content.substring(0, 197) + '...' : body.content
-          ]
-        );
+        await this.notificationService.create({
+          recipientId: targetUser.id,
+          type: 'announcement',
+          title: 'School Announcement',
+          message: body.title,
+          actionUrl: '/school/student/announcements',
+        });
       }
     } catch (notifErr) {
       console.error('Failed to dispatch notifications for notice:', notifErr);

@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolNotificationService } from '../notification/school-notification.service';
 
 @Injectable()
 export class SchoolAssessmentService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly notificationService: SchoolNotificationService,
+  ) {}
 
   async list(user: any, query: any) {
     const instituteId = user.role==='SUPER_ADMIN'?(query.instituteId||user.instituteId):user.instituteId;
@@ -13,13 +17,45 @@ export class SchoolAssessmentService {
   }
 
   async create(user: any, body: any) {
+    const sectionId = body.sectionId || body.section_id;
+    const subjectId = body.subjectId || body.subject_id;
+    const assessmentType = body.assessmentType || body.assessment_type || 'exam';
+    const scheduledAt = body.scheduledAt || body.scheduled_date || body.scheduledDate;
+    const durationMinutes = body.durationMinutes || body.duration_minutes;
+    const totalMarks = body.totalMarks || body.total_marks;
+    const passingMarks = body.passingMarks || body.passing_marks;
+
     const instituteId = user.role==='SUPER_ADMIN'?(body.instituteId||user.instituteId):user.instituteId;
     const rows: any[] = await this.ds.query(
       `INSERT INTO assessments (institute_id,subject_id,section_id,created_by,title,assessment_type,total_marks,passing_marks,scheduled_at,duration_minutes,status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [instituteId,body.subjectId||null,body.sectionId||null,user.id,body.title,body.assessmentType||'exam',body.totalMarks||100,body.passingMarks||35,body.scheduledAt?new Date(body.scheduledAt):null,body.durationMinutes||60,body.status||'draft'],
+      [instituteId,subjectId||null,sectionId||null,user.id,body.title,assessmentType,totalMarks||100,passingMarks||35,scheduledAt?new Date(scheduledAt):null,durationMinutes||60,body.status||'draft'],
     );
-    return { success: true, data: rows[0] };
+    const assessment = rows[0];
+
+    // Notify students
+    try {
+      if (sectionId) {
+        const studentUsers = await this.ds.query(
+          `SELECT user_id FROM students WHERE section_id::text = $1`,
+          [sectionId]
+        );
+
+        for (const stu of studentUsers) {
+          await this.notificationService.create({
+            recipientId: stu.user_id,
+            type: 'assessment',
+            title: 'New Assessment Available',
+            message: `${body.title} is now available.`,
+            actionUrl: '/school/student/assessments',
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to send assessment notifications:', notifErr);
+    }
+
+    return { success: true, data: assessment };
   }
 
   async findOne(id: string) {
@@ -49,7 +85,25 @@ export class SchoolAssessmentService {
        ON CONFLICT (assessment_id,student_id) DO UPDATE SET marks_obtained=EXCLUDED.marks_obtained,is_absent=EXCLUDED.is_absent,grade=EXCLUDED.grade,remarks=EXCLUDED.remarks,updated_at=NOW() RETURNING *`,
       [body.assessmentId,body.studentId,body.marksObtained||0,body.isAbsent||false,body.grade||null,body.remarks||null],
     );
-    return { success: true, data: rows[0] };
+    const result = rows[0];
+
+    // Notify the student
+    try {
+      const assessmentRows = await this.ds.query(`SELECT title FROM assessments WHERE id = $1`, [body.assessmentId]);
+      const assessmentTitle = assessmentRows[0]?.title || 'Assessment';
+      
+      await this.notificationService.create({
+        recipientId: body.studentId,
+        type: 'result',
+        title: 'Result Published',
+        message: `Your result for ${assessmentTitle} is available. Marks: ${body.marksObtained || 0}`,
+        actionUrl: '/school/student/assessments',
+      });
+    } catch (notifErr) {
+      console.error('Failed to send result notification:', notifErr);
+    }
+
+    return { success: true, data: result };
   }
 
   async listSessions(user: any) {
