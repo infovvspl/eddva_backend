@@ -744,3 +744,893 @@ query: CREATE INDEX IF NOT EXISTS idx_school_institutes_status ON institutes (st
 [32m[Nest] 17848  - [39m05/06/2026, 11:32:56 am [32m    LOG[39m [38;5;3m[Bootstrap] [39m[32m🚀 APEXIQ API running on: http://localhost:3000/api/v1[39m
 [32m[Nest] 17848  - [39m05/06/2026, 11:32:56 am [32m    LOG[39m [38;5;3m[Bootstrap] [39m[32m📡 WebSocket (Battle Arena): ws://localhost:3000/battle[39m
 [32m[Nest] 17848  - [39m05/06/2026, 11:32:56 am [32m    LOG[39m [38;5;3m[Bootstrap] [39m[32m🌍 Environment: development[39m
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM chapters WHERE 1=1 AND subject_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT * FROM topics WHERE 1=1 AND chapter_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["38226e46-16eb-4cde-8ab2-31a3ac085c60"]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: INSERT INTO study_materials (
+        tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
+        subject_id_fk, chapter_id, topic_id, file_size_kb
+      )
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0)
+       RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId" -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","dpp","DPP Sheet — Derivation","Math","Calculus","# CLASS 10 DPP -- Derivation\n**Subject:** Math | **Chapter:** Calculus | **Date:** 2024-02-20\n\n## Section A -- Multiple Choice (1 mark each)\n1. The process of finding the derivative of a function is called _______.\nA) Integration\nB) Differentiation\nC) Limit\nD) Function\n\n2. If f(x) = 3x^2, then f'(x) is _______.\nA) 3x\nB) 6x\nC) 9x\nD) 12x\n\n3. The derivative of x^n is _______.\nA) nx^(n-1)\nB) nx^(n+1)\nC) (n-1)x^n\nD) (n+1)x^n\n\n4. What is the derivative of sin(x) _______.\nA) cos(x)\nB) sin(x)\nC) tan(x)\nD) sec(x)\n\n5. The derivative of a constant is _______.\nA) 1\nB) 0\nC) x\nD) x^2\n\n## Section B -- Numericals / Short Answer (3 marks each)\n1. Find the derivative of the function f(x) = 2x^2 + 3x - 4.\n\n2. If f(x) = x^3 - 2x^2 + x - 1, find f'(x).\n\n3. Find the derivative of the function f(x) = sin(x) + cos(x).\n\n4. If f(x) = 3x^2 - 2x + 1, find f'(2).\n\n## Section C -- 5-mark questions\n1. Find the derivative of the function f(x) = (x^2 + 1) / (x + 1) using the quotient rule.\n\n2. If f(x) = x^4 - 2x^3 + x^2 - x + 1, find f'(x) and evaluate f'(1).\n\n3. Find the derivative of the function f(x) = sqrt(x) + 1/x.\n\n4. If f(x) = sin(2x), find f'(x) and evaluate f'(π/4).\n\n5. Find the derivative of the function f(x) = e^x + log(x).\n\n## Answer Key\n**Section A**\n1. B) Differentiation\n2. B) 6x\n3. A) nx^(n-1)\n4. A) cos(x)\n5. B) 0\n\n**Section B**\n1. f'(x) = 4x + 3\n2. f'(x) = 3x^2 - 4x + 1\n3. f'(x) = cos(x) - sin(x)\n4. f'(2) = 12 - 4 = 8\n\n**Section C**\n1. f'(x) = (2x(x+1) - (x^2+1)) / (x+1)^2 = (x^2 + 2x - 1) / (x+1)^2\n2. f'(x) = 4x^3 - 6x^2 + 2x - 1, f'(1) = 4 - 6 + 2 - 1 = -1\n3. f'(x) = 1/(2*sqrt(x)) - 1/x^2\n4. f'(x) = 2*cos(2x), f'(π/4) = 2*cos(π/2) = 0\n5. f'(x) = e^x + 1/x","526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e","38226e46-16eb-4cde-8ab2-31a3ac085c60","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM topics WHERE 1=1 AND chapter_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["38226e46-16eb-4cde-8ab2-31a3ac085c60"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM topics WHERE 1=1 AND chapter_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["46bccb3c-caf5-414a-bd48-381f6e2b3e71"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: INSERT INTO study_materials (
+        tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
+        subject_id_fk, chapter_id, topic_id, file_size_kb
+      )
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0)
+       RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId" -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","notes","Study Guide — Derivation","Math","Calculus","### Introduction to Calculus\nCalculus is a branch of mathematics that deals with the study of continuous change. It has two main branches: Differential Calculus and Integral Calculus. In Class 10, we will focus on the basics of calculus, including limits, derivatives, and differentiation.\n\n### Limits\n* Limits are used to define the basic operations of calculus, such as differentiation and integration.\n* The concept of a limit is used to study the behavior of a function as the input values approach a specific point.\n* The limit of a function f(x) as x approaches a is denoted by lim x→a f(x).\n\n### Derivatives\n* A derivative measures the rate of change of a function with respect to one of its variables.\n* It is denoted by f'(x) or dy/dx.\n* The derivative of a function f(x) is defined as the limit of the average rate of change of the function as the change in the input values approaches zero.\n\n### Differentiation\n* Differentiation is the process of finding the derivative of a function.\n* It is a fundamental concept in calculus and is used to study the properties of functions, such as maxima and minima, and to model real-world phenomena.\n* There are several rules of differentiation, including the power rule, product rule, and quotient rule.\n\n### Power Rule\n* The power rule states that if f(x) = x^n, then f'(x) = nx^(n-1).\n* This rule is used to differentiate functions that involve powers of x.\n\n### Product Rule\n* The product rule states that if f(x) = u(x)v(x), then f'(x) = u'(x)v(x) + u(x)v'(x).\n* This rule is used to differentiate functions that involve products of functions.\n\n### Quotient Rule\n* The quotient rule states that if f(x) = u(x)/v(x), then f'(x) = (u'(x)v(x) - u(x)v'(x)) / v(x)^2.\n* This rule is used to differentiate functions that involve quotients of functions.\n\n### Geometric Interpretation of Derivatives\n* The derivative of a function can be interpreted geometrically as the slope of the tangent line to the graph of the function at a given point.\n* The slope of the tangent line represents the rate of change of the function at that point.\n\n### Applications of Derivatives\n* Derivatives have numerous applications in physics, engineering, economics, and other fields.\n* They are used to model real-world phenomena, such as the motion of objects, the growth of populations, and the optimization of systems.\n\n### Key Concepts\n* **Average rate of change**: The average rate of change of a function over a given interval.\n* **Instantaneous rate of change**: The instantaneous rate of change of a function at a given point.\n* **Tangent line**: The line that touches the graph of a function at a given point and has the same slope as the function at that point.\n\n### Important Formulas\n* **Limit formula**: lim x→a f(x) = L\n* **Derivative formula**: f'(x) = lim h→0 [f(x + h) - f(x)]/h\n* **Power rule formula**: f'(x) = nx^(n-1)\n* **Product rule formula**: f'(x) = u'(x)v(x) + u(x)v'(x)\n* **Quotient rule formula**: f'(x) = (u'(x)v(x) - u(x)v'(x)) / v(x)^2\n\n### Practice Problems\n* Find the derivative of the function f(x) = x^2 + 3x - 4.\n* Find the derivative of the function f(x) = (x + 1)/(x - 1).\n* Find the equation of the tangent line to the graph of the function f(x) = x^2 at the point (1, 1).\n\n### Summary\nIn this chapter, we have learned about the basics of calculus, including limits, derivatives, and differentiation. We have also learned about the power rule, product rule, and quotient rule, and how to apply them to differentiate functions. Additionally, we have learned about the geometric interpretation of derivatives and their applications in real-world phenomena. By mastering these concepts and formulas, you will be well-prepared to tackle more advanced topics in calculus and apply them to solve problems in a variety of fields.","526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e","38226e46-16eb-4cde-8ab2-31a3ac085c60","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM topics WHERE 1=1 AND chapter_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["38226e46-16eb-4cde-8ab2-31a3ac085c60"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: INSERT INTO study_materials (
+        tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
+        subject_id_fk, chapter_id, topic_id, file_size_kb
+      )
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0)
+       RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId" -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","notes","Key Concepts — Derivation","Math","Calculus","### Introduction to Derivatives\n* **Derivative**: Measures the rate of change of a function with respect to one of its variables, units depend on the function, used to find the slope of a curve at a point.\n* **Limit**: The value that a function approaches as the input gets arbitrarily close to a certain point, no units, used to define the derivative of a function.\n* **Differentiation**: The process of finding the derivative of a function, no units, used to find the rate of change of a function.\n\n### Rules of Differentiation\n* **Power Rule**: If f(x) = x^n, then f'(x) = nx^(n-1), no units, used to differentiate polynomial functions.\n* **Product Rule**: If f(x) = u(x)v(x), then f'(x) = u'(x)v(x) + u(x)v'(x), no units, used to differentiate products of functions.\n* **Quotient Rule**: If f(x) = u(x)/v(x), then f'(x) = (u'(x)v(x) - u(x)v'(x)) / v(x)^2, no units, used to differentiate quotients of functions.\n* **Chain Rule**: If f(x) = g(h(x)), then f'(x) = g'(h(x)) * h'(x), no units, used to differentiate composite functions.\n\n### Geometric Interpretation of Derivatives\n* **Slope of a Curve**: The derivative of a function at a point represents the slope of the curve at that point, units of rise over run, used to find the steepness of a curve.\n* **Tangent Line**: The line that just touches a curve at a point and has the same slope as the curve at that point, no units, used to visualize the derivative of a function.\n* **Normal Line**: The line that is perpendicular to the tangent line at a point on a curve, no units, used to find the direction perpendicular to a curve.\n\n### Higher-Order Derivatives\n* **Second Derivative**: The derivative of the derivative of a function, units depend on the function, used to find the concavity of a curve.\n* **Higher-Order Derivatives**: The derivatives of a function beyond the second derivative, units depend on the function, used to find the higher-order properties of a curve.\n\n### Applications of Derivatives\n* **Maxima and Minima**: The points on a curve where the derivative is zero or undefined, no units, used to find the maximum or minimum value of a function.\n* **Optimization**: The process of finding the maximum or minimum value of a function subject to certain constraints, no units, used to solve real-world problems.\n* **Motion Along a Line**: The study of the motion of an object along a line, units of distance over time, used to model the motion of objects.\n* **Related Rates**: The study of the rates of change of related quantities, units depend on the quantities, used to solve problems involving rates of change.","526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e","38226e46-16eb-4cde-8ab2-31a3ac085c60","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: INSERT INTO study_materials (
+        tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
+        subject_id_fk, chapter_id, topic_id, file_size_kb
+      )
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0)
+       RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId" -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","notes","Flashcards — Derivation","Math","Calculus","### Derivation Flashcards\n**Q:** What is the meaning of the term 'derivative' in calculus?  **A:** The derivative of a function represents the rate of change of the function with respect to one of its variables.\n**Q:** What is the geometric interpretation of a derivative?  **A:** The derivative of a function at a point is the slope of the tangent line to the graph of the function at that point.\n**Q:** What is the formula for finding the derivative of a function using the limit definition?  **A:** The derivative of a function f(x) is given by f'(x) = lim(h → 0) [f(x + h) - f(x)]/h.\n**Q:** What is the power rule for differentiation?  **A:** If f(x) = x^n, then f'(x) = nx^(n-1).\n**Q:** What is the product rule for differentiation?  **A:** If f(x) = u(x)v(x), then f'(x) = u'(x)v(x) + u(x)v'(x).\n**Q:** What is the quotient rule for differentiation?  **A:** If f(x) = u(x)/v(x), then f'(x) = (u'(x)v(x) - u(x)v'(x)) / v(x)^2.\n**Q:** What is the chain rule for differentiation?  **A:** If f(x) = g(h(x)), then f'(x) = g'(h(x)) * h'(x).\n**Q:** How do you find the derivative of a constant function?  **A:** The derivative of a constant function is zero, since the function does not change.\n**Q:** What is the derivative of the function f(x) = 3x^2?  **A:** f'(x) = 6x, using the power rule for differentiation.\n**Q:** What is the derivative of the function f(x) = 2x^3 - 5x^2 + x - 1?  **A:** f'(x) = 6x^2 - 10x + 1, using the power rule for differentiation.\n**Q:** What is the application of derivatives in physics?  **A:** Derivatives are used to describe the motion of objects, including velocity and acceleration.\n**Q:** What is the application of derivatives in economics?  **A:** Derivatives are used to model the behavior of economic systems, including the rate of change of supply and demand.\n**Q:** How do you find the derivative of a function using the sum rule?  **A:** If f(x) = u(x) + v(x), then f'(x) = u'(x) + v'(x).","526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e","38226e46-16eb-4cde-8ab2-31a3ac085c60","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: INSERT INTO study_materials (
+        tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
+        subject_id_fk, chapter_id, topic_id, file_size_kb
+      )
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0)
+       RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId" -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","notes","FAQ — Derivation","Math","Calculus","# Introduction to Derivatives\nDerivatives are a fundamental concept in calculus, which is a branch of mathematics that deals with the study of continuous change. In Class 10, we will be introduced to the basics of derivatives, including the concept of limits, functions, and the derivative of a function. The derivative of a function represents the rate of change of the function with respect to one of its variables.\n\n## Key Concepts\n### What is a Derivative?\nA derivative measures how a function changes as its input changes. It is defined as the limit of the average rate of change of the function as the input changes. Geometrically, the derivative of a function at a point is the slope of the tangent line to the graph of the function at that point.\n\n### Types of Derivatives\nThere are several types of derivatives, including:\n* **First Derivative**: The first derivative of a function represents the rate of change of the function with respect to one of its variables.\n* **Higher-Order Derivatives**: Higher-order derivatives represent the rate of change of the rate of change of a function. For example, the second derivative of a function represents the rate of change of the first derivative.\n\n### Rules of Differentiation\nThere are several rules of differentiation that are used to find the derivative of a function, including:\n* **Power Rule**: If f(x) = x^n, then f'(x) = nx^(n-1)\n* **Product Rule**: If f(x) = u(x)v(x), then f'(x) = u'(x)v(x) + u(x)v'(x)\n* **Quotient Rule**: If f(x) = u(x)/v(x), then f'(x) = (u'(x)v(x) - u(x)v'(x)) / v(x)^2\n\n## Important Points\n* The derivative of a constant is zero.\n* The derivative of a sum is the sum of the derivatives.\n* The derivative of a difference is the difference of the derivatives.\n* The derivative of a product is the product of the derivatives plus the product of the functions and the derivatives.\n\n## Examples\n### Example 1: Find the Derivative of x^2\nTo find the derivative of x^2, we use the power rule of differentiation, which states that if f(x) = x^n, then f'(x) = nx^(n-1). In this case, n = 2, so f'(x) = 2x^(2-1) = 2x.\n\n### Example 2: Find the Derivative of 3x^2 + 2x - 5\nTo find the derivative of 3x^2 + 2x - 5, we use the power rule and the sum rule of differentiation. The derivative of 3x^2 is 6x, the derivative of 2x is 2, and the derivative of -5 is 0. Therefore, the derivative of 3x^2 + 2x - 5 is 6x + 2.\n\n### Example 3: Find the Derivative of (x^2 + 1) / (x + 1)\nTo find the derivative of (x^2 + 1) / (x + 1), we use the quotient rule of differentiation. The derivative of the numerator is 2x, and the derivative of the denominator is 1. Therefore, the derivative of (x^2 + 1) / (x + 1) is (2x(x + 1) - (x^2 + 1)) / (x + 1)^2.\n\n## Common Mistakes\n* Forgetting to apply the chain rule when differentiating composite functions.\n* Forgetting to apply the product rule when differentiating products of functions.\n* Forgetting to apply the quotient rule when differentiating quotients of functions.\n* Not simplifying the derivative after finding it.\n* Not checking the derivative for any restrictions on the domain.\n\nBy following these key concepts, important points, and examples, and avoiding common mistakes, students can develop a strong understanding of derivatives and be well-prepared for more advanced topics in calculus.","526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e","38226e46-16eb-4cde-8ab2-31a3ac085c60","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT t.id AS topic_id, t.name AS topic_name,
+              c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM topics t
+       JOIN chapters c ON c.id = t.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE t.id = $1 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: INSERT INTO study_materials (
+        tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
+        subject_id_fk, chapter_id, topic_id, file_size_kb
+      )
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0)
+       RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId" -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","mindmap","Mindmap — Derivation","Math","Calculus","# Introduction to Calculus\n## Limits\n### Introduction to Limits\n- Definition of a limit\n- Notation of a limit\n- Basic properties of limits\n### Limits of Algebraic Functions\n- Limits of polynomial functions\n- Limits of rational functions\n- Limits of trigonometric functions\n### Limits of Trigonometric Functions\n- Limits of sine, cosine, and tangent functions\n- Limits of cosecant, secant, and cotangent functions\n### Sandwitch Theorem and Squeeze Theorem\n- Definition of the sandwitch theorem\n- Definition of the squeeze theorem\n- Applications of the sandwitch and squeeze theorems\n## Differentiation\n### Introduction to Differentiation\n- Definition of a derivative\n- Notation of a derivative\n- Basic properties of derivatives\n### Differentiation Rules\n- Power rule of differentiation\n- Product rule of differentiation\n- Quotient rule of differentiation\n- Chain rule of differentiation\n### Geometric Interpretation of Derivative\n- Tangent line to a curve\n- Slope of a curve\n- Equation of a tangent line\n### Higher Order Derivatives\n- Definition of higher order derivatives\n- Notation of higher order derivatives\n- Applications of higher order derivatives\n## Applications of Derivatives\n### Maxima and Minima\n- Definition of maxima and minima\n- First derivative test\n- Second derivative test\n- Applications of maxima and minima\n### Rate of Change\n- Instantaneous rate of change\n- Average rate of change\n- Applications of rate of change\n### Curve Sketching\n- Definition of curve sketching\n- Steps involved in curve sketching\n- Applications of curve sketching\n## Integration\n### Introduction to Integration\n- Definition of an integral\n- Notation of an integral\n- Basic properties of integrals\n### Integration Rules\n- Substitution method of integration\n- Integration by parts\n- Integration by partial fractions\n- Integration by trigonometric substitution\n### Definite Integrals\n- Definition of a definite integral\n- Notation of a definite integral\n- Applications of definite integrals\n### Applications of Integrals\n- Area under curves\n- Volume of solids\n- Surface area of solids\n- Applications of integrals in physics and engineering\n## Numerical Methods\n### Introduction to Numerical Methods\n- Definition of numerical methods\n- Importance of numerical methods\n- Basic numerical methods\n### Trapezoidal Rule and Simpson's Rule\n- Definition of the trapezoidal rule\n- Definition of Simpson's rule\n- Applications of the trapezoidal rule and Simpson's rule\n### Numerical Differentiation and Integration\n- Numerical differentiation\n- Numerical integration\n- Applications of numerical differentiation and integration","526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e","38226e46-16eb-4cde-8ab2-31a3ac085c60","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM topics WHERE 1=1 AND chapter_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["38226e46-16eb-4cde-8ab2-31a3ac085c60"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM topics WHERE 1=1 AND chapter_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["38226e46-16eb-4cde-8ab2-31a3ac085c60"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM topics WHERE 1=1 AND chapter_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["46bccb3c-caf5-414a-bd48-381f6e2b3e71"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id FROM teachers WHERE user_id=$1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: 
+          SELECT DISTINCT c.id, c.name 
+          FROM teacher_academic_assignments ta 
+          JOIN classes c ON ta.class_id = c.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY c.name
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: 
+          SELECT DISTINCT s.id, s.name, s.class_id
+          FROM teacher_academic_assignments ta 
+          JOIN sections s ON ta.section_id = s.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY s.name
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: 
+          SELECT DISTINCT sub.id, sub.name
+          FROM teacher_academic_assignments ta 
+          JOIN subjects sub ON ta.subject_id = sub.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY sub.name
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: 
+          SELECT ta.class_id, c.name AS class_name, ta.section_id, s.name AS section_name, ta.subject_id, sub.name AS subject_name, ta.is_class_teacher
+          FROM teacher_academic_assignments ta
+          LEFT JOIN classes c ON ta.class_id = c.id
+          LEFT JOIN sections s ON ta.section_id = s.id
+          LEFT JOIN subjects sub ON ta.subject_id = sub.id
+          WHERE ta.teacher_id = $1
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1 -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1"]
+query: SELECT COUNT(*)::int AS c FROM assignments
+query: SELECT s.*,c.name AS class_name,sub.name AS subject_name FROM schedules s LEFT JOIN classes c ON s.class_id::text=c.id::text LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text WHERE s.teacher_id::text=$1::text ORDER BY s.day_of_week,s.start_time LIMIT 6 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*) FILTER (WHERE status='present')::int AS present, COUNT(*)::int AS total FROM attendances WHERE institute_id=$1 AND date::date = $2::date -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","2026-06-05"]
+query: SELECT * FROM notices WHERE institute_id=$1 ORDER BY posted_date DESC NULLS LAST, created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1"]
+query: SELECT COUNT(*)::int AS c FROM assessments
+query: SELECT id, institute_id AS "instituteId", title, description, category, 
+                      start_time AS "startTime", end_time AS "endTime", 
+                      is_all_day AS "isAllDay", location, priority, 
+                      created_by AS "createdBy", created_at AS "createdAt", updated_at AS "updatedAt"
+               FROM events WHERE institute_id=$1 ORDER BY start_time ASC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1"]
+query: SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id FROM teachers WHERE user_id=$1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM notices WHERE institute_id=$1 ORDER BY posted_date DESC NULLS LAST, created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1"]
+query: 
+          SELECT DISTINCT c.id, c.name 
+          FROM teacher_academic_assignments ta 
+          JOIN classes c ON ta.class_id = c.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY c.name
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: SELECT id, institute_id AS "instituteId", title, description, category, 
+                      start_time AS "startTime", end_time AS "endTime", 
+                      is_all_day AS "isAllDay", location, priority, 
+                      created_by AS "createdBy", created_at AS "createdAt", updated_at AS "updatedAt"
+               FROM events WHERE institute_id=$1 ORDER BY start_time ASC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1"]
+query: SELECT * FROM notices WHERE institute_id=$1 ORDER BY posted_date DESC NULLS LAST, created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1"]
+query: 
+          SELECT DISTINCT s.id, s.name, s.class_id
+          FROM teacher_academic_assignments ta 
+          JOIN sections s ON ta.section_id = s.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY s.name
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: 
+          SELECT DISTINCT sub.id, sub.name
+          FROM teacher_academic_assignments ta 
+          JOIN subjects sub ON ta.subject_id = sub.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY sub.name
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: 
+          SELECT ta.class_id, c.name AS class_name, ta.section_id, s.name AS section_name, ta.subject_id, sub.name AS subject_name, ta.is_class_teacher
+          FROM teacher_academic_assignments ta
+          LEFT JOIN classes c ON ta.class_id = c.id
+          LEFT JOIN sections s ON ta.section_id = s.id
+          LEFT JOIN subjects sub ON ta.subject_id = sub.id
+          WHERE ta.teacher_id = $1
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1 -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1"]
+query: SELECT COUNT(*)::int AS c FROM assignments
+query: SELECT COUNT(*)::int AS c FROM assessments
+query: SELECT id, institute_id AS "instituteId", title, description, category, 
+                      start_time AS "startTime", end_time AS "endTime", 
+                      is_all_day AS "isAllDay", location, priority, 
+                      created_by AS "createdBy", created_at AS "createdAt", updated_at AS "updatedAt"
+               FROM events WHERE institute_id=$1 ORDER BY start_time ASC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1"]
+query: SELECT COUNT(*) FILTER (WHERE status='present')::int AS present, COUNT(*)::int AS total FROM attendances WHERE institute_id=$1 AND date::date = $2::date -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","2026-06-05"]
+query: SELECT s.*,c.name AS class_name,sub.name AS subject_name FROM schedules s LEFT JOIN classes c ON s.class_id::text=c.id::text LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text WHERE s.teacher_id::text=$1::text ORDER BY s.day_of_week,s.start_time LIMIT 6 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id FROM teachers WHERE user_id=$1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: 
+          SELECT DISTINCT c.id, c.name 
+          FROM teacher_academic_assignments ta 
+          JOIN classes c ON ta.class_id = c.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY c.name
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: 
+          SELECT DISTINCT s.id, s.name, s.class_id
+          FROM teacher_academic_assignments ta 
+          JOIN sections s ON ta.section_id = s.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY s.name
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: 
+          SELECT DISTINCT sub.id, sub.name
+          FROM teacher_academic_assignments ta 
+          JOIN subjects sub ON ta.subject_id = sub.id 
+          WHERE ta.teacher_id = $1
+          ORDER BY sub.name
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: 
+          SELECT ta.class_id, c.name AS class_name, ta.section_id, s.name AS section_name, ta.subject_id, sub.name AS subject_name, ta.is_class_teacher
+          FROM teacher_academic_assignments ta
+          LEFT JOIN classes c ON ta.class_id = c.id
+          LEFT JOIN sections s ON ta.section_id = s.id
+          LEFT JOIN subjects sub ON ta.subject_id = sub.id
+          WHERE ta.teacher_id = $1
+         -- PARAMETERS: ["3a357836-2f50-4103-ae43-b31c304a020d"]
+query: SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1 -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1"]
+query: SELECT COUNT(*)::int AS c FROM assignments
+query: SELECT COUNT(*)::int AS c FROM assessments
+query: SELECT s.*,c.name AS class_name,sub.name AS subject_name FROM schedules s LEFT JOIN classes c ON s.class_id::text=c.id::text LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text WHERE s.teacher_id::text=$1::text ORDER BY s.day_of_week,s.start_time LIMIT 6 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*) FILTER (WHERE status='present')::int AS present, COUNT(*)::int AS total FROM attendances WHERE institute_id=$1 AND date::date = $2::date -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","2026-06-05"]
+query: SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM chapters WHERE 1=1 AND subject_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT * FROM topics WHERE 1=1 AND chapter_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["38226e46-16eb-4cde-8ab2-31a3ac085c60"]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM chapters WHERE 1=1 AND subject_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT * FROM topics WHERE 1=1 AND chapter_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["38226e46-16eb-4cde-8ab2-31a3ac085c60"]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT * FROM chapters WHERE 1=1 AND subject_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT * FROM topics WHERE 1=1 AND chapter_id=$1 ORDER BY sort_order, name -- PARAMETERS: ["38226e46-16eb-4cde-8ab2-31a3ac085c60"]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT 1 FROM topics WHERE id = $1 AND chapter_id = $2 -- PARAMETERS: ["618980e3-0f96-4ab0-807d-c40b90cda631","38226e46-16eb-4cde-8ab2-31a3ac085c60"]
+query: SELECT 1 FROM chapters WHERE id = $1 AND subject_id = $2 -- PARAMETERS: ["38226e46-16eb-4cde-8ab2-31a3ac085c60","6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT name FROM subjects WHERE id = $1 -- PARAMETERS: ["6bda44a0-0523-42cc-90f6-97e50286b91e"]
+query: SELECT name FROM chapters WHERE id = $1 -- PARAMETERS: ["38226e46-16eb-4cde-8ab2-31a3ac085c60"]
+query: INSERT INTO study_materials (
+        tenant_id, 
+        exam, 
+        type, 
+        title, 
+        subject, 
+        chapter, 
+        description, 
+        s3_key, 
+        uploaded_by,
+        subject_id_fk,
+        chapter_id,
+        topic_id,
+        file_size_kb
+      )
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING * -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","notes","Photosynthesis EDVA","Math","Calculus",null,"https://eddva.s3.ap-south-1.amazonaws.com/tenants/c259cd4e-b018-45e2-8e46-52a497ca49a1/school-materials/1780641525900-7ce41d67-e00a-461e-b43f-a7e97b88d17f-Photosynthesis-EDVA.pptx","526d9c0e-e2cd-4999-b1ec-a24646474796","6bda44a0-0523-42cc-90f6-97e50286b91e","38226e46-16eb-4cde-8ab2-31a3ac085c60","618980e3-0f96-4ab0-807d-c40b90cda631",362]
+query: 
+      SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        u.name AS uploaded_by_name
+      FROM study_materials sm
+      LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
+      WHERE sm.tenant_id = $1::uuid
+     AND sm.topic_id = $2 ORDER BY sm.created_at DESC -- PARAMETERS: ["c259cd4e-b018-45e2-8e46-52a497ca49a1","618980e3-0f96-4ab0-807d-c40b90cda631"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT id, name, subdomain, type, status, plan, max_students, max_teachers FROM tenants WHERE subdomain = $1 LIMIT 1 -- PARAMETERS: ["odm"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE u.id = $1 -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
+query: SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND is_read=false -- PARAMETERS: ["526d9c0e-e2cd-4999-b1ec-a24646474796"]
