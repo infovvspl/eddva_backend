@@ -16291,3 +16291,75 @@ Error: QueryFailedError: column "institute_id" of relation "assessments" does no
     at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
 
+[2026-06-05T07:01:23.846Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (D:\edtech\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (D:\edtech\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (D:\edtech\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (D:\edtech\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T07:03:20.273Z] GET /api/v1/assessments/mock-tests?status=published
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (D:\edtech\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (D:\edtech\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 2)
+    at async pipesFn (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-06-05T07:04:16.927Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\edtech\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:46:25)
+
+[2026-06-05T07:04:17.337Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAssessmentService.findOne (D:\edtech\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:46:25)
+
+[2026-06-05T07:05:03.912Z] GET /api/v1/school/academic/sections/90eb9f28-a6e9-4683-9a35-5e34a70076fa/teaching-map
+Status: 404
+Error: NotFoundException: Section not found
+    at SchoolAcademicService.getSectionTeachingMap (D:\edtech\eddva_backend\src\modules\school\academic\school-academic.service.ts:129:36)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-05T07:05:04.846Z] GET /api/v1/school/academic/sections/90eb9f28-a6e9-4683-9a35-5e34a70076fa/teaching-map
+Status: 404
+Error: NotFoundException: Section not found
+    at SchoolAcademicService.getSectionTeachingMap (D:\edtech\eddva_backend\src\modules\school\academic\school-academic.service.ts:129:36)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-05T07:21:30.992Z] GET /uploads/
+Status: 404
+Error: NotFoundException: Cannot GET /uploads/
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-05T07:21:56.086Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
