@@ -17379,3 +17379,25 @@ Error: QueryFailedError: operator does not exist: character varying = uuid
     at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
 
+[2026-06-05T07:52:57.673Z] GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/attendance/students/247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-05T07:52:58.086Z] GET /api/v1/school/attendance/report
+Status: 500
+Error: QueryFailedError: operator does not exist: character varying = uuid
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolAttendanceService.getReport (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\attendance\school-attendance.service.ts:84:27)
+

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolNotificationService } from '../notification/school-notification.service';
 import { randomUUID } from 'crypto';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
@@ -15,6 +16,7 @@ import { S3Service } from '../../upload/s3.service';
 export class SchoolAssignmentService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly notificationService: SchoolNotificationService,
     private readonly aiBridge: AiBridgeService,
     private readonly s3Service: S3Service,
   ) {}
@@ -408,6 +410,61 @@ export class SchoolAssignmentService {
         body?.notes?.trim() || null,
       ],
     );
+    const assignment = rows[0];
+
+    // Notify students
+    try {
+      if (classId) {
+        const studentUsers = await this.ds.query(
+          `SELECT s.user_id FROM students s
+           JOIN sections sec ON s.section_id = sec.id
+           WHERE sec.class_id::text = $1`,
+          [classId]
+        );
+
+        for (const stu of studentUsers) {
+          await this.notificationService.create({
+            recipientId: stu.user_id,
+            type: 'assignment',
+            title: 'New Assignment',
+            message: `${body.title} has been uploaded.`,
+            actionUrl: '/school/student/assignments',
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to send assignment upload notifications:', notifErr);
+    }
+
+    return { success: true, data: assignment };
+  }
+
+  async submit(user: any, id: string, body: any) {
+    const assignmentRows = await this.ds.query(`SELECT * FROM assignments WHERE id = $1`, [id]);
+    if (!assignmentRows.length) throw new NotFoundException('Assignment not found');
+    const assignment = assignmentRows[0];
+
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO assignment_submissions (tenant_id, assignment_id, student_id, status, submitted_at, notes) 
+       VALUES ($1, $2, $3, 'submitted', NOW(), $4) RETURNING *`,
+      [assignment.tenant_id, id, user.id, body.notes || null]
+    );
+
+    // Notify the teacher
+    try {
+      if (assignment.teacher_id) {
+        await this.notificationService.create({
+          recipientId: assignment.teacher_id,
+          type: 'submission',
+          title: 'Assignment Submitted',
+          message: `${user.name} submitted ${assignment.title}.`,
+          actionUrl: '/school/teacher/assignments',
+        });
+      }
+    } catch (notifErr) {
+      console.error('Failed to send assignment submission notification:', notifErr);
+    }
+
     return { success: true, data: rows[0] };
   }
 

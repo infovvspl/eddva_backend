@@ -7,7 +7,7 @@ import { SchoolUser } from '../decorators/school-user.decorator';
 @Controller('school/students')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolStudentController {
-  constructor(private readonly svc: SchoolStudentService) {}
+  constructor(private readonly svc: SchoolStudentService) { }
 
   @Post('bulk-import') bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
   @Post() create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
