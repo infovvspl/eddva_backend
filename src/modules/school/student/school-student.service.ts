@@ -656,4 +656,123 @@ export class SchoolStudentService {
       }
     };
   }
+
+  async getDashboard(user: any) {
+    const studentRows = await this.ds.query(
+      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+       FROM students s
+       JOIN sections sec ON s.section_id = sec.id
+       JOIN classes c ON sec.class_id = c.id
+       WHERE s.user_id = $1`,
+      [user.id]
+    );
+    if (!studentRows.length) {
+      return { success: true, data: null };
+    }
+    const student = studentRows[0];
+
+    let attendancePercentage = 100;
+    const attRows = await this.ds.query(
+      `SELECT 
+         COUNT(CASE WHEN status = 'present' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) AS pct
+       FROM attendance 
+       WHERE student_id::text = $1`,
+      [student.profile_id],
+    );
+    if (attRows[0]?.pct != null) {
+      attendancePercentage = Math.round(Number(attRows[0].pct));
+    }
+
+    let todayClasses = 0;
+    if (student.section_id) {
+      const clsRows = await this.ds.query(
+        `SELECT COUNT(*)::int AS cnt FROM timetables 
+         WHERE section_id::text = $1`,
+        [student.section_id],
+      );
+      todayClasses = clsRows[0]?.cnt || 0;
+    }
+
+    return {
+      success: true,
+      data: {
+        todayPlan: [],
+        attendancePercentage,
+        todayClasses,
+        student: {
+          id: student.profile_id,
+          sectionId: student.section_id,
+          classId: student.class_id,
+          className: student.class_name,
+          sectionName: student.section_name,
+        },
+      },
+    };
+  }
+
+  async getCourseCurriculum(user: any, classId: string) {
+    return this.getCourseDetail(user, classId);
+  }
+
+  async getTopicDetail(user: any, classId: string, topicId: string) {
+    const studentRows = await this.ds.query(
+      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+       FROM students s
+       JOIN sections sec ON s.section_id = sec.id
+       JOIN classes c ON sec.class_id = c.id
+       WHERE s.user_id = $1`,
+      [user.id]
+    );
+    if (!studentRows.length) {
+      throw new NotFoundException('Student profile not found');
+    }
+    const student = studentRows[0];
+
+    const topicRows = await this.ds.query(
+      `SELECT t.id, t.name, chap.name AS chapter_name, sub.name AS subject_name, sub.id AS subject_id
+       FROM topics t
+       JOIN chapters chap ON t.chapter_id = chap.id
+       JOIN subjects sub ON chap.subject_id = sub.id
+       WHERE t.id = $1`,
+      [topicId]
+    );
+    if (!topicRows.length) {
+      throw new NotFoundException('Topic not found');
+    }
+    const topic = topicRows[0];
+
+    const materialRows = await this.ds.query(
+      `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description 
+       FROM study_materials 
+       WHERE topic_id = $1 AND class_id = $2 AND section_id = $3`,
+      [topicId, student.class_id, student.section_id]
+    );
+
+    return {
+      success: true,
+      data: {
+        topic: {
+          id: topic.id,
+          name: topic.name,
+          subject: { id: topic.subject_id, name: topic.subject_name },
+          chapter: { name: topic.chapter_name },
+        },
+        progress: {
+          status: 'unlocked',
+          bestAccuracy: 0,
+          studiedWithAi: false,
+          completedAt: null,
+        },
+        lectures: [],
+        resources: materialRows.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          type: r.type,
+          fileUrl: r.fileUrl,
+          externalUrl: null,
+        })),
+      },
+    };
+  }
 }
+
