@@ -7,17 +7,37 @@ export class SchoolAssessmentService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
 
   async list(user: any, query: any) {
-    const instituteId = user.role==='SUPER_ADMIN'?(query.instituteId||user.instituteId):user.instituteId;
-    const rows: any[] = await this.ds.query(`SELECT * FROM assessments WHERE institute_id=$1 ORDER BY scheduled_at DESC NULLS LAST`, [instituteId]);
+    let sql = `SELECT * FROM assessments ORDER BY scheduled_date DESC NULLS LAST`;
+    const params: any[] = [];
+    
+    // We cannot filter by institute_id since the column doesn't exist.
+    // If a specific class or subject is requested, filter by it.
+    if (query.classId) {
+      params.push(query.classId);
+      sql = `SELECT * FROM assessments WHERE class_id=$1 ORDER BY scheduled_date DESC NULLS LAST`;
+    } else if (query.subjectId) {
+      params.push(query.subjectId);
+      sql = `SELECT * FROM assessments WHERE subject_id=$1 ORDER BY scheduled_date DESC NULLS LAST`;
+    }
+    
+    const rows: any[] = await this.ds.query(sql, params);
     return { success: true, data: rows };
   }
 
   async create(user: any, body: any) {
-    const instituteId = user.role==='SUPER_ADMIN'?(body.instituteId||user.instituteId):user.instituteId;
     const rows: any[] = await this.ds.query(
-      `INSERT INTO assessments (institute_id,subject_id,section_id,created_by,title,assessment_type,total_marks,passing_marks,scheduled_at,duration_minutes,status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [instituteId,body.subjectId||null,body.sectionId||null,user.id,body.title,body.assessmentType||'exam',body.totalMarks||100,body.passingMarks||35,body.scheduledAt?new Date(body.scheduledAt):null,body.durationMinutes||60,body.status||'draft'],
+      `INSERT INTO assessments (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [
+        body.title,
+        body.assessmentType || body.type || 'exam',
+        body.subjectId || null,
+        body.classId || body.class_id || null,
+        body.totalMarks || 100,
+        body.durationMinutes || 60,
+        body.scheduledAt || body.scheduledDate ? new Date(body.scheduledAt || body.scheduledDate) : null,
+        body.status || 'draft'
+      ],
     );
     return { success: true, data: rows[0] };
   }
@@ -29,7 +49,7 @@ export class SchoolAssessmentService {
   }
 
   async update(id: string, body: any) {
-    await this.ds.query(`UPDATE assessments SET title=COALESCE($2,title),status=COALESCE($3,status),scheduled_at=COALESCE($4,scheduled_at),updated_at=NOW() WHERE id=$1`, [id,body.title,body.status,body.scheduledAt?new Date(body.scheduledAt):null]);
+    await this.ds.query(`UPDATE assessments SET title=COALESCE($2,title),status=COALESCE($3,status),scheduled_date=COALESCE($4,scheduled_date) WHERE id=$1`, [id,body.title,body.status,body.scheduledAt || body.scheduledDate ? new Date(body.scheduledAt || body.scheduledDate) : null]);
     return { success: true };
   }
 
