@@ -9,6 +9,29 @@ import * as jwt from 'jsonwebtoken';
 export class SchoolAuthService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
 
+  private schoolJwtPayload(user: { id: string; role: string; email: string; institute_id?: string | null }) {
+    return {
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      tenantType: 'school',
+      instituteId: user.institute_id || null,
+    };
+  }
+
+  private signSchoolToken(user: { id: string; role: string; email: string; institute_id?: string | null }) {
+    return jwt.sign(
+      this.schoolJwtPayload(user),
+      process.env.JWT_SECRET ||
+        (process.env.NODE_ENV === 'production'
+          ? (() => {
+              throw new InternalServerErrorException('JWT_SECRET not configured');
+            })()
+          : 'dev_secret_change_in_prod'),
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any,
+    );
+  }
+
   async login(identifier: string, password: string) {
     if (!identifier?.trim() || !password) {
       throw new BadRequestException('Email or phone and password are required');
@@ -67,10 +90,7 @@ export class SchoolAuthService {
     const match = user.password ? await bcrypt.compare(password, user.password) : false;
     if (!match) throw new UnauthorizedException('Invalid credentials');
 
-    const payload = { id: user.id, role: user.role, email: user.email, tenantType: 'school' };
-    const token = jwt.sign(payload, process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? (() => { throw new InternalServerErrorException('JWT_SECRET not configured'); })() : 'dev_secret_change_in_prod'), {
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-    } as any);
+    const token = this.signSchoolToken(user);
 
     const { password: _p, ...safeUser } = user;
     const studentProfile =
@@ -164,8 +184,7 @@ export class SchoolAuthService {
     );
     const user = userRows[0];
 
-    const payload = { id: user.id, role: user.role, email: user.email, tenantType: 'school' };
-    const token = jwt.sign(payload, process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? (() => { throw new InternalServerErrorException('JWT_SECRET not configured'); })() : 'dev_secret_change_in_prod'), { expiresIn: '7d' } as any);
+    const token = this.signSchoolToken({ ...user, institute_id: institute.id });
 
     return { success: true, token, user: { id: user.id, name: user.name, email: user.email, role: user.role }, institute };
   }
@@ -190,8 +209,7 @@ export class SchoolAuthService {
     if (!rows.length) throw new BadRequestException('Email already exists');
     const user = rows[0];
 
-    const payload = { id: user.id, role: user.role, email: user.email, tenantType: 'school' };
-    const token = jwt.sign(payload, process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? (() => { throw new InternalServerErrorException('JWT_SECRET not configured'); })() : 'dev_secret_change_in_prod'), { expiresIn: '7d' } as any);
+    const token = this.signSchoolToken(user);
     return { success: true, token, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
   }
 

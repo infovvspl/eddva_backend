@@ -49,6 +49,12 @@ export class TenantMiddleware implements NestMiddleware {
   }
 
   async use(req: Request & { tenantId?: string; tenant?: Tenant }, res: Response, next: NextFunction) {
+    // School APIs use institutes (school DB), not coaching tenants — skip entirely.
+    const rawPath = (req.originalUrl || req.url || '').toLowerCase();
+    if (rawPath.includes('/school/')) {
+      return next();
+    }
+
     let tenant: Tenant | null = null;
     /** Subdomain explicitly requested via host/header but not yet resolved in DB */
     let requestedSubdomain: string | null = null;

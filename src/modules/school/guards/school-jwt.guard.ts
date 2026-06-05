@@ -52,6 +52,7 @@ export class SchoolJwtGuard implements CanActivate {
 
     const userId = decoded.id || decoded.sub;
     const userRole = decoded.role;
+    const tokenInstituteId = decoded.instituteId || decoded.institute_id || null;
 
     if (userId === 'demo-super-admin' || userRole?.toUpperCase() === 'SUPER_ADMIN') {
       req.user = {
@@ -93,7 +94,7 @@ export class SchoolJwtGuard implements CanActivate {
       email: row.email,
       name: row.name,
       role: row.role,
-      instituteId: row.institute_id,
+      instituteId: row.institute_id || tokenInstituteId,
       isActive: row.is_active,
       institute: row.inst_id
         ? {
