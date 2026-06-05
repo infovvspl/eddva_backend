@@ -343,7 +343,33 @@ export class SchoolAssignmentService {
       user.id,
     ];
     const rows: any[] = await this.ds.query(sql, params);
-    return { success: true, data: rows[0] };
+    const assignment = rows[0];
+
+    // Notify students
+    try {
+      if (classId) {
+        const studentUsers = await this.ds.query(
+          `SELECT s.user_id FROM students s
+           JOIN sections sec ON s.section_id::text = sec.id::text
+           WHERE sec.class_id::text = $1`,
+          [classId]
+        );
+
+        for (const stu of studentUsers) {
+          await this.notificationService.create({
+            recipientId: stu.user_id,
+            type: 'assignment',
+            title: 'New Assignment Available',
+            message: `${body.title} has been assigned.`,
+            actionUrl: '/school/student/assignments',
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to send assignment upload notifications:', notifErr);
+    }
+
+    return { success: true, data: assignment };
   }
 
   async submit(
@@ -363,9 +389,10 @@ export class SchoolAssignmentService {
     if (!assignRows.length) {
       throw new NotFoundException('Assignment not found');
     }
+    const assignment = assignRows[0];
     if (
       profile.class_id &&
-      String(assignRows[0].class_id) !== String(profile.class_id)
+      String(assignment.class_id) !== String(profile.class_id)
     ) {
       throw new ForbiddenException('This assignment is not for your class');
     }
@@ -381,6 +408,7 @@ export class SchoolAssignmentService {
       [assignmentId, profile.student_id],
     );
 
+    let submissionRow: any;
     if (existing.length) {
       const rows: any[] = await this.ds.query(
         `UPDATE assignment_submissions
@@ -394,33 +422,32 @@ export class SchoolAssignmentService {
          RETURNING *`,
         [existing[0].id, filePath, body?.notes?.trim() || null],
       );
-      return { success: true, data: rows[0] };
+      submissionRow = rows[0];
+    } else {
+      const rows: any[] = await this.ds.query(
+        `INSERT INTO assignment_submissions
+           (assignment_id, student_id, file_path, attachment_url, notes, status)
+         VALUES ($1, $2, $3, $4, $5, 'submitted')
+         RETURNING *`,
+        [
+          assignmentId,
+          profile.student_id,
+          filePath,
+          filePath,
+          body?.notes?.trim() || null,
+        ],
+      );
+      submissionRow = rows[0];
     }
 
-    const rows: any[] = await this.ds.query(
-      `INSERT INTO assignment_submissions
-         (assignment_id, student_id, file_path, attachment_url, notes, status)
-       VALUES ($1, $2, $3, $4, $5, 'submitted')
-       RETURNING *`,
-      [
-        assignmentId,
-        profile.student_id,
-        filePath,
-        filePath,
-        body?.notes?.trim() || null,
-      ],
-    );
-    const submission = rows[0];
-
-    // Notify the assigned teacher of the new submission
+    // Notify the teacher
     try {
-      const teacherId = assignRows[0].teacher_id;
-      if (teacherId) {
+      if (assignment.teacher_id) {
         await this.notificationService.create({
-          recipientId: teacherId,
+          recipientId: assignment.teacher_id,
           type: 'submission',
           title: 'Assignment Submitted',
-          message: `${user.name || 'A student'} submitted ${assignRows[0].title}.`,
+          message: `${user.name || 'A student'} submitted ${assignment.title}.`,
           actionUrl: '/school/teacher/assignments',
         });
       }
@@ -428,8 +455,9 @@ export class SchoolAssignmentService {
       console.error('Failed to send assignment submission notification:', notifErr);
     }
 
-    return { success: true, data: submission };
+    return { success: true, data: submissionRow };
   }
+
 
   async listInbox(user: any) {
     const instituteId = this.resolveInstituteId(user);
