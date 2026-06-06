@@ -22,4 +22,10 @@ export class SchoolChatMessage extends SchoolBase {
   @Column({ type: 'text' }) text: string;
   @Column({ name: 'message_type', default: 'text' }) messageType: string;
   @Column({ name: 'is_read', default: false }) isRead: boolean;
+  @Column({ name: 'parent_message_id', type: 'uuid', nullable: true }) parentMessageId?: string;
+  @Column({ name: 'is_forwarded', default: false }) isForwarded: boolean;
+  @Column({ name: 'is_edited', default: false }) isEdited: boolean;
+  @Column({ name: 'is_deleted', default: false }) isDeleted: boolean;
+  @Column({ name: 'attachment_url', nullable: true }) attachmentUrl?: string;
+  @Column({ name: 'attachment_name', nullable: true }) attachmentName?: string;
 }
