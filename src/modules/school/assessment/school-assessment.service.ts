@@ -159,7 +159,6 @@ export class SchoolAssessmentService {
     const assessment = rows[0];
 
     // Notify students
-    const classId = body.classId || body.class_id;
     try {
       if (classId) {
         const studentUsers = await this.ds.query(

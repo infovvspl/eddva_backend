@@ -548,7 +548,7 @@ export class SchoolStudentService {
     };
   }
 
-  async getCourseCurriculum(user: any, classId: string) {
+  async getCourseDetail(user: any, classId: string) {
     const studentRows = await this.ds.query(
       `SELECT s.id AS profile_id, s.section_id, s.institute_id, sec.class_id, c.name AS class_name, sec.name AS section_name
        FROM students s
