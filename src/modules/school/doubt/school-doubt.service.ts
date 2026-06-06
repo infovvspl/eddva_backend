@@ -7,7 +7,7 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { randomUUID } from 'crypto';
-import { AIService } from '../../../ai/ai.service';
+import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
 import { querySectionSubjects } from '../common/section-subjects';
 
@@ -19,9 +19,53 @@ export class SchoolDoubtService implements OnModuleInit {
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
-    private readonly aiService: AIService,
+    private readonly aiBridgeService: AiBridgeService,
     private readonly s3Service: S3Service,
   ) {}
+
+  /**
+   * Resolve a doubt with the same coaching-grade AI engine the coaching vertical
+   * uses (AI bridge → /doubt/resolve, Groq-backed) — passing vertical='school'
+   * so the answer is framed for a school student. Returns a plain-text answer
+   * plus extracted step list for the school doubt UI.
+   */
+  private async resolveWithAi(
+    questionText: string,
+    questionImageUrl: string | null | undefined,
+    subjectName: string | null | undefined,
+    instituteId: string,
+  ): Promise<{ answer: string; steps: string[] }> {
+    const aiResult: any = await this.aiBridgeService.resolveDoubt(
+      {
+        questionText:
+          (questionText || '').trim() ||
+          (questionImageUrl ? 'Explain and solve the question shown in the attached image.' : ''),
+        questionImageUrl: questionImageUrl || undefined,
+        mode: 'detailed',
+        studentContext: { subject: subjectName || undefined, level: 'school' },
+      },
+      instituteId,
+      'school',
+    );
+    const answer = this.aiAnswerText(aiResult);
+    return { answer, steps: this.extractSteps(answer) };
+  }
+
+  /** Flatten the AI bridge doubt response into a single markdown answer string. */
+  private aiAnswerText(aiResult: any): string {
+    if (!aiResult) return '';
+    const direct = aiResult.answer ?? aiResult.explanation;
+    if (direct && String(direct).trim()) return String(direct).trim();
+    const obj =
+      aiResult.detailed && Object.keys(aiResult.detailed).length ? aiResult.detailed : aiResult.brief;
+    if (obj && typeof obj === 'object') {
+      return Object.values(obj)
+        .map((v) => (v == null ? '' : String(v)))
+        .filter((s) => s.trim())
+        .join('\n\n');
+    }
+    return '';
+  }
 
   async onModuleInit() {
     await this.ensureTable();
@@ -78,15 +122,6 @@ export class SchoolDoubtService implements OnModuleInit {
     const key = `tenants/${instituteId}/school-doubts/${Date.now()}-${randomUUID()}-${safeName}`;
     const { uploadUrl, fileUrl } = await this.s3Service.presign(key, body.contentType);
     return { success: true, data: { uploadUrl, fileUrl, key } };
-  }
-
-  private buildQuestionForAi(questionText: string, questionImageUrl?: string | null) {
-    const text = (questionText || '').trim();
-    if (!questionImageUrl) return text || 'Student question';
-    const suffix = text
-      ? `\n\n[The student also attached an image: ${questionImageUrl}. Use the written question above; the image may show diagrams or equations.]`
-      : `[The student submitted an image question: ${questionImageUrl}. Explain the likely topic and solution approach for a school student.]`;
-    return text + suffix;
   }
 
   private mapRow(r: any) {
@@ -322,12 +357,15 @@ export class SchoolDoubtService implements OnModuleInit {
 
     if (!askTeacher) {
       try {
-        const ai = await this.aiService.solveDoubt({
-          question: this.buildQuestionForAi(questionText, body.questionImageUrl),
-          subject: subjectName || undefined,
-        });
+        const ai = await this.resolveWithAi(
+          questionText,
+          body.questionImageUrl,
+          subjectName,
+          instituteId,
+        );
+        if (!ai.answer) throw new Error('Empty AI response');
         aiExplanation = ai.answer;
-        aiSteps = this.extractSteps(ai.answer);
+        aiSteps = ai.steps;
         status = 'ai_answered';
         channel = 'ai';
       } catch {
@@ -503,15 +541,17 @@ export class SchoolDoubtService implements OnModuleInit {
     await this.ensureTable();
     const existing = await this.findOne(user, id);
     const doubt = existing.data;
-    const ai = await this.aiService.solveDoubt({
-      question: this.buildQuestionForAi(doubt.questionText, doubt.questionImageUrl),
-      subject: doubt.subjectName || undefined,
-    });
+    const ai = await this.resolveWithAi(
+      doubt.questionText,
+      doubt.questionImageUrl,
+      doubt.subjectName,
+      doubt.instituteId || user.instituteId,
+    );
     return {
       success: true,
       data: {
         suggestion: ai.answer,
-        steps: this.extractSteps(ai.answer),
+        steps: ai.steps,
         note: 'Review and edit before sending to the student.',
       },
     };

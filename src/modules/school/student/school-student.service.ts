@@ -114,18 +114,28 @@ export class SchoolStudentService {
 
   async list(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
+    const params: any[] = [instituteId];
+    let filter = `u.institute_id=$1 AND u.role='STUDENT'`;
+    if (query.classId) {
+      params.push(query.classId);
+      filter += ` AND c.id::text=$${params.length}::text`;
+    }
+    if (query.sectionId) {
+      params.push(query.sectionId);
+      filter += ` AND s.section_id::text=$${params.length}::text`;
+    }
     const rows: any[] = await this.ds.query(
       `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.photo,u.created_at,
               s.id AS profile_id,s.enrollment_no,s.roll_no,s.section_id,s.dob,s.gender,s.blood_group,
               s.father_name,s.mother_name,s.parent_phone,s.admission_date,
               s.parent_email,s.parent_occupation,s.address,s.city,s.state,s.pin_code,
               s.medical_conditions,s.allergies,s.documents,s.marital_status,s.national_id,
-              sec.name AS section_name,c.name AS class_name
+              sec.name AS section_name,c.id AS class_id,c.name AS class_name
        FROM users u JOIN students s ON s.user_id=u.id
        LEFT JOIN sections sec ON s.section_id=sec.id
        LEFT JOIN classes c ON sec.class_id=c.id
-       WHERE u.institute_id=$1 AND u.role='STUDENT' ORDER BY u.name`,
-      [instituteId],
+       WHERE ${filter} ORDER BY u.name`,
+      params,
     );
     const mapped = rows.map(r => ({
       id: r.id,
@@ -161,11 +171,12 @@ export class SchoolStudentService {
         nationalId: r.national_id,
         section: r.section_id ? {
           id: r.section_id,
-          name: r.section_name,
-          class: {
-            name: r.class_name
-          }
-        } : null
+            name: r.section_name,
+            class: {
+              id: r.class_id,
+              name: r.class_name
+            }
+          } : null
       }
     }));
     return { success: true, data: mapped };
@@ -537,9 +548,9 @@ export class SchoolStudentService {
     };
   }
 
-  async getCourseDetail(user: any, classId: string) {
+  async getCourseCurriculum(user: any, classId: string) {
     const studentRows = await this.ds.query(
-      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+      `SELECT s.id AS profile_id, s.section_id, s.institute_id, sec.class_id, c.name AS class_name, sec.name AS section_name
        FROM students s
        JOIN sections sec ON s.section_id = sec.id
        JOIN classes c ON sec.class_id = c.id
@@ -550,6 +561,7 @@ export class SchoolStudentService {
       throw new NotFoundException('Student profile not found');
     }
     const student = studentRows[0];
+    const instituteId = user.instituteId || student.institute_id;
 
     const subjectRows = await this.ds.query(
       `SELECT DISTINCT sub.id, sub.name, u.name AS teacher_name, u.id AS teacher_user_id
@@ -578,10 +590,10 @@ export class SchoolStudentService {
         const topics = [];
         for (const top of topicRows) {
           const materialRows = await this.ds.query(
-            `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description 
-             FROM study_materials 
-             WHERE topic_id = $1 AND class_id = $2 AND section_id = $3`,
-            [top.id, student.class_id, student.section_id]
+            `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description
+             FROM study_materials
+             WHERE topic_id = $1 AND tenant_id = $2::uuid`,
+            [top.id, instituteId]
           );
 
           const resourceCounts = materialRows.reduce((acc: any, r: any) => {
@@ -708,10 +720,6 @@ export class SchoolStudentService {
         },
       },
     };
-  }
-
-  async getCourseCurriculum(user: any, classId: string) {
-    return this.getCourseDetail(user, classId);
   }
 
   async getTopicDetail(user: any, classId: string, topicId: string) {
