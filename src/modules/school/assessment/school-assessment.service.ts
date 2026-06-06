@@ -7,6 +7,8 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 @Injectable()
 export class SchoolAssessmentService {
   private schemaReady = false;
+  private submissionSchemaReady = false;
+  private resultSchemaReady = false;
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
@@ -22,6 +24,37 @@ export class SchoolAssessmentService {
     this.schemaReady = true;
   }
 
+  private async ensureAssessmentSubmissionSchema() {
+    if (this.submissionSchemaReady) return;
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS assessment_submissions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        assessment_id UUID NOT NULL,
+        student_user_id UUID NOT NULL,
+        answer_text TEXT NULL,
+        file_path VARCHAR NULL,
+        status VARCHAR NOT NULL DEFAULT 'submitted',
+        submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (assessment_id, student_user_id)
+      )
+    `);
+    this.submissionSchemaReady = true;
+  }
+
+  private async ensureResultSchema() {
+    if (this.resultSchemaReady) return;
+    await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS total_marks NUMERIC(5,2) NOT NULL DEFAULT 100`);
+    await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS percentage NUMERIC(5,2) NOT NULL DEFAULT 0`);
+    await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS is_absent BOOLEAN NOT NULL DEFAULT false`);
+    await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS grade VARCHAR NULL`);
+    await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS remarks VARCHAR NULL`);
+    await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS status VARCHAR NOT NULL DEFAULT 'published'`);
+    await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+    await this.ds.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_results_assessment_student ON results (assessment_id, student_id)`);
+    this.resultSchemaReady = true;
+  }
+
   private deriveTitle(content: string, fallback: string): string {
     const line = String(content || '').split('\n').map((l) => l.trim()).find(Boolean);
     if (!line) return fallback;
@@ -31,6 +64,7 @@ export class SchoolAssessmentService {
 
   async list(user: any, query: any) {
     await this.ensureAssessmentContentColumns();
+    await this.ensureAssessmentSubmissionSchema();
     const params: any[] = [];
     const filters: string[] = [];
 
@@ -58,6 +92,16 @@ export class SchoolAssessmentService {
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const sql = `SELECT * FROM assessments ${where} ORDER BY scheduled_date DESC NULLS LAST, created_at DESC`;
     const rows: any[] = await this.ds.query(sql, params);
+    if (user.role === 'STUDENT' && rows.length) {
+      const submissionRows: any[] = await this.ds.query(
+        `SELECT * FROM assessment_submissions WHERE student_user_id::text=$1::text`,
+        [user.id],
+      );
+      const submissionMap = new Map(submissionRows.map((row: any) => [String(row.assessment_id), row]));
+      rows.forEach((row: any) => {
+        row.mySubmission = submissionMap.get(String(row.id)) || null;
+      });
+    }
     return { success: true, data: rows };
   }
 
@@ -159,29 +203,11 @@ export class SchoolAssessmentService {
     const assessment = rows[0];
 
     // Notify students
-    const classId = body.classId || body.class_id;
     try {
       if (classId) {
         const studentUsers = await this.ds.query(
           `SELECT s.user_id FROM students s
            JOIN sections sec ON s.section_id::text = sec.id::text
-           WHERE sec.class_id::text = $1`,
-          [classId]
-        );
-
-        for (const stu of studentUsers) {
-          await this.notificationService.create({
-            recipientId: stu.user_id,
-            type: 'assessment',
-            title: 'New Assessment Available',
-            message: `${body.title} is now available.`,
-            actionUrl: '/school/student/assessments',
-          });
-        }
-      } else if (classId) {
-        const studentUsers = await this.ds.query(
-          `SELECT s.user_id FROM students s
-           JOIN sections sec ON s.section_id = sec.id
            WHERE sec.class_id::text = $1`,
           [classId]
         );
@@ -251,21 +277,100 @@ export class SchoolAssessmentService {
 
   async listResults(assessmentId: string) {
     await this.ensureAssessmentContentColumns();
+    await this.ensureResultSchema();
     const rows: any[] = await this.ds.query(`SELECT r.*,u.name AS student_name FROM results r LEFT JOIN users u ON r.student_id=u.id WHERE r.assessment_id=$1`, [assessmentId]);
     return { success: true, data: rows };
   }
 
-  async saveResult(body: any) {
+  async mySubmission(user: any, assessmentId: string) {
+    await this.ensureAssessmentSubmissionSchema();
     const rows: any[] = await this.ds.query(
-      `INSERT INTO results (assessment_id,student_id,marks_obtained,is_absent,grade,remarks) VALUES ($1,$2,$3,$4,$5,$6)
-       ON CONFLICT (assessment_id,student_id) DO UPDATE SET marks_obtained=EXCLUDED.marks_obtained,is_absent=EXCLUDED.is_absent,grade=EXCLUDED.grade,remarks=EXCLUDED.remarks,updated_at=NOW() RETURNING *`,
-      [body.assessmentId, body.studentId, body.marksObtained || 0, body.isAbsent || false, body.grade || null, body.remarks || null],
+      `SELECT * FROM assessment_submissions
+       WHERE assessment_id::text=$1::text AND student_user_id::text=$2::text
+       LIMIT 1`,
+      [assessmentId, user.id],
+    );
+    return { success: true, data: rows[0] || null };
+  }
+
+  async submitAssessment(user: any, assessmentId: string, body: any, file?: Express.Multer.File) {
+    await this.ensureAssessmentContentColumns();
+    await this.ensureAssessmentSubmissionSchema();
+
+    const assessmentRows: any[] = await this.ds.query(`SELECT id,title FROM assessments WHERE id::text=$1::text`, [assessmentId]);
+    if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
+
+    const answerText = String(body.answerText || body.answer_text || body.notes || '').trim();
+    const filePath = file ? file.path.replace(/\\/g, '/') : (body.filePath || body.file_path || null);
+    if (!answerText && !filePath) {
+      throw new BadRequestException('Write an answer or upload a file');
+    }
+
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO assessment_submissions
+        (assessment_id, student_user_id, answer_text, file_path, status)
+       VALUES ($1,$2,$3,$4,'submitted')
+       ON CONFLICT (assessment_id, student_user_id)
+       DO UPDATE SET
+        answer_text=EXCLUDED.answer_text,
+        file_path=COALESCE(EXCLUDED.file_path, assessment_submissions.file_path),
+        status='submitted',
+        submitted_at=NOW(),
+        updated_at=NOW()
+       RETURNING *`,
+      [assessmentId, user.id, answerText || null, filePath],
+    );
+    return { success: true, data: rows[0] };
+  }
+
+  async listSubmissions(assessmentId: string) {
+    await this.ensureAssessmentSubmissionSchema();
+    const rows: any[] = await this.ds.query(
+      `SELECT
+        sub.*,
+        u.name AS student_name,
+        s.roll_no AS roll_no,
+        sec.name AS section_name
+       FROM assessment_submissions sub
+       LEFT JOIN users u ON sub.student_user_id::text = u.id::text
+       LEFT JOIN students s ON s.user_id::text = sub.student_user_id::text
+       LEFT JOIN sections sec ON s.section_id::text = sec.id::text
+       WHERE sub.assessment_id::text=$1::text
+       ORDER BY sub.submitted_at DESC`,
+      [assessmentId],
+    );
+    return { success: true, data: rows };
+  }
+
+  async saveResult(body: any) {
+    await this.ensureResultSchema();
+    const assessmentRows: any[] = await this.ds.query(
+      `SELECT title,total_marks FROM assessments WHERE id::text = $1::text`,
+      [body.assessmentId],
+    );
+    const totalMarks = Number(body.totalMarks || body.total_marks || assessmentRows[0]?.total_marks || 100);
+    const marksObtained = body.isAbsent ? 0 : Number(body.marksObtained || 0);
+    const percentage = totalMarks ? Math.round((marksObtained / totalMarks) * 10000) / 100 : 0;
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO results
+        (assessment_id,student_id,total_marks,marks_obtained,percentage,is_absent,grade,remarks,status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'published')
+       ON CONFLICT (assessment_id,student_id) DO UPDATE SET
+        total_marks=EXCLUDED.total_marks,
+        marks_obtained=EXCLUDED.marks_obtained,
+        percentage=EXCLUDED.percentage,
+        is_absent=EXCLUDED.is_absent,
+        grade=EXCLUDED.grade,
+        remarks=EXCLUDED.remarks,
+        status='published',
+        updated_at=NOW()
+       RETURNING *`,
+      [body.assessmentId, body.studentId, totalMarks, marksObtained, percentage, body.isAbsent || false, body.grade || null, body.remarks || null],
     );
     const result = rows[0];
 
     // Notify the student
     try {
-      const assessmentRows = await this.ds.query(`SELECT title FROM assessments WHERE id = $1`, [body.assessmentId]);
       const assessmentTitle = assessmentRows[0]?.title || 'Assessment';
 
       await this.notificationService.create({

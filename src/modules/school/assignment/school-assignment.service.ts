@@ -448,7 +448,7 @@ export class SchoolAssignmentService {
       console.error('Failed to send assignment submission notification:', notifErr);
     }
 
-    return { success: true, data: submissionRow };
+    return { success: true, data: rows[0] };
   }
 
 
