@@ -550,7 +550,7 @@ export class SchoolStudentService {
 
   async getCourseDetail(user: any, classId: string) {
     const studentRows = await this.ds.query(
-      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+      `SELECT s.id AS profile_id, s.section_id, s.institute_id, sec.class_id, c.name AS class_name, sec.name AS section_name
        FROM students s
        JOIN sections sec ON s.section_id = sec.id
        JOIN classes c ON sec.class_id = c.id
@@ -561,6 +561,7 @@ export class SchoolStudentService {
       throw new NotFoundException('Student profile not found');
     }
     const student = studentRows[0];
+    const instituteId = user.instituteId || student.institute_id;
 
     const subjectRows = await this.ds.query(
       `SELECT DISTINCT sub.id, sub.name, u.name AS teacher_name, u.id AS teacher_user_id
@@ -589,10 +590,10 @@ export class SchoolStudentService {
         const topics = [];
         for (const top of topicRows) {
           const materialRows = await this.ds.query(
-            `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description 
-             FROM study_materials 
-             WHERE topic_id = $1 AND class_id = $2 AND section_id = $3`,
-            [top.id, student.class_id, student.section_id]
+            `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description
+             FROM study_materials
+             WHERE topic_id = $1 AND tenant_id = $2::uuid`,
+            [top.id, instituteId]
           );
 
           const resourceCounts = materialRows.reduce((acc: any, r: any) => {
@@ -719,10 +720,6 @@ export class SchoolStudentService {
         },
       },
     };
-  }
-
-  async getCourseCurriculum(user: any, classId: string) {
-    return this.getCourseDetail(user, classId);
   }
 
   async getTopicDetail(user: any, classId: string, topicId: string) {

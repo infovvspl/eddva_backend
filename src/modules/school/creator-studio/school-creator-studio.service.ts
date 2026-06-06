@@ -15,7 +15,9 @@ export class SchoolCreatorStudioService {
       throw new ForbiddenException('Subject context is required for teacher actions');
     }
     const rows = await this.ds.query(
-      `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id=$1 AND subject_id=$2`,
+      `SELECT 1 FROM teacher_academic_assignments taa
+       JOIN teachers t ON t.id = taa.teacher_id
+       WHERE t.user_id=$1 AND taa.subject_id=$2`,
       [user.id, subjectId]
     );
     if (rows.length === 0) {

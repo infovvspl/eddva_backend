@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { AIModule } from '../../../ai/ai.module';
+import { AiBridgeModule } from '../../ai-bridge/ai-bridge.module';
 import { UploadModule } from '../../upload/upload.module';
 import { SchoolDoubtService } from './school-doubt.service';
 import { SchoolDoubtController } from './school-doubt.controller';
 
 @Module({
-  imports: [AIModule, UploadModule],
+  imports: [AiBridgeModule, UploadModule],
   controllers: [SchoolDoubtController],
   providers: [SchoolDoubtService],
   exports: [SchoolDoubtService],

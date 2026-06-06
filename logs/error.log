@@ -16291,15 +16291,6 @@ Error: QueryFailedError: column "institute_id" of relation "assessments" does no
     at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolAssessmentService.create (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assessment\school-assessment.service.ts:17:25)
 
-<<<<<<< HEAD
-[2026-06-05T07:01:23.846Z] GET /api/v1/school/notifications/unread-count
-Status: 500
-Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
-    at parseErrorMessage (D:\edtech\eddva_backend\node_modules\pg-protocol\src\parser.ts:394:9)
-    at Parser.handlePacket (D:\edtech\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
-    at Parser.parse (D:\edtech\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
-    at TLSSocket.<anonymous> (D:\edtech\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
-=======
 [2026-06-05T09:49:11.780Z] GET /api/v1/school/assessments/mock-tests?status=published
 Status: 500
 Error: QueryFailedError: invalid input syntax for type uuid: "mock-tests"
@@ -16851,7 +16842,6 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
->>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17177,6 +17167,15 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:23:41.067Z] GET /api/v1/school/academic/classes
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+=======
 [2026-06-05T11:21:29.665Z] GET /api/v1/school/academic/classes
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -17184,6 +17183,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17191,6 +17191,15 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:23:42.029Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+=======
 [2026-06-05T11:22:08.798Z] GET /api/v1/school/academic/classes
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -17198,6 +17207,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17205,6 +17215,15 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:24:00.004Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+=======
 [2026-06-05T11:22:08.804Z] GET /api/v1/school/attendance/dashboard-stats
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -17212,6 +17231,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17219,6 +17239,15 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:24:11.054Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+=======
 [2026-06-05T11:23:07.931Z] GET /api/v1/school/notifications/unread-count
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -17226,6 +17255,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17233,6 +17263,15 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:24:12.050Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+=======
 [2026-06-05T11:23:29.263Z] GET /api/v1/school/notifications/unread-count
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -17240,6 +17279,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17247,6 +17287,15 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:24:12.889Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+=======
 [2026-06-05T11:23:38.590Z] GET /api/v1/school/notifications/unread-count
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -17254,6 +17303,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17261,6 +17311,15 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:24:27.006Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+=======
 [2026-06-05T11:24:07.998Z] GET /api/v1/school/notifications/unread-count
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -17268,6 +17327,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17275,6 +17335,15 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:24:40.931Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+=======
 [2026-06-05T11:24:29.627Z] GET /api/v1/school/notifications/unread-count
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -17282,6 +17351,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17289,6 +17359,15 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:24:41.923Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+=======
 [2026-06-05T11:24:38.309Z] GET /api/v1/school/notifications/unread-count
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -17296,6 +17375,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17303,6 +17383,15 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:24:41.925Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+=======
 [2026-06-05T11:25:09.621Z] GET /api/v1/school/notifications/unread-count
 Status: 500
 Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
@@ -17310,6 +17399,7 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at Parser.handlePacket (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:212:19)
     at Parser.parse (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\parser.ts:105:30)
     at TLSSocket.<anonymous> (D:\Program Files\Eddva\eddva_backend\node_modules\pg-protocol\src\index.ts:7:48)
+>>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
     at TLSSocket.emit (node:events:508:28)
     at TLSSocket.emit (node:domain:489:12)
     at addChunk (node:internal/streams/readable:563:12)
@@ -17317,6 +17407,259 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
     at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
     at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
 
+<<<<<<< HEAD
+[2026-06-05T12:24:56.937Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:25:10.533Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:25:11.754Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:25:11.756Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:25:41.175Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:25:44.143Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:25:59.234Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:26:10.643Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:26:12.038Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:26:42.894Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:26:58.460Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:26:58.836Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:27:58.834Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:27:59.244Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:28:01.028Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:28:58.733Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:28:58.918Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:28:58.923Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+=======
 [2026-06-05T11:37:03.613Z] POST /api/v1/school/attendance/session
 Status: 500
 Error: QueryFailedError: null value in column "marked_by" of relation "attendance_sessions" violates not-null constraint
@@ -17402,6 +17745,135 @@ Error: QueryFailedError: relation "attendance" does not exist
     at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:675:21)
 >>>>>>> 26a883007943c021292d787c53f28f4886d4d02b
+<<<<<<< HEAD
+
+[2026-06-05T12:29:58.777Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:29:59.137Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:29:59.628Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:30:58.693Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:30:58.749Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:30:59.058Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:31:58.974Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:31:59.214Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+
+[2026-06-05T12:31:59.395Z] GET /api/v1/school/teachers
+Status: 500
+Error: error: (EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15
+    at parseErrorMessage (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:394:9)
+    at Parser.handlePacket (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:212:19)
+    at Parser.parse (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\parser.ts:105:30)
+    at TLSSocket.<anonymous> (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\pg-protocol\src\index.ts:7:48)
+    at TLSSocket.emit (node:events:508:28)
+    at TLSSocket.emit (node:domain:489:12)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:394:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+=======
+>>>>>>> 13474cad9942d678cedaa68c9cfee91ed40eb2a3
 
 [2026-06-06T05:40:11.124Z] GET /api/v1/school/school/materials
 Status: 404
