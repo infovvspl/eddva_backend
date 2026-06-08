@@ -17875,3 +17875,1459 @@ Error: error: (EMAXCONNSESSION) max clients reached in session mode - max client
 =======
 >>>>>>> 13474cad9942d678cedaa68c9cfee91ed40eb2a3
 
+[2026-06-06T10:57:35.707Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:186:25)
+
+[2026-06-06T10:57:36.268Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:186:25)
+
+[2026-06-06T10:58:47.625Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T10:58:47.846Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T10:58:47.936Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:07:33.573Z] GET /api/v1/school/chat/directory
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/chat/directory
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:08:51.186Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:08:51.192Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:08:51.495Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:08:51.502Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:08:51.824Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:08:51.828Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:08:52.146Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:08:52.147Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:09:22.005Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:09:22.008Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:09:37.345Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:09:37.657Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:09:40.518Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:09:40.521Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:09:51.187Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:09:51.496Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:10:21.994Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:10:21.995Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:10:51.695Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:10:51.996Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:11:22.003Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:11:22.006Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:11:51.689Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:11:51.994Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:12:55.293Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:12:55.295Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:12:55.559Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:12:55.603Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:12:55.607Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:12:55.870Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:13:21.699Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:13:22.004Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:13:52.005Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:13:52.011Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:14:59.011Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:14:59.015Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:21.708Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:21.710Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:22.015Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:22.023Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:30.723Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:30.725Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:31.038Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:31.040Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:44.725Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:44.726Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:45.047Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:45.053Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:54.709Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:54.710Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:55.021Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:15:55.026Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:16:10.724Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:16:10.727Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:16:11.034Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:16:11.038Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:16:24.214Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: QueryFailedError: Connection terminated unexpectedly
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:79:25)
+    at async GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:16:17)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-06T11:16:42.001Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:16:42.005Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:17:11.691Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:17:11.997Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:17:41.991Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:17:41.997Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:18:11.694Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:18:12.005Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:18:42.001Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:18:42.002Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:16.709Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:17.010Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:18.644Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:18.646Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:18.912Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:18.959Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:39.835Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:40.140Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:41.045Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:41.048Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:43.137Z] POST /api/v1/school/classes/recordings/upload-url
+Status: 404
+Error: NotFoundException: Cannot POST /api/v1/school/classes/recordings/upload-url
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:48.034Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:48.036Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:52.757Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:52.760Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:53.128Z] POST /api/v1/school/classes/recordings/upload-url
+Status: 404
+Error: NotFoundException: Cannot POST /api/v1/school/classes/recordings/upload-url
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:54.691Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:19:55.008Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:20:03.571Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:20:03.578Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:20:11.689Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:20:12.009Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:20:13.821Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:20:13.823Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:20:41.703Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:20:42.010Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:21:12.008Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:21:12.010Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:21:58.706Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:21:59.016Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:22:59.017Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-06T11:22:59.018Z] GET /api/v1/school/classes/recordings
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
