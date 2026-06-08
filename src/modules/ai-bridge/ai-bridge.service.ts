@@ -56,9 +56,15 @@ export class AiBridgeService {
         }),
       );
       return res.data;
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      this.logger.error(`AI Bridge error [${path}] tenant=${tenantId || 'none'}: ${message}`);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+      const detail =
+        (typeof data === 'string' ? data.slice(0, 300) : data ? JSON.stringify(data).slice(0, 300) : '') ||
+        err?.message || err?.code || 'Unknown error';
+      this.logger.error(
+        `AI Bridge error [${path}] tenant=${tenantId || 'none'} status=${status ?? 'n/a'} code=${err?.code ?? 'n/a'}: ${detail}`,
+      );
       throw err;
     }
   }

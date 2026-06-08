@@ -21,6 +21,8 @@ export class SchoolAssessmentService {
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS content_text TEXT NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS content_source VARCHAR NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS file_path VARCHAR NULL`);
+    await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS chapter_id UUID NULL`);
+    await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS topic_id UUID NULL`);
     this.schemaReady = true;
   }
 
@@ -128,32 +130,67 @@ export class SchoolAssessmentService {
   async aiGenerateDraft(user: any, body: any) {
     const instituteId = user.instituteId || body.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
-    const subjectName = body.subjectName || 'Subject';
+    const subjectName = body.subjectName || 'General';
     const className = body.className || 'Class';
+    const chapterName = (body.chapterName || '').trim();
+    const topicName = (body.topicName || '').trim();
     const testType = body.type || body.assessmentType || 'topic';
-    const prompt = [
-      `Create a school assessment question paper.`,
-      `Class: ${className}.`,
-      `Subject: ${subjectName}.`,
-      `Assessment type: ${testType}.`,
-      `Total marks: ${body.totalMarks || body.total_marks || 100}.`,
-      `Duration: ${body.durationMinutes || body.duration_minutes || 60} minutes.`,
-      body.prompt?.trim(),
-      'Include clear questions, section-wise marks if useful, and teacher-friendly formatting.',
-    ].filter(Boolean).join(' ');
+    const difficulty = body.difficulty || 'intermediate';
+    const totalMarks = body.totalMarks || body.total_marks || 100;
+    const duration = body.durationMinutes || body.duration_minutes || 60;
+
+    const n = (v: any, d: number) => {
+      const x = parseInt(v, 10);
+      return Number.isFinite(x) && x >= 0 ? x : d;
+    };
+    const mcq = n(body.mcqCount, 5);
+    const trueFalse = n(body.trueFalseCount, 5);
+    const fillBlank = n(body.fillBlankCount, 5);
+    const shortAns = n(body.shortCount, 3);
+    const longAns = n(body.longCount, 2);
+
+    const sections: string[] = [];
+    if (mcq > 0) sections.push(`- Section A — Multiple Choice Questions: exactly ${mcq} questions, each with four options labelled (a), (b), (c), (d) and exactly one correct option. 1 mark each.`);
+    if (trueFalse > 0) sections.push(`- Section B — True or False: exactly ${trueFalse} statements. 1 mark each.`);
+    if (fillBlank > 0) sections.push(`- Section C — Fill in the Blanks: exactly ${fillBlank} questions, each containing a blank shown as "______". 1 mark each.`);
+    if (shortAns > 0) sections.push(`- Section D — Short Answer: exactly ${shortAns} questions. 3 marks each.`);
+    if (longAns > 0) sections.push(`- Section E — Long Answer: exactly ${longAns} questions. 5 marks each.`);
+    if (sections.length === 0) sections.push(`- Section A — Multiple Choice Questions: exactly 10 questions, four options (a)-(d), one correct. 1 mark each.`);
+
+    const scopeLine = topicName
+      ? `IMPORTANT SCOPE: Generate questions ONLY about the topic "${topicName}"${chapterName ? ` (from chapter "${chapterName}")` : ''}. Every question must relate to this topic.`
+      : chapterName
+        ? `IMPORTANT SCOPE: Generate questions ONLY from the chapter "${chapterName}". Every question must relate to this chapter.`
+        : '';
+
+    const extraContext = [
+      `Produce a COMPLETE school examination QUESTION PAPER in clean Markdown — this is an exam paper, NOT lesson notes or an explanation.`,
+      `Class: ${className}. Subject: ${subjectName}. Assessment type: ${testType}. Difficulty: ${difficulty}. Maximum Marks: ${totalMarks}. Time Allowed: ${duration} minutes.`,
+      scopeLine,
+      `Begin with a paper header (Subject, Class, Maximum Marks, Time Allowed) and a brief "General Instructions" list.`,
+      `Include ONLY these sections, in this order, each with a clear section heading and the EXACT number of questions specified:`,
+      ...sections,
+      `Number questions continuously within each section. Keep every question syllabus-appropriate for ${className}.`,
+      `At the very END, add a "## Answer Key" section with the correct answers for the objective sections only (MCQ, True/False, Fill in the Blanks). Do NOT reveal answers inside the question sections.`,
+      body.prompt?.trim() ? `Additional teacher instructions: ${body.prompt.trim()}` : '',
+      `Output ONLY the Markdown question paper.`,
+    ].filter(Boolean).join('\n');
 
     try {
       const result = await this.aiBridge.generateTopicContent(
         {
-          topicName: body.topic || `${testType} assessment`,
+          topicName: topicName || `${subjectName} ${testType} assessment`,
           subjectName,
-          chapterName: className,
-          contentType: 'dpp',
-          difficulty: body.difficulty || 'intermediate',
-          length: body.length || 'detailed',
-          extraContext: prompt,
+          chapterName: chapterName || className,
+          // Unknown content type → falls back to the generic template; the
+          // detailed extraContext above fully drives the exam-paper structure.
+          contentType: 'assessment_paper',
+          difficulty,
+          length: 'detailed',
+          extraContext,
         },
         instituteId,
+        'school',
       );
       const content = result.content || '';
       return {
@@ -181,8 +218,8 @@ export class SchoolAssessmentService {
     }
     const rows: any[] = await this.ds.query(
       `INSERT INTO assessments
-        (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, topic_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
       [
         title,
         body.assessmentType || body.type || 'exam',
@@ -198,6 +235,8 @@ export class SchoolAssessmentService {
         contentText,
         contentSource,
         filePath,
+        body.chapterId || body.chapter_id || null,
+        body.topicId || body.topic_id || null,
       ],
     );
     const assessment = rows[0];
