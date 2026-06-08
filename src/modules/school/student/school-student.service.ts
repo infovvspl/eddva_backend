@@ -751,9 +751,18 @@ export class SchoolStudentService {
 
     const materialRows = await this.ds.query(
       `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description 
-       FROM study_materials 
-       WHERE topic_id = $1 AND class_id = $2 AND section_id = $3`,
-      [topicId, student.class_id, student.section_id]
+       FROM study_materials sm
+       WHERE sm.topic_id = $1
+         AND (
+           (sm.class_id = $2 AND sm.section_id = $3)
+           OR (sm.class_id = $2 AND sm.section_id IS NULL)
+           OR (
+             sm.class_id IS NULL
+             AND sm.section_id IS NULL
+             AND sm.subject_id_fk = $4
+           )
+         )`,
+      [topicId, student.class_id, student.section_id, topic.subject_id]
     );
 
     return {
