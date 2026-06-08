@@ -71,6 +71,50 @@ async function seed() {
       console.log('Super Admin updated successfully!');
     }
 
+    // 3. Dev institute "odm" (matches odm.localhost frontend tests)
+    const odmSubdomain = 'odm';
+    let odmTenant = await tenantRepo.findOne({ where: { subdomain: odmSubdomain } });
+    if (!odmTenant) {
+      console.log('ODM institute not found, creating...');
+      odmTenant = tenantRepo.create({
+        name: 'ODM Institute',
+        subdomain: odmSubdomain,
+        type: TenantType.INSTITUTE,
+        status: TenantStatus.ACTIVE,
+        plan: TenantPlan.STARTER,
+        maxStudents: 500,
+        maxTeachers: 20,
+        onboardingComplete: true,
+      });
+      await tenantRepo.save(odmTenant);
+    }
+
+    const odmAdminEmail = 'iter@gmail.com';
+    let odmAdmin = await userRepo.findOne({ where: { email: odmAdminEmail } });
+    if (!odmAdmin) {
+      console.log('ODM admin not found, creating...');
+      odmAdmin = userRepo.create({
+        tenantId: odmTenant.id,
+        fullName: 'ODM Admin',
+        email: odmAdminEmail,
+        phoneNumber: '+919876543211',
+        password: '123',
+        role: UserRole.INSTITUTE_ADMIN,
+        status: UserStatus.ACTIVE,
+        phoneVerified: true,
+        isFirstLogin: false,
+      });
+      await userRepo.save(odmAdmin);
+    } else {
+      odmAdmin.tenantId = odmTenant.id;
+      odmAdmin.phoneNumber = odmAdmin.phoneNumber || '+919876543211';
+      odmAdmin.password = '123';
+      odmAdmin.role = UserRole.INSTITUTE_ADMIN;
+      odmAdmin.status = UserStatus.ACTIVE;
+      await userRepo.save(odmAdmin);
+    }
+    console.log(`ODM institute ready: https://${odmSubdomain}.localhost:8080 — ${odmAdminEmail} / 123`);
+
   } catch (error) {
     console.error('Error during seeding:', error);
   } finally {

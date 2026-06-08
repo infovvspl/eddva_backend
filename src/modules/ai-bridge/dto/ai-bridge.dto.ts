@@ -129,9 +129,9 @@ export class GenerateLectureNotesDto {
   @IsOptional()
   topicId?: string;
 
-  @IsEnum(['en', 'hi', 'hinglish', 'hi-in'])
+  @IsEnum(['en', 'hi', 'hinglish', 'hi-in', 'od'])
   @IsOptional()
-  language?: 'en' | 'hi' | 'hinglish' | 'hi-in';
+  language?: 'en' | 'hi' | 'hinglish' | 'hi-in' | 'od';
 
   @IsString()
   @IsOptional()

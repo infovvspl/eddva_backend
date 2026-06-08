@@ -7,6 +7,9 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Put,
+  Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -14,9 +17,11 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { TenantId } from '../../common/decorators/auth.decorator';
+import axios from 'axios';
+import { TenantId, Public } from '../../common/decorators/auth.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -33,7 +38,10 @@ export class UploadController {
   private static readonly MAX_MATERIAL_FILE_SIZE = 100 * 1024 * 1024;
   private static readonly MAX_VIDEO_FILE_SIZE = 2 * 1024 * 1024 * 1024;
 
-  constructor(private readonly s3Service: S3Service) {}
+  constructor(
+    private readonly s3Service: S3Service,
+    private readonly config: ConfigService,
+  ) {}
 
   @Post('upload/doubt-response-image')
   @HttpCode(HttpStatus.OK)
@@ -53,14 +61,35 @@ export class UploadController {
   async uploadDoubtResponseImage(
     @UploadedFile() file: Express.Multer.File,
     @TenantId() tenantId: string,
+    @Body('replaceUrl') replaceUrl?: string,
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
     if (!tenantId) {
       throw new BadRequestException('Tenant ID could not be determined from the authenticated user');
     }
-    const ext = extname(file.originalname).toLowerCase() || '.jpg';
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `doubt-image${ext}`;
-    const key = `tenants/${tenantId}/doubts/response-images/${Date.now()}-${uuidv4()}-${safeName}`;
+    
+    let key: string;
+    if (replaceUrl && typeof replaceUrl === 'string' && replaceUrl.startsWith('http')) {
+      try {
+        // Remove query params (like cache-busters) to get the clean S3 key
+        const cleanUrl = replaceUrl.split('?')[0];
+        const extractedKey = this.s3Service.keyFromUrl(cleanUrl);
+        if (extractedKey.startsWith(`tenants/${tenantId}/`)) {
+          key = extractedKey;
+        } else {
+          throw new BadRequestException('Cannot overwrite files belonging to another tenant');
+        }
+      } catch (err) {
+        if (err instanceof BadRequestException) throw err;
+      }
+    }
+
+    if (!key) {
+      const ext = extname(file.originalname).toLowerCase() || '.jpg';
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `doubt-image${ext}`;
+      key = `tenants/${tenantId}/doubts/response-images/${Date.now()}-${uuidv4()}-${safeName}`;
+    }
+
     try {
       const url = await this.s3Service.upload(key, file.buffer, file.mimetype || 'image/jpeg');
       return { url, key };
@@ -74,6 +103,7 @@ export class UploadController {
   async getUploadUrl(
     @Body() dto: GenerateUploadUrlDto,
     @TenantId() tenantId: string,
+    @Req() req: any,
   ) {
     if (!tenantId) {
       throw new BadRequestException('Tenant ID could not be determined from the authenticated user');
@@ -84,7 +114,56 @@ export class UploadController {
     this.validateContentType(dto.type, dto.contentType);
 
     const key = this.buildKey(tenantId, dto);
-    return this.s3Service.presign(key, dto.contentType);
+    const presignResult = await this.s3Service.presign(key, dto.contentType);
+
+    if (dto.type === UploadType.CHAT_ATTACHMENT) {
+      const host = this.config.get('app.url') || `${req.protocol}://${req.get('host')}`;
+      const proxyUrl = `${host}/api/v1/upload/proxy?url=${encodeURIComponent(presignResult.uploadUrl)}&contentType=${encodeURIComponent(dto.contentType)}`;
+      return {
+        uploadUrl: proxyUrl,
+        fileUrl: presignResult.fileUrl,
+      };
+    }
+
+    return presignResult;
+  }
+
+  @Put('upload/proxy')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Proxy PUT upload requests to S3 to bypass browser CORS' })
+  async proxyUpload(
+    @Query('url') s3Url: string,
+    @Query('contentType') contentType: string,
+    @Req() req: any,
+  ) {
+    if (!s3Url) {
+      throw new BadRequestException('url query parameter is required');
+    }
+
+    // Read the raw request body stream
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const buffer = Buffer.concat(chunks);
+
+    try {
+      await axios.put(s3Url, buffer, {
+        headers: {
+          'Content-Type': contentType || req.headers['content-type'] || 'application/octet-stream',
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      throw new HttpException(
+        err?.response?.data || err?.message || 'Proxy upload to S3 failed',
+        err?.response?.status || HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   @Delete('upload/file')
@@ -116,14 +195,18 @@ export class UploadController {
       ? UploadController.MAX_VIDEO_FILE_SIZE
       : type === UploadType.MATERIAL
         ? UploadController.MAX_MATERIAL_FILE_SIZE
-        : UploadController.MAX_STANDARD_FILE_SIZE;
+        : type === UploadType.CHAT_ATTACHMENT
+          ? 20 * 1024 * 1024 // 20 MB
+          : UploadController.MAX_STANDARD_FILE_SIZE;
 
     if (fileSize > maxBytes) {
       const limitLabel = type === UploadType.LECTURE_VIDEO
         ? '2 GB'
         : type === UploadType.MATERIAL
           ? '100 MB'
-          : '10 MB';
+          : type === UploadType.CHAT_ATTACHMENT
+            ? '20 MB'
+            : '10 MB';
       throw new BadRequestException(`File size must be less than or equal to ${limitLabel}`);
     }
   }
@@ -188,6 +271,30 @@ export class UploadController {
           throw new BadRequestException('Lecture videos must use a video content type');
         }
         break;
+      case UploadType.CHAT_ATTACHMENT:
+        const allowedTypes = [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-powerpoint',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'application/zip',
+          'application/x-zip-compressed',
+          'text/plain',
+          'text/csv',
+          'text/html'
+        ];
+        if (
+          !contentType.startsWith('image/') &&
+          !contentType.startsWith('video/') &&
+          !contentType.startsWith('audio/') &&
+          !allowedTypes.includes(contentType)
+        ) {
+          throw new BadRequestException('Invalid content type for chat attachment');
+        }
+        break;
     }
   }
 
@@ -218,6 +325,8 @@ export class UploadController {
         return `tenants/${tenantId}/doubts/response-images/${fileName}`;
       case UploadType.STUDY_MATERIAL:
         return `tenants/${tenantId}/study-materials/${fileName}`;
+      case UploadType.CHAT_ATTACHMENT:
+        return `tenants/${tenantId}/chat/attachments/${fileName}`;
       default:
         throw new BadRequestException('Unsupported upload type');
     }

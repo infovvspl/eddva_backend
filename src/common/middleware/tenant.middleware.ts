@@ -49,7 +49,15 @@ export class TenantMiddleware implements NestMiddleware {
   }
 
   async use(req: Request & { tenantId?: string; tenant?: Tenant }, res: Response, next: NextFunction) {
+    // School APIs use institutes (school DB), not coaching tenants — skip entirely.
+    const rawPath = (req.originalUrl || req.url || '').toLowerCase();
+    if (rawPath.includes('/school/')) {
+      return next();
+    }
+
     let tenant: Tenant | null = null;
+    /** Subdomain explicitly requested via host/header but not yet resolved in DB */
+    let requestedSubdomain: string | null = null;
 
     const headerTenantId = req.headers['x-tenant-id'] as string;
     if (headerTenantId) tenant = await this.findTenant('id', headerTenantId);
@@ -61,11 +69,23 @@ export class TenantMiddleware implements NestMiddleware {
 
     if (!tenant) {
       const host = req.hostname;
-      const parts = host.split('.');
-      if (parts.length === 2 && parts[1] === 'localhost') {
-        tenant = await this.findTenant('subdomain', parts[0]);
-      } else if (parts.length >= 3) {
-        tenant = await this.findTenant('subdomain', parts[0]);
+      const isIpHost = /^\d+\.\d+\.\d+\.\d+$/.test(host);
+      if (!isIpHost) {
+        const parts = host.split('.');
+        const reserved = new Set(['localhost', 'www', 'edva', 'apexiq', 'platform']);
+        if (parts.length === 2 && parts[1] === 'localhost') {
+          const sub = parts[0].toLowerCase();
+          if (!reserved.has(sub)) {
+            requestedSubdomain = requestedSubdomain ?? sub;
+            tenant = await this.findTenant('subdomain', sub);
+          }
+        } else if (parts.length >= 3) {
+          const sub = parts[0].toLowerCase();
+          if (!reserved.has(sub)) {
+            requestedSubdomain = requestedSubdomain ?? sub;
+            tenant = await this.findTenant('subdomain', sub);
+          }
+        }
       }
     }
 

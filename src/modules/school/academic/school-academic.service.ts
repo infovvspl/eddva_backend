@@ -110,4 +110,103 @@ export class SchoolAcademicService {
     await this.ds.query(`DELETE FROM sections WHERE id=$1`, [id]);
     return { success: true };
   }
+
+  /**
+   * Teaching map for a section: subjects in that class/section and which teacher handles each.
+   * Used when admin onboards a student so they see the full academic setup.
+   */
+  async getSectionTeachingMap(sectionId: string) {
+    const sectionRows: any[] = await this.ds.query(
+      `SELECT sec.id, sec.name AS section_name, sec.class_id, c.name AS class_name, c.institute_id,
+              ct_user.name AS class_teacher_name, ct_user.email AS class_teacher_email
+       FROM sections sec
+       JOIN classes c ON sec.class_id::text = c.id::text
+       LEFT JOIN teachers ct ON ct.id = sec.class_teacher_id
+       LEFT JOIN users ct_user ON ct_user.id = ct.user_id
+       WHERE sec.id = $1`,
+      [sectionId],
+    );
+    if (!sectionRows.length) throw new NotFoundException('Section not found');
+    const sec = sectionRows[0];
+
+    const [subjects, assignments] = await Promise.all([
+      this.ds.query(
+        `SELECT DISTINCT s.id, s.name, s.code, s.type
+         FROM subjects s
+         WHERE s.institute_id = $1
+           AND (s.section_id = $2::uuid OR (s.section_id IS NULL AND s.class_id = $3::uuid))
+         ORDER BY s.name`,
+        [sec.institute_id, sectionId, sec.class_id],
+      ),
+      this.ds.query(
+        `SELECT taa.subject_id, sub.name AS subject_name, sub.code AS subject_code,
+                u.id AS teacher_user_id, u.name AS teacher_name, u.email AS teacher_email,
+                taa.is_class_teacher
+         FROM teacher_academic_assignments taa
+         JOIN teachers t ON t.id = taa.teacher_id
+         JOIN users u ON u.id = t.user_id
+         LEFT JOIN subjects sub ON sub.id = taa.subject_id
+         WHERE taa.section_id = $1
+         ORDER BY sub.name NULLS LAST, u.name`,
+        [sectionId],
+      ),
+    ]);
+
+    const bySubject = new Map<string, any>();
+    for (const a of assignments) {
+      const key = a.subject_id || '__general__';
+      if (!bySubject.has(key)) {
+        bySubject.set(key, {
+          subjectId: a.subject_id,
+          subjectName: a.subject_name || (a.is_class_teacher ? 'Class teacher (all subjects)' : 'General'),
+          subjectCode: a.subject_code,
+          teachers: [],
+        });
+      }
+      bySubject.get(key).teachers.push({
+        userId: a.teacher_user_id,
+        name: a.teacher_name,
+        email: a.teacher_email,
+        isClassTeacher: a.is_class_teacher,
+      });
+    }
+
+    const subjectTeachers = subjects.map((s: any) => {
+      const mapped = bySubject.get(s.id);
+      return {
+        subjectId: s.id,
+        subjectName: s.name,
+        subjectCode: s.code,
+        subjectType: s.type,
+        teachers: mapped?.teachers || [],
+        unassigned: !mapped?.teachers?.length,
+      };
+    });
+
+    const assignmentOnly = [...bySubject.values()].filter(
+      (row) => row.subjectId && !subjects.some((s: any) => s.id === row.subjectId),
+    );
+
+    return {
+      success: true,
+      data: {
+        sectionId: sec.id,
+        sectionName: sec.section_name,
+        classId: sec.class_id,
+        className: sec.class_name,
+        classTeacher: sec.class_teacher_name
+          ? { name: sec.class_teacher_name, email: sec.class_teacher_email }
+          : null,
+        subjectCount: subjectTeachers.length + assignmentOnly.length,
+        subjects: [...subjectTeachers, ...assignmentOnly],
+        rawAssignments: assignments.map((a: any) => ({
+          subjectId: a.subject_id,
+          subjectName: a.subject_name,
+          teacherName: a.teacher_name,
+          teacherEmail: a.teacher_email,
+          isClassTeacher: a.is_class_teacher,
+        })),
+      },
+    };
+  }
 }

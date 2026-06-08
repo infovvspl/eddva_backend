@@ -121,6 +121,8 @@ const ALL_COACHING_ENTITIES = [
           ...coachingDbConfig,
           synchronize: !isProd && dbSyncRequested,
           logging: !isProd,
+          retryAttempts: 3,
+          retryDelay: 2000,
           entities: ALL_COACHING_ENTITIES,
         };
       },
@@ -135,6 +137,8 @@ const ALL_COACHING_ENTITIES = [
         ...schoolDbConfig,
         synchronize: false,
         logging: cfg.get('app.nodeEnv') !== 'production',
+        retryAttempts: 1,
+        retryDelay: 1000,
       }),
     }),
 

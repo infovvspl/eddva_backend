@@ -59,7 +59,7 @@ export class SchoolDashboardService {
         this.ds.query(`SELECT COUNT(*)::int AS c FROM assignments`),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM assessments`),
         this.ds.query(`SELECT s.*,c.name AS class_name,sub.name AS subject_name FROM schedules s LEFT JOIN classes c ON s.class_id::text=c.id::text LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text WHERE s.teacher_id::text=$1::text ORDER BY s.day_of_week,s.start_time LIMIT 6`, [user.id]),
-        this.ds.query(`SELECT COUNT(*) FILTER (WHERE status='present')::int AS present, COUNT(*)::int AS total FROM attendances WHERE institute_id=$1 AND date::date = $2::date`, [instituteId, todayStr])
+        this.ds.query(`SELECT COUNT(*) FILTER (WHERE LOWER(status)='present')::int AS present, COUNT(*)::int AS total FROM attendances WHERE institute_id=$1 AND date::date = $2::date`, [instituteId, todayStr])
       ]);
 
       const totalPresent = attendanceToday[0]?.present || 0;

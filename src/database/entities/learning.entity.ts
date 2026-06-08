@@ -135,6 +135,17 @@ export enum TranscriptStatus {
   FAILED = 'failed',
 }
 
+export interface AiNoteImage {
+  url: string;
+  caption?: string;
+  section_heading?: string;
+  evidence_quote?: string;
+  prompt?: string;
+  provider?: string;
+  model?: string;
+  image_size?: string;
+}
+
 @Entity('lectures')
 export class Lecture extends Base {
   @Column({ name: 'tenant_id' })
@@ -196,6 +207,9 @@ export class Lecture extends Base {
 
   @Column({ name: 'ai_formulas', type: 'jsonb', default: [] })
   aiFormulas: string[];
+
+  @Column({ name: 'ai_note_images', type: 'jsonb', default: [] })
+  aiNoteImages: AiNoteImage[];
 
   // Language the teacher recorded in ('en' | 'hi'). Drives STT language selection.
   @Column({ name: 'lecture_language', nullable: true, default: 'en' })
