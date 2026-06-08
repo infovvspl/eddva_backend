@@ -4,36 +4,74 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { Server, Socket } from 'socket.io';
 
 /**
- * Real-time direct messaging for the school portals (admin / teacher / parent).
- *
- * Clients connect to the `/chat` namespace and `join_user` with their user id,
- * which subscribes them to a private `user:<id>` room. When a message is
- * persisted via the REST API, the service calls `emitDirectMessage`, which
- * pushes it to both the sender and receiver rooms so every open client updates
- * instantly without polling.
+ * Real-time direct messaging, typing indicators, and presence for school portals.
  */
 @WebSocketGateway({ cors: { origin: '*' }, namespace: '/chat' })
-export class SchoolChatGateway {
+export class SchoolChatGateway implements OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(SchoolChatGateway.name);
+  private readonly socketToUser = new Map<string, string>();
+
+  constructor(
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
   @SubscribeMessage('join_user')
-  handleJoinUser(@ConnectedSocket() client: Socket, @MessageBody() userId: string) {
+  async handleJoinUser(@ConnectedSocket() client: Socket, @MessageBody() userId: string) {
     if (userId) {
       client.join(`user:${userId}`);
+      this.socketToUser.set(client.id, userId);
+
+      const presence = { status: 'online', lastSeen: Date.now() };
+      await this.cache.set(`presence:${userId}`, JSON.stringify(presence));
+      this.server.emit('presence_change', { userId, ...presence });
+    }
+  }
+
+  async handleDisconnect(client: Socket) {
+    const userId = this.socketToUser.get(client.id);
+    if (userId) {
+      this.socketToUser.delete(client.id);
+
+      // Verify if they have other active socket connections (e.g. other tabs)
+      const room = this.server?.sockets?.adapter?.rooms?.get(`user:${userId}`);
+      const hasOtherSockets = room && room.size > 0;
+
+      if (!hasOtherSockets) {
+        const presence = { status: 'offline', lastSeen: Date.now() };
+        await this.cache.set(`presence:${userId}`, JSON.stringify(presence));
+        this.server?.emit('presence_change', { userId, ...presence });
+      }
+    }
+  }
+
+  @SubscribeMessage('typing')
+  handleTyping(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { roomId: string; isTyping: boolean; receiverId?: string },
+  ) {
+    const userId = this.socketToUser.get(client.id);
+    if (userId && payload.receiverId) {
+      this.server.to(`user:${payload.receiverId}`).emit('typing', {
+        roomId: payload.roomId,
+        senderId: userId,
+        isTyping: payload.isTyping,
+      });
     }
   }
 
   @SubscribeMessage('mark_direct_read')
   handleMarkRead(@MessageBody() payload: { sender_id?: string; receiver_id?: string }) {
-    // Notify the original sender that their messages were read.
     if (payload?.sender_id) {
       this.server.to(`user:${payload.sender_id}`).emit('conversation_read', payload);
     }
@@ -51,6 +89,21 @@ export class SchoolChatGateway {
       }
     } catch (err) {
       this.logger.error(`Failed to emit direct_message: ${(err as Error).message}`);
+    }
+  }
+
+  /** Broadcast edited or deleted message updates to both participants. */
+  emitMessageUpdate(message: { sender_id?: string; receiver_id?: string }) {
+    if (!message) return;
+    try {
+      if (message.receiver_id) {
+        this.server.to(`user:${message.receiver_id}`).emit('message_updated', message);
+      }
+      if (message.sender_id) {
+        this.server.to(`user:${message.sender_id}`).emit('message_updated', message);
+      }
+    } catch (err) {
+      this.logger.error(`Failed to emit message_updated: ${(err as Error).message}`);
     }
   }
 }

@@ -1,14 +1,38 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit, Inject, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolChatGateway } from './school-chat.gateway';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import { SchoolNotificationGateway } from '../notification/school-notification.gateway';
 
 @Injectable()
-export class SchoolChatService {
+export class SchoolChatService implements OnModuleInit {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly gateway: SchoolChatGateway,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly notificationGateway: SchoolNotificationGateway,
   ) {}
+
+
+  async onModuleInit() {
+    console.log('--- RUNNING CHAT MIGRATION ---');
+    try {
+      await this.ds.query(`
+        ALTER TABLE chat_messages 
+        ADD COLUMN IF NOT EXISTS parent_message_id UUID,
+        ADD COLUMN IF NOT EXISTS is_forwarded BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS attachment_url VARCHAR,
+        ADD COLUMN IF NOT EXISTS attachment_name VARCHAR;
+      `);
+      console.log('--- CHAT MIGRATION SUCCESSFUL ---');
+    } catch (e) {
+      console.error('--- CHAT MIGRATION FAILED ---', e);
+    }
+  }
 
   async getConversations(user: any, query: any) {
     const role = query.role || 'TEACHER';
@@ -27,9 +51,9 @@ export class SchoolChatService {
       JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id = $1
       JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id != $1
       JOIN users peer ON peer.id = cp2.user_id
-      WHERE cr.type = 'DM' AND LOWER(peer.role) = LOWER($2)
+      WHERE cr.type = 'DM' AND LOWER(peer.role) = LOWER($2) AND peer.institute_id = $3
       ORDER BY cr.created_at DESC`,
-      [user.id, role]
+      [user.id, role, user.instituteId]
     );
 
     const isTeacher = user.role === 'TEACHER';
@@ -45,21 +69,121 @@ export class SchoolChatService {
       created_at: r.created_at
     }));
 
-    return { success: true, data: mapped };
+    // Merge online presence cached values
+    const mappedWithPresence = await Promise.all(mapped.map(async (r) => {
+      const pRaw = await this.cacheManager.get(`presence:${r.peer_id}`);
+      let presence = { status: 'offline', lastSeen: null };
+      if (pRaw) {
+        try { presence = JSON.parse(pRaw as string); } catch {}
+      }
+      return {
+        ...r,
+        online: presence.status === 'online',
+        lastSeen: presence.lastSeen,
+      };
+    }));
+
+    return { success: true, data: mappedWithPresence };
   }
 
   async getUsers(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
-    const role = query.role || 'TEACHER';
-    let sql = `SELECT id, name, email, role FROM users WHERE institute_id=$1 AND LOWER(role)=LOWER($2)`;
-    const params: any[] = [instituteId, role];
+    const instituteId = user.instituteId;
+    const targetRole = query.role || 'TEACHER';
+
+    let sql = '';
+    const params: any[] = [instituteId];
+
+    // Check smart directory restrictions
+    if (user.role === 'TEACHER' && targetRole === 'PARENT') {
+      // Teachers can only view parents of students in their assigned sections/classes
+      sql = `
+        SELECT u.id, u.name, u.email, u.role, u.photo 
+        FROM users u
+        WHERE u.institute_id = $1 
+          AND u.role = 'PARENT' 
+          AND u.is_active = true
+          AND (
+            (u.email IS NOT NULL AND LOWER(u.email) IN (
+              SELECT DISTINCT LOWER(s.parent_email) 
+              FROM students s
+              JOIN teachers t ON t.user_id = $2
+              LEFT JOIN teacher_sections ts ON ts.teacher_id = t.id
+              LEFT JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
+              WHERE s.institute_id = $1 AND (s.section_id = ts.section_id OR s.section_id = taa.section_id) AND s.parent_email IS NOT NULL
+            ))
+            OR
+            (u.phone IS NOT NULL AND u.phone IN (
+              SELECT DISTINCT s.parent_phone 
+              FROM students s
+              JOIN teachers t ON t.user_id = $2
+              LEFT JOIN teacher_sections ts ON ts.teacher_id = t.id
+              LEFT JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
+              WHERE s.institute_id = $1 AND (s.section_id = ts.section_id OR s.section_id = taa.section_id) AND s.parent_phone IS NOT NULL
+            ))
+          )
+      `;
+      params.push(user.id);
+    } else if (user.role === 'PARENT' && targetRole === 'TEACHER') {
+      // Parents can only view their child's teachers
+      sql = `
+        SELECT DISTINCT u.id, u.name, u.email, u.role, u.photo 
+        FROM users u
+        JOIN teachers t ON u.id = t.user_id
+        WHERE u.institute_id = $1 
+          AND u.role = 'TEACHER'
+          AND u.is_active = true
+          AND t.id IN (
+            SELECT ts.teacher_id 
+            FROM teacher_sections ts
+            JOIN students s ON s.section_id = ts.section_id
+            JOIN users parent ON parent.id = $2
+            WHERE s.institute_id = $1 AND (
+              (s.parent_email IS NOT NULL AND LOWER(s.parent_email) = LOWER(parent.email))
+              OR
+              (s.parent_phone IS NOT NULL AND s.parent_phone = parent.phone)
+            )
+            UNION
+            SELECT taa.teacher_id 
+            FROM teacher_academic_assignments taa
+            JOIN students s ON s.section_id = taa.section_id
+            JOIN users parent ON parent.id = $2
+            WHERE s.institute_id = $1 AND (
+              (s.parent_email IS NOT NULL AND LOWER(s.parent_email) = LOWER(parent.email))
+              OR
+              (s.parent_phone IS NOT NULL AND s.parent_phone = parent.phone)
+            )
+          )
+      `;
+      params.push(user.id);
+    } else {
+      // Admin / Super Admin (or default rules for self-communication/staff)
+      sql = `SELECT id, name, email, role, photo FROM users WHERE institute_id = $1 AND LOWER(role) = LOWER($2) AND is_active = true`;
+      params.push(targetRole);
+    }
+
     if (query.q) {
       params.push(`%${query.q}%`);
-      sql += ` AND (LOWER(name) LIKE LOWER($3) OR LOWER(email) LIKE LOWER($3))`;
+      sql += ` AND (LOWER(name) LIKE LOWER($${params.length}) OR LOWER(email) LIKE LOWER($${params.length}))`;
     }
     sql += ` ORDER BY name ASC`;
+
     const rows = await this.ds.query(sql, params);
-    return { success: true, data: rows };
+
+    // Merge presence status
+    const rowsWithPresence = await Promise.all(rows.map(async (r) => {
+      const pRaw = await this.cacheManager.get(`presence:${r.id}`);
+      let presence = { status: 'offline', lastSeen: null };
+      if (pRaw) {
+        try { presence = JSON.parse(pRaw as string); } catch {}
+      }
+      return {
+        ...r,
+        online: presence.status === 'online',
+        lastSeen: presence.lastSeen,
+      };
+    }));
+
+    return { success: true, data: rowsWithPresence };
   }
 
   async getMessagesByPeer(userId: string, peerId: string) {
@@ -103,7 +227,6 @@ export class SchoolChatService {
   }
 
   async createRoom(body: any) {
-    // chat_rooms only has (id, type, created_at) — no institute_id/name columns.
     const rows: any[] = await this.ds.query(
       `INSERT INTO chat_rooms (type) VALUES ($1) RETURNING *`,
       [body.type || 'GROUP'],
@@ -121,10 +244,13 @@ export class SchoolChatService {
 
   async getMessages(roomId: string) {
     const rows: any[] = await this.ds.query(
-      `SELECT cm.*,u.name AS sender_name,u.photo AS sender_photo FROM chat_messages cm LEFT JOIN users u ON cm.sender_id=u.id WHERE cm.room_id=$1 ORDER BY cm.created_at ASC`,
+      `SELECT cm.*,u.name AS sender_name,u.photo AS sender_photo 
+       FROM chat_messages cm 
+       LEFT JOIN users u ON cm.sender_id=u.id 
+       WHERE cm.room_id=$1 
+       ORDER BY cm.created_at ASC`,
       [roomId],
     );
-    // The column is `text`; expose `content` too so clients reading either work.
     return { success: true, data: rows.map((r) => ({ ...r, content: r.text })) };
   }
 
@@ -132,6 +258,11 @@ export class SchoolChatService {
     let roomId = body.roomId;
     let receiverId = body.receiverId;
     const text = body.content || body.text;
+
+    const parentMessageId = body.parentMessageId || null;
+    const isForwarded = body.isForwarded || false;
+    const attachmentUrl = body.attachmentUrl || null;
+    const attachmentName = body.attachmentName || null;
 
     if (!roomId && receiverId) {
       const rooms = await this.ds.query(
@@ -144,7 +275,6 @@ export class SchoolChatService {
       if (rooms.length) {
         roomId = rooms[0].room_id;
       } else {
-        // chat_rooms has no institute_id column — scope is enforced via participants.
         const newRooms = await this.ds.query(
           `INSERT INTO chat_rooms (type) VALUES ('DM') RETURNING id`,
         );
@@ -167,12 +297,182 @@ export class SchoolChatService {
     }
 
     const rows: any[] = await this.ds.query(
-      `INSERT INTO chat_messages (room_id,sender_id,receiver_id,text,is_read,tenant_id) VALUES ($1,$2,$3,$4,false,$5) RETURNING *`,
-      [roomId, user.id, receiverId ? String(receiverId) : null, text, user.instituteId ?? null],
+      `INSERT INTO chat_messages (
+         room_id, sender_id, receiver_id, text, is_read, tenant_id, 
+         parent_message_id, is_forwarded, attachment_url, attachment_name
+       ) VALUES ($1, $2, $3, $4, false, $5, $6, $7, $8, $9) RETURNING *`,
+      [
+        roomId, 
+        user.id, 
+        receiverId ? String(receiverId) : null, 
+        text, 
+        user.instituteId ?? null,
+        parentMessageId,
+        isForwarded,
+        attachmentUrl,
+        attachmentName
+      ],
     );
+
     const message = { ...rows[0], content: rows[0].text };
-    // Push to both participants in real time.
+
+    // Emit live event
     this.gateway.emitDirectMessage(message);
+
+    // Integrate notification bells
+    if (receiverId) {
+      try {
+        // Determine recipient role for actionUrl
+        const recipientUser = await this.ds.query(`SELECT role FROM users WHERE id = $1`, [receiverId]);
+        const recipientRole = recipientUser[0]?.role;
+        let actionUrl = '';
+        if (recipientRole === 'TEACHER') {
+          actionUrl = `/school/teacher/chat?userId=${user.id}`;
+        } else if (recipientRole === 'PARENT') {
+          actionUrl = `/school/parent/communication?userId=${user.id}`;
+        } else if (recipientRole === 'INSTITUTE_ADMIN') {
+          actionUrl = `/school/admin/communications?userId=${user.id}`;
+        }
+
+        // Determine preview text for attachment/meeting
+        let previewText = text || '';
+        if (text && text.startsWith('[MEETING_CARD]')) {
+          const parts = text.split('|');
+          const meetTitle = parts[0].replace('[MEETING_CARD]', '').trim();
+          previewText = `📅 Meeting: ${meetTitle}`;
+        } else if (attachmentUrl) {
+          const file = (attachmentName || attachmentUrl || '').toLowerCase();
+          if (file.endsWith('.pdf')) {
+            previewText = '📕 PDF Shared';
+          } else if (file.endsWith('.png') || file.endsWith('.jpg') || file.endsWith('.jpeg') || file.endsWith('.gif') || file.endsWith('.webp')) {
+            previewText = '📷 Image Received';
+          } else if (file.endsWith('.mp4') || file.endsWith('.webm') || file.endsWith('.avi') || file.endsWith('.mov')) {
+            previewText = '🎥 Video Received';
+          } else if (file.endsWith('.mp3') || file.endsWith('.wav') || file.endsWith('.m4a') || file.endsWith('.ogg') || file.endsWith('.aac')) {
+            previewText = '🎤 Voice Message';
+          } else {
+            previewText = '📄 Document Received';
+          }
+        } else {
+          previewText = text.length > 60 ? `${text.slice(0, 60)}...` : text;
+        }
+
+        const notifResult = await this.ds.query(
+          `INSERT INTO notifications (user_id, recipient_id, sender_id, type, category, title, message, is_read, tenant_id, action_url, created_at, updated_at) 
+           VALUES ($1, $1, $2, 'chat', 'chat', $3, $4, false, $5, $6, NOW(), NOW()) RETURNING *`,
+          [
+            receiverId,
+            user.id,
+            `New message from ${user.name}`,
+            previewText,
+            user.instituteId ?? null,
+            actionUrl
+          ]
+        );
+
+        if (notifResult && notifResult.length) {
+          const notif = notifResult[0];
+          const mapped = {
+            id: notif.id,
+            userId: notif.user_id,
+            recipientId: notif.recipient_id,
+            role: notif.role,
+            senderId: notif.sender_id,
+            referenceId: notif.reference_id,
+            referenceType: notif.reference_type,
+            actionUrl: notif.action_url,
+            type: notif.type,
+            category: notif.category || notif.type || 'general',
+            priority: notif.priority || 'medium',
+            title: notif.title,
+            message: notif.message,
+            isRead: notif.is_read,
+            createdAt: notif.created_at,
+            updatedAt: notif.updated_at
+          };
+          this.notificationGateway.emitNotification(receiverId, mapped);
+        }
+      } catch (err) {
+        console.error('Failed to create in-app notification', (err as Error).message);
+      }
+    }
+
+
     return { success: true, data: message };
+  }
+
+  async editMessage(userId: string, messageId: string, content: string) {
+    const existing = await this.ds.query(
+      `SELECT * FROM chat_messages WHERE id = $1 AND sender_id = $2`,
+      [messageId, userId]
+    );
+    if (!existing.length) {
+      throw new ForbiddenException('Message not found or you are not the sender');
+    }
+
+    const rows = await this.ds.query(
+      `UPDATE chat_messages 
+       SET text = $1, is_edited = true, updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING *`,
+      [content, messageId]
+    );
+
+    const message = { ...rows[0], content: rows[0].text };
+    this.gateway.emitMessageUpdate(message);
+    return { success: true, data: message };
+  }
+
+  async deleteMessage(userId: string, messageId: string) {
+    const existing = await this.ds.query(
+      `SELECT * FROM chat_messages WHERE id = $1 AND sender_id = $2`,
+      [messageId, userId]
+    );
+    if (!existing.length) {
+      throw new ForbiddenException('Message not found or you are not the sender');
+    }
+
+    const rows = await this.ds.query(
+      `UPDATE chat_messages 
+       SET text = 'This message was deleted', is_deleted = true, updated_at = NOW() 
+       WHERE id = $1 
+       RETURNING *`,
+      [messageId]
+    );
+
+    const message = { ...rows[0], content: rows[0].text };
+    this.gateway.emitMessageUpdate(message);
+    return { success: true, data: message };
+  }
+
+  async getParentDirectory(user: any) {
+    const rows = await this.ds.query(
+      `SELECT 
+        c.name AS class_name,
+        sec.name AS section_name,
+        s.parent_name,
+        s.parent_phone,
+        u.name AS student_name,
+        p.id AS parent_id,
+        p.name AS parent_name_user,
+        p.email AS parent_email
+       FROM students s
+       JOIN users u ON s.user_id = u.id
+       JOIN sections sec ON s.section_id = sec.id
+       JOIN classes c ON sec.class_id = c.id
+       JOIN teachers t ON t.user_id = $2
+       LEFT JOIN teacher_sections ts ON ts.teacher_id = t.id
+       LEFT JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
+       LEFT JOIN users p ON p.institute_id = $1 AND p.role = 'PARENT' AND (
+         (p.email IS NOT NULL AND LOWER(p.email) = LOWER(s.parent_email))
+         OR
+         (p.phone IS NOT NULL AND p.phone = s.parent_phone)
+       )
+       WHERE s.institute_id = $1 
+         AND (s.section_id = ts.section_id OR s.section_id = taa.section_id)
+       ORDER BY c.name, sec.name, u.name`,
+      [user.instituteId, user.id]
+    );
+    return { success: true, data: rows };
   }
 }

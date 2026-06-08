@@ -5,6 +5,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -139,6 +140,16 @@ export class S3Service implements OnModuleInit {
       ? this.publicUrl.replace(/\/$/, '')
       : `https://${this.bucket}.s3.${this.config.get<string>('storage.s3.region')}.amazonaws.com`;
     return publicUrl.replace(`${base}/`, '');
+  }
+
+  /** Whether an object exists at the given key (used for cache lookups). */
+  async exists(key: string): Promise<boolean> {
+    try {
+      await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async delete(key: string): Promise<void> {

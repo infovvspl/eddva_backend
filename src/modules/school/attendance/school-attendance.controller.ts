@@ -14,4 +14,27 @@ export class SchoolAttendanceController {
   @Post('session') markSession(@SchoolUser() user: any, @Body() body: any) { return this.svc.markSession(user, body); }
   @Get('report') getReport() { return this.svc.getReport(); }
   @Get('class/:classId/students') getStudentsByClass(@Param('classId') id: string) { return this.svc.getStudentsByClass(id); }
+
+  @Get('students')
+  getStudentsByClassAndSection(
+    @Query('classId') classId: string,
+    @Query('sectionId') sectionId: string,
+  ) {
+    return this.svc.getStudentsByClassAndSection(classId, sectionId);
+  }
+
+  @Get('dashboard-stats')
+  getDashboardStats(@SchoolUser() user: any) {
+    return this.svc.getDashboardStats(user);
+  }
+
+  @Get('history')
+  getHistory(@SchoolUser() user: any, @Query() query: any) {
+    return this.svc.getHistory(user, query);
+  }
+
+  @Get('session/:sessionId')
+  getSessionDetails(@SchoolUser() user: any, @Param('sessionId') sessionId: string) {
+    return this.svc.getSessionDetails(user, sessionId);
+  }
 }

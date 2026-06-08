@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { MailService } from '../../mail/mail.service';
+import { querySectionSubjects } from '../common/section-subjects';
 
 @Injectable()
 export class SchoolStudentService {
@@ -113,18 +114,28 @@ export class SchoolStudentService {
 
   async list(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
+    const params: any[] = [instituteId];
+    let filter = `u.institute_id=$1 AND u.role='STUDENT'`;
+    if (query.classId) {
+      params.push(query.classId);
+      filter += ` AND c.id::text=$${params.length}::text`;
+    }
+    if (query.sectionId) {
+      params.push(query.sectionId);
+      filter += ` AND s.section_id::text=$${params.length}::text`;
+    }
     const rows: any[] = await this.ds.query(
       `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.photo,u.created_at,
               s.id AS profile_id,s.enrollment_no,s.roll_no,s.section_id,s.dob,s.gender,s.blood_group,
               s.father_name,s.mother_name,s.parent_phone,s.admission_date,
               s.parent_email,s.parent_occupation,s.address,s.city,s.state,s.pin_code,
               s.medical_conditions,s.allergies,s.documents,s.marital_status,s.national_id,
-              sec.name AS section_name,c.name AS class_name
+              sec.name AS section_name,c.id AS class_id,c.name AS class_name
        FROM users u JOIN students s ON s.user_id=u.id
        LEFT JOIN sections sec ON s.section_id=sec.id
        LEFT JOIN classes c ON sec.class_id=c.id
-       WHERE u.institute_id=$1 AND u.role='STUDENT' ORDER BY u.name`,
-      [instituteId],
+       WHERE ${filter} ORDER BY u.name`,
+      params,
     );
     const mapped = rows.map(r => ({
       id: r.id,
@@ -160,11 +171,12 @@ export class SchoolStudentService {
         nationalId: r.national_id,
         section: r.section_id ? {
           id: r.section_id,
-          name: r.section_name,
-          class: {
-            name: r.class_name
-          }
-        } : null
+            name: r.section_name,
+            class: {
+              id: r.class_id,
+              name: r.class_name
+            }
+          } : null
       }
     }));
     return { success: true, data: mapped };
@@ -477,4 +489,307 @@ export class SchoolStudentService {
       studentName: student.name,
     };
   }
+
+  async getMyCourses(user: any) {
+    const studentRows = await this.ds.query(
+      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+       FROM students s
+       JOIN sections sec ON s.section_id = sec.id
+       JOIN classes c ON sec.class_id = c.id
+       WHERE s.user_id = $1`,
+      [user.id]
+    );
+    if (!studentRows.length) {
+      return { success: true, data: [] };
+    }
+    const student = studentRows[0];
+
+    const subjectRows = await this.ds.query(
+      `SELECT DISTINCT sub.id, sub.name
+       FROM subjects sub
+       JOIN teacher_academic_assignments taa ON taa.subject_id = sub.id
+       WHERE taa.class_id = $1 AND taa.section_id = $2`,
+      [student.class_id, student.section_id]
+    );
+    const subjectNames = subjectRows.map((s: any) => s.name);
+
+    return {
+      success: true,
+      data: [
+        {
+          enrollmentId: student.profile_id,
+          enrollmentStatus: 'active',
+          enrolledAt: new Date(),
+          feePaid: true,
+          batch: {
+            id: student.class_id,
+            name: `${student.class_name} - Section ${student.section_name}`,
+            description: `Curriculum for ${student.class_name}`,
+            examTarget: 'School',
+            class: student.class_name,
+            startDate: new Date(),
+            endDate: new Date(),
+            thumbnailUrl: null,
+            status: 'active',
+            deliveryMode: 'offline',
+            teacher: null,
+          },
+          subjects: subjectNames,
+          progress: {
+            totalLectures: 0,
+            watchedLectures: 0,
+            completedTopics: 0,
+            inProgressTopics: 0,
+            totalTopics: 0,
+            overallPct: 0,
+          },
+        }
+      ]
+    };
+  }
+
+  async getCourseDetail(user: any, classId: string) {
+    const studentRows = await this.ds.query(
+      `SELECT s.id AS profile_id, s.section_id, s.institute_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+       FROM students s
+       JOIN sections sec ON s.section_id = sec.id
+       JOIN classes c ON sec.class_id = c.id
+       WHERE s.user_id = $1`,
+      [user.id]
+    );
+    if (!studentRows.length) {
+      throw new NotFoundException('Student profile not found');
+    }
+    const student = studentRows[0];
+    const instituteId = user.instituteId || student.institute_id;
+
+    const subjectRows = await this.ds.query(
+      `SELECT DISTINCT sub.id, sub.name, u.name AS teacher_name, u.id AS teacher_user_id
+       FROM subjects sub
+       JOIN teacher_academic_assignments taa ON taa.subject_id = sub.id
+       LEFT JOIN teachers t ON taa.teacher_id = t.id
+       LEFT JOIN users u ON t.user_id = u.id
+       WHERE taa.class_id = $1 AND taa.section_id = $2`,
+      [student.class_id, student.section_id]
+    );
+
+    const curriculum = [];
+    for (const sub of subjectRows) {
+      const chapterRows = await this.ds.query(
+        `SELECT id, name FROM chapters WHERE subject_id = $1 ORDER BY sort_order, name`,
+        [sub.id]
+      );
+
+      const chapters = [];
+      for (const chap of chapterRows) {
+        const topicRows = await this.ds.query(
+          `SELECT id, name FROM topics WHERE chapter_id = $1 ORDER BY sort_order, name`,
+          [chap.id]
+        );
+
+        const topics = [];
+        for (const top of topicRows) {
+          const materialRows = await this.ds.query(
+            `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description
+             FROM study_materials
+             WHERE topic_id = $1 AND tenant_id = $2::uuid`,
+            [top.id, instituteId]
+          );
+
+          const resourceCounts = materialRows.reduce((acc: any, r: any) => {
+            acc[r.type] = (acc[r.type] || 0) + 1;
+            return acc;
+          }, {});
+
+          topics.push({
+            id: top.id,
+            name: top.name,
+            estimatedStudyMinutes: 30,
+            gatePassPercentage: 70,
+            progress: {
+              status: 'unlocked',
+              bestAccuracy: 0,
+              studiedWithAi: false,
+              completedAt: null,
+            },
+            lectureCount: 0,
+            lectures: {
+              total: 0,
+              completed: 0,
+            },
+            resourceCounts,
+            resources: materialRows,
+          });
+        }
+
+        chapters.push({
+          id: chap.id,
+          name: chap.name,
+          topics,
+        });
+      }
+
+      curriculum.push({
+        id: sub.id,
+        name: sub.name,
+        teacher: sub.teacher_name ? { id: sub.teacher_user_id, name: sub.teacher_name } : null,
+        chapters,
+      });
+    }
+
+    return {
+      success: true,
+      data: {
+        batch: {
+          id: student.class_id,
+          name: `${student.class_name} - Section ${student.section_name}`,
+          examTarget: 'School',
+          class: student.class_name,
+          startDate: new Date(),
+          endDate: new Date(),
+          thumbnailUrl: null,
+          status: 'active',
+        },
+        enrollment: {
+          id: student.profile_id,
+          status: 'active',
+          enrolledAt: new Date(),
+          feePaid: true,
+        },
+        summary: {
+          totalSubjects: subjectRows.length,
+          totalTopics: curriculum.reduce((s, sub) => s + sub.chapters.reduce((c_s, c) => c_s + c.topics.length, 0), 0),
+          completedTopics: 0,
+          totalLectures: 0,
+          watchedLectures: 0,
+          progressPercent: 0,
+        },
+        curriculum,
+      }
+    };
+  }
+
+  async getDashboard(user: any) {
+    const studentRows = await this.ds.query(
+      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+       FROM students s
+       JOIN sections sec ON s.section_id = sec.id
+       JOIN classes c ON sec.class_id = c.id
+       WHERE s.user_id = $1`,
+      [user.id]
+    );
+    if (!studentRows.length) {
+      return { success: true, data: null };
+    }
+    const student = studentRows[0];
+
+    let attendancePercentage = 100;
+    const attRows = await this.ds.query(
+      `SELECT 
+         COUNT(CASE WHEN status = 'present' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) AS pct
+       FROM attendance 
+       WHERE student_id::text = $1`,
+      [student.profile_id],
+    );
+    if (attRows[0]?.pct != null) {
+      attendancePercentage = Math.round(Number(attRows[0].pct));
+    }
+
+    let todayClasses = 0;
+    if (student.section_id) {
+      const clsRows = await this.ds.query(
+        `SELECT COUNT(*)::int AS cnt FROM timetables 
+         WHERE section_id::text = $1`,
+        [student.section_id],
+      );
+      todayClasses = clsRows[0]?.cnt || 0;
+    }
+
+    return {
+      success: true,
+      data: {
+        todayPlan: [],
+        attendancePercentage,
+        todayClasses,
+        student: {
+          id: student.profile_id,
+          sectionId: student.section_id,
+          classId: student.class_id,
+          className: student.class_name,
+          sectionName: student.section_name,
+        },
+      },
+    };
+  }
+
+  async getTopicDetail(user: any, classId: string, topicId: string) {
+    const studentRows = await this.ds.query(
+      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+       FROM students s
+       JOIN sections sec ON s.section_id = sec.id
+       JOIN classes c ON sec.class_id = c.id
+       WHERE s.user_id = $1`,
+      [user.id]
+    );
+    if (!studentRows.length) {
+      throw new NotFoundException('Student profile not found');
+    }
+    const student = studentRows[0];
+
+    const topicRows = await this.ds.query(
+      `SELECT t.id, t.name, chap.name AS chapter_name, sub.name AS subject_name, sub.id AS subject_id
+       FROM topics t
+       JOIN chapters chap ON t.chapter_id = chap.id
+       JOIN subjects sub ON chap.subject_id = sub.id
+       WHERE t.id = $1`,
+      [topicId]
+    );
+    if (!topicRows.length) {
+      throw new NotFoundException('Topic not found');
+    }
+    const topic = topicRows[0];
+
+    const materialRows = await this.ds.query(
+      `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description 
+       FROM study_materials sm
+       WHERE sm.topic_id = $1
+         AND (
+           (sm.class_id = $2 AND sm.section_id = $3)
+           OR (sm.class_id = $2 AND sm.section_id IS NULL)
+           OR (
+             sm.class_id IS NULL
+             AND sm.section_id IS NULL
+             AND sm.subject_id_fk = $4
+           )
+         )`,
+      [topicId, student.class_id, student.section_id, topic.subject_id]
+    );
+
+    return {
+      success: true,
+      data: {
+        topic: {
+          id: topic.id,
+          name: topic.name,
+          subject: { id: topic.subject_id, name: topic.subject_name },
+          chapter: { name: topic.chapter_name },
+        },
+        progress: {
+          status: 'unlocked',
+          bestAccuracy: 0,
+          studiedWithAi: false,
+          completedAt: null,
+        },
+        lectures: [],
+        resources: materialRows.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          type: r.type,
+          fileUrl: r.fileUrl,
+          externalUrl: null,
+        })),
+      },
+    };
+  }
 }
+

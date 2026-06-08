@@ -19,8 +19,13 @@ async function updateConstraints() {
   for (const t of tablesToUpdate) {
     try {
       console.log(`Updating ${t.table}...`);
-      await c.query(`ALTER TABLE ${t.table} DROP CONSTRAINT IF EXISTS ${t.constraint};`);
-      await c.query(`ALTER TABLE ${t.table} ADD CONSTRAINT ${t.constraint} FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE CASCADE;`);
+      // Drop the uppercase/case-sensitive version
+      await c.query(`ALTER TABLE "${t.table}" DROP CONSTRAINT IF EXISTS "${t.constraint}";`);
+      // Also drop the lowercase version if it exists
+      await c.query(`ALTER TABLE "${t.table}" DROP CONSTRAINT IF EXISTS "${t.constraint.toLowerCase()}";`);
+      
+      // Add the constraint pointing to institutes
+      await c.query(`ALTER TABLE "${t.table}" ADD CONSTRAINT "${t.constraint}" FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE CASCADE;`);
       console.log(`Successfully updated ${t.table}`);
     } catch (e) {
       console.error(`Failed to update ${t.table}:`, e.message);

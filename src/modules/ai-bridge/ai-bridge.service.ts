@@ -31,7 +31,7 @@ export class AiBridgeService {
     this.timeout = config.get<number>('ai.timeoutMs');
   }
 
-  private headers(tenantId?: string) {
+  private headers(tenantId?: string, vertical?: string) {
     const h: Record<string, string> = {
       'X-API-Key': this.apiKey,
       'Content-Type': 'application/json',
@@ -39,21 +39,32 @@ export class AiBridgeService {
     if (tenantId) {
       h['X-Tenant-ID'] = tenantId;
     }
+    // Per-request product vertical (e.g. 'school'). When omitted, the AI service
+    // falls back to the tenant's configured vertical (coaching by default).
+    if (vertical) {
+      h['X-Vertical'] = vertical;
+    }
     return h;
   }
 
-  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number): Promise<T> {
+  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string): Promise<T> {
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
-          headers: this.headers(tenantId),
+          headers: this.headers(tenantId, vertical),
           timeout: timeoutMs ?? this.timeout,
         }),
       );
       return res.data;
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      this.logger.error(`AI Bridge error [${path}] tenant=${tenantId || 'none'}: ${message}`);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+      const detail =
+        (typeof data === 'string' ? data.slice(0, 300) : data ? JSON.stringify(data).slice(0, 300) : '') ||
+        err?.message || err?.code || 'Unknown error';
+      this.logger.error(
+        `AI Bridge error [${path}] tenant=${tenantId || 'none'} status=${status ?? 'n/a'} code=${err?.code ?? 'n/a'}: ${detail}`,
+      );
       throw err;
     }
   }
@@ -76,11 +87,12 @@ export class AiBridgeService {
       studentContext?: any;
     },
     tenantId?: string,
+    vertical?: string,
   ) {
     return this.post('/doubt/resolve', {
       ...payload,
       questionText: this.withMathDerivationStyleHint(payload.questionText),
-    }, tenantId);
+    }, tenantId, undefined, vertical);
   }
 
   /**
@@ -1304,11 +1316,8 @@ export class AiBridgeService {
       extraContext?: string;
     },
     tenantId?: string,
+    vertical?: string,
   ): Promise<{ content: string; contentType: string; topicName: string }> {
-    const payload = {
-      ...dto,
-      extraContext: `${dto.extraContext || ''} (Generate all content in English only)`.trim(),
-    };
-    return this.post('/content/generate', payload, tenantId, 120_000);
+    return this.post('/content/generate', dto, tenantId, 120_000, vertical);
   }
 }
