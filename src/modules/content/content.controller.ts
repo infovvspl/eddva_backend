@@ -436,6 +436,36 @@ export class ContentController {
         return this.contentService.regenerateNotes(id, user.id, user.role, tenantId);
     }
 
+    @Post('lectures/:id/regenerate-note-image')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Regenerate a single note image in isolation' })
+    @ApiParam({ name: 'id', type: 'string' })
+    regenerateNoteImage(
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() body: {
+            caption: string;
+            visualDescription: string;
+            evidenceQuote?: string;
+            sectionHeading?: string;
+            oldImageUrl: string;
+        },
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.regenerateNoteImage(
+            id,
+            body.caption,
+            body.visualDescription,
+            body.evidenceQuote,
+            body.sectionHeading,
+            body.oldImageUrl,
+            user.id,
+            user.role,
+            tenantId,
+        );
+    }
+
     // ─── LECTURE PROGRESS ─────────────────────────────────────────────────────
 
     @Post('lectures/:id/progress')

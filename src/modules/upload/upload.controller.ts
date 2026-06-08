@@ -53,14 +53,35 @@ export class UploadController {
   async uploadDoubtResponseImage(
     @UploadedFile() file: Express.Multer.File,
     @TenantId() tenantId: string,
+    @Body('replaceUrl') replaceUrl?: string,
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
     if (!tenantId) {
       throw new BadRequestException('Tenant ID could not be determined from the authenticated user');
     }
-    const ext = extname(file.originalname).toLowerCase() || '.jpg';
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `doubt-image${ext}`;
-    const key = `tenants/${tenantId}/doubts/response-images/${Date.now()}-${uuidv4()}-${safeName}`;
+    
+    let key: string;
+    if (replaceUrl && typeof replaceUrl === 'string' && replaceUrl.startsWith('http')) {
+      try {
+        // Remove query params (like cache-busters) to get the clean S3 key
+        const cleanUrl = replaceUrl.split('?')[0];
+        const extractedKey = this.s3Service.keyFromUrl(cleanUrl);
+        if (extractedKey.startsWith(`tenants/${tenantId}/`)) {
+          key = extractedKey;
+        } else {
+          throw new BadRequestException('Cannot overwrite files belonging to another tenant');
+        }
+      } catch (err) {
+        if (err instanceof BadRequestException) throw err;
+      }
+    }
+
+    if (!key) {
+      const ext = extname(file.originalname).toLowerCase() || '.jpg';
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `doubt-image${ext}`;
+      key = `tenants/${tenantId}/doubts/response-images/${Date.now()}-${uuidv4()}-${safeName}`;
+    }
+
     try {
       const url = await this.s3Service.upload(key, file.buffer, file.mimetype || 'image/jpeg');
       return { url, key };

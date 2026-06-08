@@ -481,6 +481,7 @@ export class InitialSchema1700000000000 implements MigrationInterface {
         ai_notes_markdown TEXT,
         ai_key_concepts JSONB NOT NULL DEFAULT '[]',
         ai_formulas JSONB NOT NULL DEFAULT '[]',
+        ai_note_images JSONB NOT NULL DEFAULT '[]',
         transcript TEXT,
         quiz_checkpoints JSONB NOT NULL DEFAULT '[]',
         scheduled_at TIMESTAMPTZ,

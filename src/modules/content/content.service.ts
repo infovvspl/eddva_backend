@@ -24,6 +24,7 @@ import {
     LectureStatus,
     TranscriptStatus,
     AiStudySession,
+    AiNoteImage,
 } from '../../database/entities/learning.entity';
 import { TopicProgress, TopicStatus, MockTest } from '../../database/entities/assessment.entity';
 import { PlanItem, PlanItemStatus, PlanItemType, StudyPlan } from '../../database/entities/learning.entity';
@@ -63,6 +64,24 @@ export class ContentService {
     private readonly logger = new Logger(ContentService.name);
     private static readonly presetExamTargets = new Set(['jee', 'neet', 'both']);
     private static readonly hindiLikeLectureLanguages = new Set(['hi', 'hinglish', 'hi-in']);
+    private static readonly odiaLectureLanguages = new Set(['od', 'odia', 'od-in', 'or', 'or-in']);
+
+    private _extractAiNoteImages(result: any): AiNoteImage[] {
+        const images = result?.images ?? result?.noteImages ?? result?.aiNoteImages ?? result?.ai_note_images;
+        if (!Array.isArray(images)) return [];
+        return images
+            .filter((img: any) => img && typeof img === 'object' && typeof img.url === 'string' && img.url.trim())
+            .map((img: any) => ({
+                url: String(img.url).trim(),
+                caption: img.caption ? String(img.caption).trim() : undefined,
+                section_heading: img.section_heading ? String(img.section_heading).trim() : undefined,
+                evidence_quote: img.evidence_quote ? String(img.evidence_quote).trim() : undefined,
+                prompt: img.prompt ? String(img.prompt).trim() : undefined,
+                provider: img.provider ? String(img.provider).trim() : undefined,
+                model: img.model ? String(img.model).trim() : undefined,
+                image_size: img.image_size ? String(img.image_size).trim() : undefined,
+            }));
+    }
 
     constructor(
         @InjectRepository(Subject, 'coaching')
@@ -163,11 +182,13 @@ export class ContentService {
     }
 
     private normalizeLectureLanguage(language?: string | null): string {
-        return String(language ?? 'en').trim().toLowerCase() || 'en';
+        const normalized = String(language ?? 'en').trim().toLowerCase() || 'en';
+        return ContentService.odiaLectureLanguages.has(normalized) ? 'od' : normalized;
     }
 
-    private getAiProcessingLanguage(language?: string | null): 'en' | 'hi' | 'hinglish' {
+    private getAiProcessingLanguage(language?: string | null): 'en' | 'hi' | 'hinglish' | 'od' {
         const normalized = this.normalizeLectureLanguage(language);
+        if (normalized === 'od') return 'od';
         if (normalized === 'hinglish') return 'hinglish';
         return ContentService.hindiLikeLectureLanguages.has(normalized) ? 'hi' : 'en';
     }
@@ -745,7 +766,10 @@ export class ContentService {
         tenantId: string,
         isAdmin: boolean,
     ): Promise<Lecture> {
-        this.logger.log(`Creating lecture for batch ${dto.batchId}, tenant ${tenantId}`);
+        const lectureLanguage = this.normalizeLectureLanguage(dto.lectureLanguage);
+        this.logger.log(
+            `Creating lecture for batch ${dto.batchId}, tenant ${tenantId}, lectureLanguage=${lectureLanguage} raw=${dto.lectureLanguage ?? 'unset'}`,
+        );
 
         await this.validateBatchAccess(dto.batchId, userId, tenantId, isAdmin);
 
@@ -764,6 +788,8 @@ export class ContentService {
 
         const lecture = this.lectureRepo.create({
             ...dto,
+            lectureLanguage,
+            transcriptLanguage: lectureLanguage,
             tenantId,
             teacherId: finalTeacherId,
             status,
@@ -869,6 +895,7 @@ export class ContentService {
         lecture.aiNotesMarkdown = null as any;
         lecture.aiKeyConcepts = [];
         lecture.aiFormulas = [];
+        lecture.aiNoteImages = [];
         lecture.quizCheckpoints = [];
 
         const saved = await this.lectureRepo.save(lecture);
@@ -969,7 +996,7 @@ export class ContentService {
                 {
                     videoId,
                     topicId: topicId ?? '',
-                    language: lectureLanguage as 'en' | 'hi' | 'hinglish' | 'hi-in',
+                    language: lectureLanguage as 'en' | 'hi' | 'hinglish' | 'hi-in' | 'od',
                 },
                 tenantId,
             ) as any;
@@ -989,6 +1016,8 @@ export class ContentService {
             if (notes) updates.aiNotesMarkdown = String(notes);
             const concepts = result?.key_concepts ?? result?.keyConcepts;
             if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
+            const noteImages = this._extractAiNoteImages(result);
+            updates.aiNoteImages = noteImages;
 
             await this.lectureRepo.update(lectureId, updates);
             this.logger.log(`YouTube AI notes complete for lecture ${lectureId} (${transcriptToStore.length} chars transcript)`);
@@ -1030,6 +1059,9 @@ export class ContentService {
         const current = await this.lectureRepo.findOne({ where: { id: lectureId }, select: ['id', 'status', 'lectureLanguage'] });
         const lectureLanguage = this.normalizeLectureLanguage(current?.lectureLanguage);
         const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
+        this.logger.log(
+            `AI processing language for lecture ${lectureId}: stored=${current?.lectureLanguage ?? 'unset'} normalized=${lectureLanguage} ai=${aiLanguage}`,
+        );
 
         await this.lectureRepo.update(lectureId, { transcriptStatus: TranscriptStatus.PROCESSING });
 
@@ -1095,18 +1127,113 @@ export class ContentService {
         }
         const lectureLanguage = this.normalizeLectureLanguage(lecture.lectureLanguage);
         const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
+        await this.lectureRepo.update(id, { aiNotesMarkdown: null as any, aiNoteImages: [] });
         this._runNotesFromSavedTranscript(id, lecture.transcript, lecture.topicId, aiLanguage, tenantId).catch(() => { });
         return { message: 'Notes generation started' };
+    }
+
+    async regenerateNoteImage(
+        id: string,
+        caption: string,
+        visualDescription: string,
+        evidenceQuote: string | undefined,
+        sectionHeading: string | undefined,
+        oldImageUrl: string,
+        userId: string,
+        userRole: UserRole,
+        tenantId: string,
+    ): Promise<any> {
+        const lecture = await this.lectureRepo.findOne({ where: { id, tenantId } });
+        if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
+        if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
+            throw new ForbiddenException('You can only regenerate notes for your own lectures');
+        }
+        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+            throw new ForbiddenException('AI transcription is not enabled for your institution.');
+        }
+
+        const lectureLanguage = this.normalizeLectureLanguage(lecture.lectureLanguage);
+        const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
+
+        const result = await this.aiBridgeService.regenerateNoteImage(
+            {
+                topicId: lecture.topicId,
+                caption,
+                visualDescription,
+                evidenceQuote,
+                sectionHeading,
+                notes: lecture.aiNotesMarkdown || '',
+                language: aiLanguage,
+            },
+            tenantId,
+        ) as any;
+
+        if (!result || !result.url) {
+            throw new BadRequestException(result?.error || 'Failed to regenerate image');
+        }
+
+        let notesMarkdown = lecture.aiNotesMarkdown || '';
+        let overlayMarker = '';
+        if (Array.isArray(result.overlay_labels) && result.overlay_labels.length > 0) {
+            const base64Labels = Buffer.from(JSON.stringify({ labels: result.overlay_labels })).toString('base64url');
+            overlayMarker = ` <<NOTE_IMAGE_OVERLAY:${base64Labels}>>`;
+        }
+        const newMarkdownImg = `![${caption}${overlayMarker}](${result.url})`;
+
+        const escapedOldUrl = oldImageUrl.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const imgRegex = new RegExp(`!\\[[^\\]]*\\]\\(${escapedOldUrl}\\)`, 'g');
+        notesMarkdown = notesMarkdown.replace(imgRegex, newMarkdownImg);
+
+        let noteImages = Array.isArray(lecture.aiNoteImages) ? lecture.aiNoteImages : [];
+        const newImageObj = {
+            url: result.url,
+            caption: result.caption,
+            section_heading: result.section_heading,
+            evidence_quote: result.evidence_quote,
+            prompt: result.prompt,
+            provider: result.provider,
+            model: result.model,
+            image_size: result.image_size,
+        };
+
+        let replaced = false;
+        noteImages = noteImages.map((img: any) => {
+            if (img && img.url === oldImageUrl) {
+                replaced = true;
+                return newImageObj;
+            }
+            return img;
+        });
+        if (!replaced) {
+            noteImages.push(newImageObj);
+        }
+
+        await this.lectureRepo.update(id, {
+            aiNotesMarkdown: notesMarkdown,
+            aiNoteImages: noteImages,
+        });
+
+        return {
+            message: 'Image regenerated successfully',
+            image: {
+                url: result.url,
+                caption: result.caption,
+                visualDescription: result.visual_description,
+                overlayLabels: result.overlay_labels,
+                sectionHeading: result.section_heading,
+                evidenceQuote: result.evidence_quote,
+            },
+        };
     }
 
     private async _runNotesFromSavedTranscript(
         lectureId: string,
         transcript: string,
         topicId: string | undefined,
-        aiLanguage: 'en' | 'hi' | 'hinglish' | 'hi-in',
+        aiLanguage: 'en' | 'hi' | 'hinglish' | 'hi-in' | 'od',
         tenantId: string,
     ): Promise<void> {
-        this.logger.log(`Regenerating notes for lecture ${lectureId} (${transcript.length} chars)`);
+        this.logger.log(`Regenerating notes for lecture ${lectureId} (${transcript.length} chars, language=${aiLanguage})`);
         try {
             const notesResult = await this.aiBridgeService.generateNotesFromTranscript(
                 { transcript, topicId: topicId ?? '', language: aiLanguage },
@@ -1115,8 +1242,13 @@ export class ContentService {
             const notes = notesResult?.notes ?? notesResult?.notesMarkdown ?? notesResult?.notes_markdown ?? null;
             const concepts = notesResult?.key_concepts ?? notesResult?.keyConcepts;
             const updates: Partial<Lecture> = {};
-            if (notes) updates.aiNotesMarkdown = String(notes);
+            if (notes && String(notes).trim() && String(notes).trim() !== '__NOTES_FAILED__') {
+                updates.aiNotesMarkdown = String(notes);
+            } else {
+                throw new Error('AI notes response did not contain usable notes');
+            }
             if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
+            updates.aiNoteImages = this._extractAiNoteImages(notesResult);
             if (Object.keys(updates).length) await this.lectureRepo.update(lectureId, updates);
             this.logger.log(`Notes regenerated for lecture ${lectureId}`);
         } catch (err: unknown) {
@@ -1443,6 +1575,7 @@ export class ContentService {
             lecture.aiNotesMarkdown = null as any;
             lecture.aiKeyConcepts = [];
             lecture.aiFormulas = [];
+            lecture.aiNoteImages = [];
             lecture.quizCheckpoints = [];
         }
 

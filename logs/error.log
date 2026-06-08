@@ -11503,3 +11503,499 @@ Error: QueryFailedError: invalid input syntax for type uuid: "unread-count"
     at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolNotificationService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\notification\school-notification.service.ts:28:25)
 
+[2026-06-04T06:45:18.000Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-04T12:32:52.348Z] DELETE /api/v1/content/lectures/c539cfb7-1e4b-4605-9864-769054c792c4
+Status: 404
+Error: NotFoundException: Lecture c539cfb7-1e4b-4605-9864-769054c792c4 not found
+    at ContentService.deleteLecture (D:\Edva\eddva_backend\src\modules\content\content.service.ts:1526:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-06T10:30:09.194Z] POST /api/v1/presence/heartbeat
+Status: 500
+Error: Error: Connection terminated due to connection timeout
+    at Client._connectionCallback (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:276:17)
+    at Connection.<anonymous> (D:\Edva\eddva_backend\node_modules\pg\lib\client.js:193:18)
+    at Object.onceWrapper (node:events:622:28)
+    at Connection.emit (node:events:508:28)
+    at Connection.emit (node:domain:489:12)
+    at Socket.<anonymous> (D:\Edva\eddva_backend\node_modules\pg\lib\connection.js:61:12)
+    at Socket.emit (node:events:520:35)
+    at Socket.emit (node:domain:489:12)
+    at TCP.<anonymous> (node:net:346:12)
+
+[2026-06-08T04:41:38.446Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:225:13)
+
+[2026-06-08T04:41:38.464Z] POST /api/v1/school/auth/login
+Status: 404
+Error: NotFoundException: Cannot POST /api/v1/school/auth/login
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T04:49:14.594Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T04:49:14.642Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources
+Status: 404
+Error: NotFoundException: Topic 4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c not found
+    at ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2763:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-08T04:49:15.849Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T04:49:34.555Z] GET /api/v1/assignments/lecture/8da91e7b-a666-4594-a0a7-ba3462b7cdda
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/8da91e7b-a666-4594-a0a7-ba3462b7cdda
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T04:49:34.905Z] GET /api/v1/content/topics/a211af56-9fab-471f-80fb-dfd438a840ad/resources
+Status: 404
+Error: NotFoundException: Topic a211af56-9fab-471f-80fb-dfd438a840ad not found
+    at ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2763:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-08T04:49:35.885Z] GET /api/v1/assignments/lecture/8da91e7b-a666-4594-a0a7-ba3462b7cdda
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/8da91e7b-a666-4594-a0a7-ba3462b7cdda
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T04:51:18.472Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T04:51:19.194Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources
+Status: 404
+Error: NotFoundException: Topic 4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c not found
+    at ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2763:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-08T04:51:19.818Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T04:59:33.756Z] GET /api/v1/calendar/feed?year=2026&month=6
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (D:\Edva\eddva_backend\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (D:\Edva\eddva_backend\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (D:\Edva\eddva_backend\src\modules\institute-settings\calendar-feed.service.ts:206:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-08T04:59:35.425Z] GET /api/v1/calendar/feed?year=2026&month=6
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (D:\Edva\eddva_backend\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (D:\Edva\eddva_backend\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (D:\Edva\eddva_backend\src\modules\institute-settings\calendar-feed.service.ts:206:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-08T04:59:39.915Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T04:59:39.965Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources
+Status: 404
+Error: NotFoundException: Topic 4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c not found
+    at ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2763:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-08T04:59:41.255Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T05:00:23.541Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T05:00:24.557Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T05:04:12.206Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T05:04:12.440Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources
+Status: 404
+Error: NotFoundException: Topic 4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c not found
+    at ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2763:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-08T05:04:13.542Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T05:04:31.347Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T05:06:20.576Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T05:26:39.604Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T05:26:39.694Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources
+Status: 404
+Error: NotFoundException: Topic 4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c not found
+    at ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2763:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-08T05:26:40.932Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:31:20.292Z] GET /api/v1/assignments/lecture/8da91e7b-a666-4594-a0a7-ba3462b7cdda
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/8da91e7b-a666-4594-a0a7-ba3462b7cdda
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:31:21.315Z] GET /api/v1/assignments/lecture/8da91e7b-a666-4594-a0a7-ba3462b7cdda
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/8da91e7b-a666-4594-a0a7-ba3462b7cdda
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:31:25.128Z] GET /api/v1/assignments/lecture/fcea03ce-6a53-4384-ba83-f9737421926f
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/fcea03ce-6a53-4384-ba83-f9737421926f
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:31:27.948Z] GET /api/v1/assignments/lecture/7e125cc4-4c20-4914-b9b8-4979cbab290c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/7e125cc4-4c20-4914-b9b8-4979cbab290c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:31:29.281Z] GET /api/v1/assignments/lecture/7e125cc4-4c20-4914-b9b8-4979cbab290c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/7e125cc4-4c20-4914-b9b8-4979cbab290c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:31:33.224Z] GET /api/v1/assignments/lecture/ec4beb34-e0d4-4181-9c43-00bba22f7050
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/ec4beb34-e0d4-4181-9c43-00bba22f7050
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:31:34.546Z] GET /api/v1/assignments/lecture/ec4beb34-e0d4-4181-9c43-00bba22f7050
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/ec4beb34-e0d4-4181-9c43-00bba22f7050
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:31:48.955Z] GET /api/v1/assignments/lecture/60c6d984-ee6c-4da5-ac7c-7aa5783bae15
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/60c6d984-ee6c-4da5-ac7c-7aa5783bae15
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:31:50.279Z] GET /api/v1/assignments/lecture/60c6d984-ee6c-4da5-ac7c-7aa5783bae15
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/60c6d984-ee6c-4da5-ac7c-7aa5783bae15
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:32:00.607Z] GET /api/v1/assignments/lecture/7e125cc4-4c20-4914-b9b8-4979cbab290c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/7e125cc4-4c20-4914-b9b8-4979cbab290c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T06:32:01.945Z] GET /api/v1/assignments/lecture/7e125cc4-4c20-4914-b9b8-4979cbab290c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/7e125cc4-4c20-4914-b9b8-4979cbab290c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T07:40:03.314Z] GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/assignments/lecture/4030809d-12d6-4c56-ba0b-b48a4a0c644b
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-08T07:40:03.462Z] GET /api/v1/content/topics/4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c/resources
+Status: 404
+Error: NotFoundException: Topic 4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c not found
+    at ContentService.getTopicResources (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2857:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
