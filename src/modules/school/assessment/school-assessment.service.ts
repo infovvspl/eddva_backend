@@ -23,6 +23,7 @@ export class SchoolAssessmentService {
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS file_path VARCHAR NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS chapter_id UUID NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS topic_id UUID NULL`);
+    await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS questions_json JSONB NULL`);
     this.schemaReady = true;
   }
 
@@ -36,11 +37,21 @@ export class SchoolAssessmentService {
         answer_text TEXT NULL,
         file_path VARCHAR NULL,
         status VARCHAR NOT NULL DEFAULT 'submitted',
+        started_at TIMESTAMPTZ NULL,
+        expires_at TIMESTAMPTZ NULL,
+        completed_at TIMESTAMPTZ NULL,
         submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE (assessment_id, student_user_id)
       )
     `);
+    await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NULL`);
+    await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NULL`);
+    await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ NULL`);
+    await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS answers_json JSONB NULL`);
+    await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS objective_score NUMERIC(6,2) NULL`);
+    await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS objective_total NUMERIC(6,2) NULL`);
+    await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS grading_status VARCHAR NULL`);
     this.submissionSchemaReady = true;
   }
 
@@ -62,6 +73,252 @@ export class SchoolAssessmentService {
     if (!line) return fallback;
     const stripped = line.replace(/^#+\s*/, '').slice(0, 120);
     return stripped.length > 80 ? `${stripped.slice(0, 77)}...` : stripped;
+  }
+
+  private normalizeQuestions(input: any): any[] {
+    if (!input) return [];
+    if (Array.isArray(input)) return input.filter(Boolean);
+    if (typeof input === 'string') {
+      try {
+        const parsed = JSON.parse(input);
+        return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  private async hydrateQuestions(row: any) {
+    if (!row) return row;
+    const existing = this.normalizeQuestions(row.questions_json);
+    if (existing.length) {
+      row.questions_json = existing;
+      return row;
+    }
+    const parsed = this.parseQuestionsFromMarkdown(row.content_text || '');
+    row.questions_json = parsed;
+    if (parsed.length && row.id) {
+      try {
+        await this.ds.query(
+          `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text AND questions_json IS NULL`,
+          [row.id, JSON.stringify(parsed)],
+        );
+      } catch {
+        // Non-critical: the current response can still use the parsed questions.
+      }
+    }
+    return row;
+  }
+
+  private parseQuestionsFromMarkdown(content: string): any[] {
+    const text = String(content || '');
+    if (!text.trim()) return [];
+
+    const answerMap = new Map<number, string>();
+    const answerKeyStart = text.search(/^##\s*Answer Key/im);
+    if (answerKeyStart >= 0) {
+      const answerText = text.slice(answerKeyStart);
+      const answerLines = answerText.split(/\r?\n/);
+      for (const line of answerLines) {
+        const match = line.match(/^\s*(?:[-*]\s*)?(\d+)[.)]\s*(?:answer\s*[:\-]\s*)?(.+)$/i);
+        if (!match) continue;
+        const raw = match[2].trim();
+        const option = raw.match(/\(?([a-d])\)?/i)?.[1]?.toLowerCase();
+        answerMap.set(Number(match[1]), option || raw.replace(/^[:\-]\s*/, '').trim());
+      }
+    }
+
+    const questionText = answerKeyStart >= 0 ? text.slice(0, answerKeyStart) : text;
+    const inlineQuestions = this.parseInlineQuestionPaper(questionText, answerMap);
+    if (inlineQuestions.length >= 2) return inlineQuestions;
+
+    const lines = questionText.split(/\r?\n/);
+    const questions: any[] = [];
+    let section = '';
+    let current: any = null;
+
+    const finishCurrent = () => {
+      if (!current) return;
+      current.text = String(current.text || '').trim();
+      if (!current.text) {
+        current = null;
+        return;
+      }
+      if (current.type === 'mcq_single' && current.options?.length) {
+        const answer = answerMap.get(current.number);
+        if (answer) current.correctAnswer = answer;
+      } else if (answerMap.has(current.number)) {
+        current.correctAnswer = answerMap.get(current.number);
+      }
+      questions.push(current);
+      current = null;
+    };
+
+    const sectionType = () => {
+      const lower = section.toLowerCase();
+      if (lower.includes('multiple') || lower.includes('mcq')) return { type: 'mcq_single', marks: 1 };
+      if (lower.includes('true') || lower.includes('false')) return { type: 'true_false', marks: 1 };
+      if (lower.includes('fill')) return { type: 'fill_blank', marks: 1 };
+      if (lower.includes('long')) return { type: 'long_answer', marks: 5 };
+      if (lower.includes('short')) return { type: 'short_answer', marks: 3 };
+      return { type: 'short_answer', marks: 1 };
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      if (/^#{1,4}\s*/.test(line) || /^section\s+[a-z]/i.test(line)) {
+        finishCurrent();
+        section = line.replace(/^#+\s*/, '');
+        continue;
+      }
+      const option = line.match(/^\(?([a-d])\)?[.)]?\s+(.+)$/i);
+      if (current?.type === 'mcq_single' && option) {
+        current.options.push({ id: option[1].toLowerCase(), text: option[2].trim() });
+        continue;
+      }
+      const qMatch = line.match(/^\s*(\d+)[.)]\s+(.+)$/);
+      if (qMatch) {
+        finishCurrent();
+        const spec = sectionType();
+        const displayNumber = Number(qMatch[1]);
+        const sequenceNumber = questions.length + 1;
+        current = {
+          id: `q-${sequenceNumber}`,
+          number: sequenceNumber,
+          displayNumber,
+          type: spec.type,
+          text: qMatch[2].trim(),
+          marks: spec.marks,
+          options: spec.type === 'mcq_single' ? [] : undefined,
+          correctAnswer: answerMap.get(sequenceNumber) || answerMap.get(displayNumber),
+        };
+        continue;
+      }
+      if (current) current.text = `${current.text}\n${line}`;
+    }
+    finishCurrent();
+
+    return questions.map((q, index) => ({
+      id: q.id || `q-${index + 1}`,
+      number: q.number || index + 1,
+      displayNumber: q.displayNumber || q.number || index + 1,
+      type: q.type || 'short_answer',
+      text: q.text,
+      marks: Number(q.marks || 1),
+      options: Array.isArray(q.options) && q.options.length ? q.options : undefined,
+      correctAnswer: q.correctAnswer,
+    }));
+  }
+
+  private parseInlineQuestionPaper(content: string, answerMap: Map<number, string>): any[] {
+    const normalized = String(content || '')
+      .replace(/\r?\n+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!normalized) return [];
+
+    const sectionPattern = /(##\s*)?(Section\s+[A-E]|ବିଭାଗ\s*[-–]?\s*[A-E])/gi;
+    const sectionMatches = Array.from(normalized.matchAll(sectionPattern));
+    const sections = sectionMatches.length
+      ? sectionMatches.map((match, index) => ({
+          title: match[2] || match[0],
+          start: match.index || 0,
+          end: index + 1 < sectionMatches.length ? sectionMatches[index + 1].index || normalized.length : normalized.length,
+        }))
+      : [{ title: '', start: 0, end: normalized.length }];
+
+    const questions: any[] = [];
+    const sectionSpec = (title: string) => {
+      const letter = title.match(/[A-E]/i)?.[0]?.toUpperCase();
+      if (letter === 'A') return { type: 'mcq_single', marks: 1 };
+      if (letter === 'B') return { type: 'true_false', marks: 1 };
+      if (letter === 'C') return { type: 'fill_blank', marks: 1 };
+      if (letter === 'D') return { type: 'short_answer', marks: 3 };
+      if (letter === 'E') return { type: 'long_answer', marks: 5 };
+      return { type: 'short_answer', marks: 1 };
+    };
+
+    for (const section of sections) {
+      const body = normalized.slice(section.start, section.end).replace(section.title, ' ').trim();
+      const spec = sectionSpec(section.title);
+      const matches = Array.from(body.matchAll(/(?:^|\s)(\d{1,2})[.)]\s+/g));
+      if (!matches.length) continue;
+
+      matches.forEach((match, index) => {
+        const start = (match.index || 0) + match[0].length;
+        const end = index + 1 < matches.length ? matches[index + 1].index || body.length : body.length;
+        let raw = body.slice(start, end).trim();
+        if (raw.length < 8) return;
+
+        const sequenceNumber = questions.length + 1;
+        const displayNumber = Number(match[1]);
+        const options: any[] = [];
+        if (spec.type === 'mcq_single') {
+          const optionMatches = Array.from(raw.matchAll(/\(([a-d])\)\s*/gi));
+          if (optionMatches.length >= 2) {
+            const questionEnd = optionMatches[0].index || 0;
+            const questionText = raw.slice(0, questionEnd).trim();
+            optionMatches.forEach((optionMatch, optionIndex) => {
+              const optionStart = (optionMatch.index || 0) + optionMatch[0].length;
+              const optionEnd = optionIndex + 1 < optionMatches.length ? optionMatches[optionIndex + 1].index || raw.length : raw.length;
+              const optionText = raw.slice(optionStart, optionEnd).trim();
+              if (optionText) options.push({ id: optionMatch[1].toLowerCase(), text: optionText });
+            });
+            raw = questionText || raw;
+          }
+        }
+
+        questions.push({
+          id: `q-${sequenceNumber}`,
+          number: sequenceNumber,
+          displayNumber,
+          type: spec.type,
+          text: raw,
+          marks: spec.marks,
+          options: options.length ? options : undefined,
+          correctAnswer: answerMap.get(sequenceNumber) || answerMap.get(displayNumber),
+        });
+      });
+    }
+
+    return questions;
+  }
+
+  private objectiveTypes = new Set(['mcq_single', 'true_false', 'fill_blank', 'integer']);
+
+  private normalizeAnswer(value: any): string {
+    if (Array.isArray(value)) return value.map((v) => this.normalizeAnswer(v)).sort().join(',');
+    return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  private gradeObjective(questions: any[], answers: Record<string, any>) {
+    let score = 0;
+    let total = 0;
+    let writtenPending = false;
+    const details = questions.map((question: any) => {
+      const type = question.type || 'short_answer';
+      const marks = Number(question.marks || 1);
+      const answer = answers?.[question.id];
+      const correctAnswer = question.correctAnswer ?? question.correct_answer;
+      if (!this.objectiveTypes.has(type) || correctAnswer === undefined || correctAnswer === null || correctAnswer === '') {
+        writtenPending = true;
+        return { questionId: question.id, status: 'pending', marks: 0, total: marks };
+      }
+      total += marks;
+      const isCorrect = this.normalizeAnswer(answer) === this.normalizeAnswer(correctAnswer);
+      const marksAwarded = isCorrect ? marks : 0;
+      score += marksAwarded;
+      return {
+        questionId: question.id,
+        status: isCorrect ? 'correct' : 'wrong',
+        marks: marksAwarded,
+        total: marks,
+        correctAnswer,
+      };
+    });
+    return { score, total, writtenPending, details };
   }
 
   async list(user: any, query: any) {
@@ -94,6 +351,7 @@ export class SchoolAssessmentService {
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const sql = `SELECT * FROM assessments ${where} ORDER BY scheduled_date DESC NULLS LAST, created_at DESC`;
     const rows: any[] = await this.ds.query(sql, params);
+    await Promise.all(rows.map((row) => this.hydrateQuestions(row)));
     if (user.role === 'STUDENT' && rows.length) {
       const submissionRows: any[] = await this.ds.query(
         `SELECT * FROM assessment_submissions WHERE student_user_id::text=$1::text`,
@@ -122,7 +380,7 @@ export class SchoolAssessmentService {
         description: row.content_text || '',
         durationMinutes: row.duration_minutes,
         totalMarks: row.total_marks,
-        questions: row.content_text ? [{ id: row.id, text: row.content_text }] : [],
+        questions: this.normalizeQuestions(row.questions_json),
       })),
     };
   }
@@ -170,7 +428,7 @@ export class SchoolAssessmentService {
       `Begin with a paper header (Subject, Class, Maximum Marks, Time Allowed) and a brief "General Instructions" list.`,
       `Include ONLY these sections, in this order, each with a clear section heading and the EXACT number of questions specified:`,
       ...sections,
-      `Number questions continuously within each section. Keep every question syllabus-appropriate for ${className}.`,
+      `Use one continuous question number sequence across the whole paper; do not restart numbering in later sections. Keep every question syllabus-appropriate for ${className}.`,
       `At the very END, add a "## Answer Key" section with the correct answers for the objective sections only (MCQ, True/False, Fill in the Blanks). Do NOT reveal answers inside the question sections.`,
       body.prompt?.trim() ? `Additional teacher instructions: ${body.prompt.trim()}` : '',
       `Output ONLY the Markdown question paper.`,
@@ -198,6 +456,7 @@ export class SchoolAssessmentService {
         data: {
           title: body.title?.trim() || this.deriveTitle(content, `${subjectName} ${testType} test`),
           contentText: content,
+          questions: this.parseQuestionsFromMarkdown(content),
         },
       };
     } catch {
@@ -210,6 +469,8 @@ export class SchoolAssessmentService {
     const classId = body.classId || body.class_id || null;
     const sectionId = body.sectionId || body.section_id || null;
     const contentText = body.contentText || body.content_text || body.instructions || null;
+    const questions = this.normalizeQuestions(body.questions || body.questionsJson || body.questions_json);
+    const questionsJson = questions.length ? questions : this.parseQuestionsFromMarkdown(contentText || '');
     const filePath = file ? file.path.replace(/\\/g, '/') : (body.filePath || body.file_path || null);
     const contentSource = filePath ? 'upload' : contentText ? (body.contentSource || body.content_source || 'manual') : 'metadata';
     const title = String(body.title || '').trim() || this.deriveTitle(contentText || '', '');
@@ -218,8 +479,8 @@ export class SchoolAssessmentService {
     }
     const rows: any[] = await this.ds.query(
       `INSERT INTO assessments
-        (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, topic_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+        (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, topic_id, questions_json)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb) RETURNING *`,
       [
         title,
         body.assessmentType || body.type || 'exam',
@@ -237,6 +498,7 @@ export class SchoolAssessmentService {
         filePath,
         body.chapterId || body.chapter_id || null,
         body.topicId || body.topic_id || null,
+        questionsJson.length ? JSON.stringify(questionsJson) : null,
       ],
     );
     const assessment = rows[0];
@@ -272,11 +534,15 @@ export class SchoolAssessmentService {
     await this.ensureAssessmentContentColumns();
     const rows: any[] = await this.ds.query(`SELECT * FROM assessments WHERE id=$1`, [id]);
     if (!rows.length) throw new NotFoundException('Assessment not found');
-    return { success: true, data: rows[0] };
+    const row = await this.hydrateQuestions(rows[0]);
+    return { success: true, data: row };
   }
 
   async update(id: string, body: any) {
     await this.ensureAssessmentContentColumns();
+    const contentText = body.contentText || body.content_text || body.instructions || null;
+    const questions = this.normalizeQuestions(body.questions || body.questionsJson || body.questions_json);
+    const questionsJson = questions.length ? questions : contentText ? this.parseQuestionsFromMarkdown(contentText) : null;
     const rows: any[] = await this.ds.query(
       `UPDATE assessments
        SET title=COALESCE($2,title),
@@ -287,7 +553,8 @@ export class SchoolAssessmentService {
            scheduled_date=COALESCE($7,scheduled_date),
            content_text=COALESCE($8,content_text),
            content_source=COALESCE($9,content_source),
-           file_path=COALESCE($10,file_path)
+           file_path=COALESCE($10,file_path),
+           questions_json=COALESCE($11::jsonb,questions_json)
        WHERE id=$1 RETURNING *`,
       [
         id,
@@ -299,9 +566,10 @@ export class SchoolAssessmentService {
         body.scheduledAt || body.scheduledDate || body.scheduled_date
           ? new Date(body.scheduledAt || body.scheduledDate || body.scheduled_date)
           : null,
-        body.contentText || body.content_text || body.instructions || null,
+        contentText,
         body.contentSource || body.content_source || null,
         body.filePath || body.file_path || null,
+        questionsJson ? JSON.stringify(questionsJson) : null,
       ],
     );
     if (!rows.length) throw new NotFoundException('Assessment not found');
@@ -332,33 +600,162 @@ export class SchoolAssessmentService {
     return { success: true, data: rows[0] || null };
   }
 
-  async submitAssessment(user: any, assessmentId: string, body: any, file?: Express.Multer.File) {
+  async startAttempt(user: any, assessmentId: string) {
     await this.ensureAssessmentContentColumns();
     await this.ensureAssessmentSubmissionSchema();
 
-    const assessmentRows: any[] = await this.ds.query(`SELECT id,title FROM assessments WHERE id::text=$1::text`, [assessmentId]);
+    const assessmentRows: any[] = await this.ds.query(
+      `SELECT id,title,duration_minutes,content_text,questions_json FROM assessments WHERE id::text=$1::text`,
+      [assessmentId],
+    );
     if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
+    const assessment = await this.hydrateQuestions(assessmentRows[0]);
+    const durationMinutes = Math.max(1, Number(assessment.duration_minutes || 60));
 
-    const answerText = String(body.answerText || body.answer_text || body.notes || '').trim();
-    const filePath = file ? file.path.replace(/\\/g, '/') : (body.filePath || body.file_path || null);
-    if (!answerText && !filePath) {
-      throw new BadRequestException('Write an answer or upload a file');
+    const existingRows: any[] = await this.ds.query(
+      `SELECT * FROM assessment_submissions
+       WHERE assessment_id::text=$1::text AND student_user_id::text=$2::text
+       LIMIT 1`,
+      [assessmentId, user.id],
+    );
+    const existing = existingRows[0];
+    if (existing?.status && existing.status !== 'in_progress') {
+      return { success: true, data: existing };
     }
 
     const rows: any[] = await this.ds.query(
       `INSERT INTO assessment_submissions
-        (assessment_id, student_user_id, answer_text, file_path, status)
-       VALUES ($1,$2,$3,$4,'submitted')
+        (assessment_id, student_user_id, status, started_at, expires_at, submitted_at)
+       VALUES ($1,$2,'in_progress',NOW(),NOW() + ($3::int * INTERVAL '1 minute'),NOW())
+       ON CONFLICT (assessment_id, student_user_id)
+       DO UPDATE SET
+        status=CASE
+          WHEN assessment_submissions.status IN ('submitted','auto_submitted','graded') THEN assessment_submissions.status
+          ELSE 'in_progress'
+        END,
+        started_at=COALESCE(assessment_submissions.started_at, NOW()),
+        expires_at=COALESCE(assessment_submissions.expires_at, assessment_submissions.started_at + ($3::int * INTERVAL '1 minute'), NOW() + ($3::int * INTERVAL '1 minute')),
+        updated_at=NOW()
+       RETURNING *`,
+      [assessmentId, user.id, durationMinutes],
+    );
+    return { success: true, data: { ...rows[0], questions: assessment.questions_json || [] } };
+  }
+
+  async saveAnswer(user: any, assessmentId: string, body: any) {
+    await this.ensureAssessmentContentColumns();
+    await this.ensureAssessmentSubmissionSchema();
+
+    const attemptRes = await this.startAttempt(user, assessmentId);
+    const attempt = attemptRes.data;
+    if (attempt?.status && attempt.status !== 'in_progress') {
+      throw new BadRequestException('This assessment has already been submitted');
+    }
+    if (attempt?.expires_at && new Date(attempt.expires_at).getTime() < Date.now()) {
+      throw new BadRequestException('Time is over for this assessment');
+    }
+
+    const questionId = String(body.questionId || body.question_id || '').trim();
+    if (!questionId) throw new BadRequestException('Question ID is required');
+    const existingAnswers = typeof attempt.answers_json === 'object' && attempt.answers_json ? attempt.answers_json : {};
+    const answers = { ...existingAnswers, [questionId]: body.answer ?? body.value ?? '' };
+    const rows: any[] = await this.ds.query(
+      `UPDATE assessment_submissions
+       SET answers_json=$3::jsonb, updated_at=NOW()
+       WHERE assessment_id::text=$1::text AND student_user_id::text=$2::text
+       RETURNING *`,
+      [assessmentId, user.id, JSON.stringify(answers)],
+    );
+    return { success: true, data: rows[0] };
+  }
+
+  async submitAssessment(user: any, assessmentId: string, body: any, file?: Express.Multer.File) {
+    await this.ensureAssessmentContentColumns();
+    await this.ensureAssessmentSubmissionSchema();
+
+    const assessmentRows: any[] = await this.ds.query(`SELECT id,title,duration_minutes,total_marks,content_text,questions_json FROM assessments WHERE id::text=$1::text`, [assessmentId]);
+    if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
+    const assessment = await this.hydrateQuestions(assessmentRows[0]);
+
+    const answerText = String(body.answerText || body.answer_text || body.notes || '').trim();
+    const submittedAnswers = body.answersJson || body.answers_json || body.answers;
+    let bodyAnswers: Record<string, any> | null = null;
+    if (submittedAnswers) {
+      try {
+        bodyAnswers = typeof submittedAnswers === 'string' ? JSON.parse(submittedAnswers || '{}') : submittedAnswers;
+      } catch {
+        throw new BadRequestException('Invalid answer format');
+      }
+    }
+    const filePath = file ? file.path.replace(/\\/g, '/') : (body.filePath || body.file_path || null);
+    const autoSubmit = body.autoSubmit === true || body.autoSubmit === 'true';
+    if (!answerText && !filePath && !bodyAnswers && !autoSubmit) {
+      throw new BadRequestException('Write an answer or upload a file');
+    }
+
+    const attemptRes = await this.startAttempt(user, assessmentId);
+    const attempt = attemptRes.data;
+    if (attempt?.status && attempt.status !== 'in_progress') {
+      throw new BadRequestException('This assessment has already been submitted');
+    }
+    if (!autoSubmit && attempt?.expires_at && new Date(attempt.expires_at).getTime() < Date.now()) {
+      throw new BadRequestException('Time is over for this assessment');
+    }
+
+    const existingAnswers = typeof attempt?.answers_json === 'object' && attempt.answers_json ? attempt.answers_json : {};
+    const answers = bodyAnswers || existingAnswers;
+    const questions = this.normalizeQuestions(assessment.questions_json);
+    const grading = questions.length ? this.gradeObjective(questions, answers || {}) : null;
+    const gradingStatus = grading
+      ? grading.writtenPending
+        ? 'objective_graded_pending_manual'
+        : 'auto_graded'
+      : null;
+
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO assessment_submissions
+        (assessment_id, student_user_id, answer_text, file_path, status, started_at, expires_at, completed_at, answers_json, objective_score, objective_total, grading_status)
+       VALUES ($1,$2,$3,$4,$5,NOW(),NOW() + ($6::int * INTERVAL '1 minute'),NOW(),$7::jsonb,$8,$9,$10)
        ON CONFLICT (assessment_id, student_user_id)
        DO UPDATE SET
         answer_text=EXCLUDED.answer_text,
         file_path=COALESCE(EXCLUDED.file_path, assessment_submissions.file_path),
-        status='submitted',
+        status=EXCLUDED.status,
+        completed_at=NOW(),
+        answers_json=COALESCE(EXCLUDED.answers_json, assessment_submissions.answers_json),
+        objective_score=EXCLUDED.objective_score,
+        objective_total=EXCLUDED.objective_total,
+        grading_status=EXCLUDED.grading_status,
         submitted_at=NOW(),
         updated_at=NOW()
        RETURNING *`,
-      [assessmentId, user.id, answerText || null, filePath],
+      [
+        assessmentId,
+        user.id,
+        answerText || attempt?.answer_text || null,
+        filePath,
+        autoSubmit ? 'auto_submitted' : 'submitted',
+        Math.max(1, Number(assessment.duration_minutes || 60)),
+        answers ? JSON.stringify(answers) : null,
+        grading ? grading.score : null,
+        grading ? grading.total : null,
+        gradingStatus,
+      ],
     );
+
+    if (grading && !grading.writtenPending) {
+      const totalMarks = Number(assessment.total_marks || grading.total || 100);
+      const marksObtained = grading.total > 0 ? Math.round((grading.score / grading.total) * totalMarks * 100) / 100 : 0;
+      await this.saveResult({
+        assessmentId,
+        studentId: user.id,
+        totalMarks,
+        marksObtained,
+        grade: marksObtained / Math.max(totalMarks, 1) >= 0.9 ? 'A+' : marksObtained / Math.max(totalMarks, 1) >= 0.75 ? 'A' : marksObtained / Math.max(totalMarks, 1) >= 0.6 ? 'B' : marksObtained / Math.max(totalMarks, 1) >= 0.4 ? 'C' : 'F',
+        remarks: 'Auto-graded objective assessment',
+      });
+    }
+
     return { success: true, data: rows[0] };
   }
 

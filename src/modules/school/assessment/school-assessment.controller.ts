@@ -32,6 +32,14 @@ export class SchoolAssessmentController {
   @Get(':id/my-submission') mySubmission(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.mySubmission(user, id);
   }
+  @Post(':id/start')
+  startAttempt(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.startAttempt(user, id);
+  }
+  @Post(':id/answer')
+  saveAnswer(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.saveAnswer(user, id, body);
+  }
   @Post(':id/submit')
   @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
   submit(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any, @UploadedFile() file?: Express.Multer.File) {
