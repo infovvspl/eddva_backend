@@ -50,7 +50,7 @@ export const schoolDbConfig: DataSourceOptions = {
     family: 4,
     max: parseInt(process.env.SCHOOL_DB_POOL_MAX || defaultDbPoolMax),
     idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 15_000,
+    connectionTimeoutMillis: 30_000,
   },
   entities: [__dirname + '/../modules/school/**/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../modules/school/migrations/*{.ts,.js}'],

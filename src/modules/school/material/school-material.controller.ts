@@ -26,6 +26,10 @@ export class SchoolMaterialController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   aiSave(@SchoolUser() user: any, @Body() body: any) { return this.svc.saveAiMaterial(user, body); }
 
+  @Post('ai-slide-image')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  aiSlideImage(@SchoolUser() user: any, @Body() body: any) { return this.svc.generateSlideImage(user, body); }
+
   @Post()
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }

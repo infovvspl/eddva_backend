@@ -29,6 +29,17 @@ export class SchoolAssessmentController {
   create(@SchoolUser() user: any, @Body() body: any, @UploadedFile() file?: Express.Multer.File) {
     return this.svc.create(user, body, file);
   }
+  @Get(':id/my-submission') mySubmission(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.mySubmission(user, id);
+  }
+  @Post(':id/submit')
+  @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
+  submit(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any, @UploadedFile() file?: Express.Multer.File) {
+    return this.svc.submitAssessment(user, id, body, file);
+  }
+  @Get(':id/submissions') listSubmissions(@Param('id') id: string) {
+    return this.svc.listSubmissions(id);
+  }
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(id); }
   @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
   @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(id); }

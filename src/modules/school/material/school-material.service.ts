@@ -1,13 +1,16 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 
+/** Material types accepted by the study_materials.type enum (school). */
+const ALLOWED_MATERIAL_TYPES = ['notes', 'pyq', 'formula_sheet', 'dpp', 'mindmap', 'ppt', 'ebook'];
+
 @Injectable()
-export class SchoolMaterialService {
+export class SchoolMaterialService implements OnModuleInit {
   private readonly logger = new Logger(SchoolMaterialService.name);
 
   constructor(
@@ -16,6 +19,15 @@ export class SchoolMaterialService {
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: SchoolNotificationService,
   ) { }
+
+  /** Ensure newer material types exist on the study_materials.type enum. */
+  async onModuleInit() {
+    try {
+      await this.ds.query(`ALTER TYPE study_materials_type_enum ADD VALUE IF NOT EXISTS 'ebook'`);
+    } catch (err) {
+      this.logger.warn(`Could not ensure 'ebook' material type enum value: ${(err as Error).message}`);
+    }
+  }
 
 
   /** Resolve a topic's name + its chapter/subject context from the school DB. */
@@ -44,7 +56,7 @@ export class SchoolMaterialService {
     const isPresentation = body.contentType === 'presentation' || body.contentType === 'ppt';
     const extraContext = [
       isQuestionType && body.questionCount ? `Generate exactly ${body.questionCount} questions` : '',
-      isPresentation ? 'Format as presentation slides. Use "## Slide N: <title>" headings followed by concise bullet points for each slide.' : '',
+      isPresentation ? 'Format as presentation slides. For each slide use a "## Slide N: <title>" heading, then 3-5 concise bullet points, and finally one line "IMAGE: <a short, concrete, visual description of a single illustrative image for this slide>" (describe objects/scene, not abstract ideas).' : '',
       (body.extraContext || '').trim(),
     ].filter(Boolean).join('. ') || undefined;
 
@@ -97,6 +109,88 @@ export class SchoolMaterialService {
       ],
     );
     return { success: true, data: rows[0] };
+  }
+
+  /**
+   * Generate (or fetch from cache) an AI image for a single presentation slide
+   * via the Hugging Face Inference API, store it in S3, and return its URL.
+   * Cached by prompt hash so the same slide isn't regenerated on every view.
+   */
+  async generateSlideImage(user: any, body: { prompt?: string }) {
+    const prompt = String(body?.prompt || '').trim();
+    if (!prompt) throw new BadRequestException('prompt is required');
+    const instituteId = user.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
+
+    const token = process.env.HF_TOKEN;
+    if (!token) {
+      throw new BadRequestException('Image generation is not configured (missing HF_TOKEN)');
+    }
+    const model = process.env.HF_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
+
+    const styled = `${prompt}. Clean modern flat educational illustration, infographic / textbook diagram style, vector art, vibrant colors, plain white background, highly detailed, sharp, no text, no words, no captions, no watermark`;
+    const hash = createHash('sha1').update(`${model}|${styled}`).digest('hex').slice(0, 24);
+    const key = `tenants/${instituteId}/slide-images/${hash}.png`;
+
+    // Cache hit → return existing image.
+    if (await this.s3Service.exists(key)) {
+      return { success: true, data: { url: this.s3Service.toPublicUrl(key), cached: true } };
+    }
+
+    // Generate via Hugging Face (retry once if the model is cold-loading).
+    const buffer = await this.callHuggingFace(model, styled, token);
+    if (!buffer) {
+      throw new BadRequestException('Image generation failed or timed out. Try again.');
+    }
+
+    await this.s3Service.upload(key, buffer, 'image/png');
+    return { success: true, data: { url: this.s3Service.toPublicUrl(key), cached: false } };
+  }
+
+  private async callHuggingFace(
+    model: string,
+    prompt: string,
+    token: string,
+  ): Promise<Buffer | null> {
+    const url = `https://router.huggingface.co/hf-inference/models/${model}`;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Accept: 'image/png',
+          },
+          body: JSON.stringify({ inputs: prompt, parameters: { width: 1024, height: 768, num_inference_steps: 6 } }),
+        });
+
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.startsWith('image/')) {
+          return Buffer.from(await res.arrayBuffer());
+        }
+
+        // Model still loading → HF returns 503 with an estimated_time; wait & retry.
+        if (res.status === 503 && attempt === 0) {
+          let waitMs = 8000;
+          try {
+            const j: any = await res.json();
+            if (j?.estimated_time) waitMs = Math.min(20000, Math.ceil(j.estimated_time * 1000));
+          } catch { /* ignore */ }
+          this.logger.log(`HF model ${model} loading; retrying in ${waitMs}ms`);
+          await new Promise((r) => setTimeout(r, waitMs));
+          continue;
+        }
+
+        const errText = await res.text().catch(() => '');
+        this.logger.warn(`HF image gen failed (${res.status}): ${errText.slice(0, 200)}`);
+        return null;
+      } catch (err) {
+        this.logger.warn(`HF image gen error: ${(err as Error).message}`);
+        return null;
+      }
+    }
+    return null;
   }
 
   /** Generate a tenant-scoped presigned S3 PUT URL for a school material file. */
@@ -233,10 +327,10 @@ export class SchoolMaterialService {
       if (cRow.length) resolvedChapterName = cRow[0].name;
     }
 
-    // Map categories ('notes', 'pyq', 'formula_sheet', 'dpp')
+    // Map categories ('notes', 'pyq', 'formula_sheet', 'dpp', 'mindmap', 'ppt', 'ebook')
     const fileTypeLower = String(body.fileType || '').toLowerCase();
-    const type = ['notes', 'pyq', 'formula_sheet', 'dpp', 'mindmap', 'ppt'].includes(fileTypeLower) 
-      ? fileTypeLower 
+    const type = ALLOWED_MATERIAL_TYPES.includes(fileTypeLower)
+      ? fileTypeLower
       : 'notes';
 
     const rows: any[] = await this.ds.query(
@@ -380,8 +474,8 @@ export class SchoolMaterialService {
     }
 
     const fileTypeLower = body.fileType ? String(body.fileType).toLowerCase() : undefined;
-    const type = fileTypeLower && ['notes', 'pyq', 'formula_sheet', 'dpp', 'mindmap', 'ppt'].includes(fileTypeLower) 
-      ? fileTypeLower 
+    const type = fileTypeLower && ALLOWED_MATERIAL_TYPES.includes(fileTypeLower)
+      ? fileTypeLower
       : undefined;
 
     await this.ds.query(
