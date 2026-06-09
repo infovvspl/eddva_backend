@@ -175,12 +175,12 @@ export class AiBridgeService {
   async transcribeAudio(
     payload: {
       audioUrl: string;
-      language: 'en' | 'hi' | 'hinglish' | 'hi-in';
+      language: 'en' | 'hi' | 'hinglish' | 'hi-in' | 'od' | 'odia' | 'or' | 'or-in';
       topicId?: string;
     },
     tenantId?: string,
   ) {
-    return this.post('/stt/transcribe', payload, tenantId, 600_000); // 10 min — Whisper only
+    return this.post('/stt/transcribe', payload, tenantId, 600_000); // 10 min — Whisper (en/hi) or Sarvam STT (od)
   }
 
   // ── AI #7b — Notes from pre-existing Transcript (YouTube / manual) ────────
@@ -192,7 +192,7 @@ export class AiBridgeService {
     payload: {
       transcript: string;
       topicId: string;
-      language: 'en' | 'hi' | 'hinglish' | 'hi-in';
+      language: 'en' | 'hi' | 'hinglish' | 'hi-in' | 'od' | 'odia' | 'or' | 'or-in';
     },
     tenantId?: string,
   ) {
