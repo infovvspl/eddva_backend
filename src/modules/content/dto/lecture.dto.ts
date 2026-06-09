@@ -12,6 +12,7 @@ import {
     IsInt,
     Min,
     Max,
+    IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
@@ -124,7 +125,7 @@ export class CreateLectureDto {
     @IsString()
     thumbnailUrl?: string;
 
-    @ApiPropertyOptional({ enum: ['en', 'hi', 'hinglish'], default: 'en', description: 'Language the lecture is recorded in' })
+    @ApiPropertyOptional({ enum: ['en', 'hi', 'hinglish', 'od'], default: 'en', description: 'Language the lecture is recorded in' })
     @IsOptional()
     @IsString()
     lectureLanguage?: string;
@@ -177,6 +178,12 @@ export class UpdateLectureDto extends PartialType(CreateLectureDto) {
     @IsArray()
     @IsString({ each: true })
     aiFormulas?: string[];
+
+    @ApiPropertyOptional({ type: [Object], description: 'Structured AI-generated educational figures embedded in notes' })
+    @IsOptional()
+    @IsArray()
+    @IsObject({ each: true })
+    aiNoteImages?: Array<Record<string, unknown>>;
 
     @ApiPropertyOptional()
     @IsOptional()

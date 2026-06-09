@@ -120,10 +120,16 @@ const ALL_COACHING_ENTITIES = [
         return {
           ...coachingDbConfig,
           synchronize: !isProd && dbSyncRequested,
+<<<<<<< HEAD
           logging: process.env.DB_LOGGING === 'true',
           // Survive transient network/RDS blips at startup instead of crashing.
           retryAttempts: 10,
           retryDelay: 3000,
+=======
+          logging: !isProd,
+          retryAttempts: 3,
+          retryDelay: 2000,
+>>>>>>> a18f775947b803d0b18d4cf38b8e6783d46ef5fc
           entities: ALL_COACHING_ENTITIES,
         };
       },

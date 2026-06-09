@@ -159,7 +159,7 @@ export class AiBridgeService {
     payload: {
       audioUrl: string;
       topicId: string;
-      language: 'en' | 'hi' | 'hinglish' | 'hi-in';
+      language: 'en' | 'hi' | 'hinglish' | 'hi-in' | 'od';
     },
     tenantId?: string,
   ) {
@@ -213,11 +213,27 @@ export class AiBridgeService {
     payload: {
       videoId: string;
       topicId: string;
-      language: 'en' | 'hi' | 'hinglish' | 'hi-in';
+      language: 'en' | 'hi' | 'hinglish' | 'hi-in' | 'od';
     },
     tenantId?: string,
   ) {
     return this.post('/stt/notes-from-youtube', payload, tenantId, 900_000);
+  }
+
+  // ── AI #7d — Regenerate a single note image in isolation ────────────────────
+  async regenerateNoteImage(
+    payload: {
+      topicId?: string;
+      caption: string;
+      visualDescription: string;
+      evidenceQuote?: string;
+      sectionHeading?: string;
+      notes: string;
+      language?: string;
+    },
+    tenantId?: string,
+  ) {
+    return this.post('/stt/regenerate-note-image', payload, tenantId, 180_000);
   }
 
   // ── AI #8 — Student Feedback Engine ──────────────────────────────────────
@@ -1302,10 +1318,6 @@ export class AiBridgeService {
     tenantId?: string,
     vertical?: string,
   ): Promise<{ content: string; contentType: string; topicName: string }> {
-    const payload = {
-      ...dto,
-      extraContext: `${dto.extraContext || ''} (Generate all content in English only)`.trim(),
-    };
-    return this.post('/content/generate', payload, tenantId, 120_000, vertical);
+    return this.post('/content/generate', dto, tenantId, 120_000, vertical);
   }
 }
