@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
+import { AiUsageService } from '../ai-usage/ai-usage.service';
 
 /**
  * AiBridgeService
@@ -25,10 +26,43 @@ export class AiBridgeService {
   constructor(
     private readonly http: HttpService,
     config: ConfigService,
+    private readonly aiUsage: AiUsageService,
   ) {
     this.baseUrl = config.get<string>('ai.baseUrl');
     this.apiKey = config.get<string>('ai.apiKey');
     this.timeout = config.get<number>('ai.timeoutMs');
+  }
+
+  // Maps an AI endpoint path to a stable usage feature key + provider.
+  // Health checks and anything unmapped are skipped from tracking.
+  private static readonly FEATURE_MAP: Record<string, { feature: string; provider: string }> = {
+    '/doubt/resolve': { feature: 'doubt_resolve', provider: 'groq' },
+    '/doubt/ocr-image': { feature: 'image_ocr', provider: 'groq_vision' },
+    '/tutor/session': { feature: 'tutor', provider: 'groq' },
+    '/tutor/continue': { feature: 'tutor', provider: 'groq' },
+    '/content/generate': { feature: 'content_generate', provider: 'groq' },
+    '/stt/transcribe': { feature: 'stt_transcribe', provider: 'whisper_sarvam' },
+    '/stt/notes': { feature: 'stt_notes', provider: 'whisper_llm' },
+    '/stt/notes-from-text': { feature: 'notes_from_text', provider: 'groq_gemini' },
+    '/stt/notes-from-youtube': { feature: 'notes_from_youtube', provider: 'groq' },
+    '/quiz/generate': { feature: 'quiz_generate', provider: 'groq' },
+    '/translate': { feature: 'translate', provider: 'sarvam' },
+    '/plan/generate': { feature: 'plan_generate', provider: 'groq' },
+    '/syllabus/generate': { feature: 'syllabus_generate', provider: 'groq' },
+    '/test/generate/': { feature: 'test_generate', provider: 'groq' },
+    '/recommend/content': { feature: 'recommend', provider: 'groq' },
+    '/career/guidance': { feature: 'career_guidance', provider: 'groq' },
+    '/feedback/generate': { feature: 'feedback', provider: 'groq' },
+    '/notes/analyze': { feature: 'notes_analyze', provider: 'groq' },
+    '/resume/analyze': { feature: 'resume_analyze', provider: 'groq' },
+    '/interview/start': { feature: 'interview', provider: 'groq' },
+  };
+
+  private extractTokens(data: any): number | null {
+    const meta = data?._meta || {};
+    const usage = data?.usage || meta?.usage || {};
+    const total = meta?.tokens ?? meta?.total_tokens ?? usage?.total_tokens;
+    return Number.isFinite(Number(total)) ? Number(total) : null;
   }
 
   private headers(tenantId?: string, vertical?: string) {
@@ -48,6 +82,28 @@ export class AiBridgeService {
   }
 
   private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string): Promise<T> {
+    const mapped = AiBridgeService.FEATURE_MAP[path];
+    const v = vertical || 'coaching';
+
+    // ── Quota enforcement (only for tracked, institute-scoped feature calls) ──
+    if (mapped && tenantId) {
+      const q = await this.aiUsage.checkQuota(tenantId, v, mapped.feature);
+      if (!q.allowed) {
+        this.logger.warn(`AI quota exceeded: institute=${tenantId} feature=${mapped.feature} used=${q.used}/${q.limit}`);
+        throw new HttpException(
+          {
+            message: `AI usage limit reached for "${mapped.feature}" this month (${q.used}/${q.limit}). Contact your administrator to raise the limit.`,
+            error: 'ai_quota_exceeded',
+            feature: mapped.feature,
+            used: q.used,
+            limit: q.limit,
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
+
+    const startedAt = Date.now();
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
@@ -55,8 +111,27 @@ export class AiBridgeService {
           timeout: timeoutMs ?? this.timeout,
         }),
       );
+      // Fire-and-forget usage record (never blocks/fails the AI response).
+      if (mapped) {
+        const data: any = res.data;
+        void this.aiUsage.record({
+          instituteId: tenantId,
+          vertical: v,
+          feature: mapped.feature,
+          provider: data?._meta?.notes_provider || mapped.provider,
+          model: data?._meta?.model || null,
+          success: true,
+          statusCode: res.status,
+          latencyMs: Number(data?._meta?.latency_ms) || (Date.now() - startedAt),
+          totalTokens: this.extractTokens(data),
+        });
+      }
       return res.data;
     } catch (err: any) {
+      // Don't double-count quota rejections as AI errors.
+      if (err instanceof HttpException && (err.getResponse() as any)?.error === 'ai_quota_exceeded') {
+        throw err;
+      }
       const status = err?.response?.status;
       const data = err?.response?.data;
       const detail =
@@ -65,6 +140,17 @@ export class AiBridgeService {
       this.logger.error(
         `AI Bridge error [${path}] tenant=${tenantId || 'none'} status=${status ?? 'n/a'} code=${err?.code ?? 'n/a'}: ${detail}`,
       );
+      if (mapped) {
+        void this.aiUsage.record({
+          instituteId: tenantId,
+          vertical: v,
+          feature: mapped.feature,
+          provider: mapped.provider,
+          success: false,
+          statusCode: status ?? null,
+          latencyMs: Date.now() - startedAt,
+        });
+      }
       throw err;
     }
   }
@@ -197,6 +283,29 @@ export class AiBridgeService {
     tenantId?: string,
   ) {
     return this.post('/stt/notes-from-text', payload, tenantId, 900_000);
+  }
+
+  // ── Career Guidance (school) ─────────────────────────────────────────────
+  async generateCareerGuidance(
+    payload: {
+      studentName: string;
+      grade: number;
+      board: string;
+      instituteId: string;
+      subjectMarks: Array<{ subject: string; percentage: number; grade: string }>;
+      strongSubjects: string[];
+      weakSubjects: string[];
+      quizTestSummary: string;
+      attendancePercentage: number;
+      homeworkRate: number;
+      hollandCode: string;
+      hollandScores: Record<string, number>;
+      topCareerMatches: Array<{ careerId: string; title: string; fitScore: number }>;
+    },
+    tenantId?: string,
+  ): Promise<{ report?: Record<string, unknown>; latency_ms?: number }> {
+    // 60s+ — career report generation runs a large LLM pass.
+    return this.post('/career/guidance', payload, tenantId || payload.instituteId, 90_000, 'school');
   }
 
   // ── AI #7c — YouTube video ID → captions fetched server-side → notes ────────
