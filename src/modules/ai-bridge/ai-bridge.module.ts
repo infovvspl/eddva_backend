@@ -6,6 +6,7 @@ import { AiBridgeService } from './ai-bridge.service';
 import { AiBridgeController } from './ai-bridge.controller';
 import { AiFeatureGuard } from '../../common/guards/ai-feature.guard';
 import { Tenant } from '../../database/entities/tenant.entity';
+import { AiUsageModule } from '../ai-usage/ai-usage.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { Tenant } from '../../database/entities/tenant.entity';
       }),
     }),
     TypeOrmModule.forFeature([Tenant], 'coaching'),
+    AiUsageModule,
   ],
   controllers: [AiBridgeController],
   providers: [AiBridgeService, AiFeatureGuard],

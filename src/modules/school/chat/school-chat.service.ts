@@ -104,18 +104,16 @@ export class SchoolChatService implements OnModuleInit {
               SELECT DISTINCT LOWER(s.parent_email) 
               FROM students s
               JOIN teachers t ON t.user_id = $2
-              LEFT JOIN teacher_sections ts ON ts.teacher_id = t.id
               LEFT JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
-              WHERE s.institute_id = $1 AND (s.section_id = ts.section_id OR s.section_id = taa.section_id) AND s.parent_email IS NOT NULL
+              WHERE s.institute_id = $1 AND s.section_id = taa.section_id AND s.parent_email IS NOT NULL
             ))
             OR
             (u.phone IS NOT NULL AND u.phone IN (
               SELECT DISTINCT s.parent_phone 
               FROM students s
               JOIN teachers t ON t.user_id = $2
-              LEFT JOIN teacher_sections ts ON ts.teacher_id = t.id
               LEFT JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
-              WHERE s.institute_id = $1 AND (s.section_id = ts.section_id OR s.section_id = taa.section_id) AND s.parent_phone IS NOT NULL
+              WHERE s.institute_id = $1 AND s.section_id = taa.section_id AND s.parent_phone IS NOT NULL
             ))
           )
       `;
@@ -130,16 +128,6 @@ export class SchoolChatService implements OnModuleInit {
           AND u.role = 'TEACHER'
           AND u.is_active = true
           AND t.id IN (
-            SELECT ts.teacher_id 
-            FROM teacher_sections ts
-            JOIN students s ON s.section_id = ts.section_id
-            JOIN users parent ON parent.id = $2
-            WHERE s.institute_id = $1 AND (
-              (s.parent_email IS NOT NULL AND LOWER(s.parent_email) = LOWER(parent.email))
-              OR
-              (s.parent_phone IS NOT NULL AND s.parent_phone = parent.phone)
-            )
-            UNION
             SELECT taa.teacher_id 
             FROM teacher_academic_assignments taa
             JOIN students s ON s.section_id = taa.section_id
@@ -458,7 +446,6 @@ export class SchoolChatService implements OnModuleInit {
        JOIN sections sec ON s.section_id = sec.id
        JOIN classes c ON sec.class_id = c.id
        JOIN teachers t ON t.user_id = $2
-       LEFT JOIN teacher_sections ts ON ts.teacher_id = t.id
        LEFT JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
        LEFT JOIN users p ON p.institute_id = $1 AND p.role = 'PARENT' AND (
          (p.email IS NOT NULL AND LOWER(p.email) = LOWER(s.parent_email))
@@ -466,7 +453,7 @@ export class SchoolChatService implements OnModuleInit {
          (p.phone IS NOT NULL AND p.phone = s.parent_phone)
        )
        WHERE s.institute_id = $1 
-         AND (s.section_id = ts.section_id OR s.section_id = taa.section_id)
+         AND s.section_id = taa.section_id
        ORDER BY c.name, sec.name, u.name`,
       [user.instituteId, user.id]
     );

@@ -24,6 +24,7 @@ export class SchoolAssessmentController {
   @Get('mock-tests') legacyMockTests(@SchoolUser() user: any, @Query() query: any) { return this.svc.legacyMockTests(user, query); }
   @Get('sessions') listSessions(@SchoolUser() user: any) { return this.svc.listSessions(user); }
   @Post('ai-generate') aiGenerate(@SchoolUser() user: any, @Body() body: any) { return this.svc.aiGenerateDraft(user, body); }
+  @Post('translate') translate(@SchoolUser() user: any, @Body() body: { text: string; language: string }) { return this.svc.translateText(user, body.text, body.language); }
   @Post()
   @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
   create(@SchoolUser() user: any, @Body() body: any, @UploadedFile() file?: Express.Multer.File) {
@@ -31,6 +32,14 @@ export class SchoolAssessmentController {
   }
   @Get(':id/my-submission') mySubmission(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.mySubmission(user, id);
+  }
+  @Post(':id/start')
+  startAttempt(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.startAttempt(user, id);
+  }
+  @Post(':id/answer')
+  saveAnswer(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.saveAnswer(user, id, body);
   }
   @Post(':id/submit')
   @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
@@ -40,7 +49,7 @@ export class SchoolAssessmentController {
   @Get(':id/submissions') listSubmissions(@Param('id') id: string) {
     return this.svc.listSubmissions(id);
   }
-  @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(id); }
+  @Get(':id') findOne(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.findOne(user, id); }
   @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
   @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(id); }
   @Get(':id/results') listResults(@Param('id') id: string) { return this.svc.listResults(id); }

@@ -22,6 +22,18 @@ export class SchoolClassController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   createRecording(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
 
+  @Post('recordings/:id/retranscribe')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  retranscribe(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.retranscribe(user, id); }
+
+  @Post('recordings/:id/regenerate-notes')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  regenerateNotes(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.regenerateNotes(user, id); }
+
+  @Post('recordings/:id/generate-quiz')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  generateQuiz(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.generateQuiz(user, id); }
+
   @Delete('recordings/:id')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   removeRecording(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.remove(user, id); }

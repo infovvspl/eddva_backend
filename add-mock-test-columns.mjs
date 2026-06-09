@@ -1,13 +1,16 @@
-import { readFileSync } from 'fs';
-import { createRequire } from 'module';
+import { readFileSync } from "fs";
+import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-const pg = require('pg');
+const pg = require("pg");
 
 const env = Object.fromEntries(
-  readFileSync('.env', 'utf8')
-    .split('\n')
-    .filter(l => l.includes('=') && !l.startsWith('#'))
-    .map(l => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; })
+  readFileSync(".env", "utf8")
+    .split("\n")
+    .filter((l) => l.includes("=") && !l.startsWith("#"))
+    .map((l) => {
+      const i = l.indexOf("=");
+      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
+    }),
 );
 
 const client = new pg.Client({
@@ -16,15 +19,14 @@ const client = new pg.Client({
   user: env.DB_USERNAME,
   password: env.DB_PASSWORD,
   database: env.DB_NAME,
-  ssl: env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  ssl: env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
 });
 
 await client.connect();
-console.log('Connected to DB');
+console.log("Connected to DB");
 
-const sqls = [ EXISTS)
+const sqls = [
   `DO $$ BEGIN
-  // enums (safe to run if already exists — CREATE TYPE IF NOT
      CREATE TYPE mock_test_type_enum AS ENUM (
        'full_mock','subject_test','chapter_test','topic_test',
        'subtopic_drill','speed_test','pyq','revision','diagnostic'
@@ -62,11 +64,12 @@ const sqls = [ EXISTS)
 for (const sql of sqls) {
   try {
     await client.query(sql);
-    console.log('OK:', sql.slice(0, 80).replace(/\s+/g, ' '));
+    console.log("OK:", sql.slice(0, 80).replace(/\s+/g, " "));
   } catch (e) {
-    console.error('ERR:', e.message, '\n  SQL:', sql.slice(0, 120));
+    console.error("ERR:", e.message, "\n  SQL:", sql.slice(0, 120));
   }
 }
 
+
 await client.end();
-console.log('\nDone.');
+console.log("\nDone.");

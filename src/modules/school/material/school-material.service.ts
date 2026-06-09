@@ -22,10 +22,31 @@ export class SchoolMaterialService implements OnModuleInit {
 
   /** Ensure newer material types exist on the study_materials.type enum. */
   async onModuleInit() {
-    void this.ds.query(`ALTER TYPE study_materials_type_enum ADD VALUE IF NOT EXISTS 'ebook'`)
-      .catch((err) => {
-        this.logger.warn(`Could not ensure 'ebook' material type enum value: ${(err as Error).message}`);
-      });
+    try {
+      await this.ds.query(`ALTER TYPE study_materials_type_enum ADD VALUE IF NOT EXISTS 'ebook'`);
+    } catch (err) {
+      this.logger.warn(`Could not ensure 'ebook' material type enum value: ${(err as Error).message}`);
+    }
+
+    try {
+      await this.backfillMaterialScopeFromSubjects();
+    } catch (err) {
+      this.logger.warn(`Could not backfill material class/section scope: ${(err as Error).message}`);
+    }
+  }
+
+  private async backfillMaterialScopeFromSubjects() {
+    await this.ds.query(`
+      UPDATE study_materials sm
+      SET
+        class_id = COALESCE(sm.class_id, s.class_id),
+        section_id = COALESCE(sm.section_id, s.section_id),
+        updated_at = NOW()
+      FROM subjects s
+      WHERE sm.subject_id_fk = s.id
+        AND (sm.class_id IS NULL OR sm.section_id IS NULL)
+        AND (s.class_id IS NOT NULL OR s.section_id IS NOT NULL)
+    `);
   }
 
 
@@ -83,6 +104,7 @@ export class SchoolMaterialService implements OnModuleInit {
     await this.validateTeacherAssignment(user, ctx.subject_id, 'AI_SAVE_DENIED');
     const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
+    const scope = await this.resolveSubjectScope(ctx.subject_id, user);
 
     const map: Record<string, string> = { dpp: 'dpp', pyq: 'pyq', mindmap: 'mindmap', ppt: 'ppt', notes: 'notes' };
     const type = map[String(body.resourceType || 'notes').toLowerCase()] ?? 'notes';
@@ -90,9 +112,9 @@ export class SchoolMaterialService implements OnModuleInit {
     const rows: any[] = await this.ds.query(
       `INSERT INTO study_materials (
         tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
-        subject_id_fk, chapter_id, topic_id, file_size_kb
+        subject_id_fk, chapter_id, topic_id, file_size_kb, class_id, section_id
       )
-       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0)
+       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0, $11::uuid, $12::uuid)
        RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId"`,
       [
         instituteId,
@@ -105,6 +127,8 @@ export class SchoolMaterialService implements OnModuleInit {
         ctx.subject_id,
         ctx.chapter_id,
         ctx.topic_id,
+        scope.classId,
+        scope.sectionId,
       ],
     );
     return { success: true, data: rows[0] };
@@ -223,6 +247,41 @@ export class SchoolMaterialService implements OnModuleInit {
     }
   }
 
+  private async resolveSubjectScope(subjectId: string | null | undefined, user?: any) {
+    if (!subjectId) return { classId: null, sectionId: null };
+    const rows = await this.ds.query(
+      `SELECT class_id, section_id FROM subjects WHERE id = $1`,
+      [subjectId],
+    );
+    if (rows[0]?.class_id || rows[0]?.section_id) {
+      return {
+        classId: rows[0]?.class_id ?? null,
+        sectionId: rows[0]?.section_id ?? null,
+      };
+    }
+    if (user?.role === 'TEACHER') {
+      const assignmentRows = await this.ds.query(
+        `SELECT taa.class_id, taa.section_id
+         FROM teacher_academic_assignments taa
+         JOIN teachers t ON t.id = taa.teacher_id
+         WHERE t.user_id = $1 AND taa.subject_id = $2
+         ORDER BY taa.created_at DESC
+         LIMIT 1`,
+        [user.id, subjectId],
+      );
+      if (assignmentRows.length) {
+        return {
+          classId: assignmentRows[0]?.class_id ?? null,
+          sectionId: assignmentRows[0]?.section_id ?? null,
+        };
+      }
+    }
+    return {
+      classId: rows[0]?.class_id ?? null,
+      sectionId: rows[0]?.section_id ?? null,
+    };
+  }
+
   async list(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
     if (!instituteId) {
@@ -271,9 +330,30 @@ export class SchoolMaterialService implements OnModuleInit {
       );
       if (studentRows.length > 0 && studentRows[0].section_id && studentRows[0].class_id) {
         params.push(studentRows[0].class_id);
-        sql += ` AND sm.class_id = $${params.length}::uuid`;
+        const classParam = params.length;
         params.push(studentRows[0].section_id);
-        sql += ` AND sm.section_id = $${params.length}::uuid`;
+        const sectionParam = params.length;
+        sql += ` AND (
+          (sm.class_id = $${classParam}::uuid AND sm.section_id = $${sectionParam}::uuid)
+          OR (sm.class_id = $${classParam}::uuid AND sm.section_id IS NULL)
+          OR (
+            sm.class_id IS NULL
+            AND sm.section_id IS NULL
+            AND s.class_id = $${classParam}::uuid
+            AND s.section_id = $${sectionParam}::uuid
+          )
+          OR (
+            sm.class_id IS NULL
+            AND sm.section_id IS NULL
+            AND EXISTS (
+              SELECT 1
+              FROM teacher_academic_assignments taa
+              WHERE taa.subject_id = sm.subject_id_fk
+                AND taa.class_id = $${classParam}::uuid
+                AND taa.section_id = $${sectionParam}::uuid
+            )
+          )
+        )`;
       } else {
         return { success: true, data: [] };
       }
@@ -325,6 +405,7 @@ export class SchoolMaterialService implements OnModuleInit {
       const cRow = await this.ds.query(`SELECT name FROM chapters WHERE id = $1`, [body.chapterId]);
       if (cRow.length) resolvedChapterName = cRow[0].name;
     }
+    const scope = await this.resolveSubjectScope(body.subjectIdFk || body.subjectId, user);
 
     // Map categories ('notes', 'pyq', 'formula_sheet', 'dpp', 'mindmap', 'ppt', 'ebook')
     const fileTypeLower = String(body.fileType || '').toLowerCase();
@@ -365,8 +446,8 @@ export class SchoolMaterialService implements OnModuleInit {
         body.chapterId || null,
         body.topicId || null,
         body.fileSizeKb || 0,
-        body.classId || null,
-        body.sectionId || null
+        body.classId || scope.classId,
+        body.sectionId || scope.sectionId
       ],
     );
 

@@ -6,3 +6,4 @@ build
 .env.*.local
 uploads/
 .env.example
+logs/

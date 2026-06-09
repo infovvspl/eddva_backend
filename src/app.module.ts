@@ -121,6 +121,9 @@ const ALL_COACHING_ENTITIES = [
           ...coachingDbConfig,
           synchronize: !isProd && dbSyncRequested,
           logging: !isProd,
+          retryAttempts: 3,
+          retryDelay: 2000,
+          entities: ALL_COACHING_ENTITIES,
         };
       },
     }),
@@ -134,6 +137,10 @@ const ALL_COACHING_ENTITIES = [
         ...schoolDbConfig,
         synchronize: false,
         logging: cfg.get('app.nodeEnv') !== 'production',
+        logging: process.env.DB_LOGGING === 'true',
+        // Survive transient network/RDS blips at startup instead of crashing.
+        retryAttempts: 10,
+        retryDelay: 3000,
       }),
     }),
 

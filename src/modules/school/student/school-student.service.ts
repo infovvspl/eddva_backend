@@ -393,6 +393,11 @@ export class SchoolStudentService {
   }
 
   async findOne(id: string) {
+    // Guard against non-UUID ids (e.g. a stray '/students/<word>') so we return a
+    // clean 404 instead of a Postgres "invalid input syntax for type uuid" 500.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))) {
+      throw new NotFoundException('Student not found');
+    }
     const rows: any[] = await this.ds.query(
       `SELECT u.id AS user_id, u.name, u.email, u.phone, u.photo, u.role, u.is_active, u.created_at,
               s.id AS profile_id, s.enrollment_no, s.roll_no, s.section_id, s.dob, s.gender, s.blood_group,
@@ -920,9 +925,18 @@ export class SchoolStudentService {
 
     const materialRows = await this.ds.query(
       `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description 
-       FROM study_materials 
-       WHERE topic_id = $1 AND class_id = $2 AND section_id = $3`,
-      [topicId, student.class_id, student.section_id]
+       FROM study_materials sm
+       WHERE sm.topic_id = $1
+         AND (
+           (sm.class_id = $2 AND sm.section_id = $3)
+           OR (sm.class_id = $2 AND sm.section_id IS NULL)
+           OR (
+             sm.class_id IS NULL
+             AND sm.section_id IS NULL
+             AND sm.subject_id_fk = $4
+           )
+         )`,
+      [topicId, student.class_id, student.section_id, topic.subject_id]
     );
 
     return {
