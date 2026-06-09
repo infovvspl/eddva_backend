@@ -12,23 +12,63 @@ export class SchoolSubjectService {
 
   async list(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
-    let sql = `SELECT s.*, c.name AS class_name, sec.name AS section_name 
-               FROM subjects s 
-               LEFT JOIN classes c ON s.class_id = c.id 
-               LEFT JOIN sections sec ON s.section_id = sec.id 
-               WHERE s.institute_id=$1`;
+    let filter = `s.institute_id=$1`;
     const params: any[] = [instituteId];
+
     if (query.classId) {
       params.push(query.classId);
-      sql += ` AND s.class_id=$${params.length}`;
+      filter += ` AND s.class_id=$${params.length}`;
     }
     if (query.sectionId) {
       params.push(query.sectionId);
-      sql += ` AND s.section_id=$${params.length}`;
+      filter += ` AND s.section_id=$${params.length}`;
     }
-    sql += ` ORDER BY s.name`;
+
+    if (query.search) {
+      const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+      if (searchTerms.length > 0) {
+        const searchConditions = searchTerms.map((term: string) => {
+          params.push(term);
+          return `(LOWER(s.name) LIKE $${params.length} OR LOWER(s.code) LIKE $${params.length})`;
+        });
+        filter += ` AND (${searchConditions.join(' AND ')})`;
+      }
+    }
+
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 10);
+    const offset = (page - 1) * limit;
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM subjects s
+      LEFT JOIN classes c ON s.class_id = c.id 
+      LEFT JOIN sections sec ON s.section_id = sec.id 
+      WHERE ${filter}
+    `;
+    const countResult = await this.ds.query(countQuery, params);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
+
+    const allowedSortFields: Record<string, string> = {
+      name: 's.name',
+      code: 's.code',
+    };
+    const sortBy = allowedSortFields[query.sortBy] || 's.name';
+    const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
+    const sql = `
+      SELECT s.*, c.name AS class_name, sec.name AS section_name 
+      FROM subjects s 
+      LEFT JOIN classes c ON s.class_id = c.id 
+      LEFT JOIN sections sec ON s.section_id = sec.id 
+      WHERE ${filter}
+      ORDER BY ${sortBy} ${sortOrder}
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+    
     const rows: any[] = await this.ds.query(sql, params);
-    return { success: true, data: rows };
+    return { success: true, data: rows, total, page, limit, totalPages };
   }
 
   async create(user: any, body: any) {

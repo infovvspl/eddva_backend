@@ -22,9 +22,9 @@ import { SchoolMaterialModule } from './material/school-material.module';
 import { SchoolNotificationModule } from './notification/school-notification.module';
 import { SchoolChatModule } from './chat/school-chat.module';
 import { SchoolReportModule } from './report/school-report.module';
-import { SchoolCreatorStudioModule } from './creator-studio/school-creator-studio.module';
 import { SchoolActivityLogModule } from './activity-log/school-activity-log.module';
 import { SchoolDoubtModule } from './doubt/school-doubt.module';
+import { SchoolClassModule } from './class/school-class.module';
 import { SchoolJwtGuard } from './guards/school-jwt.guard';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
 
@@ -52,9 +52,9 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
     SchoolNotificationModule,
     SchoolChatModule,
     SchoolReportModule,
-    SchoolCreatorStudioModule,
     SchoolActivityLogModule,
     SchoolDoubtModule,
+    SchoolClassModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
   providers: [SchoolJwtGuard, SchoolRolesGuard],

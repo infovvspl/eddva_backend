@@ -11,4 +11,5 @@ export class SchoolReportController {
 
   @Get('student') studentReport(@SchoolUser() user: any, @Query() query: any) { return this.svc.studentReport(user, query); }
   @Get('assessment') assessmentReport(@SchoolUser() user: any, @Query() query: any) { return this.svc.assessmentReport(user, query); }
+  @Get('teacher/class') teacherClassReport(@SchoolUser() user: any, @Query() query: any) { return this.svc.teacherClassReport(user, query); }
 }

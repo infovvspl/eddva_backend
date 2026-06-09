@@ -27,7 +27,6 @@ export const coachingDbConfig: DataSourceOptions = {
   logging: process.env.NODE_ENV === 'development',
   ssl: { rejectUnauthorized: false },
   extra: {
-    family: 4,
     max: parseInt(process.env.DB_POOL_MAX || defaultDbPoolMax),
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 15_000,
@@ -47,7 +46,6 @@ export const schoolDbConfig: DataSourceOptions = {
   logging: process.env.NODE_ENV === 'development',
   ssl: { rejectUnauthorized: false },
   extra: {
-    family: 4,
     max: parseInt(process.env.SCHOOL_DB_POOL_MAX || defaultDbPoolMax),
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 30_000,

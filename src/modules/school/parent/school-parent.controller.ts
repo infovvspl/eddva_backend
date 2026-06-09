@@ -15,6 +15,11 @@ export class SchoolParentController {
     return this.svc.getProfile(user);
   }
 
+  @Put('profile')
+  updateProfile(@SchoolUser() user: any, @Body() body: any) {
+    return this.svc.updateProfile(user, body);
+  }
+
   @Get('students') getChildren(@SchoolUser() user: any) {
     return this.svc.getChildren(user);
   }

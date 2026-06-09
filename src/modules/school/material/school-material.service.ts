@@ -22,11 +22,10 @@ export class SchoolMaterialService implements OnModuleInit {
 
   /** Ensure newer material types exist on the study_materials.type enum. */
   async onModuleInit() {
-    try {
-      await this.ds.query(`ALTER TYPE study_materials_type_enum ADD VALUE IF NOT EXISTS 'ebook'`);
-    } catch (err) {
-      this.logger.warn(`Could not ensure 'ebook' material type enum value: ${(err as Error).message}`);
-    }
+    void this.ds.query(`ALTER TYPE study_materials_type_enum ADD VALUE IF NOT EXISTS 'ebook'`)
+      .catch((err) => {
+        this.logger.warn(`Could not ensure 'ebook' material type enum value: ${(err as Error).message}`);
+      });
   }
 
 

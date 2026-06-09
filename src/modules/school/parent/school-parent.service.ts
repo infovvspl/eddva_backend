@@ -109,6 +109,34 @@ export class SchoolParentService {
     };
   }
 
+  async updateProfile(user: any, body: any) {
+    const parent = await this.loadParent(user);
+    const updates: string[] = [];
+    const params: any[] = [parent.id];
+
+    const pushUpdate = (column: string, value: any) => {
+      if (value === undefined) return;
+      params.push(value);
+      updates.push(`${column} = $${params.length}`);
+    };
+
+    pushUpdate('name', body.name);
+    pushUpdate('email', body.email);
+    pushUpdate('phone', body.phone);
+    pushUpdate('photo', body.photo);
+
+    if (updates.length === 0) {
+      return this.getProfile(user);
+    }
+
+    await this.ds.query(
+      `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $1`,
+      params,
+    );
+
+    return this.getProfile(user);
+  }
+
   async getChildren(user: any) {
     const parent = await this.loadParent(user);
     return (await this.loadChildRows(parent)).map((r) => this.mapChild(r));

@@ -90,7 +90,17 @@ export class SchoolAssessmentService {
     }
 
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-    const sql = `SELECT * FROM assessments ${where} ORDER BY scheduled_date DESC NULLS LAST, created_at DESC`;
+    
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 100);
+    const offset = (page - 1) * limit;
+
+    const countSql = `SELECT COUNT(*)::int AS total FROM assessments ${where}`;
+    const countResult = await this.ds.query(countSql, params);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
+
+    const sql = `SELECT * FROM assessments ${where} ORDER BY scheduled_date DESC NULLS LAST, created_at DESC LIMIT ${limit} OFFSET ${offset}`;
     const rows: any[] = await this.ds.query(sql, params);
     if (user.role === 'STUDENT' && rows.length) {
       const submissionRows: any[] = await this.ds.query(
@@ -102,7 +112,7 @@ export class SchoolAssessmentService {
         row.mySubmission = submissionMap.get(String(row.id)) || null;
       });
     }
-    return { success: true, data: rows };
+    return { success: true, data: rows, total, page, limit, totalPages };
   }
 
   async legacyMockTests(user: any, query: any) {
@@ -389,6 +399,22 @@ export class SchoolAssessmentService {
 
   async listSessions(user: any) {
     const instituteId = user.instituteId;
+    const page = Math.max(1, parseInt(user.query?.page) || 1);
+    const limit = Math.max(1, parseInt(user.query?.limit) || 100);
+    const offset = (page - 1) * limit;
+
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      FROM test_sessions ts
+      INNER JOIN students s ON ts.student_id = s.id
+      INNER JOIN users u ON s.user_id = u.id
+      INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
+      WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
+    `;
+    const countResult = await this.ds.query(countSql, [instituteId]);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
+
     const rows = await this.ds.query(`
       SELECT 
         ts.id,
@@ -405,9 +431,10 @@ export class SchoolAssessmentService {
       INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
       WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
       ORDER BY ts.submitted_at DESC NULLS LAST
-    `, [instituteId]);
+      LIMIT $2 OFFSET $3
+    `, [instituteId, limit, offset]);
 
-    const mapped = rows.map(r => ({
+    const mapped = rows.map((r: any) => ({
       id: r.id,
       status: r.status,
       totalScore: r.totalScore,
@@ -423,6 +450,6 @@ export class SchoolAssessmentService {
         title: r.mock_test_title
       }
     }));
-    return { success: true, data: mapped };
+    return { success: true, data: mapped, total, page, limit, totalPages };
   }
 }
