@@ -15314,3 +15314,117 @@ Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
     at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 >>>>>>> 098bc944dbcbc6169cd67183730d58e461648bd1
 
+[2026-06-09T10:31:17.777Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:186:25)
+
+[2026-06-09T10:31:18.400Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:186:25)
+
+[2026-06-09T10:31:18.790Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:186:25)
+
+[2026-06-09T10:31:44.975Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:186:25)
+
+[2026-06-09T10:31:45.231Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-09T10:31:45.360Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:186:25)
+
+[2026-06-09T10:31:45.557Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-09T10:31:45.739Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:186:25)
+
+[2026-06-09T10:31:45.866Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-09T10:35:24.097Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:186:25)
+
+[2026-06-09T10:35:24.677Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:186:25)
+
+[2026-06-09T10:35:25.055Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.findOne (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:186:25)
+

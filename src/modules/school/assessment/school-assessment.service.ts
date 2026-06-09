@@ -111,7 +111,12 @@ export class SchoolAssessmentService {
 
   private stripCorrectAnswersFromQuestions(questions: any[]) {
     return this.normalizeQuestions(questions).map((question: any) => {
-      const { correctAnswer: _correctAnswer, correct_answer: _correct_answer, ...safeQuestion } = question;
+      const {
+        correctAnswer: _correctAnswer,
+        correct_answer: _correct_answer,
+        explanation: _explanation,
+        ...safeQuestion
+      } = question;
       return safeQuestion;
     });
   }
@@ -156,8 +161,13 @@ export class SchoolAssessmentService {
         const correctAnswer = question.correctAnswer ?? question.correct_answer;
         return this.objectiveTypes.has(type) && (correctAnswer === undefined || correctAnswer === null || correctAnswer === '');
       });
+      const answerKeyHasExplanations = /\b(?:explanation|reason)\s*[:\-]/i.test(String(row.answer_key || ''));
+      const objectiveMissingExplanations = answerKeyHasExplanations && existing.some((question: any) => {
+        const type = question.type || 'short_answer';
+        return this.objectiveTypes.has(type) && !question.explanation;
+      });
       const missingOrderMetadata = existing.some((question: any) => question.sectionTitle === undefined || question.sourceIndex === undefined);
-      if ((objectiveMissingAnswers && row.answer_key) || missingOrderMetadata || this.parsedQuestionsNeedRefresh(existing)) {
+      if ((objectiveMissingAnswers && row.answer_key) || objectiveMissingExplanations || missingOrderMetadata || this.parsedQuestionsNeedRefresh(existing)) {
         const reparsed = this.parseQuestionsFromMarkdown(row.content_text || '', row.answer_key || '');
         if (reparsed.length) {
           row.questions_json = reparsed;
@@ -191,7 +201,13 @@ export class SchoolAssessmentService {
   }
 
   private parseAnswerMap(answerKeyText: string): Map<number, string> {
+    const detailMap = this.parseAnswerDetailMap(answerKeyText);
+    return new Map(Array.from(detailMap.entries()).map(([key, detail]) => [key, detail.answer]));
+  }
+
+  private parseAnswerDetailMap(answerKeyText: string): Map<number, { answer: string; explanation?: string }> {
     const answerMap = new Map<number, string>();
+    const explanationMap = new Map<number, string>();
     const cleanAnswer = (raw: string) => {
       const trimmed = raw
         .replace(/^(?:answer|ans|correct)\s*[:\-]\s*/i, '')
@@ -208,21 +224,43 @@ export class SchoolAssessmentService {
 
     const answerText = String(answerKeyText || '')
       .replace(/\r/g, '\n')
-      .replace(/\s+(?=\d{1,2}[.)]\s+)/g, '\n')
-      .replace(/\s+(?=Q\.?\s*\d{1,2}\b)/gi, '\n');
+      .replace(/\s+(?=(?:[-*]\s*)?\d{1,2}[.)]\s*(?:answer|ans)\b)/gi, '\n')
+      .replace(/\s+(?=(?:Section\s+[A-E]\s*[-:–—]?\s*)?Q\.?\s*\d{1,2}\b)/gi, '\n');
 
     let sequence = 0;
+    let currentSequence = 0;
     for (const line of answerText.split(/\n+/)) {
-      const match = line.match(/^\s*(?:[-*]\s*)?(?:Q\.?\s*)?(\d{1,2})[.)]?\s*(?:answer|ans)?\s*[:\-]?\s*(.+)$/i);
-      if (!match) continue;
-      sequence += 1;
-      const displayNumber = Number(match[1]);
-      const answer = cleanAnswer(match[2]);
-      answerMap.set(sequence, answer);
-      if (!answerMap.has(displayNumber)) answerMap.set(displayNumber, answer);
+      const match = line.match(/^\s*(?:[-*]\s*)?(?:(?:Section\s+[A-E])\s*[-:–—]?\s*)?(?:Q\.?\s*)?(\d{1,2})[.)]?\s*(?:answer|ans)?\s*[:\-]?\s*(.+)$/i);
+      if (match) {
+        sequence += 1;
+        currentSequence = sequence;
+        const displayNumber = Number(match[1]);
+        const rawAnswer = match[2].replace(/\b(?:explanation|reason)\s*[:\-].*$/i, '').trim();
+        const answer = cleanAnswer(rawAnswer);
+        answerMap.set(sequence, answer);
+        if (!answerMap.has(displayNumber)) answerMap.set(displayNumber, answer);
+
+        const inlineExplanation = match[2].match(/\b(?:explanation|reason)\s*[:\-]\s*(.+)$/i)?.[1]?.trim();
+        if (inlineExplanation) explanationMap.set(sequence, inlineExplanation);
+        continue;
+      }
+
+      const explanation = line.match(/^\s*(?:explanation|reason)\s*[:\-]\s*(.+)$/i)?.[1]?.trim();
+      if (explanation && currentSequence) {
+        explanationMap.set(currentSequence, explanation);
+        continue;
+      }
+
+      if (currentSequence && explanationMap.has(currentSequence) && line.trim()) {
+        explanationMap.set(currentSequence, `${explanationMap.get(currentSequence)} ${line.trim()}`);
+      }
     }
 
-    return answerMap;
+    const detailMap = new Map<number, { answer: string; explanation?: string }>();
+    answerMap.forEach((answer, key) => {
+      detailMap.set(key, { answer, explanation: explanationMap.get(key) });
+    });
+    return detailMap;
   }
 
   private normalizeOptionId(label: string) {
@@ -234,6 +272,34 @@ export class SchoolAssessmentService {
     return map[String(label || '').trim().toLowerCase()] || String(label || '').trim().toLowerCase();
   }
 
+  private rebuildAnswerKeyWithSections(contentText: string | null, answerKey: string | null) {
+    const original = String(answerKey || '').trim();
+    if (!String(contentText || '').trim() || !original) return original;
+
+    const questions = this.parseQuestionsFromMarkdown(contentText || '', original)
+      .filter((question: any) => this.objectiveTypes.has(question.type) && question.correctAnswer);
+    if (!questions.length) return original;
+
+    const groups = new Map<string, any[]>();
+    for (const question of questions) {
+      const sectionTitle = String(question.sectionTitle || 'Section A').replace(/^#+\s*/, '').trim();
+      if (!groups.has(sectionTitle)) groups.set(sectionTitle, []);
+      groups.get(sectionTitle)!.push(question);
+    }
+
+    const lines = ['## Answer Key'];
+    groups.forEach((groupQuestions, sectionTitle) => {
+      lines.push('', `### ${sectionTitle}`);
+      groupQuestions.forEach((question: any) => {
+        lines.push(`Q${question.displayNumber || question.number}. Answer: ${question.correctAnswer}`);
+        if (question.explanation) {
+          lines.push(`Explanation: ${question.explanation}`);
+        }
+      });
+    });
+    return lines.join('\n').trim();
+  }
+
   private parseQuestionsFromMarkdown(content: string, answerKey = ''): any[] {
     const text = answerKey
       ? `${String(content || '')}\n\n## Answer Key\n${String(answerKey || '')}`
@@ -242,13 +308,15 @@ export class SchoolAssessmentService {
 
     const answerKeyStart = text.search(/^##\s*Answer Key/im);
     let answerMap = new Map<number, string>();
+    let answerDetailMap = new Map<number, { answer: string; explanation?: string }>();
     if (answerKeyStart >= 0) {
       const answerText = text.slice(answerKeyStart);
-      answerMap = this.parseAnswerMap(answerText);
+      answerDetailMap = this.parseAnswerDetailMap(answerText);
+      answerMap = new Map(Array.from(answerDetailMap.entries()).map(([key, detail]) => [key, detail.answer]));
     }
 
     const questionText = answerKeyStart >= 0 ? text.slice(0, answerKeyStart) : text;
-    const inlineQuestions = this.parseInlineQuestionPaper(questionText, answerMap);
+    const inlineQuestions = this.parseInlineQuestionPaper(questionText, answerMap, answerDetailMap);
     if (inlineQuestions.length >= 2) return inlineQuestions;
 
     const lines = questionText.split(/\r?\n/);
@@ -332,6 +400,7 @@ export class SchoolAssessmentService {
           marks: finalSpec.marks,
           options: finalSpec.type === 'mcq_single' ? inlineOptions : undefined,
           correctAnswer: answerMap.get(sequenceNumber),
+          explanation: this.objectiveTypes.has(finalSpec.type) ? answerDetailMap.get(sequenceNumber)?.explanation : undefined,
         };
         continue;
       }
@@ -350,10 +419,15 @@ export class SchoolAssessmentService {
       marks: Number(q.marks || 1),
       options: Array.isArray(q.options) && q.options.length ? q.options : undefined,
       correctAnswer: q.correctAnswer,
+      explanation: this.objectiveTypes.has(q.type || 'short_answer') ? q.explanation : undefined,
     }));
   }
 
-  private parseInlineQuestionPaper(content: string, answerMap: Map<number, string>): any[] {
+  private parseInlineQuestionPaper(
+    content: string,
+    answerMap: Map<number, string>,
+    answerDetailMap = new Map<number, { answer: string; explanation?: string }>(),
+  ): any[] {
     const rawNormalized = String(content || '')
       .replace(/\r?\n+/g, ' ')
       .replace(/\s+/g, ' ')
@@ -426,6 +500,7 @@ export class SchoolAssessmentService {
           marks: finalSpec.marks,
           options: options.length ? options : undefined,
           correctAnswer: answerMap.get(sequenceNumber),
+          explanation: this.objectiveTypes.has(finalSpec.type) ? answerDetailMap.get(sequenceNumber)?.explanation : undefined,
         });
       });
     }
@@ -467,6 +542,7 @@ export class SchoolAssessmentService {
         marks: marksAwarded,
         total: marks,
         correctAnswer,
+        explanation: question.explanation,
       };
     });
     return { score, total, writtenPending, details };
@@ -489,18 +565,25 @@ export class SchoolAssessmentService {
       const classId = profileRows[0]?.class_id;
       if (!classId) return { success: true, data: [] };
       params.push(classId);
-      filters.push(`class_id::text=$${params.length}::text`);
+      filters.push(`a.class_id::text=$${params.length}::text`);
     } else if (query.classId) {
       params.push(query.classId);
-      filters.push(`class_id::text=$${params.length}::text`);
+      filters.push(`a.class_id::text=$${params.length}::text`);
     }
     if (query.subjectId) {
       params.push(query.subjectId);
-      filters.push(`subject_id::text=$${params.length}::text`);
+      filters.push(`a.subject_id::text=$${params.length}::text`);
     }
 
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-    const sql = `SELECT * FROM assessments ${where} ORDER BY scheduled_date DESC NULLS LAST, created_at DESC`;
+    const sql = `
+      SELECT a.*, c.name AS class_name, sub.name AS subject_name
+      FROM assessments a
+      LEFT JOIN classes c ON a.class_id::text = c.id::text
+      LEFT JOIN subjects sub ON a.subject_id::text = sub.id::text
+      ${where}
+      ORDER BY a.scheduled_date DESC NULLS LAST, a.created_at DESC
+    `;
     const rows: any[] = await this.ds.query(sql, params);
     rows.forEach((row: any) => this.parseAndSplitLegacyAssessment(row));
     if (user.role === 'STUDENT' && rows.length) {
@@ -625,8 +708,23 @@ export class SchoolAssessmentService {
       `Begin with a paper header (Subject, Class, Maximum Marks, Time Allowed) and a brief "General Instructions" list.`,
       `Include ONLY these sections, in this order, each with a clear section heading and the EXACT number of questions specified:`,
       ...sections,
-      `Use one continuous question number sequence across the whole paper; do not restart numbering in later sections. Keep every question syllabus-appropriate for ${className}.`,
-      `At the very END, add a "## Answer Key" section with the correct answers for the objective sections only (MCQ, True/False, Fill in the Blanks). Do NOT reveal answers inside the question sections.`,
+      `Number questions clearly inside each section. The visible question numbers in the answer key must match the visible question numbers in the paper for that same section.`,
+      `At the very END, add a "## Answer Key" section with correct answers ONLY for objective sections: MCQ, True/False, Fill in the Blanks. Do NOT include Short Answer or Long Answer questions in the answer key.`,
+      `The answer key MUST mirror the question paper structure exactly: use the same section headings and list answers under each section in the same order as the questions appear.`,
+      `Use this answer key format exactly:
+## Answer Key
+### Section A
+Q1. Answer: a
+Explanation: ...
+Q2. Answer: c
+Explanation: ...
+### Section B
+Q1. Answer: true
+Explanation: ...
+### Section C
+Q1. Answer: expected word or phrase
+Explanation: ...
+Do not write answers as one flat paragraph. Do not mix answers from different sections.`,
       body.prompt?.trim() ? `Additional teacher instructions: ${body.prompt.trim()}` : '',
       `Output ONLY the Markdown question paper.`,
     ].filter(Boolean).join('\n');
@@ -676,6 +774,8 @@ export class SchoolAssessmentService {
         }
       }
 
+      answerKeyPart = this.rebuildAnswerKeyWithSections(questionsPart, answerKeyPart);
+
       return {
         success: true,
         data: {
@@ -695,7 +795,8 @@ export class SchoolAssessmentService {
     const sectionId = body.sectionId || body.section_id || null;
     const rawContentText = body.contentText || body.content_text || body.instructions || null;
     const rawAnswerKey = body.answerKey || body.answer_key || null;
-    const { contentText, answerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
+    const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
+    const answerKey = this.rebuildAnswerKeyWithSections(contentText, splitAnswerKey);
     const questionsJson = this.parseQuestionsFromMarkdown(contentText || '', answerKey || '');
     const filePath = file ? file.path.replace(/\\/g, '/') : (body.filePath || body.file_path || null);
     const contentSource = filePath ? 'upload' : contentText ? (body.contentSource || body.content_source || 'manual') : 'metadata';
@@ -770,7 +871,8 @@ export class SchoolAssessmentService {
     await this.ensureAssessmentContentColumns();
     const rawContentText = body.contentText || body.content_text || body.instructions || null;
     const rawAnswerKey = body.answerKey || body.answer_key || null;
-    const { contentText, answerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
+    const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
+    const answerKey = this.rebuildAnswerKeyWithSections(contentText, splitAnswerKey);
     const questionsJson = contentText || answerKey
       ? this.parseQuestionsFromMarkdown(contentText || '', answerKey || '')
       : null;
