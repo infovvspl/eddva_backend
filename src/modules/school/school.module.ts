@@ -26,6 +26,8 @@ import { SchoolCreatorStudioModule } from './creator-studio/school-creator-studi
 import { SchoolActivityLogModule } from './activity-log/school-activity-log.module';
 import { SchoolDoubtModule } from './doubt/school-doubt.module';
 import { SchoolClassModule } from './class/school-class.module';
+import { SchoolAiUsageModule } from './ai-usage/school-ai-usage.module';
+import { CareerModule } from './career/career.module';
 import { SchoolJwtGuard } from './guards/school-jwt.guard';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
 
@@ -57,6 +59,8 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
     SchoolActivityLogModule,
     SchoolDoubtModule,
     SchoolClassModule,
+    SchoolAiUsageModule,
+    CareerModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
   providers: [SchoolJwtGuard, SchoolRolesGuard],
