@@ -24,13 +24,17 @@ export const coachingDbConfig: DataSourceOptions = {
   password: !process.env.COACHING_DB_URL ? (process.env.DB_PASSWORD || 'postgres') : undefined,
   database: !process.env.COACHING_DB_URL ? (process.env.DB_NAME || 'apexiq') : undefined,
   synchronize: false,
-  logging: process.env.NODE_ENV === 'development',
+  logging: process.env.DB_LOGGING === 'true',
   ssl: { rejectUnauthorized: false },
   extra: {
     family: 4,
     max: parseInt(process.env.DB_POOL_MAX || defaultDbPoolMax),
-    idleTimeoutMillis: 10_000,
+    // Keep connections warm: avoid the ~1.2s TLS reconnect on every short idle gap
+    // (the dominant latency cost when running locally against RDS in Mumbai).
+    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '300000'), // 5 min
     connectionTimeoutMillis: 15_000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
   },
   entities: [__dirname + '/../database/entities/*.entity{.ts,.js}',
              __dirname + '/../modules/**/entities/*.entity{.ts,.js}'],
@@ -44,13 +48,16 @@ export const schoolDbConfig: DataSourceOptions = {
   type: 'postgres',
   url: process.env.SCHOOL_DB_URL,
   synchronize: false,
-  logging: process.env.NODE_ENV === 'development',
+  logging: process.env.DB_LOGGING === 'true',
   ssl: { rejectUnauthorized: false },
   extra: {
     family: 4,
     max: parseInt(process.env.SCHOOL_DB_POOL_MAX || defaultDbPoolMax),
-    idleTimeoutMillis: 10_000,
+    // Keep connections warm to avoid the ~1.2s TLS reconnect on short idle gaps.
+    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '300000'), // 5 min
     connectionTimeoutMillis: 30_000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
   },
   entities: [__dirname + '/../modules/school/**/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../modules/school/migrations/*{.ts,.js}'],
