@@ -230,17 +230,17 @@ export class SchoolAssessmentService {
     let sequence = 0;
     let currentSequence = 0;
     for (const line of answerText.split(/\n+/)) {
-      const match = line.match(/^\s*(?:[-*]\s*)?(?:(?:Section\s+[A-E])\s*[-:–—]?\s*)?(?:Q\.?\s*)?(\d{1,2})[.)]?\s*(?:answer|ans)?\s*[:\-]?\s*(.+)$/i);
+      const match = line.match(/^\s*(?:[-*]\s*)?(?:(?:Section\s+[A-E])\s*[-:–—]?\s*)?(?:(?:(?:Q|Question)\.?\s*(\d{1,2}))|(\d{1,2})[.)]?\s*(?:answer|ans)\b)[.)]?\s*(?:answer|ans)?\s*[:\-]?\s*(.+)$/i);
       if (match) {
         sequence += 1;
         currentSequence = sequence;
-        const displayNumber = Number(match[1]);
-        const rawAnswer = match[2].replace(/\b(?:explanation|reason)\s*[:\-].*$/i, '').trim();
+        const displayNumber = Number(match[1] || match[2]);
+        const rawAnswer = match[3].replace(/\b(?:explanation|reason)\s*[:\-].*$/i, '').trim();
         const answer = cleanAnswer(rawAnswer);
         answerMap.set(sequence, answer);
         if (!answerMap.has(displayNumber)) answerMap.set(displayNumber, answer);
 
-        const inlineExplanation = match[2].match(/\b(?:explanation|reason)\s*[:\-]\s*(.+)$/i)?.[1]?.trim();
+        const inlineExplanation = match[3].match(/\b(?:explanation|reason)\s*[:\-]\s*(.+)$/i)?.[1]?.trim();
         if (inlineExplanation) explanationMap.set(sequence, inlineExplanation);
         continue;
       }
