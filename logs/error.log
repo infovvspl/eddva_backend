@@ -22675,3 +22675,19 @@ Error: QueryFailedError: column u.xp_total does not exist
     at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
 
+[2026-06-10T06:44:35.240Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:45:35.088Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
