@@ -230,17 +230,17 @@ export class SchoolAssessmentService {
     let sequence = 0;
     let currentSequence = 0;
     for (const line of answerText.split(/\n+/)) {
-      const match = line.match(/^\s*(?:[-*]\s*)?(?:(?:Section\s+[A-E])\s*[-:–—]?\s*)?(?:Q\.?\s*)?(\d{1,2})[.)]?\s*(?:answer|ans)?\s*[:\-]?\s*(.+)$/i);
+      const match = line.match(/^\s*(?:[-*]\s*)?(?:(?:Section\s+[A-E])\s*[-:–—]?\s*)?(?:(?:(?:Q|Question)\.?\s*(\d{1,2}))|(\d{1,2})[.)]?\s*(?:answer|ans)\b)[.)]?\s*(?:answer|ans)?\s*[:\-]?\s*(.+)$/i);
       if (match) {
         sequence += 1;
         currentSequence = sequence;
-        const displayNumber = Number(match[1]);
-        const rawAnswer = match[2].replace(/\b(?:explanation|reason)\s*[:\-].*$/i, '').trim();
+        const displayNumber = Number(match[1] || match[2]);
+        const rawAnswer = match[3].replace(/\b(?:explanation|reason)\s*[:\-].*$/i, '').trim();
         const answer = cleanAnswer(rawAnswer);
         answerMap.set(sequence, answer);
         if (!answerMap.has(displayNumber)) answerMap.set(displayNumber, answer);
 
-        const inlineExplanation = match[2].match(/\b(?:explanation|reason)\s*[:\-]\s*(.+)$/i)?.[1]?.trim();
+        const inlineExplanation = match[3].match(/\b(?:explanation|reason)\s*[:\-]\s*(.+)$/i)?.[1]?.trim();
         if (inlineExplanation) explanationMap.set(sequence, inlineExplanation);
         continue;
       }
@@ -596,6 +596,7 @@ export class SchoolAssessmentService {
         row.mySubmission = submissionMap.get(String(row.id)) || null;
       });
     }
+    return { success: true, data: rows, total, page, limit, totalPages };
     return { success: true, data: rows.map((row: any) => this.stripAnswerKeyForStudent(user, row)) };
   }
 
@@ -1174,6 +1175,22 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
 
   async listSessions(user: any) {
     const instituteId = user.instituteId;
+    const page = Math.max(1, parseInt(user.query?.page) || 1);
+    const limit = Math.max(1, parseInt(user.query?.limit) || 100);
+    const offset = (page - 1) * limit;
+
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      FROM test_sessions ts
+      INNER JOIN students s ON ts.student_id = s.id
+      INNER JOIN users u ON s.user_id = u.id
+      INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
+      WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
+    `;
+    const countResult = await this.ds.query(countSql, [instituteId]);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
+
     const rows = await this.ds.query(`
       SELECT 
         ts.id,
@@ -1190,9 +1207,10 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
       WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
       ORDER BY ts.submitted_at DESC NULLS LAST
-    `, [instituteId]);
+      LIMIT $2 OFFSET $3
+    `, [instituteId, limit, offset]);
 
-    const mapped = rows.map(r => ({
+    const mapped = rows.map((r: any) => ({
       id: r.id,
       status: r.status,
       totalScore: r.totalScore,
@@ -1208,6 +1226,6 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         title: r.mock_test_title
       }
     }));
-    return { success: true, data: mapped };
+    return { success: true, data: mapped, total, page, limit, totalPages };
   }
 }
