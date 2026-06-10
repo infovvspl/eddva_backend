@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
@@ -73,9 +73,12 @@ export class SchoolGrievanceService {
   }
 
   async create(user: any, body: any) {
+    if (user.role === 'STUDENT') {
+      throw new BadRequestException('Students cannot raise grievances directly. Please ask your parent or teacher to contact the institute.');
+    }
     const rows: any[] = await this.ds.query(
       `INSERT INTO grievances (raised_by,title,category,description,status) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [user.id, body.title, body.category || null, body.description || null, body.status || 'OPEN'],
+      [user.id, body.title || body.subject || 'Grievance', body.category || body.type || null, body.description || null, body.status || 'OPEN'],
     );
     return { success: true, data: rows[0] };
   }

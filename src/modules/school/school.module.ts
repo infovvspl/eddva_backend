@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { SchoolAuthModule } from './auth/school-auth.module';
 import { SchoolInstituteModule } from './institute/school-institute.module';
 import { SchoolStudentModule } from './student/school-student.module';
+import { SchoolStudentPromotionModule } from './student-promotion/school-student-promotion.module';
 import { SchoolParentModule } from './parent/school-parent.module';
 import { SchoolTeacherModule } from './teacher/school-teacher.module';
 import { SchoolAcademicModule } from './academic/school-academic.module';
@@ -37,6 +38,7 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
     SchoolAuthModule,
     SchoolInstituteModule,
     SchoolStudentModule,
+    SchoolStudentPromotionModule,
     SchoolParentModule,
     SchoolTeacherModule,
     SchoolAcademicModule,
