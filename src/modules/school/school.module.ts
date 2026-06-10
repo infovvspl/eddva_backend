@@ -28,6 +28,7 @@ import { SchoolDoubtModule } from './doubt/school-doubt.module';
 import { SchoolClassModule } from './class/school-class.module';
 import { SchoolAiUsageModule } from './ai-usage/school-ai-usage.module';
 import { CareerModule } from './career/career.module';
+import { SchoolStudyPlanModule } from './study-plan/school-study-plan.module';
 import { SchoolJwtGuard } from './guards/school-jwt.guard';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
 
@@ -61,6 +62,7 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
     SchoolClassModule,
     SchoolAiUsageModule,
     CareerModule,
+    SchoolStudyPlanModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
   providers: [SchoolJwtGuard, SchoolRolesGuard],
