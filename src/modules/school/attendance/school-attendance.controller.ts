@@ -19,8 +19,9 @@ export class SchoolAttendanceController {
   getStudentsByClassAndSection(
     @Query('classId') classId: string,
     @Query('sectionId') sectionId: string,
+    @Query() query: any
   ) {
-    return this.svc.getStudentsByClassAndSection(classId, sectionId);
+    return this.svc.getStudentsByClassAndSection(classId, sectionId, query);
   }
 
   @Get('dashboard-stats')
@@ -31,6 +32,11 @@ export class SchoolAttendanceController {
   @Get('history')
   getHistory(@SchoolUser() user: any, @Query() query: any) {
     return this.svc.getHistory(user, query);
+  }
+
+  @Get('session/check')
+  checkSession(@SchoolUser() user: any, @Query() query: any) {
+    return this.svc.checkSession(user, query);
   }
 
   @Get('session/:sessionId')

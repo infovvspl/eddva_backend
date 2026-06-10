@@ -11,6 +11,10 @@ export class SchoolTimetable extends SchoolBase {
   @Column({ name: 'start_time', type: 'time' }) startTime: string;
   @Column({ name: 'end_time', type: 'time' }) endTime: string;
   @Column({ nullable: true }) room: string;
+  @Column({ name: 'period_number', type: 'int', nullable: true }) periodNumber: number;
+  @Column({ type: 'varchar', default: 'offline', nullable: true }) type: string;
+  @Column({ name: 'meeting_link', type: 'text', nullable: true }) meetingLink: string;
+  @Column({ type: 'text', nullable: true }) remarks: string;
 }
 
 @Entity('schedules')
