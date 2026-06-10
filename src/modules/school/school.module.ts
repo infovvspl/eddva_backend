@@ -27,6 +27,7 @@ import { SchoolActivityLogModule } from './activity-log/school-activity-log.modu
 import { SchoolDoubtModule } from './doubt/school-doubt.module';
 import { SchoolClassModule } from './class/school-class.module';
 import { SchoolAiUsageModule } from './ai-usage/school-ai-usage.module';
+import { SchoolCalendarModule } from './calendar/school-calendar.module';
 import { CareerModule } from './career/career.module';
 import { SchoolJwtGuard } from './guards/school-jwt.guard';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
@@ -60,6 +61,7 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
     SchoolDoubtModule,
     SchoolClassModule,
     SchoolAiUsageModule,
+    SchoolCalendarModule,
     CareerModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()

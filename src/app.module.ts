@@ -136,8 +136,7 @@ const ALL_COACHING_ENTITIES = [
       useFactory: (cfg: ConfigService) => ({
         ...schoolDbConfig,
         synchronize: false,
-        logging: cfg.get('app.nodeEnv') !== 'production',
-        logging: process.env.DB_LOGGING === 'true',
+        logging: process.env.DB_LOGGING === 'true' || cfg.get('app.nodeEnv') !== 'production',
         // Survive transient network/RDS blips at startup instead of crashing.
         retryAttempts: 10,
         retryDelay: 3000,
