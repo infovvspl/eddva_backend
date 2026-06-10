@@ -92,13 +92,43 @@ export class SchoolDashboardService {
 
     if (user.role === 'INSTITUTE_ADMIN') {
       const instituteId = user.instituteId;
-      const [instRow, teachers, students, openComplaints] = await Promise.all([
+      const [instRow, teachers, students, openComplaints, complaintStats, recentNotices] = await Promise.all([
         this.ds.query(`SELECT * FROM institutes WHERE id=$1`, [instituteId]),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='TEACHER' AND institute_id=$1`, [instituteId]),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1`, [instituteId]),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status='OPEN' AND institute_id=$1`, [instituteId]),
+        this.ds.query(`SELECT status AS name, COUNT(*)::int AS value FROM complaints WHERE institute_id=$1 GROUP BY status`, [instituteId]),
+        this.ds.query(`SELECT id, title, posted_date FROM notices WHERE institute_id=$1 ORDER BY posted_date DESC LIMIT 3`, [instituteId]),
       ]);
-      return { currentInstitute: instRow[0]||null, totalTeachers: teachers[0].c, totalStudents: students[0].c, openComplaints: openComplaints[0].c, totalInstitutes: 1, pendingApprovals: 0 };
+
+      const formattedComplaintStatus = complaintStats.map((c: any) => ({
+        name: c.name.replace('_', ' ').charAt(0).toUpperCase() + c.name.replace('_', ' ').slice(1).toLowerCase() + ' Tickets',
+        value: c.value
+      }));
+
+      if (formattedComplaintStatus.length === 0) {
+        formattedComplaintStatus.push({ name: 'Open Tickets', value: 0 }, { name: 'Resolved Tickets', value: 0 });
+      }
+
+      const communications = recentNotices.map((n: any) => ({
+        t: n.title,
+        badge: 0
+      }));
+
+      if (communications.length === 0) {
+         communications.push({ t: 'No recent notices found', badge: 0 });
+      }
+
+      return { 
+        currentInstitute: instRow[0]||null, 
+        totalTeachers: teachers[0].c, 
+        totalStudents: students[0].c, 
+        openComplaints: openComplaints[0].c, 
+        complaintStatus: formattedComplaintStatus,
+        communications: communications,
+        totalInstitutes: 1, 
+        pendingApprovals: 0 
+      };
     }
 
     const [totalInstitutes, pendingApprovals, totalTeachers, totalStudents, openComplaints] = await Promise.all([

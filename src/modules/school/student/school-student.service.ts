@@ -102,6 +102,15 @@ export class SchoolStudentService {
 
       await queryRunner.commitTransaction();
 
+      // Automatically send credentials if requested via frontend family details
+      const parentDetails = body.parentDetails || {};
+      if (parentDetails.createLogin && parentDetails.sendViaEmail && body.parentEmail) {
+        this.sendParentCredentials(user, u.id, {
+          parentEmail: body.parentEmail,
+          parentName: body.fatherName || body.motherName,
+        }).catch(err => console.error('[Email Delivery Error] Failed to send parent credentials automatically:', err));
+      }
+
       const { password: _p, ...safeUser } = u;
       return { success: true, message: 'Student created successfully', data: { ...safeUser, studentProfile: sRows[0] } };
     } catch (err) {
@@ -116,6 +125,15 @@ export class SchoolStudentService {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const params: any[] = [instituteId];
     let filter = `u.institute_id=$1 AND u.role='STUDENT'`;
+    
+    if (user.role === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        filter += ` AND EXISTS (SELECT 1 FROM teacher_academic_assignments ta WHERE ta.teacher_id = ${teacherId} AND ta.class_id = sec.class_id AND ta.section_id = sec.id)`;
+      }
+    }
+
     if (query.classId) {
       params.push(query.classId);
       filter += ` AND c.id::text=$${params.length}::text`;
@@ -124,6 +142,41 @@ export class SchoolStudentService {
       params.push(query.sectionId);
       filter += ` AND s.section_id::text=$${params.length}::text`;
     }
+
+    if (query.search) {
+      const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+      if (searchTerms.length > 0) {
+        const searchConditions = searchTerms.map((term: string) => {
+          params.push(term);
+          return `(LOWER(u.name) LIKE $${params.length} OR LOWER(s.enrollment_no) LIKE $${params.length} OR LOWER(s.roll_no) LIKE $${params.length})`;
+        });
+        filter += ` AND (${searchConditions.join(' AND ')})`;
+      }
+    }
+
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 10);
+    const offset = (page - 1) * limit;
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM users u JOIN students s ON s.user_id=u.id
+      LEFT JOIN sections sec ON s.section_id=sec.id
+      LEFT JOIN classes c ON sec.class_id=c.id
+      WHERE ${filter}
+    `;
+    const countResult = await this.ds.query(countQuery, params);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
+
+    const allowedSortFields: Record<string, string> = {
+      name: 'u.name',
+      enrollmentNo: 's.enrollment_no',
+      admissionDate: 's.admission_date',
+    };
+    const sortBy = allowedSortFields[query.sortBy] || 'u.name';
+    const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
     const rows: any[] = await this.ds.query(
       `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.photo,u.created_at,
               s.id AS profile_id,s.enrollment_no,s.roll_no,s.section_id,s.dob,s.gender,s.blood_group,
@@ -134,7 +187,7 @@ export class SchoolStudentService {
        FROM users u JOIN students s ON s.user_id=u.id
        LEFT JOIN sections sec ON s.section_id=sec.id
        LEFT JOIN classes c ON sec.class_id=c.id
-       WHERE ${filter} ORDER BY u.name`,
+       WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
       params,
     );
     const mapped = rows.map(r => ({
@@ -179,7 +232,163 @@ export class SchoolStudentService {
           } : null
       }
     }));
-    return { success: true, data: mapped };
+    return { success: true, data: mapped, total, page, limit, totalPages };
+  }
+
+  async getStats(user: any) {
+    const instituteId = await this.resolveInstituteId(user);
+    
+    const statsQuery = `
+      SELECT 
+        COUNT(*)::int AS "totalStudents",
+        COUNT(*) FILTER (WHERE u.is_active = TRUE)::int AS "activeStudents",
+        COUNT(*) FILTER (WHERE u.is_active = FALSE)::int AS "inactiveStudents",
+        COUNT(*) FILTER (
+          WHERE EXTRACT(MONTH FROM u.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM u.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+        )::int AS "newThisMonth"
+      FROM users u
+      WHERE u.institute_id = $1 AND u.role = 'STUDENT'
+    `;
+    const rows = await this.ds.query(statsQuery, [instituteId]);
+    
+    return {
+      success: true,
+      data: {
+        totalStudents: rows[0]?.totalStudents || 0,
+        activeStudents: rows[0]?.activeStudents || 0,
+        inactiveStudents: rows[0]?.inactiveStudents || 0,
+        newThisMonth: rows[0]?.newThisMonth || 0,
+      }
+    };
+  }
+
+  async getDashboard(user: any) {
+    const fallbackStudentProfile = user?.studentProfile || {};
+    const studentRows: any[] = await this.ds.query(
+      `SELECT s.id, s.user_id, sec.class_id, s.section_id, s.enrollment_no,
+              c.name AS class_name, sec.name AS section_name
+       FROM students s
+       JOIN users u ON u.id = s.user_id
+       LEFT JOIN sections sec ON s.section_id = sec.id
+       LEFT JOIN classes c ON sec.class_id = c.id
+       WHERE s.user_id = $1 OR s.id = $2`,
+      [user.id, fallbackStudentProfile.id || null],
+    );
+    const student = studentRows[0] || {
+      id: fallbackStudentProfile.id || null,
+      user_id: user.id,
+      class_id: fallbackStudentProfile.classId || null,
+      section_id: fallbackStudentProfile.sectionId || null,
+      enrollment_no: fallbackStudentProfile.enrollmentNo || null,
+      class_name: fallbackStudentProfile.className || null,
+      section_name: fallbackStudentProfile.sectionName || null,
+      xp_total: user?.xpTotal || 0,
+      current_streak: user?.currentStreak || 0,
+      longest_streak: user?.longestStreak || 0,
+    };
+
+    const effectiveStudentId = student.id;
+    const effectiveSectionId = student.section_id || fallbackStudentProfile.sectionId || null;
+
+    let attendanceSummary = { present: 0, absent: 0, leave: 0, total: 0, percentage: null as number | null };
+    console.log("[DEBUG getDashboard] user_id:", student.user_id, "student_id(profile):", student.id);
+    if (student.user_id) {
+      const recordRows: any[] = await this.ds.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE LOWER(ar.status) IN ('present', 'late'))::int AS present,
+           COUNT(*) FILTER (WHERE LOWER(ar.status)='absent')::int AS absent,
+           COUNT(*) FILTER (WHERE LOWER(ar.status)='leave')::int AS leave,
+           COUNT(*)::int AS total
+         FROM attendance_records ar
+         WHERE ar.student_id = $1`,
+        [student.user_id],
+      );
+      const recordPresent = Number(recordRows[0]?.present || 0);
+      const recordAbsent = Number(recordRows[0]?.absent || 0);
+      const recordLeave = Number(recordRows[0]?.leave || 0);
+      const recordTotal = Number(recordRows[0]?.total || 0);
+      console.log("[DEBUG getDashboard] attendance_records query result:", {recordPresent, recordAbsent, recordLeave, recordTotal});
+
+      if (recordTotal > 0) {
+        attendanceSummary = {
+          present: recordPresent,
+          absent: recordAbsent,
+          leave: recordLeave,
+          total: recordTotal,
+          percentage: Math.round(((recordPresent + recordLeave) / recordTotal) * 100),
+        };
+      } else {
+        const legacyRows: any[] = await this.ds.query(
+          `SELECT
+             COUNT(*) FILTER (WHERE LOWER(status) IN ('present', 'late'))::int AS present,
+             COUNT(*) FILTER (WHERE LOWER(status)='absent')::int AS absent,
+             COUNT(*) FILTER (WHERE LOWER(status)='leave')::int AS leave,
+             COUNT(*)::int AS total
+           FROM attendances
+           WHERE user_id=$1`,
+          [student.user_id],
+        );
+        const legacyPresent = Number(legacyRows[0]?.present || 0);
+        const legacyAbsent = Number(legacyRows[0]?.absent || 0);
+        const legacyLeave = Number(legacyRows[0]?.leave || 0);
+        const legacyTotal = Number(legacyRows[0]?.total || 0);
+        if (legacyTotal > 0) {
+          attendanceSummary = {
+            present: legacyPresent,
+            absent: legacyAbsent,
+            leave: legacyLeave,
+            total: legacyTotal,
+            percentage: Math.round(((legacyPresent + legacyLeave) / legacyTotal) * 100),
+          };
+        }
+      }
+    }
+    const attendancePercentage = attendanceSummary.percentage;
+
+    const dayNum = new Date().getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
+    const dayOfWeekInt = dayNum === 0 ? 7 : dayNum; // Map to 1-7 where 1=Monday
+    
+    // Using timetables table to get today's classes
+    const timetablesRows: any[] = await this.ds.query(
+      `SELECT t.*, sub.name AS subject_name, u.name AS teacher_name
+       FROM timetables t
+       LEFT JOIN subjects sub ON t.subject_id=sub.id
+       LEFT JOIN teachers teach ON t.teacher_id=teach.id
+       LEFT JOIN users u ON teach.user_id=u.id
+       WHERE t.section_id=$1 AND t.day_of_week=$2
+       ORDER BY t.start_time`,
+      [effectiveSectionId, dayOfWeekInt],
+    );
+
+    const todayPlan = timetablesRows.map((t) => ({
+      id: t.id,
+      subjectName: t.subject_name,
+      teacherName: t.teacher_name,
+      startTime: t.start_time ? t.start_time.substring(0, 5) : '',
+      endTime: t.end_time ? t.end_time.substring(0, 5) : '',
+      room: t.room || '',
+    }));
+
+    return {
+      success: true,
+      data: {
+        student: {
+          id: student.id,
+          userId: student.user_id,
+          className: student.class_name,
+          sectionName: student.section_name,
+          enrollmentNo: student.enrollment_no,
+        },
+        xpTotal: student.xp_total || 0,
+        currentStreak: student.current_streak || 0,
+        longestStreak: student.longest_streak || 0,
+        attendancePercentage,
+        attendanceSummary,
+        todayClasses: todayPlan.length,
+        todayPlan,
+      }
+    };
   }
 
   async findOne(id: string) {
@@ -348,10 +557,16 @@ export class SchoolStudentService {
        WHERE c.institute_id = $1`,
       [instituteId]
     );
+    const normalizeKey = (c: string, s: string) => {
+      const cls = (c || '').replace(/[-\s_]/g, '').toLowerCase();
+      let sec = (s || '').replace(/[-\s_]/g, '').toLowerCase();
+      if (sec.startsWith('section')) sec = sec.replace('section', '');
+      return `${cls}/${sec}`;
+    };
+
     const sectionMap = new Map<string, string>();
     for (const s of sections) {
-      const key = `${s.class_name.trim().toLowerCase()} / ${s.section_name.trim().toLowerCase()}`;
-      sectionMap.set(key, s.id);
+      sectionMap.set(normalizeKey(s.class_name, s.section_name), s.id);
     }
 
     const imported = [];
@@ -370,9 +585,15 @@ export class SchoolStudentService {
 
         let sectionId: string | null = null;
         if (rec.class && rec.section) {
-          const key = `${rec.class.trim().toLowerCase()} / ${rec.section.trim().toLowerCase()}`;
+          const key = normalizeKey(rec.class, rec.section);
           sectionId = sectionMap.get(key) || null;
-          if (!sectionId) throw new Error(`Class "${rec.class}" and Section "${rec.section}" not found`);
+          if (!sectionId) {
+            console.log('!!! bulkImport Match Failed !!!');
+            console.log('Requested CSV Class:', rec.class, 'Section:', rec.section);
+            console.log('Normalized Key:', key);
+            console.log('Available Keys in DB Map:', Array.from(sectionMap.keys()));
+            throw new Error(`Class "${rec.class}" and Section "${rec.section}" not found`);
+          }
         }
 
         const enrollmentNo = rec.enrollmentNo || await this.generateEnrollmentNo(instituteId);
@@ -671,59 +892,6 @@ export class SchoolStudentService {
         },
         curriculum,
       }
-    };
-  }
-
-  async getDashboard(user: any) {
-    const studentRows = await this.ds.query(
-      `SELECT s.id AS profile_id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
-       FROM students s
-       JOIN sections sec ON s.section_id = sec.id
-       JOIN classes c ON sec.class_id = c.id
-       WHERE s.user_id = $1`,
-      [user.id]
-    );
-    if (!studentRows.length) {
-      return { success: true, data: null };
-    }
-    const student = studentRows[0];
-
-    let attendancePercentage = 100;
-    const attRows = await this.ds.query(
-      `SELECT 
-         COUNT(CASE WHEN status = 'present' THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0) AS pct
-       FROM attendance 
-       WHERE student_id::text = $1`,
-      [student.profile_id],
-    );
-    if (attRows[0]?.pct != null) {
-      attendancePercentage = Math.round(Number(attRows[0].pct));
-    }
-
-    let todayClasses = 0;
-    if (student.section_id) {
-      const clsRows = await this.ds.query(
-        `SELECT COUNT(*)::int AS cnt FROM timetables 
-         WHERE section_id::text = $1`,
-        [student.section_id],
-      );
-      todayClasses = clsRows[0]?.cnt || 0;
-    }
-
-    return {
-      success: true,
-      data: {
-        todayPlan: [],
-        attendancePercentage,
-        todayClasses,
-        student: {
-          id: student.profile_id,
-          sectionId: student.section_id,
-          classId: student.class_id,
-          className: student.class_name,
-          sectionName: student.section_name,
-        },
-      },
     };
   }
 

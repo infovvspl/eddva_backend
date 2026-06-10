@@ -1174,6 +1174,22 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
 
   async listSessions(user: any) {
     const instituteId = user.instituteId;
+    const page = Math.max(1, parseInt(user.query?.page) || 1);
+    const limit = Math.max(1, parseInt(user.query?.limit) || 100);
+    const offset = (page - 1) * limit;
+
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      FROM test_sessions ts
+      INNER JOIN students s ON ts.student_id = s.id
+      INNER JOIN users u ON s.user_id = u.id
+      INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
+      WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
+    `;
+    const countResult = await this.ds.query(countSql, [instituteId]);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
+
     const rows = await this.ds.query(`
       SELECT 
         ts.id,
@@ -1190,9 +1206,10 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
       WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
       ORDER BY ts.submitted_at DESC NULLS LAST
-    `, [instituteId]);
+      LIMIT $2 OFFSET $3
+    `, [instituteId, limit, offset]);
 
-    const mapped = rows.map(r => ({
+    const mapped = rows.map((r: any) => ({
       id: r.id,
       status: r.status,
       totalScore: r.totalScore,
@@ -1208,6 +1225,6 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         title: r.mock_test_title
       }
     }));
-    return { success: true, data: mapped };
+    return { success: true, data: mapped, total, page, limit, totalPages };
   }
 }

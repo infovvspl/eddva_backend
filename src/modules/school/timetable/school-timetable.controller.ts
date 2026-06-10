@@ -10,6 +10,7 @@ export class SchoolTimetableController {
   constructor(private readonly svc: SchoolTimetableService) {}
 
   @Get() listTimetables(@SchoolUser() user: any, @Query() query: any) { return this.svc.listTimetables(user, query); }
+  @Get('student/me') getStudentTimetable(@SchoolUser() user: any) { return this.svc.getStudentTimetable(user); }
   @Post() createTimetable(@SchoolUser() user: any, @Body() body: any) { return this.svc.createTimetable(user, body); }
   @Get(':id') findOneTimetable(@Param('id') id: string) { return this.svc.findOneTimetable(id); }
   @Put(':id') updateTimetable(@Param('id') id: string, @Body() body: any) { return this.svc.updateTimetable(id, body); }

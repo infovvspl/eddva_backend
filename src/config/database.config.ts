@@ -27,7 +27,6 @@ export const coachingDbConfig: DataSourceOptions = {
   logging: process.env.DB_LOGGING === 'true',
   ssl: { rejectUnauthorized: false },
   extra: {
-    family: 4,
     max: parseInt(process.env.DB_POOL_MAX || defaultDbPoolMax),
     // Keep connections warm: avoid the ~1.2s TLS reconnect on every short idle gap
     // (the dominant latency cost when running locally against RDS in Mumbai).
@@ -51,7 +50,6 @@ export const schoolDbConfig: DataSourceOptions = {
   logging: process.env.DB_LOGGING === 'true',
   ssl: { rejectUnauthorized: false },
   extra: {
-    family: 4,
     max: parseInt(process.env.SCHOOL_DB_POOL_MAX || defaultDbPoolMax),
     // Keep connections warm to avoid the ~1.2s TLS reconnect on short idle gaps.
     idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '300000'), // 5 min
