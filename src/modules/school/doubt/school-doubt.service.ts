@@ -68,7 +68,9 @@ export class SchoolDoubtService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    await this.ensureTable();
+    void this.ensureTable().catch((err) => {
+      console.warn(`SchoolDoubtService init skipped: ${(err as Error).message}`);
+    });
   }
 
   private async ensureTable() {

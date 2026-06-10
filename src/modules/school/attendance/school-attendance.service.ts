@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
@@ -90,7 +90,56 @@ export class SchoolAttendanceService {
 
   async get(user: any, query: any) {
     const instituteId = user.instituteId;
-    let sql = `
+    let filter = `a.institute_id = $1`;
+    const params: any[] = [instituteId];
+
+    if (query.userId) { params.push(query.userId); filter += ` AND a.user_id=$${params.length}`; }
+    if (query.date) { params.push(new Date(query.date)); filter += ` AND a.date=$${params.length}`; }
+    if (query.startDate) { params.push(new Date(query.startDate)); filter += ` AND a.date>=$${params.length}`; }
+    if (query.endDate) { params.push(new Date(query.endDate)); filter += ` AND a.date<=$${params.length}`; }
+    if (query.role) { params.push(query.role); filter += ` AND u.role=$${params.length}`; }
+    
+    // Add support for class and section filtering which was requested
+    if (query.classId) { params.push(query.classId); filter += ` AND c.id=$${params.length}`; }
+    if (query.sectionId) { params.push(query.sectionId); filter += ` AND sec.id=$${params.length}`; }
+    if (query.status) { params.push(query.status.toLowerCase()); filter += ` AND LOWER(a.status)=$${params.length}`; }
+
+    if (query.search) {
+      const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+      if (searchTerms.length > 0) {
+        const searchConditions = searchTerms.map((term: string) => {
+          params.push(term);
+          return `(LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length})`;
+        });
+        filter += ` AND (${searchConditions.join(' AND ')})`;
+      }
+    }
+
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 10);
+    const offset = (page - 1) * limit;
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM attendances a 
+      JOIN users u ON a.user_id = u.id 
+      LEFT JOIN students s ON s.user_id = u.id
+      LEFT JOIN sections sec ON s.section_id = sec.id
+      LEFT JOIN classes c ON sec.class_id = c.id
+      WHERE ${filter}
+    `;
+    const countResult = await this.ds.query(countQuery, params);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
+
+    const allowedSortFields: Record<string, string> = {
+      date: 'a.date',
+      name: 'u.name',
+    };
+    const sortBy = allowedSortFields[query.sortBy] || 'a.date';
+    const sortOrder = query.sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'; // default DESC for attendance
+
+    const sql = `
       SELECT 
         a.*,
         u.name AS user_name,
@@ -106,19 +155,14 @@ export class SchoolAttendanceService {
       LEFT JOIN students s ON s.user_id = u.id
       LEFT JOIN sections sec ON s.section_id = sec.id
       LEFT JOIN classes c ON sec.class_id = c.id
-      WHERE a.institute_id = $1
+      WHERE ${filter}
+      ORDER BY ${sortBy} ${sortOrder}
+      LIMIT ${limit} OFFSET ${offset}
     `;
-    const params: any[] = [instituteId];
-    if (query.userId) { params.push(query.userId); sql += ` AND a.user_id=$${params.length}`; }
-    if (query.date) { params.push(new Date(query.date)); sql+=` AND a.date=$${params.length}`; }
-    if (query.startDate) { params.push(new Date(query.startDate)); sql+=` AND a.date>=$${params.length}`; }
-    if (query.endDate) { params.push(new Date(query.endDate)); sql+=` AND a.date<=$${params.length}`; }
-    if (query.role) { params.push(query.role); sql+=` AND u.role=$${params.length}`; }
-    sql+=` ORDER BY a.date DESC`;
     
     const rows: any[] = await this.ds.query(sql, params);
     
-    return rows.map(r => ({
+    const mapped = rows.map(r => ({
       id: r.id,
       date: r.date,
       status: r.status,
@@ -141,6 +185,36 @@ export class SchoolAttendanceService {
         } : null
       }
     }));
+
+    return { success: true, data: mapped, total, page, limit, totalPages };
+  }
+
+  async checkSession(user: any, query: any) {
+    try {
+      const tenantId = user.instituteId;
+      const existing = await this.ds.query(`
+        SELECT id FROM attendance_sessions 
+        WHERE tenant_id = $1 AND class_id = $2 AND section_id = $3 AND date = $4 
+          AND COALESCE(period, '') = COALESCE($5::text, '') 
+          AND COALESCE(subject_id, '') = COALESCE($6::text, '')
+        LIMIT 1
+      `, [
+        tenantId || null, 
+        query.classId || null, 
+        query.sectionId || null, 
+        query.date || null, 
+        query.period || null, 
+        query.subjectId || null
+      ]);
+      
+      if (existing.length > 0) {
+        return { success: true, data: { exists: true, sessionId: existing[0].id } };
+      }
+      return { success: true, data: { exists: false } };
+    } catch (e: any) {
+      console.error("DEBUG checkSession ERROR:", e);
+      throw new ConflictException("DEBUG_ERROR: " + e.message);
+    }
   }
 
   async markSession(user: any, body: any) {
@@ -158,7 +232,12 @@ export class SchoolAttendanceService {
         LIMIT 1
       `, [tenantId, body.classId, body.sectionId, body.date, body.period || null, body.subjectId || null]);
       if (existing.length > 0) {
-        sessionId = existing[0].id;
+        throw new ConflictException({
+          success: false,
+          message: "Attendance has already been submitted for this session.",
+          canEdit: true,
+          sessionId: existing[0].id
+        });
       }
     }
 
@@ -190,13 +269,12 @@ export class SchoolAttendanceService {
       sessionId = session[0].id;
     }
 
-    // Delete existing attendance records for this session to update them properly
-    await this.ds.query(`
-      DELETE FROM attendance_records WHERE session_id = $1
-    `, [sessionId]);
-
     // Insert student attendance records
     for (const s of (body.students || [])) {
+      await this.ds.query(`
+        DELETE FROM attendance_records WHERE session_id = $1 AND student_id = $2
+      `, [sessionId, s.student_id]);
+
       await this.ds.query(`
         INSERT INTO attendance_records (
           session_id, tenant_id, student_id, status, remarks, created_at, updated_at
@@ -315,16 +393,67 @@ export class SchoolAttendanceService {
     return { success: true, count: result.length, data: result };
   }
 
-  async getStudentsByClassAndSection(classId: string, sectionId: string) {
-    const result: any[] = await this.ds.query(`
+  async getStudentsByClassAndSection(classId: string, sectionId: string, query: any = {}) {
+    let filter = `sec.class_id = $1 AND s.section_id = $2`;
+    const params: any[] = [classId, sectionId];
+
+    if (query.search) {
+      const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+      if (searchTerms.length > 0) {
+        const searchConditions = searchTerms.map((term: string) => {
+          params.push(term);
+          return `(LOWER(u.name) LIKE $${params.length} OR LOWER(s.roll_no) LIKE $${params.length})`;
+        });
+        filter += ` AND (${searchConditions.join(' AND ')})`;
+      }
+    }
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM users u
+      JOIN students s ON s.user_id = u.id 
+      JOIN sections sec ON s.section_id = sec.id
+      WHERE ${filter}
+    `;
+    const countResult = await this.ds.query(countQuery, params);
+    
+    // Support non-paginated access if page and limit aren't provided
+    const pageStr = query.page;
+    const limitStr = query.limit;
+    
+    let total = parseInt(countResult[0]?.total || '0', 10);
+    let page = 1;
+    let limit = total || 10;
+    let totalPages = 1;
+    let offset = 0;
+
+    if (pageStr && limitStr) {
+      page = Math.max(1, parseInt(pageStr) || 1);
+      limit = Math.max(1, parseInt(limitStr) || 10);
+      offset = (page - 1) * limit;
+      totalPages = Math.ceil(total / limit);
+    }
+
+    const sortBy = query.sortBy === 'name' ? 'u.name' : 's.roll_no';
+    const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
+    let orderClause = `ORDER BY ${sortBy} ${sortOrder} NULLS LAST`;
+    if (sortBy === 's.roll_no') {
+      orderClause = `ORDER BY s.roll_no ${sortOrder} NULLS LAST, u.name ASC`;
+    }
+
+    const sql = `
       SELECT u.id, u.name, u.email, s.roll_no 
       FROM users u
       JOIN students s ON s.user_id = u.id 
       JOIN sections sec ON s.section_id = sec.id
-      WHERE sec.class_id = $1 AND s.section_id = $2
-      ORDER BY s.roll_no NULLS LAST, u.name
-    `, [classId, sectionId]);
-    return { success: true, count: result.length, data: result };
+      WHERE ${filter}
+      ${orderClause}
+      ${pageStr && limitStr ? `LIMIT ${limit} OFFSET ${offset}` : ''}
+    `;
+
+    const result: any[] = await this.ds.query(sql, params);
+    return { success: true, count: result.length, data: result, total, page, limit, totalPages };
   }
 
   async getDashboardStats(user: any) {
@@ -408,33 +537,56 @@ export class SchoolAttendanceService {
       LEFT JOIN attendance_records ar ON asess.id = ar.session_id
       WHERE asess.tenant_id = $1
     `;
+    const countSqlBase = `
+      FROM attendance_sessions asess
+      WHERE asess.tenant_id = $1
+    `;
     const params: any[] = [tenantId];
+    let whereConditions = '';
 
     if (query.date) {
       params.push(query.date);
-      sql += ` AND asess.date = $${params.length}`;
+      whereConditions += ` AND asess.date = $${params.length}`;
     }
     if (query.classId) {
       params.push(query.classId);
-      sql += ` AND asess.class_id = $${params.length}`;
+      whereConditions += ` AND asess.class_id = $${params.length}`;
     }
     if (query.sectionId) {
       params.push(query.sectionId);
-      sql += ` AND asess.section_id = $${params.length}`;
+      whereConditions += ` AND asess.section_id = $${params.length}`;
     }
     if (query.subjectId) {
       params.push(query.subjectId);
-      sql += ` AND asess.subject_id = $${params.length}`;
+      whereConditions += ` AND asess.subject_id = $${params.length}`;
     }
+
+    sql += whereConditions;
+
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 100);
+    const offset = (page - 1) * limit;
+
+    const countSql = `SELECT COUNT(*)::int AS total ${countSqlBase} ${whereConditions}`;
+    const countResult = await this.ds.query(countSql, params);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
 
     sql += `
       GROUP BY asess.id, asess.date, asess.period, asess.finalized, c.name, sec.name, sub.name
       ORDER BY asess.date DESC, asess.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
+
+    params.push(limit, offset);
 
     const rows = await this.ds.query(sql, params);
     return {
       success: true,
+      total,
+      page,
+      limit,
+      totalPages,
       data: rows.map((r: any) => ({
         sessionId: r.sessionId,
         date: r.date,

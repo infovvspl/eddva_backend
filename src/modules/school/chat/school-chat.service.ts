@@ -18,20 +18,17 @@ export class SchoolChatService implements OnModuleInit {
 
   async onModuleInit() {
     console.log('--- RUNNING CHAT MIGRATION ---');
-    try {
-      await this.ds.query(`
-        ALTER TABLE chat_messages 
-        ADD COLUMN IF NOT EXISTS parent_message_id UUID,
-        ADD COLUMN IF NOT EXISTS is_forwarded BOOLEAN DEFAULT false,
-        ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT false,
-        ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false,
-        ADD COLUMN IF NOT EXISTS attachment_url VARCHAR,
-        ADD COLUMN IF NOT EXISTS attachment_name VARCHAR;
-      `);
-      console.log('--- CHAT MIGRATION SUCCESSFUL ---');
-    } catch (e) {
-      console.error('--- CHAT MIGRATION FAILED ---', e);
-    }
+    void this.ds.query(`
+      ALTER TABLE chat_messages 
+      ADD COLUMN IF NOT EXISTS parent_message_id UUID,
+      ADD COLUMN IF NOT EXISTS is_forwarded BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS attachment_url VARCHAR,
+      ADD COLUMN IF NOT EXISTS attachment_name VARCHAR;
+    `)
+      .then(() => console.log('--- CHAT MIGRATION SUCCESSFUL ---'))
+      .catch((e) => console.error('--- CHAT MIGRATION FAILED ---', e));
   }
 
   async getConversations(user: any, query: any) {
