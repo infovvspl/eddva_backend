@@ -119,7 +119,59 @@ export class SchoolClassService implements OnModuleInit {
     if (query.classId) { params.push(query.classId); sql += ` AND r.class_id = $${params.length}::uuid`; }
     sql += ` ORDER BY r.created_at DESC`;
     const rows = await this.ds.query(sql, params);
-    return { success: true, data: rows };
+    const data = await Promise.all(rows.map(async (row: any) => {
+      if (row.source === 'upload' && row.video_key) {
+        try {
+          return {
+            ...row,
+            video_url: await this.s3Service.presignGet(row.video_key, 3600),
+          };
+        } catch (err: any) {
+          this.logger.warn(`Failed to sign recording video ${row.id}: ${err?.message}`);
+        }
+      }
+      return row;
+    }));
+    return { success: true, data };
+  }
+
+  async getPlayUrl(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = user.role === 'SUPER_ADMIN' ? user.instituteId : user.instituteId;
+    const params: any[] = [id];
+    let sql = `SELECT id, video_url, video_key, source FROM class_recordings WHERE id=$1`;
+    if (instituteId) {
+      params.push(instituteId);
+      sql += ` AND institute_id=$${params.length}::uuid`;
+    }
+    const rows = await this.ds.query(sql, params);
+    if (!rows.length) throw new NotFoundException('Recording not found');
+
+    const rec = rows[0];
+    if (rec.source === 'youtube') {
+      return { success: true, data: { videoUrl: rec.video_url, source: 'youtube' } };
+    }
+
+    let key = rec.video_key;
+    if (!key && rec.video_url) {
+      try {
+        key = this.s3Service.keyFromUrl(rec.video_url);
+      } catch {
+        key = null;
+      }
+    }
+
+    if (key) {
+      return {
+        success: true,
+        data: {
+          videoUrl: await this.s3Service.presignGet(key, 3600),
+          source: 'upload',
+        },
+      };
+    }
+
+    return { success: true, data: { videoUrl: rec.video_url, source: rec.source || 'upload' } };
   }
 
   async create(user: any, body: any) {

@@ -14,6 +14,10 @@ export class SchoolClassController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   listRecordings(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
 
+  @Get('recordings/:id/play-url')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
+  getRecordingPlayUrl(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.getPlayUrl(user, id); }
+
   @Post('recordings/upload-url')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   presignRecording(@SchoolUser() user: any, @Body() body: any) { return this.svc.presignUpload(user, body); }
