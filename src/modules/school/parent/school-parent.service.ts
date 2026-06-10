@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolMeetingService } from '../meeting/school-meeting.service';
 
 /**
  * Parent portal service.
@@ -13,7 +14,10 @@ import { DataSource } from 'typeorm';
  */
 @Injectable()
 export class SchoolParentService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly meetingService: SchoolMeetingService,
+  ) {}
 
   // ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -433,15 +437,56 @@ export class SchoolParentService {
     return { success: true };
   }
 
-  async getMeetingRequests(_user: any) {
-    return [] as any[];
+  private mapMeetingRequestRow(row: any) {
+    return {
+      id: row.id,
+      teacherName: row.teacherName || row.counterpartName,
+      teacherId: row.teacherId,
+      date: row.meetingDate || row.date || null,
+      timeSlot: row.startTime || row.timeSlot || null,
+      durationMinutes: row.durationMinutes ?? null,
+      meetingMode: row.meetingMode || 'online',
+      meetingLink: row.meetingLink || null,
+      meetingPlatform: row.meetingPlatform || null,
+      location: row.location || null,
+      reason: row.description || row.reason || null,
+      status: String(row.status || 'pending').replace(/^./, (c: string) => c.toUpperCase()),
+      title: row.title || 'Meeting',
+      isIncoming: Boolean(row.isIncoming),
+      isOutgoing: row.isOutgoing !== false,
+      counterpartName: row.counterpartName || row.teacherName || null,
+      counterpartRole: row.counterpartRole || null,
+    };
   }
 
-  async createMeetingRequest(_user: any, _body: any) {
-    return { success: true };
+  async getMeetingRequests(user: any) {
+    const rows: any[] = await this.meetingService.list(user, {});
+    return rows.map((row) => this.mapMeetingRequestRow(row));
   }
 
-  async cancelMeetingRequest(_user: any, _id: string) {
-    return { success: true };
+  async createMeetingRequest(user: any, body: any) {
+    const created = await this.meetingService.create(user, {
+      title: body.title || 'Parent Meeting Request',
+      description: body.reason || body.description || '',
+      teacherId: body.teacherId,
+      meetingDate: body.date || body.meetingDate || null,
+      startTime: body.timeSlot || body.startTime || null,
+      durationMinutes: body.durationMinutes || null,
+      meetingMode: body.meetingMode || 'online',
+      meetingLink: body.meetingLink || body.meetingUrl || null,
+      meetingPlatform: body.meetingPlatform || null,
+      location: body.location || null,
+      status: 'pending',
+      scopeType: 'individual',
+    });
+
+    return {
+      success: true,
+      data: this.mapMeetingRequestRow(created?.data || created),
+    };
+  }
+
+  async cancelMeetingRequest(user: any, id: string) {
+    return this.meetingService.updateStatus(user, id, { status: 'cancelled' });
   }
 }

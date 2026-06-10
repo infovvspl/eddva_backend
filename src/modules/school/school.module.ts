@@ -21,6 +21,7 @@ import { SchoolGrievanceModule } from './grievance/school-grievance.module';
 import { SchoolMaterialModule } from './material/school-material.module';
 import { SchoolNotificationModule } from './notification/school-notification.module';
 import { SchoolChatModule } from './chat/school-chat.module';
+import { SchoolMeetingModule } from './meeting/school-meeting.module';
 import { SchoolReportModule } from './report/school-report.module';
 import { SchoolCreatorStudioModule } from './creator-studio/school-creator-studio.module';
 import { SchoolActivityLogModule } from './activity-log/school-activity-log.module';
@@ -54,6 +55,7 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
     SchoolMaterialModule,
     SchoolNotificationModule,
     SchoolChatModule,
+    SchoolMeetingModule,
     SchoolReportModule,
     SchoolCreatorStudioModule,
     SchoolActivityLogModule,
