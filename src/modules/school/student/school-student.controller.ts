@@ -18,8 +18,6 @@ export class SchoolStudentController {
   @Get('courses/:classId') courseCurriculum(@SchoolUser() user: any, @Param('classId') classId: string) {
     return this.svc.getCourseDetail(user, classId);
   }
-  // Must be declared before ':id' so it isn't swallowed by the dynamic param route.
-  @Get('dashboard') dashboard(@SchoolUser() user: any) { return this.svc.getDashboard(user); }
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(id); }
   @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
   @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(id); }
