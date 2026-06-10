@@ -22422,434 +22422,1404 @@ Error: QueryFailedError: relation "attendance" does not exist
     at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T04:36:43.495Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T04:36:43.672Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:09:15.912Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: relation "attendance" does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T04:48:24.326Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:09:36.389Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: relation "attendance" does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T04:48:24.901Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T04:48:25.013Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:09:56.413Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: relation "attendance" does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T05:08:21.297Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:10:16.716Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: relation "attendance" does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T05:08:21.847Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:10:36.715Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: relation "attendance" does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T05:08:32.195Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:10:56.497Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: relation "attendance" does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T05:11:53.092Z] GET /api/v1/school/classes/recordings/d6bee444-f234-4833-81fd-874b2272a1e4/play-url
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings/d6bee444-f234-4833-81fd-874b2272a1e4/play-url
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+[2026-06-10T05:11:16.705Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T05:11:53.123Z] GET /api/v1/school/classes/recordings/d6bee444-f234-4833-81fd-874b2272a1e4/play-url
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings/d6bee444-f234-4833-81fd-874b2272a1e4/play-url
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T05:12:00.294Z] GET /api/v1/school/classes/recordings/d6bee444-f234-4833-81fd-874b2272a1e4/play-url
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings/d6bee444-f234-4833-81fd-874b2272a1e4/play-url
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T05:46:11.343Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:13:16.428Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
 
-[2026-06-10T05:46:20.347Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:14:16.360Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
 
-[2026-06-10T05:46:20.818Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:15:16.912Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
 
-[2026-06-10T05:50:35.291Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:16:16.650Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
 
-[2026-06-10T05:50:35.637Z] GET /api/v1/school/battles/leaderboard
+[2026-06-10T05:17:16.797Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:18:16.713Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:19:16.722Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:20:16.698Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:21:16.720Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:22:16.714Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:23:16.722Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:24:17.093Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:25:16.732Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:26:16.702Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:27:16.737Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:28:16.639Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:29:16.392Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:30:16.668Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:31:16.687Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:32:16.706Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:33:16.732Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:34:16.763Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:35:16.809Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:36:16.732Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:37:16.746Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:38:16.710Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:39:16.704Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:40:16.705Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:41:16.700Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:42:16.829Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:43:16.731Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:44:16.718Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:45:16.712Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:46:16.708Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:47:16.685Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:48:16.658Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:49:16.694Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:50:16.730Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:51:16.427Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:52:16.698Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:53:16.736Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:54:16.704Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:55:16.743Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:56:16.712Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:57:16.703Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:58:16.727Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:59:16.991Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:00:16.705Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:01:16.736Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:02:17.205Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: Connection terminated unexpectedly
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:79:25)
+    at async GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:16:17)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:02:17.215Z] GET /api/v1/school/assignments
+Status: 500
+Error: QueryFailedError: Connection terminated unexpectedly
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:79:25)
+    at async GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:16:17)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:02:17.227Z] GET /api/v1/school/students/courses/my
+Status: 500
+Error: QueryFailedError: Connection terminated unexpectedly
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:79:25)
+    at async GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:16:17)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:02:17.230Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: QueryFailedError: Connection terminated unexpectedly
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:79:25)
+    at async GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:16:17)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:02:17.551Z] GET /api/v1/school/events?from=2026-06-08T06:02:04.125Z&to=2026-06-14T06:02:04.125Z
+Status: 500
+Error: QueryFailedError: Connection terminated unexpectedly
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:79:25)
+    at async GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:16:17)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:02:17.561Z] GET /api/v1/school/notices
+Status: 500
+Error: QueryFailedError: Connection terminated unexpectedly
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:79:25)
+    at async GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:16:17)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:02:28.688Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:28.689Z] GET /api/v1/school/events?from=2026-06-08T06:02:16.282Z&to=2026-06-14T06:02:16.282Z
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:28.692Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:28.693Z] GET /api/v1/school/assignments
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:28.696Z] GET /api/v1/school/students/courses/my
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:28.698Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:29.032Z] GET /api/v1/school/notices
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:29.035Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:29.357Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:36.580Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:36.582Z] GET /api/v1/school/assignments
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:36.595Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:36.597Z] GET /api/v1/school/notices
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:36.599Z] GET /api/v1/school/students/courses/my
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:36.605Z] GET /api/v1/school/events?from=2026-06-08T06:02:36.267Z&to=2026-06-14T06:02:36.267Z
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:56.287Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:56.598Z] GET /api/v1/school/assignments
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:56.600Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:56.602Z] GET /api/v1/school/notices
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:56.610Z] GET /api/v1/school/students/courses/my
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:56.612Z] GET /api/v1/school/events?from=2026-06-08T06:02:56.277Z&to=2026-06-14T06:02:56.277Z
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:02:57.712Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:03:16.583Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:03:16.591Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:03:16.620Z] GET /api/v1/school/assignments
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:03:16.621Z] GET /api/v1/school/assessments/mock-tests?status=published
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:03:16.628Z] GET /api/v1/school/notices
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:03:16.630Z] GET /api/v1/school/events?from=2026-06-08T06:03:16.276Z&to=2026-06-14T06:03:16.276Z
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:03:16.895Z] GET /api/v1/school/students/courses/my
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:03:16.915Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-10T06:04:16.847Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:05:16.338Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:06:16.676Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:07:16.718Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:08:16.333Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:08:17.538Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:08:17.716Z] GET /api/v1/school/battles/leaderboard
 Status: 404
 Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T05:55:42.384Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:03:00.844Z] GET /api/v1/school/battles/leaderboard
+[2026-06-10T06:08:17.854Z] GET /api/v1/school/battles/leaderboard
 Status: 404
 Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:03:00.888Z] GET /api/v1/school/students/dashboard
+[2026-06-10T06:08:17.858Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
 
-[2026-06-10T06:03:01.111Z] GET /api/v1/school/battles/leaderboard
+[2026-06-10T06:08:18.039Z] GET /api/v1/school/battles/leaderboard
 Status: 404
 Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:03:01.211Z] GET /api/v1/school/students/dashboard
+[2026-06-10T06:08:18.210Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
 
-[2026-06-10T06:03:04.283Z] GET /api/v1/school/students/dashboard
+[2026-06-10T06:08:21.026Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
 
-[2026-06-10T06:03:04.541Z] GET /api/v1/school/battles/leaderboard
+[2026-06-10T06:08:21.702Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:08:22.069Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:08:32.182Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:08:32.558Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:08:32.930Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:08:52.478Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:08:52.864Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:08:53.235Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:09:12.166Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:09:12.854Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:09:13.224Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:09:16.651Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:09:22.068Z] GET /api/v1/school/battles/leaderboard
 Status: 404
 Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:03:04.691Z] GET /api/v1/school/students/dashboard
+[2026-06-10T06:09:22.117Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
 
-[2026-06-10T06:03:04.856Z] GET /api/v1/school/battles/leaderboard
+[2026-06-10T06:09:22.336Z] GET /api/v1/school/battles/leaderboard
 Status: 404
 Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:05:35.657Z] GET /api/v1/school/battles/leaderboard
+[2026-06-10T06:09:22.427Z] GET /api/v1/school/battles/leaderboard
 Status: 404
 Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:05:35.707Z] GET /api/v1/school/students/dashboard
+[2026-06-10T06:09:22.436Z] GET /api/v1/school/students/dashboard
 Status: 500
 Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
 
-[2026-06-10T06:17:20.732Z] POST /api/v1/auth/login
+[2026-06-10T06:09:22.698Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:09:29.472Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:09:30.141Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:09:49.537Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:09:57.065Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:09:57.443Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:10:16.354Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:10:26.184Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:10:26.448Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:10:26.544Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:10:26.761Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:10:26.921Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:10:27.072Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:10:27.290Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:10:27.385Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:10:34.537Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:10:34.806Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:10:34.905Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:10:35.115Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:10:35.277Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:10:35.428Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:10:35.645Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:10:35.739Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T04:36:46.173Z] POST /api/v1/auth/login
 Status: 401
 Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
 
-[2026-06-10T06:19:13.508Z] GET /api/v1/school/students
-Status: 500
-Error: QueryFailedError: trailing junk after numeric literal at or near "15f29a6d"
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+[2026-06-10T04:37:01.759Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.list (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:168:25)
 
-[2026-06-10T06:36:57.791Z] GET /api/v1/school/students/dashboard
+[2026-06-10T04:37:02.433Z] GET /api/v1/school/students/dashboard
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T06:37:18.029Z] GET /api/v1/school/students/dashboard
+[2026-06-10T04:39:09.367Z] GET /api/v1/school/students/dashboard
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T06:37:38.032Z] GET /api/v1/school/students/dashboard
+[2026-06-10T04:39:46.266Z] GET /api/v1/school/students/dashboard
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T06:37:58.349Z] GET /api/v1/school/students/dashboard
+[2026-06-10T04:39:47.142Z] GET /api/v1/school/students/dashboard
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
 
-[2026-06-10T06:38:18.081Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+[2026-06-10T05:06:22.613Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:38:38.364Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+[2026-06-10T05:06:22.939Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:38:58.482Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+[2026-06-10T05:06:22.949Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:39:25.037Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+[2026-06-10T05:06:23.256Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:40:25.485Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:09:29.909Z] GET /api/v1/school/chat/directory
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
 
-[2026-06-10T06:40:48.940Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+[2026-06-10T05:26:26.059Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:40:49.789Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+[2026-06-10T05:26:26.329Z] GET /api/v1/school/classes/schedules
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/classes/schedules
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
-[2026-06-10T06:40:50.145Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:26:40.362Z] GET /api/v1/school/chat/directory
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
 
-[2026-06-10T06:40:58.566Z] GET /api/v1/school/students/dashboard
+[2026-06-10T05:34:09.270Z] GET /api/v1/school/chat/directory
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
 
-[2026-06-10T06:41:18.130Z] GET /api/v1/school/students/dashboard
+[2026-06-10T06:05:52.806Z] GET /api/v1/school/chat/directory
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
 
-[2026-06-10T06:41:38.050Z] GET /api/v1/school/students/dashboard
+[2026-06-10T06:08:51.799Z] GET /api/v1/school/chat/directory
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
 
-[2026-06-10T06:42:25.561Z] GET /api/v1/school/students/dashboard
+[2026-06-10T06:08:52.263Z] GET /api/v1/school/chat/directory
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
 
-[2026-06-10T06:43:25.634Z] GET /api/v1/school/students/dashboard
+[2026-06-10T06:09:24.603Z] GET /api/v1/school/students/dashboard
 Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+
+[2026-06-10T06:09:25.593Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+
+[2026-06-10T06:09:42.162Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+
+[2026-06-10T06:10:19.768Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+
+[2026-06-10T06:10:20.350Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: relation "attendance" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\Edva\eddva_backend\src\modules\school\student\school-student.service.ts:692:21)
+
+[2026-06-10T06:20:53.869Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
+
+[2026-06-10T06:20:54.312Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
 
