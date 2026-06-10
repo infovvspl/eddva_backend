@@ -294,6 +294,41 @@ export class SchoolTeacherService {
 
   async list(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
+    const params: any[] = [instituteId];
+    let filter = `u.institute_id=$1 AND u.role='TEACHER'`;
+
+    if (query.search) {
+      const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+      if (searchTerms.length > 0) {
+        const searchConditions = searchTerms.map((term: string) => {
+          params.push(term);
+          return `(LOWER(u.name) LIKE $${params.length} OR LOWER(t.employee_id) LIKE $${params.length})`;
+        });
+        filter += ` AND (${searchConditions.join(' AND ')})`;
+      }
+    }
+
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 10);
+    const offset = (page - 1) * limit;
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM users u LEFT JOIN teachers t ON t.user_id=u.id
+      WHERE ${filter}
+    `;
+    const countResult = await this.ds.query(countQuery, params);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
+
+    const allowedSortFields: Record<string, string> = {
+      name: 'u.name',
+      employeeId: 't.employee_id',
+      joiningDate: 't.joining_date',
+    };
+    const sortBy = allowedSortFields[query.sortBy] || 'u.name';
+    const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
     const rows: any[] = await this.ds.query(
       `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.photo,
               t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
@@ -304,8 +339,8 @@ export class SchoolTeacherService {
        COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM teacher_classes tc JOIN classes c ON tc.class_id=c.id WHERE tc.teacher_id=t.id), '[]'::json) as classes,
        COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM teacher_sections ts JOIN sections s ON ts.section_id=s.id WHERE ts.teacher_id=t.id), '[]'::json) as sections,
        COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM teacher_subjects tsub JOIN subjects sub ON tsub.subject_id=sub.id WHERE tsub.teacher_id=t.id), '[]'::json) as subjects
-       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE u.institute_id=$1 AND u.role='TEACHER' ORDER BY u.name`,
-      [instituteId],
+       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
+      params,
     );
     const assignmentsRows = await this.ds.query(`
       SELECT ta.*, c.name AS class_name, s.name AS section_name, sub.name AS subject_name, t.user_id
@@ -377,7 +412,7 @@ export class SchoolTeacherService {
         } : null
       };
     });
-    return { success: true, data: mappedRows };
+    return { success: true, data: mappedRows, total, page, limit, totalPages };
   }
 
   async findOne(id: string) {

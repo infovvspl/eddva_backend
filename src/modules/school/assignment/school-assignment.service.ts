@@ -33,16 +33,27 @@ export class SchoolAssignmentService {
     return instituteId;
   }
 
-  private async getStudentProfile(userId: string) {
+  private async getStudentProfile(user: any) {
     const rows: any[] = await this.ds.query(
-      `SELECT s.id AS student_id, s.institute_id, sec.class_id
+      `SELECT s.id AS student_id, s.institute_id, sec.class_id, s.section_id
        FROM students s
        LEFT JOIN sections sec ON s.section_id::text = sec.id::text
        WHERE s.user_id::text = $1::text`,
-      [userId],
+      [user.id],
     );
-    if (!rows.length) throw new NotFoundException('Student profile not found');
-    return rows[0];
+    if (rows.length) return rows[0];
+
+    const fallbackProfile = user?.studentProfile || {};
+    if (!fallbackProfile.id && !fallbackProfile.classId && !fallbackProfile.sectionId) {
+      throw new NotFoundException('Student profile not found');
+    }
+
+    return {
+      student_id: fallbackProfile.id || null,
+      institute_id: user.instituteId || null,
+      class_id: fallbackProfile.classId || null,
+      section_id: fallbackProfile.sectionId || null,
+    };
   }
 
   private mapRow(r: any) {
@@ -95,10 +106,18 @@ export class SchoolAssignmentService {
     let studentId: string | null = null;
 
     if (user.role === 'STUDENT') {
-      const profile = await this.getStudentProfile(user.id);
+      const profile = await this.getStudentProfile(user);
       studentId = profile.student_id;
-      if (!profile.class_id) return { success: true, data: [] };
-      params.push(profile.class_id);
+      let classId = profile.class_id || null;
+      if (!classId && profile.section_id) {
+        const classRows: any[] = await this.ds.query(
+          `SELECT class_id FROM sections WHERE id::text = $1::text`,
+          [profile.section_id],
+        );
+        classId = classRows[0]?.class_id || null;
+      }
+      if (!classId) return { success: true, data: [] };
+      params.push(classId);
       filter += ` AND a.class_id::text=$${params.length}::text`;
     } else {
       if (query.classId) {

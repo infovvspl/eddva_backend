@@ -42,6 +42,7 @@ export class SchoolAssessmentService {
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS topic_id UUID NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS answer_key TEXT NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS language VARCHAR NULL DEFAULT 'en'`);
+    await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS questions_json JSONB NULL`);
     this.schemaReady = true;
   }
 
@@ -69,6 +70,7 @@ export class SchoolAssessmentService {
     await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS answers_json JSONB NULL`);
     await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS objective_score NUMERIC(6,2) NULL`);
     await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS objective_total NUMERIC(6,2) NULL`);
+    await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS grading_details JSONB NULL`);
     await this.ds.query(`ALTER TABLE assessment_submissions ADD COLUMN IF NOT EXISTS grading_status VARCHAR NULL`);
     this.submissionSchemaReady = true;
   }
@@ -107,14 +109,83 @@ export class SchoolAssessmentService {
     return [];
   }
 
+  private stripCorrectAnswersFromQuestions(questions: any[]) {
+    return this.normalizeQuestions(questions).map((question: any) => {
+      const {
+        correctAnswer: _correctAnswer,
+        correct_answer: _correct_answer,
+        explanation: _explanation,
+        ...safeQuestion
+      } = question;
+      return safeQuestion;
+    });
+  }
+
+  private hasInlineMcqOptions(text: string) {
+    return Array.from(String(text || '').matchAll(/\(([a-dA-D])\)\s*/g)).length >= 2;
+  }
+
+  private sectionLetter(title: string) {
+    return String(title || '').match(/section\s+([A-E])/i)?.[1]?.toUpperCase()
+      || String(title || '').match(/[-–]\s*([A-E])\b/i)?.[1]?.toUpperCase()
+      || String(title || '').match(/\b([A-E])\b/)?.[1]?.toUpperCase()
+      || '';
+  }
+
+  private isInstructionLikeText(text: string) {
+    const normalized = String(text || '').trim().toLowerCase();
+    if (!normalized) return true;
+    return /^(read|write|use|do not|answer|attempt|follow|choose|fill|tick|select)\b/.test(normalized)
+      || normalized.includes('general instruction')
+      || normalized.includes('question paper consists')
+      || normalized.includes('follow the instructions')
+      || normalized.includes('space provided');
+  }
+
+  private parsedQuestionsNeedRefresh(questions: any[]) {
+    return this.normalizeQuestions(questions).some((question: any) => {
+      const type = question.type || 'short_answer';
+      const sectionLetter = this.sectionLetter(question.sectionTitle || question.section || '');
+      return this.isInstructionLikeText(question.text)
+        || (sectionLetter === 'A' && type !== 'mcq_single')
+        || (type !== 'mcq_single' && this.hasInlineMcqOptions(question.text));
+    });
+  }
+
   private async hydrateQuestions(row: any) {
     if (!row) return row;
     const existing = this.normalizeQuestions(row.questions_json);
     if (existing.length) {
+      const objectiveMissingAnswers = existing.some((question: any) => {
+        const type = question.type || 'short_answer';
+        const correctAnswer = question.correctAnswer ?? question.correct_answer;
+        return this.objectiveTypes.has(type) && (correctAnswer === undefined || correctAnswer === null || correctAnswer === '');
+      });
+      const answerKeyHasExplanations = /\b(?:explanation|reason)\s*[:\-]/i.test(String(row.answer_key || ''));
+      const objectiveMissingExplanations = answerKeyHasExplanations && existing.some((question: any) => {
+        const type = question.type || 'short_answer';
+        return this.objectiveTypes.has(type) && !question.explanation;
+      });
+      const missingOrderMetadata = existing.some((question: any) => question.sectionTitle === undefined || question.sourceIndex === undefined);
+      if ((objectiveMissingAnswers && row.answer_key) || objectiveMissingExplanations || missingOrderMetadata || this.parsedQuestionsNeedRefresh(existing)) {
+        const reparsed = this.parseQuestionsFromMarkdown(row.content_text || '', row.answer_key || '');
+        if (reparsed.length) {
+          row.questions_json = reparsed;
+          try {
+            await this.ds.query(
+              `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text`,
+              [row.id, JSON.stringify(reparsed)],
+            );
+          } catch {
+            // Non-critical: the current response can still use the reparsed questions.
+          }
+          return row;
+        }
+      }
       row.questions_json = existing;
       return row;
     }
-    const parsed = this.parseQuestionsFromMarkdown(row.content_text || '');
+    const parsed = this.parseQuestionsFromMarkdown(row.content_text || '', row.answer_key || '');
     row.questions_json = parsed;
     if (parsed.length && row.id) {
       try {
@@ -129,26 +200,123 @@ export class SchoolAssessmentService {
     return row;
   }
 
-  private parseQuestionsFromMarkdown(content: string): any[] {
-    const text = String(content || '');
-    if (!text.trim()) return [];
+  private parseAnswerMap(answerKeyText: string): Map<number, string> {
+    const detailMap = this.parseAnswerDetailMap(answerKeyText);
+    return new Map(Array.from(detailMap.entries()).map(([key, detail]) => [key, detail.answer]));
+  }
 
+  private parseAnswerDetailMap(answerKeyText: string): Map<number, { answer: string; explanation?: string }> {
     const answerMap = new Map<number, string>();
-    const answerKeyStart = text.search(/^##\s*Answer Key/im);
-    if (answerKeyStart >= 0) {
-      const answerText = text.slice(answerKeyStart);
-      const answerLines = answerText.split(/\r?\n/);
-      for (const line of answerLines) {
-        const match = line.match(/^\s*(?:[-*]\s*)?(\d+)[.)]\s*(?:answer\s*[:\-]\s*)?(.+)$/i);
-        if (!match) continue;
-        const raw = match[2].trim();
-        const option = raw.match(/\(?([a-d])\)?/i)?.[1]?.toLowerCase();
-        answerMap.set(Number(match[1]), option || raw.replace(/^[:\-]\s*/, '').trim());
+    const explanationMap = new Map<number, string>();
+    const cleanAnswer = (raw: string) => {
+      const trimmed = raw
+        .replace(/^(?:answer|ans|correct)\s*[:\-]\s*/i, '')
+        .replace(/^[=:–—-]\s*/, '')
+        .trim();
+      const option = trimmed.match(/^\(?([a-dA-D\u0915\u0916\u0917\u0918\u0b15\u0b16\u0b17\u0b18])\)?(?:[.)\s]|$)/)?.[1];
+      if (option) return this.normalizeOptionId(option);
+      const tf = trimmed.match(/^(true|false|t|f)\b/i)?.[1]?.toLowerCase();
+      if (tf) return tf === 't' ? 'true' : tf === 'f' ? 'false' : tf;
+      if (/^(सत्य|सही|ठीक|ଠିକ|ସତ୍ୟ)\b/i.test(trimmed)) return 'true';
+      if (/^(असत्य|गलत|मिथ्या|ଭୁଲ|ମିଥ୍ୟା)\b/i.test(trimmed)) return 'false';
+      return trimmed;
+    };
+
+    const answerText = String(answerKeyText || '')
+      .replace(/\r/g, '\n')
+      .replace(/\s+(?=(?:[-*]\s*)?\d{1,2}[.)]\s*(?:answer|ans)\b)/gi, '\n')
+      .replace(/\s+(?=(?:Section\s+[A-E]\s*[-:–—]?\s*)?Q\.?\s*\d{1,2}\b)/gi, '\n');
+
+    let sequence = 0;
+    let currentSequence = 0;
+    for (const line of answerText.split(/\n+/)) {
+      const match = line.match(/^\s*(?:[-*]\s*)?(?:(?:Section\s+[A-E])\s*[-:–—]?\s*)?(?:(?:(?:Q|Question)\.?\s*(\d{1,2}))|(\d{1,2})[.)]?\s*(?:answer|ans)\b)[.)]?\s*(?:answer|ans)?\s*[:\-]?\s*(.+)$/i);
+      if (match) {
+        sequence += 1;
+        currentSequence = sequence;
+        const displayNumber = Number(match[1] || match[2]);
+        const rawAnswer = match[3].replace(/\b(?:explanation|reason)\s*[:\-].*$/i, '').trim();
+        const answer = cleanAnswer(rawAnswer);
+        answerMap.set(sequence, answer);
+        if (!answerMap.has(displayNumber)) answerMap.set(displayNumber, answer);
+
+        const inlineExplanation = match[3].match(/\b(?:explanation|reason)\s*[:\-]\s*(.+)$/i)?.[1]?.trim();
+        if (inlineExplanation) explanationMap.set(sequence, inlineExplanation);
+        continue;
+      }
+
+      const explanation = line.match(/^\s*(?:explanation|reason)\s*[:\-]\s*(.+)$/i)?.[1]?.trim();
+      if (explanation && currentSequence) {
+        explanationMap.set(currentSequence, explanation);
+        continue;
+      }
+
+      if (currentSequence && explanationMap.has(currentSequence) && line.trim()) {
+        explanationMap.set(currentSequence, `${explanationMap.get(currentSequence)} ${line.trim()}`);
       }
     }
 
+    const detailMap = new Map<number, { answer: string; explanation?: string }>();
+    answerMap.forEach((answer, key) => {
+      detailMap.set(key, { answer, explanation: explanationMap.get(key) });
+    });
+    return detailMap;
+  }
+
+  private normalizeOptionId(label: string) {
+    const map: Record<string, string> = {
+      a: 'a', b: 'b', c: 'c', d: 'd',
+      'क': 'a', 'ख': 'b', 'ग': 'c', 'घ': 'd',
+      'କ': 'a', 'ଖ': 'b', 'ଗ': 'c', 'ଘ': 'd',
+    };
+    return map[String(label || '').trim().toLowerCase()] || String(label || '').trim().toLowerCase();
+  }
+
+  private rebuildAnswerKeyWithSections(contentText: string | null, answerKey: string | null) {
+    const original = String(answerKey || '').trim();
+    if (!String(contentText || '').trim() || !original) return original;
+
+    const questions = this.parseQuestionsFromMarkdown(contentText || '', original)
+      .filter((question: any) => this.objectiveTypes.has(question.type) && question.correctAnswer);
+    if (!questions.length) return original;
+
+    const groups = new Map<string, any[]>();
+    for (const question of questions) {
+      const sectionTitle = String(question.sectionTitle || 'Section A').replace(/^#+\s*/, '').trim();
+      if (!groups.has(sectionTitle)) groups.set(sectionTitle, []);
+      groups.get(sectionTitle)!.push(question);
+    }
+
+    const lines = ['## Answer Key'];
+    groups.forEach((groupQuestions, sectionTitle) => {
+      lines.push('', `### ${sectionTitle}`);
+      groupQuestions.forEach((question: any) => {
+        lines.push(`Q${question.displayNumber || question.number}. Answer: ${question.correctAnswer}`);
+        if (question.explanation) {
+          lines.push(`Explanation: ${question.explanation}`);
+        }
+      });
+    });
+    return lines.join('\n').trim();
+  }
+
+  private parseQuestionsFromMarkdown(content: string, answerKey = ''): any[] {
+    const text = answerKey
+      ? `${String(content || '')}\n\n## Answer Key\n${String(answerKey || '')}`
+      : String(content || '');
+    if (!text.trim()) return [];
+
+    const answerKeyStart = text.search(/^##\s*Answer Key/im);
+    let answerMap = new Map<number, string>();
+    let answerDetailMap = new Map<number, { answer: string; explanation?: string }>();
+    if (answerKeyStart >= 0) {
+      const answerText = text.slice(answerKeyStart);
+      answerDetailMap = this.parseAnswerDetailMap(answerText);
+      answerMap = new Map(Array.from(answerDetailMap.entries()).map(([key, detail]) => [key, detail.answer]));
+    }
+
     const questionText = answerKeyStart >= 0 ? text.slice(0, answerKeyStart) : text;
-    const inlineQuestions = this.parseInlineQuestionPaper(questionText, answerMap);
+    const inlineQuestions = this.parseInlineQuestionPaper(questionText, answerMap, answerDetailMap);
     if (inlineQuestions.length >= 2) return inlineQuestions;
 
     const lines = questionText.split(/\r?\n/);
@@ -163,10 +331,7 @@ export class SchoolAssessmentService {
         current = null;
         return;
       }
-      if (current.type === 'mcq_single' && current.options?.length) {
-        const answer = answerMap.get(current.number);
-        if (answer) current.correctAnswer = answer;
-      } else if (answerMap.has(current.number)) {
+      if (answerMap.has(current.number)) {
         current.correctAnswer = answerMap.get(current.number);
       }
       questions.push(current);
@@ -180,6 +345,12 @@ export class SchoolAssessmentService {
       if (lower.includes('fill')) return { type: 'fill_blank', marks: 1 };
       if (lower.includes('long')) return { type: 'long_answer', marks: 5 };
       if (lower.includes('short')) return { type: 'short_answer', marks: 3 };
+      const letter = this.sectionLetter(section);
+      if (letter === 'A') return { type: 'mcq_single', marks: 1 };
+      if (letter === 'B') return { type: 'true_false', marks: 1 };
+      if (letter === 'C') return { type: 'fill_blank', marks: 1 };
+      if (letter === 'D') return { type: 'short_answer', marks: 3 };
+      if (letter === 'E') return { type: 'long_answer', marks: 5 };
       return { type: 'short_answer', marks: 1 };
     };
 
@@ -191,26 +362,45 @@ export class SchoolAssessmentService {
         section = line.replace(/^#+\s*/, '');
         continue;
       }
-      const option = line.match(/^\(?([a-d])\)?[.)]?\s+(.+)$/i);
+      const option = line.match(/^\(?([a-dA-D\u0915\u0916\u0917\u0918\u0b15\u0b16\u0b17\u0b18])\)?[.)]?\s+(.+)$/);
       if (current?.type === 'mcq_single' && option) {
-        current.options.push({ id: option[1].toLowerCase(), text: option[2].trim() });
+        current.options.push({ id: this.normalizeOptionId(option[1]), label: option[1], text: option[2].trim() });
         continue;
       }
       const qMatch = line.match(/^\s*(\d+)[.)]\s+(.+)$/);
       if (qMatch) {
+        if (!this.sectionLetter(section) || this.isInstructionLikeText(qMatch[2])) continue;
         finishCurrent();
         const spec = sectionType();
         const displayNumber = Number(qMatch[1]);
         const sequenceNumber = questions.length + 1;
+        let questionBody = qMatch[2].trim();
+        const inlineOptions: any[] = [];
+        const optionMatches = Array.from(questionBody.matchAll(/\(([a-dA-D\u0915\u0916\u0917\u0918\u0b15\u0b16\u0b17\u0b18])\)\s*/g));
+        if (optionMatches.length >= 2) {
+          const questionEnd = optionMatches[0].index || 0;
+          const questionText = questionBody.slice(0, questionEnd).trim();
+          optionMatches.forEach((optionMatch, optionIndex) => {
+            const optionStart = (optionMatch.index || 0) + optionMatch[0].length;
+            const optionEnd = optionIndex + 1 < optionMatches.length ? optionMatches[optionIndex + 1].index || questionBody.length : questionBody.length;
+            const optionText = questionBody.slice(optionStart, optionEnd).trim();
+            if (optionText) inlineOptions.push({ id: this.normalizeOptionId(optionMatch[1]), label: optionMatch[1], text: optionText });
+          });
+          questionBody = questionText || questionBody;
+        }
+        const finalSpec = inlineOptions.length ? { type: 'mcq_single', marks: 1 } : spec;
         current = {
           id: `q-${sequenceNumber}`,
           number: sequenceNumber,
           displayNumber,
-          type: spec.type,
-          text: qMatch[2].trim(),
-          marks: spec.marks,
-          options: spec.type === 'mcq_single' ? [] : undefined,
-          correctAnswer: answerMap.get(sequenceNumber) || answerMap.get(displayNumber),
+          sectionTitle: section || null,
+          sourceIndex: sequenceNumber - 1,
+          type: finalSpec.type,
+          text: questionBody,
+          marks: finalSpec.marks,
+          options: finalSpec.type === 'mcq_single' ? inlineOptions : undefined,
+          correctAnswer: answerMap.get(sequenceNumber),
+          explanation: this.objectiveTypes.has(finalSpec.type) ? answerDetailMap.get(sequenceNumber)?.explanation : undefined,
         };
         continue;
       }
@@ -222,19 +412,28 @@ export class SchoolAssessmentService {
       id: q.id || `q-${index + 1}`,
       number: q.number || index + 1,
       displayNumber: q.displayNumber || q.number || index + 1,
+      sectionTitle: q.sectionTitle || q.section || null,
+      sourceIndex: Number.isFinite(Number(q.sourceIndex)) ? Number(q.sourceIndex) : index,
       type: q.type || 'short_answer',
       text: q.text,
       marks: Number(q.marks || 1),
       options: Array.isArray(q.options) && q.options.length ? q.options : undefined,
       correctAnswer: q.correctAnswer,
+      explanation: this.objectiveTypes.has(q.type || 'short_answer') ? q.explanation : undefined,
     }));
   }
 
-  private parseInlineQuestionPaper(content: string, answerMap: Map<number, string>): any[] {
-    const normalized = String(content || '')
+  private parseInlineQuestionPaper(
+    content: string,
+    answerMap: Map<number, string>,
+    answerDetailMap = new Map<number, { answer: string; explanation?: string }>(),
+  ): any[] {
+    const rawNormalized = String(content || '')
       .replace(/\r?\n+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+    const firstQuestionSection = rawNormalized.search(/\bSection\s+A\b/i);
+    const normalized = firstQuestionSection >= 0 ? rawNormalized.slice(firstQuestionSection).trim() : rawNormalized;
     if (!normalized) return [];
 
     const sectionPattern = /(##\s*)?(Section\s+[A-E]|ବିଭାଗ\s*[-–]?\s*[A-E])/gi;
@@ -249,7 +448,9 @@ export class SchoolAssessmentService {
 
     const questions: any[] = [];
     const sectionSpec = (title: string) => {
-      const letter = title.match(/[A-E]/i)?.[0]?.toUpperCase();
+      const letter = this.sectionLetter(title)
+        || title.match(/[-–]\s*([A-E])\b/i)?.[1]?.toUpperCase()
+        || title.match(/\b([A-E])\b/)?.[1]?.toUpperCase();
       if (letter === 'A') return { type: 'mcq_single', marks: 1 };
       if (letter === 'B') return { type: 'true_false', marks: 1 };
       if (letter === 'C') return { type: 'fill_blank', marks: 1 };
@@ -269,34 +470,37 @@ export class SchoolAssessmentService {
         const end = index + 1 < matches.length ? matches[index + 1].index || body.length : body.length;
         let raw = body.slice(start, end).trim();
         if (raw.length < 8) return;
+        if (this.isInstructionLikeText(raw)) return;
 
         const sequenceNumber = questions.length + 1;
         const displayNumber = Number(match[1]);
         const options: any[] = [];
-        if (spec.type === 'mcq_single') {
-          const optionMatches = Array.from(raw.matchAll(/\(([a-d])\)\s*/gi));
-          if (optionMatches.length >= 2) {
-            const questionEnd = optionMatches[0].index || 0;
-            const questionText = raw.slice(0, questionEnd).trim();
-            optionMatches.forEach((optionMatch, optionIndex) => {
-              const optionStart = (optionMatch.index || 0) + optionMatch[0].length;
-              const optionEnd = optionIndex + 1 < optionMatches.length ? optionMatches[optionIndex + 1].index || raw.length : raw.length;
-              const optionText = raw.slice(optionStart, optionEnd).trim();
-              if (optionText) options.push({ id: optionMatch[1].toLowerCase(), text: optionText });
-            });
-            raw = questionText || raw;
-          }
+        const optionMatches = Array.from(raw.matchAll(/\(([a-dA-D\u0915\u0916\u0917\u0918\u0b15\u0b16\u0b17\u0b18])\)\s*/g));
+        if (optionMatches.length >= 2) {
+          const questionEnd = optionMatches[0].index || 0;
+          const questionText = raw.slice(0, questionEnd).trim();
+          optionMatches.forEach((optionMatch, optionIndex) => {
+            const optionStart = (optionMatch.index || 0) + optionMatch[0].length;
+            const optionEnd = optionIndex + 1 < optionMatches.length ? optionMatches[optionIndex + 1].index || raw.length : raw.length;
+            const optionText = raw.slice(optionStart, optionEnd).trim();
+            if (optionText) options.push({ id: this.normalizeOptionId(optionMatch[1]), label: optionMatch[1], text: optionText });
+          });
+          raw = questionText || raw;
         }
+        const finalSpec = options.length ? { type: 'mcq_single', marks: 1 } : spec;
 
         questions.push({
           id: `q-${sequenceNumber}`,
           number: sequenceNumber,
           displayNumber,
-          type: spec.type,
+          sectionTitle: section.title || null,
+          sourceIndex: sequenceNumber - 1,
+          type: finalSpec.type,
           text: raw,
-          marks: spec.marks,
+          marks: finalSpec.marks,
           options: options.length ? options : undefined,
-          correctAnswer: answerMap.get(sequenceNumber) || answerMap.get(displayNumber),
+          correctAnswer: answerMap.get(sequenceNumber),
+          explanation: this.objectiveTypes.has(finalSpec.type) ? answerDetailMap.get(sequenceNumber)?.explanation : undefined,
         });
       });
     }
@@ -308,7 +512,11 @@ export class SchoolAssessmentService {
 
   private normalizeAnswer(value: any): string {
     if (Array.isArray(value)) return value.map((v) => this.normalizeAnswer(v)).sort().join(',');
-    return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return String(value ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[।.,;:!?()[\]{}"']/g, '')
+      .replace(/\s+/g, ' ');
   }
 
   private gradeObjective(questions: any[], answers: Record<string, any>) {
@@ -334,6 +542,7 @@ export class SchoolAssessmentService {
         marks: marksAwarded,
         total: marks,
         correctAnswer,
+        explanation: question.explanation,
       };
     });
     return { score, total, writtenPending, details };
@@ -356,18 +565,25 @@ export class SchoolAssessmentService {
       const classId = profileRows[0]?.class_id;
       if (!classId) return { success: true, data: [] };
       params.push(classId);
-      filters.push(`class_id::text=$${params.length}::text`);
+      filters.push(`a.class_id::text=$${params.length}::text`);
     } else if (query.classId) {
       params.push(query.classId);
-      filters.push(`class_id::text=$${params.length}::text`);
+      filters.push(`a.class_id::text=$${params.length}::text`);
     }
     if (query.subjectId) {
       params.push(query.subjectId);
-      filters.push(`subject_id::text=$${params.length}::text`);
+      filters.push(`a.subject_id::text=$${params.length}::text`);
     }
 
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-    const sql = `SELECT * FROM assessments ${where} ORDER BY scheduled_date DESC NULLS LAST, created_at DESC`;
+    const sql = `
+      SELECT a.*, c.name AS class_name, sub.name AS subject_name
+      FROM assessments a
+      LEFT JOIN classes c ON a.class_id::text = c.id::text
+      LEFT JOIN subjects sub ON a.subject_id::text = sub.id::text
+      ${where}
+      ORDER BY a.scheduled_date DESC NULLS LAST, a.created_at DESC
+    `;
     const rows: any[] = await this.ds.query(sql, params);
     rows.forEach((row: any) => this.parseAndSplitLegacyAssessment(row));
     if (user.role === 'STUDENT' && rows.length) {
@@ -380,12 +596,16 @@ export class SchoolAssessmentService {
         row.mySubmission = submissionMap.get(String(row.id)) || null;
       });
     }
+    return { success: true, data: rows, total, page, limit, totalPages };
     return { success: true, data: rows.map((row: any) => this.stripAnswerKeyForStudent(user, row)) };
   }
 
   private stripAnswerKeyForStudent(user: any, row: any) {
     if (user?.role === 'STUDENT') {
       const { answer_key: _ak, ...rest } = row;
+      if (rest.questions_json) {
+        rest.questions_json = this.stripCorrectAnswersFromQuestions(rest.questions_json);
+      }
       return rest;
     }
     return row;
@@ -489,8 +709,23 @@ export class SchoolAssessmentService {
       `Begin with a paper header (Subject, Class, Maximum Marks, Time Allowed) and a brief "General Instructions" list.`,
       `Include ONLY these sections, in this order, each with a clear section heading and the EXACT number of questions specified:`,
       ...sections,
-      `Use one continuous question number sequence across the whole paper; do not restart numbering in later sections. Keep every question syllabus-appropriate for ${className}.`,
-      `At the very END, add a "## Answer Key" section with the correct answers for the objective sections only (MCQ, True/False, Fill in the Blanks). Do NOT reveal answers inside the question sections.`,
+      `Number questions clearly inside each section. The visible question numbers in the answer key must match the visible question numbers in the paper for that same section.`,
+      `At the very END, add a "## Answer Key" section with correct answers ONLY for objective sections: MCQ, True/False, Fill in the Blanks. Do NOT include Short Answer or Long Answer questions in the answer key.`,
+      `The answer key MUST mirror the question paper structure exactly: use the same section headings and list answers under each section in the same order as the questions appear.`,
+      `Use this answer key format exactly:
+## Answer Key
+### Section A
+Q1. Answer: a
+Explanation: ...
+Q2. Answer: c
+Explanation: ...
+### Section B
+Q1. Answer: true
+Explanation: ...
+### Section C
+Q1. Answer: expected word or phrase
+Explanation: ...
+Do not write answers as one flat paragraph. Do not mix answers from different sections.`,
       body.prompt?.trim() ? `Additional teacher instructions: ${body.prompt.trim()}` : '',
       `Output ONLY the Markdown question paper.`,
     ].filter(Boolean).join('\n');
@@ -540,6 +775,8 @@ export class SchoolAssessmentService {
         }
       }
 
+      answerKeyPart = this.rebuildAnswerKeyWithSections(questionsPart, answerKeyPart);
+
       return {
         success: true,
         data: {
@@ -559,7 +796,9 @@ export class SchoolAssessmentService {
     const sectionId = body.sectionId || body.section_id || null;
     const rawContentText = body.contentText || body.content_text || body.instructions || null;
     const rawAnswerKey = body.answerKey || body.answer_key || null;
-    const { contentText, answerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
+    const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
+    const answerKey = this.rebuildAnswerKeyWithSections(contentText, splitAnswerKey);
+    const questionsJson = this.parseQuestionsFromMarkdown(contentText || '', answerKey || '');
     const filePath = file ? file.path.replace(/\\/g, '/') : (body.filePath || body.file_path || null);
     const contentSource = filePath ? 'upload' : contentText ? (body.contentSource || body.content_source || 'manual') : 'metadata';
     const title = String(body.title || '').trim() || this.deriveTitle(contentText || '', '');
@@ -568,8 +807,8 @@ export class SchoolAssessmentService {
     }
     const rows: any[] = await this.ds.query(
       `INSERT INTO assessments
-        (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, topic_id, answer_key, language)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+        (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, topic_id, answer_key, language, questions_json)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb) RETURNING *`,
       [
         title,
         body.assessmentType || body.type || 'exam',
@@ -588,6 +827,7 @@ export class SchoolAssessmentService {
         body.topicId || body.topic_id || null,
         answerKey,
         body.language || 'en',
+        questionsJson.length ? JSON.stringify(questionsJson) : null,
       ],
     );
     const assessment = rows[0];
@@ -624,6 +864,7 @@ export class SchoolAssessmentService {
     const rows: any[] = await this.ds.query(`SELECT * FROM assessments WHERE id=$1`, [id]);
     if (!rows.length) throw new NotFoundException('Assessment not found');
     const row = this.parseAndSplitLegacyAssessment(rows[0]);
+    await this.hydrateQuestions(row);
     return { success: true, data: this.stripAnswerKeyForStudent(user, row) };
   }
 
@@ -631,7 +872,11 @@ export class SchoolAssessmentService {
     await this.ensureAssessmentContentColumns();
     const rawContentText = body.contentText || body.content_text || body.instructions || null;
     const rawAnswerKey = body.answerKey || body.answer_key || null;
-    const { contentText, answerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
+    const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
+    const answerKey = this.rebuildAnswerKeyWithSections(contentText, splitAnswerKey);
+    const questionsJson = contentText || answerKey
+      ? this.parseQuestionsFromMarkdown(contentText || '', answerKey || '')
+      : null;
 
     const rows: any[] = await this.ds.query(
       `UPDATE assessments
@@ -645,7 +890,8 @@ export class SchoolAssessmentService {
            content_source=COALESCE($9,content_source),
            file_path=COALESCE($10,file_path),
            answer_key=COALESCE($11,answer_key),
-           language=COALESCE($12,language)
+           language=COALESCE($12,language),
+           questions_json=COALESCE($13::jsonb,questions_json)
        WHERE id=$1 RETURNING *`,
       [
         id,
@@ -662,10 +908,18 @@ export class SchoolAssessmentService {
         body.filePath || body.file_path || null,
         answerKey,
         body.language || null,
+        questionsJson ? JSON.stringify(questionsJson) : null,
       ],
     );
     if (!rows.length) throw new NotFoundException('Assessment not found');
-    return { success: true, data: rows[0] };
+    const updated = rows[0];
+    const refreshedQuestions = this.parseQuestionsFromMarkdown(updated.content_text || '', updated.answer_key || '');
+    updated.questions_json = refreshedQuestions;
+    await this.ds.query(
+      `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text`,
+      [id, refreshedQuestions.length ? JSON.stringify(refreshedQuestions) : null],
+    );
+    return { success: true, data: updated };
   }
 
   async remove(id: string) {
@@ -699,7 +953,7 @@ export class SchoolAssessmentService {
     await this.ensureAssessmentSubmissionSchema();
 
     const assessmentRows: any[] = await this.ds.query(
-      `SELECT id,title,duration_minutes,content_text,questions_json FROM assessments WHERE id::text=$1::text`,
+      `SELECT id,title,duration_minutes,content_text,answer_key,questions_json FROM assessments WHERE id::text=$1::text`,
       [assessmentId],
     );
     if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
@@ -733,7 +987,7 @@ export class SchoolAssessmentService {
        RETURNING *`,
       [assessmentId, user.id, durationMinutes],
     );
-    return { success: true, data: { ...rows[0], questions: assessment.questions_json || [] } };
+    return { success: true, data: { ...rows[0], questions: this.stripCorrectAnswersFromQuestions(assessment.questions_json || []) } };
   }
 
   async saveAnswer(user: any, assessmentId: string, body: any) {
@@ -767,7 +1021,7 @@ export class SchoolAssessmentService {
     await this.ensureAssessmentContentColumns();
     await this.ensureAssessmentSubmissionSchema();
 
-    const assessmentRows: any[] = await this.ds.query(`SELECT id,title,duration_minutes,total_marks,content_text,questions_json FROM assessments WHERE id::text=$1::text`, [assessmentId]);
+    const assessmentRows: any[] = await this.ds.query(`SELECT id,title,duration_minutes,total_marks,content_text,answer_key,questions_json FROM assessments WHERE id::text=$1::text`, [assessmentId]);
     if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
     const assessment = await this.hydrateQuestions(assessmentRows[0]);
 
@@ -808,8 +1062,8 @@ export class SchoolAssessmentService {
 
     const rows: any[] = await this.ds.query(
       `INSERT INTO assessment_submissions
-        (assessment_id, student_user_id, answer_text, file_path, status, started_at, expires_at, completed_at, answers_json, objective_score, objective_total, grading_status)
-       VALUES ($1,$2,$3,$4,$5,NOW(),NOW() + ($6::int * INTERVAL '1 minute'),NOW(),$7::jsonb,$8,$9,$10)
+        (assessment_id, student_user_id, answer_text, file_path, status, started_at, expires_at, completed_at, answers_json, objective_score, objective_total, grading_details, grading_status)
+       VALUES ($1,$2,$3,$4,$5,NOW(),NOW() + ($6::int * INTERVAL '1 minute'),NOW(),$7::jsonb,$8,$9,$10::jsonb,$11)
        ON CONFLICT (assessment_id, student_user_id)
        DO UPDATE SET
         answer_text=EXCLUDED.answer_text,
@@ -819,6 +1073,7 @@ export class SchoolAssessmentService {
         answers_json=COALESCE(EXCLUDED.answers_json, assessment_submissions.answers_json),
         objective_score=EXCLUDED.objective_score,
         objective_total=EXCLUDED.objective_total,
+        grading_details=EXCLUDED.grading_details,
         grading_status=EXCLUDED.grading_status,
         submitted_at=NOW(),
         updated_at=NOW()
@@ -833,6 +1088,7 @@ export class SchoolAssessmentService {
         answers ? JSON.stringify(answers) : null,
         grading ? grading.score : null,
         grading ? grading.total : null,
+        grading ? JSON.stringify(grading.details) : null,
         gradingStatus,
       ],
     );
@@ -919,6 +1175,22 @@ export class SchoolAssessmentService {
 
   async listSessions(user: any) {
     const instituteId = user.instituteId;
+    const page = Math.max(1, parseInt(user.query?.page) || 1);
+    const limit = Math.max(1, parseInt(user.query?.limit) || 100);
+    const offset = (page - 1) * limit;
+
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      FROM test_sessions ts
+      INNER JOIN students s ON ts.student_id = s.id
+      INNER JOIN users u ON s.user_id = u.id
+      INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
+      WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
+    `;
+    const countResult = await this.ds.query(countSql, [instituteId]);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
+
     const rows = await this.ds.query(`
       SELECT 
         ts.id,
@@ -935,9 +1207,10 @@ export class SchoolAssessmentService {
       INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
       WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
       ORDER BY ts.submitted_at DESC NULLS LAST
-    `, [instituteId]);
+      LIMIT $2 OFFSET $3
+    `, [instituteId, limit, offset]);
 
-    const mapped = rows.map(r => ({
+    const mapped = rows.map((r: any) => ({
       id: r.id,
       status: r.status,
       totalScore: r.totalScore,
@@ -953,6 +1226,6 @@ export class SchoolAssessmentService {
         title: r.mock_test_title
       }
     }));
-    return { success: true, data: mapped };
+    return { success: true, data: mapped, total, page, limit, totalPages };
   }
 }

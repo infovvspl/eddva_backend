@@ -6,7 +6,7 @@ import { DataSource } from 'typeorm';
 export class SchoolActivityLogService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
 
-  async log(instituteId: string, userId: string, action: string, details?: any) {
+  async log(instituteId: string, userId: string | null, action: string, details?: any) {
     await this.ds.query(
       `INSERT INTO activity_logs (institute_id,user_id,action,details) VALUES ($1,$2,$3,$4)`,
       [instituteId, userId, action, details ? JSON.stringify(details) : null],

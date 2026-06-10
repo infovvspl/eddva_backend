@@ -96,16 +96,23 @@ export class LLMService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    const health = await this.healthCheck();
-    if (health.status === 'ok') {
-      this.logger.log(`Ollama ready — model: ${this.model} @ ${this.ollamaUrl}`);
-    } else {
-      this.logger.warn(
-        `Ollama not reachable at ${this.ollamaUrl}. ` +
-        `AI features will be unavailable until it starts. ` +
-        `Run: ollama serve && ollama pull ${this.model}`,
-      );
-    }
+    void this.healthCheck()
+      .then((health) => {
+        if (health.status === 'ok') {
+          this.logger.log(`Ollama ready — model: ${this.model} @ ${this.ollamaUrl}`);
+        } else {
+          this.logger.warn(
+            `Ollama not reachable at ${this.ollamaUrl}. ` +
+            `AI features will be unavailable until it starts. ` +
+            `Run: ollama serve && ollama pull ${this.model}`,
+          );
+        }
+      })
+      .catch((err) => {
+        this.logger.warn(
+          `Ollama health check skipped: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
   }
 
   // ── Core completion ───────────────────────────────────────────────────────

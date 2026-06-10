@@ -46,7 +46,9 @@ export class S3Service implements OnModuleInit {
       responseChecksumValidation: 'WHEN_REQUIRED' as any,
     });
 
-    await this.validateBucket();
+    void this.validateBucket().catch((err) => {
+      this.logger.warn(`S3 bucket validation skipped: ${(err as Error).message}`);
+    });
   }
 
   async presign(key: string, contentType: string): Promise<PresignResult> {

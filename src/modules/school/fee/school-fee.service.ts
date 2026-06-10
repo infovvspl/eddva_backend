@@ -8,13 +8,32 @@ export class SchoolFeeService {
 
   async list(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
-    let sql = `SELECT f.*,u.name AS student_name FROM fees f LEFT JOIN users u ON f.student_id=u.id WHERE f.institute_id=$1`;
+    let whereClause = `WHERE f.institute_id=$1`;
     const params: any[] = [instituteId];
-    if (query.status) { params.push(query.status); sql += ` AND f.status=$${params.length}`; }
-    if (query.studentId) { params.push(query.studentId); sql += ` AND f.student_id=$${params.length}`; }
-    sql += ` ORDER BY f.due_date DESC`;
+    if (query.status) { params.push(query.status); whereClause += ` AND f.status=$${params.length}`; }
+    if (query.studentId) { params.push(query.studentId); whereClause += ` AND f.student_id=$${params.length}`; }
+    
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 100);
+    const offset = (page - 1) * limit;
+
+    const countSql = `SELECT COUNT(*)::int AS total FROM fees f ${whereClause}`;
+    const countResult = await this.ds.query(countSql, params);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
+
+    const sql = `
+      SELECT f.*, u.name AS student_name 
+      FROM fees f 
+      LEFT JOIN users u ON f.student_id=u.id 
+      ${whereClause} 
+      ORDER BY f.due_date DESC 
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+    params.push(limit, offset);
+
     const rows: any[] = await this.ds.query(sql, params);
-    return { success: true, data: rows };
+    return { success: true, data: rows, total, page, limit, totalPages };
   }
 
   async create(user: any, body: any) {
