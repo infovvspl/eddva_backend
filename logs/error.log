@@ -22540,3 +22540,316 @@ Error: NotFoundException: Cannot GET /api/v1/school/classes/recordings/d6bee444-
     at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
     at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
+[2026-06-10T05:46:11.343Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:46:20.347Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:46:20.818Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:50:35.291Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T05:50:35.637Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T05:55:42.384Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:03:00.844Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:03:00.888Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:03:01.111Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:03:01.211Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:03:04.283Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:03:04.541Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:03:04.691Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:03:04.856Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:05:35.657Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:05:35.707Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:17:20.732Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-10T06:19:13.508Z] GET /api/v1/school/students
+Status: 500
+Error: QueryFailedError: trailing junk after numeric literal at or near "15f29a6d"
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.list (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:168:25)
+
+[2026-06-10T06:36:57.791Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:37:18.029Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:37:38.032Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:37:58.349Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:38:18.081Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:38:38.364Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:38:58.482Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:39:25.037Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:40:25.485Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:40:48.940Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:40:49.789Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:40:50.145Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:40:58.566Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:41:18.130Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:41:38.050Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:42:25.561Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
+[2026-06-10T06:43:25.634Z] GET /api/v1/school/students/dashboard
+Status: 500
+Error: QueryFailedError: column u.xp_total does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.getDashboard (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
+
