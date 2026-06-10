@@ -596,7 +596,6 @@ export class SchoolAssessmentService {
         row.mySubmission = submissionMap.get(String(row.id)) || null;
       });
     }
-    return { success: true, data: rows, total, page, limit, totalPages };
     return { success: true, data: rows.map((row: any) => this.stripAnswerKeyForStudent(user, row)) };
   }
 
