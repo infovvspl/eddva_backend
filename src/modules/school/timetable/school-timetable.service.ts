@@ -190,7 +190,8 @@ export class SchoolTimetableService {
     const classId = secRows[0]?.class_id;
 
     const offlineRows = await this.ds.query(
-      `SELECT t.day_of_week, t.start_time, t.end_time, t.room, sub.name as subject, u.name as teacher
+      `SELECT t.day_of_week, t.start_time, t.end_time, t.room, t.type, t.meeting_link AS "meetingLink",
+              t.period_number AS "periodNumber", sub.name as subject, u.name as teacher
        FROM timetables t
        LEFT JOIN subjects sub ON t.subject_id = sub.id
        LEFT JOIN teachers teach ON t.teacher_id = teach.id
@@ -214,7 +215,9 @@ export class SchoolTimetableService {
         startTime: r.start_time?.substring(0, 5) || '00:00',
         endTime: r.end_time?.substring(0, 5) || '00:00',
         room: r.room || '',
-        type: 'offline'
+        type: r.type || 'offline',
+        meetingLink: r.meetingLink || null,
+        periodNumber: r.periodNumber || null,
       })),
       ...liveRows.map(r => ({
         subject: r.subject || 'Unknown',

@@ -23823,3 +23823,41 @@ Error: QueryFailedError: column s.parent_name does not exist
     at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
 
+[2026-06-10T09:12:23.390Z] GET /api/v1/school/student-promotions/overview
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/student-promotions/overview
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T10:25:11.798Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:25:32.914Z] POST /api/v1/school/parent/grievances
+Status: 404
+Error: NotFoundException: Grievance submission is not available for this institute yet
+    at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:26:00.578Z] POST /api/v1/school/parent/grievances
+Status: 404
+Error: NotFoundException: Grievance submission is not available for this institute yet
+    at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:26:05.942Z] POST /api/v1/school/parent/grievances
+Status: 404
+Error: NotFoundException: Grievance submission is not available for this institute yet
+    at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+

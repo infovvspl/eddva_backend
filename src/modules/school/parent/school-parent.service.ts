@@ -425,10 +425,24 @@ export class SchoolParentService {
     const parent = await this.loadParent(user);
     try {
       const rows: any[] = await this.ds.query(
-        `SELECT * FROM grievances WHERE created_by = $1 ORDER BY created_at DESC`,
+        `SELECT id,
+                title AS subject,
+                category AS type,
+                description,
+                status,
+                created_at,
+                updated_at,
+                CONCAT('GRV-', RIGHT(REPLACE(id::text, '-', ''), 6)) AS "ticketNumber"
+         FROM grievances
+         WHERE raised_by = $1
+         ORDER BY created_at DESC`,
         [parent.id],
       );
-      return rows;
+      return rows.map((row) => ({
+        ...row,
+        date: row.created_at ? new Date(row.created_at).toISOString().slice(0, 10) : null,
+        status: this.formatGrievanceStatus(row.status),
+      }));
     } catch {
       // grievances table shape may vary across deployments — fail soft.
       return [];
@@ -439,14 +453,29 @@ export class SchoolParentService {
     const parent = await this.loadParent(user);
     try {
       const rows: any[] = await this.ds.query(
-        `INSERT INTO grievances (institute_id, created_by, subject, description, status)
+        `INSERT INTO grievances (raised_by, title, category, description, status)
          VALUES ($1, $2, $3, $4, 'OPEN') RETURNING *`,
-        [parent.institute_id, parent.id, body.subject ?? body.title ?? 'Grievance', body.description ?? ''],
+        [parent.id, body.subject ?? body.title ?? 'Grievance', body.type ?? body.category ?? null, body.description ?? ''],
       );
-      return rows[0];
+      const row = rows[0];
+      return {
+        ...row,
+        subject: row.title,
+        type: row.category,
+        ticketNumber: `GRV-${String(row.id).replaceAll('-', '').slice(-6)}`,
+        status: this.formatGrievanceStatus(row.status),
+      };
     } catch {
       throw new NotFoundException('Grievance submission is not available for this institute yet');
     }
+  }
+
+  private formatGrievanceStatus(status?: string | null) {
+    const normalized = String(status || 'OPEN').toUpperCase();
+    if (normalized === 'IN_PROGRESS') return 'In Review';
+    if (normalized === 'RESOLVED') return 'Resolved';
+    if (normalized === 'CLOSED') return 'Closed';
+    return 'Open';
   }
 
   // ── Secondary endpoints (no backing tables yet) ───────────────────────────
