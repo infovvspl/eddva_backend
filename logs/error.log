@@ -23861,3 +23861,44 @@ Error: NotFoundException: Grievance submission is not available for this institu
     at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-11T05:17:02.989Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T05:17:03.083Z] GET /favicon.ico
+Status: 404
+Error: NotFoundException: Cannot GET /favicon.ico
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T05:17:51.378Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T05:17:51.468Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:73:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
