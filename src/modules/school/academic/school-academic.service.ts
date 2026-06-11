@@ -136,35 +136,21 @@ export class SchoolAcademicService {
   // Sections
 
   async listSections(user: any, query: any) {
-    const instituteId = await this.resolveInstituteId(
-      user,
-      query.instituteId,
-    );
-
-    let baseQuery = `
-      SELECT
-        sec.*,
-        c.name AS class_name
-      FROM sections sec
-      LEFT JOIN classes c
-        ON sec.class_id::text = c.id::text
-      WHERE c.institute_id = $1
-    `;
-
+    const instituteId = await this.resolveInstituteId(user, query.instituteId);
+    let baseQuery = `SELECT sec.*,c.name AS class_name FROM sections sec LEFT JOIN classes c ON sec.class_id::text=c.id::text WHERE c.institute_id=$1`;
     const params: any[] = [instituteId];
 
     if (query.classId) {
       params.push(query.classId);
-      baseQuery += ` AND sec.class_id::text = $${params.length}::text`;
+      baseQuery += ` AND sec.class_id::text=$${params.length}::text`;
     }
 
     if (query.academicYear) {
       params.push(query.academicYear);
-      baseQuery += ` AND sec.academic_year = $${params.length}`;
+      baseQuery += ` AND sec.academic_year=$${params.length}`;
     }
 
     baseQuery += ` ORDER BY sec.name`;
-
     const rows = await this.ds.query(baseQuery, params);
 
     return { success: true, data: rows };

@@ -267,8 +267,7 @@ export class SchoolStudentService {
     const fallbackStudentProfile = user?.studentProfile || {};
     const studentRows: any[] = await this.ds.query(
       `SELECT s.id, s.user_id, sec.class_id, s.section_id, s.enrollment_no,
-              c.name AS class_name, sec.name AS section_name,
-              u.xp_total, u.current_streak, u.longest_streak
+              c.name AS class_name, sec.name AS section_name
        FROM students s
        JOIN users u ON u.id = s.user_id
        LEFT JOIN sections sec ON s.section_id = sec.id
