@@ -24819,3 +24819,90 @@ Error: UnauthorizedException: Invalid credentials
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
 
+[2026-06-11T05:43:18.677Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-11T05:43:32.044Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T05:43:32.413Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T05:44:12.104Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:44:12.413Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T07:00:53.168Z] GET /api/school/materials
+Status: 404
+Error: NotFoundException: Cannot GET /api/school/materials
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T07:02:13.536Z] GET /school/materials
+Status: 404
+Error: NotFoundException: Cannot GET /school/materials
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T07:04:06.122Z] GET /api/v1/school/materials
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at SchoolJwtGuard.canActivate (D:\edtech\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:50:13)
+    at GuardsConsumer.tryActivate (D:\edtech\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
