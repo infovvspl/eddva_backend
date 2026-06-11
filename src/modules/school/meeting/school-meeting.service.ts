@@ -8,6 +8,7 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { async } from 'rxjs';
 
 type MeetingRow = {
   id: string;
@@ -45,7 +46,7 @@ export class SchoolMeetingService implements OnModuleInit {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     await this.ensureTable();
@@ -138,6 +139,44 @@ export class SchoolMeetingService implements OnModuleInit {
     const rows: any[] = await this.ds.query(sql, params);
     if (!rows.length) throw new NotFoundException('Recipient not found');
     return rows[0];
+  }
+
+  private async validateParentTeacherRelationship(
+    instituteId: string,
+    parentUserId: string,
+    teacherUserId: string,
+  ) {
+    const rows: any[] = await this.ds.query(
+      `
+    SELECT 1
+    FROM teacher_academic_assignments taa
+    JOIN teachers t
+      ON t.id = taa.teacher_id
+    JOIN students s
+      ON s.section_id = taa.section_id
+    JOIN users parent_user
+      ON parent_user.id = $2
+    WHERE t.user_id = $3
+      AND s.institute_id = $1
+      AND (
+        (
+          s.parent_email IS NOT NULL
+          AND parent_user.email IS NOT NULL
+          AND LOWER(s.parent_email) = LOWER(parent_user.email)
+        )
+        OR
+        (
+          s.parent_phone IS NOT NULL
+          AND parent_user.phone IS NOT NULL
+          AND s.parent_phone = parent_user.phone
+        )
+      )
+    LIMIT 1
+    `,
+      [instituteId, parentUserId, teacherUserId],
+    );
+
+    return rows.length > 0;
   }
 
   private async getParentRecipientsForSection(instituteId: string, sectionId: string) {
@@ -411,46 +450,135 @@ export class SchoolMeetingService implements OnModuleInit {
 
     if (Array.isArray(body.recipientIds) && body.recipientIds.length) {
       for (const recipientId of body.recipientIds) {
-        const row = await this.ensureRecipientInInstitute(instituteId, String(recipientId));
+        const row = await this.ensureRecipientInInstitute(
+          instituteId,
+          String(recipientId),
+        );
         addRecipient(row);
       }
     } else if (body.teacherId) {
-      addRecipient(await this.ensureRecipientInInstitute(instituteId, String(body.teacherId), ['TEACHER']));
+      const teacher = await this.ensureRecipientInInstitute(
+        instituteId,
+        String(body.teacherId),
+        ['TEACHER'],
+      );
+
+      if (user.role === 'PARENT') {
+        const allowed = await this.validateParentTeacherRelationship(
+          instituteId,
+          user.id,
+          teacher.id,
+        );
+
+        if (!allowed) {
+          throw new ForbiddenException(
+            'You can schedule meetings only with teachers assigned to your child',
+          );
+        }
+      }
+
+      addRecipient(teacher);
     } else if (body.parentId) {
-      addRecipient(await this.ensureRecipientInInstitute(instituteId, String(body.parentId), ['PARENT']));
+      const parentUser = await this.ensureRecipientInInstitute(
+        instituteId,
+        String(body.parentId),
+        ['PARENT'],
+      );
+
+      if (user.role === 'TEACHER') {
+        const allowed = await this.validateParentTeacherRelationship(
+          instituteId,
+          parentUser.id,
+          user.id,
+        );
+
+        if (!allowed) {
+          throw new ForbiddenException(
+            'You can schedule meetings only with parents of assigned students',
+          );
+        }
+      }
+
+      addRecipient(parentUser);
     } else if (scopeType === 'section_parents') {
-      if (!body.sectionId) throw new BadRequestException('Section is required for section parent meetings');
-      const parents = await this.getParentRecipientsForSection(instituteId, String(body.sectionId));
+      if (!body.sectionId) {
+        throw new BadRequestException(
+          'Section is required for section parent meetings',
+        );
+      }
+
+      const parents = await this.getParentRecipientsForSection(
+        instituteId,
+        String(body.sectionId),
+      );
+
       parents.forEach((row: any) =>
-        addRecipient({ id: row.id, name: row.name, role: row.role }, {
-          student_user_id: row.student_user_id,
-          class_id: row.class_id,
-          section_id: row.section_id,
-        }),
+        addRecipient(
+          { id: row.id, name: row.name, role: row.role },
+          {
+            student_user_id: row.student_user_id,
+            class_id: row.class_id,
+            section_id: row.section_id,
+          },
+        ),
       );
     } else if (scopeType === 'class_parents') {
-      if (!body.classId) throw new BadRequestException('Class is required for class parent meetings');
-      const parents = await this.getParentRecipientsForClass(instituteId, String(body.classId));
+      if (!body.classId) {
+        throw new BadRequestException(
+          'Class is required for class parent meetings',
+        );
+      }
+
+      const parents = await this.getParentRecipientsForClass(
+        instituteId,
+        String(body.classId),
+      );
+
       parents.forEach((row: any) =>
-        addRecipient({ id: row.id, name: row.name, role: row.role }, {
-          student_user_id: row.student_user_id,
-          class_id: row.class_id,
-          section_id: row.section_id,
-        }),
+        addRecipient(
+          { id: row.id, name: row.name, role: row.role },
+          {
+            student_user_id: row.student_user_id,
+            class_id: row.class_id,
+            section_id: row.section_id,
+          },
+        ),
       );
     } else if (scopeType === 'class_teachers') {
       if (body.sectionId) {
-        const teachers = await this.getTeacherRecipientsForSection(instituteId, String(body.sectionId));
+        const teachers = await this.getTeacherRecipientsForSection(
+          instituteId,
+          String(body.sectionId),
+        );
+
         teachers.forEach((row: any) =>
-          addRecipient({ id: row.id, name: row.name, role: row.role }, { class_id: row.class_id, section_id: row.section_id }),
+          addRecipient(
+            { id: row.id, name: row.name, role: row.role },
+            {
+              class_id: row.class_id,
+              section_id: row.section_id,
+            },
+          ),
         );
       } else if (body.classId) {
-        const teachers = await this.getTeacherRecipientsForClass(instituteId, String(body.classId));
+        const teachers = await this.getTeacherRecipientsForClass(
+          instituteId,
+          String(body.classId),
+        );
+
         teachers.forEach((row: any) =>
-          addRecipient({ id: row.id, name: row.name, role: row.role }, { class_id: row.class_id, section_id: row.section_id }),
+          addRecipient(
+            { id: row.id, name: row.name, role: row.role },
+            {
+              class_id: row.class_id,
+              section_id: row.section_id,
+            },
+          ),
         );
       } else {
-        throw new BadRequestException('Class or section is required for class teacher meetings');
+        throw new BadRequestException(
+          'Class or section is required for class teacher meetings',
+        );
       }
     }
 
