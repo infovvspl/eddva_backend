@@ -23824,6 +23824,818 @@ Error: QueryFailedError: column s.parent_name does not exist
     at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
 
 <<<<<<< HEAD
+[2026-06-10T06:42:09.123Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T06:43:35.741Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-10T06:44:02.435Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T06:45:49.715Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:45:53.102Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:45:58.292Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:22.534Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:23.384Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:33.415Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:36.596Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:37.551Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:37.821Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:37.984Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:38.257Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:38.416Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:07:28.162Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T08:08:09.526Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-10T08:08:55.161Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-10T08:09:12.086Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T08:09:17.675Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:09:20.441Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:09:20.663Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:09:37.671Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:09:57.661Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:02.307Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:02.570Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:11.228Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T08:10:11.831Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:11.999Z] GET /api/v1/school/notices
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.009Z] GET /api/v1/school/events
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.726Z] GET /api/v1/school/parent/students/a0a4218b-c1a4-433e-b9fb-404d8a9783e0/marks
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.761Z] GET /api/v1/school/parent/students/a0a4218b-c1a4-433e-b9fb-404d8a9783e0/summary
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.834Z] GET /api/v1/school/parent/students/a0a4218b-c1a4-433e-b9fb-404d8a9783e0/attendance?month=2026-06
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.901Z] GET /api/v1/school/parent/students/a0a4218b-c1a4-433e-b9fb-404d8a9783e0/homework?filter=All
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.908Z] GET /api/v1/school/parent/students/a0a4218b-c1a4-433e-b9fb-404d8a9783e0/tests
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:17.717Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:18.670Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T08:10:37.653Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:57.767Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:11:17.656Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:12:18.676Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:13:29.953Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:14:29.677Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:15:29.758Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:16:29.667Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:17:29.667Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:18:29.671Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:19:33.500Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:20:29.908Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:21:29.692Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:22:29.688Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:23:29.667Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:24:29.681Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:25:29.673Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:26:29.681Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:27:29.714Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:28:29.684Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:29:29.675Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:30:29.670Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:31:29.678Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:32:29.691Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:33:29.680Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:34:29.687Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:35:25.832Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:35:26.720Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:35:26.976Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:35:37.706Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:35:57.660Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:36:17.657Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:06.987Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:07.799Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:08.022Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:18.002Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:38.634Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:57.796Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:38:17.067Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:38:26.805Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:38:27.067Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:38:30.127Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T09:03:26.798Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T09:29:53.170Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-10T09:29:57.681Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T10:20:25.473Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T10:20:27.815Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T10:21:45.400Z] POST /api/v1/school/assignments/47d86c40-b670-4387-9015-b069028cacc8/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:48:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolAssignmentService.submit (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:401:21)
+
+[2026-06-10T10:54:18.959Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T11:24:50.471Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T12:06:59.288Z] POST /api/v1/school/attendance/session
+Status: 409
+Error: ConflictException: Attendance has already been submitted for this session.
+    at SchoolAttendanceService.markSession (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:235:15)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+=======
+<<<<<<< HEAD
 [2026-06-10T06:42:51.299Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
 Status: 404
 Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
@@ -24777,6 +25589,7 @@ Error: NotFoundException: Grievance submission is not available for this institu
     at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
 >>>>>>> ce8968b945a816453fa05b95b2bff0e50789c02c
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
+>>>>>>> 59939aac5513c429a67e5a2383396599088ace63
 
 [2026-06-11T05:17:02.989Z] GET /
 Status: 404
@@ -24819,90 +25632,156 @@ Error: UnauthorizedException: Invalid credentials
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
 
-[2026-06-11T05:43:18.677Z] POST /api/v1/auth/login
+[2026-06-11T04:32:46.498Z] POST /api/v1/auth/login
 Status: 401
 Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
 
-[2026-06-11T05:43:32.044Z] GET /api/v1/school/chat/directory
-Status: 500
-Error: QueryFailedError: column s.parent_name does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolChatService.getParentDirectory (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
-
-[2026-06-11T05:43:32.413Z] GET /api/v1/school/chat/directory
-Status: 500
-Error: QueryFailedError: column s.parent_name does not exist
-    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\edtech\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolChatService.getParentDirectory (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
-
-[2026-06-11T05:44:12.104Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-11T05:44:12.413Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-11T07:00:53.168Z] GET /api/school/materials
-Status: 404
-Error: NotFoundException: Cannot GET /api/school/materials
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
-    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
-    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
-
-[2026-06-11T07:02:13.536Z] GET /school/materials
-Status: 404
-Error: NotFoundException: Cannot GET /school/materials
-    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
-    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
-    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
-
-[2026-06-11T07:04:06.122Z] GET /api/v1/school/materials
+[2026-06-11T04:33:10.882Z] POST /api/v1/auth/login
 Status: 401
-Error: UnauthorizedException: Invalid or expired token
-    at SchoolJwtGuard.canActivate (D:\edtech\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:50:13)
-    at GuardsConsumer.tryActivate (D:\edtech\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async canActivateFn (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
-    at async D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
-    at async D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T04:52:14.535Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:00:20.689Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:00:36.321Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:06:44.826Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T05:06:45.192Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T05:08:25.266Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:08:46.456Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:08:55.785Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:33:17.943Z] PATCH /api/v1/school/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/ai-study/32042b1f-ecde-4172-bc1e-161c04e3e4d9/complete
+Status: 500
+Error: QueryFailedError: column "xp_total" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudyPlanService.completeAiStudy (D:\Edva\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1271:5)
+
+[2026-06-11T05:33:43.838Z] PATCH /api/v1/school/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/ai-study/32042b1f-ecde-4172-bc1e-161c04e3e4d9/complete
+Status: 500
+Error: QueryFailedError: column "xp_total" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudyPlanService.completeAiStudy (D:\Edva\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1271:5)
+
+[2026-06-11T05:33:45.609Z] PATCH /api/v1/school/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/ai-study/32042b1f-ecde-4172-bc1e-161c04e3e4d9/complete
+Status: 500
+Error: QueryFailedError: column "xp_total" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudyPlanService.completeAiStudy (D:\Edva\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1271:5)
+
+[2026-06-11T06:13:31.981Z] DELETE /api/v1/school/materials/39352cba-87bb-42fd-91c7-69b6863549ce
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "Math"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:597:5)
+
+[2026-06-11T06:13:37.027Z] DELETE /api/v1/school/materials/39352cba-87bb-42fd-91c7-69b6863549ce
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "Math"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:597:5)
 

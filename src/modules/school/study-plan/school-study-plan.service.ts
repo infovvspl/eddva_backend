@@ -21,6 +21,8 @@ export class SchoolStudyPlanService implements OnModuleInit {
     if (this.tablesReady) return;
     try {
       await this.ds.query(`
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS xp_total INT DEFAULT 0;
+
         CREATE TABLE IF NOT EXISTS school_study_plans (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           student_id UUID NOT NULL,
@@ -48,6 +50,40 @@ export class SchoolStudyPlanService implements OnModuleInit {
         );
         CREATE INDEX IF NOT EXISTS idx_school_plan_items_plan ON school_plan_items (study_plan_id);
         CREATE INDEX IF NOT EXISTS idx_school_plan_items_date ON school_plan_items (scheduled_date);
+
+        CREATE TABLE IF NOT EXISTS school_ai_study_sessions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          student_id UUID NOT NULL,
+          topic_id UUID NOT NULL,
+          lesson_markdown TEXT,
+          key_concepts JSONB DEFAULT '[]',
+          formulas JSONB DEFAULT '[]',
+          practice_questions JSONB DEFAULT '[]',
+          common_mistakes JSONB DEFAULT '[]',
+          conversation JSONB DEFAULT '[]',
+          is_completed BOOLEAN DEFAULT FALSE,
+          time_spent_seconds INTEGER DEFAULT 0,
+          completed_at TIMESTAMPTZ,
+          ai_session_ref VARCHAR,
+          highlights JSONB DEFAULT '[]',
+          inline_comments JSONB DEFAULT '[]',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_school_ai_study_sessions_student ON school_ai_study_sessions (student_id);
+        CREATE INDEX IF NOT EXISTS idx_school_ai_study_sessions_topic ON school_ai_study_sessions (topic_id);
+
+        CREATE TABLE IF NOT EXISTS school_topic_progress (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          student_id UUID NOT NULL,
+          topic_id UUID NOT NULL,
+          status VARCHAR NOT NULL DEFAULT 'unlocked',
+          best_accuracy INTEGER DEFAULT 0,
+          studied_with_ai BOOLEAN DEFAULT FALSE,
+          completed_at TIMESTAMPTZ,
+          unlocked_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_school_topic_progress_student_topic ON school_topic_progress (student_id, topic_id);
       `);
       this.tablesReady = true;
     } catch (err) {
@@ -547,34 +583,39 @@ export class SchoolStudyPlanService implements OnModuleInit {
   async getRevisionNotes(user: any, classId?: string) {
     await this.ensureTables();
     const student = await this.getStudentProfile(user.id);
-    const targetClassId = classId || student.class_id;
 
-    const planRows = await this.ds.query(
-      `SELECT id FROM school_study_plans WHERE student_id = $1 AND class_id = $2`,
-      [student.student_id, targetClassId]
+    // Get AI study sessions completed by the student
+    const rows = await this.ds.query(
+      `SELECT s.*, t.name AS topic_name, chap.name AS chapter_name, sub.name AS subject_name
+       FROM school_ai_study_sessions s
+       JOIN topics t ON s.topic_id = t.id
+       JOIN chapters chap ON t.chapter_id = chap.id
+       JOIN subjects sub ON chap.subject_id = sub.id
+       WHERE s.student_id = $1 AND s.is_completed = true
+       ORDER BY s.completed_at DESC`,
+      [student.student_id]
     );
-    if (!planRows.length) return [];
-    const planId = planRows[0].id;
 
-    const items = await this.ds.query(
-      `SELECT id, scheduled_date AS date, type, title, duration_minutes AS "durationMinutes", xp_reward AS "xpReward", status, subject_name AS "subjectName", content_json AS content, completed_at AS "completedAt"
-       FROM school_plan_items
-       WHERE study_plan_id = $1 AND status = 'completed' AND type = 'lecture'
-       ORDER BY completed_at DESC`,
-      [planId]
-    );
-    return items.map((i: any) => {
-      const content = typeof i.content === 'string' ? JSON.parse(i.content) : i.content;
-      return {
-        topicId: content?.topicId,
-        topicName: content?.topicName,
-        chapterName: content?.chapterName || '',
-        subjectName: content?.subjectName || '',
-        completedAt: i.completedAt,
-        notesTitle: `AI Summary Notes - ${content?.topicName}`,
-        notesUrl: '#'
-      };
-    });
+    return rows.map((session: any) => ({
+      id: session.id,
+      topicId: session.topic_id,
+      topicName: session.topic_name,
+      chapterName: session.chapter_name,
+      subjectName: session.subject_name,
+      completedAt: session.completed_at,
+      isCompleted: true,
+      timeSpentSeconds: session.time_spent_seconds ?? 0,
+      keyConcepts: session.key_concepts ?? [],
+      formulas: session.formulas ?? [],
+      highlights: session.highlights ?? [],
+      inlineComments: session.inline_comments ?? [],
+      conversation: session.conversation ?? [],
+      lessonMarkdown: session.lesson_markdown ?? '',
+      practiceQuestions: [],
+      commonMistakes: [],
+      notesTitle: `AI Summary Notes - ${session.topic_name}`,
+      notesUrl: '#'
+    }));
   }
 
   async getRevisionPractice(user: any, classId?: string) {
@@ -596,14 +637,43 @@ export class SchoolStudyPlanService implements OnModuleInit {
        ORDER BY completed_at DESC`,
       [planId]
     );
-    return items.map((i: any) => {
+
+    const topicIds: string[] = [];
+    const resolvedItems = items.map((i: any) => {
       const content = typeof i.content === 'string' ? JSON.parse(i.content) : i.content;
+      const tId = content?.topicId;
+      if (tId && !topicIds.includes(tId)) {
+        topicIds.push(tId);
+      }
+      return { ...i, topicId: tId, content };
+    });
+
+    if (topicIds.length === 0) return [];
+
+    const sessionRows = await this.ds.query(
+      `SELECT * FROM school_ai_study_sessions WHERE student_id = $1 AND topic_id = ANY($2)`,
+      [student.student_id, topicIds]
+    );
+    const sessionMap = new Map<string, any>(sessionRows.map((s: any) => [s.topic_id, s]));
+
+    return resolvedItems.map((i: any) => {
+      const session = sessionMap.get(i.topicId);
       return {
-        topicId: content?.topicId,
-        topicName: content?.topicName,
-        chapterName: content?.chapterName || '',
-        subjectName: content?.subjectName || '',
+        id: `practice-${i.topicId}`,
+        topicId: i.topicId,
+        topicName: i.content?.topicName ?? '',
+        chapterName: i.content?.chapterName ?? '',
+        subjectName: i.content?.subjectName ?? '',
         completedAt: i.completedAt,
+        isCompleted: true,
+        timeSpentSeconds: session?.time_spent_seconds ?? 0,
+        practiceQuestions: session?.practice_questions ?? [],
+        lessonMarkdown: '',
+        keyConcepts: [],
+        formulas: [],
+        commonMistakes: [],
+        highlights: [],
+        conversation: [],
         accuracy: 80,
         score: 8,
         totalQuestions: 10
@@ -686,5 +756,1026 @@ export class SchoolStudyPlanService implements OnModuleInit {
       conceptQuestions,
       drillQuestions
     };
+  }
+
+  async getStudyStatus(user: any, topicId: string) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+    const topicRows = await this.ds.query(
+      `SELECT t.id, t.name FROM topics t WHERE t.id = $1`,
+      [topicId]
+    );
+    if (!topicRows.length) throw new NotFoundException('Topic not found');
+    const topic = topicRows[0];
+
+    const sessionRows = await this.ds.query(
+      `SELECT id, is_completed FROM school_ai_study_sessions WHERE student_id = $1 AND topic_id = $2`,
+      [student.student_id, topicId]
+    );
+    const aiSession = sessionRows[0] || null;
+
+    return {
+      topicId,
+      topicName: topic.name,
+      hasTeacherLecture: false,
+      lectureCount: 0,
+      hasAiSession: !!aiSession,
+      aiSessionId: aiSession?.id ?? null,
+      isAiSessionCompleted: aiSession?.is_completed ?? false,
+      gatePassPercentage: 70,
+      estimatedStudyMinutes: 30,
+    };
+  }
+
+  async startAiStudy(user: any, topicId: string) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+    const topicRows = await this.ds.query(
+      `SELECT t.id AS topic_id, t.name AS topic_name, chap.name AS chapter_name, sub.name AS subject_name
+       FROM topics t
+       JOIN chapters chap ON t.chapter_id = chap.id
+       JOIN subjects sub ON chap.subject_id = sub.id
+       WHERE t.id = $1`,
+      [topicId]
+    );
+    if (!topicRows.length) throw new NotFoundException(`Topic ${topicId} not found`);
+    const topic = topicRows[0];
+
+    const existingRows = await this.ds.query(
+      `SELECT * FROM school_ai_study_sessions WHERE student_id = $1 AND topic_id = $2`,
+      [student.student_id, topicId]
+    );
+    const existing = existingRows[0] || null;
+
+    const tenantId = user.instituteId || user.schoolId || 'school';
+
+    if (existing && !this.shouldRegenerateLesson(existing.lesson_markdown, topic.subject_name)) {
+      let practiceQuestions = existing.practice_questions;
+      if (!practiceQuestions || practiceQuestions.length === 0 || !this.hasStructuredPracticeOptions(practiceQuestions)) {
+        try {
+          const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
+            {
+              topicId,
+              topicName: topic.topic_name,
+              count: 8,
+              difficulty: 'easy_medium',
+              type: 'mcq_single',
+              subject: topic.subject_name || undefined,
+              chapter: topic.chapter_name || undefined,
+            },
+            tenantId,
+          ) as any[];
+          if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
+            practiceQuestions = rawQuestions
+              .map((q: any) => this.mapRawPracticeQuestion(q))
+              .filter((q: any) => q.question);
+            await this.ds.query(
+              `UPDATE school_ai_study_sessions SET practice_questions = $1 WHERE id = $2`,
+              [JSON.stringify(practiceQuestions), existing.id]
+            );
+          }
+        } catch (err) {
+          this.logger.warn(`Backfill practice questions failed for school session ${existing.id}: ${err.message}`);
+        }
+      }
+      return {
+        id: existing.id,
+        topicId,
+        topicName: topic.topic_name,
+        lessonMarkdown: this.normalizeSolvedExamplesFormatting(existing.lesson_markdown),
+        keyConcepts: existing.key_concepts || [],
+        formulas: existing.formulas || [],
+        practiceQuestions: practiceQuestions || [],
+        commonMistakes: existing.common_mistakes || [],
+        conversation: existing.conversation || [],
+        isCompleted: existing.is_completed || false,
+        timeSpentSeconds: existing.time_spent_seconds || 0,
+        completedAt: existing.completed_at ?? null,
+        highlights: existing.highlights ?? [],
+        inlineComments: existing.inline_comments ?? [],
+        isNew: false,
+      };
+    }
+
+    const studentClass = student.class_name || '10';
+    const targetLabel = `School Curriculum - Class ${studentClass}`;
+    const tierCalibration = `- Clear, accessible explanations suitable for the student's class (Class ${studentClass})
+- NCERT-aligned content with simple worked examples
+- Focus on concept understanding over calculation complexity`;
+
+    const selfStudyPrompt = this.buildSubjectPrompt(topic, studentClass, targetLabel, tierCalibration);
+
+    let lessonMarkdown = '';
+    let aiSessionRef: string | null = null;
+    let keyConcepts: string[] = [];
+    let formulas: string[] = [];
+    let commonMistakes: string[] = [];
+    let practiceQuestions: any[] = [];
+
+    try {
+      const lessonResponse = await this.aiBridgeService.startTutorSession(
+        { studentId: student.student_id, topicId, context: selfStudyPrompt },
+        tenantId,
+      ) as any;
+
+      lessonMarkdown = this.normalizeSolvedExamplesFormatting(this.extractAiText(lessonResponse));
+      aiSessionRef = this.extractAiSessionRef(lessonResponse);
+      keyConcepts = this.extractBulletSection(lessonMarkdown, 'Core Concepts');
+      formulas = this.extractBulletSection(lessonMarkdown, 'Key Formulas');
+      if (!formulas.length) {
+        formulas = this.extractFormulaCandidates(lessonMarkdown);
+      }
+      commonMistakes = this.extractBulletSection(lessonMarkdown, 'Common Mistakes Students Make');
+    } catch (err) {
+      this.logger.warn(`AI lesson generation failed for topic ${topicId}: ${err.message}`);
+      if (existing && !this.shouldRegenerateLesson(existing.lesson_markdown, topic.subject_name)) {
+        lessonMarkdown = this.normalizeSolvedExamplesFormatting(existing.lesson_markdown);
+        keyConcepts = existing.key_concepts ?? [];
+        formulas = existing.formulas ?? [];
+        commonMistakes = existing.common_mistakes ?? [];
+        aiSessionRef = existing.ai_session_ref ?? null;
+      } else {
+        return {
+          id: existing?.id ?? null,
+          topicId,
+          topicName: topic.topic_name,
+          lessonMarkdown: 'AI lesson generation is temporarily unavailable. Please try again in a moment.',
+          keyConcepts: [],
+          formulas: [],
+          practiceQuestions: [],
+          commonMistakes: [],
+          conversation: [],
+          isCompleted: false,
+          timeSpentSeconds: 0,
+          completedAt: null,
+          isNew: false,
+        };
+      }
+    }
+
+    try {
+      const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
+        {
+          topicId,
+          topicName: topic.topic_name,
+          count: 8,
+          difficulty: 'easy_medium',
+          type: 'mcq_single',
+          subject: topic.subject_name || undefined,
+          chapter: topic.chapter_name || undefined,
+        },
+        tenantId,
+      ) as any[];
+
+      if (Array.isArray(rawQuestions)) {
+        practiceQuestions = rawQuestions
+          .map((q: any) => this.mapRawPracticeQuestion(q))
+          .filter((q: any) => q.question);
+      }
+    } catch (err) {
+      this.logger.warn(`Practice question generation failed for topic ${topicId}: ${err.message}`);
+    }
+
+    const introMessage = lessonMarkdown.split('\n').find((l) => l.trim() && !l.startsWith('#'))
+      ?? `Here is your AI-generated lesson on ${topic.topic_name}.`;
+
+    const initialConversation = [{ role: 'ai', message: introMessage, timestamp: new Date().toISOString() }];
+
+    let savedSession;
+    if (existing) {
+      const res = await this.ds.query(
+        `UPDATE school_ai_study_sessions
+         SET lesson_markdown = $1, key_concepts = $2, formulas = $3, practice_questions = $4, common_mistakes = $5, ai_session_ref = $6, conversation = $7, is_completed = false, completed_at = null, time_spent_seconds = 0
+         WHERE id = $8 RETURNING *`,
+        [
+          lessonMarkdown,
+          JSON.stringify(keyConcepts),
+          JSON.stringify(formulas),
+          JSON.stringify(practiceQuestions),
+          JSON.stringify(commonMistakes),
+          aiSessionRef,
+          JSON.stringify(initialConversation),
+          existing.id
+        ]
+      );
+      savedSession = res[0];
+    } else {
+      const res = await this.ds.query(
+        `INSERT INTO school_ai_study_sessions (student_id, topic_id, lesson_markdown, key_concepts, formulas, practice_questions, common_mistakes, ai_session_ref, conversation)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [
+          student.student_id,
+          topicId,
+          lessonMarkdown,
+          JSON.stringify(keyConcepts),
+          JSON.stringify(formulas),
+          JSON.stringify(practiceQuestions),
+          JSON.stringify(commonMistakes),
+          aiSessionRef,
+          JSON.stringify(initialConversation)
+        ]
+      );
+      savedSession = res[0];
+    }
+
+    return {
+      id: savedSession.id,
+      topicId,
+      topicName: topic.topic_name,
+      lessonMarkdown: this.normalizeSolvedExamplesFormatting(savedSession.lesson_markdown),
+      keyConcepts: savedSession.key_concepts || [],
+      formulas: savedSession.formulas || [],
+      practiceQuestions: savedSession.practice_questions || [],
+      commonMistakes: savedSession.common_mistakes || [],
+      conversation: savedSession.conversation || [],
+      isCompleted: savedSession.is_completed || false,
+      timeSpentSeconds: savedSession.time_spent_seconds || 0,
+      completedAt: savedSession.completed_at ?? null,
+      highlights: savedSession.highlights ?? [],
+      inlineComments: savedSession.inline_comments ?? [],
+      isNew: true,
+    };
+  }
+
+  async getAiStudySession(user: any, topicId: string) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+    const sessionRows = await this.ds.query(
+      `SELECT * FROM school_ai_study_sessions WHERE student_id = $1 AND topic_id = $2`,
+      [student.student_id, topicId]
+    );
+    const session = sessionRows[0] || null;
+    if (!session) return null;
+
+    const tenantId = user.instituteId || user.schoolId || 'school';
+    const topicSubjectRows = await this.ds.query(
+      `SELECT sub.name AS subject_name FROM topics t JOIN chapters chap ON t.chapter_id = chap.id JOIN subjects sub ON chap.subject_id = sub.id WHERE t.id = $1`,
+      [topicId]
+    );
+    const sessionSubjectName = topicSubjectRows[0]?.subject_name ?? '';
+    if (this.shouldRegenerateLesson(session.lesson_markdown, sessionSubjectName)) {
+      try {
+        return await this.startAiStudy(user, topicId);
+      } catch (err) {
+        this.logger.warn(`Auto-regeneration failed for school session ${session.id}: ${err.message}`);
+      }
+    }
+
+    let practiceQuestions = session.practice_questions || [];
+    if (!practiceQuestions || practiceQuestions.length === 0 || !this.hasStructuredPracticeOptions(practiceQuestions)) {
+      try {
+        const topicRows = await this.ds.query(`SELECT name FROM topics WHERE id = $1`, [topicId]);
+        if (topicRows.length) {
+          const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
+            {
+              topicId,
+              topicName: topicRows[0].name,
+              count: 8,
+              difficulty: 'easy_medium',
+              type: 'mcq_single',
+            },
+            tenantId,
+          ) as any[];
+          if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
+            practiceQuestions = rawQuestions
+              .map((q: any) => this.mapRawPracticeQuestion(q))
+              .filter((q: any) => q.question);
+            await this.ds.query(
+              `UPDATE school_ai_study_sessions SET practice_questions = $1 WHERE id = $2`,
+              [JSON.stringify(practiceQuestions), session.id]
+            );
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`Backfill practice questions failed for school session ${session.id}: ${err.message}`);
+      }
+    }
+
+    let formulas = session.formulas || [];
+    if ((!formulas || formulas.length === 0) && session.lesson_markdown) {
+      const extracted =
+        this.extractBulletSection(session.lesson_markdown, 'Key Formulas').length
+          ? this.extractBulletSection(session.lesson_markdown, 'Key Formulas')
+          : this.extractFormulaCandidates(session.lesson_markdown);
+      if (extracted.length) {
+        formulas = extracted;
+        await this.ds.query(
+          `UPDATE school_ai_study_sessions SET formulas = $1 WHERE id = $2`,
+          [JSON.stringify(formulas), session.id]
+        );
+      }
+    }
+
+    return {
+      id: session.id,
+      topicId,
+      lessonMarkdown: this.normalizeSolvedExamplesFormatting(session.lesson_markdown),
+      keyConcepts: session.key_concepts || [],
+      formulas: formulas || [],
+      practiceQuestions: practiceQuestions || [],
+      commonMistakes: session.common_mistakes || [],
+      conversation: session.conversation || [],
+      isCompleted: session.is_completed || false,
+      timeSpentSeconds: session.time_spent_seconds || 0,
+      completedAt: session.completed_at ?? null,
+      highlights: session.highlights ?? [],
+      inlineComments: session.inline_comments ?? [],
+    };
+  }
+
+  async askAiQuestion(user: any, topicId: string, sessionId: string, question: string) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+    const sessionRows = await this.ds.query(
+      `SELECT * FROM school_ai_study_sessions WHERE id = $1 AND student_id = $2 AND topic_id = $3`,
+      [sessionId, student.student_id, topicId]
+    );
+    const session = sessionRows[0] || null;
+    if (!session) throw new NotFoundException('AI study session not found');
+
+    const tenantId = user.instituteId || user.schoolId || 'school';
+    let aiResponse = '';
+    try {
+      const lessonContext = this.buildLessonContextForPrompt(session.lesson_markdown);
+      const contextualQuestion = lessonContext
+        ? `Topic: ${topicId}\nUse the existing lesson context below to answer precisely.\n${lessonContext}\n\nStudent question: ${question}`
+        : question;
+      const response = await this.aiBridgeService.continueTutorSession(
+        { sessionId: session.ai_session_ref ?? sessionId, studentMessage: contextualQuestion },
+        tenantId,
+      ) as any;
+      aiResponse = this.extractAiText(response);
+    } catch (err) {
+      this.logger.warn(`AI follow-up failed for school session ${sessionId}: ${err.message}`);
+      aiResponse = 'I could not process your question right now. Please try again.';
+    }
+
+    const now = new Date().toISOString();
+    const newMessages = [
+      { role: 'student' as const, message: question, timestamp: now },
+      { role: 'ai' as const, message: aiResponse, timestamp: now },
+    ];
+
+    const conversation = session.conversation || [];
+    const firstMessage = conversation[0];
+    let updated = [...conversation, ...newMessages];
+    if (updated.length > 50) {
+      updated = [firstMessage, ...updated.slice(-49)];
+    }
+
+    await this.ds.query(
+      `UPDATE school_ai_study_sessions SET conversation = $1 WHERE id = $2`,
+      [JSON.stringify(updated), session.id]
+    );
+
+    return {
+      sessionId: session.id,
+      studentQuestion: question,
+      aiResponse,
+      timestamp: now,
+      conversation: updated,
+    };
+  }
+
+  async completeAiStudy(user: any, topicId: string, sessionId: string, dto: any) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+    const sessionRows = await this.ds.query(
+      `SELECT * FROM school_ai_study_sessions WHERE id = $1 AND student_id = $2 AND topic_id = $3`,
+      [sessionId, student.student_id, topicId]
+    );
+    const session = sessionRows[0] || null;
+    if (!session) throw new NotFoundException('AI study session not found');
+
+    const now = new Date();
+    await this.ds.query(
+      `UPDATE school_ai_study_sessions
+       SET is_completed = true, completed_at = $1, time_spent_seconds = $2, highlights = $3, inline_comments = $4
+       WHERE id = $5`,
+      [now, dto.timeSpentSeconds, JSON.stringify(dto.highlights), JSON.stringify(dto.inlineComments), session.id]
+    );
+
+    let progressRows = await this.ds.query(
+      `SELECT * FROM school_topic_progress WHERE student_id = $1 AND topic_id = $2`,
+      [student.student_id, topicId]
+    );
+    let progress = progressRows[0] || null;
+
+    if (!progress) {
+      await this.ds.query(
+        `INSERT INTO school_topic_progress (student_id, topic_id, status, studied_with_ai, unlocked_at)
+         VALUES ($1, $2, 'unlocked', true, $3)`,
+         [student.student_id, topicId, now]
+      );
+    } else {
+      await this.ds.query(
+        `UPDATE school_topic_progress
+         SET studied_with_ai = true, status = CASE WHEN status = 'locked' THEN 'unlocked' ELSE status END, unlocked_at = COALESCE(unlocked_at, $1)
+         WHERE id = $2`,
+        [now, progress.id]
+      );
+    }
+
+    const XP_AWARD = 10;
+    await this.ds.query(
+      `UPDATE students SET xp_total = COALESCE(xp_total, 0) + $1 WHERE id = $2`,
+      [XP_AWARD, student.student_id]
+    );
+
+    const updatedStudentRows = await this.ds.query(
+      `SELECT xp_total FROM students WHERE id = $1`,
+      [student.student_id]
+    );
+    const updatedStudent = updatedStudentRows[0];
+
+    // Auto-complete plan items of type 'lecture' or 'revision' for this topic
+    await this.completeItemByTopicAndType(student.student_id, topicId, 'lecture').catch(() => {});
+    await this.completeItemByTopicAndType(student.student_id, topicId, 'revision').catch(() => {});
+
+    const topicRows = await this.ds.query(`SELECT name FROM topics WHERE id = $1`, [topicId]);
+
+    return {
+      sessionId: session.id,
+      isCompleted: true,
+      xpAwarded: XP_AWARD,
+      xpEarned: XP_AWARD,
+      totalXp: updatedStudent?.xp_total ?? 0,
+      quizAvailable: true,
+      mockTestId: null,
+      message: `Great work! You've studied ${topicRows[0]?.name ?? 'the topic'}. Ready to test yourself?`,
+    };
+  }
+
+  async saveAiStudyNotes(user: any, topicId: string, sessionId: string, dto: any) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+    await this.ds.query(
+      `UPDATE school_ai_study_sessions SET highlights = $1, inline_comments = $2 WHERE id = $3 AND student_id = $4 AND topic_id = $5`,
+      [JSON.stringify(dto.highlights), JSON.stringify(dto.inlineComments), sessionId, student.student_id, topicId]
+    );
+    return { success: true };
+  }
+
+  async getAiStudyHistory(user: any) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+    const rows = await this.ds.query(
+      `SELECT s.*, t.name AS topic_name, sub.name AS subject_name
+       FROM school_ai_study_sessions s
+       JOIN topics t ON s.topic_id = t.id
+       JOIN chapters chap ON t.chapter_id = chap.id
+       JOIN subjects sub ON chap.subject_id = sub.id
+       WHERE s.student_id = $1
+       ORDER BY s.created_at DESC`,
+      [student.student_id]
+    );
+
+    return rows.map((session: any) => ({
+      id: session.id,
+      topicId: session.topic_id,
+      topicName: session.topic_name,
+      subjectName: session.subject_name,
+      lessonMarkdown: this.normalizeSolvedExamplesFormatting(session.lesson_markdown),
+      keyConcepts: session.key_concepts || [],
+      formulas: session.formulas || [],
+      practiceQuestions: session.practice_questions || [],
+      conversation: session.conversation || [],
+      isCompleted: session.is_completed,
+      timeSpentSeconds: session.time_spent_seconds,
+      createdAt: session.created_at,
+      completedAt: session.completed_at,
+    }));
+  }
+
+  async generateAiQuiz(user: any, topicId: string) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+    const tenantId = user.instituteId || user.schoolId || 'school';
+
+    const topicRows = await this.ds.query(
+      `SELECT t.id, t.name, chap.name AS chapter_name, sub.name AS subject_name
+       FROM topics t
+       JOIN chapters chap ON t.chapter_id = chap.id
+       JOIN subjects sub ON chap.subject_id = sub.id
+       WHERE t.id = $1`,
+      [topicId]
+    );
+    if (!topicRows.length) throw new NotFoundException(`Topic ${topicId} not found`);
+    const topic = topicRows[0];
+
+    let rawQuestions: any[] = [];
+    try {
+      rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
+        {
+          topicId,
+          topicName: topic.name,
+          count: 8,
+          difficulty: 'easy_medium',
+          type: 'mcq_single',
+          subject: topic.subject_name || undefined,
+          chapter: topic.chapter_name || undefined,
+        },
+        tenantId,
+      ) as any[];
+    } catch (err) {
+      this.logger.warn(`AI quiz generation failed for school topic ${topicId}: ${err.message}`);
+      throw new BadRequestException('AI quiz generation is temporarily unavailable. Please try again.');
+    }
+
+    if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
+      throw new BadRequestException('AI could not generate questions. Please try again.');
+    }
+
+    const difficulties = ['easy', 'easy', 'medium', 'medium', 'hard'];
+    const formatted = rawQuestions.slice(0, 10).map((q: any, qi: number) => ({
+      id: `ai-${topicId.slice(0, 8)}-${qi}`,
+      content: q.content ?? q.question ?? '',
+      type: 'mcq_single',
+      difficulty: q.difficulty ?? difficulties[qi] ?? 'medium',
+      marksCorrect: 4,
+      marksWrong: 1,
+      explanation: q.explanation ?? '',
+      options: (q.options ?? []).map((opt: any, oi: number) => ({
+        id: `ai-${topicId.slice(0, 8)}-${qi}-${oi}`,
+        optionLabel: opt.label ?? String.fromCharCode(65 + oi),
+        content: opt.content ?? String(opt),
+        isCorrect: !!opt.isCorrect,
+      })),
+    }));
+
+    return {
+      topicId,
+      topicName: topic.name,
+      durationMinutes: 15,
+      totalMarks: formatted.length * 4,
+      passingMarks: Math.ceil(formatted.length * 4 * 0.7),
+      questions: formatted,
+    };
+  }
+
+  async completeAiQuiz(user: any, topicId: string, dto: any) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+
+    const passed = dto.accuracy >= 70;
+    const now = new Date();
+
+    const progressRows = await this.ds.query(
+      `SELECT * FROM school_topic_progress WHERE student_id = $1 AND topic_id = $2`,
+      [student.student_id, topicId]
+    );
+    const progress = progressRows[0] || null;
+
+    if (!progress) {
+      await this.ds.query(
+        `INSERT INTO school_topic_progress (student_id, topic_id, status, best_accuracy, completed_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [student.student_id, topicId, passed ? 'completed' : 'in_progress', dto.accuracy, passed ? now : null]
+      );
+    } else {
+      let newStatus = progress.status;
+      if (passed) {
+        newStatus = 'completed';
+      } else if (progress.status === 'locked' || progress.status === 'unlocked') {
+        newStatus = 'in_progress';
+      }
+      const bestAccuracy = Math.max(progress.best_accuracy || 0, dto.accuracy);
+      await this.ds.query(
+        `UPDATE school_topic_progress
+         SET status = $1, best_accuracy = $2, completed_at = COALESCE(completed_at, $3)
+         WHERE id = $4`,
+        [newStatus, bestAccuracy, passed ? now : null, progress.id]
+      );
+    }
+
+    const xpEarned = passed ? 15 : 8;
+    await this.ds.query(
+      `UPDATE students SET xp_total = COALESCE(xp_total, 0) + $1 WHERE id = $2`,
+      [xpEarned, student.student_id]
+    );
+
+    // Auto-complete planner item of type 'practice' for this topic
+    await this.completeItemByTopicAndType(student.student_id, topicId, 'practice').catch(() => {});
+
+    return {
+      passed,
+      accuracy: dto.accuracy,
+      score: dto.score,
+      totalMarks: dto.totalMarks,
+      xpEarned,
+      message: passed
+        ? `Excellent! You passed with ${dto.accuracy.toFixed(0)}% accuracy. Next topic unlocked!`
+        : `You scored ${dto.accuracy.toFixed(0)}%. Need 70%+ to pass. Keep practising!`,
+    };
+  }
+
+  async completeItemByTopicAndType(studentId: string, topicId: string, type: string) {
+    const rows = await this.ds.query(
+      `SELECT pi.id, pi.xp_reward 
+       FROM school_plan_items pi
+       JOIN school_study_plans p ON pi.study_plan_id = p.id
+       WHERE p.student_id = $1 AND pi.type = $2 AND pi.status = 'pending' AND pi.content_json->>'topicId' = $3
+       ORDER BY pi.scheduled_date ASC, pi.created_at ASC
+       LIMIT 1`,
+      [studentId, type, topicId]
+    );
+    if (rows.length) {
+      const item = rows[0];
+      await this.ds.query(
+        `UPDATE school_plan_items SET status = 'completed', completed_at = NOW() WHERE id = $1`,
+        [item.id]
+      );
+      await this.ds.query(
+        `UPDATE students SET xp_total = COALESCE(xp_total, 0) + $1 WHERE id = $2`,
+        [item.xp_reward, studentId]
+      );
+      return { success: true, xpAwarded: item.xp_reward };
+    }
+    return { success: false };
+  }
+
+  private extractAiText(response: any): string {
+    if (!response) return '';
+    if (typeof response === 'string') return response;
+    const candidate =
+      response.response
+      ?? response.message
+      ?? response.data?.response
+      ?? response.data?.message
+      ?? response.text
+      ?? '';
+
+    const unwrap = (v: any): string => {
+      if (!v) return '';
+      if (typeof v === 'string') {
+        const trimmed = v.trim();
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+          try {
+            return unwrap(JSON.parse(trimmed));
+          } catch {
+            return v;
+          }
+        }
+        return v;
+      }
+      if (Array.isArray(v) && v.length && v.every((x) => typeof x === 'string')) {
+        return v.map((s) => String(s).trim()).filter(Boolean).join(' ');
+      }
+      if (typeof v === 'object' && v !== null) {
+        const r =
+          (typeof v.response === 'string' && v.response.trim() ? v.response : '') ||
+          (typeof v.answer === 'string' && v.answer.trim() ? v.answer : '') ||
+          (typeof v.message === 'string' && v.message.trim() ? v.message : '');
+        if (r) return r;
+        if (Array.isArray(v.hints) && v.hints.length) {
+          const lines = v.hints.map((h: any) => String(h).trim()).filter(Boolean);
+          return lines.join(' ');
+        }
+        return JSON.stringify(v);
+      }
+      return String(v);
+    };
+
+    return unwrap(candidate);
+  }
+
+  private mapRawPracticeQuestion(q: any): { question: string; answer: string; explanation: string; options?: string[] } {
+    const rawOptions = Array.isArray(q?.options) ? q.options : [];
+    const options = rawOptions
+      .map((o: any) => String(o?.content ?? o?.text ?? '').trim())
+      .filter((v: string) => Boolean(v));
+    const correctOption = rawOptions.find((o: any) => o?.isCorrect);
+    const fallbackAnswer = String(q?.answer ?? '').trim();
+    return {
+      question: String(q?.content ?? q?.question ?? '').trim(),
+      answer: String(correctOption?.content ?? fallbackAnswer).trim(),
+      explanation: String(q?.explanation ?? '').trim(),
+      options: options.length ? options : undefined,
+    };
+  }
+
+  private hasStructuredPracticeOptions(
+    questions: Array<{ question: string; answer: string; explanation: string; options?: string[] }> | null | undefined,
+  ): boolean {
+    if (!Array.isArray(questions) || questions.length === 0) return false;
+    return questions.some((q) => Array.isArray(q?.options) && q.options.length >= 2);
+  }
+
+  private extractAiSessionRef(response: any): string | null {
+    if (!response || typeof response !== 'object') return null;
+    return response.sessionId ?? response.session_id ?? response.id ?? null;
+  }
+
+  private normalizeSolvedExamplesFormatting(markdown: string | null | undefined): string {
+    const text = String(markdown || '');
+    if (!text) return text;
+    return text
+      .replace(/([^\n])\s*\*\*Solution:\*\*/g, '$1\n\n**Solution:**')
+      .replace(/([^\n])\s*\*\*Answer:\*\*/g, '$1\n\n**Answer:**')
+      .replace(/([^\n])\s*\*\*Key takeaway:\*\*/gi, '$1\n\n**Key takeaway:**')
+      .replace(/([^\n])\s*\*\*Examiner's Trap:\*\*/gi, '$1\n\n**Examiner\'s Trap:**');
+  }
+
+  private extractBulletSection(markdown: string, header: string): string[] {
+    const regex = new RegExp(`#{2,4}\\s+[^\\n]*${header}[^\\n]*([^#]*)`, 'i');
+    const match = markdown.match(regex);
+    if (!match) return [];
+    return match[1]
+      .split('\n')
+      .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
+      .filter((l) => l.length > 3 && !l.startsWith('['));
+  }
+
+  private buildLessonContextForPrompt(markdown: string | null | undefined): string {
+    if (!markdown) return '';
+    const plain = markdown
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/[#>*_`~-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return plain.slice(0, 1200);
+  }
+
+  // ─── Subject classification ───────────────────────────────────────────────
+
+  private isHumanitiesSubject(subjectName: string): boolean {
+    const lower = (subjectName || '').toLowerCase().trim();
+    return /history|geography|civics|political science|economics|sst|social studies|social science|english|hindi|sanskrit|urdu|language|literature|moral science|environmental studies/.test(lower);
+  }
+
+  // ─── Subject-aware prompt builder ────────────────────────────────────────
+
+  private buildSubjectPrompt(
+    topic: { topic_name: string; chapter_name: string; subject_name: string },
+    studentClass: string,
+    targetLabel: string,
+    tierCalibration: string,
+  ): string {
+    return this.isHumanitiesSubject(topic.subject_name)
+      ? this.buildHumanitiesPrompt(topic, studentClass, targetLabel, tierCalibration)
+      : this.buildSciencePrompt(topic, studentClass, targetLabel, tierCalibration);
+  }
+
+  private buildSciencePrompt(
+    topic: { topic_name: string; chapter_name: string; subject_name: string },
+    studentClass: string,
+    targetLabel: string,
+    tierCalibration: string,
+  ): string {
+    return `You are a master teacher who has helped thousands of students crack school examinations. Your lessons are legendary for being crystal-clear, deeply comprehensive, and exam-focused.
+
+Generate a COMPLETE, THOROUGH self-study lesson calibrated precisely for this student's goal. Do not cut corners — depth and clarity are the priority.
+
+TARGET: ${targetLabel}
+CALIBRATION REQUIREMENTS:
+${tierCalibration}
+
+Topic: ${topic.topic_name}
+Chapter: ${topic.chapter_name}
+Subject: ${topic.subject_name}
+Class: ${studentClass}
+
+---
+
+Write the lesson using this EXACT structure. Each section must be detailed — not a placeholder.
+
+# ${topic.topic_name}
+
+## 🎯 What You'll Learn
+A 2-3 sentence motivating introduction: what this topic is, why it matters, and what real-world phenomena it explains. Make it engaging.
+
+## 📖 Introduction & Background
+Give the conceptual foundation. Explain the "big picture" — where this topic fits in ${topic.subject_name}, what prior knowledge it builds on, and the intuition behind it. Use analogies to make abstract ideas concrete. Minimum 150 words.
+
+## 🔑 Core Concepts (Explained in Depth)
+For EACH major concept in this topic:
+### Concept Name
+- Clear definition
+- Intuitive explanation with a relatable analogy or real-world example
+- A short illustrative example
+
+Cover ALL concepts — do not skip any.
+
+## 📝 Formulas & Equations
+INCLUDE THIS SECTION ONLY if this topic has mathematical formulas, physical laws, or chemical equations.
+If this is a conceptual/descriptive chapter with no quantitative formulas (e.g. classification, ecology, cell biology, atomic structure theory), write: "No key formulas for this topic — focus is on conceptual understanding."
+Otherwise, for EVERY formula or equation:
+### Formula / Equation Name
+$$formula or balanced chemical equation$$
+- Variables / Species: define each symbol or reactant/product
+- Units: state SI units (for physics/maths) or conditions (for chemistry)
+- When it applies: assumptions or scope
+
+## 📊 Derivations
+INCLUDE THIS SECTION ONLY if there are standard step-by-step derivations for this topic (e.g. equations of motion, lens formula, gas laws).
+For Biology chapters, use this section to write the word equation AND balanced chemical equation for key biological processes (e.g. photosynthesis, aerobic respiration, anaerobic respiration) with a brief explanation of each step.
+If no derivations apply, omit this section entirely.
+### Derivation of [Formula / Process Name]
+Step-by-step with clear reasoning at each step.
+
+## 💡 Solved Examples
+For Maths / Physics / Chemistry: provide 3 numeric problems (Basic → Intermediate → Hard) with full step-by-step solutions.
+For Biology / Computer Science: provide 3 exam-style descriptive questions with model answers (e.g. "Explain with a diagram...", "Compare and contrast...", "Trace the path of...").
+
+### Example 1 — Basic
+[Full question]
+**Solution:**
+Step 1: ...
+Step 2: ...
+**Answer:** ...
+**Key takeaway:** ...
+
+### Example 2 — Intermediate
+[Full question]
+**Solution:** (detailed)
+
+### Example 3 — Advanced
+[Tricky exam-style question]
+**Solution:** (complete step-by-step)
+
+## 🧠 Connections to Other Topics
+- How this topic links to related topics in ${topic.subject_name}
+- Topics that depend on understanding this one
+
+## ⚠️ Common Mistakes Students Make
+For each mistake:
+- **Mistake:** what students typically get wrong
+- **Why it happens:** root cause
+- **Correct approach:** how to avoid it
+
+List at least 4-5 genuine mistakes.
+
+## 🏆 Exam Strategy
+- How this topic typically appears in examinations
+- For formula-heavy topics: which formulas are most tested and common calculation traps
+- For conceptual topics: key definitions, diagrams, and comparisons examiners expect
+- Marks distribution and time management tips
+
+## 📋 Quick Revision Summary
+A numbered list of the 8-10 most critical points to memorize.
+
+## ❓ Self-Check Questions
+5 questions the student should be able to answer after reading this lesson:
+1. ...
+2. ...
+3. ...
+4. ...
+5. ...
+
+---
+Write EVERYTHING above in full. Do not use placeholder text like "[explanation here]". Every section must have real, complete content about ${topic.topic_name}.`;
+  }
+
+  private buildHumanitiesPrompt(
+    topic: { topic_name: string; chapter_name: string; subject_name: string },
+    studentClass: string,
+    targetLabel: string,
+    tierCalibration: string,
+  ): string {
+    return `You are a master teacher who has helped thousands of students excel in school board examinations. Your notes are legendary for being comprehensive, exam-focused, and crystal-clear.
+
+Generate a COMPLETE, THOROUGH self-study lesson for a humanities/theory subject. Do not cut corners — depth and clarity are the priority.
+
+TARGET: ${targetLabel}
+CALIBRATION REQUIREMENTS:
+${tierCalibration}
+
+Topic: ${topic.topic_name}
+Chapter: ${topic.chapter_name}
+Subject: ${topic.subject_name}
+Class: ${studentClass}
+
+IMPORTANT: This is a humanities/theory subject. Do NOT include any mathematics formulas, algebraic derivations, or numeric calculation problems. Focus entirely on conceptual understanding, historical/geographical/economic analysis, and board-exam answer-writing skills.
+
+---
+
+Write the lesson using this EXACT structure. Each section must be detailed — not a placeholder.
+
+# ${topic.topic_name}
+
+## 🎯 What You'll Learn
+A 2-3 sentence motivating introduction: what this topic is, why it matters, and what it helps us understand about the world. Make it engaging.
+
+## 📖 Introduction & Background
+Give the conceptual foundation. Explain the "big picture" — the context of this topic in ${topic.subject_name}, what prior knowledge it builds on, and why it is significant. Use real-world connections to make it relatable. Minimum 150 words.
+
+## 🔑 Core Concepts (Explained in Depth)
+For EACH major concept, idea, movement, or theme in this topic:
+### Concept / Term / Movement Name
+- Clear definition or explanation
+- Context: when, where, why it occurred or matters
+- Real-world example or analogy to make it concrete
+
+Cover ALL concepts — do not skip any.
+
+## 🗓️ Key Events / Timeline
+If this topic involves historical events, movements, policies, or chronological developments, list them:
+- **[Year / Period]** — Event/development and its significance
+(If this is a geography or economics topic with no timeline, replace this section with: "## 🌍 Key Facts & Data Points" listing the most important facts, statistics, or geographic features students must know.)
+
+## 🔗 Cause & Effect / Analysis
+For the major events, processes, or policies in this topic:
+- **Cause / Factor:** What led to it?
+- **Effect / Consequence:** What resulted from it?
+- **Long-term Impact:** Why does it still matter today?
+
+## 🌟 Important People / Places / Movements / Terms
+For each key figure, place, movement, or term:
+- **Name:** Who/what it is
+- **Significance:** Why it matters to this topic
+- **Exam relevance:** What type of question this typically appears in
+
+## 📖 Exam-Style Questions & Model Answers
+### Example 1 — Short Answer (3 marks)
+[Typical board-exam question on this topic]
+**Model Answer:**
+[Well-structured 3-4 sentence answer hitting the key points]
+**Key points that earn marks:** ...
+
+### Example 2 — Long Answer (5 marks)
+[Typical board-exam question on this topic]
+**Model Answer Structure:**
+- Introduction: ...
+- Point 1 (with explanation): ...
+- Point 2 (with explanation): ...
+- Point 3 (with explanation): ...
+- Conclusion: ...
+
+### Example 3 — Source-Based / Map / Case Study Question *(if applicable)*
+[A source-based or application question typical of board exams]
+**How to approach and answer it:** ...
+
+## 🧠 Connections to Other Topics
+- How this topic links to other chapters in ${topic.subject_name}
+- Cross-subject connections (e.g. how history links to economics or geography)
+
+## ⚠️ Common Mistakes Students Make
+For each mistake:
+- **Mistake:** what students typically get wrong
+- **Why it happens:** root cause
+- **Correct approach:** how to avoid it
+
+List at least 4-5 genuine mistakes.
+
+## 🏆 Exam Strategy
+- Types of questions asked from this topic (MCQ, 1-mark, 3-mark, 5-mark, source-based)
+- Key names, dates, terms, and definitions to memorise
+- How to structure a board-exam answer for 3-mark and 5-mark questions
+- Common traps and what examiners specifically look for
+
+## 📋 Quick Revision Summary
+A numbered list of the 8-10 most critical points to memorize for this topic.
+
+## ❓ Self-Check Questions
+5 questions the student should be able to answer after reading this lesson:
+1. ...
+2. ...
+3. ...
+4. ...
+5. ...
+
+---
+Write EVERYTHING above in full. Do not use placeholder text like "[explanation here]". Every section must have real, complete content about ${topic.topic_name}.`;
+  }
+
+  // ─── Lesson quality check ────────────────────────────────────────────────
+
+  private shouldRegenerateLesson(markdown: string | null | undefined, subjectName?: string): boolean {
+    const text = String(markdown || '');
+    if (!text.trim()) return true;
+    if (text.length < 4500) return true;
+
+    const isHumanities = this.isHumanitiesSubject(subjectName || '');
+
+    // Humanities: only require core structural sections — no formula checks
+    // Science: require solved examples and exam strategy (formulas are now optional per topic)
+    const required = isHumanities
+      ? ['Core Concepts', 'Exam Strategy']
+      : ['Core Concepts', 'Solved Examples', 'Exam Strategy'];
+
+    const missingCount = required.filter((k) => !new RegExp(k, 'i').test(text)).length;
+    if (missingCount >= 1) return true;
+
+    // Check for obviously incomplete formula lines — science subjects only
+    if (!isHumanities) {
+      if (/\$[^$\n]{0,25}=\s*(?:\n|$)/m.test(text)) return true;
+      if (/Derivation[\s\S]{0,120}:\s*(?:\n|$)/i.test(text)) return true;
+    }
+
+    if (/[=:]\s*$/.test(text.trim())) return true;
+    return false;
+  }
+
+  private extractFormulaCandidates(markdown: string): string[] {
+    const lines = String(markdown || '')
+      .split('\n')
+      .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
+      .filter(Boolean);
+    const candidates = lines.filter((l) =>
+      /[=∑√Δπ]/.test(l) ||
+      /\b(sin|cos|tan|log|ln|velocity|acceleration|force|energy|mole|concentration|probability)\b/i.test(l),
+    );
+    const unique = Array.from(new Set(candidates.map((c) => c.replace(/\s+/g, ' ').trim())));
+    return unique.slice(0, 10);
   }
 }

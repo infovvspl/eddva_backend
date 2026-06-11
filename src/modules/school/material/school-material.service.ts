@@ -602,9 +602,11 @@ export class SchoolMaterialService implements OnModuleInit {
   }
 
   async remove(user: any, id: string) {
-    const topRows = await this.ds.query(`SELECT subject FROM study_materials WHERE id=$1`, [id]);
-    const currentSubject = topRows.length > 0 ? topRows[0].subject : null;
-    await this.validateTeacherAssignment(user, currentSubject, 'DELETE_MATERIAL_DENIED');
+    // Validate against the subject UUID (subject_id_fk), not the subject *name* —
+    // validateTeacherAssignment compares against teacher_academic_assignments.subject_id.
+    const topRows = await this.ds.query(`SELECT subject_id_fk FROM study_materials WHERE id=$1`, [id]);
+    const currentSubjectId = topRows.length > 0 ? topRows[0].subject_id_fk : null;
+    await this.validateTeacherAssignment(user, currentSubjectId, 'DELETE_MATERIAL_DENIED');
 
     await this.ds.query(`DELETE FROM study_materials WHERE id=$1`, [id]);
     return { success: true };

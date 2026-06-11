@@ -2483,6 +2483,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             sessionId: session.id,
             isCompleted: true,
             xpAwarded: XP_AWARD,
+            xpEarned: XP_AWARD,
             totalXp: updated?.xpTotal ?? 0,
             quizAvailable: !!mockTest,
             mockTestId: mockTest?.id ?? null,
