@@ -26115,3 +26115,161 @@ Error: NotFoundException: Cannot GET /api/v1/school/materials/123/highlights
     at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
     at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
+[2026-06-11T09:59:35.951Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T09:59:55.863Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:00:15.543Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:00:35.893Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:00:55.866Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:01:17.616Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:02:17.631Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:03:17.956Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:04:17.959Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:05:18.013Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:06:17.973Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:06:23.025Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:06:24.667Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:06:25.908Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:28:48.684Z] POST /api/v1/school/topics/6a1e882f-8bdb-4e27-925f-d1b15492b5da/ai-quiz/generate
+Status: 400
+Error: BadRequestException: AI quiz generation is temporarily unavailable. Please try again.
+    at SchoolStudyPlanService.generateAiQuiz (D:\edtech\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1282:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:56:15.479Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:56:16.000Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:56:33.782Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:56:34.245Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:56:35.618Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+

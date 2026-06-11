@@ -8,6 +8,7 @@ import { SchoolNotificationService } from '../notification/school-notification.s
 
 /** Material types accepted by the study_materials.type enum (school). */
 const ALLOWED_MATERIAL_TYPES = ['notes', 'pyq', 'formula_sheet', 'dpp', 'mindmap', 'ppt', 'ebook'];
+const UUID_TEXT_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 
 @Injectable()
 export class SchoolMaterialService implements OnModuleInit {
@@ -325,7 +326,11 @@ export class SchoolMaterialService implements OnModuleInit {
         sm.created_at AS "createdAt",
         sm.class_id AS "classId",
         sm.section_id AS "sectionId",
-        COALESCE(s.name, sm.subject) AS "subjectName",
+        CASE
+          WHEN NULLIF(TRIM(s.name), '') IS NOT NULL THEN s.name
+          WHEN NULLIF(TRIM(sm.subject), '') IS NOT NULL AND sm.subject !~* '${UUID_TEXT_PATTERN}' THEN sm.subject
+          ELSE 'Other Subjects'
+        END AS "subjectName",
         COALESCE(c.name, sm.chapter) AS "chapterName",
         t.name AS "topicName",
         u.name AS uploaded_by_name
@@ -371,6 +376,11 @@ export class SchoolMaterialService implements OnModuleInit {
                 AND taa.section_id = $${sectionParam}::uuid
             )
           )
+        )
+        AND (
+          s.id IS NOT NULL
+          OR NULLIF(TRIM(sm.subject), '') IS NULL
+          OR sm.subject !~* '${UUID_TEXT_PATTERN}'
         )`;
       } else {
         return { success: true, data: [] };

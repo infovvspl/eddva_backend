@@ -23,4 +23,9 @@ export class SchoolAcademicController {
   @Post('sections') createSection(@SchoolUser() user: any, @Body() body: any) { return this.svc.createSection(user, body); }
   @Put('sections/:id') updateSection(@Param('id') id: string, @Body() body: any) { return this.svc.updateSection(id, body); }
   @Delete('sections/:id') deleteSection(@Param('id') id: string) { return this.svc.deleteSection(id); }
+
+  @Get('periods') listPeriods(@SchoolUser() user: any, @Query() query: any) { return this.svc.listPeriods(user, query); }
+  @Post('periods') createPeriod(@SchoolUser() user: any, @Body() body: any) { return this.svc.createPeriod(user, body); }
+  @Put('periods/:id') updatePeriod(@Param('id') id: string, @Body() body: any) { return this.svc.updatePeriod(id, body); }
+  @Delete('periods/:id') deletePeriod(@Param('id') id: string) { return this.svc.deletePeriod(id); }
 }

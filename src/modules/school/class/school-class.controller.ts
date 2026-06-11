@@ -38,6 +38,30 @@ export class SchoolClassController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   generateQuiz(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.generateQuiz(user, id); }
 
+  @Get('recordings/:id/quiz-analytics')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  getQuizAnalytics(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getQuizAnalytics(user, id);
+  }
+
+  @Get('recordings/:id/progress')
+  @SchoolRoles('STUDENT')
+  getRecordingProgress(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getProgress(user, id);
+  }
+
+  @Post('recordings/:id/progress')
+  @SchoolRoles('STUDENT')
+  upsertRecordingProgress(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.upsertProgress(user, id, body);
+  }
+
+  @Post('recordings/:id/quiz-response')
+  @SchoolRoles('STUDENT')
+  submitQuizResponse(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.submitQuizResponse(user, id, body);
+  }
+
   @Delete('recordings/:id')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   removeRecording(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.remove(user, id); }
