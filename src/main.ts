@@ -70,6 +70,8 @@ async function bootstrap() {
       'Authorization',
       'x-tenant-id',
       'x-api-key',
+      'x-tenant-subdomain',
+      'x-institute-domain',
     ],
     exposedHeaders: ['Authorization'],
     preflightContinue: false,

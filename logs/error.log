@@ -25785,3 +25785,91 @@ Error: QueryFailedError: invalid input syntax for type uuid: "Math"
     at async SchoolMaterialService.validateTeacherAssignment (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:238:18)
     at async SchoolMaterialService.remove (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:597:5)
 
+[2026-06-11T09:09:49.604Z] GET /api/v1/health
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/health
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T09:09:49.852Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:188:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T09:12:24.856Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T09:12:51.616Z] GET /api/v1/school/notifications
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T09:12:51.865Z] GET /api/v1/school/notifications/preferences
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T09:12:52.130Z] GET /api/v1/school/doubts
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T09:12:52.393Z] GET /api/v1/school/assignments/submissions/inbox
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T09:12:52.644Z] GET /api/v1/school/career/quiz/status
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
