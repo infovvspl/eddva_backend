@@ -25591,3 +25591,161 @@ Error: NotFoundException: Grievance submission is not available for this institu
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 >>>>>>> 59939aac5513c429a67e5a2383396599088ace63
 
+[2026-06-11T05:20:49.290Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-11T05:20:56.730Z] GET /api/v1/school/students
+Status: 500
+Error: QueryFailedError: trailing junk after numeric literal at or near "15f29a6d"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.list (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:168:25)
+
+[2026-06-11T05:23:52.600Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T05:30:18.586Z] GET /api/v1/school/parent/notifications?filter=All
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-11T05:30:19.697Z] GET /api/v1/school/parent/notifications?filter=All
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-11T05:41:45.540Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-11T05:41:46.549Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-11T05:46:36.292Z] GET /api/v1/school/meetings
+Status: 403
+Error: ForbiddenException: Role 'STUDENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T05:46:36.641Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T05:56:54.779Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-11T05:57:15.083Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-11T05:57:26.653Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-11T05:57:37.312Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-11T05:57:40.076Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T06:02:26.407Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T06:09:05.707Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T06:23:24.297Z] GET /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+Status: 404
+Error: NotFoundException: Cannot GET /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\EDDVA SCHOOL\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T06:24:02.606Z] POST /api/v1/school/assignments/394b7f11-3c3d-4ebe-b005-e3a3ff48c0a8/submit
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T06:24:08.382Z] POST /api/v1/school/assignments/394b7f11-3c3d-4ebe-b005-e3a3ff48c0a8/submit
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T06:24:14.638Z] POST /api/v1/school/assignments/394b7f11-3c3d-4ebe-b005-e3a3ff48c0a8/submit
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
