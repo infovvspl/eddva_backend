@@ -7,14 +7,11 @@ const client = new Client({
 async function run() {
   await client.connect();
   const res = await client.query(`
-    SELECT
-        id, teacher_id, class_id, section_id, subject_id,
-        day_of_week, start_time, end_time, type as class_type, room
-    FROM timetables
-    ORDER BY created_at DESC
-    LIMIT 10;
+    SELECT column_name, data_type 
+    FROM information_schema.columns 
+    WHERE table_name = 'timetables';
   `);
-  console.log("TIMETABLES:", JSON.stringify(res.rows, null, 2));
+  console.log("COLUMNS:", JSON.stringify(res.rows, null, 2));
   await client.end();
 }
 run().catch(console.error);

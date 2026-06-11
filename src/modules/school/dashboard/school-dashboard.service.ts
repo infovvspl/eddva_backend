@@ -54,13 +54,33 @@ export class SchoolDashboardService {
       }
 
       const todayStr = new Date().toISOString().split('T')[0];
+      const dayNum = new Date().getDay();
+      const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+      const dayOfWeekStr = days[dayNum];
+      const mappedDayOfWeek = String(dayNum === 0 ? 7 : dayNum);
+
       const [studentsCount, assignmentsCount, assessmentsCount, schedules, attendanceToday] = await Promise.all([
         this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1`, [instituteId]),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM assignments`),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM assessments`),
-        this.ds.query(`SELECT s.*,c.name AS class_name,sub.name AS subject_name FROM schedules s LEFT JOIN classes c ON s.class_id::text=c.id::text LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text WHERE s.teacher_id::text=$1::text ORDER BY s.day_of_week,s.start_time LIMIT 6`, [user.id]),
+        this.ds.query(`
+          SELECT t.id, t.start_time, t.end_time, t.room, t.type AS class_type, 
+                 c.name AS class_name, sub.name AS subject_name 
+          FROM timetables t 
+          LEFT JOIN sections sec ON t.section_id = sec.id
+          LEFT JOIN classes c ON sec.class_id = c.id 
+          LEFT JOIN subjects sub ON t.subject_id = sub.id 
+          WHERE t.teacher_id = $1 AND t.day_of_week = $2 
+          ORDER BY t.start_time LIMIT 6
+        `, [teacherId, mappedDayOfWeek]),
         this.ds.query(`SELECT COUNT(*) FILTER (WHERE LOWER(status)='present')::int AS present, COUNT(*)::int AS total FROM attendances WHERE institute_id=$1 AND date::date = $2::date`, [instituteId, todayStr])
       ]);
+
+      console.log("Teacher ID:", teacherId);
+      console.log("Today's Day:", mappedDayOfWeek);
+      console.log("Calculated Day:", dayOfWeekStr);
+      console.log("Today's Classes:", schedules);
+
 
       const totalPresent = attendanceToday[0]?.present || 0;
       const totalAttended = attendanceToday[0]?.total || 0;

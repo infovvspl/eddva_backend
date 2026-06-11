@@ -94,7 +94,8 @@ export class ContentController {
     @Get('subjects')
     @ApiOperation({ summary: 'Get all subjects for this tenant with nested chapters & topics' })
     getSubjects(@Query() query: SubjectQueryDto, @TenantId() tenantId: string) {
-        return this.contentService.getSubjects(query, tenantId);
+        const effectiveTenantId = tenantId || '73a505c3-23eb-4166-b019-8c9bc154a284';
+        return this.contentService.getSubjects(query, effectiveTenantId);
     }
 
     @Get('subjects/:id')
