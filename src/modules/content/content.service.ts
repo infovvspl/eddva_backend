@@ -41,6 +41,7 @@ import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subje
 import { CreateChapterDto, UpdateChapterDto } from './dto/chapter.dto';
 import { CreateTopicDto, UpdateTopicDto } from './dto/topic.dto';
 import { BulkImportCurriculumDto } from './dto/bulk-import.dto';
+import { S3Service } from '../upload/s3.service';
 import {
     CreateQuestionDto,
     UpdateQuestionDto,
@@ -125,8 +126,11 @@ export class ContentService {
         private readonly aiBridgeService: AiBridgeService,
         private readonly notificationService: NotificationService,
         private readonly studyPlanService: StudyPlanService,
+        private readonly s3Service: S3Service,
         @Inject(CACHE_MANAGER)
         private readonly cacheManager: Cache,
+        @InjectDataSource('school')
+        private readonly schoolDataSource: DataSource,
     ) { }
 
     /**
@@ -2483,6 +2487,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             sessionId: session.id,
             isCompleted: true,
             xpAwarded: XP_AWARD,
+            xpEarned: XP_AWARD,
             totalXp: updated?.xpTotal ?? 0,
             quizAvailable: !!mockTest,
             mockTestId: mockTest?.id ?? null,
@@ -2952,8 +2957,40 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         };
     }
 
-    async getTopicResourceById(resourceId: string, tenantId: string): Promise<TopicResource> {
-        const resource = await this.topicResourceRepo.findOne({ where: { id: resourceId, tenantId } });
+    async getTopicResourceByTopicId(resourceId: string, topicId: string): Promise<any> {
+        let resource: any = await this.topicResourceRepo.findOne({ where: { id: resourceId, topicId } });
+        
+        if (!resource) {
+            // Check coaching DB's mirrored study materials
+            let studyMaterial = await this.studyMaterialRepo.findOne({
+                where: { id: resourceId, topicId }
+            });
+            
+            // If not found, check school DB's native study materials
+            if (!studyMaterial) {
+                const schoolRows = await this.schoolDataSource.query(
+                    `SELECT id, title, description, s3_key AS "s3Key" FROM study_materials WHERE id = $1 AND topic_id = $2`,
+                    [resourceId, topicId]
+                );
+                if (schoolRows.length > 0) studyMaterial = schoolRows[0];
+            }
+            
+            if (studyMaterial) {
+                let fileUrl = studyMaterial.s3Key;
+                if (fileUrl && !fileUrl.startsWith('http')) {
+                    fileUrl = this.s3Service.toPublicUrl(fileUrl);
+                }
+                
+                resource = {
+                    id: studyMaterial.id,
+                    title: studyMaterial.title,
+                    description: studyMaterial.description,
+                    fileUrl,
+                    externalUrl: null, // study_materials are exclusively files/S3 keys
+                };
+            }
+        }
+
         if (!resource) throw new NotFoundException(`Resource ${resourceId} not found`);
         return resource;
     }

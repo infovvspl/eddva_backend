@@ -25591,6 +25591,7 @@ Error: NotFoundException: Grievance submission is not available for this institu
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 >>>>>>> 59939aac5513c429a67e5a2383396599088ace63
 
+<<<<<<< HEAD
 [2026-06-11T05:20:49.290Z] POST /api/v1/auth/login
 Status: 401
 Error: UnauthorizedException: Invalid credentials
@@ -25748,4 +25749,369 @@ Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resou
     at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
     at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
     at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+=======
+[2026-06-11T05:17:02.989Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T05:17:03.083Z] GET /favicon.ico
+Status: 404
+Error: NotFoundException: Cannot GET /favicon.ico
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T05:17:51.378Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T05:17:51.468Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:73:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-11T04:32:46.498Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-11T04:33:10.882Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T04:52:14.535Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:00:20.689Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:00:36.321Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:06:44.826Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T05:06:45.192Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T05:08:25.266Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:08:46.456Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:08:55.785Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:33:17.943Z] PATCH /api/v1/school/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/ai-study/32042b1f-ecde-4172-bc1e-161c04e3e4d9/complete
+Status: 500
+Error: QueryFailedError: column "xp_total" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudyPlanService.completeAiStudy (D:\Edva\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1271:5)
+
+[2026-06-11T05:33:43.838Z] PATCH /api/v1/school/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/ai-study/32042b1f-ecde-4172-bc1e-161c04e3e4d9/complete
+Status: 500
+Error: QueryFailedError: column "xp_total" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudyPlanService.completeAiStudy (D:\Edva\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1271:5)
+
+[2026-06-11T05:33:45.609Z] PATCH /api/v1/school/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/ai-study/32042b1f-ecde-4172-bc1e-161c04e3e4d9/complete
+Status: 500
+Error: QueryFailedError: column "xp_total" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudyPlanService.completeAiStudy (D:\Edva\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1271:5)
+
+[2026-06-11T06:13:31.981Z] DELETE /api/v1/school/materials/39352cba-87bb-42fd-91c7-69b6863549ce
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "Math"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:597:5)
+
+[2026-06-11T06:13:37.027Z] DELETE /api/v1/school/materials/39352cba-87bb-42fd-91c7-69b6863549ce
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "Math"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:597:5)
+>>>>>>> 0a0f590f4d5107ae3cc811f8a5f6402d8260230a
+
+[2026-06-11T06:49:59.747Z] POST /api/v1/school/materials/ai-generate
+Status: 500
+Error: AggregateError
+    at Function.from (C:\EDDVA SCHOOL\eddva_backend\node_modules\axios\lib\core\AxiosError.js:7:24)
+    at RedirectableRequest.handleRequestError (C:\EDDVA SCHOOL\eddva_backend\node_modules\axios\lib\adapters\http.js:866:27)
+    at RedirectableRequest.emit (node:events:531:35)
+    at RedirectableRequest.emit (node:domain:489:12)
+    at ClientRequest.eventHandlers.<computed> (C:\EDDVA SCHOOL\eddva_backend\node_modules\follow-redirects\index.js:49:24)
+    at ClientRequest.emit (node:events:519:28)
+    at ClientRequest.emit (node:domain:489:12)
+    at emitErrorEvent (node:_http_client:108:11)
+    at Socket.socketErrorListener (node:_http_client:575:5)
+    at Socket.emit (node:events:519:28)
+    at Axios.request (C:\EDDVA SCHOOL\eddva_backend\node_modules\axios\lib\core\Axios.js:46:41)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-11T07:51:07.142Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/769ec608-bfe0-4fa2-8722-816b38eae8e3/download-url
+Status: 404
+Error: NotFoundException: Resource 769ec608-bfe0-4fa2-8722-816b38eae8e3 not found
+    at ContentService.getTopicResourceById (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-11T08:08:08.541Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/769ec608-bfe0-4fa2-8722-816b38eae8e3/download-url
+Status: 404
+Error: NotFoundException: Resource 769ec608-bfe0-4fa2-8722-816b38eae8e3 not found
+    at ContentService.getTopicResourceById (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-11T09:05:22.292Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/769ec608-bfe0-4fa2-8722-816b38eae8e3/download-url
+Status: 404
+Error: NotFoundException: Resource 769ec608-bfe0-4fa2-8722-816b38eae8e3 not found
+    at ContentService.getTopicResourceById (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-11T09:08:14.539Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/769ec608-bfe0-4fa2-8722-816b38eae8e3/download-url
+Status: 404
+Error: NotFoundException: Resource 769ec608-bfe0-4fa2-8722-816b38eae8e3 not found
+    at ContentService.getTopicResourceById (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-11T09:16:25.115Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/769ec608-bfe0-4fa2-8722-816b38eae8e3/download-url
+Status: 404
+Error: NotFoundException: Resource 769ec608-bfe0-4fa2-8722-816b38eae8e3 not found
+    at ContentService.getTopicResourceById (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-11T09:20:53.709Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/769ec608-bfe0-4fa2-8722-816b38eae8e3/download-url
+Status: 404
+Error: NotFoundException: Resource 769ec608-bfe0-4fa2-8722-816b38eae8e3 not found
+    at ContentService.getTopicResourceById (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-11T09:21:10.102Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/769ec608-bfe0-4fa2-8722-816b38eae8e3/download-url
+Status: 404
+Error: NotFoundException: Resource 769ec608-bfe0-4fa2-8722-816b38eae8e3 not found
+    at ContentService.getTopicResourceById (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-11T09:28:24.023Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/769ec608-bfe0-4fa2-8722-816b38eae8e3/download-url
+Status: 404
+Error: NotFoundException: Resource 769ec608-bfe0-4fa2-8722-816b38eae8e3 not found
+    at ContentService.getTopicResourceById (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-11T09:41:54.713Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/769ec608-bfe0-4fa2-8722-816b38eae8e3/download-url
+Status: 404
+Error: NotFoundException: Resource 769ec608-bfe0-4fa2-8722-816b38eae8e3 not found
+    at ContentService.getTopicResourceById (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-11T09:46:09.306Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/769ec608-bfe0-4fa2-8722-816b38eae8e3/download-url
+Status: 404
+Error: NotFoundException: Resource 769ec608-bfe0-4fa2-8722-816b38eae8e3 not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T09:48:59.635Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/0422256b-cd56-4092-b5ae-ce35ad51085f/download-url
+Status: 404
+Error: NotFoundException: Resource 0422256b-cd56-4092-b5ae-ce35ad51085f not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2958:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T10:17:26.833Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/0422256b-cd56-4092-b5ae-ce35ad51085f/download-url
+Status: 404
+Error: NotFoundException: Resource 0422256b-cd56-4092-b5ae-ce35ad51085f not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2983:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T10:19:40.997Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/0422256b-cd56-4092-b5ae-ce35ad51085f/download-url
+Status: 404
+Error: NotFoundException: Resource 0422256b-cd56-4092-b5ae-ce35ad51085f not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2983:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T10:20:04.622Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/0422256b-cd56-4092-b5ae-ce35ad51085f/download-url
+Status: 404
+Error: NotFoundException: Resource 0422256b-cd56-4092-b5ae-ce35ad51085f not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2983:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T10:20:57.910Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/0422256b-cd56-4092-b5ae-ce35ad51085f/download-url
+Status: 404
+Error: NotFoundException: Resource 0422256b-cd56-4092-b5ae-ce35ad51085f not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2983:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T10:24:33.258Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/0422256b-cd56-4092-b5ae-ce35ad51085f/download-url
+Status: 404
+Error: NotFoundException: Resource 0422256b-cd56-4092-b5ae-ce35ad51085f not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2983:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T10:25:22.665Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/0422256b-cd56-4092-b5ae-ce35ad51085f/download-url
+Status: 404
+Error: NotFoundException: Resource 0422256b-cd56-4092-b5ae-ce35ad51085f not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2983:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T10:28:24.367Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/0422256b-cd56-4092-b5ae-ce35ad51085f/download-url
+Status: 404
+Error: NotFoundException: Resource 0422256b-cd56-4092-b5ae-ce35ad51085f not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2983:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T10:50:16.711Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/0422256b-cd56-4092-b5ae-ce35ad51085f/download-url
+Status: 404
+Error: NotFoundException: Resource 0422256b-cd56-4092-b5ae-ce35ad51085f not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2983:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T10:52:25.929Z] GET /api/v1/content/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/resources/4e87278f-2d4c-49ff-a540-1dcdfc46b27a/download-url
+Status: 404
+Error: NotFoundException: Resource 4e87278f-2d4c-49ff-a540-1dcdfc46b27a not found
+    at ContentService.getTopicResourceByTopicId (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.service.ts:2983:30)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ContentController.getResourceDownloadUrl (C:\EDDVA SCHOOL\eddva_backend\src\modules\content\content.controller.ts:770:26)
+
+[2026-06-11T12:59:49.323Z] GET /api/v1/school/materials/123/highlights
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/materials/123/highlights
+    at callback (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at Function.process_params (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\EDDVA SCHOOL\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
