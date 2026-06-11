@@ -577,10 +577,13 @@ export class SchoolAssessmentService {
 
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const sql = `
-      SELECT a.*, c.name AS class_name, sub.name AS subject_name
+      SELECT a.*, c.name AS class_name, sub.name AS subject_name,
+             ch.name AS chapter_name, t.name AS topic_name
       FROM assessments a
       LEFT JOIN classes c ON a.class_id::text = c.id::text
       LEFT JOIN subjects sub ON a.subject_id::text = sub.id::text
+      LEFT JOIN chapters ch ON a.chapter_id::text = ch.id::text
+      LEFT JOIN topics t ON a.topic_id::text = t.id::text
       ${where}
       ORDER BY a.scheduled_date DESC NULLS LAST, a.created_at DESC
     `;
