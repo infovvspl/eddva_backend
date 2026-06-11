@@ -518,9 +518,9 @@ export class SchoolParentService {
         `INSERT INTO grievances (raised_by, title, category, description, status)
          VALUES ($1, $2, $3, $4, 'OPEN') RETURNING *`,
         [
-          parent.id, 
-          body.subject ?? body.title ?? 'Grievance', 
-          body.type ?? body.category ?? 'Other', 
+          parent.id,
+          body.subject ?? body.title ?? 'Grievance',
+          body.type ?? body.category ?? 'Other',
           body.description ?? ''
         ],
       );
@@ -532,6 +532,14 @@ export class SchoolParentService {
     } catch {
       throw new NotFoundException('Grievance submission is not available for this institute yet');
     }
+  }
+
+  private formatGrievanceStatus(status?: string | null) {
+    const normalized = String(status || 'OPEN').toUpperCase();
+    if (normalized === 'IN_PROGRESS') return 'In Review';
+    if (normalized === 'RESOLVED') return 'Resolved';
+    if (normalized === 'CLOSED') return 'Closed';
+    return 'Open';
   }
 
   // ── Secondary endpoints (no backing tables yet) ───────────────────────────

@@ -23823,6 +23823,7 @@ Error: QueryFailedError: column s.parent_name does not exist
     at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
 
+<<<<<<< HEAD
 [2026-06-10T06:42:09.123Z] POST /api/v1/auth/login
 Status: 401
 Error: UnauthorizedException: Invalid credentials
@@ -24633,4 +24634,960 @@ Status: 409
 Error: ConflictException: Attendance has already been submitted for this session.
     at SchoolAttendanceService.markSession (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:235:15)
     at processTicksAndRejections (node:internal/process/task_queues:103:5)
+=======
+<<<<<<< HEAD
+[2026-06-10T06:42:51.299Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:42:51.612Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:42:51.923Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:42:59.765Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/618980e3-0f96-4ab0-807d-c40b90cda631
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/618980e3-0f96-4ab0-807d-c40b90cda631
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:43:00.071Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/618980e3-0f96-4ab0-807d-c40b90cda631
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/618980e3-0f96-4ab0-807d-c40b90cda631
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:49:04.951Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T06:49:31.036Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:49:31.361Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:55:13.808Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T06:55:14.181Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T07:00:59.771Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T07:41:09.745Z] GET /api/v1/school/study-plans/overview
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/overview
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:41:09.910Z] GET /api/v1/school/study-plans/today
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:41:10.048Z] GET /api/v1/school/study-plans/next-action
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/next-action
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:41:10.050Z] GET /api/v1/school/study-plans/backlog
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/backlog
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:41:10.051Z] GET /api/v1/school/study-plans/roadmap
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/roadmap
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:24.755Z] GET /api/v1/school/study-plans/overview
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/overview
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:25.059Z] GET /api/v1/school/study-plans/today
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:25.061Z] GET /api/v1/school/study-plans/next-action
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/next-action
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:25.062Z] GET /api/v1/school/study-plans/backlog
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/backlog
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:25.064Z] GET /api/v1/school/study-plans/roadmap
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/roadmap
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:44.071Z] GET /api/v1/school/study-plans/courses
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/courses
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.155Z] GET /api/v1/school/study-plans/today
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.464Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.466Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.468Z] GET /api/v1/school/study-plans/revision/intensive
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/intensive
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.502Z] GET /api/v1/school/study-plans/revision/spaced
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.589Z] GET /api/v1/school/study-plans/revision/notes
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.778Z] GET /api/v1/school/study-plans/revision/practice
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.653Z] GET /api/v1/school/study-plans/today
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.654Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.656Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.659Z] GET /api/v1/school/study-plans/revision/intensive
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/intensive
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.662Z] GET /api/v1/school/study-plans/revision/spaced
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.664Z] GET /api/v1/school/study-plans/revision/notes
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.965Z] GET /api/v1/school/study-plans/revision/practice
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:35.886Z] GET /api/v1/school/study-plans/today
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:35.887Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:35.890Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:35.890Z] GET /api/v1/school/study-plans/revision/intensive
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/intensive
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.208Z] GET /api/v1/school/study-plans/revision/spaced
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.209Z] GET /api/v1/school/study-plans/revision/notes
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.209Z] GET /api/v1/school/study-plans/revision/practice
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.691Z] GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.692Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.707Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.718Z] GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.721Z] GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.724Z] GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.623Z] GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.649Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.714Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.815Z] GET /api/v1/school/study-plans/revision/intensive
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/intensive
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.945Z] GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.952Z] GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.957Z] GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.013Z] GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.015Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.017Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.018Z] GET /api/v1/school/study-plans/revision/intensive
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/intensive
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.146Z] GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.330Z] GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.331Z] GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T10:22:50.378Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T10:46:05.291Z] GET /api/v1/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/students/courses/my
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T10:49:36.694Z] POST /api/v1/content/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3/ai-quiz/generate
+Status: 404
+Error: NotFoundException: Topic 334f8c90-b7b2-4224-9457-72ba8f51cfc3 not found
+    at ContentService.generateAiQuiz (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2733:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:49:38.499Z] POST /api/v1/content/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3/ai-quiz/generate
+Status: 404
+Error: NotFoundException: Topic 334f8c90-b7b2-4224-9457-72ba8f51cfc3 not found
+    at ContentService.generateAiQuiz (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2733:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:50:00.269Z] POST /api/v1/content/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3/ai-quiz/generate
+Status: 404
+Error: NotFoundException: Topic 334f8c90-b7b2-4224-9457-72ba8f51cfc3 not found
+    at ContentService.generateAiQuiz (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2733:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T11:13:56.427Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T11:15:12.891Z] POST /api/v1/content/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3/ai-quiz/generate
+Status: 404
+Error: NotFoundException: Topic 334f8c90-b7b2-4224-9457-72ba8f51cfc3 not found
+    at ContentService.generateAiQuiz (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2733:27)
+=======
+[2026-06-10T09:12:23.390Z] GET /api/v1/school/student-promotions/overview
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/student-promotions/overview
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T10:25:11.798Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:25:32.914Z] POST /api/v1/school/parent/grievances
+Status: 404
+Error: NotFoundException: Grievance submission is not available for this institute yet
+    at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:26:00.578Z] POST /api/v1/school/parent/grievances
+Status: 404
+Error: NotFoundException: Grievance submission is not available for this institute yet
+    at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:26:05.942Z] POST /api/v1/school/parent/grievances
+Status: 404
+Error: NotFoundException: Grievance submission is not available for this institute yet
+    at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
+>>>>>>> ce8968b945a816453fa05b95b2bff0e50789c02c
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+>>>>>>> 59939aac5513c429a67e5a2383396599088ace63
 

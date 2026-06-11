@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 
 @Injectable()
 export class SchoolAcademicService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(@InjectDataSource('school') private readonly ds: DataSource) { }
 
   private async resolveInstituteId(user: any, bodyId?: string): Promise<string> {
     return user.role === 'SUPER_ADMIN'
@@ -149,7 +149,6 @@ export class SchoolAcademicService {
       params.push(query.academicYear);
       baseQuery += ` AND sec.academic_year=$${params.length}`;
     }
-
     baseQuery += ` ORDER BY sec.name`;
     const rows = await this.ds.query(baseQuery, params);
 
@@ -339,9 +338,9 @@ export class SchoolAcademicService {
         className: sec.class_name,
         classTeacher: sec.class_teacher_name
           ? {
-              name: sec.class_teacher_name,
-              email: sec.class_teacher_email,
-            }
+            name: sec.class_teacher_name,
+            email: sec.class_teacher_email,
+          }
           : null,
         subjectCount:
           subjectTeachers.length + assignmentOnly.length,
