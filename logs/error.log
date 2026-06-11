@@ -23592,3 +23592,64 @@ Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
     at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
     at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
 
+[2026-06-10T06:40:01.265Z] GET /api/v1/school/students
+Status: 500
+Error: QueryFailedError: trailing junk after numeric literal at or near "15f29a6d"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.list (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:168:25)
+
+[2026-06-10T06:40:05.538Z] GET /api/v1/school/students
+Status: 500
+Error: QueryFailedError: trailing junk after numeric literal at or near "15f29a6d"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.list (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:168:25)
+
+[2026-06-11T05:19:24.859Z] DELETE /api/v1/school/materials/334ec4a9-ae3c-4d59-acf7-4b64f9cf75c6
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "HISTORY"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:597:5)
+
+[2026-06-11T05:19:38.815Z] DELETE /api/v1/school/materials/334ec4a9-ae3c-4d59-acf7-4b64f9cf75c6
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "HISTORY"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:597:5)
+
+[2026-06-11T05:19:44.756Z] DELETE /api/v1/school/materials/96b4e369-ec0c-4111-8612-3f289736002f
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "HISTORY"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:597:5)
+
+[2026-06-11T05:31:11.328Z] DELETE /api/v1/school/materials/334ec4a9-ae3c-4d59-acf7-4b64f9cf75c6
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "HISTORY"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:597:5)
+
+[2026-06-11T05:32:05.373Z] DELETE /api/v1/school/materials/334ec4a9-ae3c-4d59-acf7-4b64f9cf75c6
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "HISTORY"
+    at PostgresQueryRunner.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\material\school-material.service.ts:597:5)
+
