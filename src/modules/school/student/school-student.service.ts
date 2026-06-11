@@ -347,7 +347,9 @@ export class SchoolStudentService {
     const attendancePercentage = attendanceSummary.percentage;
 
     const dayNum = new Date().getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
-    const dayOfWeekInt = dayNum === 0 ? 7 : dayNum; // Map to 1-7 where 1=Monday
+    const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+    const dayOfWeekStr = days[dayNum];
+    const mappedDayOfWeek = String(dayNum === 0 ? 7 : dayNum);
     
     // Using timetables table to get today's classes
     const timetablesRows: any[] = await this.ds.query(
@@ -358,8 +360,14 @@ export class SchoolStudentService {
        LEFT JOIN users u ON teach.user_id=u.id
        WHERE t.section_id=$1 AND t.day_of_week=$2
        ORDER BY t.start_time`,
-      [effectiveSectionId, dayOfWeekInt],
+      [effectiveSectionId, mappedDayOfWeek],
     );
+
+    console.log("Student User:", student);
+    console.log("Student Class:", student.class_id);
+    console.log("Student Section:", student.section_id);
+    console.log("Calculated Day:", dayOfWeekStr);
+    console.log("Today's Classes:", timetablesRows);
 
     const todayPlan = timetablesRows.map((t) => ({
       id: t.id,
@@ -368,6 +376,7 @@ export class SchoolStudentService {
       startTime: t.start_time ? t.start_time.substring(0, 5) : '',
       endTime: t.end_time ? t.end_time.substring(0, 5) : '',
       room: t.room || '',
+      type: t.type || '',
     }));
 
     return {
@@ -711,10 +720,12 @@ export class SchoolStudentService {
       devMode: result.devMode,
       error: result.error,
       parentEmail,
-      parentName,
+       parentName,
       studentName: student.name,
     };
   }
+
+
 
   async getMyCourses(user: any) {
     const studentRows = await this.ds.query(

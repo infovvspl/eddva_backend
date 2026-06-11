@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
@@ -354,5 +354,168 @@ export class SchoolAcademicService {
         })),
       },
     };
+  }
+
+  // Periods
+
+  async listPeriods(user: any, query: any) {
+    const instituteId = await this.resolveInstituteId(user, query.instituteId);
+    const rows = await this.ds.query(
+      `SELECT * FROM school_periods WHERE school_id = $1 ORDER BY sequence_no`,
+      [instituteId],
+    );
+    const formatted = rows.map((row: any) => ({
+      id: row.id,
+      schoolId: row.school_id,
+      academicYearId: row.academic_year_id,
+      sequenceNo: row.sequence_no,
+      periodName: row.period_name,
+      startTime: row.start_time ? row.start_time.substring(0, 5) : '08:00',
+      endTime: row.end_time ? row.end_time.substring(0, 5) : '08:45',
+      periodType: row.period_type,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+    return { success: true, data: formatted };
+  }
+
+  async createPeriod(user: any, body: any) {
+    const instituteId = await this.resolveInstituteId(user, body.instituteId);
+    
+    const existing = await this.ds.query(
+      `SELECT count(*)::int as count FROM school_periods WHERE school_id = $1 AND sequence_no = $2`,
+      [instituteId, body.sequenceNo],
+    );
+    if (existing[0].count > 0) {
+      throw new BadRequestException('A period with this sequence number already exists.');
+    }
+
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO school_periods (
+        school_id,
+        academic_year_id,
+        sequence_no,
+        period_name,
+        start_time,
+        end_time,
+        period_type,
+        is_active
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true))
+      RETURNING *`,
+      [
+        instituteId,
+        body.academicYearId || null,
+        body.sequenceNo,
+        body.periodName,
+        body.startTime,
+        body.endTime,
+        body.periodType,
+        body.isActive,
+      ],
+    );
+
+    const row = rows[0];
+    return {
+      success: true,
+      data: {
+        id: row.id,
+        schoolId: row.school_id,
+        academicYearId: row.academic_year_id,
+        sequenceNo: row.sequence_no,
+        periodName: row.period_name,
+        startTime: row.start_time ? row.start_time.substring(0, 5) : '08:00',
+        endTime: row.end_time ? row.end_time.substring(0, 5) : '08:45',
+        periodType: row.period_type,
+        isActive: row.is_active,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }
+    };
+  }
+
+  async updatePeriod(id: string, body: any) {
+    const periodRows = await this.ds.query(`SELECT * FROM school_periods WHERE id = $1`, [id]);
+    if (!periodRows.length) {
+      throw new NotFoundException('Period not found');
+    }
+    const currentPeriod = periodRows[0];
+
+    if (body.sequenceNo !== undefined && body.sequenceNo !== currentPeriod.sequence_no) {
+      const existing = await this.ds.query(
+        `SELECT count(*)::int as count FROM school_periods WHERE school_id = $1 AND sequence_no = $2 AND id != $3`,
+        [currentPeriod.school_id, body.sequenceNo, id],
+      );
+      if (existing[0].count > 0) {
+        throw new BadRequestException('A period with this sequence number already exists.');
+      }
+    }
+
+    await this.ds.query(
+      `UPDATE school_periods
+      SET
+        sequence_no = COALESCE($2, sequence_no),
+        period_name = COALESCE($3, period_name),
+        start_time = COALESCE($4, start_time),
+        end_time = COALESCE($5, end_time),
+        period_type = COALESCE($6, period_type),
+        is_active = COALESCE($7, is_active),
+        academic_year_id = COALESCE($8, academic_year_id),
+        updated_at = NOW()
+      WHERE id = $1`,
+      [
+        id,
+        body.sequenceNo,
+        body.periodName,
+        body.startTime,
+        body.endTime,
+        body.periodType,
+        body.isActive,
+        body.academicYearId,
+      ],
+    );
+
+    const rows = await this.ds.query(`SELECT * FROM school_periods WHERE id = $1`, [id]);
+    const row = rows[0];
+    return {
+      success: true,
+      data: {
+        id: row.id,
+        schoolId: row.school_id,
+        academicYearId: row.academic_year_id,
+        sequenceNo: row.sequence_no,
+        periodName: row.period_name,
+        startTime: row.start_time ? row.start_time.substring(0, 5) : '08:00',
+        endTime: row.end_time ? row.end_time.substring(0, 5) : '08:45',
+        periodType: row.period_type,
+        isActive: row.is_active,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }
+    };
+  }
+
+  async deletePeriod(id: string) {
+    const periodRows = await this.ds.query(`SELECT * FROM school_periods WHERE id = $1`, [id]);
+    if (!periodRows.length) {
+      throw new NotFoundException('Period not found');
+    }
+    const period = periodRows[0];
+
+    const usageCheck = await this.ds.query(
+      `SELECT count(*)::int as count 
+       FROM timetables 
+       WHERE period_id = $1 
+          OR (institute_id = $2 AND period_number = $3)`,
+      [id, period.school_id, period.sequence_no]
+    );
+
+    if (usageCheck[0].count > 0) {
+      throw new BadRequestException('This period is already assigned in the timetable and cannot be deleted.');
+    }
+
+    await this.ds.query(`DELETE FROM school_periods WHERE id = $1`, [id]);
+    return { success: true };
   }
 }

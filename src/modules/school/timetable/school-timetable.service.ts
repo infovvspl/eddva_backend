@@ -87,15 +87,15 @@ export class SchoolTimetableService {
       if (isTimeOverlap || isPeriodOverlap) {
         // Teacher conflict
         if (body.teacherId && slot.teacher_id && String(slot.teacher_id) === String(body.teacherId)) {
-          throw new BadRequestException('Timetable conflict: The selected teacher is already scheduled for another class at this time.');
+          throw new BadRequestException('⚠ Timetable conflict detected: The selected teacher is already scheduled for another class at this time.');
         }
         // Classroom conflict
         if (room && slot.room && slot.room.trim() !== '' && slot.room.trim().toLowerCase() === room.trim().toLowerCase()) {
-          throw new BadRequestException(`Timetable conflict: Room ${room} is already booked at this time.`);
+          throw new BadRequestException(`⚠ Timetable conflict detected: Room ${room} is already booked at this time.`);
         }
         // Class conflict
         if (body.sectionId && slot.section_id && String(slot.section_id) === String(body.sectionId)) {
-          throw new BadRequestException('Timetable conflict: This class already has a subject scheduled at this time.');
+          throw new BadRequestException('⚠ Timetable conflict detected: This class already has a subject scheduled at this time.');
         }
       }
     }
@@ -130,6 +130,9 @@ export class SchoolTimetableService {
         t.subject_id AS "subjectId",
         t.teacher_id AS "teacherId",
         t.section_id AS "sectionId",
+        t.period_id AS "periodId",
+        sp.period_name AS "periodName",
+        sp.period_type AS "periodType",
         sub.id AS "subject_id",
         sub.name AS "subject_name",
         sec.id AS "section_id",
@@ -140,6 +143,7 @@ export class SchoolTimetableService {
         u.id AS "user_id",
         u.name AS "user_name"
       FROM timetables t
+      LEFT JOIN school_periods sp ON t.period_id = sp.id OR (t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
       LEFT JOIN subjects sub ON t.subject_id = sub.id
       LEFT JOIN sections sec ON t.section_id = sec.id
       LEFT JOIN classes cls ON sec.class_id = cls.id
@@ -158,6 +162,9 @@ export class SchoolTimetableService {
       endTime: row.endTime ? row.endTime.substring(0, 5) : '10:00',
       room: row.room || '',
       periodNumber: row.periodNumber,
+      periodId: row.periodId,
+      periodName: row.periodName || `Period ${row.periodNumber}`,
+      periodType: row.periodType || 'Academic',
       type: row.type || 'offline',
       meetingLink: row.meetingLink,
       remarks: row.remarks,
@@ -191,8 +198,11 @@ export class SchoolTimetableService {
 
     const offlineRows = await this.ds.query(
       `SELECT t.day_of_week, t.start_time, t.end_time, t.room, t.type, t.meeting_link AS "meetingLink",
-              t.period_number AS "periodNumber", sub.name as subject, u.name as teacher
+              t.period_number AS "periodNumber", t.period_id AS "periodId",
+              sp.period_name AS "periodName", sp.period_type AS "periodType",
+              sub.name as subject, u.name as teacher
        FROM timetables t
+       LEFT JOIN school_periods sp ON t.period_id = sp.id OR (t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
        LEFT JOIN subjects sub ON t.subject_id = sub.id
        LEFT JOIN teachers teach ON t.teacher_id = teach.id
        LEFT JOIN users u ON teach.user_id = u.id
@@ -218,6 +228,9 @@ export class SchoolTimetableService {
         type: r.type || 'offline',
         meetingLink: r.meetingLink || null,
         periodNumber: r.periodNumber || null,
+        periodId: r.periodId || null,
+        periodName: r.periodName || (r.periodNumber ? `Period ${r.periodNumber}` : null),
+        periodType: r.periodType || 'Academic',
       })),
       ...liveRows.map(r => ({
         subject: r.subject || 'Unknown',
@@ -250,8 +263,8 @@ export class SchoolTimetableService {
     await this.checkConflicts(body);
 
     const rows: any[] = await this.ds.query(
-      `INSERT INTO timetables (institute_id, section_id, subject_id, teacher_id, day_of_week, start_time, end_time, room, period_number, type, meeting_link, remarks) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      `INSERT INTO timetables (institute_id, section_id, subject_id, teacher_id, day_of_week, start_time, end_time, room, period_number, type, meeting_link, remarks, period_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [
         instituteId,
         body.sectionId || null,
@@ -261,10 +274,11 @@ export class SchoolTimetableService {
         body.startTime || '09:00',
         body.endTime || '10:00',
         body.room || null,
-        body.periodNumber || null,
+        body.periodNumber ? parseInt(body.periodNumber, 10) : null,
         body.type || 'offline',
         body.meetingLink || null,
-        body.remarks || null
+        body.remarks || null,
+        body.periodId || null
       ],
     );
     
@@ -305,6 +319,9 @@ export class SchoolTimetableService {
         t.subject_id AS "subjectId",
         t.teacher_id AS "teacherId",
         t.section_id AS "sectionId",
+        t.period_id AS "periodId",
+        sp.period_name AS "periodName",
+        sp.period_type AS "periodType",
         sub.id AS "subject_id",
         sub.name AS "subject_name",
         sec.id AS "section_id",
@@ -315,6 +332,7 @@ export class SchoolTimetableService {
         u.id AS "user_id",
         u.name AS "user_name"
       FROM timetables t
+      LEFT JOIN school_periods sp ON t.period_id = sp.id OR (t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
       LEFT JOIN subjects sub ON t.subject_id = sub.id
       LEFT JOIN sections sec ON t.section_id = sec.id
       LEFT JOIN classes cls ON sec.class_id = cls.id
@@ -332,6 +350,9 @@ export class SchoolTimetableService {
       endTime: row.endTime ? row.endTime.substring(0, 5) : '10:00',
       room: row.room || '',
       periodNumber: row.periodNumber,
+      periodId: row.periodId,
+      periodName: row.periodName || `Period ${row.periodNumber}`,
+      periodType: row.periodType || 'Academic',
       type: row.type || 'offline',
       meetingLink: row.meetingLink,
       remarks: row.remarks,
@@ -385,6 +406,7 @@ export class SchoolTimetableService {
         type = COALESCE($10, type),
         meeting_link = COALESCE($11, meeting_link),
         remarks = COALESCE($12, remarks),
+        period_id = COALESCE($13, period_id),
         updated_at = NOW() 
       WHERE id = $1`,
       [
@@ -396,10 +418,11 @@ export class SchoolTimetableService {
         body.startTime || null,
         body.endTime || null,
         body.room || null,
-        body.periodNumber !== undefined ? body.periodNumber : null,
+        body.periodNumber !== undefined ? (body.periodNumber ? parseInt(body.periodNumber, 10) : null) : null,
         body.type || null,
         body.meetingLink || null,
-        body.remarks || null
+        body.remarks || null,
+        body.periodId || null
       ],
     );
     

@@ -7,3 +7,5 @@ build
 uploads/
 .env.example
 logs/
+
+*.tsbuildinfo
