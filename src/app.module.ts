@@ -44,6 +44,9 @@ import {
   XpConfig, XpTransaction, LeaderboardCycle, LeaderboardGroup,
   LeaderboardGroupMember, VideoWatchSession, StudentLevelHistory,
 } from './database/entities/xp.entity';
+import { GameSession, QuizRushScore, Quest, QuestStage, StudentQuest, QuestReward, MathSprintScore, MemoryMatchScore, WordMasterScore } from './database/entities/game.entity';
+import { GamificationHistory } from './database/entities/gamification.entity';
+
 
 // ── Coaching Modules ───────────────────────────────────────────────────────────
 import { AuthModule } from './modules/auth/auth.module';
@@ -67,8 +70,11 @@ import { StudyMaterialModule } from './modules/study-material/study-material.mod
 import { AIModule } from './ai/ai.module';
 import { OtpModule } from './modules/otp/otp.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { GamesModule } from './modules/games/games.module';
+import { GamificationModule } from './modules/gamification/gamification.module';
 
 // ── School Module (all school sub-modules bundled) ────────────────────────────
+
 import { SchoolModule } from './modules/school/school.module';
 
 // ── Common ────────────────────────────────────────────────────────────────────
@@ -95,6 +101,8 @@ const ALL_COACHING_ENTITIES = [
   ExamSyllabusCache,
   XpConfig, XpTransaction, LeaderboardCycle, LeaderboardGroup,
   LeaderboardGroupMember, VideoWatchSession, StudentLevelHistory,
+  GameSession, QuizRushScore, Quest, QuestStage, StudentQuest, QuestReward, MathSprintScore, MemoryMatchScore, WordMasterScore,
+  GamificationHistory,
 ];
 
 @Module({
@@ -210,6 +218,8 @@ const ALL_COACHING_ENTITIES = [
     StudyMaterialModule,
     OtpModule,
     UploadModule,
+    GamesModule,
+    GamificationModule,
 
     // ── School Module ─────────────────────────────────────────────────────────
     SchoolModule,

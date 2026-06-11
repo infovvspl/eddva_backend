@@ -123,6 +123,12 @@ export class Student extends Base {
   @Column({ name: 'mock_xp_total', default: 0 })
   mockXpTotal: number;
 
+  @Column({ name: 'eddva_coins', default: 0 })
+  eddvaCoins: number;
+
+  @Column({ name: 'unlocked_badges', type: 'jsonb', default: [] })
+  unlockedBadges: string[];
+
   @Column({ name: 'current_level', default: 1 })
   currentLevel: number;
 

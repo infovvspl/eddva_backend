@@ -87,15 +87,15 @@ export class SchoolTimetableService {
       if (isTimeOverlap || isPeriodOverlap) {
         // Teacher conflict
         if (body.teacherId && slot.teacher_id && String(slot.teacher_id) === String(body.teacherId)) {
-          throw new BadRequestException('Timetable conflict: The selected teacher is already scheduled for another class at this time.');
+          throw new BadRequestException('⚠ Timetable conflict detected: The selected teacher is already scheduled for another class at this time.');
         }
         // Classroom conflict
         if (room && slot.room && slot.room.trim() !== '' && slot.room.trim().toLowerCase() === room.trim().toLowerCase()) {
-          throw new BadRequestException(`Timetable conflict: Room ${room} is already booked at this time.`);
+          throw new BadRequestException(`⚠ Timetable conflict detected: Room ${room} is already booked at this time.`);
         }
         // Class conflict
         if (body.sectionId && slot.section_id && String(slot.section_id) === String(body.sectionId)) {
-          throw new BadRequestException('Timetable conflict: This class already has a subject scheduled at this time.');
+          throw new BadRequestException('⚠ Timetable conflict detected: This class already has a subject scheduled at this time.');
         }
       }
     }
