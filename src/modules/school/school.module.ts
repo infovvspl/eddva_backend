@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { SchoolAuthModule } from './auth/school-auth.module';
 import { SchoolInstituteModule } from './institute/school-institute.module';
 import { SchoolStudentModule } from './student/school-student.module';
+import { SchoolStudentPromotionModule } from './student-promotion/school-student-promotion.module';
 import { SchoolParentModule } from './parent/school-parent.module';
 import { SchoolTeacherModule } from './teacher/school-teacher.module';
 import { SchoolAcademicModule } from './academic/school-academic.module';
@@ -29,6 +30,7 @@ import { SchoolClassModule } from './class/school-class.module';
 import { SchoolAiUsageModule } from './ai-usage/school-ai-usage.module';
 import { SchoolCalendarModule } from './calendar/school-calendar.module';
 import { CareerModule } from './career/career.module';
+import { SchoolStudyPlanModule } from './study-plan/school-study-plan.module';
 import { SchoolJwtGuard } from './guards/school-jwt.guard';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
 
@@ -37,6 +39,7 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
     SchoolAuthModule,
     SchoolInstituteModule,
     SchoolStudentModule,
+    SchoolStudentPromotionModule,
     SchoolParentModule,
     SchoolTeacherModule,
     SchoolAcademicModule,
@@ -63,6 +66,7 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
     SchoolAiUsageModule,
     SchoolCalendarModule,
     CareerModule,
+    SchoolStudyPlanModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
   providers: [SchoolJwtGuard, SchoolRolesGuard],

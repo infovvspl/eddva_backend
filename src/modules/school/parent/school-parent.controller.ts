@@ -42,8 +42,8 @@ export class SchoolParentController {
     return this.svc.getMarks(user, id);
   }
 
-  @Get('students/:id/homework') getHomework(@SchoolUser() user: any, @Param('id') id: string) {
-    return this.svc.getHomework(user, id);
+  @Get('students/:id/homework') getHomework(@SchoolUser() user: any, @Param('id') id: string, @Query('filter') filter?: string) {
+    return this.svc.getHomework(user, id, filter);
   }
 
   @Get('students/:id/tests') getTests(@SchoolUser() user: any, @Param('id') id: string) {

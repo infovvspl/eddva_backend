@@ -25594,3 +25594,2100 @@ Error: NotFoundException: Cannot GET /api/v1/games/treasure/maps
     at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
     at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
+<<<<<<< HEAD
+[2026-06-10T06:42:09.123Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T06:43:35.741Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-10T06:44:02.435Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T06:45:49.715Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:45:53.102Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:45:58.292Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:22.534Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:23.384Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:33.415Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:36.596Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:37.551Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:37.821Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:37.984Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:38.257Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T06:46:38.416Z] POST /api/v1/school/parent/meeting-requests
+Status: 403
+Error: ForbiddenException: Role 'TEACHER' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:07:28.162Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T08:08:09.526Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-10T08:08:55.161Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-10T08:09:12.086Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T08:09:17.675Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:09:20.441Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:09:20.663Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:09:37.671Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:09:57.661Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:02.307Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:02.570Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:11.228Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T08:10:11.831Z] GET /api/v1/school/dashboard/stats
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:11.999Z] GET /api/v1/school/notices
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.009Z] GET /api/v1/school/events
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.726Z] GET /api/v1/school/parent/students/a0a4218b-c1a4-433e-b9fb-404d8a9783e0/marks
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.761Z] GET /api/v1/school/parent/students/a0a4218b-c1a4-433e-b9fb-404d8a9783e0/summary
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.834Z] GET /api/v1/school/parent/students/a0a4218b-c1a4-433e-b9fb-404d8a9783e0/attendance?month=2026-06
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.901Z] GET /api/v1/school/parent/students/a0a4218b-c1a4-433e-b9fb-404d8a9783e0/homework?filter=All
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:12.908Z] GET /api/v1/school/parent/students/a0a4218b-c1a4-433e-b9fb-404d8a9783e0/tests
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:17.717Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:18.670Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T08:10:37.653Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:10:57.767Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:11:17.656Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:12:18.676Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:13:29.953Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:14:29.677Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:15:29.758Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:16:29.667Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:17:29.667Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:18:29.671Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:19:33.500Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:20:29.908Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:21:29.692Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:22:29.688Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:23:29.667Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:24:29.681Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:25:29.673Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:26:29.681Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:27:29.714Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:28:29.684Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:29:29.675Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:30:29.670Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:31:29.678Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:32:29.691Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:33:29.680Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:34:29.687Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:35:25.832Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:35:26.720Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:35:26.976Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:35:37.706Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:35:57.660Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:36:17.657Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:06.987Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:07.799Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:08.022Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:18.002Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:38.634Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:37:57.796Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:38:17.067Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:38:26.805Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:38:27.067Z] GET /api/v1/school/doubts
+Status: 403
+Error: ForbiddenException: Role 'PARENT' is not authorized to access this resource
+    at SchoolRolesGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-roles.guard.ts:19:13)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-10T08:38:30.127Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T09:03:26.798Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T09:29:53.170Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-10T09:29:57.681Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T10:20:25.473Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T10:20:27.815Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T10:21:45.400Z] POST /api/v1/school/assignments/47d86c40-b670-4387-9015-b069028cacc8/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:48:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async SchoolAssignmentService.submit (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:401:21)
+
+[2026-06-10T10:54:18.959Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T11:24:50.471Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-10T12:06:59.288Z] POST /api/v1/school/attendance/session
+Status: 409
+Error: ConflictException: Attendance has already been submitted for this session.
+    at SchoolAttendanceService.markSession (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\attendance\school-attendance.service.ts:235:15)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+=======
+<<<<<<< HEAD
+[2026-06-10T06:42:51.299Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:42:51.612Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:42:51.923Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:42:59.765Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/618980e3-0f96-4ab0-807d-c40b90cda631
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/618980e3-0f96-4ab0-807d-c40b90cda631
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:43:00.071Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/618980e3-0f96-4ab0-807d-c40b90cda631
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/618980e3-0f96-4ab0-807d-c40b90cda631
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:49:04.951Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T06:49:31.036Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:49:31.361Z] GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/courses/247a5e6f-555a-466a-b560-8604bcf35b0c/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T06:55:13.808Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T06:55:14.181Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T07:00:59.771Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-10T07:41:09.745Z] GET /api/v1/school/study-plans/overview
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/overview
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:41:09.910Z] GET /api/v1/school/study-plans/today
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:41:10.048Z] GET /api/v1/school/study-plans/next-action
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/next-action
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:41:10.050Z] GET /api/v1/school/study-plans/backlog
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/backlog
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:41:10.051Z] GET /api/v1/school/study-plans/roadmap
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/roadmap
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:24.755Z] GET /api/v1/school/study-plans/overview
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/overview
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:25.059Z] GET /api/v1/school/study-plans/today
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:25.061Z] GET /api/v1/school/study-plans/next-action
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/next-action
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:25.062Z] GET /api/v1/school/study-plans/backlog
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/backlog
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:25.064Z] GET /api/v1/school/study-plans/roadmap
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/roadmap
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T07:43:44.071Z] GET /api/v1/school/study-plans/courses
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/courses
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.155Z] GET /api/v1/school/study-plans/today
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.464Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.466Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.468Z] GET /api/v1/school/study-plans/revision/intensive
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/intensive
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.502Z] GET /api/v1/school/study-plans/revision/spaced
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.589Z] GET /api/v1/school/study-plans/revision/notes
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:52:48.778Z] GET /api/v1/school/study-plans/revision/practice
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.653Z] GET /api/v1/school/study-plans/today
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.654Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.656Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.659Z] GET /api/v1/school/study-plans/revision/intensive
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/intensive
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.662Z] GET /api/v1/school/study-plans/revision/spaced
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.664Z] GET /api/v1/school/study-plans/revision/notes
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T08:53:16.965Z] GET /api/v1/school/study-plans/revision/practice
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:35.886Z] GET /api/v1/school/study-plans/today
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:35.887Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:35.890Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:35.890Z] GET /api/v1/school/study-plans/revision/intensive
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/intensive
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.208Z] GET /api/v1/school/study-plans/revision/spaced
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.209Z] GET /api/v1/school/study-plans/revision/notes
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.209Z] GET /api/v1/school/study-plans/revision/practice
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.691Z] GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.692Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.707Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.718Z] GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.721Z] GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:00:36.724Z] GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.623Z] GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.649Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.714Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.815Z] GET /api/v1/school/study-plans/revision/intensive
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/intensive
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.945Z] GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.952Z] GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:03:40.957Z] GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.013Z] GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/today?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.015Z] GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-03&endDate=2026-06-09&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.017Z] GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans?startDate=2026-06-10&endDate=2026-06-16&batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.018Z] GET /api/v1/school/study-plans/revision/intensive
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/intensive
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.146Z] GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/spaced?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.330Z] GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/notes?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T09:05:22.331Z] GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/study-plans/revision/practice?batchId=247a5e6f-555a-466a-b560-8604bcf35b0c
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T10:22:50.378Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T10:46:05.291Z] GET /api/v1/students/courses/my
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/students/courses/my
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T10:49:36.694Z] POST /api/v1/content/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3/ai-quiz/generate
+Status: 404
+Error: NotFoundException: Topic 334f8c90-b7b2-4224-9457-72ba8f51cfc3 not found
+    at ContentService.generateAiQuiz (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2733:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:49:38.499Z] POST /api/v1/content/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3/ai-quiz/generate
+Status: 404
+Error: NotFoundException: Topic 334f8c90-b7b2-4224-9457-72ba8f51cfc3 not found
+    at ContentService.generateAiQuiz (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2733:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:50:00.269Z] POST /api/v1/content/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3/ai-quiz/generate
+Status: 404
+Error: NotFoundException: Topic 334f8c90-b7b2-4224-9457-72ba8f51cfc3 not found
+    at ContentService.generateAiQuiz (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2733:27)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T11:13:56.427Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T11:15:12.891Z] POST /api/v1/content/topics/334f8c90-b7b2-4224-9457-72ba8f51cfc3/ai-quiz/generate
+Status: 404
+Error: NotFoundException: Topic 334f8c90-b7b2-4224-9457-72ba8f51cfc3 not found
+    at ContentService.generateAiQuiz (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2733:27)
+=======
+[2026-06-10T09:12:23.390Z] GET /api/v1/school/student-promotions/overview
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/student-promotions/overview
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-10T10:25:11.798Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:25:32.914Z] POST /api/v1/school/parent/grievances
+Status: 404
+Error: NotFoundException: Grievance submission is not available for this institute yet
+    at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:26:00.578Z] POST /api/v1/school/parent/grievances
+Status: 404
+Error: NotFoundException: Grievance submission is not available for this institute yet
+    at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-10T10:26:05.942Z] POST /api/v1/school/parent/grievances
+Status: 404
+Error: NotFoundException: Grievance submission is not available for this institute yet
+    at SchoolParentService.submitGrievance (D:\edtech\eddva_backend\src\modules\school\parent\school-parent.service.ts:448:13)
+>>>>>>> ce8968b945a816453fa05b95b2bff0e50789c02c
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+>>>>>>> 59939aac5513c429a67e5a2383396599088ace63
+
+[2026-06-11T05:17:02.989Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T05:17:03.083Z] GET /favicon.ico
+Status: 404
+Error: NotFoundException: Cannot GET /favicon.ico
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T05:17:51.378Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T05:17:51.468Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:73:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-11T04:32:46.498Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-11T04:33:10.882Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T04:52:14.535Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:00:20.689Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:00:36.321Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:06:44.826Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T05:06:45.192Z] GET /api/v1/school/chat/directory
+Status: 500
+Error: QueryFailedError: column s.parent_name does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
+
+[2026-06-11T05:08:25.266Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:08:46.456Z] GET /api/v1/school/battles/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:08:55.785Z] GET /api/v1/school/ai-study/history
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/ai-study/history
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T05:33:17.943Z] PATCH /api/v1/school/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/ai-study/32042b1f-ecde-4172-bc1e-161c04e3e4d9/complete
+Status: 500
+Error: QueryFailedError: column "xp_total" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudyPlanService.completeAiStudy (D:\Edva\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1271:5)
+
+[2026-06-11T05:33:43.838Z] PATCH /api/v1/school/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/ai-study/32042b1f-ecde-4172-bc1e-161c04e3e4d9/complete
+Status: 500
+Error: QueryFailedError: column "xp_total" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudyPlanService.completeAiStudy (D:\Edva\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1271:5)
+
+[2026-06-11T05:33:45.609Z] PATCH /api/v1/school/topics/5786c6ee-000f-4d4b-a522-6bf69604d50b/ai-study/32042b1f-ecde-4172-bc1e-161c04e3e4d9/complete
+Status: 500
+Error: QueryFailedError: column "xp_total" does not exist
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudyPlanService.completeAiStudy (D:\Edva\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1271:5)
+
+[2026-06-11T06:13:31.981Z] DELETE /api/v1/school/materials/39352cba-87bb-42fd-91c7-69b6863549ce
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "Math"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:597:5)
+
+[2026-06-11T06:13:37.027Z] DELETE /api/v1/school/materials/39352cba-87bb-42fd-91c7-69b6863549ce
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "Math"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:597:5)
+
+[2026-06-11T09:09:49.604Z] GET /api/v1/health
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/health
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T09:09:49.852Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:188:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-11T09:12:24.856Z] GET /api/v1/school/notifications/unread-count
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T09:12:51.616Z] GET /api/v1/school/notifications
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T09:12:51.865Z] GET /api/v1/school/notifications/preferences
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T09:12:52.130Z] GET /api/v1/school/doubts
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T09:12:52.393Z] GET /api/v1/school/assignments/submissions/inbox
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T09:12:52.644Z] GET /api/v1/school/career/quiz/status
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-11T10:03:53.735Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:03:56.193Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:03:58.595Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:04:46.114Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-11T10:22:59.193Z] GET /api/v1/school/academic/periods
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/academic/periods
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-11T10:27:49.541Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+

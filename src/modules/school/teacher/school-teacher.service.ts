@@ -445,7 +445,7 @@ export class SchoolTeacherService {
           INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
           WHERE mt.batch_id = ANY($1) AND ts.status IN ('submitted', 'auto_submitted') AND ts.deleted_at IS NULL
         `, [batchIds]);
-        avgStudentScore = perfRow[0]?.avg_accuracy ? Math.round(perfRow[0].avg_accuracy * 105) : 90;
+        avgStudentScore = perfRow[0]?.avg_accuracy ? Math.round(perfRow[0].avg_accuracy * 105) : 0;
         if (avgStudentScore > 100) avgStudentScore = 100;
         totalTestsCount = perfRow[0]?.total_sessions || 0;
       }
@@ -455,7 +455,7 @@ export class SchoolTeacherService {
       isActive: r.is_active,
       createdAt: r.created_at,
       performance: {
-        avgStudentScore: avgStudentScore || 90,
+        avgStudentScore: avgStudentScore || 0,
         totalTestsCount: totalTestsCount || 0
       },
       teacherProfile: {

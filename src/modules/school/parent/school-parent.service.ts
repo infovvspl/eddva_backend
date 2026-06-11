@@ -17,7 +17,7 @@ export class SchoolParentService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly meetingService: SchoolMeetingService,
-  ) {}
+  ) { }
 
   // ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -168,19 +168,19 @@ export class SchoolParentService {
         ),
         classId
           ? this.ds.query(
-              `SELECT COUNT(*)::int AS c FROM assessments
+            `SELECT COUNT(*)::int AS c FROM assessments
                WHERE class_id::text = $1::text
                  AND scheduled_date >= date_trunc('week', NOW())
                  AND scheduled_date < date_trunc('week', NOW()) + INTERVAL '7 days'`,
-              [classId],
-            )
+            [classId],
+          )
           : Promise.resolve([{ c: 0 }]),
         classId
           ? this.ds.query(
-              `SELECT COUNT(*)::int AS c FROM assignments
+            `SELECT COUNT(*)::int AS c FROM assignments
                WHERE tenant_id = $1 AND class_id::text = $2::text`,
-              [parent.institute_id, classId],
-            )
+            [parent.institute_id, classId],
+          )
           : Promise.resolve([{ c: 0 }]),
         this.ds.query(
           `SELECT a.title AS test_name, a.scheduled_date AS date,
@@ -194,13 +194,13 @@ export class SchoolParentService {
         ),
         classId
           ? this.ds.query(
-              `SELECT a.title, a.scheduled_date
+            `SELECT a.title, a.scheduled_date
                FROM assessments a
                WHERE a.class_id::text = $1::text AND a.scheduled_date >= NOW()
                ORDER BY a.scheduled_date ASC
                LIMIT 5`,
-              [classId],
-            )
+            [classId],
+          )
           : Promise.resolve([]),
       ]);
 
@@ -353,30 +353,65 @@ export class SchoolParentService {
     };
   }
 
-  async getHomework(user: any, studentId: string) {
+  async getHomework(user: any, studentId: string, filter?: string) {
     const parent = await this.loadParent(user);
     const child = await this.getOwnedChild(parent, studentId);
-    if (!child.class_id) return { assigned: 0, submitted: null, homework: [] };
+    if (!child.class_id) return { assigned: 0, submitted: 0, homework: [] };
 
     const rows: any[] = await this.ds.query(
-      `SELECT a.id, a.title, a.instructions, a.due_date, sub.name AS subject_name
+      `SELECT a.id, a.title, a.instructions, a.due_date, sub.name AS subject_name,
+              subm.status AS submission_status, subm.id AS submission_id
        FROM assignments a
        LEFT JOIN subjects sub ON sub.id::text = a.subject_id::text
+       LEFT JOIN assignment_submissions subm ON subm.assignment_id::text = a.id::text AND subm.student_id::text = $3::text
        WHERE a.tenant_id = $1 AND a.class_id::text = $2::text
        ORDER BY a.due_date DESC NULLS LAST`,
-      [parent.institute_id, child.class_id],
+      [parent.institute_id, child.class_id, child.id],
     );
-    return {
-      assigned: rows.length,
-      // Submission tracking is not modelled yet.
-      submitted: null,
-      homework: rows.map((r) => ({
+
+    const now = new Date().getTime();
+    let submittedCount = 0;
+
+    const mapped = rows.map((r) => {
+      const submissionStatus = r.submission_status;
+      let status = 'pending';
+
+      if (submissionStatus === 'graded' || submissionStatus === 'submitted' || r.submission_id) {
+        status = 'submitted';
+        submittedCount++;
+      } else {
+        const dueDate = r.due_date ? new Date(r.due_date).getTime() : NaN;
+        if (Number.isFinite(dueDate) && dueDate < now) {
+          status = 'overdue';
+        }
+      }
+
+      return {
         id: r.id,
         title: r.title,
         instructions: r.instructions,
         dueDate: r.due_date,
         subject: r.subject_name ?? null,
-      })),
+        status,
+      };
+    });
+
+    let filtered = mapped;
+    if (filter) {
+      const f = filter.toLowerCase();
+      if (f === 'pending') {
+        filtered = mapped.filter((h) => h.status === 'pending');
+      } else if (f === 'submitted') {
+        filtered = mapped.filter((h) => h.status === 'submitted');
+      } else if (f === 'overdue') {
+        filtered = mapped.filter((h) => h.status === 'overdue');
+      }
+    }
+
+    return {
+      assigned: mapped.length,
+      submitted: submittedCount,
+      homework: filtered,
     };
   }
 
@@ -412,12 +447,36 @@ export class SchoolParentService {
 
   async getTeachers(user: any) {
     const parent = await this.loadParent(user);
+
     const rows: any[] = await this.ds.query(
-      `SELECT id, name, email, phone, photo FROM users
-       WHERE institute_id = $1 AND role = 'TEACHER' AND is_active = true
-       ORDER BY name`,
-      [parent.institute_id],
+      `
+    SELECT DISTINCT u.id, u.name, u.email, u.phone, u.photo
+    FROM users u
+    JOIN teachers t ON u.id = t.user_id
+    WHERE u.institute_id = $1
+      AND u.role = 'TEACHER'
+      AND u.is_active = true
+      AND t.id IN (
+        SELECT taa.teacher_id
+        FROM teacher_academic_assignments taa
+        JOIN students s ON s.section_id = taa.section_id
+        JOIN users parent_user ON parent_user.id = $2
+        WHERE s.institute_id = $1
+          AND (
+            (s.parent_email IS NOT NULL
+              AND parent_user.email IS NOT NULL
+              AND LOWER(s.parent_email) = LOWER(parent_user.email))
+            OR
+            (s.parent_phone IS NOT NULL
+              AND parent_user.phone IS NOT NULL
+              AND s.parent_phone = parent_user.phone)
+          )
+      )
+    ORDER BY u.name
+    `,
+      [parent.institute_id, parent.id],
     );
+
     return rows;
   }
 
@@ -425,10 +484,27 @@ export class SchoolParentService {
     const parent = await this.loadParent(user);
     try {
       const rows: any[] = await this.ds.query(
-        `SELECT * FROM grievances WHERE created_by = $1 ORDER BY created_at DESC`,
+        `SELECT * FROM grievances WHERE raised_by = $1 ORDER BY created_at DESC`,
         [parent.id],
       );
-      return rows;
+
+      const formatStatus = (s: string) => {
+        if (!s) return 'Open';
+        const st = s.toUpperCase();
+        if (st === 'IN_REVIEW' || st === 'IN REVIEW') return 'In Review';
+        if (st === 'RESOLVED') return 'Resolved';
+        return 'Open';
+      };
+
+      return rows.map((r) => ({
+        ticketNumber: String(r.id).substring(0, 6).toUpperCase(),
+        type: r.category || 'Other',
+        subject: r.title || 'Grievance',
+        description: r.description || '',
+        status: formatStatus(r.status),
+        date: r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Unknown Date',
+        adminResponse: r.admin_response || r.adminResponse || null,
+      }));
     } catch {
       // grievances table shape may vary across deployments — fail soft.
       return [];
@@ -439,14 +515,31 @@ export class SchoolParentService {
     const parent = await this.loadParent(user);
     try {
       const rows: any[] = await this.ds.query(
-        `INSERT INTO grievances (institute_id, created_by, subject, description, status)
+        `INSERT INTO grievances (raised_by, title, category, description, status)
          VALUES ($1, $2, $3, $4, 'OPEN') RETURNING *`,
-        [parent.institute_id, parent.id, body.subject ?? body.title ?? 'Grievance', body.description ?? ''],
+        [
+          parent.id,
+          body.subject ?? body.title ?? 'Grievance',
+          body.type ?? body.category ?? 'Other',
+          body.description ?? ''
+        ],
       );
-      return rows[0];
+      const r = rows[0];
+      return {
+        ...r,
+        ticketNumber: String(r.id).substring(0, 6).toUpperCase()
+      };
     } catch {
       throw new NotFoundException('Grievance submission is not available for this institute yet');
     }
+  }
+
+  private formatGrievanceStatus(status?: string | null) {
+    const normalized = String(status || 'OPEN').toUpperCase();
+    if (normalized === 'IN_PROGRESS') return 'In Review';
+    if (normalized === 'RESOLVED') return 'Resolved';
+    if (normalized === 'CLOSED') return 'Closed';
+    return 'Open';
   }
 
   // ── Secondary endpoints (no backing tables yet) ───────────────────────────
