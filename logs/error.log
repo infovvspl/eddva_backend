@@ -25767,3 +25767,21 @@ Error: QueryFailedError: column "xp_total" does not exist
     at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolStudyPlanService.completeAiStudy (D:\Edva\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1271:5)
 
+[2026-06-11T06:13:31.981Z] DELETE /api/v1/school/materials/39352cba-87bb-42fd-91c7-69b6863549ce
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "Math"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:597:5)
+
+[2026-06-11T06:13:37.027Z] DELETE /api/v1/school/materials/39352cba-87bb-42fd-91c7-69b6863549ce
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "Math"
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolMaterialService.validateTeacherAssignment (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:238:18)
+    at async SchoolMaterialService.remove (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:597:5)
+
