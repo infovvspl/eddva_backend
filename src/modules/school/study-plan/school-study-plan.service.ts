@@ -84,6 +84,10 @@ export class SchoolStudyPlanService implements OnModuleInit {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_school_topic_progress_student_topic ON school_topic_progress (student_id, topic_id);
+
+        ALTER TABLE school_topic_progress ADD COLUMN IF NOT EXISTS revision_accuracy INTEGER;
+        ALTER TABLE school_topic_progress ADD COLUMN IF NOT EXISTS last_revised_at TIMESTAMPTZ;
+        ALTER TABLE school_topic_progress ADD COLUMN IF NOT EXISTS revision_attempt_count INTEGER DEFAULT 0;
       `);
       this.tablesReady = true;
     } catch (err) {
@@ -111,6 +115,14 @@ export class SchoolStudyPlanService implements OnModuleInit {
       throw new NotFoundException('Student profile not found');
     }
     return rows[0];
+  }
+
+  private revisionIntervalDays(accuracy: number): 0 | 1 | 3 | 7 | 21 {
+    if (accuracy < 40) return 1;
+    if (accuracy < 55) return 3;
+    if (accuracy < 65) return 7;
+    if (accuracy < 75) return 21;
+    return 0;
   }
 
   async getCourses(user: any) {
@@ -406,31 +418,144 @@ export class SchoolStudyPlanService implements OnModuleInit {
       [student.student_id, targetClassId]
     );
 
-    const spacedTopics = [];
+    const topicMap = new Map<string, {
+      topicId: string;
+      topicName: string;
+      chapterName: string;
+      subjectName: string;
+      accuracy: number;
+      attemptCount: number;
+      lastStudiedAt: Date;
+    }>();
+
     const now = new Date();
     for (const row of completedItems) {
       const content = typeof row.content === 'string' ? JSON.parse(row.content) : row.content;
       if (!content.topicId) continue;
 
       const lastCompleted = new Date(row.last_completed);
-      const intervalDays = 3;
-      const nextRevision = new Date(lastCompleted.getTime() + intervalDays * 24 * 60 * 60 * 1000);
-      const isOverdue = nextRevision < now;
-
-      spacedTopics.push({
+      const existing = topicMap.get(content.topicId);
+      if (existing && existing.lastStudiedAt >= lastCompleted) continue;
+      topicMap.set(content.topicId, {
         topicId: content.topicId,
         topicName: content.topicName,
         chapterName: content.chapterName || '',
         subjectName: content.subjectName || '',
         accuracy: 65,
         attemptCount: 1,
-        lastStudiedAt: lastCompleted.toISOString(),
-        nextRevisionDate: nextRevision.toISOString(),
-        isOverdue,
-        intervalDays
+        lastStudiedAt: lastCompleted,
       });
     }
+
+    const progressRows = await this.ds.query(
+      `SELECT tp.topic_id,
+              COALESCE(tp.revision_accuracy, tp.best_accuracy, 65) AS accuracy,
+              COALESCE(tp.last_revised_at, tp.completed_at) AS last_studied_at,
+              COALESCE(tp.revision_attempt_count, 0) AS attempt_count,
+              t.name AS topic_name,
+              chap.name AS chapter_name,
+              sub.name AS subject_name
+       FROM school_topic_progress tp
+       JOIN topics t ON t.id = tp.topic_id
+       JOIN chapters chap ON chap.id = t.chapter_id
+       JOIN subjects sub ON sub.id = chap.subject_id
+       JOIN teacher_academic_assignments taa
+         ON taa.subject_id = sub.id AND taa.class_id = $2 AND taa.section_id = $3
+       WHERE tp.student_id = $1 AND COALESCE(tp.last_revised_at, tp.completed_at) IS NOT NULL`,
+      [student.student_id, targetClassId, student.section_id]
+    );
+
+    for (const row of progressRows) {
+      const lastStudiedAt = new Date(row.last_studied_at);
+      const existing = topicMap.get(row.topic_id);
+      if (existing && existing.lastStudiedAt > lastStudiedAt) {
+        existing.accuracy = Number(row.accuracy ?? existing.accuracy);
+        existing.attemptCount = Math.max(existing.attemptCount, Number(row.attempt_count ?? 0));
+        continue;
+      }
+      topicMap.set(row.topic_id, {
+        topicId: row.topic_id,
+        topicName: row.topic_name,
+        chapterName: row.chapter_name || '',
+        subjectName: row.subject_name || '',
+        accuracy: Number(row.accuracy ?? 65),
+        attemptCount: Math.max(1, Number(row.attempt_count ?? 0)),
+        lastStudiedAt,
+      });
+    }
+
+    const spacedTopics = [];
+    for (const topic of topicMap.values()) {
+      const intervalDays = this.revisionIntervalDays(topic.accuracy);
+      if (intervalDays === 0) continue;
+      const nextRevision = new Date(topic.lastStudiedAt.getTime() + intervalDays * 24 * 60 * 60 * 1000);
+      spacedTopics.push({
+        topicId: topic.topicId,
+        topicName: topic.topicName,
+        chapterName: topic.chapterName,
+        subjectName: topic.subjectName,
+        accuracy: topic.accuracy,
+        attemptCount: topic.attemptCount,
+        lastStudiedAt: topic.lastStudiedAt.toISOString(),
+        nextRevisionDate: nextRevision.toISOString(),
+        isOverdue: nextRevision < now,
+        intervalDays,
+      });
+    }
+
     return spacedTopics;
+  }
+
+  async completeRevisionSession(user: any, dto: { topicId: string; accuracy: number; correctCount?: number; totalQuestions?: number }) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+    const accuracy = Math.max(0, Math.min(100, Math.round(Number(dto.accuracy ?? 0))));
+    const now = new Date();
+
+    const topicRows = await this.ds.query(`SELECT id FROM topics WHERE id = $1`, [dto.topicId]);
+    if (!topicRows.length) throw new NotFoundException('Topic not found');
+
+    const progressRows = await this.ds.query(
+      `SELECT * FROM school_topic_progress WHERE student_id = $1 AND topic_id = $2`,
+      [student.student_id, dto.topicId]
+    );
+    const progress = progressRows[0] || null;
+    const status = accuracy >= 70 ? 'completed' : 'in_progress';
+
+    if (!progress) {
+      await this.ds.query(
+        `INSERT INTO school_topic_progress
+          (student_id, topic_id, status, best_accuracy, completed_at, revision_accuracy, last_revised_at, revision_attempt_count, unlocked_at)
+         VALUES ($1, $2, $3, $4, $5, $4, $5, 1, $5)`,
+        [student.student_id, dto.topicId, status, accuracy, now]
+      );
+    } else {
+      await this.ds.query(
+        `UPDATE school_topic_progress
+         SET status = $1,
+             best_accuracy = GREATEST(COALESCE(best_accuracy, 0), $2),
+             completed_at = COALESCE(completed_at, $3),
+             revision_accuracy = $2,
+             last_revised_at = $3,
+             revision_attempt_count = COALESCE(revision_attempt_count, 0) + 1,
+             unlocked_at = COALESCE(unlocked_at, $3)
+         WHERE id = $4`,
+        [status, accuracy, now, progress.id]
+      );
+    }
+
+    const intervalDays = this.revisionIntervalDays(accuracy);
+    const nextRevisionDate = intervalDays > 0
+      ? new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    return {
+      success: true,
+      accuracy,
+      intervalDays,
+      nextRevisionDate,
+      cleared: intervalDays === 0,
+    };
   }
 
   async getRevisionIntensive(user: any, classId?: string) {

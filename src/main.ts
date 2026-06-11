@@ -62,6 +62,22 @@ async function bootstrap() {
         },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'x-tenant-id',
+      'x-institute-id',
+      'x-api-key',
+      'x-tenant-subdomain',
+      'x-institute-domain',
+      'x-vertical',
+    ],
+    exposedHeaders: ['Authorization'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
 
   // ── Global prefix ─────────────────────────────────────────────────────────
@@ -169,8 +185,13 @@ async function bootstrap() {
     await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_users_institute ON users (institute_id)`);
     await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_institutes_status ON institutes (status)`);
     logger.log('School DB indexes ensured');
+    
+    // ── Run school DB migrations ───────────────────────────────────────────
+    logger.log('Running school DB migrations...');
+    await schoolDs.runMigrations();
+    logger.log('School DB migrations completed');
   } catch (err) {
-    logger.warn(`School DB index setup skipped: ${err.message}`);
+    logger.warn(`School DB index setup or migrations execution failed: ${err.message}`);
   }
 
   const port = cfg.get<number>('app.port') || 3000;
