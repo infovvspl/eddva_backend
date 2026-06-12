@@ -74,12 +74,24 @@ export const storageConfig = registerAs('storage', () => ({
     presignExpiresIn: parseInt(process.env.S3_PRESIGN_TTL || '600'), // 10 min
   },
 
-  // Cloudflare R2 (S3-compatible, kept for legacy)
+  // Cloudflare R2 (S3-compatible)
   r2: {
-    accountId:       process.env.R2_ACCOUNT_ID,
+    accountId:       process.env.CLOUDFLARE_ACCOUNT_ID || process.env.R2_ACCOUNT_ID,
     accessKeyId:     process.env.R2_ACCESS_KEY_ID,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
     bucketName:      process.env.R2_BUCKET_NAME || 'apexiq-media',
     publicUrl:       process.env.R2_PUBLIC_URL  || 'https://media.apexiq.in',
+    // Live broadcast (HLS) + recordings buckets and the CDN domain in front of them.
+    liveBucket:        process.env.R2_LIVE_BUCKET       || 'edva-live',
+    recordingsBucket:  process.env.R2_RECORDINGS_BUCKET || 'edva-recordings',
+    cdnDomain:         process.env.R2_CDN_DOMAIN        || 'cdn.yourdomain.com',
   },
+}));
+
+/** Self-hosted RTMP → HLS live streaming (nginx ingest server + secrets). */
+export const streamingConfig = registerAs('streaming', () => ({
+  // Shared secret nginx sends on on_publish / on_publish_done callbacks.
+  rtmpSecret: process.env.RTMP_SECRET || '',
+  // Public IP/host of the T3 nginx-rtmp ingest server shown to teachers (OBS).
+  serverIp:   process.env.STREAMING_SERVER_IP || '127.0.0.1',
 }));

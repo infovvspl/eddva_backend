@@ -332,6 +332,99 @@ export class SchoolMaterialService implements OnModuleInit {
     };
   }
 
+  private async assertStudentCanAccessMaterial(user: any, materialId: string) {
+    if (user.role !== 'STUDENT') return;
+
+    const rows = await this.ds.query(
+      `SELECT 1
+       FROM study_materials sm
+       JOIN students st
+         ON st.user_id::text = $2::text
+        AND st.institute_id::text = sm.tenant_id::text
+       JOIN sections sec
+         ON sec.id::text = st.section_id::text
+       LEFT JOIN subjects subj
+         ON subj.id::text = sm.subject_id_fk::text
+       WHERE sm.id::text = $1::text
+         AND (
+           (sm.class_id::text = sec.class_id::text AND sm.section_id::text = st.section_id::text)
+           OR (sm.class_id::text = sec.class_id::text AND sm.section_id IS NULL)
+           OR (
+             sm.class_id IS NULL
+             AND sm.section_id IS NULL
+             AND subj.class_id::text = sec.class_id::text
+             AND (subj.section_id::text = st.section_id::text OR subj.section_id IS NULL)
+           )
+           OR (
+             sm.class_id IS NULL
+             AND sm.section_id IS NULL
+             AND EXISTS (
+               SELECT 1
+               FROM teacher_academic_assignments taa
+               WHERE taa.subject_id::text = sm.subject_id_fk::text
+                 AND taa.class_id::text = sec.class_id::text
+               AND taa.section_id::text = st.section_id::text
+             )
+           )
+         )
+         AND (
+           NULLIF(TRIM(sm.subject), '') IS NULL
+           OR (
+             sm.subject_id_fk IS NOT NULL
+             AND EXISTS (
+               SELECT 1
+               FROM subjects allowed_subject
+               WHERE allowed_subject.id::text = sm.subject_id_fk::text
+                 AND allowed_subject.institute_id::text = sm.tenant_id::text
+                 AND (
+                   allowed_subject.section_id::text = st.section_id::text
+                   OR (
+                     allowed_subject.section_id IS NULL
+                     AND allowed_subject.class_id::text = sec.class_id::text
+                   )
+                   OR EXISTS (
+                     SELECT 1
+                     FROM teacher_academic_assignments taa_allowed
+                     WHERE taa_allowed.subject_id::text = allowed_subject.id::text
+                       AND taa_allowed.class_id::text = sec.class_id::text
+                       AND taa_allowed.section_id::text = st.section_id::text
+                   )
+                 )
+             )
+           )
+           OR (
+             sm.subject_id_fk IS NULL
+             AND NULLIF(TRIM(sm.subject), '') IS NOT NULL
+             AND sm.subject !~* '${UUID_TEXT_PATTERN}'
+             AND EXISTS (
+               SELECT 1
+               FROM subjects allowed_subject
+               WHERE allowed_subject.institute_id::text = sm.tenant_id::text
+                 AND LOWER(TRIM(allowed_subject.name)) = LOWER(TRIM(sm.subject))
+                 AND (
+                   allowed_subject.section_id::text = st.section_id::text
+                   OR (
+                     allowed_subject.section_id IS NULL
+                     AND allowed_subject.class_id::text = sec.class_id::text
+                   )
+                   OR EXISTS (
+                     SELECT 1
+                     FROM teacher_academic_assignments taa_allowed
+                     WHERE taa_allowed.subject_id::text = allowed_subject.id::text
+                       AND taa_allowed.class_id::text = sec.class_id::text
+                       AND taa_allowed.section_id::text = st.section_id::text
+                   )
+                 )
+             )
+           )
+         )
+       LIMIT 1`,
+      [materialId, user.id],
+    );
+
+    if (!rows.length) throw new NotFoundException('Material not found');
+  }
+
   async list(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
     if (!instituteId) {
@@ -394,7 +487,7 @@ export class SchoolMaterialService implements OnModuleInit {
             sm.class_id IS NULL
             AND sm.section_id IS NULL
             AND s.class_id = $${classParam}::uuid
-            AND s.section_id = $${sectionParam}::uuid
+            AND (s.section_id = $${sectionParam}::uuid OR s.section_id IS NULL)
           )
           OR (
             sm.class_id IS NULL
@@ -409,9 +502,55 @@ export class SchoolMaterialService implements OnModuleInit {
           )
         )
         AND (
-          s.id IS NOT NULL
-          OR NULLIF(TRIM(sm.subject), '') IS NULL
-          OR sm.subject !~* '${UUID_TEXT_PATTERN}'
+          NULLIF(TRIM(sm.subject), '') IS NULL
+          OR (
+            sm.subject_id_fk IS NOT NULL
+            AND EXISTS (
+              SELECT 1
+              FROM subjects allowed_subject
+              WHERE allowed_subject.id = sm.subject_id_fk
+                AND allowed_subject.institute_id = $1::uuid
+                AND (
+                  allowed_subject.section_id = $${sectionParam}::uuid
+                  OR (
+                    allowed_subject.section_id IS NULL
+                    AND allowed_subject.class_id = $${classParam}::uuid
+                  )
+                  OR EXISTS (
+                    SELECT 1
+                    FROM teacher_academic_assignments taa_allowed
+                    WHERE taa_allowed.subject_id = allowed_subject.id
+                      AND taa_allowed.class_id = $${classParam}::uuid
+                      AND taa_allowed.section_id = $${sectionParam}::uuid
+                  )
+                )
+            )
+          )
+          OR (
+            sm.subject_id_fk IS NULL
+            AND NULLIF(TRIM(sm.subject), '') IS NOT NULL
+            AND sm.subject !~* '${UUID_TEXT_PATTERN}'
+            AND EXISTS (
+              SELECT 1
+              FROM subjects allowed_subject
+              WHERE allowed_subject.institute_id = $1::uuid
+                AND LOWER(TRIM(allowed_subject.name)) = LOWER(TRIM(sm.subject))
+                AND (
+                  allowed_subject.section_id = $${sectionParam}::uuid
+                  OR (
+                    allowed_subject.section_id IS NULL
+                    AND allowed_subject.class_id = $${classParam}::uuid
+                  )
+                  OR EXISTS (
+                    SELECT 1
+                    FROM teacher_academic_assignments taa_allowed
+                    WHERE taa_allowed.subject_id = allowed_subject.id
+                      AND taa_allowed.class_id = $${classParam}::uuid
+                      AND taa_allowed.section_id = $${sectionParam}::uuid
+                  )
+                )
+            )
+          )
         )`;
       } else {
         return { success: true, data: [] };
@@ -566,6 +705,7 @@ export class SchoolMaterialService implements OnModuleInit {
   }
 
   async findOne(user: any, id: string) {
+    await this.assertStudentCanAccessMaterial(user, id);
     const rows: any[] = await this.ds.query(`SELECT * FROM study_materials WHERE id=$1`, [id]);
     if (!rows.length) throw new NotFoundException('Material not found');
     const row = rows[0];
@@ -670,6 +810,7 @@ export class SchoolMaterialService implements OnModuleInit {
   // ── Highlights ─────────────────────────────────────────────────────────────
 
   async getHighlights(user: any, id: string) {
+    await this.assertStudentCanAccessMaterial(user, id);
     // Verify material belongs to tenant
     const matRows = await this.ds.query(
       `SELECT m.id FROM study_materials m
