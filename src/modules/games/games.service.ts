@@ -327,8 +327,8 @@ export class GamesService {
 
     return filteredScores.map((s, index) => ({
       rank: index + 1,
-      studentId: s.studentId,
-      name: s.student.user?.fullName || 'Anonymous Student',
+      studentId: s.student?.userId || s.studentId,
+      name: s.student?.user?.fullName || 'Anonymous Student',
       score: s.score,
       correctAnswers: s.correctAnswers,
       totalQuestions: s.totalQuestions,
@@ -889,8 +889,8 @@ export class GamesService {
 
     return filteredScores.map((s, index) => ({
       rank: index + 1,
-      studentId: s.studentId,
-      name: s.student.user?.fullName || 'Anonymous Student',
+      studentId: s.student?.userId || s.studentId,
+      name: s.student?.user?.fullName || 'Anonymous Student',
       score: s.score,
       correctAnswers: s.correctAnswers,
       questionsAttempted: s.questionsAttempted,
@@ -1260,8 +1260,8 @@ export class GamesService {
 
     return filteredScores.map((s, index) => ({
       rank: index + 1,
-      studentId: s.studentId,
-      name: s.student.user?.fullName || 'Anonymous Student',
+      studentId: s.student?.userId || s.studentId,
+      name: s.student?.user?.fullName || 'Anonymous Student',
       score: s.score,
       turnsCount: s.turnsCount,
       mismatchesCount: s.mismatchesCount,
@@ -1542,8 +1542,8 @@ export class GamesService {
 
     return filteredScores.map((s, index) => ({
       rank: index + 1,
-      studentId: s.studentId,
-      name: s.student.user?.fullName || 'Anonymous Student',
+      studentId: s.student?.userId || s.studentId,
+      name: s.student?.user?.fullName || 'Anonymous Student',
       score: s.score,
       wordsAttempted: s.wordsAttempted,
       correctAnswers: s.correctAnswers,
