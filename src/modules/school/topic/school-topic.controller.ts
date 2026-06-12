@@ -30,6 +30,10 @@ export class SchoolTopicController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   listChapters(@Query() query: any) { return this.svc.listChapters(query); }
 
+  @Post('bulk-import')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
+
   @Post('chapters')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   createChapter(@SchoolUser() user: any, @Body() body: any) { return this.svc.createChapter(user, body); }
