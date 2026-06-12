@@ -67,10 +67,42 @@ export class SchoolMaterialService implements OnModuleInit {
     return rows[0];
   }
 
-  /** Generate AI study content for a topic (does NOT persist). */
+  /** Resolve a chapter's name + its subject context (for chapter-level materials). */
+  private async resolveChapterContext(chapterId: string) {
+    const rows = await this.ds.query(
+      `SELECT c.id AS chapter_id, c.name AS chapter_name,
+              s.id AS subject_id, s.name AS subject_name
+       FROM chapters c JOIN subjects s ON s.id = c.subject_id
+       WHERE c.id = $1`,
+      [chapterId],
+    );
+    if (!rows.length) throw new NotFoundException('Chapter not found');
+    return rows[0];
+  }
+
+  /**
+   * Resolve content context from either a topicId or a chapterId. For a chapter
+   * the "topic" name is the chapter itself (so AI generates chapter-wide content).
+   */
+  private async resolveContentContext(body: any) {
+    if (body.topicId) return this.resolveTopicContext(body.topicId);
+    if (body.chapterId) {
+      const ch = await this.resolveChapterContext(body.chapterId);
+      return {
+        topic_id: null,
+        topic_name: ch.chapter_name,
+        chapter_id: ch.chapter_id,
+        chapter_name: ch.chapter_name,
+        subject_id: ch.subject_id,
+        subject_name: ch.subject_name,
+      };
+    }
+    throw new BadRequestException('topicId or chapterId is required');
+  }
+
+  /** Generate AI study content for a topic or chapter (does NOT persist). */
   async generateAiContent(user: any, body: any) {
-    if (!body.topicId) throw new BadRequestException('topicId is required');
-    const ctx = await this.resolveTopicContext(body.topicId);
+    const ctx = await this.resolveContentContext(body);
     await this.validateTeacherAssignment(user, ctx.subject_id, 'AI_GENERATE_DENIED');
 
     const isQuestionType = body.contentType === 'dpp' || body.contentType === 'pyq';
@@ -99,9 +131,8 @@ export class SchoolMaterialService implements OnModuleInit {
 
   /** Persist AI-generated markdown as a study material (text-based, no file). */
   async saveAiMaterial(user: any, body: any) {
-    if (!body.topicId) throw new BadRequestException('topicId is required');
     if (!body.content) throw new BadRequestException('content is required');
-    const ctx = await this.resolveTopicContext(body.topicId);
+    const ctx = await this.resolveContentContext(body);
     await this.validateTeacherAssignment(user, ctx.subject_id, 'AI_SAVE_DENIED');
     const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
@@ -379,7 +410,13 @@ export class SchoolMaterialService implements OnModuleInit {
     }
 
     if (query.topicId) { params.push(query.topicId); sql += ` AND sm.topic_id = $${params.length}`; }
-    if (query.chapterId) { params.push(query.chapterId); sql += ` AND sm.chapter_id = $${params.length}`; }
+    if (query.chapterId) {
+      params.push(query.chapterId);
+      sql += ` AND sm.chapter_id = $${params.length}`;
+      // Chapter-level view: only materials attached directly to the chapter,
+      // not the ones that belong to its topics (those carry a chapter_id too).
+      if (!query.topicId) sql += ` AND sm.topic_id IS NULL`;
+    }
     if (query.subjectId || query.subjectIdFk) { params.push(query.subjectId || query.subjectIdFk); sql += ` AND sm.subject_id_fk = $${params.length}`; }
     sql += ` ORDER BY sm.created_at DESC`;
     const rows: any[] = await this.ds.query(sql, params);

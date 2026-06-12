@@ -1,14 +1,15 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable, Inject, OnModuleInit } from '@nestjs/common';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Cache } from 'cache-manager';
 import { Student } from '../../database/entities/student.entity';
 import { GamificationHistory } from '../../database/entities/gamification.entity';
 import { NotificationService } from '../notification/notification.service';
+import { recordStudentActivity } from '../school/common/gamification-helper';
 
 @Injectable()
-export class GamificationService {
+export class GamificationService implements OnModuleInit {
   constructor(
     @InjectRepository(Student, 'coaching')
     private readonly studentRepo: Repository<Student>,
@@ -17,7 +18,55 @@ export class GamificationService {
     private readonly notificationService: NotificationService,
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+    @InjectDataSource('school')
+    private readonly schoolDs: DataSource,
   ) {}
+
+  async onModuleInit() {
+    try {
+      await this.ensureTablesExist();
+    } catch (err) {
+      console.error('Failed to ensure school gamification tables exist:', err.message);
+    }
+  }
+
+  async ensureTablesExist() {
+    await this.schoolDs.query(`
+      CREATE TABLE IF NOT EXISTS gamification_profiles (
+        user_id VARCHAR(255) PRIMARY KEY,
+        xp INTEGER NOT NULL DEFAULT 0,
+        coins INTEGER NOT NULL DEFAULT 0,
+        level INTEGER NOT NULL DEFAULT 1,
+        badges JSONB NOT NULL DEFAULT '[]',
+        current_streak INTEGER NOT NULL DEFAULT 0,
+        longest_streak INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await this.schoolDs.query(`
+      CREATE TABLE IF NOT EXISTS gamification_history (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR(255) NOT NULL,
+        game_type VARCHAR(100) NOT NULL,
+        xp_earned INTEGER NOT NULL DEFAULT 0,
+        coins_earned INTEGER NOT NULL DEFAULT 0,
+        score DOUBLE PRECISION NOT NULL DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await this.schoolDs.query(`
+      CREATE TABLE IF NOT EXISTS student_activity (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR(255) NOT NULL,
+        activity_date DATE NOT NULL,
+        activity_type VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT unique_user_date_type UNIQUE (user_id, activity_date, activity_type)
+      )
+    `);
+  }
 
   /**
    * Helper to compute level and title based on XP
@@ -133,6 +182,57 @@ export class GamificationService {
       metadata,
     });
     await this.historyRepo.save(historyEntry);
+
+    // Save to school database gamification tables
+    try {
+      // Fetch or insert profile
+      const exist = await this.schoolDs.query(
+        `SELECT user_id, current_streak, longest_streak FROM gamification_profiles WHERE user_id = $1`,
+        [userId]
+      );
+      
+      let currentStreak = 0;
+      let longestStreak = 0;
+
+      if (exist.length > 0) {
+        currentStreak = Number(exist[0].current_streak || 0);
+        longestStreak = Number(exist[0].longest_streak || 0);
+      }
+
+      if (score > 0) {
+        if (currentStreak === 0) {
+          currentStreak = 1;
+          longestStreak = Math.max(longestStreak, currentStreak);
+        }
+      }
+
+      if (exist.length === 0) {
+        await this.schoolDs.query(
+          `INSERT INTO gamification_profiles (user_id, xp, coins, level, badges, current_streak, longest_streak) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [userId, xpEarned, coinsEarned, newLevel, JSON.stringify(unlockedBadges), currentStreak, longestStreak]
+        );
+      } else {
+        await this.schoolDs.query(
+          `UPDATE gamification_profiles 
+           SET xp = xp + $1, coins = coins + $2, level = $3, badges = $4, current_streak = $5, longest_streak = $6, updated_at = NOW()
+           WHERE user_id = $7`,
+          [xpEarned, coinsEarned, newLevel, JSON.stringify(unlockedBadges), currentStreak, longestStreak, userId]
+        );
+      }
+
+      // Save history to school database gamification_history
+      await this.schoolDs.query(
+        `INSERT INTO gamification_history (user_id, game_type, xp_earned, coins_earned, score)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [userId, gameType, xpEarned, coinsEarned, score]
+      );
+
+      // Record student activity (this also recalculates and updates the streak in gamification_profiles)
+      await recordStudentActivity(this.schoolDs, userId, 'game', this.cacheManager);
+    } catch (err) {
+      console.error('[School DB Gamification Update Error]:', err.message);
+    }
 
     // Clear Dashboard Cache so frontend sees fresh data immediately
     const cacheKey = `dashboard:${userId}`;
