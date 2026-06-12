@@ -26858,3 +26858,136 @@ Error: UnauthorizedException: Invalid credentials
     at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-12T07:59:16.878Z] POST /api/v1/games/quiz-rush/submit
+Status: 404
+Error: NotFoundException: Game session not found
+    at GamesService.submitQuizRush (D:\Program Files\Eddva\eddva_backend\src\modules\games\games.service.ts:190:25)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T07:59:27.276Z] POST /api/v1/games/quiz-rush/submit
+Status: 404
+Error: NotFoundException: Game session not found
+    at GamesService.submitQuizRush (D:\Program Files\Eddva\eddva_backend\src\modules\games\games.service.ts:190:25)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T08:10:58.240Z] GET /api/games/quiz-rush/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/games/quiz-rush/leaderboard
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-12T09:12:59.566Z] GET /games/quiz-rush/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /games/quiz-rush/leaderboard
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-12T09:16:12.441Z] GET /api/v1/games/quiz-rush/leaderboard
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (D:\Program Files\Eddva\eddva_backend\src\common\guards\jwt-auth.guard.ts:29:20)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (D:\Program Files\Eddva\eddva_backend\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (D:\Program Files\Eddva\eddva_backend\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (D:\Program Files\Eddva\eddva_backend\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (D:\Program Files\Eddva\eddva_backend\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (D:\Program Files\Eddva\eddva_backend\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (D:\Program Files\Eddva\eddva_backend\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-06-12T09:28:36.393Z] GET /api/v1/school/gamification/memory-match/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/memory-match/leaderboard
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-12T09:30:13.489Z] GET /api/v1/school/gamification/memory-match/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/memory-match/leaderboard
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-12T09:30:43.059Z] GET /api/v1/school/gamification/memory-match/leaderboard
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/memory-match/leaderboard
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-12T09:32:52.382Z] POST /api/v1/school/gamification/memory-match/submit
+Status: 404
+Error: NotFoundException: Cannot POST /api/v1/school/gamification/memory-match/submit
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-12T11:33:42.426Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T12:23:56.011Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T12:25:34.070Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T12:31:28.389Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+

@@ -202,8 +202,8 @@ export class SchoolTeacherService {
 
     try {
       const uRows: any[] = await queryRunner.query(
-        `INSERT INTO users (institute_id,name,email,password,role,photo,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,$6,TRUE) RETURNING *`,
-        [instituteId, body.name, body.email, hashed, body.photo || null, body.phone || null],
+        `INSERT INTO users (institute_id,name,email,password,role,profile_image,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,$6,TRUE) RETURNING *`,
+        [instituteId, body.name, body.email, hashed, body.profileImage || null, body.phone || null],
       );
       const u = uRows[0];
 
@@ -330,7 +330,7 @@ export class SchoolTeacherService {
     const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const rows: any[] = await this.ds.query(
-      `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.photo,
+      `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.profile_image,
               t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
               t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
               t.address,t.city,t.state,t.pin_code,t.allergies,t.medical_conditions,t.documents,t.shift,t.weekdays,
@@ -359,7 +359,7 @@ export class SchoolTeacherService {
         name: r.name,
         email: r.email,
         phone: r.phone,
-        photo: r.photo,
+        profileImage: r.profile_image,
         isActive: r.is_active,
         createdAt: r.created_at,
         classes: r.classes || [],
@@ -453,6 +453,7 @@ export class SchoolTeacherService {
     const mappedData = {
       ...r,
       isActive: r.is_active,
+      profileImage: r.profile_image,
       createdAt: r.created_at,
       performance: {
         avgStudentScore: avgStudentScore || 0,
@@ -513,8 +514,8 @@ export class SchoolTeacherService {
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
     await this.ds.query(
-      `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),photo=COALESCE($4,photo),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
-      [id, body.name, body.isActive, body.photo, body.phone],
+      `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),profile_image=COALESCE($4,profile_image),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
+      [id, body.name, body.isActive, body.profileImage, body.phone],
     );
     await this.ds.query(
       `UPDATE teachers SET

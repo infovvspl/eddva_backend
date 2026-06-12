@@ -94,7 +94,7 @@ export class SchoolStudentPromotionService {
     }
 
     const students: any[] = await this.ds.query(
-      `SELECT u.id, u.name, u.email, u.phone, u.photo, u.is_active,
+      `SELECT u.id, u.name, u.email, u.phone, u.profile_image, u.is_active,
               st.id AS profile_id, st.enrollment_no, st.roll_no,
               st.section_id, sec.name AS section_name, c.id AS class_id, c.name AS class_name
        FROM students st
@@ -113,7 +113,7 @@ export class SchoolStudentPromotionService {
         name: row.name,
         email: row.email,
         phone: row.phone,
-        photo: row.photo,
+        profileImage: row.profile_image,
         isActive: row.is_active,
         studentProfile: {
           id: row.profile_id,

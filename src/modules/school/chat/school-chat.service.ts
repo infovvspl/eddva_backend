@@ -94,7 +94,7 @@ export class SchoolChatService implements OnModuleInit {
     if (user.role === 'TEACHER' && targetRole === 'PARENT') {
       // Teachers can only view parents of students in their assigned sections/classes
       sql = `
-        SELECT u.id, u.name, u.email, u.role, u.photo 
+        SELECT u.id, u.name, u.email, u.role, u.profile_image 
         FROM users u
         WHERE u.institute_id = $1 
           AND u.role = 'PARENT' 
@@ -131,7 +131,7 @@ export class SchoolChatService implements OnModuleInit {
     } else if (user.role === 'PARENT' && targetRole === 'TEACHER') {
       // Parents can only view their child's teachers
       sql = `
-        SELECT DISTINCT u.id, u.name, u.email, u.role, u.photo 
+        SELECT DISTINCT u.id, u.name, u.email, u.role, u.profile_image 
         FROM users u
         JOIN teachers t ON u.id = t.user_id
         WHERE u.institute_id = $1 
@@ -152,7 +152,7 @@ export class SchoolChatService implements OnModuleInit {
       params.push(user.id);
     } else {
       // Admin / Super Admin (or default rules for self-communication/staff)
-      sql = `SELECT id, name, email, role, photo FROM users WHERE institute_id = $1 AND LOWER(role) = LOWER($2) AND is_active = true`;
+      sql = `SELECT id, name, email, role, profile_image FROM users WHERE institute_id = $1 AND LOWER(role) = LOWER($2) AND is_active = true`;
       params.push(targetRole);
     }
 
@@ -239,7 +239,7 @@ export class SchoolChatService implements OnModuleInit {
 
   async getMessages(roomId: string) {
     const rows: any[] = await this.ds.query(
-      `SELECT cm.*,u.name AS sender_name,u.photo AS sender_photo 
+      `SELECT cm.*,u.name AS sender_name,u.profile_image AS sender_photo 
        FROM chat_messages cm 
        LEFT JOIN users u ON cm.sender_id=u.id 
        WHERE cm.room_id=$1 
