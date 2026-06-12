@@ -110,21 +110,6 @@ export class SchoolClassService implements OnModuleInit {
       classId: row?.class_id || fallback.classId || null,
       sectionId: row?.section_id || fallback.sectionId || null,
     };
-  private async getStudentScope(user: any) {
-    if (user.role !== 'STUDENT') return null;
-
-    const rows = await this.ds.query(
-      `SELECT st.section_id, sec.class_id
-       FROM students st
-       LEFT JOIN sections sec
-         ON sec.id::text = st.section_id::text
-       WHERE st.user_id::text = $1::text
-         AND st.institute_id::text = $2::text
-       LIMIT 1`,
-      [user.id, user.instituteId],
-    );
-
-    return rows[0] || null;
   }
 
   private async assertStudentCanAccessRecording(user: any, recordingId: string) {
@@ -140,20 +125,6 @@ export class SchoolClassService implements OnModuleInit {
          AND r.section_id::text = $4::text
        LIMIT 1`,
       [recordingId, user.instituteId, scope.classId, scope.sectionId],
-    );
-
-    const rows = await this.ds.query(
-      `SELECT 1
-       FROM class_recordings r
-       JOIN students st
-         ON st.user_id::text = $2::text
-        AND st.institute_id::text = r.institute_id::text
-       JOIN sections sec
-         ON sec.id::text = st.section_id::text
-       WHERE r.id::text = $1::text
-         AND r.class_id::text = sec.class_id::text
-       LIMIT 1`,
-      [recordingId, user.id],
     );
 
     if (!rows.length) throw new NotFoundException('Recording not found');
@@ -225,12 +196,6 @@ export class SchoolClassService implements OnModuleInit {
       LEFT JOIN topics t ON t.id = r.topic_id
       LEFT JOIN users u ON u.id = r.teacher_user_id
       WHERE r.institute_id = $1::uuid`;
-    if (user.role === 'STUDENT') {
-      const scope = await this.getStudentScope(user);
-      if (!scope?.class_id) return { success: true, data: [] };
-      params.push(scope.class_id);
-      sql += ` AND r.class_id::text = $${params.length}::text`;
-    }
     if (query.classId) { params.push(query.classId); sql += ` AND r.class_id = $${params.length}::uuid`; }
     if (query.sectionId) { params.push(query.sectionId); sql += ` AND r.section_id = $${params.length}::uuid`; }
     if (query.subjectId) { params.push(query.subjectId); sql += ` AND r.subject_id = $${params.length}::uuid`; }
