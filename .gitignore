@@ -6,6 +6,9 @@ build
 .env.*.local
 uploads/
 .env.example
+# Logs
 logs/
+*.log
 
+# TypeScript build cache
 *.tsbuildinfo

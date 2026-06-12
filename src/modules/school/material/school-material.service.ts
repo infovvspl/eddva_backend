@@ -30,6 +30,24 @@ export class SchoolMaterialService implements OnModuleInit {
     }
 
     try {
+      await this.ds.query(`
+        CREATE TABLE IF NOT EXISTS school_material_highlights (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          material_id UUID NOT NULL REFERENCES study_materials(id) ON DELETE CASCADE,
+          topic_id UUID,
+          created_by UUID NOT NULL,
+          page_number INTEGER NOT NULL,
+          selected_text TEXT NOT NULL,
+          rects JSONB NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+    } catch (err) {
+      this.logger.warn(`Could not create school_material_highlights table: ${(err as Error).message}`);
+    }
+
+    try {
       await this.backfillMaterialScopeFromSubjects();
     } catch (err) {
       this.logger.warn(`Could not backfill material class/section scope: ${(err as Error).message}`);
@@ -647,5 +665,60 @@ export class SchoolMaterialService implements OnModuleInit {
 
     await this.ds.query(`DELETE FROM study_materials WHERE id=$1`, [id]);
     return { success: true };
+  }
+
+  // ── Highlights ─────────────────────────────────────────────────────────────
+
+  async getHighlights(user: any, id: string) {
+    // Verify material belongs to tenant
+    const matRows = await this.ds.query(
+      `SELECT m.id FROM study_materials m
+       JOIN users u ON m.tenant_id = u.institute_id
+       WHERE m.id = $1 AND u.id = $2`,
+      [id, user.id]
+    );
+    if (!matRows.length) throw new NotFoundException('Material not found');
+
+    const rows = await this.ds.query(
+      `SELECT id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
+              page_number AS "pageNumber", selected_text AS "selectedText", rects, 
+              created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM school_material_highlights
+       WHERE material_id = $1
+       ORDER BY page_number ASC, created_at ASC`,
+      [id]
+    );
+
+    return { success: true, data: rows };
+  }
+
+  async saveHighlight(user: any, id: string, body: any) {
+    // Verify material belongs to tenant
+    const matRows = await this.ds.query(
+      `SELECT m.id, m.topic_id FROM study_materials m
+       JOIN users u ON m.tenant_id = u.institute_id
+       WHERE m.id = $1 AND u.id = $2`,
+      [id, user.id]
+    );
+    if (!matRows.length) throw new NotFoundException('Material not found');
+    
+    const topicId = matRows[0].topic_id;
+
+    const { pageNumber, selectedText, rects } = body;
+    if (!pageNumber || !selectedText || !rects || !Array.isArray(rects)) {
+      throw new BadRequestException('Invalid highlight data');
+    }
+
+    const rows = await this.ds.query(
+      `INSERT INTO school_material_highlights 
+         (material_id, topic_id, created_by, page_number, selected_text, rects)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
+                 page_number AS "pageNumber", selected_text AS "selectedText", rects, 
+                 created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [id, topicId, user.id, pageNumber, selectedText, JSON.stringify(rects)]
+    );
+
+    return { success: true, data: rows[0] };
   }
 }
