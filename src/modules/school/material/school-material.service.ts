@@ -39,12 +39,18 @@ export class SchoolMaterialService implements OnModuleInit {
           page_number INTEGER NOT NULL,
           selected_text TEXT NOT NULL,
           rects JSONB NOT NULL,
+          color VARCHAR(50) DEFAULT 'yellow',
           created_at TIMESTAMP DEFAULT NOW(),
           updated_at TIMESTAMP DEFAULT NOW()
         )
       `);
+      await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS color VARCHAR(50) DEFAULT 'yellow'`);
+      await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS category VARCHAR(50)`);
+      await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS note TEXT`);
+      await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS ai_tags JSONB`);
+      await this.ds.query(`UPDATE school_material_highlights SET category = 'concept' WHERE category IS NULL`);
     } catch (err) {
-      this.logger.warn(`Could not create school_material_highlights table: ${(err as Error).message}`);
+      this.logger.warn(`Could not create/update school_material_highlights table: ${(err as Error).message}`);
     }
 
     try {
@@ -681,12 +687,12 @@ export class SchoolMaterialService implements OnModuleInit {
 
     const rows = await this.ds.query(
       `SELECT id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
-              page_number AS "pageNumber", selected_text AS "selectedText", rects, 
+              page_number AS "pageNumber", selected_text AS "selectedText", rects, color, category, note,
               created_at AS "createdAt", updated_at AS "updatedAt"
        FROM school_material_highlights
-       WHERE material_id = $1
+       WHERE material_id = $1 AND created_by = $2
        ORDER BY page_number ASC, created_at ASC`,
-      [id]
+      [id, user.id]
     );
 
     return { success: true, data: rows };
@@ -704,21 +710,57 @@ export class SchoolMaterialService implements OnModuleInit {
     
     const topicId = matRows[0].topic_id;
 
-    const { pageNumber, selectedText, rects } = body;
-    if (!pageNumber || !selectedText || !rects || !Array.isArray(rects)) {
+    const { pageNumber, selectedText, rects, color, category, note } = body;
+    if (!pageNumber || !selectedText || !rects || !Array.isArray(rects) || !category) {
       throw new BadRequestException('Invalid highlight data');
     }
 
     const rows = await this.ds.query(
       `INSERT INTO school_material_highlights 
-         (material_id, topic_id, created_by, page_number, selected_text, rects)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         (material_id, topic_id, created_by, page_number, selected_text, rects, color, category, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
-                 page_number AS "pageNumber", selected_text AS "selectedText", rects, 
+                 page_number AS "pageNumber", selected_text AS "selectedText", rects, color, category, note,
                  created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [id, topicId, user.id, pageNumber, selectedText, JSON.stringify(rects)]
+      [id, topicId, user.id, pageNumber, selectedText, JSON.stringify(rects), color || 'yellow', category, note || null]
     );
 
     return { success: true, data: rows[0] };
+  }
+
+  async updateHighlight(user: any, id: string, highlightId: string, body: any) {
+    const { color, category, note } = body;
+    if (!color || !category) throw new BadRequestException('color and category are required to update highlight');
+
+    const rows = await this.ds.query(
+      `UPDATE school_material_highlights
+       SET color = $1, category = $2, note = $3, updated_at = NOW()
+       WHERE id = $4 AND material_id = $5 AND created_by = $6
+       RETURNING id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
+                 page_number AS "pageNumber", selected_text AS "selectedText", rects, color, category, note,
+                 created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [color, category, note || null, highlightId, id, user.id]
+    );
+
+    if (!rows.length) {
+      throw new NotFoundException('Highlight not found or you do not have permission to edit it');
+    }
+
+    return { success: true, data: rows[0] };
+  }
+
+  async deleteHighlight(user: any, id: string, highlightId: string) {
+    const rows = await this.ds.query(
+      `DELETE FROM school_material_highlights 
+       WHERE id = $1 AND material_id = $2 AND created_by = $3
+       RETURNING id`,
+      [highlightId, id, user.id]
+    );
+
+    if (!rows.length) {
+      throw new NotFoundException('Highlight not found or you do not have permission to delete it');
+    }
+
+    return { success: true };
   }
 }
