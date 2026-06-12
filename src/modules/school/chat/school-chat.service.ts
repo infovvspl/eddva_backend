@@ -441,36 +441,45 @@ export class SchoolChatService implements OnModuleInit {
   }
 
   async getParentDirectory(user: any) {
-    console.log('Teacher User ID:', user.id);
-    const teacherRecord = await this.ds.query(`SELECT * FROM teachers WHERE user_id = $1`, [user.id]);
-    console.log('Teacher Record:', teacherRecord);
+    const studentColumns: Array<{ column_name: string }> = await this.ds.query(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'students'
+         AND column_name IN ('parent_name', 'father_name', 'mother_name')`,
+    );
+    const studentColumnSet = new Set(studentColumns.map((row) => row.column_name));
+    const parentNameExpr = studentColumnSet.has('parent_name') ? `NULLIF(s.parent_name, '')` : `NULL`;
+    const fatherNameExpr = studentColumnSet.has('father_name') ? `NULLIF(s.father_name, '')` : `NULL`;
+    const motherNameExpr = studentColumnSet.has('mother_name') ? `NULLIF(s.mother_name, '')` : `NULL`;
+    const displayParentExpr = `COALESCE(${fatherNameExpr}, ${motherNameExpr}, ${parentNameExpr}, NULLIF(p.name, ''), CONCAT('Parent of ', u.name))`;
+
     const rows = await this.ds.query(
-      `SELECT 
+      `SELECT DISTINCT
         c.name AS class_name,
         sec.name AS section_name,
-        COALESCE(s.father_name, s.mother_name) AS parent_name,
+        ${displayParentExpr} AS parent_name,
         s.parent_phone,
+        ${fatherNameExpr} AS father_name,
+        ${motherNameExpr} AS mother_name,
         u.name AS student_name,
         p.id AS parent_id,
-        p.name AS parent_name_user,
+        ${displayParentExpr} AS parent_name_user,
         p.email AS parent_email
        FROM students s
        JOIN users u ON s.user_id = u.id
        JOIN sections sec ON s.section_id = sec.id
        JOIN classes c ON sec.class_id = c.id
+       JOIN teachers t ON t.user_id = $2
+       JOIN teacher_academic_assignments taa
+         ON taa.teacher_id = t.id
+        AND taa.class_id::text = sec.class_id::text
        JOIN users p ON p.institute_id = $1 AND p.role = 'PARENT' AND (
          (p.email IS NOT NULL AND LOWER(p.email) = LOWER(s.parent_email))
          OR
          (p.phone IS NOT NULL AND p.phone = s.parent_phone)
        )
-       WHERE s.institute_id = $1 
-         AND (
-           sec.class_teacher_id = (SELECT id FROM teachers WHERE user_id = $2 LIMIT 1)
-           OR s.section_id IN (
-             SELECT section_id FROM teacher_academic_assignments 
-             WHERE teacher_id = (SELECT id FROM teachers WHERE user_id = $2 LIMIT 1)
-           )
-         )
+       WHERE s.institute_id = $1
        ORDER BY c.name, sec.name, u.name`,
       [user.instituteId, user.id]
     );

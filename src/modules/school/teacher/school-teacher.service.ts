@@ -297,6 +297,34 @@ export class SchoolTeacherService {
     const params: any[] = [instituteId];
     let filter = `u.institute_id=$1 AND u.role='TEACHER'`;
 
+    const assignmentFilters: string[] = [];
+    const legacyAssignmentFilters: string[] = [];
+    if (query.classId) {
+      params.push(query.classId);
+      assignmentFilters.push(`ta.class_id::text=$${params.length}::text`);
+      legacyAssignmentFilters.push(`sec.class_id::text=$${params.length}::text`);
+    }
+    if (query.sectionId) {
+      params.push(query.sectionId);
+      assignmentFilters.push(`ta.section_id::text=$${params.length}::text`);
+      legacyAssignmentFilters.push(`ts.section_id::text=$${params.length}::text`);
+    }
+    if (assignmentFilters.length > 0 || legacyAssignmentFilters.length > 0) {
+      filter += ` AND (
+        EXISTS (
+          SELECT 1
+          FROM teacher_academic_assignments ta
+          WHERE ta.teacher_id=t.id AND ${assignmentFilters.join(' AND ')}
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM teacher_sections ts
+          JOIN sections sec ON sec.id=ts.section_id
+          WHERE ts.teacher_id=t.id AND ${legacyAssignmentFilters.join(' AND ')}
+        )
+      )`;
+    }
+
     if (query.search) {
       const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
       if (searchTerms.length > 0) {

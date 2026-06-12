@@ -12,8 +12,9 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { mkdirSync } from 'fs';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 import { SchoolAssignmentService } from './school-assignment.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -21,8 +22,11 @@ import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { v4 as uuidv4 } from 'uuid';
 
+const uploadsDir = join(__dirname, '../../../../uploads');
+mkdirSync(uploadsDir, { recursive: true });
+
 const uploadStorage = diskStorage({
-  destination: './uploads',
+  destination: uploadsDir,
   filename: (_req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + uuidv4();
     cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
@@ -42,8 +46,8 @@ export class SchoolAssignmentController {
 
   @Get('submissions/inbox')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  listInbox(@SchoolUser() user: any) {
-    return this.svc.listInbox(user);
+  listInbox(@SchoolUser() user: any, @Query() query: any) {
+    return this.svc.listInbox(user, query);
   }
 
   @Post('upload-url')

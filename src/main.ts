@@ -24,6 +24,7 @@ async function bootstrap() {
   });
 
   // ── Static file serving for uploads ───────────────────────────────────────
+  mkdirSync(join(__dirname, '..', 'uploads'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'avatars'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'videos'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'thumbnails'), { recursive: true });
