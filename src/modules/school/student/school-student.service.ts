@@ -130,7 +130,14 @@ export class SchoolStudentService {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
-        filter += ` AND EXISTS (SELECT 1 FROM teacher_academic_assignments ta WHERE ta.teacher_id = ${teacherId} AND ta.class_id = sec.class_id AND ta.section_id = sec.id)`;
+        params.push(teacherId);
+        filter += ` AND EXISTS (
+          SELECT 1
+          FROM teacher_academic_assignments ta
+          WHERE ta.teacher_id::text = $${params.length}::text
+            AND ta.class_id::text = sec.class_id::text
+            AND ta.section_id::text = sec.id::text
+        )`;
       }
     }
 

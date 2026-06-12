@@ -87,6 +87,43 @@ export class SchoolClassService implements OnModuleInit {
     return instituteId;
   }
 
+  private async getStudentScope(user: any) {
+    if (user.role !== 'STUDENT') return null;
+
+    const rows = await this.ds.query(
+      `SELECT st.section_id, sec.class_id
+       FROM students st
+       LEFT JOIN sections sec
+         ON sec.id::text = st.section_id::text
+       WHERE st.user_id::text = $1::text
+         AND st.institute_id::text = $2::text
+       LIMIT 1`,
+      [user.id, user.instituteId],
+    );
+
+    return rows[0] || null;
+  }
+
+  private async assertStudentCanAccessRecording(user: any, recordingId: string) {
+    if (user.role !== 'STUDENT') return;
+
+    const rows = await this.ds.query(
+      `SELECT 1
+       FROM class_recordings r
+       JOIN students st
+         ON st.user_id::text = $2::text
+        AND st.institute_id::text = r.institute_id::text
+       JOIN sections sec
+         ON sec.id::text = st.section_id::text
+       WHERE r.id::text = $1::text
+         AND r.class_id::text = sec.class_id::text
+       LIMIT 1`,
+      [recordingId, user.id],
+    );
+
+    if (!rows.length) throw new NotFoundException('Recording not found');
+  }
+
   /** Normalize a lecture language to one the AI service understands (en/hi/hinglish/od). */
   private normalizeLanguage(lang: any): 'en' | 'hi' | 'hinglish' | 'od' {
     const l = String(lang || 'en').trim().toLowerCase();
@@ -151,6 +188,12 @@ export class SchoolClassService implements OnModuleInit {
       LEFT JOIN topics t ON t.id = r.topic_id
       LEFT JOIN users u ON u.id = r.teacher_user_id
       WHERE r.institute_id = $1::uuid`;
+    if (user.role === 'STUDENT') {
+      const scope = await this.getStudentScope(user);
+      if (!scope?.class_id) return { success: true, data: [] };
+      params.push(scope.class_id);
+      sql += ` AND r.class_id::text = $${params.length}::text`;
+    }
     if (query.classId) { params.push(query.classId); sql += ` AND r.class_id = $${params.length}::uuid`; }
     sql += ` ORDER BY r.created_at DESC`;
     const rows = await this.ds.query(sql, params);
@@ -172,6 +215,7 @@ export class SchoolClassService implements OnModuleInit {
 
   async getPlayUrl(user: any, id: string) {
     await this.ensureTable();
+    await this.assertStudentCanAccessRecording(user, id);
     const instituteId = user.role === 'SUPER_ADMIN' ? user.instituteId : user.instituteId;
     const params: any[] = [id];
     let sql = `SELECT id, video_url, video_key, source FROM class_recordings WHERE id=$1`;
@@ -415,6 +459,7 @@ export class SchoolClassService implements OnModuleInit {
 
   async getProgress(user: any, recordingId: string) {
     await this.ensureTable();
+    await this.assertStudentCanAccessRecording(user, recordingId);
     const rows = await this.ds.query(
       `SELECT watch_percentage, last_position_seconds, quiz_responses 
        FROM class_recording_progress 
@@ -437,6 +482,7 @@ export class SchoolClassService implements OnModuleInit {
 
   async upsertProgress(user: any, recordingId: string, body: { watchPercentage: number; lastPositionSeconds: number }) {
     await this.ensureTable();
+    await this.assertStudentCanAccessRecording(user, recordingId);
     const pct = Math.max(0, Math.min(100, Math.round(body.watchPercentage || 0)));
     const pos = Math.max(0, Math.round(body.lastPositionSeconds || 0));
 
@@ -542,6 +588,7 @@ export class SchoolClassService implements OnModuleInit {
 
   async submitQuizResponse(user: any, recordingId: string, body: { questionId: string; selectedOption: string }) {
     await this.ensureTable();
+    await this.assertStudentCanAccessRecording(user, recordingId);
     const recs = await this.ds.query(`SELECT quiz FROM class_recordings WHERE id = $1`, [recordingId]);
     if (!recs.length) throw new NotFoundException('Recording not found');
 
