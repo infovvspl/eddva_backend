@@ -26914,3 +26914,109 @@ Error: NotFoundException: Student not found
     at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-12T10:53:59.221Z] GET /api/v1/lectures
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-06-12T10:53:59.254Z] POST /api/v1/lectures
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-06-12T10:53:59.259Z] GET /api/v1/lectures/live/now
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-06-12T10:53:59.262Z] GET /api/v1/lectures/00000000-0000-0000-0000-000000000000/stats
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at JwtAuthGuard.handleRequest (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\common\guards\jwt-auth.guard.ts:29:20)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:44:124
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:83:24
+    at allFailed (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:110:18)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:183:28)
+    at JwtStrategy.strategy.fail (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:305:9)
+    at JwtStrategy.authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport-jwt\lib\strategy.js:96:21)
+    at attempt (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:369:16)
+    at authenticate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\passport\lib\middleware\authenticate.js:370:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\passport\dist\auth.guard.js:88:3
+
+[2026-06-12T10:53:59.270Z] POST /api/v1/stream/validate
+Status: 400
+Error: BadRequestException: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at RoutesResolver.mapExternalException (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:100:24)
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:86:24)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:21:23
+    at Layer.handle_error (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:71:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:326:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at Layer.handle_error (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:67:12)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:326:13)
+
+[2026-06-12T10:53:59.276Z] POST /api/v1/stream/ended
+Status: 400
+Error: BadRequestException: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at RoutesResolver.mapExternalException (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:100:24)
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:86:24)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:21:23
+    at Layer.handle_error (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:71:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:326:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at Layer.handle_error (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:67:12)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:326:13)
+
+[2026-06-12T10:54:18.421Z] POST /api/v1/stream/validate
+Status: 403
+Error: ForbiddenException: Invalid RTMP secret
+    at StreamHookController.assertSecret (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\live-broadcast\live-broadcast.controller.ts:87:13)
+    at StreamHookController.validate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\live-broadcast\live-broadcast.controller.ts:95:10)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T10:54:18.440Z] POST /api/v1/stream/validate
+Status: 403
+Error: ForbiddenException: Invalid RTMP secret
+    at StreamHookController.assertSecret (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\live-broadcast\live-broadcast.controller.ts:87:13)
+    at StreamHookController.validate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\live-broadcast\live-broadcast.controller.ts:95:10)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T10:54:18.507Z] POST /api/v1/stream/validate
+Status: 403
+Error: ForbiddenException: Stream not allowed
+    at StreamHookController.validate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\live-broadcast\live-broadcast.controller.ts:97:25)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
