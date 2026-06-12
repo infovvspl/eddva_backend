@@ -103,17 +103,27 @@ export class SchoolChatService implements OnModuleInit {
             (u.email IS NOT NULL AND LOWER(u.email) IN (
               SELECT DISTINCT LOWER(s.parent_email) 
               FROM students s
-              JOIN teachers t ON t.user_id = $2
-              LEFT JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
-              WHERE s.institute_id = $1 AND s.section_id = taa.section_id AND s.parent_email IS NOT NULL
+              LEFT JOIN sections sec ON sec.id = s.section_id
+              WHERE s.institute_id = $1 AND s.parent_email IS NOT NULL AND (
+                sec.class_teacher_id = (SELECT id FROM teachers WHERE user_id = $2 LIMIT 1)
+                OR s.section_id IN (
+                  SELECT section_id FROM teacher_academic_assignments 
+                  WHERE teacher_id = (SELECT id FROM teachers WHERE user_id = $2 LIMIT 1)
+                )
+              )
             ))
             OR
             (u.phone IS NOT NULL AND u.phone IN (
               SELECT DISTINCT s.parent_phone 
               FROM students s
-              JOIN teachers t ON t.user_id = $2
-              LEFT JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
-              WHERE s.institute_id = $1 AND s.section_id = taa.section_id AND s.parent_phone IS NOT NULL
+              LEFT JOIN sections sec ON sec.id = s.section_id
+              WHERE s.institute_id = $1 AND s.parent_phone IS NOT NULL AND (
+                sec.class_teacher_id = (SELECT id FROM teachers WHERE user_id = $2 LIMIT 1)
+                OR s.section_id IN (
+                  SELECT section_id FROM teacher_academic_assignments 
+                  WHERE teacher_id = (SELECT id FROM teachers WHERE user_id = $2 LIMIT 1)
+                )
+              )
             ))
           )
       `;
@@ -431,11 +441,14 @@ export class SchoolChatService implements OnModuleInit {
   }
 
   async getParentDirectory(user: any) {
+    console.log('Teacher User ID:', user.id);
+    const teacherRecord = await this.ds.query(`SELECT * FROM teachers WHERE user_id = $1`, [user.id]);
+    console.log('Teacher Record:', teacherRecord);
     const rows = await this.ds.query(
       `SELECT 
         c.name AS class_name,
         sec.name AS section_name,
-        s.parent_name,
+        COALESCE(s.father_name, s.mother_name) AS parent_name,
         s.parent_phone,
         u.name AS student_name,
         p.id AS parent_id,
@@ -445,18 +458,24 @@ export class SchoolChatService implements OnModuleInit {
        JOIN users u ON s.user_id = u.id
        JOIN sections sec ON s.section_id = sec.id
        JOIN classes c ON sec.class_id = c.id
-       JOIN teachers t ON t.user_id = $2
-       LEFT JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
-       LEFT JOIN users p ON p.institute_id = $1 AND p.role = 'PARENT' AND (
+       JOIN users p ON p.institute_id = $1 AND p.role = 'PARENT' AND (
          (p.email IS NOT NULL AND LOWER(p.email) = LOWER(s.parent_email))
          OR
          (p.phone IS NOT NULL AND p.phone = s.parent_phone)
        )
        WHERE s.institute_id = $1 
-         AND s.section_id = taa.section_id
+         AND (
+           sec.class_teacher_id = (SELECT id FROM teachers WHERE user_id = $2 LIMIT 1)
+           OR s.section_id IN (
+             SELECT section_id FROM teacher_academic_assignments 
+             WHERE teacher_id = (SELECT id FROM teachers WHERE user_id = $2 LIMIT 1)
+           )
+         )
        ORDER BY c.name, sec.name, u.name`,
       [user.instituteId, user.id]
     );
+    console.log('Parent Directory Count:', rows.length);
+    console.log('Parent Directory Data:', rows);
     return { success: true, data: rows };
   }
 }

@@ -767,9 +767,8 @@ export class ContentController {
     async getResourceDownloadUrl(
         @Param('topicId', ParseUUIDPipe) topicId: string,
         @Param('resourceId', ParseUUIDPipe) resourceId: string,
-        @TenantId() tenantId: string,
     ) {
-        const resource = await this.contentService.getTopicResourceById(resourceId, tenantId);
+        const resource = await this.contentService.getTopicResourceByTopicId(resourceId, topicId);
         if (resource.externalUrl) return { url: resource.externalUrl, type: 'external' };
         if (!resource.fileUrl) return { url: null, type: 'ai-content', content: resource.description };
         return { url: resource.fileUrl, type: 'file' };
