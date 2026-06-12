@@ -26826,3 +26826,35 @@ Error: NotFoundException: Institute not found
     at PublicTenantController.resolveBySubdomain (D:\Program Files\Eddva\eddva_backend\src\modules\super-admin\public-tenant.controller.ts:98:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-12T07:35:54.083Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T07:35:54.272Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:74:29)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-12T07:35:57.937Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T07:35:58.295Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:74:29)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-12T07:36:35.767Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
