@@ -1,39 +1,30 @@
-const { Client } = require('pg');
-
-async function run() {
-  const client = new Client({
-    connectionString: "postgresql://postgres.mrirhbcfxpcmcnvrzfld:itEVbOANeXg71Gcw@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres",
+const { DataSource } = require('typeorm');
+(async () => {
+  const ds = new DataSource({
+    type: 'postgres',
+    url: 'postgresql://postgres:eddva-dev@eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com:5432/eddva_school',
     ssl: { rejectUnauthorized: false }
   });
+  await ds.initialize();
+  
+  const tables = await ds.query(`
+    SELECT column_name, data_type, character_maximum_length, column_default, is_nullable
+    FROM information_schema.columns
+    WHERE table_name = 'school_material_highlights'
+  `);
+  console.log('SCHEMA:\n', JSON.stringify(tables, null, 2));
+  
+  const indexes = await ds.query(`
+    SELECT indexname, indexdef
+    FROM pg_indexes
+    WHERE tablename = 'school_material_highlights'
+  `);
+  console.log('INDEXES:\n', JSON.stringify(indexes, null, 2));
 
-  try {
-    await client.connect();
-    console.log("Connected to DB successfully.");
-
-    // Add academic_year column to classes
-    console.log("Adding academic_year to classes...");
-    await client.query(`
-      ALTER TABLE classes ADD COLUMN IF NOT EXISTS academic_year VARCHAR DEFAULT '2025-2026'
-    `);
-
-    // Add academic_year column to sections
-    console.log("Adding academic_year to sections...");
-    await client.query(`
-      ALTER TABLE sections ADD COLUMN IF NOT EXISTS academic_year VARCHAR DEFAULT '2025-2026'
-    `);
-
-    // Backfill existing rows
-    console.log("Backfilling academic_year...");
-    await client.query(`UPDATE classes SET academic_year = '2025-2026' WHERE academic_year IS NULL`);
-    await client.query(`UPDATE sections SET academic_year = '2025-2026' WHERE academic_year IS NULL`);
-
-    console.log("Migration completed successfully.");
-
-  } catch (err) {
-    console.error("DB error:", err);
-  } finally {
-    await client.end();
-  }
-}
-
-run();
+  const sample = await ds.query(`
+    SELECT * FROM school_material_highlights LIMIT 1
+  `);
+  console.log('SAMPLE:\n', JSON.stringify(sample, null, 2));
+  
+  await ds.destroy();
+})();
