@@ -25983,3 +25983,41 @@ Error: NotFoundException: Student not found
     at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-12T07:11:41.828Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T07:15:02.693Z] POST /api/v1/games/word-master/submit
+Status: 400
+Error: BadRequestException: Session already completed
+    at GamesService.submitWordMaster (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\games\games.service.ts:1440:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T07:15:27.000Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T07:16:36.923Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T07:24:05.397Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
