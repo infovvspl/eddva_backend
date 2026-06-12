@@ -26858,3 +26858,17 @@ Error: UnauthorizedException: Invalid credentials
     at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-12T07:55:09.232Z] POST /api/v1/games/word-master/submit
+Status: 400
+Error: BadRequestException: Session already completed
+    at GamesService.submitWordMaster (D:\edtech\eddva_backend\src\modules\games\games.service.ts:1440:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T09:24:48.497Z] DELETE /api/v1/school/teachers/c77caacb-13ba-4056-815b-1a5f283d5537
+Status: 500
+Error: QueryFailedError: update or delete on table "users" violates foreign key constraint "FK_9a8a82462cab47c73d25f49261f" on table "notifications"
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.remove (D:\edtech\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:752:5)
+
