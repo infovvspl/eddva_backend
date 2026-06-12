@@ -349,7 +349,7 @@ export class SchoolStudentService {
     const dayNum = new Date().getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
     const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
     const dayOfWeekStr = days[dayNum];
-    const mappedDayOfWeek = String(dayNum === 0 ? 7 : dayNum);
+    const mappedDayOfWeek = dayNum === 0 ? 7 : dayNum;
     
     // Using timetables table to get today's classes
     const timetablesRows: any[] = await this.ds.query(
@@ -379,6 +379,30 @@ export class SchoolStudentService {
       type: t.type || '',
     }));
 
+    // Fetch gamification profile from school database
+    let gamificationProfile = { xp: 0, coins: 0, level: 1, badges: [] as string[], current_streak: 0, longest_streak: 0 };
+    try {
+      const profileRows = await this.ds.query(
+        `SELECT xp, coins, level, badges, current_streak, longest_streak 
+         FROM gamification_profiles 
+         WHERE user_id = $1`,
+        [user.id]
+      );
+      if (profileRows.length > 0) {
+        const row = profileRows[0];
+        gamificationProfile = {
+          xp: Number(row.xp || 0),
+          coins: Number(row.coins || 0),
+          level: Number(row.level || 1),
+          badges: Array.isArray(row.badges) ? row.badges : [],
+          current_streak: Number(row.current_streak || 0),
+          longest_streak: Number(row.longest_streak || 0)
+        };
+      }
+    } catch (e) {
+      console.warn('[getDashboard] Could not query gamification_profiles (table might not exist yet):', e.message);
+    }
+
     return {
       success: true,
       data: {
@@ -388,10 +412,13 @@ export class SchoolStudentService {
           className: student.class_name,
           sectionName: student.section_name,
           enrollmentNo: student.enrollment_no,
+          currentLevel: gamificationProfile.level,
+          eddvaCoins: gamificationProfile.coins,
+          unlockedBadges: gamificationProfile.badges,
         },
-        xpTotal: student.xp_total || 0,
-        currentStreak: student.current_streak || 0,
-        longestStreak: student.longest_streak || 0,
+        xpTotal: gamificationProfile.xp,
+        currentStreak: gamificationProfile.current_streak,
+        longestStreak: gamificationProfile.longest_streak,
         attendancePercentage,
         attendanceSummary,
         todayClasses: todayPlan.length,

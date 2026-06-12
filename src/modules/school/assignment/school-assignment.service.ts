@@ -8,6 +8,7 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { recordStudentActivity } from '../common/gamification-helper';
 import { randomUUID } from 'crypto';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
@@ -466,6 +467,11 @@ export class SchoolAssignmentService {
     } catch (notifErr) {
       console.error('Failed to send assignment submission notification:', notifErr);
     }
+
+    // Log student activity and update streak
+    await recordStudentActivity(this.ds, user.id, 'assignment').catch(err =>
+      console.error('Failed to log student activity (assignment):', err.message),
+    );
 
     return { success: true, data: rows[0] };
   }

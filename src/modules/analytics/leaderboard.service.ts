@@ -1,4 +1,4 @@
-﻿import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { DataSource, In, Repository } from 'typeorm';
@@ -249,7 +249,7 @@ export class LeaderboardService {
   private serializeLeaderboardEntry(entry: LeaderboardEntry) {
     return {
       id: entry.id,
-      studentId: entry.studentId,
+      studentId: entry.student?.userId || entry.studentId,
       rank: entry.rank,
       score: entry.score,
       scope: entry.scope,
