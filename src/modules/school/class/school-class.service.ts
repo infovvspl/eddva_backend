@@ -61,6 +61,23 @@ export class SchoolClassService implements OnModuleInit {
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS notes_status VARCHAR(16)`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS quiz JSONB`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS quiz_status VARCHAR(16)`);
+
+    // Progress and In-Video Quiz Segment Responses tracking
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS class_recording_progress (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_user_id UUID NOT NULL,
+        recording_id UUID NOT NULL REFERENCES class_recordings(id) ON DELETE CASCADE,
+        watch_percentage INT DEFAULT 0,
+        last_position_seconds INT DEFAULT 0,
+        quiz_responses JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(student_user_id, recording_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_class_rec_progress_student ON class_recording_progress(student_user_id);
+      CREATE INDEX IF NOT EXISTS idx_class_rec_progress_recording ON class_recording_progress(recording_id);
+    `);
     this.tableReady = true;
   }
 
@@ -105,13 +122,29 @@ export class SchoolClassService implements OnModuleInit {
     const params: any[] = [instituteId];
     let sql = `
       SELECT r.id, r.title, r.description, r.video_url, r.video_key, r.recorded_date,
-             r.duration, r.views, r.created_at, r.class_id, r.subject_id,
+             r.duration, r.views, COALESCE(ps.total_watchers, 0)::int AS total_watchers,
+             COALESCE(ps.avg_watch_percentage, 0)::int AS avg_watch_percentage,
+             COALESCE(ps.completed_watchers, 0)::int AS completed_watchers,
+             CASE
+               WHEN COALESCE(ps.total_watchers, 0) > 0
+               THEN ROUND((ps.completed_watchers::numeric / ps.total_watchers::numeric) * 100)::int
+               ELSE 0
+             END AS completion_rate,
+             r.created_at, r.class_id, r.subject_id,
              r.chapter_id, r.topic_id, r.thumbnail_url, r.source,
              r.transcript, r.transcript_status, r.language, r.notes, r.notes_status,
              r.quiz, r.quiz_status,
              c.name AS class_name, s.name AS subject_name, u.name AS teacher_name,
              ch.name AS chapter_name, t.name AS topic_name
       FROM class_recordings r
+      LEFT JOIN (
+        SELECT recording_id,
+               COUNT(*) AS total_watchers,
+               ROUND(AVG(watch_percentage)) AS avg_watch_percentage,
+               COUNT(*) FILTER (WHERE watch_percentage >= 90) AS completed_watchers
+        FROM class_recording_progress
+        GROUP BY recording_id
+      ) ps ON ps.recording_id = r.id
       LEFT JOIN classes c ON c.id = r.class_id
       LEFT JOIN subjects s ON s.id = r.subject_id
       LEFT JOIN chapters ch ON ch.id = r.chapter_id
@@ -378,5 +411,191 @@ export class SchoolClassService implements OnModuleInit {
     await this.ensureTable();
     await this.ds.query(`DELETE FROM class_recordings WHERE id = $1`, [id]);
     return { success: true };
+  }
+
+  async getProgress(user: any, recordingId: string) {
+    await this.ensureTable();
+    const rows = await this.ds.query(
+      `SELECT watch_percentage, last_position_seconds, quiz_responses 
+       FROM class_recording_progress 
+       WHERE student_user_id = $1 AND recording_id = $2`,
+      [user.id, recordingId]
+    );
+    if (!rows.length) {
+      return { success: true, data: null };
+    }
+    const r = rows[0];
+    return {
+      success: true,
+      data: {
+        watchPercentage: r.watch_percentage,
+        lastPositionSeconds: r.last_position_seconds,
+        quizResponses: r.quiz_responses || [],
+      }
+    };
+  }
+
+  async upsertProgress(user: any, recordingId: string, body: { watchPercentage: number; lastPositionSeconds: number }) {
+    await this.ensureTable();
+    const pct = Math.max(0, Math.min(100, Math.round(body.watchPercentage || 0)));
+    const pos = Math.max(0, Math.round(body.lastPositionSeconds || 0));
+
+    const rows = await this.ds.query(
+      `INSERT INTO class_recording_progress (student_user_id, recording_id, watch_percentage, last_position_seconds, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (student_user_id, recording_id)
+       DO UPDATE SET watch_percentage = EXCLUDED.watch_percentage,
+                     last_position_seconds = EXCLUDED.last_position_seconds,
+                     updated_at = NOW()
+       RETURNING *`,
+      [user.id, recordingId, pct, pos]
+    );
+
+    const r = rows[0];
+    return {
+      success: true,
+      data: {
+        watchPercentage: r.watch_percentage,
+        lastPositionSeconds: r.last_position_seconds,
+        quizResponses: r.quiz_responses || [],
+      }
+    };
+  }
+
+  async getQuizAnalytics(user: any, recordingId: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const recRows = await this.ds.query(
+      `SELECT id, quiz FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [recordingId, instituteId],
+    );
+    if (!recRows.length) throw new NotFoundException('Recording not found');
+
+    const quiz = Array.isArray(recRows[0].quiz) ? recRows[0].quiz : [];
+    const progressRows = await this.ds.query(
+      `SELECT p.student_user_id,
+              p.watch_percentage,
+              p.last_position_seconds,
+              p.quiz_responses,
+              COALESCE(
+                NULLIF(BTRIM(u.name), ''),
+                NULLIF(BTRIM(s.enrollment_no), ''),
+                NULLIF(BTRIM(s.roll_no), ''),
+                NULLIF(BTRIM(u.email), ''),
+                'Student'
+              ) AS student_name
+       FROM class_recording_progress p
+       LEFT JOIN students s ON s.user_id::text = p.student_user_id::text OR s.id::text = p.student_user_id::text
+       LEFT JOIN users u ON u.id::text = COALESCE(s.user_id::text, p.student_user_id::text)
+       WHERE p.recording_id = $1
+       ORDER BY p.updated_at DESC`,
+      [recordingId],
+    );
+
+    const students = progressRows.map((row: any) => {
+      const responses = Array.isArray(row.quiz_responses) ? row.quiz_responses : [];
+      const answeredCount = responses.length;
+      const correctCount = responses.filter((r: any) => r?.isCorrect === true).length;
+      return {
+        studentId: row.student_user_id,
+        studentName: row.student_name,
+        watchPercentage: Number(row.watch_percentage || 0),
+        isCompleted: Number(row.watch_percentage || 0) >= 90,
+        lastPositionSeconds: Number(row.last_position_seconds || 0),
+        quizScore: answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : null,
+        answeredCount,
+        correctCount,
+        responses,
+      };
+    });
+
+    const questionStats = quiz.map((q: any, idx: number) => {
+      const questionId = q.id || `q-${idx}`;
+      let totalAttempts = 0;
+      let correctCount = 0;
+      students.forEach((s: any) => {
+        const response = s.responses.find((r: any) => r.questionId === questionId);
+        if (response) {
+          totalAttempts += 1;
+          if (response.isCorrect) correctCount += 1;
+        }
+      });
+      return {
+        questionId,
+        questionText: q.questionText,
+        segmentTitle: q.segmentTitle || `Segment ${idx + 1}`,
+        totalAttempts,
+        correctCount,
+        accuracy: totalAttempts > 0 ? Math.round((correctCount / totalAttempts) * 100) : null,
+      };
+    });
+
+    return {
+      success: true,
+      data: {
+        students,
+        questionStats,
+        totalWatchers: students.length,
+      },
+    };
+  }
+
+  async submitQuizResponse(user: any, recordingId: string, body: { questionId: string; selectedOption: string }) {
+    await this.ensureTable();
+    const recs = await this.ds.query(`SELECT quiz FROM class_recordings WHERE id = $1`, [recordingId]);
+    if (!recs.length) throw new NotFoundException('Recording not found');
+
+    const quiz = recs[0].quiz || [];
+    const question = quiz.find((q: any) => q.id === body.questionId);
+    if (!question) throw new NotFoundException('Question not found');
+
+    const isCorrect = question.correctOption === body.selectedOption;
+
+    const progressRows = await this.ds.query(
+      `SELECT quiz_responses FROM class_recording_progress WHERE student_user_id = $1 AND recording_id = $2`,
+      [user.id, recordingId]
+    );
+
+    let responses = [];
+    let progressExists = false;
+    if (progressRows.length) {
+      responses = progressRows[0].quiz_responses || [];
+      progressExists = true;
+    }
+
+    const existingIdx = responses.findIndex((r: any) => r.questionId === body.questionId);
+    const newResponse = {
+      questionId: body.questionId,
+      selectedOption: body.selectedOption,
+      isCorrect,
+      answeredAt: new Date().toISOString()
+    };
+    if (existingIdx >= 0) {
+      responses[existingIdx] = newResponse;
+    } else {
+      responses.push(newResponse);
+    }
+
+    if (progressExists) {
+      await this.ds.query(
+        `UPDATE class_recording_progress SET quiz_responses = $1, updated_at = NOW() WHERE student_user_id = $2 AND recording_id = $3`,
+        [JSON.stringify(responses), user.id, recordingId]
+      );
+    } else {
+      await this.ds.query(
+        `INSERT INTO class_recording_progress (student_user_id, recording_id, quiz_responses, watch_percentage, last_position_seconds)
+         VALUES ($1, $2, $3, 0, 0)`,
+        [user.id, recordingId, JSON.stringify(responses)]
+      );
+    }
+
+    return {
+      success: true,
+      data: {
+        isCorrect,
+        correctOption: question.correctOption,
+        explanation: question.explanation || ''
+      }
+    };
   }
 }

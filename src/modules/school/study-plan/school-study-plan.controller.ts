@@ -96,4 +96,12 @@ export class SchoolStudyPlanController {
   ) {
     return this.service.startRevisionSession(user, body.topicId, body.accuracy, body.intervalDays);
   }
+
+  @Post('revision-session/complete')
+  completeRevisionSession(
+    @SchoolUser() user: any,
+    @Body() body: { topicId: string; accuracy: number; correctCount?: number; totalQuestions?: number },
+  ) {
+    return this.service.completeRevisionSession(user, body);
+  }
 }

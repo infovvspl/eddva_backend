@@ -22260,438 +22260,6 @@ Error: QueryFailedError: invalid input syntax for type uuid: "dashboard"
     at async SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:186:25)
 >>>>>>> a3fe2c5cd1b41aff486567e5658b513c043d8d3e
 
-<<<<<<< HEAD
-[2026-06-10T05:12:33.463Z] POST /api/v1/auth/login
-Status: 401
-Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T06:05:15.787Z] POST /api/v1/auth/login
-Status: 401
-Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
-
-[2026-06-10T06:23:13.013Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:23:29.395Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:23:32.887Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:23:52.587Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:24:12.839Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:24:32.932Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:24:52.514Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:25:13.000Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:25:32.843Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:26:33.950Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:27:35.010Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:28:35.043Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:29:35.046Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:30:35.063Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:31:34.973Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:32:34.888Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:33:21.377Z] GET /api/v1/school/calendar/events?month=2026-06
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/calendar/events?month=2026-06
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T06:33:35.008Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:33:39.683Z] GET /api/v1/school/calendar/events?month=2026-05
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/calendar/events?month=2026-05
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T06:33:40.428Z] GET /api/v1/school/calendar/events?month=2026-06
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/calendar/events?month=2026-06
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T06:33:47.564Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:33:49.368Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:34:31.286Z] GET /api/v1/school/calendar/events?month=2026-06
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/calendar/events?month=2026-06
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T06:34:41.789Z] GET /api/v1/school/calendar/events?month=2026-07
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/calendar/events?month=2026-07
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T06:34:42.596Z] GET /api/v1/school/calendar/events?month=2026-06
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/calendar/events?month=2026-06
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T06:40:17.517Z] GET /api/v1/school/calendar/events?month=2026-06
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/calendar/events?month=2026-06
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T06:40:17.786Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:40:18.853Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:40:46.860Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:40:52.476Z] GET /api/v1/school/calendar/events?month=2026-06
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/calendar/events?month=2026-06
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T06:40:52.487Z] GET /api/v1/school/calendar/events?month=2026-06
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/calendar/events?month=2026-06
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T06:40:52.855Z] GET /api/v1/school/calendar/events?month=2026-06
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/calendar/events?month=2026-06
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T06:40:57.681Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:41:17.840Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:41:37.832Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:41:51.736Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:41:52.329Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:41:57.297Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:42:17.815Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:42:37.966Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:42:57.507Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:43:05.192Z] GET /api/v1/school/chat/directory
-Status: 500
-Error: QueryFailedError: column s.parent_name does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolChatService.getParentDirectory (D:\Program Files\Eddva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
-
-[2026-06-10T06:43:34.549Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:44:35.240Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:45:35.088Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-=======
 [2026-06-09T12:13:29.508Z] GET /api/v1/school/battles/leaderboard
 Status: 404
 Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
@@ -24254,1345 +23822,6 @@ Error: QueryFailedError: column s.parent_name does not exist
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolChatService.getParentDirectory (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:437:18)
->>>>>>> a43efb0253e0e54874e678c602064cb6a7a1c100
-
-[2026-06-10T06:53:36.642Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:54:35.050Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T06:57:35.073Z] GET /api/v1/school/students/dashboard
-Status: 500
-Error: QueryFailedError: column u.xp_total does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolStudentService.getDashboard (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:268:32)
-
-[2026-06-10T07:04:58.140Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:04:58.796Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:04:59.690Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:05:24.464Z] GET /api/v1/school/chat/directory
-Status: 500
-Error: QueryFailedError: column s.parent_name does not exist
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolChatService.getParentDirectory (D:\Program Files\Eddva\eddva_backend\src\modules\school\chat\school-chat.service.ts:434:18)
-
-[2026-06-10T07:53:18.116Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:53:18.896Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:53:38.083Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:53:38.814Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:53:58.170Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:02.967Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:18.465Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:19.142Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:38.782Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:39.183Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:43.862Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:44.369Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:44.737Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:45.054Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:56.324Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:56.714Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:58.418Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:54:58.962Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:55:18.510Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:55:19.127Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:55:40.241Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:55:40.585Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:55:58.814Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:55:59.392Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:56:02.965Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:56:03.361Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:56:03.827Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T07:56:04.143Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:02:17.480Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:02:18.098Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:02:25.644Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:02:33.189Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:02:45.788Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:03:05.479Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:03:25.788Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:03:45.521Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:04:05.774Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:04:18.623Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:04:19.138Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:04:25.779Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:04:29.397Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:04:29.736Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:04:37.887Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T08:04:45.644Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:12:11.835Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:12:12.234Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:12:31.665Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:12:51.469Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:13:11.782Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:13:31.802Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:13:51.529Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:14:11.458Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:14:31.832Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:14:51.483Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:15:13.406Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:15:31.770Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:15:51.518Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:16:11.480Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:16:31.823Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:16:51.478Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:17:06.814Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:17:07.241Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:17:11.353Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:17:31.771Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:17:51.469Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:17:55.020Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:17:55.346Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:18:04.028Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:18:12.971Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:18:31.458Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:18:51.504Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:19:35.614Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:19:51.487Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:20:06.914Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:20:07.577Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:20:10.119Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:20:10.405Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T09:20:10.482Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:20:10.782Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T09:20:17.122Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T09:20:17.126Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:47:00.201Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:47:00.617Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:47:08.283Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:47:08.746Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:47:18.949Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:47:40.482Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:47:56.681Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:47:57.167Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:47:59.314Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:48:19.264Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:48:39.271Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:48:59.337Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:49:19.270Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:49:39.318Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:49:50.228Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:49:50.660Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:49:57.959Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:49:59.348Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:50:19.493Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:50:39.790Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:51:34.834Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:51:39.815Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:51:59.479Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:52:19.462Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:52:39.797Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:52:59.474Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:53:19.521Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:53:39.788Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:53:59.520Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:54:19.470Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:54:39.822Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:54:59.478Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:55:19.483Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:55:39.806Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:55:59.527Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:56:19.831Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:56:39.522Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:56:59.481Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:57:19.460Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T09:57:39.780Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T10:19:45.065Z] GET /api/v1/school/student/dashboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/student/dashboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T10:22:11.142Z] GET /api/v1/school/student/dashboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/student/dashboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T10:25:03.487Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T10:25:35.205Z] GET /api/v1/school/students/dashboard
-Status: 404
-Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-10T11:03:23.312Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:03:23.744Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:44:56.132Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:45:05.724Z] GET /api/v1/school/content/subjects
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/content/subjects
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:45:05.867Z] GET /api/v1/school/content/subjects
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/content/subjects
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:45:36.513Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:45:36.871Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:45:41.762Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:45:51.267Z] GET /api/v1/school/content/subjects
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/content/subjects
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:45:51.582Z] GET /api/v1/school/content/subjects
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/content/subjects
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:47:38.885Z] GET /api/v1/school/content/subjects
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/content/subjects
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T11:47:58.041Z] GET /api/v1/school/content/subjects
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/content/subjects
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T12:14:36.110Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T12:14:36.129Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T12:14:57.149Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T12:14:57.456Z] GET /api/v1/school/battles/leaderboard
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/battles/leaderboard
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T12:14:59.550Z] GET /api/v1/games/treasure/maps
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/games/treasure/maps
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-10T12:14:59.599Z] GET /api/v1/games/treasure/maps
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/games/treasure/maps
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
 <<<<<<< HEAD
 [2026-06-10T06:42:09.123Z] POST /api/v1/auth/login
@@ -27556,139 +25785,202 @@ Error: QueryFailedError: invalid input syntax for type uuid: "Math"
     at async SchoolMaterialService.validateTeacherAssignment (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:238:18)
     at async SchoolMaterialService.remove (D:\Edva\eddva_backend\src\modules\school\material\school-material.service.ts:597:5)
 
-[2026-06-11T09:09:49.604Z] GET /api/v1/health
-Status: 404
-Error: NotFoundException: Cannot GET /api/v1/health
-    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
-    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
-    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
-    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
-    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
-    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
-
-[2026-06-11T09:09:49.852Z] GET /
-Status: 404
-Error: NotFoundException: Cannot GET /
-    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
-    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
-    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
-    at cors (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:188:7)
-    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:224:17
-    at originCallback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:214:15)
-
-[2026-06-11T09:12:24.856Z] GET /api/v1/school/notifications/unread-count
-Status: 401
-Error: UnauthorizedException: Not authorized to access this route
-    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
-    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
-
-[2026-06-11T09:12:51.616Z] GET /api/v1/school/notifications
-Status: 401
-Error: UnauthorizedException: Not authorized to access this route
-    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
-    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
-
-[2026-06-11T09:12:51.865Z] GET /api/v1/school/notifications/preferences
-Status: 401
-Error: UnauthorizedException: Not authorized to access this route
-    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
-    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
-
-[2026-06-11T09:12:52.130Z] GET /api/v1/school/doubts
-Status: 401
-Error: UnauthorizedException: Not authorized to access this route
-    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
-    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
-
-[2026-06-11T09:12:52.393Z] GET /api/v1/school/assignments/submissions/inbox
-Status: 401
-Error: UnauthorizedException: Not authorized to access this route
-    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
-    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
-
-[2026-06-11T09:12:52.644Z] GET /api/v1/school/career/quiz/status
-Status: 401
-Error: UnauthorizedException: Not authorized to access this route
-    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
-    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
-    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
-
-[2026-06-11T10:03:53.735Z] POST /api/v1/auth/login
-Status: 401
-Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-11T10:03:56.193Z] GET /api/v1/school/students/dashboard
+[2026-06-11T09:59:35.951Z] GET /api/v1/school/students/dashboard
 Status: 404
 Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
-[2026-06-11T10:03:58.595Z] GET /api/v1/school/students/dashboard
+[2026-06-11T09:59:55.863Z] GET /api/v1/school/students/dashboard
 Status: 404
 Error: NotFoundException: Student not found
-    at SchoolStudentService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
-    at SchoolStudentController.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
-[2026-06-11T10:04:46.114Z] POST /api/v1/auth/login
-Status: 401
-Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
-
-[2026-06-11T10:22:59.193Z] GET /api/v1/school/academic/periods
+[2026-06-11T10:00:15.543Z] GET /api/v1/school/students/dashboard
 Status: 404
-Error: NotFoundException: Cannot GET /api/v1/school/academic/periods
-    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
-    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
-    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
-    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
-    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
-    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
-[2026-06-11T10:27:49.541Z] POST /api/v1/auth/login
+[2026-06-11T10:00:35.893Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:00:55.866Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:01:17.616Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:02:17.631Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:03:17.956Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:04:17.959Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:05:18.013Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:06:17.973Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:06:23.025Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:06:24.667Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:06:25.908Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:28:48.684Z] POST /api/v1/school/topics/6a1e882f-8bdb-4e27-925f-d1b15492b5da/ai-quiz/generate
+Status: 400
+Error: BadRequestException: AI quiz generation is temporarily unavailable. Please try again.
+    at SchoolStudyPlanService.generateAiQuiz (D:\edtech\eddva_backend\src\modules\school\study-plan\school-study-plan.service.ts:1282:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:56:15.479Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:56:16.000Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:56:33.782Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:56:34.245Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-11T10:56:35.618Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.service.ts:398:13)
+    at SchoolStudentController.findOne (D:\edtech\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T04:45:02.915Z] POST /api/v1/auth/login
 Status: 401
 Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T05:45:10.036Z] POST /api/v1/school/ppt/generate
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\guards\school-jwt.guard.ts:44:23)
+    at GuardsConsumer.tryActivate (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-12T06:27:42.352Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T07:08:09.606Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-12T07:08:09.970Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
 [2026-06-12T04:52:06.795Z] POST /api/v1/auth/login
