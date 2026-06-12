@@ -26273,3 +26273,257 @@ Error: NotFoundException: Student not found
     at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-12T04:58:19.815Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T04:58:21.931Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T04:58:42.256Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T04:59:02.253Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T04:59:22.471Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T04:59:42.224Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:00:02.222Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:00:22.231Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:00:42.330Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:01:01.899Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:01:22.293Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:01:42.220Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:02:01.943Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:02:22.226Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:02:42.355Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:03:01.895Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:03:22.394Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:03:42.569Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:04:02.303Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:04:22.622Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:05:12.315Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:05:22.640Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:05:24.125Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:05:24.468Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:05:42.234Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:06:02.221Z] GET /api/v1/school/students/dashboard
+Status: 404
+Error: NotFoundException: Student not found
+    at SchoolStudentService.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:407:13)
+    at SchoolStudentController.findOne (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.controller.ts:20:66)
+    at C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:32:58.000Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-12T05:40:31.431Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-12T05:48:42.507Z] DELETE /api/v1/school/students/7d992329-3b44-44cf-93bf-d4feac1f8088
+Status: 500
+Error: QueryFailedError: update or delete on table "users" violates foreign key constraint "FK_9a8a82462cab47c73d25f49261f" on table "notifications"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.remove (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:655:5)
+
+[2026-06-12T05:48:56.031Z] DELETE /api/v1/school/students/7d992329-3b44-44cf-93bf-d4feac1f8088
+Status: 500
+Error: QueryFailedError: update or delete on table "users" violates foreign key constraint "FK_9a8a82462cab47c73d25f49261f" on table "notifications"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.remove (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:655:5)
+
+[2026-06-12T05:49:12.578Z] DELETE /api/v1/school/students/7d992329-3b44-44cf-93bf-d4feac1f8088
+Status: 500
+Error: QueryFailedError: update or delete on table "users" violates foreign key constraint "FK_9a8a82462cab47c73d25f49261f" on table "notifications"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolStudentService.remove (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\student\school-student.service.ts:655:5)
+
+[2026-06-12T06:34:26.988Z] DELETE /api/v1/school/teachers/c77caacb-13ba-4056-815b-1a5f283d5537
+Status: 500
+Error: QueryFailedError: update or delete on table "users" violates foreign key constraint "FK_9a8a82462cab47c73d25f49261f" on table "notifications"
+    at PostgresQueryRunner.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async DataSource.query (C:\EDDVA SCHOOL\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.remove (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:752:5)
+
+[2026-06-12T07:19:14.712Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+

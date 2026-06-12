@@ -652,8 +652,94 @@ export class SchoolStudentService {
   }
 
   async remove(id: string) {
-    await this.ds.query(`DELETE FROM users WHERE id=$1`, [id]);
-    return { success: true };
+    // 1. Fetch user & student profile to check protections
+    const rows: any[] = await this.ds.query(
+      `SELECT u.id AS user_id, s.id AS student_id, s.enrollment_no 
+       FROM users u 
+       LEFT JOIN students s ON u.id = s.user_id 
+       WHERE u.id=$1 OR s.id=$1`,
+      [id]
+    );
+
+    if (!rows.length) {
+      throw new NotFoundException('Student not found');
+    }
+
+    const { user_id, student_id, enrollment_no } = rows[0];
+
+    // Absolute Protection for Pratap Das
+    if (
+      user_id === 'b49ee8d3-4c33-448c-aa06-30dc8bfbee54' ||
+      student_id === '39e5bd87-ece0-430d-92a7-4cc94454f65b' ||
+      enrollment_no === 'OPS-2026-002'
+    ) {
+      console.warn(`[SECURITY] Blocked attempt to delete protected student: ${user_id}`);
+      throw new BadRequestException('Action Blocked: This protected student cannot be deleted.');
+    }
+
+    const queryRunner = this.ds.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      if (student_id) {
+        // Delete student_id dependencies
+        const studentTables = [
+          'ai_study_sessions', 'battle_participants', 'doubts', 'engagement_logs',
+          'enrollments', 'fees', 'leaderboard_entries', 'lecture_progress',
+          'live_attendances', 'performance_profiles', 'question_attempts',
+          'student_elo', 'study_plans', 'test_sessions', 'topic_progress', 'weak_topics'
+        ];
+        for (const table of studentTables) {
+          // Check if table exists in DB to prevent crashing if a table is missing
+          const tableExists = await queryRunner.query(
+            `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)`,
+            [table]
+          );
+          if (tableExists[0].exists) {
+            await queryRunner.query(`DELETE FROM ${table} WHERE student_id=$1`, [student_id]);
+          }
+        }
+      }
+
+      if (user_id) {
+        // Delete user_id dependencies
+        const userTables = [
+          { table: 'notifications', col: 'user_id' },
+          { table: 'attendances', col: 'user_id' },
+          { table: 'chat_participants', col: 'user_id' },
+          { table: 'chat_messages', col: 'sender_id' },
+          { table: 'live_chat_messages', col: 'sender_id' },
+          { table: 'discussion_replies', col: 'author_id' },
+          { table: 'discussion_threads', col: 'author_id' },
+          { table: 'complaints', col: 'user_id' },
+          { table: 'grievances', col: 'raised_by' },
+          { table: 'results', col: 'student_id' },
+          { table: 'live_poll_responses', col: 'student_id' }
+        ];
+
+        for (const entry of userTables) {
+          const tableExists = await queryRunner.query(
+            `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)`,
+            [entry.table]
+          );
+          if (tableExists[0].exists) {
+            await queryRunner.query(`DELETE FROM ${entry.table} WHERE ${entry.col}=$1`, [user_id]);
+          }
+        }
+
+        // Finally delete the user (which cascades to students table via FK_fb3eff90b11bddf7285f9b4e281)
+        await queryRunner.query(`DELETE FROM users WHERE id=$1`, [user_id]);
+      }
+
+      await queryRunner.commitTransaction();
+      return { success: true };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(err instanceof Error ? err.message : 'Error deleting student profile');
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async sendParentCredentials(user: any, studentId: string, body: any) {
