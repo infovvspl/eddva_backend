@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableE
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { recordStudentActivity } from '../common/gamification-helper';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 
 @Injectable()
@@ -1107,6 +1108,11 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         remarks: 'Auto-graded objective assessment',
       });
     }
+
+    // Log student activity and update streak
+    await recordStudentActivity(this.ds, user.id, 'assessment').catch(err =>
+      console.error('Failed to log student activity (assessment):', err.message),
+    );
 
     return { success: true, data: rows[0] };
   }
