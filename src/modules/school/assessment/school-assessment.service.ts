@@ -17,6 +17,12 @@ export class SchoolAssessmentService {
     private readonly aiBridge: AiBridgeService,
   ) { }
 
+  private storedUploadPath(file?: Express.Multer.File | null) {
+    if (!file) return null;
+    if (file.filename) return `uploads/${file.filename}`;
+    return file.path?.replace(/\\/g, '/') || null;
+  }
+
   async translateText(user: any, text: string, language: string) {
     const instituteId = user?.instituteId;
     if (!text || !text.trim() || !language || language === 'en') {
@@ -802,7 +808,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
     const answerKey = this.rebuildAnswerKeyWithSections(contentText, splitAnswerKey);
     const questionsJson = this.parseQuestionsFromMarkdown(contentText || '', answerKey || '');
-    const filePath = file ? file.path.replace(/\\/g, '/') : (body.filePath || body.file_path || null);
+    const filePath = this.storedUploadPath(file) || body.filePath || body.file_path || null;
     const contentSource = filePath ? 'upload' : contentText ? (body.contentSource || body.content_source || 'manual') : 'metadata';
     const title = String(body.title || '').trim() || this.deriveTitle(contentText || '', '');
     if (!title) {
@@ -1038,7 +1044,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         throw new BadRequestException('Invalid answer format');
       }
     }
-    const filePath = file ? file.path.replace(/\\/g, '/') : (body.filePath || body.file_path || null);
+    const filePath = this.storedUploadPath(file) || body.filePath || body.file_path || null;
     const autoSubmit = body.autoSubmit === true || body.autoSubmit === 'true';
     if (!answerText && !filePath && !bodyAnswers && !autoSubmit) {
       throw new BadRequestException('Write an answer or upload a file');

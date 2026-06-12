@@ -152,8 +152,10 @@ export class SchoolMeetingService implements OnModuleInit {
     FROM teacher_academic_assignments taa
     JOIN teachers t
       ON t.id = taa.teacher_id
+    JOIN sections sec
+      ON sec.class_id::text = taa.class_id::text
     JOIN students s
-      ON s.section_id = taa.section_id
+      ON s.section_id = sec.id
     JOIN users parent_user
       ON parent_user.id = $2
     WHERE t.user_id = $3

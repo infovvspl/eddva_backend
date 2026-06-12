@@ -1,15 +1,19 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { mkdirSync } from 'fs';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { SchoolAssessmentService } from './school-assessment.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 
+const uploadsDir = join(__dirname, '../../../../uploads');
+mkdirSync(uploadsDir, { recursive: true });
+
 const uploadStorage = diskStorage({
-  destination: './uploads',
+  destination: uploadsDir,
   filename: (_req, file, cb) => {
     cb(null, `${Date.now()}-${uuidv4()}${extname(file.originalname)}`);
   },
