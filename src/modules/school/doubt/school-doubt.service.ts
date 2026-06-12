@@ -173,12 +173,12 @@ export class SchoolDoubtService implements OnModuleInit {
        FROM students st
        JOIN teacher_academic_assignments taa ON taa.section_id = st.section_id
        JOIN teachers t ON t.id = taa.teacher_id
-       WHERE st.user_id = $1::uuid
-         AND t.user_id = $2::uuid
+       WHERE st.user_id::text = $1::text
+         AND t.user_id::text = $2::text
          AND (
-           $3::uuid IS NULL
+           $3::text IS NULL
            OR taa.subject_id IS NULL
-           OR taa.subject_id = $3::uuid
+           OR taa.subject_id::text = $3::text
            OR taa.is_class_teacher = TRUE
          )
        LIMIT 1`,
@@ -274,7 +274,7 @@ export class SchoolDoubtService implements OnModuleInit {
         `SELECT u.id FROM users u
          JOIN teachers t ON t.user_id = u.id
          JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
-         WHERE u.id = $1::uuid AND taa.section_id = $2::uuid
+         WHERE u.id::text = $1::text AND taa.section_id::text = $2::text
          LIMIT 1`,
         [teacherUserId, sectionId],
       );
@@ -285,7 +285,7 @@ export class SchoolDoubtService implements OnModuleInit {
         `SELECT u.id FROM teacher_academic_assignments taa
          JOIN teachers t ON t.id = taa.teacher_id
          JOIN users u ON u.id = t.user_id
-         WHERE taa.section_id = $1::uuid AND taa.subject_id = $2::uuid
+         WHERE taa.section_id::text = $1::text AND taa.subject_id::text = $2::text
          ORDER BY taa.is_class_teacher DESC
          LIMIT 1`,
         [sectionId, subjectId],
@@ -296,7 +296,7 @@ export class SchoolDoubtService implements OnModuleInit {
       `SELECT u.id FROM teacher_academic_assignments taa
        JOIN teachers t ON t.id = taa.teacher_id
        JOIN users u ON u.id = t.user_id
-       WHERE taa.section_id = $1::uuid AND taa.is_class_teacher = TRUE
+       WHERE taa.section_id::text = $1::text AND taa.is_class_teacher = TRUE
        LIMIT 1`,
       [sectionId],
     );
@@ -305,7 +305,7 @@ export class SchoolDoubtService implements OnModuleInit {
       `SELECT u.id FROM teacher_academic_assignments taa
        JOIN teachers t ON t.id = taa.teacher_id
        JOIN users u ON u.id = t.user_id
-       WHERE taa.section_id = $1::uuid
+       WHERE taa.section_id::text = $1::text
        LIMIT 1`,
       [sectionId],
     );
@@ -330,7 +330,7 @@ export class SchoolDoubtService implements OnModuleInit {
 
   async create(user: any, body: any) {
     await this.ensureTable();
-    const questionText = (body.questionText || body.question || '').trim();
+    let questionText = (body.questionText || body.question || '').trim();
     if (questionText.length < 10 && !body.questionImageUrl) {
       throw new BadRequestException('Question must be at least 10 characters or include an image');
     }
@@ -340,13 +340,40 @@ export class SchoolDoubtService implements OnModuleInit {
 
     const instituteId = user.instituteId || profile.institute_id;
     const askTeacher = body.askTeacher === true || body.skipAI === true;
-    const subjectId = body.subjectId || null;
-    const subjectName = body.subjectName || null;
+    let subjectId = body.subjectId || null;
+    let subjectName = body.subjectName || null;
+    let routingSectionId = profile.section_id;
+
+    if (body.recordingId) {
+      const recordingRows: any[] = await this.ds.query(
+        `SELECT r.id, r.title, r.section_id, r.subject_id, sub.name AS subject_name
+         FROM class_recordings r
+         LEFT JOIN subjects sub ON sub.id::text = r.subject_id::text
+         WHERE r.id::text = $1::text
+           AND r.institute_id::text = $2::text
+           AND (
+             r.section_id IS NULL
+             OR r.section_id::text = $3::text
+           )
+         LIMIT 1`,
+        [body.recordingId, instituteId, profile.section_id],
+      );
+      const recording = recordingRows[0];
+      if (recording) {
+        routingSectionId = recording.section_id || routingSectionId;
+        subjectId = subjectId || recording.subject_id || null;
+        subjectName = subjectName || recording.subject_name || null;
+        const lectureTitle = body.lectureTitle || recording.title;
+        if (lectureTitle && !questionText.includes('Lecture:')) {
+          questionText = `${questionText}\n\nLecture: ${lectureTitle}`;
+        }
+      }
+    }
 
     let teacherUserId: string | null = null;
     if (askTeacher || body.teacherUserId) {
       teacherUserId = await this.resolveTeacherUserId(
-        profile.section_id,
+        routingSectionId,
         subjectId,
         body.teacherUserId,
       );
@@ -373,16 +400,16 @@ export class SchoolDoubtService implements OnModuleInit {
       } catch {
         status = 'escalated';
         channel = 'teacher';
-        if (!teacherUserId && profile.section_id) {
-          teacherUserId = await this.resolveTeacherUserId(profile.section_id, subjectId);
+        if (!teacherUserId && routingSectionId) {
+          teacherUserId = await this.resolveTeacherUserId(routingSectionId, subjectId);
         }
         aiExplanation =
           'AI is temporarily unavailable. Your doubt has been forwarded to your teacher.';
       }
     }
 
-    if (status === 'escalated' && !teacherUserId && profile.section_id) {
-      teacherUserId = await this.resolveTeacherUserId(profile.section_id, subjectId);
+    if (status === 'escalated' && !teacherUserId && routingSectionId) {
+      teacherUserId = await this.resolveTeacherUserId(routingSectionId, subjectId);
     }
 
     const rows: any[] = await this.ds.query(
@@ -438,17 +465,17 @@ export class SchoolDoubtService implements OnModuleInit {
       params.push(user.id);
       const teacherIdx = params.length;
       sql += ` AND (
-        d.teacher_user_id = $${teacherIdx}::uuid
+        d.teacher_user_id::text = $${teacherIdx}::text
         OR EXISTS (
           SELECT 1 FROM students st2
-          JOIN teacher_academic_assignments taa ON taa.section_id = st2.section_id
+          JOIN teacher_academic_assignments taa ON taa.section_id::text = st2.section_id::text
           JOIN teachers t ON t.id = taa.teacher_id
-          WHERE st2.user_id = d.student_user_id
-            AND t.user_id = $${teacherIdx}::uuid
+          WHERE st2.user_id::text = d.student_user_id::text
+            AND t.user_id::text = $${teacherIdx}::text
             AND (
               d.subject_id IS NULL
               OR taa.subject_id IS NULL
-              OR taa.subject_id = d.subject_id
+              OR taa.subject_id::text = d.subject_id::text
               OR taa.is_class_teacher = TRUE
             )
         )
