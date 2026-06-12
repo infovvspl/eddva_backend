@@ -37,6 +37,14 @@ export class SchoolMaterialController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
 
+  @Get(':id/highlights')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
+  getHighlights(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.getHighlights(user, id); }
+
+  @Post(':id/highlights')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  saveHighlight(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) { return this.svc.saveHighlight(user, id, body); }
+
   @Get(':id')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   findOne(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.findOne(user, id); }
