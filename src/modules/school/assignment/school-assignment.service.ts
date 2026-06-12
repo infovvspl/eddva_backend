@@ -34,6 +34,12 @@ export class SchoolAssignmentService {
     return instituteId;
   }
 
+  private storedUploadPath(file?: Express.Multer.File | null) {
+    if (!file) return null;
+    if (file.filename) return `uploads/${file.filename}`;
+    return file.path?.replace(/\\/g, '/') || null;
+  }
+
   private async getStudentProfile(user: any) {
     const rows: any[] = await this.ds.query(
       `SELECT s.id AS student_id, s.institute_id, sec.class_id, s.section_id
@@ -326,7 +332,7 @@ export class SchoolAssignmentService {
   }
 
   async create(user: any, body: any, file?: Express.Multer.File) {
-    const filePath = file ? file.path.replace(/\\/g, '/') : null;
+    const filePath = this.storedUploadPath(file);
     const instituteId = this.resolveInstituteId(
       user,
       body.instituteId || body.institute_id,
@@ -415,7 +421,7 @@ export class SchoolAssignmentService {
       throw new ForbiddenException('This assignment is not for your class');
     }
 
-    const filePath = file ? file.path.replace(/\\/g, '/') : null;
+    const filePath = this.storedUploadPath(file);
     if (!filePath && !body?.notes?.trim()) {
       throw new BadRequestException('Upload a file or add submission notes');
     }
@@ -477,8 +483,18 @@ export class SchoolAssignmentService {
   }
 
 
-  async listInbox(user: any) {
+  async listInbox(user: any, query: any = {}) {
     const instituteId = this.resolveInstituteId(user);
+    const params = [instituteId, user.id];
+    let filter = `a.tenant_id::text = $1::text AND a.teacher_id::text = $2::text`;
+    if (query.classId || query.class_id) {
+      params.push(query.classId || query.class_id);
+      filter += ` AND a.class_id::text = $${params.length}::text`;
+    }
+    if (query.subjectId || query.subject_id) {
+      params.push(query.subjectId || query.subject_id);
+      filter += ` AND a.subject_id::text = $${params.length}::text`;
+    }
     const rows: any[] = await this.ds.query(
       `SELECT
          subm.id, subm.student_id, subm.status,
@@ -487,6 +503,7 @@ export class SchoolAssignmentService {
          COALESCE(subm.feedback_summary, subm.teacher_remarks) AS feedback,
          subm.submitted_at,
          a.id AS assignment_id, a.title AS assignment_title,
+         a.class_id, a.subject_id,
          u.name AS student_name,
          c.name AS class_name, sub.name AS subject_name
        FROM assignment_submissions subm
@@ -495,10 +512,10 @@ export class SchoolAssignmentService {
        JOIN users u ON u.id::text = st.user_id::text
        LEFT JOIN classes c ON a.class_id::text = c.id::text
        LEFT JOIN subjects sub ON a.subject_id::text = sub.id::text
-       WHERE a.tenant_id::text = $1::text AND a.teacher_id::text = $2::text
+       WHERE ${filter}
        ORDER BY subm.submitted_at DESC
        LIMIT 100`,
-      [instituteId, user.id],
+      params,
     );
     return { success: true, data: rows };
   }

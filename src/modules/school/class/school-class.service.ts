@@ -35,6 +35,7 @@ export class SchoolClassService implements OnModuleInit {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         institute_id UUID NOT NULL,
         class_id UUID,
+        section_id UUID,
         subject_id UUID,
         teacher_user_id UUID,
         title VARCHAR(255) NOT NULL,
@@ -51,6 +52,7 @@ export class SchoolClassService implements OnModuleInit {
     `);
     // Newer columns (idempotent) — match the coaching recorded-lecture flow.
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS chapter_id UUID`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS section_id UUID`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS topic_id UUID`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS source VARCHAR(16) DEFAULT 'upload'`);
@@ -85,6 +87,47 @@ export class SchoolClassService implements OnModuleInit {
     const instituteId = user.role === 'SUPER_ADMIN' ? override || user.instituteId : user.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
     return instituteId;
+  }
+
+  private async getStudentScope(user: any): Promise<{ classId: string | null; sectionId: string | null }> {
+    const fallback = user?.studentProfile || {};
+    const rows = await this.ds.query(
+      `SELECT COALESCE(sec.class_id::text, $3::text) AS class_id,
+              COALESCE(s.section_id::text, $2::text) AS section_id
+       FROM students s
+       LEFT JOIN sections sec ON sec.id::text = s.section_id::text
+       WHERE s.user_id::text = $1::text OR s.id::text = $4::text
+       LIMIT 1`,
+      [
+        user.id,
+        fallback.sectionId || null,
+        fallback.classId || null,
+        fallback.id || null,
+      ],
+    );
+    const row = rows[0];
+    return {
+      classId: row?.class_id || fallback.classId || null,
+      sectionId: row?.section_id || fallback.sectionId || null,
+    };
+  }
+
+  private async assertStudentCanAccessRecording(user: any, recordingId: string) {
+    if (user.role !== 'STUDENT') return;
+    const scope = await this.getStudentScope(user);
+    if (!scope.classId || !scope.sectionId) throw new NotFoundException('Recording not found');
+    const rows = await this.ds.query(
+      `SELECT 1
+       FROM class_recordings r
+       WHERE r.id::text = $1::text
+         AND r.institute_id::text = $2::text
+         AND r.class_id::text = $3::text
+         AND r.section_id::text = $4::text
+       LIMIT 1`,
+      [recordingId, user.instituteId, scope.classId, scope.sectionId],
+    );
+
+    if (!rows.length) throw new NotFoundException('Recording not found');
   }
 
   /** Normalize a lecture language to one the AI service understands (en/hi/hinglish/od). */
@@ -131,10 +174,11 @@ export class SchoolClassService implements OnModuleInit {
                ELSE 0
              END AS completion_rate,
              r.created_at, r.class_id, r.subject_id,
+             r.section_id,
              r.chapter_id, r.topic_id, r.thumbnail_url, r.source,
              r.transcript, r.transcript_status, r.language, r.notes, r.notes_status,
              r.quiz, r.quiz_status,
-             c.name AS class_name, s.name AS subject_name, u.name AS teacher_name,
+             c.name AS class_name, sec.name AS section_name, s.name AS subject_name, u.name AS teacher_name,
              ch.name AS chapter_name, t.name AS topic_name
       FROM class_recordings r
       LEFT JOIN (
@@ -146,12 +190,25 @@ export class SchoolClassService implements OnModuleInit {
         GROUP BY recording_id
       ) ps ON ps.recording_id = r.id
       LEFT JOIN classes c ON c.id = r.class_id
+      LEFT JOIN sections sec ON sec.id = r.section_id
       LEFT JOIN subjects s ON s.id = r.subject_id
       LEFT JOIN chapters ch ON ch.id = r.chapter_id
       LEFT JOIN topics t ON t.id = r.topic_id
       LEFT JOIN users u ON u.id = r.teacher_user_id
       WHERE r.institute_id = $1::uuid`;
     if (query.classId) { params.push(query.classId); sql += ` AND r.class_id = $${params.length}::uuid`; }
+    if (query.sectionId) { params.push(query.sectionId); sql += ` AND r.section_id = $${params.length}::uuid`; }
+    if (query.subjectId) { params.push(query.subjectId); sql += ` AND r.subject_id = $${params.length}::uuid`; }
+    if (user.role === 'STUDENT') {
+      const scope = await this.getStudentScope(user);
+      if (!scope.classId || !scope.sectionId) return { success: true, data: [] };
+      params.push(scope.classId);
+      const classParam = params.length;
+      params.push(scope.sectionId);
+      const sectionParam = params.length;
+      sql += ` AND r.class_id = $${classParam}::uuid
+               AND r.section_id = $${sectionParam}::uuid`;
+    }
     sql += ` ORDER BY r.created_at DESC`;
     const rows = await this.ds.query(sql, params);
     const data = await Promise.all(rows.map(async (row: any) => {
@@ -172,6 +229,7 @@ export class SchoolClassService implements OnModuleInit {
 
   async getPlayUrl(user: any, id: string) {
     await this.ensureTable();
+    await this.assertStudentCanAccessRecording(user, id);
     const instituteId = user.role === 'SUPER_ADMIN' ? user.instituteId : user.instituteId;
     const params: any[] = [id];
     let sql = `SELECT id, video_url, video_key, source FROM class_recordings WHERE id=$1`;
@@ -213,23 +271,125 @@ export class SchoolClassService implements OnModuleInit {
     await this.ensureTable();
     if (!body.title?.trim()) throw new BadRequestException('Title is required');
     if (!body.videoUrl?.trim()) throw new BadRequestException('A recording video is required');
+    if (!body.classId) throw new BadRequestException('Class is required');
+    if (!body.sectionId) throw new BadRequestException('Section is required');
+    if (!body.subjectId) throw new BadRequestException('Subject is required');
     const instituteId = this.resolveInstituteId(user, body.instituteId);
     const source = body.source === 'youtube' ? 'youtube' : 'upload';
     const language = this.normalizeLanguage(body.language);
+    let effectiveSubjectId = body.subjectId;
+    let effectiveChapterId = body.chapterId || null;
+    let effectiveTopicId = body.topicId || null;
+    const scopeRows = await this.ds.query(
+      `SELECT sub.id, sub.name
+       FROM sections sec
+       JOIN classes c ON c.id::text = sec.class_id::text
+       JOIN subjects sub ON sub.id::text = $4::text
+       WHERE c.id::text = $1::text
+         AND sec.id::text = $2::text
+         AND c.institute_id::text = $3::text
+         AND sub.institute_id::text = $3::text
+         AND sub.class_id::text = $1::text
+         AND (sub.section_id IS NULL OR sub.section_id::text = $2::text)
+       LIMIT 1`,
+      [body.classId, body.sectionId, instituteId, body.subjectId],
+    );
+    if (!scopeRows.length) {
+      const subjectRows = await this.ds.query(
+        `SELECT scoped.id, scoped.name
+         FROM subjects selected
+         JOIN subjects scoped
+           ON LOWER(TRIM(scoped.name)) = LOWER(TRIM(selected.name))
+          AND scoped.institute_id::text = selected.institute_id::text
+          AND scoped.class_id::text = $2::text
+          AND (scoped.section_id IS NULL OR scoped.section_id::text = $3::text)
+         WHERE selected.id::text = $1::text
+           AND selected.institute_id::text = $4::text
+         ORDER BY CASE WHEN scoped.section_id::text = $3::text THEN 0 ELSE 1 END
+         LIMIT 1`,
+        [body.subjectId, body.classId, body.sectionId, instituteId],
+      );
+      if (!subjectRows.length) {
+        throw new BadRequestException('Subject is not assigned to the selected class and section');
+      }
+      effectiveSubjectId = subjectRows[0].id;
+    }
+
+    if (effectiveChapterId) {
+      const chapterRows = await this.ds.query(
+        `SELECT id, name FROM chapters WHERE id::text = $1::text AND subject_id::text = $2::text LIMIT 1`,
+        [effectiveChapterId, effectiveSubjectId],
+      );
+      if (!chapterRows.length) {
+        const mappedChapterRows = await this.ds.query(
+          `SELECT target.id
+           FROM chapters selected
+           JOIN chapters target ON LOWER(TRIM(target.name)) = LOWER(TRIM(selected.name))
+           WHERE selected.id::text = $1::text
+             AND target.subject_id::text = $2::text
+           LIMIT 1`,
+          [effectiveChapterId, effectiveSubjectId],
+        );
+        effectiveChapterId = mappedChapterRows[0]?.id || null;
+      }
+    }
+
+    if (effectiveTopicId) {
+      const topicRows = await this.ds.query(
+        `SELECT id FROM topics WHERE id::text = $1::text AND chapter_id::text = $2::text LIMIT 1`,
+        [effectiveTopicId, effectiveChapterId],
+      );
+      if (!topicRows.length) {
+        const mappedTopicRows = await this.ds.query(
+          `SELECT target.id
+           FROM topics selected
+           JOIN topics target ON LOWER(TRIM(target.name)) = LOWER(TRIM(selected.name))
+           WHERE selected.id::text = $1::text
+             AND target.chapter_id::text = $2::text
+           LIMIT 1`,
+          [effectiveTopicId, effectiveChapterId],
+        );
+        effectiveTopicId = mappedTopicRows[0]?.id || null;
+      }
+    }
+
+    if (user.role === 'TEACHER') {
+      const assignmentRows = await this.ds.query(
+        `SELECT 1
+         FROM teachers t
+         JOIN teacher_academic_assignments taa ON taa.teacher_id = t.id
+         LEFT JOIN subjects assigned_sub ON assigned_sub.id::text = taa.subject_id::text
+         LEFT JOIN subjects selected_sub ON selected_sub.id::text = $4::text
+         WHERE t.user_id::text = $1::text
+           AND taa.class_id::text = $2::text
+           AND taa.section_id::text = $3::text
+           AND (
+             taa.subject_id::text = $4::text
+             OR (taa.is_class_teacher = TRUE AND taa.subject_id IS NULL)
+             OR LOWER(TRIM(assigned_sub.name)) = LOWER(TRIM(selected_sub.name))
+           )
+         LIMIT 1`,
+        [user.id, body.classId, body.sectionId, effectiveSubjectId],
+      );
+      if (!assignmentRows.length) {
+        throw new BadRequestException('You are not assigned to this class, section, and subject');
+      }
+    }
     // Uploaded media gets auto-transcribed (Whisper/Sarvam). YouTube links don't (no media file).
     const transcriptStatus = source === 'upload' ? 'pending' : null;
     const rows = await this.ds.query(
       `INSERT INTO class_recordings
-         (institute_id, class_id, subject_id, chapter_id, topic_id, teacher_user_id, title, description,
+         (institute_id, class_id, section_id, subject_id, chapter_id, topic_id, teacher_user_id, title, description,
           video_url, video_key, thumbnail_url, source, recorded_date, duration, transcript_status, language)
-       VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING *`,
       [
         instituteId,
         body.classId || null,
-        body.subjectId || null,
-        body.chapterId || null,
-        body.topicId || null,
+        body.sectionId || null,
+        effectiveSubjectId || null,
+        effectiveChapterId || null,
+        effectiveTopicId || null,
         user.id,
         body.title.trim(),
         body.description || null,
@@ -248,7 +408,7 @@ export class SchoolClassService implements OnModuleInit {
     // Kick off background transcription for uploaded media (non-blocking).
     // Odia routes through Sarvam STT inside the AI service; en/hi use Groq Whisper.
     if (source === 'upload') {
-      this.processTranscription(recording.id, recording.video_url, body.topicId || null, instituteId, language)
+      this.processTranscription(recording.id, recording.video_url, effectiveTopicId || null, instituteId, language)
         .catch((err) => this.logger.warn(`Transcription kickoff failed for ${recording.id}: ${err?.message}`));
     }
 
@@ -415,6 +575,7 @@ export class SchoolClassService implements OnModuleInit {
 
   async getProgress(user: any, recordingId: string) {
     await this.ensureTable();
+    await this.assertStudentCanAccessRecording(user, recordingId);
     const rows = await this.ds.query(
       `SELECT watch_percentage, last_position_seconds, quiz_responses 
        FROM class_recording_progress 
@@ -437,6 +598,7 @@ export class SchoolClassService implements OnModuleInit {
 
   async upsertProgress(user: any, recordingId: string, body: { watchPercentage: number; lastPositionSeconds: number }) {
     await this.ensureTable();
+    await this.assertStudentCanAccessRecording(user, recordingId);
     const pct = Math.max(0, Math.min(100, Math.round(body.watchPercentage || 0)));
     const pos = Math.max(0, Math.round(body.lastPositionSeconds || 0));
 
@@ -542,6 +704,7 @@ export class SchoolClassService implements OnModuleInit {
 
   async submitQuizResponse(user: any, recordingId: string, body: { questionId: string; selectedOption: string }) {
     await this.ensureTable();
+    await this.assertStudentCanAccessRecording(user, recordingId);
     const recs = await this.ds.query(`SELECT quiz FROM class_recordings WHERE id = $1`, [recordingId]);
     if (!recs.length) throw new NotFoundException('Recording not found');
 

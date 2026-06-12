@@ -288,7 +288,7 @@ export class SchoolDashboardService {
     };
 
     const studentConf = getQueryConfig(
-      `SELECT u.id, u.name, u.email, u.photo, s.enrollment_no AS "enrollmentNo" 
+      `SELECT u.id, u.name, u.email, u.profile_image, s.enrollment_no AS "enrollmentNo" 
        FROM users u 
        JOIN students s ON s.user_id = u.id 
        WHERE u.role = 'STUDENT' __FILTER__ AND (u.name ILIKE $1 OR u.email ILIKE $1 OR s.enrollment_no ILIKE $1)
@@ -297,7 +297,7 @@ export class SchoolDashboardService {
     );
 
     const teacherConf = getQueryConfig(
-      `SELECT u.id, u.name, u.email, u.photo, t.employee_id AS "employeeId" 
+      `SELECT u.id, u.name, u.email, u.profile_image, t.employee_id AS "employeeId" 
        FROM users u 
        JOIN teachers t ON t.user_id = u.id 
        WHERE u.role = 'TEACHER' __FILTER__ AND (u.name ILIKE $1 OR u.email ILIKE $1 OR t.employee_id ILIKE $1)

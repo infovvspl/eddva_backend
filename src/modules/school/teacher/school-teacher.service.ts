@@ -202,8 +202,8 @@ export class SchoolTeacherService {
 
     try {
       const uRows: any[] = await queryRunner.query(
-        `INSERT INTO users (institute_id,name,email,password,role,photo,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,$6,TRUE) RETURNING *`,
-        [instituteId, body.name, body.email, hashed, body.photo || null, body.phone || null],
+        `INSERT INTO users (institute_id,name,email,password,role,profile_image,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,$6,TRUE) RETURNING *`,
+        [instituteId, body.name, body.email, hashed, body.profileImage || null, body.phone || null],
       );
       const u = uRows[0];
 
@@ -297,6 +297,34 @@ export class SchoolTeacherService {
     const params: any[] = [instituteId];
     let filter = `u.institute_id=$1 AND u.role='TEACHER'`;
 
+    const assignmentFilters: string[] = [];
+    const legacyAssignmentFilters: string[] = [];
+    if (query.classId) {
+      params.push(query.classId);
+      assignmentFilters.push(`ta.class_id::text=$${params.length}::text`);
+      legacyAssignmentFilters.push(`sec.class_id::text=$${params.length}::text`);
+    }
+    if (query.sectionId) {
+      params.push(query.sectionId);
+      assignmentFilters.push(`ta.section_id::text=$${params.length}::text`);
+      legacyAssignmentFilters.push(`ts.section_id::text=$${params.length}::text`);
+    }
+    if (assignmentFilters.length > 0 || legacyAssignmentFilters.length > 0) {
+      filter += ` AND (
+        EXISTS (
+          SELECT 1
+          FROM teacher_academic_assignments ta
+          WHERE ta.teacher_id=t.id AND ${assignmentFilters.join(' AND ')}
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM teacher_sections ts
+          JOIN sections sec ON sec.id=ts.section_id
+          WHERE ts.teacher_id=t.id AND ${legacyAssignmentFilters.join(' AND ')}
+        )
+      )`;
+    }
+
     if (query.search) {
       const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
       if (searchTerms.length > 0) {
@@ -330,7 +358,7 @@ export class SchoolTeacherService {
     const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const rows: any[] = await this.ds.query(
-      `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.photo,
+      `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.profile_image,
               t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
               t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
               t.address,t.city,t.state,t.pin_code,t.allergies,t.medical_conditions,t.documents,t.shift,t.weekdays,
@@ -359,7 +387,7 @@ export class SchoolTeacherService {
         name: r.name,
         email: r.email,
         phone: r.phone,
-        photo: r.photo,
+        profileImage: r.profile_image,
         isActive: r.is_active,
         createdAt: r.created_at,
         classes: r.classes || [],
@@ -453,6 +481,7 @@ export class SchoolTeacherService {
     const mappedData = {
       ...r,
       isActive: r.is_active,
+      profileImage: r.profile_image,
       createdAt: r.created_at,
       performance: {
         avgStudentScore: avgStudentScore || 0,
@@ -513,8 +542,8 @@ export class SchoolTeacherService {
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
     await this.ds.query(
-      `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),photo=COALESCE($4,photo),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
-      [id, body.name, body.isActive, body.photo, body.phone],
+      `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),profile_image=COALESCE($4,profile_image),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
+      [id, body.name, body.isActive, body.profileImage, body.phone],
     );
     await this.ds.query(
       `UPDATE teachers SET

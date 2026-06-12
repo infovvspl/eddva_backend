@@ -17,6 +17,7 @@ import { seedSuperAdmin } from './database/seeds/super-admin.seeder';
 for (const file of ['.env', '.env.local']) {
   if (existsSync(file)) dotenv.config({ path: file, override: true });
 }
+// Trigger restart
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -24,6 +25,7 @@ async function bootstrap() {
   });
 
   // ── Static file serving for uploads ───────────────────────────────────────
+  mkdirSync(join(__dirname, '..', 'uploads'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'avatars'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'videos'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'thumbnails'), { recursive: true });
@@ -74,6 +76,10 @@ async function bootstrap() {
       'x-tenant-subdomain',
       'x-institute-domain',
       'x-vertical',
+      'Cache-Control',
+      'Pragma',
+      'Expires',
+      'If-Modified-Since',
     ],
     exposedHeaders: ['Authorization'],
     preflightContinue: false,

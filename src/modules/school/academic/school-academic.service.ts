@@ -25,12 +25,47 @@ export class SchoolAcademicService {
     if (query.academicYear) {
       rows = await this.ds.query(
         `
-        SELECT c.*, 
+        SELECT c.*,
+               (
+                 SELECT COUNT(*)::int
+                 FROM students st
+                 JOIN sections sec_count
+                   ON st.section_id::text = sec_count.id::text
+                 WHERE sec_count.class_id::text = c.id::text
+                   AND sec_count.academic_year = $2
+               ) AS "totalStudents",
+               (
+                 SELECT u.name
+                 FROM sections sec_teacher
+                 JOIN teachers t
+                   ON t.id::text = sec_teacher.class_teacher_id::text
+                 JOIN users u
+                   ON u.id::text = t.user_id::text
+                 WHERE sec_teacher.class_id::text = c.id::text
+                   AND sec_teacher.academic_year = $2
+                   AND sec_teacher.class_teacher_id IS NOT NULL
+                 ORDER BY sec_teacher.name
+                 LIMIT 1
+               ) AS "classTeacherName",
                COALESCE((
                  SELECT json_agg(
-                   json_build_object('id', s.id, 'name', s.name)
+                   json_build_object(
+                     'id', s.id,
+                     'name', s.name,
+                     'totalStudents', (
+                       SELECT COUNT(*)::int
+                       FROM students st
+                       WHERE st.section_id::text = s.id::text
+                     ),
+                     'classTeacherName', u.name
+                   )
+                   ORDER BY s.name
                  )
                  FROM sections s
+                 LEFT JOIN teachers t
+                   ON t.id::text = s.class_teacher_id::text
+                 LEFT JOIN users u
+                   ON u.id::text = t.user_id::text
                  WHERE s.class_id::text = c.id::text
                    AND s.academic_year = $2
                ), '[]'::json) AS sections
@@ -44,12 +79,45 @@ export class SchoolAcademicService {
     } else {
       rows = await this.ds.query(
         `
-        SELECT c.*, 
+        SELECT c.*,
+               (
+                 SELECT COUNT(*)::int
+                 FROM students st
+                 JOIN sections sec_count
+                   ON st.section_id::text = sec_count.id::text
+                 WHERE sec_count.class_id::text = c.id::text
+               ) AS "totalStudents",
+               (
+                 SELECT u.name
+                 FROM sections sec_teacher
+                 JOIN teachers t
+                   ON t.id::text = sec_teacher.class_teacher_id::text
+                 JOIN users u
+                   ON u.id::text = t.user_id::text
+                 WHERE sec_teacher.class_id::text = c.id::text
+                   AND sec_teacher.class_teacher_id IS NOT NULL
+                 ORDER BY sec_teacher.name
+                 LIMIT 1
+               ) AS "classTeacherName",
                COALESCE((
                  SELECT json_agg(
-                   json_build_object('id', s.id, 'name', s.name)
+                   json_build_object(
+                     'id', s.id,
+                     'name', s.name,
+                     'totalStudents', (
+                       SELECT COUNT(*)::int
+                       FROM students st
+                       WHERE st.section_id::text = s.id::text
+                     ),
+                     'classTeacherName', u.name
+                   )
+                   ORDER BY s.name
                  )
                  FROM sections s
+                 LEFT JOIN teachers t
+                   ON t.id::text = s.class_teacher_id::text
+                 LEFT JOIN users u
+                   ON u.id::text = t.user_id::text
                  WHERE s.class_id::text = c.id::text
                ), '[]'::json) AS sections
         FROM classes c
@@ -105,11 +173,44 @@ export class SchoolAcademicService {
     const rows = await this.ds.query(
       `
       SELECT c.*,
+             (
+               SELECT COUNT(*)::int
+               FROM students st
+               JOIN sections sec_count
+                 ON st.section_id::text = sec_count.id::text
+               WHERE sec_count.class_id::text = c.id::text
+             ) AS "totalStudents",
+             (
+               SELECT u.name
+               FROM sections sec_teacher
+               JOIN teachers t
+                 ON t.id::text = sec_teacher.class_teacher_id::text
+               JOIN users u
+                 ON u.id::text = t.user_id::text
+               WHERE sec_teacher.class_id::text = c.id::text
+                 AND sec_teacher.class_teacher_id IS NOT NULL
+               ORDER BY sec_teacher.name
+               LIMIT 1
+             ) AS "classTeacherName",
              COALESCE((
                SELECT json_agg(
-                 json_build_object('id', s.id, 'name', s.name)
+                 json_build_object(
+                   'id', s.id,
+                   'name', s.name,
+                   'totalStudents', (
+                     SELECT COUNT(*)::int
+                     FROM students st
+                     WHERE st.section_id::text = s.id::text
+                   ),
+                   'classTeacherName', u.name
+                 )
+                 ORDER BY s.name
                )
                FROM sections s
+               LEFT JOIN teachers t
+                 ON t.id::text = s.class_teacher_id::text
+               LEFT JOIN users u
+                 ON u.id::text = t.user_id::text
                WHERE s.class_id::text = c.id::text
              ), '[]'::json) AS sections
       FROM classes c

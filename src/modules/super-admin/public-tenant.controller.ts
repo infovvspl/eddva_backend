@@ -10,7 +10,9 @@ import {
 import type { Response } from 'express';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { Public } from '../../common/decorators/auth.decorator';
 import { Tenant, TenantStatus } from '../../database/entities/tenant.entity';
 import { SuperAdminService } from './super-admin.service';
@@ -22,6 +24,8 @@ export class PublicTenantController {
   constructor(
     @InjectRepository(Tenant, 'coaching')
     private readonly tenantRepo: Repository<Tenant>,
+    @InjectDataSource('school')
+    private readonly schoolDs: DataSource,
     private readonly superAdminService: SuperAdminService,
     private readonly studyMaterialService: StudyMaterialService,
   ) {}
@@ -88,14 +92,37 @@ export class PublicTenantController {
   @Public()
   @ApiOperation({ summary: 'Resolve tenant by subdomain (public)' })
   async resolveBySubdomain(@Param('subdomain') subdomain: string) {
-    const sub = subdomain.trim().toLowerCase();
+    const sub = subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
     const tenant = await this.tenantRepo.findOne({
       where: { subdomain: ILike(sub) },
       select: ['id', 'name', 'subdomain', 'status', 'plan', 'logoUrl', 'brandColor', 'welcomeMessage'],
     });
 
     if (!tenant) {
-      throw new NotFoundException('Institute not found');
+      const schools: any[] = await this.schoolDs.query(
+        `SELECT id, name, tenant_domain, subdomain, status, logo
+         FROM institutes
+         WHERE LOWER(tenant_domain) = $1 OR LOWER(subdomain) = $1
+         LIMIT 1`,
+        [sub],
+      );
+      const school = schools[0];
+
+      if (!school) {
+        throw new NotFoundException('Institute not found');
+      }
+
+      const schoolSubdomain = school.tenant_domain || school.subdomain;
+      return {
+        id: school.id,
+        name: school.name,
+        subdomain: schoolSubdomain,
+        tenantDomain: schoolSubdomain,
+        status: school.status,
+        type: 'school',
+        logoUrl: school.logo,
+        suspended: school.status === 'SUSPENDED',
+      };
     }
 
     if (tenant.status === TenantStatus.SUSPENDED) {
