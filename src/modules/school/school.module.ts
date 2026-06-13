@@ -72,6 +72,7 @@ import { SchoolGamificationModule } from './gamification/gamification.module';
     CareerModule,
     SchoolStudyPlanModule,
     SchoolPptModule,
+    SchoolLiveModule,
     SchoolGamificationModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
