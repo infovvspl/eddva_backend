@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, UseGuards, Patch } from '@nestjs/common';
 import { SchoolMaterialService } from './school-material.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -44,6 +44,14 @@ export class SchoolMaterialController {
   @Post(':id/highlights')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   saveHighlight(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) { return this.svc.saveHighlight(user, id, body); }
+
+  @Patch(':id/highlights/:highlightId')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  updateHighlight(@SchoolUser() user: any, @Param('id') id: string, @Param('highlightId') highlightId: string, @Body() body: any) { return this.svc.updateHighlight(user, id, highlightId, body); }
+
+  @Delete(':id/highlights/:highlightId')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  deleteHighlight(@SchoolUser() user: any, @Param('id') id: string, @Param('highlightId') highlightId: string) { return this.svc.deleteHighlight(user, id, highlightId); }
 
   @Get(':id')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')

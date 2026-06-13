@@ -1422,6 +1422,8 @@ export class AiBridgeService {
       contentType: string;
       difficulty: string;
       length: string;
+      examTarget?: string;
+      courseName?: string;
       extraContext?: string;
     },
     tenantId?: string,
