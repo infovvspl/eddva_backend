@@ -31,6 +31,18 @@ export class SchoolReportService {
     return Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length);
   }
 
+  private dateKey(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  private dayLabel(date: Date) {
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  }
+
+  private isTrue(value: any) {
+    return value === true || value === 'true' || value === 't' || value === 1 || value === '1';
+  }
+
   private async resolveClassScope(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
     let classIds = [query.classId || query.class_id].filter(Boolean).map(String);
@@ -47,27 +59,53 @@ export class SchoolReportService {
 
       assignments = await this.ds.query(
         `SELECT DISTINCT
-           ta.class_id,
+           ta.class_id::text AS class_id,
            c.name AS class_name,
-           ta.section_id,
+           ta.section_id::text AS section_id,
            sec.name AS section_name,
-           ta.subject_id,
-           sub.name AS subject_name
+           ta.subject_id::text AS subject_id,
+           sub.name AS subject_name,
+           COALESCE(ta.is_class_teacher, false) AS is_class_teacher
          FROM teacher_academic_assignments ta
          LEFT JOIN classes c ON c.id::text=ta.class_id::text
          LEFT JOIN sections sec ON sec.id::text=ta.section_id::text
          LEFT JOIN subjects sub ON sub.id::text=ta.subject_id::text
-         WHERE ta.teacher_id::text=$1::text`,
+         WHERE ta.teacher_id::text=$1::text
+         UNION
+         SELECT
+           sec.class_id::text AS class_id,
+           c.name AS class_name,
+           sec.id::text AS section_id,
+           sec.name AS section_name,
+           NULL::text AS subject_id,
+           NULL::text AS subject_name,
+           true AS is_class_teacher
+         FROM sections sec
+         LEFT JOIN classes c ON c.id::text=sec.class_id::text
+         WHERE sec.class_teacher_id::text=$1::text`,
         [teacherId],
       );
 
-      const assignedClassIds = assignments.map((row) => row.class_id).filter(Boolean).map(String);
-      const assignedSectionIds = assignments.map((row) => row.section_id).filter(Boolean).map(String);
-      const assignedSubjectIds = assignments.map((row) => row.subject_id).filter(Boolean).map(String);
+      const classTeacherAssignments = assignments.filter((row) => this.isTrue(row.is_class_teacher));
+      const useClassTeacherScope = classTeacherAssignments.length > 0;
+      const effectiveAssignments = useClassTeacherScope ? classTeacherAssignments : assignments;
+
+      const assignedClassIds = effectiveAssignments.map((row) => row.class_id).filter(Boolean).map(String);
+      const assignedSectionIds = effectiveAssignments.map((row) => row.section_id).filter(Boolean).map(String);
+      const assignedSubjectIds = useClassTeacherScope
+        ? []
+        : effectiveAssignments.map((row) => row.subject_id).filter(Boolean).map(String);
 
       classIds = classIds.length ? classIds.filter((id) => assignedClassIds.includes(id)) : assignedClassIds;
       sectionIds = sectionIds.length ? sectionIds.filter((id) => assignedSectionIds.includes(id)) : assignedSectionIds;
-      subjectIds = subjectIds.length ? subjectIds.filter((id) => assignedSubjectIds.includes(id)) : assignedSubjectIds;
+      subjectIds = subjectIds.length
+        ? (useClassTeacherScope ? subjectIds : subjectIds.filter((id) => assignedSubjectIds.includes(id)))
+        : assignedSubjectIds;
+
+      assignments = effectiveAssignments.map((row) => ({
+        ...row,
+        is_class_teacher: this.isTrue(row.is_class_teacher),
+      }));
     }
 
     return {
@@ -76,6 +114,7 @@ export class SchoolReportService {
       sectionIds: [...new Set(sectionIds)],
       subjectIds: [...new Set(subjectIds)],
       assignments,
+      isClassTeacherScope: assignments.some((row) => this.isTrue(row.is_class_teacher)),
     };
   }
 
@@ -155,9 +194,12 @@ export class SchoolReportService {
          r.total_marks,
          r.percentage,
          r.is_absent,
+         r.created_at,
+         r.updated_at,
          a.id AS assessment_id,
          a.title,
          a.scheduled_date,
+         COALESCE(a.scheduled_date, r.updated_at, r.created_at) AS result_date,
          a.subject_id,
          sub.name AS subject_name
        FROM results r
@@ -182,6 +224,18 @@ export class SchoolReportService {
     const resultsByStudent = new Map<string, any[]>();
     const subjectScores = new Map<string, { subject: string; scores: number[]; weakStudents: Set<string> }>();
     const monthScores = new Map<string, { scores: number[]; attendance: number[] }>();
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const weekDays = Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(weekStart);
+      day.setDate(weekStart.getDate() + index);
+      return { key: this.dateKey(day), label: this.dayLabel(day) };
+    });
+    const dailyScores = new Map<string, number[]>();
+    const weeklyStudentScores = new Map<string, number[]>();
+    const weeklyAssessmentIds = new Set<string>();
 
     for (const row of resultRows) {
       const studentId = String(row.student_id);
@@ -205,6 +259,14 @@ export class SchoolReportService {
       const monthStat = monthScores.get(month) || { scores: [], attendance: [] };
       monthStat.scores.push(percentage);
       monthScores.set(month, monthStat);
+
+      const resultDate = row.result_date ? new Date(row.result_date) : null;
+      if (resultDate && !Number.isNaN(resultDate.getTime()) && resultDate >= weekStart && resultDate <= now) {
+        const key = this.dateKey(resultDate);
+        dailyScores.set(key, [...(dailyScores.get(key) || []), percentage]);
+        weeklyStudentScores.set(studentId, [...(weeklyStudentScores.get(studentId) || []), percentage]);
+        if (row.assessment_id) weeklyAssessmentIds.add(String(row.assessment_id));
+      }
     }
 
     const studentPerformance = students.map((student) => {
@@ -222,6 +284,10 @@ export class SchoolReportService {
       return {
         id: student.student_id,
         name: student.name,
+        classId: student.class_id || null,
+        sectionId: student.section_id || null,
+        className: student.class_name || null,
+        sectionName: student.section_name || null,
         class: [student.class_name, student.section_name].filter(Boolean).join(' - ') || '-',
         avgScore,
         attendance: attendanceRate,
@@ -263,6 +329,24 @@ export class SchoolReportService {
       avgScore: this.average(item.scores),
       attendance: classAnalytics[0].attendance,
     }));
+    const weeklyAverages = [...weeklyStudentScores.values()].map((scores) => this.average(scores));
+    const weeklyAverage = this.average(weeklyAverages);
+    const weeklyAnalysis = {
+      averageScore: weeklyAverage,
+      passRate: weeklyAverages.length
+        ? Math.round((weeklyAverages.filter((score) => score >= 40).length / weeklyAverages.length) * 100)
+        : 0,
+      atRiskStudents: weeklyAverages.filter((score) => score > 0 && score < 40).length,
+      evaluatedStudents: weeklyAverages.length,
+      totalStudents: studentPerformance.length,
+      assessments: weeklyAssessmentIds.size,
+      days: weekDays.map((day) => ({
+        day: day.label,
+        date: day.key,
+        avgScore: this.average(dailyScores.get(day.key) || []),
+        tests: (dailyScores.get(day.key) || []).length,
+      })),
+    };
 
     return {
       success: true,
@@ -270,6 +354,7 @@ export class SchoolReportService {
       students: studentPerformance,
       weaknesses,
       performance,
+      weeklyAnalysis,
       summary: {
         classAverage,
         passRate,

@@ -432,6 +432,7 @@ export class SchoolClassService implements OnModuleInit {
         { audioUrl: videoUrl, language, topicId: topicId ?? '' },
         instituteId,
       );
+      
       const transcript: string = result?.rawTranscript ?? result?.transcript ?? '';
       if (!transcript || transcript.trim().length < 20) {
         throw new Error('Empty or too-short transcript');

@@ -207,9 +207,11 @@ export class SchoolMaterialService implements OnModuleInit {
           ? 'Generate a revision checklist only. Do not write notes or paragraphs. Group by sub-topic and make every actionable item a Markdown checkbox using - [ ].'
           : contentType === 'flashcard'
             ? 'Generate flashcards only. Use repeated **Q:** and **A:** pairs. Do not write normal notes.'
-            : contentType === 'pyq'
-              ? `Generate school PYQ practice for ${className || 'the selected class'} only. Use class/board-style previous-year question patterns for this class, not JEE, NEET, or competitive exam PYQs. Do not include out-of-class difficulty, integer-type JEE numericals, multi-correct JEE patterns, or competitive exam traps.`
-              : '';
+            : contentType === 'dpp'
+              ? 'For all mathematics in DPP, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$. Never output raw \\frac or \\sqrt outside dollar signs, and never use the Unicode square-root symbol.'
+              : contentType === 'pyq'
+                ? `Generate school PYQ practice for ${className || 'the selected class'} only. Use class/board-style previous-year question patterns for this class, not JEE, NEET, or competitive exam PYQs. Do not include out-of-class difficulty, integer-type JEE numericals, multi-correct JEE patterns, or competitive exam traps. For mathematics, wrap only the expression in single dollar signs, e.g. Determine whether $3\\sqrt{5}$ is rational. Do not wrap complete English sentences in math delimiters.`
+                : '';
     const extraContext = [
       isQuestionType && body.questionCount ? `Generate exactly ${body.questionCount} questions` : '',
       isPresentation ? 'Format as presentation slides. For each slide use a "## Slide N: <title>" heading, then 3-5 concise bullet points, and finally one line "IMAGE: <a short, concrete, visual description of a single illustrative image for this slide>" (describe objects/scene, not abstract ideas).' : '',
