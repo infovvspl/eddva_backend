@@ -7,7 +7,20 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 
 /** Material types accepted by the study_materials.type enum (school). */
-const ALLOWED_MATERIAL_TYPES = ['notes', 'pyq', 'formula_sheet', 'dpp', 'mindmap', 'ppt', 'ebook'];
+const ALLOWED_MATERIAL_TYPES = [
+  'notes',
+  'pyq',
+  'formula_sheet',
+  'dpp',
+  'mindmap',
+  'ppt',
+  'ebook',
+  'study_guide',
+  'key_concepts',
+  'flashcard',
+  'revision_checklist',
+  'faq',
+];
 const UUID_TEXT_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 
 @Injectable()
@@ -24,9 +37,20 @@ export class SchoolMaterialService implements OnModuleInit {
   /** Ensure newer material types exist on the study_materials.type enum. */
   async onModuleInit() {
     try {
-      await this.ds.query(`ALTER TYPE study_materials_type_enum ADD VALUE IF NOT EXISTS 'ebook'`);
+      await this.ds.query(`ALTER TYPE study_materials_exam_enum ADD VALUE IF NOT EXISTS 'school'`);
+      await this.ds.query(`UPDATE study_materials SET exam = 'school'::study_materials_exam_enum WHERE exam::text = 'jee'`);
     } catch (err) {
-      this.logger.warn(`Could not ensure 'ebook' material type enum value: ${(err as Error).message}`);
+      this.logger.warn(`Could not ensure 'school' material exam enum value: ${(err as Error).message}`);
+    }
+
+    try {
+      for (const type of ALLOWED_MATERIAL_TYPES) {
+        await this.ds.query(`ALTER TYPE study_materials_type_enum ADD VALUE IF NOT EXISTS '${type}'`);
+      }
+      await this.backfillAiMaterialTypes();
+      await this.backfillMaterialSubjectIds();
+    } catch (err) {
+      this.logger.warn(`Could not ensure school material type enum values: ${(err as Error).message}`);
     }
 
     try {
@@ -65,6 +89,48 @@ export class SchoolMaterialService implements OnModuleInit {
       WHERE sm.subject_id_fk = s.id
         AND (sm.class_id IS NULL OR sm.section_id IS NULL)
         AND (s.class_id IS NOT NULL OR s.section_id IS NOT NULL)
+    `);
+  }
+
+  private async backfillAiMaterialTypes() {
+    const titlePrefixes: Array<[string, string]> = [
+      ['Study Guide', 'study_guide'],
+      ['Key Concepts', 'key_concepts'],
+      ['Flashcards', 'flashcard'],
+      ['Flashcard', 'flashcard'],
+      ['Revision Checklist', 'revision_checklist'],
+      ['FAQ', 'faq'],
+    ];
+    for (const [prefix, type] of titlePrefixes) {
+      await this.ds.query(
+        `UPDATE study_materials
+         SET type = $1::study_materials_type_enum, updated_at = NOW()
+         WHERE type::text = 'notes'
+           AND title ILIKE $2`,
+        [type, `${prefix}%`],
+      );
+    }
+  }
+
+  private async backfillMaterialSubjectIds() {
+    await this.ds.query(`
+      UPDATE study_materials sm
+      SET subject_id_fk = ch.subject_id,
+          updated_at = NOW()
+      FROM chapters ch
+      WHERE sm.subject_id_fk IS NULL
+        AND sm.chapter_id::text = ch.id::text
+        AND ch.subject_id IS NOT NULL
+    `);
+    await this.ds.query(`
+      UPDATE study_materials sm
+      SET subject_id_fk = ch.subject_id,
+          updated_at = NOW()
+      FROM topics t
+      JOIN chapters ch ON ch.id::text = t.chapter_id::text
+      WHERE sm.subject_id_fk IS NULL
+        AND sm.topic_id::text = t.id::text
+        AND ch.subject_id IS NOT NULL
     `);
   }
 
@@ -123,11 +189,21 @@ export class SchoolMaterialService implements OnModuleInit {
     const ctx = await this.resolveContentContext(body);
     await this.validateTeacherAssignment(user, ctx.subject_id, 'AI_GENERATE_DENIED');
 
-    const isQuestionType = body.contentType === 'dpp' || body.contentType === 'pyq';
-    const isPresentation = body.contentType === 'presentation' || body.contentType === 'ppt';
+    const contentType = String(body.contentType || 'notes').trim().toLowerCase();
+    const isQuestionType = contentType === 'dpp' || contentType === 'pyq';
+    const isPresentation = contentType === 'presentation' || contentType === 'ppt';
+    const typeSpecificInstruction =
+      contentType === 'faq'
+        ? 'Generate a Frequently Asked Questions (FAQ) sheet only. Do not write notes, summary, study guide, or lesson sections. Use question-answer pairs: **Q1. <question?>** followed by **A.** <answer>. Include 12-15 real student questions grouped under sub-topic headings.'
+        : contentType === 'revision_checklist'
+          ? 'Generate a revision checklist only. Do not write notes or paragraphs. Group by sub-topic and make every actionable item a Markdown checkbox using - [ ].'
+          : contentType === 'flashcard'
+            ? 'Generate flashcards only. Use repeated **Q:** and **A:** pairs. Do not write normal notes.'
+            : '';
     const extraContext = [
       isQuestionType && body.questionCount ? `Generate exactly ${body.questionCount} questions` : '',
       isPresentation ? 'Format as presentation slides. For each slide use a "## Slide N: <title>" heading, then 3-5 concise bullet points, and finally one line "IMAGE: <a short, concrete, visual description of a single illustrative image for this slide>" (describe objects/scene, not abstract ideas).' : '',
+      typeSpecificInstruction,
       (body.extraContext || '').trim(),
     ].filter(Boolean).join('. ') || undefined;
 
@@ -136,7 +212,7 @@ export class SchoolMaterialService implements OnModuleInit {
         topicName: ctx.topic_name,
         subjectName: ctx.subject_name ?? '',
         chapterName: ctx.chapter_name ?? '',
-        contentType: body.contentType,
+        contentType,
         difficulty: isQuestionType ? 'intermediate' : (body.difficulty || 'intermediate'),
         length: isQuestionType ? 'detailed' : (body.length || 'detailed'),
         extraContext,
@@ -156,7 +232,19 @@ export class SchoolMaterialService implements OnModuleInit {
     if (!instituteId) throw new BadRequestException('Institute ID is required');
     const scope = await this.resolveSubjectScope(ctx.subject_id, user);
 
-    const map: Record<string, string> = { dpp: 'dpp', pyq: 'pyq', mindmap: 'mindmap', ppt: 'ppt', notes: 'notes' };
+    const map: Record<string, string> = {
+      dpp: 'dpp',
+      pyq: 'pyq',
+      mindmap: 'mindmap',
+      ppt: 'ppt',
+      presentation: 'ppt',
+      notes: 'notes',
+      study_guide: 'study_guide',
+      key_concepts: 'key_concepts',
+      flashcard: 'flashcard',
+      revision_checklist: 'revision_checklist',
+      faq: 'faq',
+    };
     const type = map[String(body.resourceType || 'notes').toLowerCase()] ?? 'notes';
 
     const rows: any[] = await this.ds.query(
@@ -164,7 +252,7 @@ export class SchoolMaterialService implements OnModuleInit {
         tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
         subject_id_fk, chapter_id, topic_id, file_size_kb, class_id, section_id
       )
-       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0, $11::uuid, $12::uuid)
+       VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0, $11::uuid, $12::uuid)
        RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId"`,
       [
         instituteId,
@@ -593,16 +681,18 @@ export class SchoolMaterialService implements OnModuleInit {
       const rows = await this.ds.query(`SELECT 1 FROM topics WHERE id = $1 AND chapter_id = $2`, [body.topicId, body.chapterId]);
       if (!rows.length) throw new BadRequestException('Invalid hierarchy: Topic does not belong to the selected Chapter');
     }
-    if (body.chapterId && body.subjectIdFk) {
-      const rows = await this.ds.query(`SELECT 1 FROM chapters WHERE id = $1 AND subject_id = $2`, [body.chapterId, body.subjectIdFk]);
+    const requestedSubjectId = body.subjectIdFk || body.subjectId || null;
+
+    if (body.chapterId && requestedSubjectId) {
+      const rows = await this.ds.query(`SELECT 1 FROM chapters WHERE id = $1 AND subject_id = $2`, [body.chapterId, requestedSubjectId]);
       if (!rows.length) throw new BadRequestException('Invalid hierarchy: Chapter does not belong to the selected Subject');
     }
 
     let resolvedSubjectName = body.subject || body.subjectId || null;
     let resolvedChapterName = body.chapter || body.fileName || null;
 
-    if (body.subjectIdFk) {
-      const sRow = await this.ds.query(`SELECT name FROM subjects WHERE id = $1`, [body.subjectIdFk]);
+    if (requestedSubjectId) {
+      const sRow = await this.ds.query(`SELECT name FROM subjects WHERE id = $1`, [requestedSubjectId]);
       if (sRow.length) resolvedSubjectName = sRow[0].name;
     }
     if (body.chapterId) {
@@ -634,8 +724,8 @@ export class SchoolMaterialService implements OnModuleInit {
         file_size_kb,
         class_id,
         section_id
-      )
-       VALUES ($1::uuid, 'jee'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14::uuid)
+       )
+       VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14::uuid)
        RETURNING *`,
       [
         instituteId,
@@ -646,7 +736,7 @@ export class SchoolMaterialService implements OnModuleInit {
         body.description || null,
         body.fileUrl || '',
         user.id,
-        body.subjectIdFk || null,
+        requestedSubjectId,
         body.chapterId || null,
         body.topicId || null,
         body.fileSizeKb || 0,
@@ -668,7 +758,21 @@ export class SchoolMaterialService implements OnModuleInit {
         }
         const studentUsers = await this.ds.query(studentQuery, studentParams);
 
-        const fileTypeWord = type === 'notes' ? 'Notes' : type === 'pyq' ? 'PYQs' : type === 'formula_sheet' ? 'Formula Sheet' : 'DPP';
+        const typeLabels: Record<string, string> = {
+          notes: 'Notes',
+          pyq: 'PYQs',
+          formula_sheet: 'Formula Sheet',
+          dpp: 'Daily Assessment',
+          mindmap: 'Mindmap',
+          ppt: 'Presentation',
+          ebook: 'E-book',
+          study_guide: 'Study Guide',
+          key_concepts: 'Key Concepts',
+          flashcard: 'Flashcards',
+          revision_checklist: 'Revision Checklist',
+          faq: 'FAQ',
+        };
+        const fileTypeWord = typeLabels[type] || 'Study Material';
 
         for (const stu of studentUsers) {
           await this.notificationService.create({
@@ -799,9 +903,25 @@ export class SchoolMaterialService implements OnModuleInit {
   async remove(user: any, id: string) {
     // Validate against the subject UUID (subject_id_fk), not the subject *name* —
     // validateTeacherAssignment compares against teacher_academic_assignments.subject_id.
-    const topRows = await this.ds.query(`SELECT subject_id_fk FROM study_materials WHERE id=$1`, [id]);
-    const currentSubjectId = topRows.length > 0 ? topRows[0].subject_id_fk : null;
-    await this.validateTeacherAssignment(user, currentSubjectId, 'DELETE_MATERIAL_DENIED');
+    const topRows = await this.ds.query(
+      `SELECT sm.uploaded_by,
+              sm.type::text AS type,
+              COALESCE(sm.subject_id_fk, ch.subject_id, topic_ch.subject_id) AS subject_id
+       FROM study_materials sm
+       LEFT JOIN chapters ch ON ch.id::text = sm.chapter_id::text
+       LEFT JOIN topics t ON t.id::text = sm.topic_id::text
+       LEFT JOIN chapters topic_ch ON topic_ch.id::text = t.chapter_id::text
+       WHERE sm.id = $1
+         AND sm.tenant_id::text = $2::text`,
+      [id, user.instituteId],
+    );
+    if (!topRows.length) throw new NotFoundException('Material not found');
+    const currentSubjectId = topRows[0].subject_id;
+    const isTeacherOwner = user.role === 'TEACHER' && String(topRows[0].uploaded_by || '') === String(user.id);
+    const isLegacyOrphanPpt = user.role === 'TEACHER' && topRows[0].type === 'ppt' && !currentSubjectId;
+    if (!isTeacherOwner && !isLegacyOrphanPpt) {
+      await this.validateTeacherAssignment(user, currentSubjectId, 'DELETE_MATERIAL_DENIED');
+    }
 
     await this.ds.query(`DELETE FROM study_materials WHERE id=$1`, [id]);
     return { success: true };
