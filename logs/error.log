@@ -26973,3 +26973,14 @@ Error: NotFoundException: Student profile not found
     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
     at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
 
+[2026-06-13T07:30:25.547Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-13T07:31:32.538Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
