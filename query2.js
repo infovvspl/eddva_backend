@@ -11,10 +11,10 @@ async function run() {
     console.log("Assignments for teacher:", res3.rows);
 
     if (res3.rows.length > 0) {
-       for (const row of res3.rows) {
-          const res4 = await client.query(`SELECT * FROM subjects WHERE id = $1`, [row.subject_id]);
-          console.log("Subject mapped:", res4.rows);
-       }
+      for (const row of res3.rows) {
+        const res4 = await client.query(`SELECT * FROM subjects WHERE id = $1`, [row.subject_id]);
+        console.log("Subject mapped:", res4.rows);
+      }
     }
   }
   await client.end();

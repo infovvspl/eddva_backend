@@ -17,6 +17,7 @@ import { seedSuperAdmin } from './database/seeds/super-admin.seeder';
 for (const file of ['.env', '.env.local']) {
   if (existsSync(file)) dotenv.config({ path: file, override: true });
 }
+// Trigger restart
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -208,3 +209,5 @@ async function bootstrap() {
 }
 
 bootstrap();
+
+// Trigger Restart

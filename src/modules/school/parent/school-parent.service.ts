@@ -24,7 +24,7 @@ export class SchoolParentService {
   /** Load the parent user row (email/phone/institute) from the DB. */
   private async loadParent(user: any) {
     const rows: any[] = await this.ds.query(
-      `SELECT id, name, email, phone, photo, institute_id FROM users WHERE id = $1`,
+      `SELECT id, name, email, phone, profile_image, institute_id FROM users WHERE id = $1`,
       [user.id],
     );
     if (!rows.length) throw new NotFoundException('Parent account not found');
@@ -34,7 +34,7 @@ export class SchoolParentService {
   /** Raw child rows for this parent (matched by parent_email / parent_phone). */
   private async loadChildRows(parent: any): Promise<any[]> {
     return this.ds.query(
-      `SELECT u.id, u.name, u.email, u.phone, u.photo,
+      `SELECT u.id, u.name, u.email, u.phone, u.profile_image,
               s.id AS profile_id, s.enrollment_no, s.roll_no, s.section_id,
               s.admission_date, s.dob, s.gender, s.parent_email, s.parent_phone,
               s.father_name, s.mother_name,
@@ -62,7 +62,7 @@ export class SchoolParentService {
       section: r.section_name ?? null,
       rollNumber: r.roll_no ?? null,
       admissionNo: r.enrollment_no ?? r.roll_no ?? null,
-      photo: r.photo ?? null,
+      profileImage: r.profile_image ?? null,
       sectionId: r.section_id ?? null,
       classId: r.class_id ?? null,
     };
@@ -108,7 +108,7 @@ export class SchoolParentService {
       name: parent.name,
       email: parent.email,
       phone,
-      photo: parent.photo,
+      profileImage: parent.profile_image,
       children,
     };
   }
@@ -127,7 +127,7 @@ export class SchoolParentService {
     pushUpdate('name', body.name);
     pushUpdate('email', body.email);
     pushUpdate('phone', body.phone);
-    pushUpdate('photo', body.photo);
+    pushUpdate('profile_image', body.profileImage);
 
     if (updates.length === 0) {
       return this.getProfile(user);
@@ -450,7 +450,7 @@ export class SchoolParentService {
 
     const rows: any[] = await this.ds.query(
       `
-    SELECT DISTINCT u.id, u.name, u.email, u.phone, u.photo
+    SELECT DISTINCT u.id, u.name, u.email, u.phone, u.profile_image
     FROM users u
     JOIN teachers t ON u.id = t.user_id
     WHERE u.institute_id = $1

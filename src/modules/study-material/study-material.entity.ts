@@ -6,6 +6,7 @@ import {
 export enum StudyMaterialExam {
   JEE   = 'jee',
   NEET  = 'neet',
+  SCHOOL = 'school',
 }
 
 export enum StudyMaterialType {
@@ -14,6 +15,13 @@ export enum StudyMaterialType {
   FORMULA_SHEET = 'formula_sheet',
   DPP           = 'dpp',
   MINDMAP       = 'mindmap',
+  PPT           = 'ppt',
+  EBOOK         = 'ebook',
+  STUDY_GUIDE   = 'study_guide',
+  KEY_CONCEPTS  = 'key_concepts',
+  FLASHCARD     = 'flashcard',
+  REVISION_CHECKLIST = 'revision_checklist',
+  FAQ           = 'faq',
 }
 
 @Entity('study_materials')
