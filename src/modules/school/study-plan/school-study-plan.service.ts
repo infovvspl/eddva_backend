@@ -171,12 +171,25 @@ export class SchoolStudyPlanService implements OnModuleInit {
       }
     }
 
-    // Fetch subjects assigned to section
+    // Fetch subjects assigned to this student's class/section. Use the curriculum
+    // table as the source of truth; teacher assignment rows can be incomplete or
+    // point to same-named subject rows from another class during setup.
     const subjects = await this.ds.query(
       `SELECT DISTINCT sub.id, sub.name
        FROM subjects sub
-       JOIN teacher_academic_assignments taa ON taa.subject_id = sub.id
-       WHERE taa.class_id = $1 AND taa.section_id = $2`,
+       WHERE sub.class_id::text = $1::text
+         AND (sub.section_id IS NULL OR sub.section_id::text = $2::text)
+       UNION
+       SELECT DISTINCT scoped.id, scoped.name
+       FROM teacher_academic_assignments taa
+       JOIN subjects assigned_sub ON assigned_sub.id::text = taa.subject_id::text
+       JOIN subjects scoped
+         ON LOWER(TRIM(scoped.name)) = LOWER(TRIM(assigned_sub.name))
+        AND scoped.class_id::text = $1::text
+        AND (scoped.section_id IS NULL OR scoped.section_id::text = $2::text)
+       WHERE taa.class_id::text = $1::text
+         AND taa.section_id::text = $2::text
+       ORDER BY name`,
       [targetClassId, student.section_id]
     );
 
@@ -1628,6 +1641,11 @@ export class SchoolStudyPlanService implements OnModuleInit {
     return /history|geography|civics|political science|economics|sst|social studies|social science|english|hindi|sanskrit|urdu|language|literature|moral science|environmental studies/.test(lower);
   }
 
+  private isBiologySubject(subjectName: string): boolean {
+    const lower = (subjectName || '').toLowerCase().trim();
+    return /\bbiology\b|botany|zoology|life science|bioscience/.test(lower);
+  }
+
   // ─── Subject-aware prompt builder ────────────────────────────────────────
 
   private buildSubjectPrompt(
@@ -1636,9 +1654,144 @@ export class SchoolStudyPlanService implements OnModuleInit {
     targetLabel: string,
     tierCalibration: string,
   ): string {
+    if (this.isBiologySubject(topic.subject_name)) {
+      return this.buildBiologyPrompt(topic, studentClass, targetLabel, tierCalibration);
+    }
     return this.isHumanitiesSubject(topic.subject_name)
       ? this.buildHumanitiesPrompt(topic, studentClass, targetLabel, tierCalibration)
       : this.buildSciencePrompt(topic, studentClass, targetLabel, tierCalibration);
+  }
+
+  private buildBiologyPrompt(
+    topic: { topic_name: string; chapter_name: string; subject_name: string },
+    studentClass: string,
+    targetLabel: string,
+    tierCalibration: string,
+  ): string {
+    return `You are a master Biology teacher who creates clear, diagram-friendly, exam-focused school notes.
+
+Generate a COMPLETE, THOROUGH self-study Biology lesson calibrated precisely for this student's goal. Do not use a mathematics problem-solving format.
+
+TARGET: ${targetLabel}
+CALIBRATION REQUIREMENTS:
+${tierCalibration}
+
+Topic: ${topic.topic_name}
+Chapter: ${topic.chapter_name}
+Subject: ${topic.subject_name}
+Class: ${studentClass}
+
+IMPORTANT BIOLOGY STYLE RULES:
+- Do NOT include algebraic derivations, numeric calculation problems, or step-by-step mathematical solutions unless the topic genuinely needs a simple percentage/ratio calculation.
+- Do NOT create a "Derivations" section.
+- Use biological explanations: structure, function, processes, flow, diagrams, comparisons, examples, diseases/adaptations where relevant.
+- Equations are allowed only for real biological processes, such as photosynthesis or respiration. Explain them as biological process equations, not as math derivations.
+- Prefer exam-style descriptive answers, labelled diagrams, flowcharts, tables, and cause-effect explanations.
+
+---
+
+Write the lesson using this EXACT structure. Each section must be detailed and specific to ${topic.topic_name}.
+
+# ${topic.topic_name}
+
+## What You'll Learn
+A 2-3 sentence motivating introduction: what this topic is, why it matters in living systems, and where students see it in real life or examinations.
+
+## Introduction & Biological Background
+Give the conceptual foundation. Explain where this topic fits in Biology, what prior ideas it builds on, and the biological intuition behind it. Minimum 150 words.
+
+## Core Concepts (Explained in Depth)
+For EACH major biological concept in this topic:
+### Concept Name
+- Clear definition
+- Biological role or importance
+- Structure/function relationship, mechanism, or example
+- One quick exam tip
+
+Cover ALL major concepts. Do not skip important terms.
+
+## Key Structures / Processes
+Use this section for organs, tissues, cells, molecules, pathways, life processes, or cycles.
+For each important structure or process:
+### Name
+- Where it is found
+- What it does
+- How it works, step by step in biological language
+- Why it matters
+
+## Diagrams & Flowcharts to Practice
+List labelled diagrams, flowcharts, cycles, or tables students should be able to draw for this topic.
+For each one:
+- **Diagram/flowchart:** name
+- **Must-label parts:** important labels
+- **Caption/explanation:** 2-3 lines students can write under it
+
+## Important Terms & Definitions
+Create a glossary of the key Biology terms from this topic.
+- **Term:** concise exam-ready definition and one example if useful
+
+## Comparisons & Tables
+Include useful comparison tables where relevant, such as structure vs function, types, stages, kingdoms, systems, diseases, or processes.
+If no comparison is relevant, include a short table of "Concept | Key point | Exam relevance".
+
+## Biological Process Equations *(Only If Relevant)*
+Include this section only when the topic has standard biological word equations or balanced equations.
+Examples: photosynthesis, aerobic respiration, anaerobic respiration.
+For each:
+- Word equation
+- Balanced equation if applicable
+- Biological meaning of each reactant/product
+- Conditions or location in the organism/cell
+If no biological process equation applies, write: "No process equation is required for this topic."
+
+## Exam-Style Questions & Model Answers
+Provide 3 descriptive Biology questions with model answers.
+
+### Example 1 - Basic
+[Definition/short answer/diagram-based question]
+**Model Answer:**
+[Complete answer]
+**Key points that earn marks:** ...
+
+### Example 2 - Intermediate
+[Process/comparison/function question]
+**Model Answer:** ...
+
+### Example 3 - Advanced
+[Application, reasoning, diagram, disease, experiment, or HOTS-style question]
+**Model Answer:** ...
+
+## Connections to Other Topics
+- How this topic links to related Biology chapters
+- Any Chemistry/Physics/Environment/Health connections if genuinely relevant
+
+## Common Mistakes Students Make
+For each mistake:
+- **Mistake:** what students typically get wrong
+- **Why it happens:** root cause
+- **Correct approach:** how to avoid it
+
+List at least 4-5 genuine mistakes.
+
+## Exam Strategy
+- How this topic typically appears in school exams
+- Diagrams, definitions, processes, and comparisons examiners expect
+- How to write 2-mark, 3-mark, and 5-mark Biology answers
+- Common traps in terminology and diagrams
+
+## Quick Revision Summary
+A numbered list of the 8-10 most critical points to memorize.
+
+## Self-Check Questions
+5 questions the student should be able to answer after reading this lesson:
+1. ...
+2. ...
+3. ...
+4. ...
+5. ...
+
+---
+Write EVERYTHING above in full. Do not use placeholder text like "[explanation here]". Every section must have real, complete Biology content about ${topic.topic_name}.`;
   }
 
   private buildSciencePrompt(
@@ -1871,10 +2024,11 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     if (text.length < 4500) return true;
 
     const isHumanities = this.isHumanitiesSubject(subjectName || '');
+    const isBiology = this.isBiologySubject(subjectName || '');
 
     // Humanities: only require core structural sections — no formula checks
     // Science: require solved examples and exam strategy (formulas are now optional per topic)
-    const required = isHumanities
+    const required = isHumanities || isBiology
       ? ['Core Concepts', 'Exam Strategy']
       : ['Core Concepts', 'Solved Examples', 'Exam Strategy'];
 
@@ -1882,7 +2036,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     if (missingCount >= 1) return true;
 
     // Check for obviously incomplete formula lines — science subjects only
-    if (!isHumanities) {
+    if (!isHumanities && !isBiology) {
       if (/\$[^$\n]{0,25}=\s*(?:\n|$)/m.test(text)) return true;
       if (/Derivation[\s\S]{0,120}:\s*(?:\n|$)/i.test(text)) return true;
     }

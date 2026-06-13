@@ -26897,3 +26897,79 @@ Error: UnauthorizedException: Invalid credentials
     at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-13T06:17:36.922Z] POST /api/v1/school/assignments/d2a805a3-3199-4803-b988-5439e409e344/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:55:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
+
+[2026-06-13T06:17:38.445Z] POST /api/v1/school/assignments/d2a805a3-3199-4803-b988-5439e409e344/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:55:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
+
+[2026-06-13T06:18:14.824Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-13T06:18:25.323Z] POST /api/v1/school/assignments/d2a805a3-3199-4803-b988-5439e409e344/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:55:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
+
+[2026-06-13T06:19:07.006Z] POST /api/v1/school/assignments/d2a805a3-3199-4803-b988-5439e409e344/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:55:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
+
+[2026-06-13T06:21:29.179Z] POST /api/v1/school/assignments/d2a805a3-3199-4803-b988-5439e409e344/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:55:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
+
+[2026-06-13T06:21:45.104Z] POST /api/v1/school/assignments/d2a805a3-3199-4803-b988-5439e409e344/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:55:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
+
+[2026-06-13T06:25:50.528Z] POST /api/v1/school/assignments/d2a805a3-3199-4803-b988-5439e409e344/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:55:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
+
+[2026-06-13T06:27:30.289Z] POST /api/v1/school/assignments/d2a805a3-3199-4803-b988-5439e409e344/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:55:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
+
+[2026-06-13T06:29:30.736Z] POST /api/v1/school/assignments/d2a805a3-3199-4803-b988-5439e409e344/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:55:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
+
+[2026-06-13T06:31:08.530Z] POST /api/v1/school/assignments/d2a805a3-3199-4803-b988-5439e409e344/submit
+Status: 404
+Error: NotFoundException: Student profile not found
+    at SchoolAssignmentService.getStudentProfile (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:55:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAssignmentService.submit (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:408:21)
+

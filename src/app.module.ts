@@ -8,7 +8,7 @@ import { BullModule } from '@nestjs/bull';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { redisStore } from 'cache-manager-redis-yet';
 
-import appConfig, { jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig } from './config/app.config';
+import appConfig, { jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig, streamingConfig } from './config/app.config';
 import { coachingDbConfig, schoolDbConfig } from './config/database.config';
 
 // ── Coaching Entities ──────────────────────────────────────────────────────────
@@ -62,6 +62,10 @@ import { BatchModule } from './modules/batch/batch.module';
 import { StudyPlanModule } from './modules/study-plan/study-plan.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { LiveClassModule } from './modules/live-class/live-class.module';
+import { LiveBroadcastModule } from './modules/live-broadcast/live-broadcast.module';
+import { BroadcastLecture } from './modules/live-broadcast/entities/broadcast-lecture.entity';
+import { BroadcastSession } from './modules/live-broadcast/entities/broadcast-session.entity';
+import { BroadcastChatMessage } from './modules/live-broadcast/entities/broadcast-chat-message.entity';
 import { MailModule } from './modules/mail/mail.module';
 import { InstituteSettingsModule } from './modules/institute-settings/institute-settings.module';
 import { PYQModule } from './modules/pyq/pyq.module';
@@ -103,6 +107,7 @@ const ALL_COACHING_ENTITIES = [
   LeaderboardGroupMember, VideoWatchSession, StudentLevelHistory,
   GameSession, QuizRushScore, Quest, QuestStage, StudentQuest, QuestReward, MathSprintScore, MemoryMatchScore, WordMasterScore,
   GamificationHistory,
+  BroadcastLecture, BroadcastSession, BroadcastChatMessage,
 ];
 
 @Module({
@@ -110,7 +115,7 @@ const ALL_COACHING_ENTITIES = [
     // ── Config ───────────────────────────────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig],
+      load: [appConfig, jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig, streamingConfig],
       envFilePath: ['.env.local', '.env'],
     }),
 
@@ -210,6 +215,7 @@ const ALL_COACHING_ENTITIES = [
     StudyPlanModule,
     SuperAdminModule,
     LiveClassModule,
+    LiveBroadcastModule,
     MailModule,
     InstituteSettingsModule,
     PYQModule,

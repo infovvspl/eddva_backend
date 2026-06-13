@@ -105,8 +105,8 @@ export class SchoolAuthService {
         name: user.name,
         role: user.role,
         isActive: user.is_active,
-        photo: user.photo,
-        profilePictureUrl: user.photo,
+        profileImage: user.profile_image,
+
         phone: user.phone,
         instituteId: user.institute_id,
         studentProfile,
@@ -161,7 +161,7 @@ export class SchoolAuthService {
       message: 'User fetched successfully',
       data: {
         ...user,
-        profilePictureUrl: user.photo,
+        profileImage: user.profile_image,
         studentProfile,
       },
     };

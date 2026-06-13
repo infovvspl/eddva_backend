@@ -89,8 +89,8 @@ export class SchoolStudentService {
 
     try {
       const userRows: any[] = await queryRunner.query(
-        `INSERT INTO users (institute_id,name,email,password,role,photo,phone,is_active) VALUES ($1,$2,$3,$4,'STUDENT',$5,$6,TRUE) RETURNING *`,
-        [instituteId, body.name, body.email, hashed, body.photo || null, body.phone || null],
+        `INSERT INTO users (institute_id,name,email,password,role,profile_image,phone,is_active) VALUES ($1,$2,$3,$4,'STUDENT',$5,$6,TRUE) RETURNING *`,
+        [instituteId, body.name, body.email, hashed, body.profileImage || null, body.phone || null],
       );
       const u = userRows[0];
 
@@ -185,7 +185,7 @@ export class SchoolStudentService {
     const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const rows: any[] = await this.ds.query(
-      `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.photo,u.created_at,
+      `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.profile_image,u.created_at,
               s.id AS profile_id,s.enrollment_no,s.roll_no,s.section_id,s.dob,s.gender,s.blood_group,
               s.father_name,s.mother_name,s.parent_phone,s.admission_date,
               s.parent_email,s.parent_occupation,s.address,s.city,s.state,s.pin_code,
@@ -203,7 +203,7 @@ export class SchoolStudentService {
       email: r.email,
       phone: r.phone,
       isActive: r.is_active,
-      photo: r.photo,
+      profileImage: r.profile_image,
       createdAt: r.created_at,
       studentProfile: {
         id: r.profile_id,
@@ -441,7 +441,7 @@ export class SchoolStudentService {
       throw new NotFoundException('Student not found');
     }
     const rows: any[] = await this.ds.query(
-      `SELECT u.id AS user_id, u.name, u.email, u.phone, u.photo, u.role, u.is_active, u.created_at,
+      `SELECT u.id AS user_id, u.name, u.email, u.phone, u.profile_image, u.role, u.is_active, u.created_at,
               s.id AS profile_id, s.enrollment_no, s.roll_no, s.section_id, s.dob, s.gender, s.blood_group,
               s.father_name, s.mother_name, s.parent_phone, s.admission_date,
               s.parent_email, s.parent_occupation, s.address, s.city, s.state, s.pin_code,
@@ -477,7 +477,7 @@ export class SchoolStudentService {
       name: r.name,
       email: r.email,
       phone: r.phone,
-      photo: r.photo,
+      profileImage: r.profile_image,
       role: r.role,
       isActive: r.is_active,
       createdAt: r.created_at,
@@ -532,8 +532,8 @@ export class SchoolStudentService {
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
     await this.ds.query(
-      `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),photo=COALESCE($4,photo),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
-      [userId, body.name, body.isActive, body.photo, body.phone],
+      `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),profile_image=COALESCE($4,profile_image),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
+      [userId, body.name, body.isActive, body.profileImage, body.phone],
     );
     await this.ds.query(
       `UPDATE students SET

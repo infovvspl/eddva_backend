@@ -17,7 +17,7 @@ export class SchoolUser extends SchoolBase {
   @Column({ unique: true }) email: string;
   @Column({ select: false }) password: string;
   @Column({ type: 'varchar', default: SchoolUserRole.STUDENT }) role: string;
-  @Column({ nullable: true }) photo: string;
+  @Column({ name: 'profile_image', nullable: true }) profileImage: string;
   @Column({ nullable: true }) phone: string;
   @Column({ name: 'is_active', default: true }) isActive: boolean;
 
