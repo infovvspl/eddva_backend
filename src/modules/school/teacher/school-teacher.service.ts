@@ -341,12 +341,18 @@ export class SchoolTeacherService {
     const offset = (page - 1) * limit;
 
     const countQuery = `
-      SELECT COUNT(*)::int AS total
+      SELECT 
+        COUNT(*)::int AS total,
+        COUNT(CASE WHEN u.is_active = TRUE THEN 1 END)::int AS active,
+        COUNT(CASE WHEN u.created_at >= date_trunc('month', CURRENT_DATE) THEN 1 END)::int AS new_this_month
       FROM users u LEFT JOIN teachers t ON t.user_id=u.id
       WHERE ${filter}
     `;
     const countResult = await this.ds.query(countQuery, params);
     const total = parseInt(countResult[0]?.total || '0', 10);
+    const active = parseInt(countResult[0]?.active || '0', 10);
+    const newThisMonth = parseInt(countResult[0]?.new_this_month || '0', 10);
+    const inactive = total - active;
     const totalPages = Math.ceil(total / limit);
 
     const allowedSortFields: Record<string, string> = {
@@ -440,7 +446,7 @@ export class SchoolTeacherService {
         } : null
       };
     });
-    return { success: true, data: mappedRows, total, page, limit, totalPages };
+    return { success: true, data: mappedRows, total, page, limit, totalPages, kpis: { active, inactive, newThisMonth } };
   }
 
   async findOne(id: string) {
