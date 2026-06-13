@@ -222,6 +222,10 @@ export class SchoolReportService {
       return {
         id: student.student_id,
         name: student.name,
+        classId: student.class_id || null,
+        sectionId: student.section_id || null,
+        className: student.class_name || null,
+        sectionName: student.section_name || null,
         class: [student.class_name, student.section_name].filter(Boolean).join(' - ') || '-',
         avgScore,
         attendance: attendanceRate,
