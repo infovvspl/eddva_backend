@@ -94,6 +94,7 @@ export class SchoolJwtGuard implements CanActivate {
       email: row.email,
       name: row.name,
       role: row.role,
+      profile_image: row.profile_image,
       instituteId: row.institute_id || tokenInstituteId,
       isActive: row.is_active,
       institute: row.inst_id
