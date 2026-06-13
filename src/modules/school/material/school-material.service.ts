@@ -194,6 +194,8 @@ export class SchoolMaterialService implements OnModuleInit {
   async generateAiContent(user: any, body: any) {
     const ctx = await this.resolveContentContext(body);
     await this.validateTeacherAssignment(user, ctx.subject_id, 'AI_GENERATE_DENIED');
+    const scope = await this.resolveSubjectScope(ctx.subject_id, user);
+    const className = body.className || await this.resolveClassName(scope.classId);
 
     const contentType = String(body.contentType || 'notes').trim().toLowerCase();
     const isQuestionType = contentType === 'dpp' || contentType === 'pyq';
@@ -205,7 +207,9 @@ export class SchoolMaterialService implements OnModuleInit {
           ? 'Generate a revision checklist only. Do not write notes or paragraphs. Group by sub-topic and make every actionable item a Markdown checkbox using - [ ].'
           : contentType === 'flashcard'
             ? 'Generate flashcards only. Use repeated **Q:** and **A:** pairs. Do not write normal notes.'
-            : '';
+            : contentType === 'pyq'
+              ? `Generate school PYQ practice for ${className || 'the selected class'} only. Use class/board-style previous-year question patterns for this class, not JEE, NEET, or competitive exam PYQs. Do not include out-of-class difficulty, integer-type JEE numericals, multi-correct JEE patterns, or competitive exam traps.`
+              : '';
     const extraContext = [
       isQuestionType && body.questionCount ? `Generate exactly ${body.questionCount} questions` : '',
       isPresentation ? 'Format as presentation slides. For each slide use a "## Slide N: <title>" heading, then 3-5 concise bullet points, and finally one line "IMAGE: <a short, concrete, visual description of a single illustrative image for this slide>" (describe objects/scene, not abstract ideas).' : '',
@@ -221,6 +225,8 @@ export class SchoolMaterialService implements OnModuleInit {
         contentType,
         difficulty: isQuestionType ? 'intermediate' : (body.difficulty || 'intermediate'),
         length: isQuestionType ? 'detailed' : (body.length || 'detailed'),
+        examTarget: className || 'School',
+        courseName: className ? `${className} ${ctx.subject_name ?? ''}`.trim() : 'School',
         extraContext,
       },
       user.instituteId ?? undefined,
@@ -424,6 +430,12 @@ export class SchoolMaterialService implements OnModuleInit {
       classId: rows[0]?.class_id ?? null,
       sectionId: rows[0]?.section_id ?? null,
     };
+  }
+
+  private async resolveClassName(classId: string | null | undefined): Promise<string | null> {
+    if (!classId) return null;
+    const rows = await this.ds.query(`SELECT name FROM classes WHERE id = $1`, [classId]);
+    return rows[0]?.name || null;
   }
 
   private async assertStudentCanAccessMaterial(user: any, materialId: string) {
