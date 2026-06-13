@@ -8,8 +8,10 @@ import {
   Param,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 
 import { SchoolRoles } from '../decorators/school-roles.decorator';
@@ -40,6 +42,12 @@ export class SchoolLiveController {
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   live(@SchoolUser() user: any) {
     return this.svc.listLive(user);
+  }
+
+  @Post('lectures/:id/end')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  end(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.endLecture(user, id);
   }
 
   @Get('lectures/:id/stream-url')
@@ -98,5 +106,30 @@ export class SchoolLiveStreamHookController {
     this.assertSecret(headerSecret || query?.secret || body?.secret);
     await this.svc.streamEnded(body?.name || query?.name);
     return { ok: true };
+  }
+}
+
+/**
+ * Public same-origin HLS proxy for the live player. Unguarded because hls.js
+ * fetches the manifest + segments via plain media requests (no auth header),
+ * and the underlying R2 content is already public — we only add the CORS
+ * headers R2's pub domain omits.
+ */
+@Controller('school/live')
+export class SchoolLiveHlsController {
+  constructor(private readonly svc: SchoolLiveService) {}
+
+  @Get('hls/:streamKey/:file')
+  async hls(
+    @Param('streamKey') streamKey: string,
+    @Param('file') file: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.proxyHls(streamKey, file);
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', file.endsWith('.m3u8') ? 'no-cache' : 'public, max-age=10');
+    res.send(out.body);
   }
 }
