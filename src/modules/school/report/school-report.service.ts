@@ -77,18 +77,25 @@ export class SchoolReportService {
            c.name AS class_name,
            sec.id::text AS section_id,
            sec.name AS section_name,
-           NULL::text AS subject_id,
-           NULL::text AS subject_name,
+           sub.id::text AS subject_id,
+           sub.name AS subject_name,
            true AS is_class_teacher
          FROM sections sec
          LEFT JOIN classes c ON c.id::text=sec.class_id::text
+         LEFT JOIN subjects sub
+           ON sub.institute_id::text=c.institute_id::text
+          AND (
+            sub.section_id::text=sec.id::text
+            OR (sub.section_id IS NULL AND sub.class_id::text=sec.class_id::text)
+          )
          WHERE sec.class_teacher_id::text=$1::text`,
         [teacherId],
       );
 
+      const allAssignments = assignments;
       const classTeacherAssignments = assignments.filter((row) => this.isTrue(row.is_class_teacher));
       const useClassTeacherScope = classTeacherAssignments.length > 0;
-      const effectiveAssignments = useClassTeacherScope ? classTeacherAssignments : assignments;
+      const effectiveAssignments = allAssignments;
 
       const assignedClassIds = effectiveAssignments.map((row) => row.class_id).filter(Boolean).map(String);
       const assignedSectionIds = effectiveAssignments.map((row) => row.section_id).filter(Boolean).map(String);
@@ -102,7 +109,7 @@ export class SchoolReportService {
         ? (useClassTeacherScope ? subjectIds : subjectIds.filter((id) => assignedSubjectIds.includes(id)))
         : assignedSubjectIds;
 
-      assignments = effectiveAssignments.map((row) => ({
+      assignments = allAssignments.map((row) => ({
         ...row,
         is_class_teacher: this.isTrue(row.is_class_teacher),
       }));

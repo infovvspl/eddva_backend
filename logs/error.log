@@ -27193,3 +27193,141 @@ Error: Error: timeout exceeded when trying to connect
     at listOnTimeout (node:internal/timers:605:17)
     at processTimers (node:internal/timers:541:7)
 
+[2026-06-13T11:30:57.368Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:30:57.371Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:30:57.375Z] GET /api/v1/school/notifications/preferences
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:30:57.381Z] GET /api/v1/school/auth/me
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:31:09.313Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:31:27.478Z] GET /api/v1/school/reports/class
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:32:36.137Z] GET /api/v1/school/schedules
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:32:36.395Z] GET /api/v1/school/academic/classes
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:32:36.400Z] GET /api/v1/school/teachers/3d0eabde-0695-4935-9dd9-da21ae1dced8
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:32:36.402Z] GET /api/v1/school/classes/recordings
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:32:36.405Z] GET /api/v1/school/academic/subjects
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:33:06.693Z] GET /api/v1/school/live/lectures
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:33:06.729Z] GET /api/v1/school/live/lectures
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:33:06.732Z] GET /api/v1/school/classes/recordings
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:33:06.820Z] GET /api/v1/school/attendance/dashboard-stats
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:33:06.854Z] GET /api/v1/school/academic/classes
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Edva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-13T11:43:28.924Z] GET /api/v1/content/topics/4d6eaa89-ee27-4268-bab8-f4f1bfeec258/resources/5735ce38-9a84-4731-93e9-e103735f44dd/download-url
+Status: 404
+Error: NotFoundException: Resource 5735ce38-9a84-4731-93e9-e103735f44dd not found
+    at ContentService.getTopicResourceByTopicId (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2994:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ContentController.getResourceDownloadUrl (D:\Edva\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-13T11:45:24.625Z] GET /api/v1/content/topics/26aebc9f-3226-46ce-ade5-c8c4c393d444/resources/fb3f9bab-b203-4a64-8d45-4fc466605417/download-url
+Status: 404
+Error: NotFoundException: Resource fb3f9bab-b203-4a64-8d45-4fc466605417 not found
+    at ContentService.getTopicResourceByTopicId (D:\Edva\eddva_backend\src\modules\content\content.service.ts:2994:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ContentController.getResourceDownloadUrl (D:\Edva\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-13T12:23:35.814Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\Edva\eddva_backend\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (D:\Edva\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-13T12:23:36.317Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\Edva\eddva_backend\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (D:\Edva\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
