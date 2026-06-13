@@ -92,6 +92,8 @@ export const storageConfig = registerAs('storage', () => ({
 export const streamingConfig = registerAs('streaming', () => ({
   // Shared secret nginx sends on on_publish / on_publish_done callbacks.
   rtmpSecret: process.env.RTMP_SECRET || '',
-  // Public IP/host of the T3 nginx-rtmp ingest server shown to teachers (OBS).
+  // Public IP/host of the nginx-rtmp ingest server shown to teachers (OBS).
   serverIp:   process.env.STREAMING_SERVER_IP || '127.0.0.1',
+  // Public R2/CDN origin that serves HLS:  {cdnBaseUrl}/{streamKey}/index.m3u8
+  cdnBaseUrl: (process.env.LIVE_CDN_BASE_URL || '').replace(/\/$/, ''),
 }));

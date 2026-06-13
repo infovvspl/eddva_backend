@@ -32,6 +32,7 @@ import { SchoolCalendarModule } from './calendar/school-calendar.module';
 import { CareerModule } from './career/career.module';
 import { SchoolStudyPlanModule } from './study-plan/school-study-plan.module';
 import { SchoolPptModule } from './ppt/school-ppt.module';
+import { SchoolLiveModule } from './live/school-live.module';
 import { SchoolJwtGuard } from './guards/school-jwt.guard';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
 
@@ -69,6 +70,7 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
     CareerModule,
     SchoolStudyPlanModule,
     SchoolPptModule,
+    SchoolLiveModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
   providers: [SchoolJwtGuard, SchoolRolesGuard],
