@@ -69,7 +69,10 @@ export class SchoolTopicService {
     const resolvedSubjectId = topRows.length > 0 ? topRows[0].subject_id : null;
     await this.validateTeacherAssignment(user, resolvedSubjectId, 'DELETE_TOPIC_DENIED');
 
-    await this.ds.query(`DELETE FROM topics WHERE id=$1`, [id]);
+    await this.ds.transaction(async (manager) => {
+      await manager.query(`DELETE FROM study_materials WHERE topic_id=$1`, [id]);
+      await manager.query(`DELETE FROM topics WHERE id=$1`, [id]);
+    });
     return { success: true };
   }
 
@@ -209,7 +212,16 @@ export class SchoolTopicService {
     const resolvedSubjectId = chapRows.length > 0 ? chapRows[0].subject_id : null;
     await this.validateTeacherAssignment(user, resolvedSubjectId, 'DELETE_CHAPTER_DENIED');
 
-    await this.ds.query(`DELETE FROM chapters WHERE id=$1`, [id]);
+    await this.ds.transaction(async (manager) => {
+      await manager.query(
+        `DELETE FROM study_materials
+         WHERE chapter_id=$1
+            OR topic_id IN (SELECT id FROM topics WHERE chapter_id=$1)`,
+        [id],
+      );
+      await manager.query(`DELETE FROM topics WHERE chapter_id=$1`, [id]);
+      await manager.query(`DELETE FROM chapters WHERE id=$1`, [id]);
+    });
     return { success: true };
   }
 }

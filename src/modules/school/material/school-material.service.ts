@@ -261,6 +261,9 @@ export class SchoolMaterialService implements OnModuleInit {
     };
     const type = map[String(body.resourceType || 'notes').toLowerCase()] ?? 'notes';
 
+    const targetClassId = body.classId || scope.classId;
+    const targetSectionId = body.sectionId || scope.sectionId;
+
     const rows: any[] = await this.ds.query(
       `INSERT INTO study_materials (
         tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
@@ -279,8 +282,8 @@ export class SchoolMaterialService implements OnModuleInit {
         ctx.subject_id,
         ctx.chapter_id,
         ctx.topic_id,
-        scope.classId,
-        scope.sectionId,
+        targetClassId,
+        targetSectionId,
       ],
     );
     return { success: true, data: rows[0] };
@@ -571,7 +574,10 @@ export class SchoolMaterialService implements OnModuleInit {
       LEFT JOIN subjects s ON sm.subject_id_fk = s.id
       LEFT JOIN chapters c ON sm.chapter_id = c.id
       LEFT JOIN topics t ON sm.topic_id = t.id
+      LEFT JOIN chapters topic_ch ON t.chapter_id = topic_ch.id
       WHERE sm.tenant_id = $1::uuid
+        AND (sm.chapter_id IS NULL OR c.id IS NOT NULL)
+        AND (sm.topic_id IS NULL OR (t.id IS NOT NULL AND topic_ch.id IS NOT NULL))
     `;
     const params: any[] = [instituteId];
 
@@ -666,9 +672,15 @@ export class SchoolMaterialService implements OnModuleInit {
     } else {
       if (query.classId) {
         params.push(query.classId);
-        sql += ` AND sm.class_id = $${params.length}::uuid`;
-      }
-      if (query.sectionId) {
+        const classParam = params.length;
+        if (query.sectionId) {
+          params.push(query.sectionId);
+          const sectionParam = params.length;
+          sql += ` AND sm.class_id = $${classParam}::uuid AND (sm.section_id = $${sectionParam}::uuid OR sm.section_id IS NULL)`;
+        } else {
+          sql += ` AND sm.class_id = $${classParam}::uuid`;
+        }
+      } else if (query.sectionId) {
         params.push(query.sectionId);
         sql += ` AND sm.section_id = $${params.length}::uuid`;
       }
