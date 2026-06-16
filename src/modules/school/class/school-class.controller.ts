@@ -34,6 +34,10 @@ export class SchoolClassController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   regenerateNotes(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.regenerateNotes(user, id); }
 
+  @Post('recordings/:id/regenerate-notes-images')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  regenerateNotesImages(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.regenerateNotesImages(user, id); }
+
   @Post('recordings/:id/generate-quiz')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   generateQuiz(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.generateQuiz(user, id); }
