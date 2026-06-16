@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -12,9 +13,13 @@ import { recordStudentActivity } from '../common/gamification-helper';
 import { randomUUID } from 'crypto';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class SchoolAssignmentService {
+  private readonly logger = new Logger(SchoolAssignmentService.name);
+
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
@@ -34,19 +39,110 @@ export class SchoolAssignmentService {
     return instituteId;
   }
 
+  /** Always uploads to S3. Never stores local paths. */
   private async storedUploadPath(
     instituteId: string,
     file?: Express.Multer.File | null,
     folder = 'assignments',
-  ) {
+  ): Promise<string | null> {
     if (!file) return null;
-    if (!file.buffer) {
-      if (file.filename) return `uploads/${file.filename}`;
-      return file.path?.replace(/\\/g, '/') || null;
-    }
-    const safeName = (file.originalname || 'assignment-file').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'assignment-file';
+    const safeName = (file.originalname || 'file').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'file';
     const key = `tenants/${instituteId}/school-assignments/${folder}/${Date.now()}-${randomUUID()}-${safeName}`;
-    return this.s3Service.upload(key, file.buffer, file.mimetype || 'application/octet-stream');
+    const mimeType = file.mimetype || 'application/octet-stream';
+
+    if (file.buffer && file.buffer.length > 0) {
+      return this.s3Service.upload(key, file.buffer, mimeType);
+    }
+
+    // Disk storage fallback (read → S3 → delete temp file)
+    if (file.path) {
+      const diskPath = file.path;
+      try {
+        const buffer = fs.readFileSync(diskPath);
+        const url = await this.s3Service.upload(key, buffer, mimeType);
+        fs.unlink(diskPath, () => { /* best-effort cleanup */ });
+        return url;
+      } catch (err) {
+        this.logger.error(`Failed to upload submission from disk (${diskPath}): ${(err as Error).message}`);
+        throw err;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve a submission's file_path to a publicly accessible URL.
+   * Handles S3/CDN URLs, bare S3 keys, and legacy local-disk paths
+   * (lazy-migrated to S3 on first access so they work going forward).
+   */
+  async resolveSubmissionFile(
+    user: any,
+    submissionId: string,
+  ): Promise<{ success: true; data: { url: string } }> {
+    const rows: any[] = await this.ds.query(
+      `SELECT subm.id, COALESCE(subm.file_path, subm.attachment_url) AS file_path,
+              subm.student_id, subm.assignment_id
+       FROM assignment_submissions subm
+       WHERE subm.id::text = $1::text
+       LIMIT 1`,
+      [submissionId],
+    );
+    if (!rows.length) throw new NotFoundException('Submission not found');
+    const submission = rows[0];
+
+    // Students may only view their own submission
+    if (user.role === 'STUDENT') {
+      const profile = await this.getStudentProfile(user);
+      if (String(submission.student_id) !== String(profile.student_id)) {
+        throw new ForbiddenException('You can only view your own submission');
+      }
+    }
+
+    const filePath: string | null = submission.file_path;
+    if (!filePath) throw new NotFoundException('No file attached to this submission');
+
+    // Already a full public/CDN URL → return directly (R2 public bucket, etc.)
+    if (/^https?:\/\//i.test(filePath)) {
+      return { success: true, data: { url: filePath } };
+    }
+
+    // Bare S3 key (e.g. "tenants/xxx/school-assignments/...")
+    if (filePath.startsWith('tenants/')) {
+      const url = await this.s3Service.presignGet(filePath, 300);
+      return { success: true, data: { url } };
+    }
+
+    // Legacy local-disk path (e.g. "uploads/filename.png") — lazy-migrate to S3
+    const localPath = path.resolve(process.cwd(), filePath);
+    if (!fs.existsSync(localPath)) {
+      throw new NotFoundException('Submission file is no longer available on this server');
+    }
+
+    try {
+      const ext = path.extname(localPath).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        '.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      };
+      const mimeType = mimeMap[ext] || 'application/octet-stream';
+      const safeName = path.basename(localPath).replace(/[^a-zA-Z0-9.\-_]/g, '') || 'submission';
+      const key = `tenants/${user.instituteId || 'unknown'}/school-assignments/student-submissions/migrated-${safeName}`;
+      const buffer = fs.readFileSync(localPath);
+      const s3Url = await this.s3Service.upload(key, buffer, mimeType);
+
+      // Update the DB row so future lookups hit S3 directly
+      await this.ds.query(
+        `UPDATE assignment_submissions SET file_path=$2, attachment_url=$2, updated_at=NOW() WHERE id::text=$1::text`,
+        [submissionId, s3Url],
+      );
+
+      return { success: true, data: { url: s3Url } };
+    } catch (err) {
+      this.logger.warn(`S3 migration failed for local file ${localPath}: ${(err as Error).message}`);
+      throw new NotFoundException('Submission file could not be loaded. Please ask the student to re-submit.');
+    }
   }
 
   private async getStudentProfile(user: any) {
