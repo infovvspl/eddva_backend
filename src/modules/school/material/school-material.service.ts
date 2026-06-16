@@ -948,6 +948,7 @@ export class SchoolMaterialService implements OnModuleInit {
   // ── Highlights ─────────────────────────────────────────────────────────────
 
   async getHighlights(user: any, id: string) {
+    console.log("GET highlights called for material id:", id);
     await this.assertStudentCanAccessMaterial(user, id);
     // Verify material belongs to tenant
     const matRows = await this.ds.query(
@@ -968,6 +969,9 @@ export class SchoolMaterialService implements OnModuleInit {
       [id, user.id]
     );
 
+    console.log("GET user.id:", user.id);
+    console.log("Highlights returned:", rows.length);
+    console.log("Highlights data:", rows);
     return { success: true, data: rows };
   }
 
@@ -980,7 +984,7 @@ export class SchoolMaterialService implements OnModuleInit {
       [id, user.id]
     );
     if (!matRows.length) throw new NotFoundException('Material not found');
-    
+
     const topicId = matRows[0].topic_id;
 
     const { pageNumber, selectedText, rects, color, category, note } = body;
@@ -989,15 +993,25 @@ export class SchoolMaterialService implements OnModuleInit {
     }
 
     const rows = await this.ds.query(
-      `INSERT INTO school_material_highlights 
-         (material_id, topic_id, created_by, page_number, selected_text, rects, color, category, note)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
-                 page_number AS "pageNumber", selected_text AS "selectedText", rects, color, category, note,
-                 created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [id, topicId, user.id, pageNumber, selectedText, JSON.stringify(rects), color || 'yellow', category, note || null]
+      `INSERT INTO school_material_highlights
+   (material_id, topic_id, created_by, page_number, selected_text, rects, color, category, note)
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+   RETURNING id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
+             page_number AS "pageNumber", selected_text AS "selectedText", rects, color, category, note,
+             created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [
+        id,
+        topicId,
+        user.id,
+        pageNumber,
+        selectedText,
+        JSON.stringify(rects), // <-- FIX
+        color || "yellow",
+        category,
+        note || null,
+      ]
     );
-
+    console.log("SAVE HIGHLIGHT RESULT:", rows);
     return { success: true, data: rows[0] };
   }
 
