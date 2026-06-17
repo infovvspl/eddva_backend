@@ -36,41 +36,54 @@ export class SchoolTimetableService {
       throw new BadRequestException('sectionId, subjectId, and teacherId are required');
     }
 
+    // 1. Verify teacher exists
+    const teacherRows = await this.ds.query(`SELECT id FROM teachers WHERE id = $1`, [teacherId]);
+    if (!teacherRows.length) {
+      throw new BadRequestException('Teacher does not exist.');
+    }
+
     const sectionRows = await this.ds.query(`SELECT class_id FROM sections WHERE id = $1`, [sectionId]);
     if (!sectionRows.length) {
       throw new BadRequestException('Selected section not found');
     }
     const classId = sectionRows[0].class_id;
 
-    // Check if any teacher is assigned to this combination
+    // 2. Check if the selected teacher is assigned to this combination in teacher_academic_assignments
     const assignments: any[] = await this.ds.query(
-      `SELECT * FROM teacher_academic_assignments 
-       WHERE class_id = $1 AND section_id = $2 AND subject_id = $3`,
-      [classId, sectionId, subjectId]
+      `SELECT id FROM teacher_academic_assignments 
+       WHERE teacher_id = $1 AND class_id = $2 AND section_id = $3 AND subject_id = $4`,
+      [teacherId, classId, sectionId, subjectId]
     );
 
     if (!assignments.length) {
-      throw new BadRequestException('No teacher is assigned to this subject/class/section combination.');
-    }
-
-    // Check if the selected teacher is the assigned one
-    const isAssigned = assignments.some(a => String(a.teacher_id) === String(teacherId));
-    if (!isAssigned) {
-      throw new BadRequestException('The selected teacher is not assigned to this subject/class/section combination.');
+      throw new BadRequestException('This teacher is not assigned to the selected class, section, or subject.');
     }
   }
 
   private async checkConflicts(body: any, excludeId?: string) {
-    const dayOfWeekInt = typeof body.dayOfWeek === 'string' ? (DAY_MAP[body.dayOfWeek] || 1) : (body.dayOfWeekInt || 1);
+    const dayOfWeekInt = typeof body.dayOfWeek === 'string' ? (DAY_MAP[body.dayOfWeek.toUpperCase()] || 1) : (body.dayOfWeekInt || 1);
     const periodNumber = body.periodNumber ? parseInt(body.periodNumber, 10) : null;
     const startTime = body.startTime;
     const endTime = body.endTime;
     const room = body.room;
 
     const query = `
-      SELECT id, teacher_id, section_id, room, period_number, start_time, end_time 
-      FROM timetables 
-      WHERE day_of_week = $1 AND id != $2
+      SELECT 
+        t.id, 
+        t.teacher_id, 
+        t.section_id, 
+        t.room, 
+        t.period_number, 
+        t.start_time, 
+        t.end_time,
+        sec.name as section_name,
+        cls.name as class_name,
+        sub.name as subject_name
+      FROM timetables t
+      LEFT JOIN sections sec ON t.section_id = sec.id
+      LEFT JOIN classes cls ON sec.class_id = cls.id
+      LEFT JOIN subjects sub ON t.subject_id = sub.id
+      WHERE t.day_of_week = $1 AND t.id != $2
     `;
     const params: any[] = [dayOfWeekInt, excludeId || '00000000-0000-0000-0000-000000000000'];
 
@@ -85,17 +98,28 @@ export class SchoolTimetableService {
       const isPeriodOverlap = periodNumber && slot.period_number && slot.period_number === periodNumber;
       
       if (isTimeOverlap || isPeriodOverlap) {
+        const className = slot.class_name || 'Class';
+        const sectionName = slot.section_name || '';
+        const subjectName = slot.subject_name || 'Subject';
+        const timeRange = slotStart && slotEnd ? ` (${slotStart} - ${slotEnd})` : '';
+
         // Teacher conflict
         if (body.teacherId && slot.teacher_id && String(slot.teacher_id) === String(body.teacherId)) {
-          throw new BadRequestException('⚠ Timetable conflict detected: The selected teacher is already scheduled for another class at this time.');
+          throw new BadRequestException(
+            `⚠ Timetable conflict detected: The selected teacher is already scheduled for ${className} - ${sectionName} (${subjectName}) at this time${timeRange}.`
+          );
         }
         // Classroom conflict
         if (room && slot.room && slot.room.trim() !== '' && slot.room.trim().toLowerCase() === room.trim().toLowerCase()) {
-          throw new BadRequestException(`⚠ Timetable conflict detected: Room ${room} is already booked at this time.`);
+          throw new BadRequestException(
+            `⚠ Timetable conflict detected: Room ${room} is already booked for ${className} - ${sectionName} (${subjectName}) at this time${timeRange}.`
+          );
         }
         // Class conflict
         if (body.sectionId && slot.section_id && String(slot.section_id) === String(body.sectionId)) {
-          throw new BadRequestException('⚠ Timetable conflict detected: This class already has a subject scheduled at this time.');
+          throw new BadRequestException(
+            `⚠ Timetable conflict detected: This class already has ${subjectName} scheduled at this time${timeRange}.`
+          );
         }
       }
     }
@@ -248,7 +272,7 @@ export class SchoolTimetableService {
 
   async createTimetable(user: any, body: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
-    const dayOfWeekInt = DAY_MAP[body.dayOfWeek] || 1;
+    const dayOfWeekInt = DAY_MAP[body.dayOfWeek?.toUpperCase()] || 1;
 
     // Validate assignment
     // If it's a teacher creating, enforce teacherId
@@ -375,7 +399,7 @@ export class SchoolTimetableService {
   }
 
   async updateTimetable(id: string, body: any) {
-    const dayOfWeekInt = body.dayOfWeek ? (DAY_MAP[body.dayOfWeek] || 1) : undefined;
+    const dayOfWeekInt = body.dayOfWeek ? (DAY_MAP[body.dayOfWeek.toUpperCase()] || 1) : undefined;
 
     // Validate assignment
     if (body.sectionId || body.subjectId || body.teacherId) {
@@ -554,6 +578,190 @@ export class SchoolTimetableService {
     }
 
     return { success: true, data: schedule };
+  }
+
+  async bulkUpdate(user: any, body: any) {
+    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const sectionId = body.sectionId;
+    const slots = body.slots || [];
+
+    if (!sectionId) {
+      throw new BadRequestException('sectionId is required.');
+    }
+
+    const queryRunner = this.ds.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Fetch all periods for this institute to map times & sequence numbers
+      const periods = await queryRunner.query(
+        `SELECT id, sequence_no, start_time, end_time FROM school_periods WHERE school_id = $1`,
+        [instituteId]
+      );
+      const periodMap = new Map<string, any>(periods.map((p: any) => [p.id, p]));
+
+      // 2. Conflict Checking
+      const conflicts: string[] = [];
+
+      for (const slot of slots) {
+        if (!slot.subjectId || !slot.teacherId) continue;
+
+        const periodObj = periodMap.get(slot.periodId);
+        if (!periodObj) continue;
+
+        const startTime = periodObj.start_time ? String(periodObj.start_time).substring(0, 5) : '00:00';
+        const endTime = periodObj.end_time ? String(periodObj.end_time).substring(0, 5) : '00:00';
+        const periodNumber = periodObj.sequence_no;
+
+        const dayOfWeekInt = DAY_MAP[slot.dayOfWeek?.toUpperCase()] || 1;
+        const slotId = slot.id || '00000000-0000-0000-0000-000000000000';
+
+        // Check conflicts with other sections/classes
+        const existingSlots = await queryRunner.query(
+          `SELECT 
+            t.id, 
+            t.teacher_id, 
+            t.section_id, 
+            t.room, 
+            t.period_number, 
+            t.start_time, 
+            t.end_time,
+            sec.name as section_name,
+            cls.name as class_name,
+            sub.name as subject_name
+          FROM timetables t
+          LEFT JOIN sections sec ON t.section_id = sec.id
+          LEFT JOIN classes cls ON sec.class_id = cls.id
+          LEFT JOIN subjects sub ON t.subject_id = sub.id
+          WHERE t.day_of_week = $1 AND t.id != $2 AND t.section_id != $3`,
+          [dayOfWeekInt, slotId, sectionId]
+        );
+
+        for (const dbSlot of existingSlots) {
+          const dbStart = dbSlot.start_time ? dbSlot.start_time.substring(0, 5) : '00:00';
+          const dbEnd = dbSlot.end_time ? dbSlot.end_time.substring(0, 5) : '00:00';
+
+          const isTimeOverlap = startTime && endTime && dbStart && dbEnd && (startTime < dbEnd && endTime > dbStart);
+          const isPeriodOverlap = periodNumber && dbSlot.period_number && dbSlot.period_number === periodNumber;
+
+          if (isTimeOverlap || isPeriodOverlap) {
+            if (String(dbSlot.teacher_id) === String(slot.teacherId)) {
+              conflicts.push(
+                `${slot.dayOfWeek} Period ${periodNumber}: Teacher is already scheduled for ${dbSlot.class_name} - ${dbSlot.section_name} (${dbSlot.subject_name}) at this time.`
+              );
+            }
+            if (slot.room && dbSlot.room && slot.room.trim() !== '' && dbSlot.room.trim().toLowerCase() === slot.room.trim().toLowerCase()) {
+              conflicts.push(
+                `${slot.dayOfWeek} Period ${periodNumber}: Room ${slot.room} is already booked for ${dbSlot.class_name} - ${dbSlot.section_name} (${dbSlot.subject_name}) at this time.`
+              );
+            }
+          }
+        }
+      }
+
+      if (conflicts.length > 0) {
+        await queryRunner.rollbackTransaction();
+        return {
+          success: false,
+          message: 'Timetable conflict(s) detected.',
+          errors: conflicts
+        };
+      }
+
+      // 3. Delete cleared slots (existing slots not present in active submitted slots)
+      const existingSectionSlots = await queryRunner.query(
+        `SELECT id FROM timetables WHERE section_id = $1`,
+        [sectionId]
+      );
+      const activeIds = new Set(slots.map((s: any) => String(s.id)).filter(Boolean));
+      const idsToDelete = existingSectionSlots
+        .map((s: any) => String(s.id))
+        .filter((id: string) => !activeIds.has(id));
+
+      if (idsToDelete.length > 0) {
+        await queryRunner.query(
+          `DELETE FROM timetables WHERE id = ANY($1)`,
+          [idsToDelete]
+        );
+      }
+
+      // 4. Update or Insert remaining slots
+      for (const slot of slots) {
+        if (!slot.subjectId || !slot.teacherId) continue;
+
+        const periodObj = periodMap.get(slot.periodId);
+        const startTime = periodObj ? String(periodObj.start_time).substring(0, 5) : '09:00';
+        const endTime = periodObj ? String(periodObj.end_time).substring(0, 5) : '10:00';
+        const periodNumber = periodObj ? periodObj.sequence_no : 1;
+        const dayOfWeekInt = DAY_MAP[slot.dayOfWeek?.toUpperCase()] || 1;
+
+        if (slot.id) {
+          // Update
+          await queryRunner.query(
+            `UPDATE timetables SET
+              subject_id = $2,
+              teacher_id = $3,
+              day_of_week = $4,
+              start_time = $5,
+              end_time = $6,
+              room = $7,
+              period_number = $8,
+              type = $9,
+              meeting_link = $10,
+              remarks = $11,
+              period_id = $12,
+              updated_at = NOW()
+            WHERE id = $1`,
+            [
+              slot.id,
+              slot.subjectId,
+              slot.teacherId,
+              dayOfWeekInt,
+              startTime,
+              endTime,
+              slot.room || null,
+              periodNumber,
+              slot.type || 'offline',
+              slot.meetingLink || null,
+              slot.remarks || null,
+              slot.periodId
+            ]
+          );
+        } else {
+          // Insert
+          await queryRunner.query(
+            `INSERT INTO timetables (
+              institute_id, section_id, subject_id, teacher_id, day_of_week, 
+              start_time, end_time, room, period_number, type, meeting_link, remarks, period_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+            [
+              instituteId,
+              sectionId,
+              slot.subjectId,
+              slot.teacherId,
+              dayOfWeekInt,
+              startTime,
+              endTime,
+              slot.room || null,
+              periodNumber,
+              slot.type || 'offline',
+              slot.meetingLink || null,
+              slot.remarks || null,
+              slot.periodId
+            ]
+          );
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return { success: true, message: 'Bulk update saved successfully.' };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async updateSchedule(id: string, body: any) {

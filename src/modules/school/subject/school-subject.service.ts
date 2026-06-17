@@ -1,6 +1,43 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+
+function normalizeSubjectName(name: string): string {
+  if (!name) return '';
+  const cleaned = name.trim().replace(/\s+/g, ' ');
+  const lowerCleaned = cleaned.toLowerCase();
+  
+  if (lowerCleaned === 'math' || lowerCleaned === 'maths' || lowerCleaned === 'mathematics') {
+    return 'Mathematics';
+  }
+  if (lowerCleaned === 'hindi') {
+    return 'Hindi';
+  }
+  if (lowerCleaned === 'english') {
+    return 'English';
+  }
+  if (lowerCleaned === 'science') {
+    return 'Science';
+  }
+  if (lowerCleaned === 'biology') {
+    return 'Biology';
+  }
+  if (lowerCleaned === 'computer science') {
+    return 'Computer Science';
+  }
+  if (lowerCleaned === 'social science') {
+    return 'Social Science';
+  }
+  if (lowerCleaned === 'history') {
+    return 'History';
+  }
+  
+  // Title case general words
+  return cleaned
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
 
 @Injectable()
 export class SchoolSubjectService {
@@ -86,19 +123,86 @@ export class SchoolSubjectService {
 
   async create(user: any, body: any) {
     const instituteId = await this.resolveInstituteId(user, body.instituteId);
+    if (!body.name || !body.name.trim()) {
+      throw new BadRequestException('Subject name is required');
+    }
+    const normalizedName = normalizeSubjectName(body.name);
+
+    // Uniqueness check: LOWER(TRIM(name)) within same scope (instituteId, classId, sectionId)
+    let dupQuery = `
+      SELECT id FROM subjects 
+      WHERE institute_id = $1 
+        AND LOWER(TRIM(name)) = LOWER(TRIM($2))
+    `;
+    const dupParams = [instituteId, normalizedName];
+    if (body.classId) {
+      dupQuery += ` AND class_id = $3`;
+      dupParams.push(body.classId);
+    } else {
+      dupQuery += ` AND class_id IS NULL`;
+    }
+    if (body.sectionId) {
+      dupQuery += ` AND section_id = $${dupParams.length + 1}`;
+      dupParams.push(body.sectionId);
+    } else {
+      dupQuery += ` AND section_id IS NULL`;
+    }
+
+    const dups = await this.ds.query(dupQuery, dupParams);
+    if (dups.length > 0) {
+      throw new BadRequestException('Subject already exists.');
+    }
+
     const rows: any[] = await this.ds.query(
       `INSERT INTO subjects (institute_id,name,class_id,section_id,code,type,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`, 
-      [instituteId,body.name,body.classId||null,body.sectionId||null,body.code||null,body.type||'Theory',body.description||null]
+      [instituteId,normalizedName,body.classId||null,body.sectionId||null,body.code||null,body.type||'Theory',body.description||null]
     );
     return { success: true, data: rows[0] };
   }
 
   async update(id: string, body: any) {
     console.log('Update subject called!', { id, body });
+    const currentRows = await this.ds.query(`SELECT * FROM subjects WHERE id = $1`, [id]);
+    if (currentRows.length === 0) {
+      throw new BadRequestException('Subject not found');
+    }
+    const current = currentRows[0];
+
+    const normalizedName = body.name ? normalizeSubjectName(body.name) : current.name;
+    const classId = body.classId !== undefined ? (body.classId || null) : current.class_id;
+    const sectionId = body.sectionId !== undefined ? (body.sectionId || null) : current.section_id;
+
+    if (body.name || body.classId !== undefined || body.sectionId !== undefined) {
+      // Check for duplicate
+      let dupQuery = `
+        SELECT id FROM subjects 
+        WHERE institute_id = $1 
+          AND LOWER(TRIM(name)) = LOWER(TRIM($2))
+          AND id <> $3
+      `;
+      const dupParams = [current.institute_id, normalizedName, id];
+      if (classId) {
+        dupQuery += ` AND class_id = $4`;
+        dupParams.push(classId);
+      } else {
+        dupQuery += ` AND class_id IS NULL`;
+      }
+      if (sectionId) {
+        dupQuery += ` AND section_id = $${dupParams.length + 1}`;
+        dupParams.push(sectionId);
+      } else {
+        dupQuery += ` AND section_id IS NULL`;
+      }
+
+      const dups = await this.ds.query(dupQuery, dupParams);
+      if (dups.length > 0) {
+        throw new BadRequestException('Subject already exists.');
+      }
+    }
     
     const result = await this.ds.query(
-      `UPDATE subjects SET name=COALESCE($2,name),class_id=COALESCE($3,class_id),section_id=COALESCE($4,section_id),code=COALESCE($5,code),type=COALESCE($6,type),description=COALESCE($7,description),updated_at=NOW() WHERE id=$1 RETURNING *`, 
-      [id,body.name,body.classId||null,body.sectionId||null,body.code,body.type,body.description]
+      `UPDATE subjects SET name=COALESCE($2,name),class_id=$3,section_id=$4,code=COALESCE($5,code),type=COALESCE($6,type),description=COALESCE($7,description),updated_at=NOW() WHERE id=$1 RETURNING *`, 
+      [id, body.name ? normalizedName : current.name, classId, sectionId, body.code, body.type, body.description]
     );
     console.log('Update result:', result);
     return { success: true };
