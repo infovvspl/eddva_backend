@@ -96,6 +96,15 @@ export class SchoolAssignmentController {
     return this.svc.gradeSubmission(user, id, submissionId, body);
   }
 
+  @Get('submissions/:submissionId/file')
+  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  getSubmissionFile(
+    @SchoolUser() user: any,
+    @Param('submissionId') submissionId: string,
+  ) {
+    return this.svc.resolveSubmissionFile(user, submissionId);
+  }
+
   @Get(':id')
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   findOne(@Param('id') id: string) {
