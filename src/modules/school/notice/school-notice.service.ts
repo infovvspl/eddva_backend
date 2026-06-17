@@ -10,6 +10,16 @@ export class SchoolNoticeService {
     private readonly notificationService: SchoolNotificationService,
   ) {}
 
+  private hasAttachments(attachments: any) {
+    return Boolean(attachments && typeof attachments === 'object' && Object.keys(attachments).length > 0);
+  }
+
+  private noticeContent(body: any) {
+    const content = typeof body.content === 'string' ? body.content.trim() : body.content;
+    if (content) return content;
+    return this.hasAttachments(body.attachments) ? 'Please see the attached notice.' : body.content;
+  }
+
   async list(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
     let sql = `SELECT * FROM notices WHERE institute_id=$1`;
@@ -42,7 +52,7 @@ export class SchoolNoticeService {
       [
         instituteId, 
         body.title, 
-        body.content, 
+        this.noticeContent(body), 
         body.category || 'GENERAL', 
         body.priority || 'NORMAL', 
         body.postedDate ? new Date(body.postedDate) : new Date(), 
@@ -137,7 +147,7 @@ export class SchoolNoticeService {
       [
         id, 
         body.title, 
-        body.content, 
+        this.noticeContent(body), 
         body.category, 
         body.priority, 
         body.postedDate ? new Date(body.postedDate) : null, 

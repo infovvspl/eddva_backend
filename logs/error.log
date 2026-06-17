@@ -27418,6 +27418,93 @@ Error: NotFoundException: Submission file is no longer available on this server
     at SchoolAssignmentService.resolveSubmissionFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:119:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+<<<<<<< HEAD
+[2026-06-17T05:59:01.276Z] POST /api/school/materials/dump
+Status: 404
+Error: NotFoundException: Cannot POST /api/school/materials/dump
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-17T05:59:56.967Z] POST /api/school/materials/dump
+Status: 404
+Error: NotFoundException: Cannot POST /api/school/materials/dump
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-17T06:00:22.071Z] POST /api/school/materials/dump
+Status: 404
+Error: NotFoundException: Cannot POST /api/school/materials/dump
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-17T06:14:52.662Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:74:29)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T06:14:52.727Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T06:15:21.133Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T06:15:21.181Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T07:31:54.724Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T07:31:54.932Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:74:29)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T07:35:41.976Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+=======
 [2026-06-17T05:53:46.907Z] POST /api/school/materials/dump
 Status: 404
 Error: NotFoundException: Cannot POST /api/school/materials/dump
@@ -27559,6 +27646,133 @@ Error: ForbiddenException: Role 'STUDENT' is not authorized to access this resou
     at async canActivateFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
     at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
     at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+>>>>>>> ea2ea2b26652f2756e935c808a749b319d4a3fa1
+
+[2026-06-17T06:54:36.270Z] GET /api/v1/school/gamification/treasure/maps
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/treasure/maps
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T06:54:44.635Z] GET /api/v1/school/gamification/math-sprint/start?difficulty=medium
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/math-sprint/start?difficulty=medium
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T06:54:49.706Z] GET /api/v1/school/gamification/memory-match/decks
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/memory-match/decks
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T06:54:54.954Z] GET /api/v1/school/gamification/word-master/decks
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/word-master/decks
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T06:55:58.646Z] GET /api/v1/school/gamification/quiz-rush/start?subjectId=a9b13a56-58fd-4f08-a73c-2ae3d44e35a4&chapterId=any&difficulty=medium
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/quiz-rush/start?subjectId=a9b13a56-58fd-4f08-a73c-2ae3d44e35a4&chapterId=any&difficulty=medium
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T06:56:08.163Z] GET /api/v1/school/gamification/treasure/maps
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/treasure/maps
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T06:56:15.351Z] GET /api/v1/school/gamification/math-sprint/start?difficulty=medium
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/math-sprint/start?difficulty=medium
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T06:56:19.165Z] GET /api/v1/school/gamification/memory-match/decks
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/memory-match/decks
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T06:56:23.635Z] GET /api/v1/school/gamification/word-master/decks
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/gamification/word-master/decks
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
 [2026-06-17T09:21:26.710Z] GET /api/v1/content/topics/26aebc9f-3226-46ce-ade5-c8c4c393d444/resources/fb3f9bab-b203-4a64-8d45-4fc466605417/download-url
 Status: 404
