@@ -25,6 +25,35 @@ export class SchoolStudentService {
     return typeof val === 'object' && !Array.isArray(val) ? val : {};
   }
 
+  private buildParentDetails(body: any, existing: any = {}) {
+    const parentDetails = body.parentDetails || {};
+    const primaryContact = body.primaryContact || body.primary_contact || parentDetails.primaryContact || parentDetails.primary_contact || existing.primaryContact || existing.primary_contact || 'father';
+    const fatherPhone = body.fatherPhone || body.father_phone || parentDetails.fatherPhone || parentDetails.father_phone || existing.fatherPhone || existing.father_phone || null;
+    const motherPhone = body.motherPhone || body.mother_phone || parentDetails.motherPhone || parentDetails.mother_phone || existing.motherPhone || existing.mother_phone || null;
+    const guardianPhone = body.guardianPhone || body.guardian_phone || parentDetails.guardianPhone || parentDetails.guardian_phone || existing.guardianPhone || existing.guardian_phone || null;
+    const parentPhone = body.parentPhone || body.parent_phone || parentDetails.parentPhone || parentDetails.parent_phone || existing.parentPhone || existing.parent_phone || null;
+    const whatsappNumber = body.whatsappNumber || body.whatsapp_number || parentDetails.whatsappNumber || parentDetails.whatsapp_number || existing.whatsappNumber || existing.whatsapp_number || parentPhone;
+    return {
+      ...existing,
+      primaryContact,
+      fatherName: body.fatherName || body.father_name || parentDetails.fatherName || parentDetails.father_name || existing.fatherName || existing.father_name || null,
+      fatherPhone,
+      motherName: body.motherName || body.mother_name || parentDetails.motherName || parentDetails.mother_name || existing.motherName || existing.mother_name || null,
+      motherPhone,
+      parentPhone,
+      email: body.parentEmail || body.parent_email || parentDetails.email || parentDetails.parentEmail || parentDetails.parent_email || existing.email || existing.parentEmail || existing.parent_email || null,
+      whatsappNumber,
+      occupation: body.parentOccupation || body.parent_occupation || parentDetails.occupation || parentDetails.parentOccupation || parentDetails.parent_occupation || existing.occupation || existing.parentOccupation || existing.parent_occupation || null,
+      annualIncome: body.annualIncome || body.annual_income || parentDetails.annualIncome || parentDetails.annual_income || existing.annualIncome || existing.annual_income || null,
+      guardianName: body.guardianName || body.guardian_name || parentDetails.guardianName || parentDetails.guardian_name || existing.guardianName || existing.guardian_name || null,
+      guardianRelation: body.guardianRelation || body.guardian_relation || parentDetails.guardianRelation || parentDetails.guardian_relation || existing.guardianRelation || existing.guardian_relation || null,
+      guardianPhone,
+      createLogin: body.createParentLogin ?? parentDetails.createLogin ?? existing.createLogin ?? true,
+      sendViaSms: body.sendViaSms ?? parentDetails.sendViaSms ?? existing.sendViaSms ?? true,
+      sendViaEmail: body.sendViaEmail ?? parentDetails.sendViaEmail ?? existing.sendViaEmail ?? false,
+    };
+  }
+
   private parseImportDate(str: any): Date | null {
     if (!str) return null;
     const s = String(str).trim();
@@ -93,11 +122,15 @@ export class SchoolStudentService {
         [instituteId, body.name, body.email, hashed, body.profileImage || null, body.phone || null],
       );
       const u = userRows[0];
+      const documents = {
+        ...(this.parseJsonObject(body.documents)),
+        parentDetails: this.buildParentDetails(body),
+      };
 
       const sRows: any[] = await queryRunner.query(
         `INSERT INTO students (user_id,institute_id,enrollment_no,roll_no,section_id,dob,gender,blood_group,marital_status,national_id,father_name,mother_name,parent_phone,parent_email,parent_occupation,address,city,state,pin_code,admission_date,medical_conditions,allergies,documents)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING *`,
-        [u.id, instituteId, enrollmentNo, body.rollNo || null, sectionId, body.dob ? new Date(body.dob) : null, body.gender || null, body.bloodGroup || null, body.maritalStatus || null, body.nationalId || null, body.fatherName || null, body.motherName || null, body.parentPhone || null, body.parentEmail || null, body.parentOccupation || null, body.address || null, body.city || null, body.state || null, body.pinCode || null, body.admissionDate ? new Date(body.admissionDate) : null, body.medicalConditions || null, body.allergies || null, JSON.stringify(body.documents || {})],
+        [u.id, instituteId, enrollmentNo, body.rollNo || null, sectionId, body.dob ? new Date(body.dob) : null, body.gender || null, body.bloodGroup || null, body.maritalStatus || null, body.nationalId || null, body.fatherName || body.father_name || null, body.motherName || body.mother_name || null, body.parentPhone || body.parent_phone || null, body.parentEmail || body.parent_email || null, body.parentOccupation || body.parent_occupation || null, body.address || null, body.city || null, body.state || null, body.pinCode || body.pin_code || null, body.admissionDate ? new Date(body.admissionDate) : null, body.medicalConditions || body.medical_conditions || null, body.allergies || null, JSON.stringify(documents)],
       );
 
       await queryRunner.commitTransaction();
@@ -197,7 +230,10 @@ export class SchoolStudentService {
        WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
       params,
     );
-    const mapped = rows.map(r => ({
+    const mapped = rows.map(r => {
+      const documents = this.parseJsonObject(r.documents);
+      const parentDetails = documents.parentDetails || {};
+      return ({
       id: r.id,
       name: r.name,
       email: r.email,
@@ -205,6 +241,7 @@ export class SchoolStudentService {
       isActive: r.is_active,
       profileImage: r.profile_image,
       createdAt: r.created_at,
+      parentDetails,
       studentProfile: {
         id: r.profile_id,
         enrollmentNo: r.enrollment_no,
@@ -226,7 +263,7 @@ export class SchoolStudentService {
         admissionDate: r.admission_date,
         medicalConditions: r.medical_conditions,
         allergies: r.allergies,
-        documents: this.parseJsonObject(r.documents),
+        documents,
         maritalStatus: r.marital_status,
         nationalId: r.national_id,
         section: r.section_id ? {
@@ -238,7 +275,8 @@ export class SchoolStudentService {
             }
           } : null
       }
-    }));
+    });
+    });
     return { success: true, data: mapped, total, page, limit, totalPages };
   }
 
@@ -472,6 +510,9 @@ export class SchoolStudentService {
       ORDER BY ts.submitted_at DESC
     `, [r.profile_id]) : [];
 
+    const documents = this.parseJsonObject(r.documents);
+    const parentDetails = documents.parentDetails || {};
+
     const mappedData = {
       id: r.user_id,
       name: r.name,
@@ -482,6 +523,7 @@ export class SchoolStudentService {
       isActive: r.is_active,
       createdAt: r.created_at,
       performance: testSessions,
+      parentDetails,
       studentProfile: {
         id: r.profile_id,
         enrollmentNo: r.enrollment_no,
@@ -503,7 +545,7 @@ export class SchoolStudentService {
         admissionDate: r.admission_date,
         medicalConditions: r.medical_conditions,
         allergies: r.allergies,
-        documents: this.parseJsonObject(r.documents),
+        documents,
         maritalStatus: r.marital_status,
         nationalId: r.national_id,
         classId: r.class_id,
@@ -535,6 +577,13 @@ export class SchoolStudentService {
       `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),profile_image=COALESCE($4,profile_image),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
       [userId, body.name, body.isActive, body.profileImage, body.phone],
     );
+    const existingStudentRows: any[] = await this.ds.query(`SELECT documents FROM students WHERE user_id=$1`, [userId]);
+    const existingDocuments = this.parseJsonObject(existingStudentRows[0]?.documents);
+    const documents = {
+      ...existingDocuments,
+      ...(body.documents ? this.parseJsonObject(body.documents) : {}),
+      parentDetails: this.buildParentDetails(body, existingDocuments.parentDetails || {}),
+    };
     await this.ds.query(
       `UPDATE students SET
         enrollment_no = COALESCE($2, enrollment_no),
@@ -568,11 +617,11 @@ export class SchoolStudentService {
         body.dob ? new Date(body.dob) : null,
         body.gender || null,
         body.bloodGroup || null,
-        body.fatherName || null,
-        body.motherName || null,
-        body.parentPhone || null,
-        body.parentEmail || null,
-        body.parentOccupation || null,
+        body.fatherName || body.father_name || null,
+        body.motherName || body.mother_name || null,
+        body.parentPhone || body.parent_phone || null,
+        body.parentEmail || body.parent_email || null,
+        body.parentOccupation || body.parent_occupation || null,
         body.currentAddress || body.address || null,
         body.city || null,
         body.state || null,
@@ -580,7 +629,7 @@ export class SchoolStudentService {
         body.admissionDate ? new Date(body.admissionDate) : null,
         body.medicalConditions || null,
         body.allergies || null,
-        body.documents ? JSON.stringify(body.documents) : null,
+        JSON.stringify(documents),
         body.maritalStatus || null,
         body.nationalId || null
       ]

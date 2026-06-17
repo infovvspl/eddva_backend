@@ -1187,11 +1187,21 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     return { success: true, data: result };
   }
 
-  async listSessions(user: any) {
+  async listSessions(user: any, query: any = {}) {
     const instituteId = user.instituteId;
-    const page = Math.max(1, parseInt(user.query?.page) || 1);
-    const limit = Math.max(1, parseInt(user.query?.limit) || 100);
+    const page = Math.max(1, parseInt(query?.page) || 1);
+    const limit = Math.max(1, parseInt(query?.limit) || 100);
     const offset = (page - 1) * limit;
+    const params: any[] = [instituteId];
+    const whereParts = ['ts.tenant_id = $1', 'ts.deleted_at IS NULL'];
+    const studentFilter = query?.studentId || query?.userId;
+
+    if (studentFilter) {
+      params.push(studentFilter);
+      whereParts.push(`(ts.student_id::text = $${params.length}::text OR s.user_id::text = $${params.length}::text)`);
+    }
+
+    const whereSql = whereParts.join(' AND ');
 
     const countSql = `
       SELECT COUNT(*)::int AS total
@@ -1199,43 +1209,56 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       INNER JOIN students s ON ts.student_id = s.id
       INNER JOIN users u ON s.user_id = u.id
       INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
-      WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
+      WHERE ${whereSql}
     `;
-    const countResult = await this.ds.query(countSql, [instituteId]);
+    const countResult = await this.ds.query(countSql, params);
     const total = parseInt(countResult[0]?.total || '0', 10);
     const totalPages = Math.ceil(total / limit);
+    const rowParams = [...params, limit, offset];
+    const limitIndex = rowParams.length - 1;
+    const offsetIndex = rowParams.length;
 
     const rows = await this.ds.query(`
       SELECT 
         ts.id,
         ts.status,
+        ts.submitted_at AS "submittedAt",
         ts.total_score AS "totalScore",
         ts.accuracy,
         ts.correct_count AS "correctCount",
         ts.wrong_count AS "wrongCount",
+        s.id AS "studentId",
+        s.user_id AS "userId",
         u.name AS "student_name",
         mt.title AS "mock_test_title"
       FROM test_sessions ts
       INNER JOIN students s ON ts.student_id = s.id
       INNER JOIN users u ON s.user_id = u.id
       INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
-      WHERE ts.tenant_id = $1 AND ts.deleted_at IS NULL
+      WHERE ${whereSql}
       ORDER BY ts.submitted_at DESC NULLS LAST
-      LIMIT $2 OFFSET $3
-    `, [instituteId, limit, offset]);
+      LIMIT $${limitIndex} OFFSET $${offsetIndex}
+    `, rowParams);
 
     const mapped = rows.map((r: any) => ({
       id: r.id,
       status: r.status,
+      submittedAt: r.submittedAt,
       totalScore: r.totalScore,
       accuracy: r.accuracy,
       correctCount: r.correctCount,
       wrongCount: r.wrongCount,
+      studentId: r.studentId,
+      userId: r.userId,
       student: {
+        id: r.studentId,
+        userId: r.userId,
         user: {
+          id: r.userId,
           name: r.student_name
         }
       },
+      mockTestTitle: r.mock_test_title,
       mockTest: {
         title: r.mock_test_title
       }
