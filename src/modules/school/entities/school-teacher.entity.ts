@@ -8,5 +8,7 @@ export class SchoolTeacher extends SchoolBase {
   @Column({ name: 'employee_id', nullable: true }) employeeId: string;
   @Column({ nullable: true }) department: string;
   @Column({ nullable: true }) qualification: string;
+  @Column({ nullable: true }) nationality: string;
+  @Column({ nullable: true }) country: string;
   @Column({ name: 'joining_date', type: 'date', nullable: true }) joiningDate: Date;
 }

@@ -50,11 +50,12 @@ export class SchoolReportService {
     let subjectIds = [query.subjectId || query.subject_id].filter(Boolean).map(String);
     let assignments: any[] = [];
 
-    if (user.role === 'TEACHER') {
-      const teacherRows: any[] = await this.ds.query(`SELECT id FROM teachers WHERE user_id::text=$1::text LIMIT 1`, [user.id]);
+    const teacherUserId = query.teacherUserId || query.teacher_user_id || (user.role === 'TEACHER' ? user.id : null);
+    if (teacherUserId) {
+      const teacherRows: any[] = await this.ds.query(`SELECT id FROM teachers WHERE user_id::text=$1::text LIMIT 1`, [teacherUserId]);
       const teacherId = teacherRows[0]?.id;
       if (!teacherId) {
-        return { instituteId, classIds: [], sectionIds: [], subjectIds: [], assignments: [] };
+        return { instituteId, classIds: [], sectionIds: [], subjectIds: [], assignments: [], teacherUserId, isClassTeacherScope: false };
       }
 
       assignments = await this.ds.query(
@@ -121,6 +122,7 @@ export class SchoolReportService {
       sectionIds: [...new Set(sectionIds)],
       subjectIds: [...new Set(subjectIds)],
       assignments,
+      teacherUserId,
       isClassTeacherScope: assignments.some((row) => this.isTrue(row.is_class_teacher)),
     };
   }
@@ -129,7 +131,7 @@ export class SchoolReportService {
     await this.ensureResultSchema();
     const scope = await this.resolveClassScope(user, query);
 
-    if (user.role === 'TEACHER' && !scope.classIds.length && !scope.sectionIds.length) {
+    if (scope.teacherUserId && !scope.classIds.length && !scope.sectionIds.length) {
       return {
         success: true,
         data: [],
@@ -298,6 +300,7 @@ export class SchoolReportService {
         class: [student.class_name, student.section_name].filter(Boolean).join(' - ') || '-',
         avgScore,
         attendance: attendanceRate,
+        isEvaluated: scores.length > 0,
         trend: scores.length > 1 && scores[scores.length - 1] > scores[0] ? 'improving' : scores.length > 1 && scores[scores.length - 1] < scores[0] ? 'declining' : 'consistent',
         weakAreas: subjects.filter((item) => item.avg < 60).map((item) => item.subject),
         strongAreas: subjects.filter((item) => item.avg >= 75).map((item) => item.subject),
