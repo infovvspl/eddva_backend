@@ -573,6 +573,7 @@ export class AiBridgeService {
       chapters?: string[];
     },
     tenantId?: string,
+    vertical?: string,
   ) {
     const raw = await this.post<any>('/test/generate/', {
       topic: dto.topicName,
@@ -587,7 +588,7 @@ export class AiBridgeService {
       chapter: dto.chapter,
       chapters: dto.chapters,           // subject-test: exact DB chapters to generate from
       seed: (dto as any).seed,          // force LLM variety
-    }, tenantId);
+    }, tenantId, undefined, vertical);
 
     const questions = this.resolveToQuestionList(raw);
 
