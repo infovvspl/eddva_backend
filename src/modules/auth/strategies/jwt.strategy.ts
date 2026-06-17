@@ -56,7 +56,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       // Fallback: check if it's a school user
       const schoolRows = await this.schoolDs.query(
-        `SELECT u.* FROM users u WHERE u.id = $1`,
+        `SELECT u.id, u.phone, u.email, u.name, u.role, u.is_active FROM users u WHERE u.id = $1`,
         [userId]
       );
       if (!schoolRows.length) {

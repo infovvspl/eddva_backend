@@ -521,9 +521,9 @@ export class SchoolStudentService {
   }
 
   async update(id: string, body: any) {
-    let userRows: any[] = await this.ds.query(`SELECT * FROM users WHERE id=$1`, [id]);
+    let userRows: any[] = await this.ds.query(`SELECT id, name, email, phone, role, is_active FROM users WHERE id=$1`, [id]);
     if (!userRows.length) {
-      userRows = await this.ds.query(`SELECT u.* FROM users u JOIN students s ON s.user_id=u.id WHERE s.id=$1`, [id]);
+      userRows = await this.ds.query(`SELECT u.id, u.name, u.email, u.phone, u.role, u.is_active FROM users u JOIN students s ON s.user_id=u.id WHERE s.id=$1`, [id]);
     }
     if (!userRows.length) throw new NotFoundException('Student not found');
     const userId = userRows[0].id;

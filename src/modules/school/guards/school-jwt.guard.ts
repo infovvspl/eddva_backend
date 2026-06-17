@@ -102,7 +102,8 @@ export class SchoolJwtGuard implements CanActivate {
     }
 
     const rows: any[] = await this.ds.query(
-      `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+      `SELECT u.id, u.email, u.name, u.role, u.profile_image, u.institute_id, u.is_active, 
+              i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE u.id = $1`,
