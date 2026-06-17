@@ -468,13 +468,24 @@ export class SchoolStudyPlanService implements OnModuleInit {
               t.name AS topic_name,
               chap.name AS chapter_name,
               sub.name AS subject_name
-       FROM school_topic_progress tp
-       JOIN topics t ON t.id = tp.topic_id
-       JOIN chapters chap ON chap.id = t.chapter_id
-       JOIN subjects sub ON sub.id = chap.subject_id
-       JOIN teacher_academic_assignments taa
-         ON taa.subject_id = sub.id AND taa.class_id = $2 AND taa.section_id = $3
-       WHERE tp.student_id = $1 AND COALESCE(tp.last_revised_at, tp.completed_at) IS NOT NULL`,
+        FROM school_topic_progress tp
+        JOIN topics t ON t.id = tp.topic_id
+        JOIN chapters chap ON chap.id = t.chapter_id
+        JOIN subjects sub ON sub.id = chap.subject_id
+        WHERE tp.student_id = $1 AND COALESCE(tp.last_revised_at, tp.completed_at) IS NOT NULL
+          AND (
+            (sub.class_id::text = $2::text AND (sub.section_id IS NULL OR sub.section_id::text = $3::text))
+            OR sub.id::text IN (
+              SELECT DISTINCT scoped.id::text
+              FROM teacher_academic_assignments taa
+              JOIN subjects assigned_sub ON assigned_sub.id::text = taa.subject_id::text
+              JOIN subjects scoped
+                ON LOWER(TRIM(scoped.name)) = LOWER(TRIM(assigned_sub.name))
+               AND scoped.class_id::text = $2::text
+               AND (scoped.section_id IS NULL OR scoped.section_id::text = $3::text)
+              WHERE taa.class_id::text = $2::text AND taa.section_id::text = $3::text
+            )
+          ) `,
       [student.student_id, targetClassId, student.section_id]
     );
 
@@ -584,8 +595,19 @@ export class SchoolStudyPlanService implements OnModuleInit {
     const subjectRows = await this.ds.query(
       `SELECT DISTINCT sub.id, sub.name
        FROM subjects sub
-       JOIN teacher_academic_assignments taa ON taa.subject_id = sub.id
-       WHERE taa.class_id = $1 AND taa.section_id = $2`,
+       WHERE sub.class_id::text = $1::text
+         AND (sub.section_id IS NULL OR sub.section_id::text = $2::text)
+       UNION
+       SELECT DISTINCT scoped.id, scoped.name
+       FROM teacher_academic_assignments taa
+       JOIN subjects assigned_sub ON assigned_sub.id::text = taa.subject_id::text
+       JOIN subjects scoped
+         ON LOWER(TRIM(scoped.name)) = LOWER(TRIM(assigned_sub.name))
+        AND scoped.class_id::text = $1::text
+        AND (scoped.section_id IS NULL OR scoped.section_id::text = $2::text)
+       WHERE taa.class_id::text = $1::text
+         AND taa.section_id::text = $2::text
+       ORDER BY name`,
       [targetClassId, student.section_id]
     );
 

@@ -16,6 +16,9 @@ export class SchoolClassService implements OnModuleInit {
   private readonly logger = new Logger(SchoolClassService.name);
   private tableReady = false;
 
+  private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+  private readonly SERPER_URL = 'https://google.serper.dev/images';
+
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly s3Service: S3Service,
@@ -61,6 +64,7 @@ export class SchoolClassService implements OnModuleInit {
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS language VARCHAR(16) DEFAULT 'en'`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS notes TEXT`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS notes_status VARCHAR(16)`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS notes_images JSONB DEFAULT '[]'::jsonb`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS quiz JSONB`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS quiz_status VARCHAR(16)`);
 
@@ -177,7 +181,7 @@ export class SchoolClassService implements OnModuleInit {
              r.section_id,
              r.chapter_id, r.topic_id, r.thumbnail_url, r.source,
              r.transcript, r.transcript_status, r.language, r.notes, r.notes_status,
-             r.quiz, r.quiz_status,
+             r.notes_images, r.quiz, r.quiz_status,
              c.name AS class_name, sec.name AS section_name, s.name AS subject_name, u.name AS teacher_name,
              ch.name AS chapter_name, t.name AS topic_name
       FROM class_recordings r
@@ -432,6 +436,7 @@ export class SchoolClassService implements OnModuleInit {
         { audioUrl: videoUrl, language, topicId: topicId ?? '' },
         instituteId,
       );
+      
       const transcript: string = result?.rawTranscript ?? result?.transcript ?? '';
       if (!transcript || transcript.trim().length < 20) {
         throw new Error('Empty or too-short transcript');
@@ -478,10 +483,214 @@ export class SchoolClassService implements OnModuleInit {
         [recordingId, notes],
       );
       this.logger.log(`Notes saved (${notes.length} chars) for recording ${recordingId}`);
+
+      // Phase 3: enrich notes with section images — non-blocking, notes already visible to students.
+      this.enrichNotesWithImages(notes, recordingId, instituteId)
+        .then(async (enriched) => {
+          if (!enriched.images.length) return;
+          await this.ds.query(
+            `UPDATE class_recordings SET notes=$2, notes_images=$3::jsonb WHERE id=$1`,
+            [recordingId, enriched.notes, JSON.stringify(enriched.images)],
+          );
+          this.logger.log(`Notes enriched with ${enriched.images.length} image(s) for recording ${recordingId}`);
+        })
+        .catch((err) => this.logger.warn(`Notes image enrichment failed for ${recordingId}: ${err?.message}`));
     } catch (err: any) {
       this.logger.warn(`Notes generation failed for recording ${recordingId}: ${err?.message}`);
       await this.ds.query(`UPDATE class_recordings SET notes_status='failed' WHERE id=$1`, [recordingId]);
     }
+  }
+
+  /** Teacher-triggered: re-fetch and re-embed images for an existing notes doc. */
+  async regenerateNotesImages(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT id, notes FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const rec = rows[0];
+    if (!rec.notes || rec.notes.trim().length < 20) {
+      throw new BadRequestException('No notes available yet — generate notes first');
+    }
+    // Strip previously-embedded images so we re-insert fresh ones at clean positions.
+    const strippedNotes = this.stripEmbeddedImages(rec.notes);
+    this.enrichNotesWithImages(strippedNotes, id, instituteId)
+      .then(async (enriched) => {
+        if (!enriched.images.length) return;
+        await this.ds.query(
+          `UPDATE class_recordings SET notes=$2, notes_images=$3::jsonb WHERE id=$1`,
+          [id, enriched.notes, JSON.stringify(enriched.images)],
+        );
+        this.logger.log(`Notes images refreshed (${enriched.images.length}) for recording ${id}`);
+      })
+      .catch((err) => this.logger.warn(`Re-generate notes images failed for ${id}: ${err?.message}`));
+    return { success: true, message: 'Image enrichment started — refresh the page in 30 seconds' };
+  }
+
+  // ── Image enrichment helpers ──────────────────────────────────────────────
+
+  private stripEmbeddedImages(notes: string): string {
+    return notes
+      .replace(/\n!\[.*?\]\(https?:\/\/.*?\)\n\*.*?\*\n/g, '\n')
+      .replace(/\n\n!\[.*?\]\(https?:\/\/.*?\)\n/g, '\n');
+  }
+
+  private async extractImageSearchTerms(
+    notes: string,
+  ): Promise<Array<{heading: string; searchTerm: string; caption: string}>> {
+    const groqKey = process.env.GROQ_API_KEY || '';
+    if (!groqKey) return [];
+    const truncated = notes.slice(0, 4000);
+    try {
+      const res = await fetch(this.GROQ_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a JSON-only API that returns {"sections": [...]}.',
+            },
+            {
+              role: 'user',
+              content: `Given these lecture notes (Markdown), identify 3–4 major section headings (## or ###) that would benefit from an illustrative educational image.
+
+For each section:
+- "heading": copy the exact heading line from the notes (include the ## or ### prefix).
+- "searchTerm": 4–7 words, be SPECIFIC to that sub-topic, include a visual type hint (diagram, photograph, chart, illustration, map, microscope, experiment).
+- "caption": one sentence describing exactly what the image shows and how it helps students understand this section.
+
+Return ONLY: {"sections": [{"heading": "## Exact Heading", "searchTerm": "...", "caption": "..."}]}
+
+NOTES:
+${truncated}`,
+            },
+          ],
+          temperature: 0.3,
+          max_tokens: 1024,
+        }),
+      });
+      if (!res.ok) return [];
+      const data: any = await res.json();
+      const parsed = JSON.parse(data.choices[0].message.content);
+      const sections = parsed.sections || parsed;
+      if (!Array.isArray(sections)) return [];
+      return sections
+        .slice(0, 4)
+        .filter((s: any) => s?.heading && s?.searchTerm && typeof s.heading === 'string');
+    } catch {
+      return [];
+    }
+  }
+
+  private async fetchSerperImage(searchTerm: string): Promise<string | null> {
+    const serperKey = process.env.SERPER_API_KEY || '';
+    if (!serperKey) return null;
+    try {
+      const visualHints = ['diagram', 'photo', 'illustration', 'chart', 'map', 'microscope', 'experiment', 'image', 'figure'];
+      const lower = searchTerm.toLowerCase();
+      const enriched = visualHints.some((h) => lower.includes(h))
+        ? searchTerm
+        : `${searchTerm} educational diagram`;
+      const res = await fetch(this.SERPER_URL, {
+        method: 'POST',
+        headers: { 'X-API-KEY': serperKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: enriched, num: 5 }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      const images: any[] = data.images || [];
+      // Try candidates until one downloads successfully
+      for (const img of images.slice(0, 3)) {
+        if (img?.imageUrl) return img.imageUrl;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async downloadAndUploadToS3(
+    imageUrl: string,
+    s3Key: string,
+  ): Promise<string | null> {
+    try {
+      const res = await fetch(imageUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+          Referer: 'https://www.google.com/',
+          Accept: 'image/webp,image/apng,image/jpeg,image/png,image/*,*/*;q=0.8',
+        },
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!res.ok) return null;
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.startsWith('image/')) return null;
+      const buffer = Buffer.from(await res.arrayBuffer());
+      if (buffer.length < 2048) return null;
+      const mimeType = contentType.split(';')[0].trim();
+      await this.s3Service.upload(s3Key, buffer, mimeType);
+      return this.s3Service.toPublicUrl(s3Key);
+    } catch {
+      return null;
+    }
+  }
+
+  private insertImageAfterHeading(
+    notes: string,
+    heading: string,
+    imageUrl: string,
+    caption: string,
+  ): string {
+    const headingText = heading.replace(/^#{1,6}\s*/, '').trim().toLowerCase();
+    const lines = notes.split('\n');
+    const idx = lines.findIndex((line) =>
+      line.replace(/^#{1,6}\s*/, '').trim().toLowerCase() === headingText,
+    );
+    if (idx === -1) return notes;
+    const imageBlock = `\n![${caption}](${imageUrl})\n*${caption}*\n`;
+    lines.splice(idx + 1, 0, imageBlock);
+    return lines.join('\n');
+  }
+
+  private async enrichNotesWithImages(
+    notes: string,
+    recordingId: string,
+    instituteId: string,
+  ): Promise<{notes: string; images: Array<{heading: string; searchTerm: string; s3Url: string; caption: string}>}> {
+    const sections = await this.extractImageSearchTerms(notes);
+    if (!sections.length) return { notes, images: [] };
+
+    const images: Array<{heading: string; searchTerm: string; s3Url: string; caption: string}> = [];
+    let enrichedNotes = notes;
+
+    for (let i = 0; i < sections.length; i++) {
+      const section = sections[i];
+      try {
+        const imageUrl = await this.fetchSerperImage(section.searchTerm);
+        if (!imageUrl) continue;
+
+        const rawExt = imageUrl.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
+        const safeExt = ['jpg', 'jpeg', 'png', 'webp'].includes(rawExt) ? rawExt : 'jpg';
+        const s3Key = `tenants/${instituteId}/class-notes/${recordingId}/${i}.${safeExt}`;
+
+        const s3Url = await this.downloadAndUploadToS3(imageUrl, s3Key);
+        if (!s3Url) continue;
+
+        enrichedNotes = this.insertImageAfterHeading(enrichedNotes, section.heading, s3Url, section.caption);
+        images.push({ heading: section.heading, searchTerm: section.searchTerm, s3Url, caption: section.caption });
+      } catch (err: any) {
+        this.logger.warn(`Image enrichment skipped for "${section.heading}": ${err?.message}`);
+      }
+      if (i < sections.length - 1) await new Promise((r) => setTimeout(r, 600));
+    }
+
+    return { notes: enrichedNotes, images };
   }
 
   /** Re-run transcription for a recording (teacher-triggered). */

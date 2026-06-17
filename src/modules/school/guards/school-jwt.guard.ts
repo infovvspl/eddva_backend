@@ -17,6 +17,31 @@ import { IS_PUBLIC_KEY } from '../decorators/school-public.decorator';
 const USER_CACHE = new Map<string, { user: any; exp: number }>();
 const USER_TTL_MS = 30_000;
 
+async function loadStudentProfile(ds: DataSource, userId: string) {
+  const rows: any[] = await ds.query(
+    `SELECT s.id AS student_id, s.section_id, s.institute_id, s.enrollment_no, s.roll_no,
+            sec.name AS section_name, c.id AS class_id, c.name AS class_name
+     FROM students s
+     LEFT JOIN sections sec ON s.section_id::text = sec.id::text
+     LEFT JOIN classes c ON sec.class_id::text = c.id::text
+     WHERE s.user_id::text = $1::text
+     LIMIT 1`,
+    [userId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.student_id,
+    sectionId: row.section_id,
+    sectionName: row.section_name,
+    classId: row.class_id,
+    className: row.class_name,
+    enrollmentNo: row.enrollment_no,
+    rollNo: row.roll_no,
+    instituteId: row.institute_id,
+  };
+}
+
 @Injectable()
 export class SchoolJwtGuard implements CanActivate {
   constructor(
@@ -89,13 +114,20 @@ export class SchoolJwtGuard implements CanActivate {
     const row = rows[0];
     if (!row.is_active) throw new UnauthorizedException('This user account is inactive');
 
+    const studentProfile =
+      String(row.role || '').toUpperCase() === 'STUDENT'
+        ? await loadStudentProfile(this.ds, row.id)
+        : null;
+
     const resolvedUser = {
       id: row.id,
       email: row.email,
       name: row.name,
       role: row.role,
+      profile_image: row.profile_image,
       instituteId: row.institute_id || tokenInstituteId,
       isActive: row.is_active,
+      studentProfile,
       institute: row.inst_id
         ? {
             id: row.inst_id,

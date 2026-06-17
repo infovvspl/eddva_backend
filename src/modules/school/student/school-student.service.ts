@@ -864,8 +864,19 @@ export class SchoolStudentService {
     const subjectRows = await this.ds.query(
       `SELECT DISTINCT sub.id, sub.name
        FROM subjects sub
-       JOIN teacher_academic_assignments taa ON taa.subject_id = sub.id
-       WHERE taa.class_id = $1 AND taa.section_id = $2`,
+       WHERE sub.class_id::text = $1::text
+         AND (sub.section_id IS NULL OR sub.section_id::text = $2::text)
+       UNION
+       SELECT DISTINCT scoped.id, scoped.name
+       FROM teacher_academic_assignments taa
+       JOIN subjects assigned_sub ON assigned_sub.id::text = taa.subject_id::text
+       JOIN subjects scoped
+         ON LOWER(TRIM(scoped.name)) = LOWER(TRIM(assigned_sub.name))
+        AND scoped.class_id::text = $1::text
+        AND (scoped.section_id IS NULL OR scoped.section_id::text = $2::text)
+       WHERE taa.class_id::text = $1::text
+         AND taa.section_id::text = $2::text
+       ORDER BY name`,
       [student.class_id, student.section_id]
     );
     const subjectNames = subjectRows.map((s: any) => s.name);
@@ -921,12 +932,36 @@ export class SchoolStudentService {
     const instituteId = user.instituteId || student.institute_id;
 
     const subjectRows = await this.ds.query(
-      `SELECT DISTINCT sub.id, sub.name, u.name AS teacher_name, u.id AS teacher_user_id
-       FROM subjects sub
-       JOIN teacher_academic_assignments taa ON taa.subject_id = sub.id
+      `WITH class_subjects AS (
+         SELECT DISTINCT sub.id, sub.name
+         FROM subjects sub
+         WHERE sub.class_id::text = $1::text
+           AND (sub.section_id IS NULL OR sub.section_id::text = $2::text)
+         UNION
+         SELECT DISTINCT scoped.id, scoped.name
+         FROM teacher_academic_assignments taa
+         JOIN subjects assigned_sub ON assigned_sub.id::text = taa.subject_id::text
+         JOIN subjects scoped
+           ON LOWER(TRIM(scoped.name)) = LOWER(TRIM(assigned_sub.name))
+          AND scoped.class_id::text = $1::text
+          AND (scoped.section_id IS NULL OR scoped.section_id::text = $2::text)
+         WHERE taa.class_id::text = $1::text
+           AND taa.section_id::text = $2::text
+       )
+       SELECT cs.id, cs.name, u.name AS teacher_name, u.id AS teacher_user_id
+       FROM class_subjects cs
+       LEFT JOIN teacher_academic_assignments taa 
+         ON taa.class_id::text = $1::text 
+        AND taa.section_id::text = $2::text 
+        AND (
+          taa.subject_id::text = cs.id::text 
+          OR taa.subject_id::text IN (
+            SELECT id::text FROM subjects WHERE LOWER(TRIM(name)) = LOWER(TRIM(cs.name))
+          )
+        )
        LEFT JOIN teachers t ON taa.teacher_id = t.id
        LEFT JOIN users u ON t.user_id = u.id
-       WHERE taa.class_id = $1 AND taa.section_id = $2`,
+       ORDER BY cs.name`,
       [student.class_id, student.section_id]
     );
 

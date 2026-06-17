@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -12,9 +13,13 @@ import { recordStudentActivity } from '../common/gamification-helper';
 import { randomUUID } from 'crypto';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class SchoolAssignmentService {
+  private readonly logger = new Logger(SchoolAssignmentService.name);
+
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
@@ -34,23 +39,124 @@ export class SchoolAssignmentService {
     return instituteId;
   }
 
-  private storedUploadPath(file?: Express.Multer.File | null) {
+  /** Always uploads to S3. Never stores local paths. */
+  private async storedUploadPath(
+    instituteId: string,
+    file?: Express.Multer.File | null,
+    folder = 'assignments',
+  ): Promise<string | null> {
     if (!file) return null;
-    if (file.filename) return `uploads/${file.filename}`;
-    return file.path?.replace(/\\/g, '/') || null;
+    const safeName = (file.originalname || 'file').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'file';
+    const key = `tenants/${instituteId}/school-assignments/${folder}/${Date.now()}-${randomUUID()}-${safeName}`;
+    const mimeType = file.mimetype || 'application/octet-stream';
+
+    if (file.buffer && file.buffer.length > 0) {
+      return this.s3Service.upload(key, file.buffer, mimeType);
+    }
+
+    // Disk storage fallback (read → S3 → delete temp file)
+    if (file.path) {
+      const diskPath = file.path;
+      try {
+        const buffer = fs.readFileSync(diskPath);
+        const url = await this.s3Service.upload(key, buffer, mimeType);
+        fs.unlink(diskPath, () => { /* best-effort cleanup */ });
+        return url;
+      } catch (err) {
+        this.logger.error(`Failed to upload submission from disk (${diskPath}): ${(err as Error).message}`);
+        throw err;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve a submission's file_path to a publicly accessible URL.
+   * Handles S3/CDN URLs, bare S3 keys, and legacy local-disk paths
+   * (lazy-migrated to S3 on first access so they work going forward).
+   */
+  async resolveSubmissionFile(
+    user: any,
+    submissionId: string,
+  ): Promise<{ success: true; data: { url: string } }> {
+    const rows: any[] = await this.ds.query(
+      `SELECT subm.id, COALESCE(subm.file_path, subm.attachment_url) AS file_path,
+              subm.student_id, subm.assignment_id
+       FROM assignment_submissions subm
+       WHERE subm.id::text = $1::text
+       LIMIT 1`,
+      [submissionId],
+    );
+    if (!rows.length) throw new NotFoundException('Submission not found');
+    const submission = rows[0];
+
+    // Students may only view their own submission
+    if (user.role === 'STUDENT') {
+      const profile = await this.getStudentProfile(user);
+      if (String(submission.student_id) !== String(profile.student_id)) {
+        throw new ForbiddenException('You can only view your own submission');
+      }
+    }
+
+    const filePath: string | null = submission.file_path;
+    if (!filePath) throw new NotFoundException('No file attached to this submission');
+
+    // Already a full public/CDN URL → return directly (R2 public bucket, etc.)
+    if (/^https?:\/\//i.test(filePath)) {
+      return { success: true, data: { url: filePath } };
+    }
+
+    // Bare S3 key (e.g. "tenants/xxx/school-assignments/...")
+    if (filePath.startsWith('tenants/')) {
+      const url = await this.s3Service.presignGet(filePath, 300);
+      return { success: true, data: { url } };
+    }
+
+    // Legacy local-disk path (e.g. "uploads/filename.png") — lazy-migrate to S3
+    const localPath = path.resolve(process.cwd(), filePath);
+    if (!fs.existsSync(localPath)) {
+      throw new NotFoundException('Submission file is no longer available on this server');
+    }
+
+    try {
+      const ext = path.extname(localPath).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        '.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      };
+      const mimeType = mimeMap[ext] || 'application/octet-stream';
+      const safeName = path.basename(localPath).replace(/[^a-zA-Z0-9.\-_]/g, '') || 'submission';
+      const key = `tenants/${user.instituteId || 'unknown'}/school-assignments/student-submissions/migrated-${safeName}`;
+      const buffer = fs.readFileSync(localPath);
+      const s3Url = await this.s3Service.upload(key, buffer, mimeType);
+
+      // Update the DB row so future lookups hit S3 directly
+      await this.ds.query(
+        `UPDATE assignment_submissions SET file_path=$2, attachment_url=$2, updated_at=NOW() WHERE id::text=$1::text`,
+        [submissionId, s3Url],
+      );
+
+      return { success: true, data: { url: s3Url } };
+    } catch (err) {
+      this.logger.warn(`S3 migration failed for local file ${localPath}: ${(err as Error).message}`);
+      throw new NotFoundException('Submission file could not be loaded. Please ask the student to re-submit.');
+    }
   }
 
   private async getStudentProfile(user: any) {
+    const fallbackProfile = user?.studentProfile || {};
     const rows: any[] = await this.ds.query(
       `SELECT s.id AS student_id, s.institute_id, sec.class_id, s.section_id
        FROM students s
        LEFT JOIN sections sec ON s.section_id::text = sec.id::text
-       WHERE s.user_id::text = $1::text`,
-      [user.id],
+       WHERE s.user_id::text = $1::text OR s.id::text = $2::text
+       LIMIT 1`,
+      [user.id, fallbackProfile.id || null],
     );
     if (rows.length) return rows[0];
 
-    const fallbackProfile = user?.studentProfile || {};
     if (!fallbackProfile.id && !fallbackProfile.classId && !fallbackProfile.sectionId) {
       throw new NotFoundException('Student profile not found');
     }
@@ -60,6 +166,57 @@ export class SchoolAssignmentService {
       institute_id: user.instituteId || null,
       class_id: fallbackProfile.classId || null,
       section_id: fallbackProfile.sectionId || null,
+    };
+  }
+
+  private async getOrCreateStudentProfileForAssignment(
+    user: any,
+    assignment: any,
+    instituteId: string,
+  ) {
+    try {
+      return await this.getStudentProfile(user);
+    } catch (error) {
+      if (!(error instanceof NotFoundException)) throw error;
+    }
+
+    let targetSectionId = assignment.section_id;
+    if (!targetSectionId && assignment.class_id) {
+      const fallbackSections: any[] = await this.ds.query(
+        `SELECT id
+         FROM sections
+         WHERE class_id::text = $1::text
+           AND institute_id::text = $2::text
+         ORDER BY name ASC
+         LIMIT 1`,
+        [assignment.class_id, instituteId],
+      );
+      targetSectionId = fallbackSections[0]?.id || null;
+    }
+
+    const sectionRows: any[] = await this.ds.query(
+      `SELECT sec.id AS section_id, sec.class_id, sec.institute_id
+       FROM sections sec
+       WHERE sec.id::text = $1::text
+         AND sec.institute_id::text = $2::text
+       LIMIT 1`,
+      [targetSectionId, instituteId],
+    );
+    const section = sectionRows[0];
+    if (!section) {
+      throw new NotFoundException('Student profile not found');
+    }
+
+    const enrollmentNo = `AUTO-${String(user.id).slice(0, 8)}-${Date.now()}`;
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO students (user_id, institute_id, enrollment_no, section_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id AS student_id, institute_id, section_id`,
+      [user.id, instituteId, enrollmentNo, section.section_id],
+    );
+    return {
+      ...rows[0],
+      class_id: section.class_id,
     };
   }
 
@@ -76,6 +233,8 @@ export class SchoolAssignmentService {
       dueDate: r.due_date,
       subjectName: r.subject_name,
       className: r.class_name,
+      sectionId: r.section_id,
+      sectionName: r.section_name,
       instructions: r.instructions,
       filePath: r.file_path,
       teacherFileUrl: r.file_path,
@@ -126,10 +285,41 @@ export class SchoolAssignmentService {
       if (!classId) return { success: true, data: [] };
       params.push(classId);
       filter += ` AND a.class_id::text=$${params.length}::text`;
+      if (profile.section_id) {
+        params.push(profile.section_id);
+        filter += ` AND (a.section_id IS NULL OR a.section_id::text=$${params.length}::text)`;
+      } else {
+        filter += ` AND a.section_id IS NULL`;
+      }
     } else {
+      if (user.role === 'TEACHER') {
+        params.push(user.id);
+        filter += ` AND (
+          a.teacher_id::text=$${params.length}::text
+          OR (
+            a.teacher_id IS NULL
+            AND EXISTS (
+              SELECT 1
+              FROM teachers t
+              JOIN teacher_academic_assignments ta ON ta.teacher_id::text = t.id::text
+              WHERE t.user_id::text = $${params.length}::text
+                AND ta.class_id::text = a.class_id::text
+                AND (a.section_id IS NULL OR ta.section_id::text = a.section_id::text)
+                AND (
+                  COALESCE(ta.is_class_teacher, false) = true
+                  OR ta.subject_id::text = a.subject_id::text
+                )
+            )
+          )
+        )`;
+      }
       if (query.classId) {
         params.push(query.classId);
         filter += ` AND a.class_id::text=$${params.length}::text`;
+      }
+      if (query.sectionId || query.section_id) {
+        params.push(query.sectionId || query.section_id);
+        filter += ` AND (a.section_id IS NULL OR a.section_id::text=$${params.length}::text)`;
       }
       if (query.subjectId) {
         params.push(query.subjectId);
@@ -162,11 +352,12 @@ export class SchoolAssignmentService {
                WHERE sub.assignment_id::text = a.id::text AND sub.status <> 'graded') AS pending_grade_count`;
 
     const rows: any[] = await this.ds.query(
-      `SELECT a.*, sub.name AS subject_name, c.name AS class_name
+      `SELECT a.*, sub.name AS subject_name, c.name AS class_name, sec.name AS section_name
               ${submissionSelect}
        FROM assignments a
        LEFT JOIN subjects sub ON a.subject_id::text = sub.id::text
        LEFT JOIN classes c ON a.class_id::text = c.id::text
+       LEFT JOIN sections sec ON a.section_id::text = sec.id::text
        ${submissionJoin}
        WHERE ${filter}
        ORDER BY a.due_date DESC NULLS LAST, a.created_at DESC`,
@@ -208,6 +399,7 @@ export class SchoolAssignmentService {
     const instituteId = this.resolveInstituteId(user, body.instituteId);
     const subjectName = body.subjectName || 'Subject';
     const className = body.className || 'Class';
+    const sectionName = body.sectionName || body.section_name || null;
     const topic = (body.topic || body.prompt || 'Homework').trim();
     const type = body.type || 'homework';
     const contentType = type === 'dpp' ? 'dpp' : type === 'notes' ? 'notes' : 'notes';
@@ -215,6 +407,7 @@ export class SchoolAssignmentService {
       body.prompt?.trim(),
       body.questionCount ? `Include about ${body.questionCount} questions.` : '',
       `Class: ${className}. Format as a homework assignment teachers can post for school students.`,
+      sectionName ? `Section: ${sectionName}.` : '',
     ]
       .filter(Boolean)
       .join(' ');
@@ -262,6 +455,7 @@ export class SchoolAssignmentService {
       throw new BadRequestException('imageUrl is required');
     }
     const instituteId = this.resolveInstituteId(user, body.instituteId);
+    const sectionName = (body as any).sectionName || (body as any).section_name || null;
     let extracted = '';
     try {
       const ocr = await this.aiBridge.extractImageText({
@@ -294,6 +488,7 @@ export class SchoolAssignmentService {
           length: 'detailed',
           extraContext: [
             'Create a student homework assignment from this scanned/photographed worksheet text.',
+            sectionName ? `Target section: ${sectionName}.` : '',
             body.prompt?.trim(),
             '--- Extracted text ---',
             extracted,
@@ -332,16 +527,26 @@ export class SchoolAssignmentService {
   }
 
   async create(user: any, body: any, file?: Express.Multer.File) {
-    const filePath = this.storedUploadPath(file);
     const instituteId = this.resolveInstituteId(
       user,
       body.instituteId || body.institute_id,
     );
+    const filePath = await this.storedUploadPath(instituteId, file, 'teacher-files');
 
     const classId = body.class_id || body.classId || null;
+    const sectionId = body.section_id || body.sectionId || null;
     const subjectId = body.subject_id || body.subjectId || null;
     if (!classId || !subjectId) {
       throw new BadRequestException('class_id and subject_id are required');
+    }
+    if (sectionId) {
+      const sectionRows: any[] = await this.ds.query(
+        `SELECT id FROM sections WHERE id::text = $1::text AND class_id::text = $2::text`,
+        [sectionId, classId],
+      );
+      if (!sectionRows.length) {
+        throw new BadRequestException('section_id does not belong to the selected class');
+      }
     }
 
     let instructions = body.instructions || body.description || null;
@@ -353,11 +558,12 @@ export class SchoolAssignmentService {
     }
     const type = body.type || 'homework';
 
-    const sql = `INSERT INTO assignments (tenant_id, class_id, subject_id, type, title, instructions, due_date, file_path, teacher_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`;
+    const sql = `INSERT INTO assignments (tenant_id, class_id, section_id, subject_id, type, title, instructions, due_date, file_path, teacher_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`;
     const params = [
       instituteId,
       classId,
+      sectionId,
       subjectId,
       type,
       body.title,
@@ -376,8 +582,9 @@ export class SchoolAssignmentService {
       const studentUsers = await this.ds.query(
         `SELECT s.user_id FROM students s
          JOIN sections sec ON s.section_id = sec.id
-         WHERE sec.class_id::text = $1`,
-        [classId],
+         WHERE sec.class_id::text = $1
+           AND ($2::text IS NULL OR s.section_id::text = $2::text)`,
+        [classId, sectionId],
       );
 
       for (const stu of studentUsers) {
@@ -405,23 +612,37 @@ export class SchoolAssignmentService {
     if (user.role !== 'STUDENT') {
       throw new ForbiddenException('Only students can submit assignments');
     }
-    const profile = await this.getStudentProfile(user.id);
+    const instituteId = user.instituteId || user.studentProfile?.instituteId;
+    if (!instituteId) {
+      throw new BadRequestException('Institute ID is required');
+    }
     const assignRows: any[] = await this.ds.query(
       `SELECT * FROM assignments WHERE id::text = $1::text AND tenant_id::text = $2::text`,
-      [assignmentId, profile.institute_id],
+      [assignmentId, instituteId],
     );
     if (!assignRows.length) {
       throw new NotFoundException('Assignment not found');
     }
     const assignment = assignRows[0];
+    const profile = await this.getOrCreateStudentProfileForAssignment(
+      user,
+      assignment,
+      instituteId,
+    );
     if (
       profile.class_id &&
       String(assignment.class_id) !== String(profile.class_id)
     ) {
       throw new ForbiddenException('This assignment is not for your class');
     }
+    if (
+      assignment.section_id &&
+      String(assignment.section_id) !== String(profile.section_id)
+    ) {
+      throw new ForbiddenException('This assignment is not for your section');
+    }
 
-    const filePath = this.storedUploadPath(file);
+    const filePath = await this.storedUploadPath(instituteId, file, 'student-submissions');
     if (!filePath && !body?.notes?.trim()) {
       throw new BadRequestException('Upload a file or add submission notes');
     }
@@ -491,6 +712,13 @@ export class SchoolAssignmentService {
       params.push(query.classId || query.class_id);
       filter += ` AND a.class_id::text = $${params.length}::text`;
     }
+    if (query.sectionId || query.section_id) {
+      params.push(query.sectionId || query.section_id);
+      filter += ` AND (
+        (a.section_id IS NOT NULL AND a.section_id::text = $${params.length}::text)
+        OR (a.section_id IS NULL AND st.section_id::text = $${params.length}::text)
+      )`;
+    }
     if (query.subjectId || query.subject_id) {
       params.push(query.subjectId || query.subject_id);
       filter += ` AND a.subject_id::text = $${params.length}::text`;
@@ -503,14 +731,16 @@ export class SchoolAssignmentService {
          COALESCE(subm.feedback_summary, subm.teacher_remarks) AS feedback,
          subm.submitted_at,
          a.id AS assignment_id, a.title AS assignment_title,
-         a.class_id, a.subject_id,
+         a.class_id, a.section_id, a.subject_id,
          u.name AS student_name,
-         c.name AS class_name, sub.name AS subject_name
+         c.name AS class_name, COALESCE(target_sec.name, student_sec.name) AS section_name, sub.name AS subject_name
        FROM assignment_submissions subm
        JOIN assignments a ON a.id::text = subm.assignment_id::text
        JOIN students st ON st.id::text = subm.student_id::text
        JOIN users u ON u.id::text = st.user_id::text
        LEFT JOIN classes c ON a.class_id::text = c.id::text
+       LEFT JOIN sections target_sec ON a.section_id::text = target_sec.id::text
+       LEFT JOIN sections student_sec ON st.section_id::text = student_sec.id::text
        LEFT JOIN subjects sub ON a.subject_id::text = sub.id::text
        WHERE ${filter}
        ORDER BY subm.submitted_at DESC
@@ -529,10 +759,16 @@ export class SchoolAssignmentService {
          COALESCE(subm.feedback_summary, subm.teacher_remarks) AS feedback,
          subm.submitted_at, subm.updated_at,
          u.name AS student_name,
-         u.email AS student_email
+         u.email AS student_email,
+         s.section_id,
+         sec.name AS section_name,
+         sec.class_id,
+         c.name AS class_name
        FROM assignment_submissions subm
        JOIN students s ON s.id::text = subm.student_id::text
        JOIN users u ON u.id::text = s.user_id::text
+       LEFT JOIN sections sec ON sec.id::text = s.section_id::text
+       LEFT JOIN classes c ON c.id::text = sec.class_id::text
        WHERE subm.assignment_id::text = $1::text
        ORDER BY subm.submitted_at DESC`,
       [assignmentId],

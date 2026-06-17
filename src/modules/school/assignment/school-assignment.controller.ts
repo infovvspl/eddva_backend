@@ -12,26 +12,14 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { mkdirSync } from 'fs';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { memoryStorage } from 'multer';
 import { SchoolAssignmentService } from './school-assignment.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
-import { v4 as uuidv4 } from 'uuid';
 
-const uploadsDir = join(__dirname, '../../../../uploads');
-mkdirSync(uploadsDir, { recursive: true });
-
-const uploadStorage = diskStorage({
-  destination: uploadsDir,
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + uuidv4();
-    cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
-  },
-});
+const uploadStorage = memoryStorage();
 
 @Controller('school/assignments')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
@@ -106,6 +94,15 @@ export class SchoolAssignmentController {
     @Body() body: any,
   ) {
     return this.svc.gradeSubmission(user, id, submissionId, body);
+  }
+
+  @Get('submissions/:submissionId/file')
+  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  getSubmissionFile(
+    @SchoolUser() user: any,
+    @Param('submissionId') submissionId: string,
+  ) {
+    return this.svc.resolveSubmissionFile(user, submissionId);
   }
 
   @Get(':id')

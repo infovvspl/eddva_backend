@@ -119,20 +119,67 @@ export class SchoolLiveService implements OnModuleInit {
     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
       throw new NotFoundException('Lecture not found');
     }
-    return { url: lecture.playbackUrl, status: lecture.status };
+    return { url: lecture.playbackUrl, status: lecture.status, streamKey: lecture.streamKey };
+  }
+
+  /**
+   * Same-origin HLS proxy. The public R2 (`pub-*.r2.dev`) serves the manifest
+   * but without CORS headers, so hls.js (XHR) is blocked. We fetch the file
+   * server-side and re-serve it with permissive CORS. `file` is a single flat
+   * HLS file (index.m3u8 / indexN.ts) — no path traversal allowed.
+   */
+  async proxyHls(streamKey: string, file: string): Promise<{ contentType: string; body: Buffer } | null> {
+    const base = this.config.get<string>('streaming.cdnBaseUrl');
+    if (!base || !streamKey || !file) return null;
+    if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
+    if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
+    try {
+      const r = await fetch(`${base}/${streamKey}/${file}`, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return null;
+      const contentType = r.headers.get('content-type')
+        || (file.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl'
+          : file.endsWith('.ts') ? 'video/mp2t' : 'application/octet-stream');
+      return { contentType, body: Buffer.from(await r.arrayBuffer()) };
+    } catch {
+      return null;
+    }
   }
 
   // ── nginx callbacks ──────────────────────────────────────────────────────
   async validateStream(streamKey: string): Promise<boolean> {
-    const rows = await this.ds.query(`SELECT id FROM school_live_lectures WHERE stream_key = $1`, [streamKey]);
-    if (!rows.length) return false;
+    this.logger.log(`[RTMP] on_publish — validate streamKey=${streamKey || '(empty)'}`);
+    if (!streamKey) { this.logger.warn('[RTMP] denied — empty stream key'); return false; }
+    const rows = await this.ds.query(`SELECT id, status FROM school_live_lectures WHERE stream_key = $1`, [streamKey]);
+    if (!rows.length) {
+      this.logger.warn(`[RTMP] denied — no lecture found for streamKey=${streamKey}`);
+      return false;
+    }
     const lectureId = rows[0].id;
     await this.ds.query(
-      `UPDATE school_live_lectures SET status = 'LIVE', started_at = now() WHERE id = $1`,
+      // Re-streaming an ended lecture is allowed: reset to LIVE and clear the end time.
+      `UPDATE school_live_lectures SET status = 'LIVE', started_at = now(), ended_at = NULL WHERE id = $1`,
       [lectureId],
     );
     await this.redis.publish(SCHOOL_LIVE_CHANNELS.LIVE, { lectureId });
+    this.logger.log(`[RTMP] allowed — lecture ${lectureId} is now LIVE`);
     return true;
+  }
+
+  /** Teacher/admin ends the class from the app (independent of OBS stopping). */
+  async endLecture(user: SchoolUser, id: string) {
+    const lecture = await this.getLecture(id);
+    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      throw new NotFoundException('Lecture not found');
+    }
+    if (lecture.status !== 'ENDED') {
+      await this.ds.query(
+        `UPDATE school_live_lectures SET status = 'ENDED', ended_at = COALESCE(ended_at, now()) WHERE id = $1`,
+        [id],
+      );
+      await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId: id });
+    }
+    return { success: true, status: 'ENDED' };
   }
 
   async streamEnded(streamKey: string): Promise<void> {
