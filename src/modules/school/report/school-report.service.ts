@@ -6,7 +6,7 @@ import { DataSource } from 'typeorm';
 export class SchoolReportService {
   private resultSchemaReady = false;
 
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(@InjectDataSource('school') private readonly ds: DataSource) { }
 
   private async ensureResultSchema() {
     if (this.resultSchemaReady) return;
@@ -318,7 +318,7 @@ export class SchoolReportService {
     })).sort((a, b) => b.avgScore - a.avgScore);
 
     const uniqueClassSections = new Map<string, { classId: string; sectionId: string; className: string; sectionName: string }>();
-    
+
     if (scope.assignments && scope.assignments.length) {
       for (const row of scope.assignments) {
         const classId = String(row.class_id || row.classId || '');
@@ -336,7 +336,7 @@ export class SchoolReportService {
         }
       }
     }
-    
+
     for (const student of studentPerformance) {
       const classId = String(student.classId || '');
       const sectionId = String(student.sectionId || '');
@@ -363,7 +363,7 @@ export class SchoolReportService {
         ? Math.round((classEvaluated.filter((s) => s.avgScore >= 40).length / classEvaluated.length) * 100)
         : 0;
       const attendance = this.average(classStudents.map((s) => s.attendance).filter((value) => value > 0));
-      
+
       const classSubjectScores = new Map<string, number[]>();
       for (const student of classStudents) {
         const studentResults = resultsByStudent.get(String(student.id)) || [];
@@ -375,12 +375,12 @@ export class SchoolReportService {
           classSubjectScores.get(subject)!.push(row.percentage);
         }
       }
-      
+
       const classSubjectAnalytics = [...classSubjectScores.entries()].map(([subject, scores]) => ({
         subject,
         avgScore: this.average(scores),
       })).sort((a, b) => b.avgScore - a.avgScore);
-      
+
       const topSubject = classSubjectAnalytics[0]?.subject || '-';
       const weakSubject = classSubjectAnalytics[classSubjectAnalytics.length - 1]?.subject || '-';
 
