@@ -1017,8 +1017,29 @@ export class SchoolStudentService {
     const curriculum = [];
     for (const sub of subjectRows) {
       const chapterRows = await this.ds.query(
-        `SELECT id, name FROM chapters WHERE subject_id = $1 ORDER BY sort_order, name`,
-        [sub.id]
+        `SELECT DISTINCT ch.id, ch.name, ch.sort_order
+         FROM chapters ch
+         JOIN subjects chapter_subject ON chapter_subject.id::text = ch.subject_id::text
+         WHERE ch.subject_id::text = $1::text
+            OR (
+              LOWER(TRIM(chapter_subject.name)) = LOWER(TRIM($2))
+              AND chapter_subject.institute_id::text = $3::text
+              AND (
+                (
+                  chapter_subject.class_id::text = $4::text
+                  AND (chapter_subject.section_id IS NULL OR chapter_subject.section_id::text = $5::text)
+                )
+                OR EXISTS (
+                  SELECT 1
+                  FROM teacher_academic_assignments taa
+                  WHERE taa.subject_id::text = chapter_subject.id::text
+                    AND taa.class_id::text = $4::text
+                    AND taa.section_id::text = $5::text
+                )
+              )
+            )
+         ORDER BY ch.sort_order, ch.name`,
+        [sub.id, sub.name, instituteId, student.class_id, student.section_id]
       );
 
       const chapters = [];
