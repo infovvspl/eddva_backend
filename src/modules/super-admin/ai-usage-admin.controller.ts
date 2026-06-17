@@ -1,0 +1,98 @@
+import { Controller, Get, Patch, Param, Query, Body, UseGuards, Request } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AiUsageAdminService } from './ai-usage-admin.service';
+import { AiFeatureFlagService } from '../internal/ai-feature-flag.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { UserRole } from '../../database/entities/user.entity';
+
+@ApiTags('Super Admin - AI Usage')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.SUPER_ADMIN)
+@Controller('super-admin/ai-usage')
+export class AiUsageAdminController {
+  constructor(
+    private readonly usageService: AiUsageAdminService,
+    private readonly flagService: AiFeatureFlagService,
+  ) {}
+
+  @Get('dashboard')
+  @ApiOperation({ summary: 'AI usage dashboard — totals, by-feature, daily trend' })
+  getDashboard(
+    @Query('product') product: 'school' | 'coaching' | 'all' = 'all',
+    @Query('period') period: 'today' | 'week' | 'month' = 'month',
+  ) {
+    return this.usageService.getDashboard(product, period);
+  }
+
+  @Get('by-institute')
+  @ApiOperation({ summary: 'AI usage grouped by institute' })
+  getByInstitute(
+    @Query('product') product: 'school' | 'coaching' | 'all' = 'all',
+    @Query('period') period: 'today' | 'week' | 'month' = 'month',
+    @Query('sort') sort: 'requests' | 'cost' | 'latency' = 'cost',
+  ) {
+    return this.usageService.getByInstitute(product, period, sort);
+  }
+
+  @Get('institute/:id')
+  @ApiOperation({ summary: 'AI usage detail for a specific institute' })
+  getInstituteDetail(
+    @Param('id') id: string,
+    @Query('product') product: 'school' | 'coaching' | 'all' = 'all',
+    @Query('period') period: 'today' | 'week' | 'month' = 'month',
+  ) {
+    return this.usageService.getInstituteDetail(id, product, period);
+  }
+
+  @Get('feature-flags')
+  @ApiOperation({ summary: 'Get all global feature flag states' })
+  getFeatureFlags(
+    @Query('product') product: 'school' | 'coaching' | 'all' = 'all',
+  ) {
+    return this.usageService.getFeatureFlags(product);
+  }
+
+  @Patch('feature-flags/:featureId')
+  @ApiOperation({ summary: 'Set a global feature flag (enable/disable for all institutes)' })
+  async setGlobalFlag(
+    @Param('featureId') featureId: string,
+    @Body() body: { product: 'school' | 'coaching'; isEnabled: boolean },
+    @Request() req: { user?: { id?: string } },
+  ) {
+    return this.flagService.setFeatureFlag({
+      featureId,
+      scope: 'global',
+      instituteType: body.product,
+      isEnabled: body.isEnabled,
+      updatedBy: req.user?.id ?? 'super-admin',
+    });
+  }
+
+  @Patch('institute/:instituteId/features/:featureId')
+  @ApiOperation({ summary: 'Set a per-institute feature flag with optional quota' })
+  async setInstituteFlag(
+    @Param('instituteId') instituteId: string,
+    @Param('featureId') featureId: string,
+    @Body() body: {
+      product: 'school' | 'coaching';
+      isEnabled: boolean;
+      monthlyRequestLimit?: number;
+      monthlyCostCap?: number;
+    },
+    @Request() req: { user?: { id?: string } },
+  ) {
+    return this.flagService.setFeatureFlag({
+      featureId,
+      scope: 'institute',
+      instituteId,
+      instituteType: body.product,
+      isEnabled: body.isEnabled,
+      monthlyRequestLimit: body.monthlyRequestLimit,
+      monthlyCostCap: body.monthlyCostCap,
+      updatedBy: req.user?.id ?? 'super-admin',
+    });
+  }
+}

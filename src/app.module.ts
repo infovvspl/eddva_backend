@@ -76,6 +76,7 @@ import { OtpModule } from './modules/otp/otp.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { GamesModule } from './modules/games/games.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
+import { InternalModule } from './modules/internal/internal.module';
 
 // ── School Module (all school sub-modules bundled) ────────────────────────────
 
@@ -226,6 +227,7 @@ const ALL_COACHING_ENTITIES = [
     UploadModule,
     GamesModule,
     GamificationModule,
+    InternalModule,
 
     // ── School Module ─────────────────────────────────────────────────────────
     SchoolModule,
