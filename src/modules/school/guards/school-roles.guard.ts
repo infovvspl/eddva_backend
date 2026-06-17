@@ -4,7 +4,7 @@ import { SCHOOL_ROLES_KEY } from '../decorators/school-roles.decorator';
 
 @Injectable()
 export class SchoolRolesGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) { }
 
   canActivate(context: ExecutionContext): boolean {
     const roles = this.reflector.getAllAndOverride<string[]>(SCHOOL_ROLES_KEY, [
