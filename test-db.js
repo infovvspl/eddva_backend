@@ -1,20 +1,15 @@
 const { Client } = require('pg');
 const client = new Client({
-  connectionString: 'postgresql://postgres:eddva-dev@eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com:5432/eddva_school',
-  ssl: { rejectUnauthorized: false }
+  connectionString: 'postgresql://postgres:postgres@localhost:5432/eddva'
 });
 
-async function run() {
+async function test() {
   await client.connect();
-  const res = await client.query(`
-    SELECT
-        id, teacher_id, class_id, section_id, subject_id,
-        day_of_week, start_time, end_time, type as class_type, room
-    FROM timetables
-    ORDER BY created_at DESC
-    LIMIT 10;
-  `);
-  console.log("TIMETABLES:", JSON.stringify(res.rows, null, 2));
+  const res = await client.query('SELECT page_number, rects FROM school_material_highlights LIMIT 1');
+  console.log('Row:', res.rows[0]);
+  console.log('page_number type:', typeof res.rows[0].page_number);
+  console.log('rects type:', typeof res.rows[0].rects);
   await client.end();
 }
-run().catch(console.error);
+
+test().catch(console.error);
