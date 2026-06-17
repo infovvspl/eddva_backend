@@ -33,7 +33,7 @@ export class SchoolAuthService {
     );
   }
 
-  async login(identifier: string, password: string) {
+  async login(identifier: string, password: string, ip?: string) {
     if (!identifier?.trim() || !password) {
       throw new BadRequestException('Email or phone and password are required');
     }
@@ -92,6 +92,17 @@ export class SchoolAuthService {
     if (!match) throw new UnauthorizedException('Invalid credentials');
 
     const token = this.signSchoolToken(user);
+
+    if (user.role === 'TEACHER' && ip) {
+      const approvedIps = (process.env.APPROVED_TEACHER_IPS || '').split(',').map(i => i.trim());
+      if (approvedIps.includes(ip)) {
+        await this.ds.query(
+          `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
+           ON CONFLICT (date, user_id) DO UPDATE SET status=EXCLUDED.status, remarks=EXCLUDED.remarks, updated_at=NOW()`,
+          [user.inst_id, user.id]
+        );
+      }
+    }
 
     const { password: _p, ...safeUser } = user;
     const studentProfile =
