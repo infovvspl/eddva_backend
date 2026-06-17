@@ -8,7 +8,7 @@ import { SchoolRoles } from '../decorators/school-roles.decorator';
 @Controller('school/materials')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolMaterialController {
-  constructor(private readonly svc: SchoolMaterialService) {}
+  constructor(private readonly svc: SchoolMaterialService) { }
 
   @Get()
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
@@ -29,7 +29,20 @@ export class SchoolMaterialController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   aiSave(@SchoolUser() user: any, @Body() body: any) { return this.svc.saveAiMaterial(user, body); }
 
-  @Post('ai-slide-image')
+  // @Get('audit-data')
+  // @SchoolRoles('SUPER_ADMIN')
+  // async auditMaterialData() {
+  //   return this.svc.auditMaterialData();
+  // }
+
+  @Post('dump')
+  dumpData(@Body() body: any) {
+    const fs = require('fs');
+    fs.writeFileSync('C:\\EDDVA SCHOOL\\eddva_backend\\frontend-dump.json', JSON.stringify(body, null, 2));
+    return { success: true };
+  }
+
+  @Post('migrations/ai-tags')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   aiSlideImage(@SchoolUser() user: any, @Body() body: any) { return this.svc.generateSlideImage(user, body); }
 
@@ -42,15 +55,15 @@ export class SchoolMaterialController {
   getHighlights(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.getHighlights(user, id); }
 
   @Post(':id/highlights')
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   saveHighlight(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) { return this.svc.saveHighlight(user, id, body); }
 
   @Patch(':id/highlights/:highlightId')
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   updateHighlight(@SchoolUser() user: any, @Param('id') id: string, @Param('highlightId') highlightId: string, @Body() body: any) { return this.svc.updateHighlight(user, id, highlightId, body); }
 
   @Delete(':id/highlights/:highlightId')
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   deleteHighlight(@SchoolUser() user: any, @Param('id') id: string, @Param('highlightId') highlightId: string) { return this.svc.deleteHighlight(user, id, highlightId); }
 
   @Get(':id')

@@ -962,6 +962,7 @@ export class SchoolMaterialService implements OnModuleInit {
   // ── Highlights ─────────────────────────────────────────────────────────────
 
   async getHighlights(user: any, id: string) {
+    console.log("GET highlights called for material id:", id);
     await this.assertStudentCanAccessMaterial(user, id);
     // Verify material belongs to tenant
     const matRows = await this.ds.query(
@@ -973,19 +974,38 @@ export class SchoolMaterialService implements OnModuleInit {
     if (!matRows.length) throw new NotFoundException('Material not found');
 
     const rows = await this.ds.query(
-      `SELECT id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
-              page_number AS "pageNumber", selected_text AS "selectedText", rects, color, category, note,
-              created_at AS "createdAt", updated_at AS "updatedAt"
-       FROM school_material_highlights
-       WHERE material_id = $1 AND created_by = $2
-       ORDER BY page_number ASC, created_at ASC`,
+      String(user.role || '').toUpperCase() === 'STUDENT'
+        ? `SELECT h.id, h.material_id AS "materialId", h.topic_id AS "topicId", h.created_by AS "createdBy",
+                  creator.role AS "createdByRole",
+                  h.page_number AS "pageNumber", h.selected_text AS "selectedText", h.rects, h.color, h.category, h.note,
+                  h.created_at AS "createdAt", h.updated_at AS "updatedAt"
+           FROM school_material_highlights h
+           JOIN users creator ON creator.id = h.created_by
+           WHERE h.material_id = $1
+             AND (
+               h.created_by = $2
+               OR UPPER(creator.role::text) = 'TEACHER'
+             )
+           ORDER BY h.page_number ASC, h.created_at ASC`
+        : `SELECT h.id, h.material_id AS "materialId", h.topic_id AS "topicId", h.created_by AS "createdBy",
+                  creator.role AS "createdByRole",
+                  h.page_number AS "pageNumber", h.selected_text AS "selectedText", h.rects, h.color, h.category, h.note,
+                  h.created_at AS "createdAt", h.updated_at AS "updatedAt"
+           FROM school_material_highlights h
+           JOIN users creator ON creator.id = h.created_by
+           WHERE h.material_id = $1 AND h.created_by = $2
+           ORDER BY h.page_number ASC, h.created_at ASC`,
       [id, user.id]
     );
 
+    console.log("GET user.id:", user.id);
+    console.log("Highlights returned:", rows.length);
+    console.log("Highlights data:", rows);
     return { success: true, data: rows };
   }
 
   async saveHighlight(user: any, id: string, body: any) {
+    await this.assertStudentCanAccessMaterial(user, id);
     // Verify material belongs to tenant
     const matRows = await this.ds.query(
       `SELECT m.id, m.topic_id FROM study_materials m
@@ -994,7 +1014,7 @@ export class SchoolMaterialService implements OnModuleInit {
       [id, user.id]
     );
     if (!matRows.length) throw new NotFoundException('Material not found');
-    
+
     const topicId = matRows[0].topic_id;
 
     const { pageNumber, selectedText, rects, color, category, note } = body;
@@ -1003,19 +1023,30 @@ export class SchoolMaterialService implements OnModuleInit {
     }
 
     const rows = await this.ds.query(
-      `INSERT INTO school_material_highlights 
-         (material_id, topic_id, created_by, page_number, selected_text, rects, color, category, note)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
-                 page_number AS "pageNumber", selected_text AS "selectedText", rects, color, category, note,
-                 created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [id, topicId, user.id, pageNumber, selectedText, JSON.stringify(rects), color || 'yellow', category, note || null]
+      `INSERT INTO school_material_highlights
+   (material_id, topic_id, created_by, page_number, selected_text, rects, color, category, note)
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+   RETURNING id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
+             page_number AS "pageNumber", selected_text AS "selectedText", rects, color, category, note,
+             created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [
+        id,
+        topicId,
+        user.id,
+        pageNumber,
+        selectedText,
+        JSON.stringify(rects), // <-- FIX
+        color || "yellow",
+        category,
+        note || null,
+      ]
     );
-
+    console.log("SAVE HIGHLIGHT RESULT:", rows);
     return { success: true, data: rows[0] };
   }
 
   async updateHighlight(user: any, id: string, highlightId: string, body: any) {
+    await this.assertStudentCanAccessMaterial(user, id);
     const { color, category, note } = body;
     if (!color || !category) throw new BadRequestException('color and category are required to update highlight');
 
@@ -1037,6 +1068,7 @@ export class SchoolMaterialService implements OnModuleInit {
   }
 
   async deleteHighlight(user: any, id: string, highlightId: string) {
+    await this.assertStudentCanAccessMaterial(user, id);
     const rows = await this.ds.query(
       `DELETE FROM school_material_highlights 
        WHERE id = $1 AND material_id = $2 AND created_by = $3
