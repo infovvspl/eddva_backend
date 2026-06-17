@@ -183,7 +183,9 @@ export class SchoolClassService implements OnModuleInit {
              r.transcript, r.transcript_status, r.language, r.notes, r.notes_status,
              r.notes_images, r.quiz, r.quiz_status,
              c.name AS class_name, sec.name AS section_name, s.name AS subject_name, u.name AS teacher_name,
-             ch.name AS chapter_name, t.name AS topic_name
+             ch.name AS chapter_name, t.name AS topic_name,
+             COALESCE(ch.sort_order, 0) AS chapter_sort_order,
+             COALESCE(t.sort_order, 0) AS topic_sort_order
       FROM class_recordings r
       LEFT JOIN (
         SELECT recording_id,

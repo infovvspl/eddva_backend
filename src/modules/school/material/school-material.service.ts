@@ -568,7 +568,9 @@ export class SchoolMaterialService implements OnModuleInit {
         END AS "subjectName",
         COALESCE(c.name, sm.chapter) AS "chapterName",
         t.name AS "topicName",
-        u.name AS uploaded_by_name
+        u.name AS uploaded_by_name,
+        COALESCE(c.sort_order, 0) AS "chapterSortOrder",
+        COALESCE(t.sort_order, 0) AS "topicSortOrder"
       FROM study_materials sm
       LEFT JOIN users u ON sm.uploaded_by::text = u.id::text
       LEFT JOIN subjects s ON sm.subject_id_fk = s.id
