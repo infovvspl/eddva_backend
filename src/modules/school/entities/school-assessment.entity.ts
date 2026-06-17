@@ -17,6 +17,7 @@ export class SchoolAssessment {
   @Column({ name: 'duration_minutes', default: 60 }) durationMinutes: number;
   @Column({ name: 'scheduled_date', type: 'timestamptz', nullable: true }) scheduledDate: Date;
   @Column({ default: 'draft' }) status: string;
+  @Column({ name: 'teacher_id', type: 'uuid', nullable: true }) teacherId: string;
 }
 
 @Entity('results')

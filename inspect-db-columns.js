@@ -7,7 +7,6 @@ async function run() {
     ssl: { rejectUnauthorized: false }
   });
   await client.connect();
-  console.log('Connected to eddva_school DB');
 
   const tables = [
     'subjects',
@@ -29,27 +28,10 @@ async function run() {
         ORDER BY ordinal_position
       `, [table]);
       console.log(`\nTable: ${table}`);
-      console.log(res.rows.map(r => `${r.column_name} (${r.data_type})${r.is_nullable === 'YES' ? ' NULL' : ''}`).join(', '));
-
-      // Fetch a few rows to inspect data
-      const dataRes = await client.query(`SELECT * FROM ${table} LIMIT 2`);
-      console.log(`Sample rows:`, dataRes.rows);
+      console.log(res.rows.map(r => `  ${r.column_name}: ${r.data_type} (${r.is_nullable})`).join('\n'));
     } catch (err) {
       console.log(`Failed to inspect table ${table}:`, err.message);
     }
-  }
-
-  // Count duplicate subjects case-insensitively
-  try {
-    const duplicates = await client.query(`
-      SELECT LOWER(TRIM(name)) as norm_name, COUNT(*), ARRAY_AGG(id) as ids, ARRAY_AGG(name) as names
-      FROM subjects
-      GROUP BY LOWER(TRIM(name))
-      HAVING COUNT(*) > 1
-    `);
-    console.log(`\nDuplicate Subjects in DB:`, duplicates.rows);
-  } catch (err) {
-    console.log('Failed to query duplicates:', err.message);
   }
 
   await client.end();

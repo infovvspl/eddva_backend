@@ -7,27 +7,14 @@ async function run() {
   const app = await NestFactory.createApplicationContext(AppModule);
   const ds: DataSource = app.get(getDataSourceToken('school'));
   
-  const fkQuery = `
-    SELECT
-      tc.table_schema, 
-      tc.constraint_name, 
-      tc.table_name, 
-      kcu.column_name, 
-      ccu.table_schema AS foreign_table_schema,
-      ccu.table_name AS foreign_table_name,
-      ccu.column_name AS foreign_column_name 
-    FROM 
-      information_schema.table_constraints AS tc 
-      JOIN information_schema.key_column_usage AS kcu
-        ON tc.constraint_name = kcu.constraint_name
-        AND tc.table_schema = kcu.table_schema
-      JOIN information_schema.constraint_column_usage AS ccu
-        ON ccu.constraint_name = tc.constraint_name
-        AND ccu.table_schema = tc.table_schema
-    WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name='students';
+  const teacherQuery = `
+    SELECT u.name, u.email, t.qualifications, t.nationality, t.address, t.city, t.state, t.country, t.pin_code
+    FROM users u
+    LEFT JOIN teachers t ON t.user_id = u.id
+    WHERE u.name ILIKE '%Pratap%';
   `;
   
-  const result = await ds.query(fkQuery);
+  const result = await ds.query(teacherQuery);
   console.log(JSON.stringify(result, null, 2));
   await app.close();
 }
