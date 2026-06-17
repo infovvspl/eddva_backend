@@ -551,6 +551,7 @@ export class SchoolTeacherService {
         city: r.city,
         state: r.state,
         pinCode: r.pin_code,
+        nationality: r.nationality || teacherDetails.nationality,
         country: r.country,
         allergies: r.allergies,
         medicalConditions: r.medical_conditions,

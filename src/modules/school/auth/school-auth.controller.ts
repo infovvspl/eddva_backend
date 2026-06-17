@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards, Ip } from '@nestjs/common';
 import { SchoolAuthService } from './school-auth.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -13,9 +13,9 @@ export class SchoolAuthController {
   @Post('login')
   @SchoolPublic()
   @HttpCode(HttpStatus.OK)
-  async login(@Body() body: any) {
+  async login(@Body() body: any, @Ip() ip: string) {
     const identifier = body.email || body.phone || body.phoneNumber;
-    const data = await this.authService.login(identifier, body.password);
+    const data = await this.authService.login(identifier, body.password, ip);
     return { success: true, message: 'Login successful', ...data };
   }
 
