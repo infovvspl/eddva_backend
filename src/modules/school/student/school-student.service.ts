@@ -95,9 +95,9 @@ export class SchoolStudentService {
       const u = userRows[0];
 
       const sRows: any[] = await queryRunner.query(
-        `INSERT INTO students (user_id,institute_id,enrollment_no,roll_no,section_id,dob,gender,blood_group,marital_status,national_id,father_name,mother_name,parent_phone,parent_email,parent_occupation,address,city,state,pin_code,admission_date,medical_conditions,allergies,documents)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING *`,
-        [u.id, instituteId, enrollmentNo, body.rollNo || null, sectionId, body.dob ? new Date(body.dob) : null, body.gender || null, body.bloodGroup || null, body.maritalStatus || null, body.nationalId || null, body.fatherName || null, body.motherName || null, body.parentPhone || null, body.parentEmail || null, body.parentOccupation || null, body.address || null, body.city || null, body.state || null, body.pinCode || null, body.admissionDate ? new Date(body.admissionDate) : null, body.medicalConditions || null, body.allergies || null, JSON.stringify(body.documents || {})],
+        `INSERT INTO students (user_id,institute_id,enrollment_no,roll_no,section_id,dob,gender,blood_group,national_id,father_name,mother_name,parent_phone,parent_email,parent_occupation,address,city,state,pin_code,admission_date,medical_conditions,allergies,documents)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *`,
+        [u.id, instituteId, enrollmentNo, body.rollNo || null, sectionId, body.dob ? new Date(body.dob) : null, body.gender || null, body.bloodGroup || null, body.nationalId || null, body.fatherName || null, body.motherName || null, body.parentPhone || null, body.parentEmail || null, body.parentOccupation || null, body.address || null, body.city || null, body.state || null, body.pinCode || null, body.admissionDate ? new Date(body.admissionDate) : null, body.medicalConditions || null, body.allergies || null, JSON.stringify(body.documents || {})],
       );
 
       await queryRunner.commitTransaction();
@@ -189,7 +189,7 @@ export class SchoolStudentService {
               s.id AS profile_id,s.enrollment_no,s.roll_no,s.section_id,s.dob,s.gender,s.blood_group,
               s.father_name,s.mother_name,s.parent_phone,s.admission_date,
               s.parent_email,s.parent_occupation,s.address,s.city,s.state,s.pin_code,
-              s.medical_conditions,s.allergies,s.documents,s.marital_status,s.national_id,
+              s.medical_conditions,s.allergies,s.documents,s.national_id,
               sec.name AS section_name,c.id AS class_id,c.name AS class_name
        FROM users u JOIN students s ON s.user_id=u.id
        LEFT JOIN sections sec ON s.section_id=sec.id
@@ -227,7 +227,6 @@ export class SchoolStudentService {
         medicalConditions: r.medical_conditions,
         allergies: r.allergies,
         documents: this.parseJsonObject(r.documents),
-        maritalStatus: r.marital_status,
         nationalId: r.national_id,
         section: r.section_id ? {
           id: r.section_id,
@@ -445,7 +444,7 @@ export class SchoolStudentService {
               s.id AS profile_id, s.enrollment_no, s.roll_no, s.section_id, s.dob, s.gender, s.blood_group,
               s.father_name, s.mother_name, s.parent_phone, s.admission_date,
               s.parent_email, s.parent_occupation, s.address, s.city, s.state, s.pin_code,
-              s.medical_conditions, s.allergies, s.documents, s.marital_status, s.national_id,
+              s.medical_conditions, s.allergies, s.documents, s.national_id,
               sec.name AS section_name, c.name AS class_name, c.id AS class_id
        FROM users u
        LEFT JOIN students s ON s.user_id=u.id
@@ -504,7 +503,6 @@ export class SchoolStudentService {
         medicalConditions: r.medical_conditions,
         allergies: r.allergies,
         documents: this.parseJsonObject(r.documents),
-        maritalStatus: r.marital_status,
         nationalId: r.national_id,
         classId: r.class_id,
         section: r.section_id ? {
@@ -556,8 +554,7 @@ export class SchoolStudentService {
         medical_conditions = COALESCE($18, medical_conditions),
         allergies = COALESCE($19, allergies),
         documents = COALESCE($20, documents),
-        marital_status = COALESCE($21, marital_status),
-        national_id = COALESCE($22, national_id),
+        national_id = COALESCE($21, national_id),
         updated_at = NOW()
        WHERE user_id = $1`,
       [
@@ -581,7 +578,6 @@ export class SchoolStudentService {
         body.medicalConditions || null,
         body.allergies || null,
         body.documents ? JSON.stringify(body.documents) : null,
-        body.maritalStatus || null,
         body.nationalId || null
       ]
     );

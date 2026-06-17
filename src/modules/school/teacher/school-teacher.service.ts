@@ -215,7 +215,7 @@ export class SchoolTeacherService {
           experience, address, city, state, pin_code,
           allergies, medical_conditions, documents, shift, weekdays,
           office_hours_start, office_hours_end, max_hours_per_week, emergency_contact, guardian_contact,
-          disability, emergency_doctor
+          disability, emergency_doctor, nationality, country
          ) VALUES (
           $1, $2, $3, $4, $5,
           $6, $7, $8, $9, $10,
@@ -223,7 +223,7 @@ export class SchoolTeacherService {
           $16, $17, $18, $19, $20,
           $21, $22, $23, $24, $25,
           $26, $27, $28, $29, $30,
-          $31, $32
+          $31, $32, $33, $34
          ) RETURNING *`,
         [
           u.id,
@@ -257,7 +257,9 @@ export class SchoolTeacherService {
           body.emergencyContact || null,
           body.guardianContact || null,
           body.disability || null,
-          body.emergencyDoctor || null
+          body.emergencyDoctor || null,
+          body.nationality || null,
+          body.country || null
         ],
       );
 
@@ -298,30 +300,23 @@ export class SchoolTeacherService {
     let filter = `u.institute_id=$1 AND u.role='TEACHER'`;
 
     const assignmentFilters: string[] = [];
-    const legacyAssignmentFilters: string[] = [];
     if (query.classId) {
       params.push(query.classId);
       assignmentFilters.push(`ta.class_id::text=$${params.length}::text`);
-      legacyAssignmentFilters.push(`sec.class_id::text=$${params.length}::text`);
     }
     if (query.sectionId) {
       params.push(query.sectionId);
       assignmentFilters.push(`ta.section_id::text=$${params.length}::text`);
-      legacyAssignmentFilters.push(`ts.section_id::text=$${params.length}::text`);
     }
-    if (assignmentFilters.length > 0 || legacyAssignmentFilters.length > 0) {
-      filter += ` AND (
-        EXISTS (
-          SELECT 1
-          FROM teacher_academic_assignments ta
-          WHERE ta.teacher_id=t.id AND ${assignmentFilters.join(' AND ')}
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM teacher_sections ts
-          JOIN sections sec ON sec.id=ts.section_id
-          WHERE ts.teacher_id=t.id AND ${legacyAssignmentFilters.join(' AND ')}
-        )
+    if (query.subjectId) {
+      params.push(query.subjectId);
+      assignmentFilters.push(`ta.subject_id::text=$${params.length}::text`);
+    }
+    if (assignmentFilters.length > 0) {
+      filter += ` AND EXISTS (
+        SELECT 1
+        FROM teacher_academic_assignments ta
+        WHERE ta.teacher_id=t.id AND ${assignmentFilters.join(' AND ')}
       )`;
     }
 
@@ -369,10 +364,10 @@ export class SchoolTeacherService {
               t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
               t.address,t.city,t.state,t.pin_code,t.allergies,t.medical_conditions,t.documents,t.shift,t.weekdays,
               t.office_hours_start,t.office_hours_end,t.max_hours_per_week,t.emergency_contact,t.guardian_contact,
-              t.disability,t.emergency_doctor,
-       COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM teacher_classes tc JOIN classes c ON tc.class_id=c.id WHERE tc.teacher_id=t.id), '[]'::json) as classes,
-       COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM teacher_sections ts JOIN sections s ON ts.section_id=s.id WHERE ts.teacher_id=t.id), '[]'::json) as sections,
-       COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM teacher_subjects tsub JOIN subjects sub ON tsub.subject_id=sub.id WHERE tsub.teacher_id=t.id), '[]'::json) as subjects
+              t.disability,t.emergency_doctor,t.nationality,t.country,
+       COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM (SELECT DISTINCT class_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN classes c ON taa.class_id=c.id), '[]'::json) as classes,
+       COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN sections s ON taa.section_id=s.id), '[]'::json) as sections,
+       COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM (SELECT DISTINCT subject_id FROM teacher_academic_assignments WHERE teacher_id=t.id AND subject_id IS NOT NULL) taa JOIN subjects sub ON taa.subject_id=sub.id), '[]'::json) as subjects
        FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
       params,
     );
@@ -422,6 +417,8 @@ export class SchoolTeacherService {
           city: r.city,
           state: r.state,
           pinCode: r.pin_code,
+          nationality: r.nationality,
+          country: r.country,
           allergies: r.allergies,
           medicalConditions: r.medical_conditions,
           docs: this.parseJsonObject(r.documents),
@@ -456,10 +453,10 @@ export class SchoolTeacherService {
               t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
               t.address,t.city,t.state,t.pin_code,t.allergies,t.medical_conditions,t.documents,t.shift,t.weekdays,
               t.office_hours_start,t.office_hours_end,t.max_hours_per_week,t.emergency_contact,t.guardian_contact,
-              t.disability,t.emergency_doctor,
-       COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM teacher_classes tc JOIN classes c ON tc.class_id=c.id WHERE tc.teacher_id=t.id), '[]'::json) as classes,
-       COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM teacher_sections ts JOIN sections s ON ts.section_id=s.id WHERE ts.teacher_id=t.id), '[]'::json) as sections,
-       COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM teacher_subjects tsub JOIN subjects sub ON tsub.subject_id=sub.id WHERE tsub.teacher_id=t.id), '[]'::json) as subjects
+              t.disability,t.emergency_doctor,t.nationality,t.country,
+       COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM (SELECT DISTINCT class_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN classes c ON taa.class_id=c.id), '[]'::json) as classes,
+       COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN sections s ON taa.section_id=s.id), '[]'::json) as sections,
+       COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM (SELECT DISTINCT subject_id FROM teacher_academic_assignments WHERE teacher_id=t.id AND subject_id IS NOT NULL) taa JOIN subjects sub ON taa.subject_id=sub.id), '[]'::json) as subjects
        FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND u.role='TEACHER'`,
       [id],
     );
@@ -516,6 +513,8 @@ export class SchoolTeacherService {
         city: r.city,
         state: r.state,
         pinCode: r.pin_code,
+        nationality: r.nationality,
+        country: r.country,
         allergies: r.allergies,
         medicalConditions: r.medical_conditions,
         docs: this.parseJsonObject(r.documents),
@@ -583,6 +582,8 @@ export class SchoolTeacherService {
         guardian_contact = $29,
         disability = $30,
         emergency_doctor = $31,
+        nationality = $32,
+        country = $33,
         updated_at = NOW()
        WHERE user_id = $1`,
       [
@@ -616,7 +617,9 @@ export class SchoolTeacherService {
         body.emergencyContact || null,
         body.guardianContact || null,
         body.disability || null,
-        body.emergencyDoctor || null
+        body.emergencyDoctor || null,
+        body.nationality || null,
+        body.country || null
       ]
     );
 
@@ -634,7 +637,7 @@ export class SchoolTeacherService {
             experience, address, city, state, pin_code,
             allergies, medical_conditions, documents, shift, weekdays,
             office_hours_start, office_hours_end, max_hours_per_week, emergency_contact, guardian_contact,
-            disability, emergency_doctor
+            disability, emergency_doctor, nationality, country
            ) VALUES (
             $1, $2, $3, $4, $5,
             $6, $7, $8, $9, $10,
@@ -642,7 +645,7 @@ export class SchoolTeacherService {
             $16, $17, $18, $19, $20,
             $21, $22, $23, $24, $25,
             $26, $27, $28, $29, $30,
-            $31, $32
+            $31, $32, $33, $34
            )`,
           [
             id,
@@ -676,7 +679,9 @@ export class SchoolTeacherService {
             body.emergencyContact || null,
             body.guardianContact || null,
             body.disability || null,
-            body.emergencyDoctor || null
+            body.emergencyDoctor || null,
+            body.nationality || null,
+            body.country || null
           ]
         );
         tRows = await this.ds.query(`SELECT id, institute_id FROM teachers WHERE user_id=$1`, [id]);

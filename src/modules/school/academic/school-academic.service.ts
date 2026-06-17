@@ -577,6 +577,23 @@ export class SchoolAcademicService {
       ],
     );
 
+    // Sync timetable slots matching this period ID
+    if (body.startTime !== undefined || body.endTime !== undefined || body.sequenceNo !== undefined) {
+      await this.ds.query(
+        `UPDATE timetables SET
+           start_time = COALESCE($2, start_time),
+           end_time = COALESCE($3, end_time),
+           period_number = COALESCE($4, period_number)
+         WHERE period_id = $1`,
+        [
+          id,
+          body.startTime || null,
+          body.endTime || null,
+          body.sequenceNo !== undefined ? parseInt(body.sequenceNo, 10) : null
+        ]
+      );
+    }
+
     const rows = await this.ds.query(`SELECT * FROM school_periods WHERE id = $1`, [id]);
     const row = rows[0];
     return {

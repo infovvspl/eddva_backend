@@ -53,46 +53,103 @@ export class SchoolDashboardService {
         `, [teacherId]);
       }
 
-      const todayStr = new Date().toISOString().split('T')[0];
-      const dayNum = new Date().getDay();
-      const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-      const dayOfWeekStr = days[dayNum];
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      const dayNum = now.getDay();
       const mappedDayOfWeek = String(dayNum === 0 ? 7 : dayNum);
 
-      const [studentsCount, assignmentsCount, assessmentsCount, schedules, attendanceToday] = await Promise.all([
-        this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1`, [instituteId]),
-        this.ds.query(`SELECT COUNT(*)::int AS c FROM assignments`),
-        this.ds.query(`SELECT COUNT(*)::int AS c FROM assessments`),
-        this.ds.query(`
-          SELECT t.id, t.start_time, t.end_time, t.room, t.type AS class_type, 
-                 c.name AS class_name, sub.name AS subject_name 
-          FROM timetables t 
-          LEFT JOIN sections sec ON t.section_id = sec.id
-          LEFT JOIN classes c ON sec.class_id = c.id 
-          LEFT JOIN subjects sub ON t.subject_id = sub.id 
-          WHERE t.teacher_id = $1 AND t.day_of_week = $2 
-          ORDER BY t.start_time LIMIT 6
-        `, [teacherId, mappedDayOfWeek]),
-        this.ds.query(`SELECT COUNT(*) FILTER (WHERE LOWER(status)='present')::int AS present, COUNT(*)::int AS total FROM attendances WHERE institute_id=$1 AND date::date = $2::date`, [instituteId, todayStr])
+      // Build current time string in HH:MM:SS format for comparison
+      const currentTimeStr = now.toLocaleTimeString('en-GB', { hour12: false, timeZone: 'Asia/Kolkata' });
+
+      const [studentsCount, assignmentsCount, assessmentsCount, schedules, attendanceStats] = await Promise.all([
+        // Teacher-scoped student count
+        teacherId
+          ? this.ds.query(`
+              SELECT COUNT(DISTINCT s.user_id)::int AS c
+              FROM students s
+              JOIN teacher_academic_assignments ta ON s.section_id::text = ta.section_id::text
+              WHERE ta.teacher_id = $1
+            `, [teacherId])
+          : [{ c: 0 }],
+
+        // Teacher-scoped assignment count
+        teacherId
+          ? this.ds.query(`SELECT COUNT(*)::int AS c FROM assignments WHERE teacher_id = $1`, [teacherId])
+          : [{ c: 0 }],
+
+        // Teacher-scoped assessment count (uses new teacher_id column)
+        teacherId
+          ? this.ds.query(`SELECT COUNT(*)::int AS c FROM assessments WHERE teacher_id = $1`, [teacherId])
+          : [{ c: 0 }],
+
+        // Today's REMAINING classes only (start_time >= current time)
+        teacherId
+          ? this.ds.query(`
+              SELECT t.id, t.start_time, t.end_time, t.room, t.type AS class_type, 
+                     c.name AS class_name, sub.name AS subject_name 
+              FROM timetables t 
+              LEFT JOIN sections sec ON t.section_id = sec.id
+              LEFT JOIN classes c ON sec.class_id = c.id 
+              LEFT JOIN subjects sub ON t.subject_id = sub.id 
+              WHERE t.teacher_id = $1 AND t.day_of_week = $2 AND t.start_time >= $3
+              ORDER BY t.start_time LIMIT 6
+            `, [teacherId, mappedDayOfWeek, currentTimeStr])
+          : [],
+
+        // Teacher-specific attendance stats from attendance_sessions
+        teacherId
+          ? this.ds.query(`
+              SELECT 
+                COUNT(DISTINCT asess.id)::int AS session_count,
+                COUNT(ar.id) FILTER (WHERE LOWER(ar.status) = 'present')::int AS present,
+                COUNT(ar.id) FILTER (WHERE LOWER(ar.status) = 'absent')::int AS absent,
+                COUNT(ar.id) FILTER (WHERE LOWER(ar.status) = 'late')::int AS late,
+                COUNT(ar.id) FILTER (WHERE LOWER(ar.status) = 'leave')::int AS leave_count
+              FROM attendance_sessions asess
+              LEFT JOIN attendance_records ar ON asess.id = ar.session_id
+              WHERE asess.teacher_id = $1
+            `, [teacherId])
+          : [{ session_count: 0, present: 0, absent: 0, late: 0, leave_count: 0 }],
       ]);
 
-      console.log("Teacher ID:", teacherId);
-      console.log("Today's Day:", mappedDayOfWeek);
-      console.log("Calculated Day:", dayOfWeekStr);
-      console.log("Today's Classes:", schedules);
+      // Build attendance summary
+      const attPresent = parseInt(attendanceStats[0]?.present || '0');
+      const attAbsent = parseInt(attendanceStats[0]?.absent || '0');
+      const attLate = parseInt(attendanceStats[0]?.late || '0');
+      const attLeave = parseInt(attendanceStats[0]?.leave_count || '0');
+      const attTotal = attPresent + attAbsent + attLate + attLeave;
+      const attPercentage = attTotal > 0 ? Math.round(((attPresent + attLate) / attTotal) * 100) : 0;
 
-
-      const totalPresent = attendanceToday[0]?.present || 0;
-      const totalAttended = attendanceToday[0]?.total || 0;
-      const attendancePct = totalAttended > 0 ? Math.round((totalPresent / totalAttended) * 100) : 85;
+      // Get distinct class-section names for the attendance label
+      let attendanceClassNames: string[] = [];
+      let attendanceClassCount = 0;
+      if (teacherId) {
+        const classRows = await this.ds.query(`
+          SELECT DISTINCT c.name AS class_name, s.name AS section_name
+          FROM teacher_academic_assignments ta
+          JOIN classes c ON ta.class_id = c.id
+          JOIN sections s ON ta.section_id = s.id
+          WHERE ta.teacher_id = $1
+          ORDER BY c.name, s.name
+        `, [teacherId]);
+        attendanceClassNames = classRows.map((r: any) => `${r.class_name}-${r.section_name}`);
+        attendanceClassCount = classRows.length;
+      }
 
       return {
-        totalStudents: studentsCount[0].c,
-        assignments: assignmentsCount[0].c,
-        assessments: assessmentsCount[0].c,
+        totalStudents: studentsCount[0]?.c ?? 0,
+        assignments: assignmentsCount[0]?.c ?? 0,
+        assessments: assessmentsCount[0]?.c ?? 0,
         upcomingClasses: schedules,
-        totalPresent,
-        attendancePct,
+        // Attendance stats
+        attendancePresent: attPresent,
+        attendanceAbsent: attAbsent,
+        attendanceLate: attLate,
+        attendanceLeave: attLeave,
+        attendancePercentage: attPercentage,
+        attendanceTotal: attTotal,
+        attendanceClassCount,
+        attendanceClassNames,
         teacherData: {
           classes,
           sections,
@@ -109,6 +166,7 @@ export class SchoolDashboardService {
         }
       };
     }
+
 
     if (user.role === 'INSTITUTE_ADMIN') {
       const instituteId = user.instituteId;

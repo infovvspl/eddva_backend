@@ -27418,3 +27418,268 @@ Error: NotFoundException: Submission file is no longer available on this server
     at SchoolAssignmentService.resolveSubmissionFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:119:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-17T05:50:44.191Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T05:52:40.293Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-17T05:53:49.292Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T05:57:22.391Z] POST /api/school/materials/dump
+Status: 404
+Error: NotFoundException: Cannot POST /api/school/materials/dump
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-17T05:57:22.642Z] GET /api/v1/content/topics/891495b0-4f74-49ed-848e-4d84617d854f/resources/a89219b6-7a09-469b-bc4a-507b690689fa/download-url
+Status: 404
+Error: NotFoundException: Resource a89219b6-7a09-469b-bc4a-507b690689fa not found
+    at ContentService.getTopicResourceByTopicId (D:\Program Files\Eddva\eddva_backend\src\modules\content\content.service.ts:2994:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ContentController.getResourceDownloadUrl (D:\Program Files\Eddva\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-17T05:57:34.071Z] POST /api/school/materials/dump
+Status: 404
+Error: NotFoundException: Cannot POST /api/school/materials/dump
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-17T05:57:34.420Z] GET /api/v1/content/topics/891495b0-4f74-49ed-848e-4d84617d854f/resources/a89219b6-7a09-469b-bc4a-507b690689fa/download-url
+Status: 404
+Error: NotFoundException: Resource a89219b6-7a09-469b-bc4a-507b690689fa not found
+    at ContentService.getTopicResourceByTopicId (D:\Program Files\Eddva\eddva_backend\src\modules\content\content.service.ts:2994:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ContentController.getResourceDownloadUrl (D:\Program Files\Eddva\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-17T05:58:19.347Z] POST /api/school/materials/dump
+Status: 404
+Error: NotFoundException: Cannot POST /api/school/materials/dump
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Program Files\Eddva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-17T05:58:19.741Z] GET /api/v1/content/topics/26aebc9f-3226-46ce-ade5-c8c4c393d444/resources/fb3f9bab-b203-4a64-8d45-4fc466605417/download-url
+Status: 404
+Error: NotFoundException: Resource fb3f9bab-b203-4a64-8d45-4fc466605417 not found
+    at ContentService.getTopicResourceByTopicId (D:\Program Files\Eddva\eddva_backend\src\modules\content\content.service.ts:2994:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async ContentController.getResourceDownloadUrl (D:\Program Files\Eddva\eddva_backend\src\modules\content\content.controller.ts:771:26)
+
+[2026-06-17T09:37:02.753Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: The selected teacher is already scheduled for another class at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:90:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T09:37:23.074Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: The selected teacher is already scheduled for another class at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:90:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T09:37:41.016Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: The selected teacher is already scheduled for another class at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:90:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T09:37:58.365Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: The selected teacher is already scheduled for another class at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:90:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T09:38:54.423Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: The selected teacher is already scheduled for another class at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:90:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T09:40:13.824Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: The selected teacher is already scheduled for another class at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:90:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T09:54:38.487Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: The selected teacher is already scheduled for another class at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:90:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T10:04:58.199Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: This class already has a subject scheduled at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:98:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T10:05:04.132Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: This class already has a subject scheduled at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:98:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T10:05:11.952Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: This class already has a subject scheduled at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:98:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T10:05:17.310Z] POST /api/v1/school/timetable
+Status: 400
+Error: BadRequestException: ⚠ Timetable conflict detected: This class already has a subject scheduled at this time.
+    at SchoolTimetableService.checkConflicts (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:98:17)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.createTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:263:5)
+
+[2026-06-17T10:21:10.206Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T10:36:26.314Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T10:36:26.668Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\Program Files\Eddva\eddva_backend\src\modules\school\auth\school-auth.service.ts:74:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (D:\Program Files\Eddva\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T10:36:51.024Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T11:02:56.726Z] PUT /api/v1/school/timetable/bulk-update
+Status: 404
+Error: NotFoundException: Timetable slot not found
+    at SchoolTimetableService.findOneTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:344:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolTimetableService.updateTimetable (D:\Program Files\Eddva\eddva_backend\src\modules\school\timetable\school-timetable.service.ts:382:24)
+
+[2026-06-17T11:05:01.130Z] PUT /api/v1/school/timetable/bulk-update
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:69:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-17T11:08:43.826Z] PUT /api/v1/school/timetable/bulk/update
+Status: 404
+Error: NotFoundException: Cannot PUT /api/v1/school/timetable/bulk/update
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T11:09:10.270Z] PUT /api/v1/school/timetable/bulk/update
+Status: 404
+Error: NotFoundException: Cannot PUT /api/v1/school/timetable/bulk/update
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T11:10:50.710Z] PUT /api/v1/school/timetable/bulk/update
+Status: 404
+Error: NotFoundException: Cannot PUT /api/v1/school/timetable/bulk/update
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T11:12:05.410Z] PUT /api/v1/school/timetables/bulk/update
+Status: 404
+Error: NotFoundException: Cannot PUT /api/v1/school/timetables/bulk/update
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T11:19:03.639Z] PUT /api/v1/school/timetable/bulk/update
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:69:23)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
