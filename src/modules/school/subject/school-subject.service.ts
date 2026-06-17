@@ -58,10 +58,23 @@ export class SchoolSubjectService {
     const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const sql = `
-      SELECT s.*, c.name AS class_name, sec.name AS section_name 
-      FROM subjects s 
-      LEFT JOIN classes c ON s.class_id = c.id 
-      LEFT JOIN sections sec ON s.section_id = sec.id 
+      SELECT s.*, c.name AS class_name, sec.name AS section_name,
+             COALESCE((
+               SELECT json_agg(
+                 json_build_object(
+                   'id', ch.id,
+                   'name', ch.name,
+                   'sortOrder', ch.sort_order,
+                   'subjectId', ch.subject_id
+                 )
+                 ORDER BY ch.sort_order, ch.name
+               )
+               FROM chapters ch
+               WHERE ch.subject_id::text = s.id::text
+             ), '[]'::json) AS chapters
+      FROM subjects s
+      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN sections sec ON s.section_id = sec.id
       WHERE ${filter}
       ORDER BY ${sortBy} ${sortOrder}
       LIMIT ${limit} OFFSET ${offset}
