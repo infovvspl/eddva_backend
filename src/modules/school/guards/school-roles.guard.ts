@@ -4,7 +4,7 @@ import { SCHOOL_ROLES_KEY } from '../decorators/school-roles.decorator';
 
 @Injectable()
 export class SchoolRolesGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) { }
 
   canActivate(context: ExecutionContext): boolean {
     const roles = this.reflector.getAllAndOverride<string[]>(SCHOOL_ROLES_KEY, [
@@ -15,7 +15,9 @@ export class SchoolRolesGuard implements CanActivate {
 
     const { user } = context.switchToHttp().getRequest();
     if (!user) throw new ForbiddenException('User authorization failed');
-    if (!roles.includes(user.role)) {
+    const userRole = String(user.role || '').toUpperCase();
+    const allowedRoles = roles.map((role) => String(role).toUpperCase());
+    if (!allowedRoles.includes(userRole)) {
       throw new ForbiddenException(`Role '${user.role}' is not authorized to access this resource`);
     }
     return true;

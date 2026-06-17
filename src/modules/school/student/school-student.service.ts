@@ -25,6 +25,35 @@ export class SchoolStudentService {
     return typeof val === 'object' && !Array.isArray(val) ? val : {};
   }
 
+  private buildParentDetails(body: any, existing: any = {}) {
+    const parentDetails = body.parentDetails || {};
+    const primaryContact = body.primaryContact || body.primary_contact || parentDetails.primaryContact || parentDetails.primary_contact || existing.primaryContact || existing.primary_contact || 'father';
+    const fatherPhone = body.fatherPhone || body.father_phone || parentDetails.fatherPhone || parentDetails.father_phone || existing.fatherPhone || existing.father_phone || null;
+    const motherPhone = body.motherPhone || body.mother_phone || parentDetails.motherPhone || parentDetails.mother_phone || existing.motherPhone || existing.mother_phone || null;
+    const guardianPhone = body.guardianPhone || body.guardian_phone || parentDetails.guardianPhone || parentDetails.guardian_phone || existing.guardianPhone || existing.guardian_phone || null;
+    const parentPhone = body.parentPhone || body.parent_phone || parentDetails.parentPhone || parentDetails.parent_phone || existing.parentPhone || existing.parent_phone || null;
+    const whatsappNumber = body.whatsappNumber || body.whatsapp_number || parentDetails.whatsappNumber || parentDetails.whatsapp_number || existing.whatsappNumber || existing.whatsapp_number || parentPhone;
+    return {
+      ...existing,
+      primaryContact,
+      fatherName: body.fatherName || body.father_name || parentDetails.fatherName || parentDetails.father_name || existing.fatherName || existing.father_name || null,
+      fatherPhone,
+      motherName: body.motherName || body.mother_name || parentDetails.motherName || parentDetails.mother_name || existing.motherName || existing.mother_name || null,
+      motherPhone,
+      parentPhone,
+      email: body.parentEmail || body.parent_email || parentDetails.email || parentDetails.parentEmail || parentDetails.parent_email || existing.email || existing.parentEmail || existing.parent_email || null,
+      whatsappNumber,
+      occupation: body.parentOccupation || body.parent_occupation || parentDetails.occupation || parentDetails.parentOccupation || parentDetails.parent_occupation || existing.occupation || existing.parentOccupation || existing.parent_occupation || null,
+      annualIncome: body.annualIncome || body.annual_income || parentDetails.annualIncome || parentDetails.annual_income || existing.annualIncome || existing.annual_income || null,
+      guardianName: body.guardianName || body.guardian_name || parentDetails.guardianName || parentDetails.guardian_name || existing.guardianName || existing.guardian_name || null,
+      guardianRelation: body.guardianRelation || body.guardian_relation || parentDetails.guardianRelation || parentDetails.guardian_relation || existing.guardianRelation || existing.guardian_relation || null,
+      guardianPhone,
+      createLogin: body.createParentLogin ?? parentDetails.createLogin ?? existing.createLogin ?? true,
+      sendViaSms: body.sendViaSms ?? parentDetails.sendViaSms ?? existing.sendViaSms ?? true,
+      sendViaEmail: body.sendViaEmail ?? parentDetails.sendViaEmail ?? existing.sendViaEmail ?? false,
+    };
+  }
+
   private parseImportDate(str: any): Date | null {
     if (!str) return null;
     const s = String(str).trim();
@@ -93,6 +122,10 @@ export class SchoolStudentService {
         [instituteId, body.name, body.email, hashed, body.profileImage || null, body.phone || null],
       );
       const u = userRows[0];
+      const documents = {
+        ...(this.parseJsonObject(body.documents)),
+        parentDetails: this.buildParentDetails(body),
+      };
 
       const sRows: any[] = await queryRunner.query(
         `INSERT INTO students (user_id,institute_id,enrollment_no,roll_no,section_id,dob,gender,blood_group,national_id,father_name,mother_name,parent_phone,parent_email,parent_occupation,address,city,state,pin_code,admission_date,medical_conditions,allergies,documents)
@@ -125,7 +158,7 @@ export class SchoolStudentService {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const params: any[] = [instituteId];
     let filter = `u.institute_id=$1 AND u.role='STUDENT'`;
-    
+
     if (user.role === 'TEACHER') {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
@@ -197,53 +230,58 @@ export class SchoolStudentService {
        WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
       params,
     );
-    const mapped = rows.map(r => ({
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      phone: r.phone,
-      isActive: r.is_active,
-      profileImage: r.profile_image,
-      createdAt: r.created_at,
-      studentProfile: {
-        id: r.profile_id,
-        enrollmentNo: r.enrollment_no,
-        rollNo: r.roll_no,
-        sectionId: r.section_id,
-        dob: r.dob,
-        gender: r.gender,
-        bloodGroup: r.blood_group,
-        fatherName: r.father_name,
-        motherName: r.mother_name,
-        parentPhone: r.parent_phone,
-        parentEmail: r.parent_email,
-        parentOccupation: r.parent_occupation,
-        currentAddress: r.address,
-        address: r.address,
-        city: r.city,
-        state: r.state,
-        pinCode: r.pin_code,
-        admissionDate: r.admission_date,
-        medicalConditions: r.medical_conditions,
-        allergies: r.allergies,
-        documents: this.parseJsonObject(r.documents),
-        nationalId: r.national_id,
-        section: r.section_id ? {
-          id: r.section_id,
+    const mapped = rows.map(r => {
+      const documents = this.parseJsonObject(r.documents);
+      const parentDetails = documents.parentDetails || {};
+      return ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        isActive: r.is_active,
+        profileImage: r.profile_image,
+        createdAt: r.created_at,
+        parentDetails,
+        studentProfile: {
+          id: r.profile_id,
+          enrollmentNo: r.enrollment_no,
+          rollNo: r.roll_no,
+          sectionId: r.section_id,
+          dob: r.dob,
+          gender: r.gender,
+          bloodGroup: r.blood_group,
+          fatherName: r.father_name,
+          motherName: r.mother_name,
+          parentPhone: r.parent_phone,
+          parentEmail: r.parent_email,
+          parentOccupation: r.parent_occupation,
+          currentAddress: r.address,
+          address: r.address,
+          city: r.city,
+          state: r.state,
+          pinCode: r.pin_code,
+          admissionDate: r.admission_date,
+          medicalConditions: r.medical_conditions,
+          allergies: r.allergies,
+          documents: this.parseJsonObject(r.documents),
+          nationalId: r.national_id,
+          section: r.section_id ? {
+            id: r.section_id,
             name: r.section_name,
             class: {
               id: r.class_id,
               name: r.class_name
             }
           } : null
-      }
-    }));
+        }
+      });
+    });
     return { success: true, data: mapped, total, page, limit, totalPages };
   }
 
   async getStats(user: any) {
     const instituteId = await this.resolveInstituteId(user);
-    
+
     const statsQuery = `
       SELECT 
         COUNT(*)::int AS "totalStudents",
@@ -257,7 +295,7 @@ export class SchoolStudentService {
       WHERE u.institute_id = $1 AND u.role = 'STUDENT'
     `;
     const rows = await this.ds.query(statsQuery, [instituteId]);
-    
+
     return {
       success: true,
       data: {
@@ -314,7 +352,7 @@ export class SchoolStudentService {
       const recordAbsent = Number(recordRows[0]?.absent || 0);
       const recordLeave = Number(recordRows[0]?.leave || 0);
       const recordTotal = Number(recordRows[0]?.total || 0);
-      console.log("[DEBUG getDashboard] attendance_records query result:", {recordPresent, recordAbsent, recordLeave, recordTotal});
+      console.log("[DEBUG getDashboard] attendance_records query result:", { recordPresent, recordAbsent, recordLeave, recordTotal });
 
       if (recordTotal > 0) {
         attendanceSummary = {
@@ -356,7 +394,7 @@ export class SchoolStudentService {
     const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
     const dayOfWeekStr = days[dayNum];
     const mappedDayOfWeek = dayNum === 0 ? 7 : dayNum;
-    
+
     // Using timetables table to get today's classes
     const timetablesRows: any[] = await this.ds.query(
       `SELECT t.*, sub.name AS subject_name, u.name AS teacher_name
@@ -471,6 +509,9 @@ export class SchoolStudentService {
       ORDER BY ts.submitted_at DESC
     `, [r.profile_id]) : [];
 
+    const documents = this.parseJsonObject(r.documents);
+    const parentDetails = documents.parentDetails || {};
+
     const mappedData = {
       id: r.user_id,
       name: r.name,
@@ -481,6 +522,7 @@ export class SchoolStudentService {
       isActive: r.is_active,
       createdAt: r.created_at,
       performance: testSessions,
+      parentDetails,
       studentProfile: {
         id: r.profile_id,
         enrollmentNo: r.enrollment_no,
@@ -533,6 +575,13 @@ export class SchoolStudentService {
       `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),profile_image=COALESCE($4,profile_image),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
       [userId, body.name, body.isActive, body.profileImage, body.phone],
     );
+    const existingStudentRows: any[] = await this.ds.query(`SELECT documents FROM students WHERE user_id=$1`, [userId]);
+    const existingDocuments = this.parseJsonObject(existingStudentRows[0]?.documents);
+    const documents = {
+      ...existingDocuments,
+      ...(body.documents ? this.parseJsonObject(body.documents) : {}),
+      parentDetails: this.buildParentDetails(body, existingDocuments.parentDetails || {}),
+    };
     await this.ds.query(
       `UPDATE students SET
         enrollment_no = COALESCE($2, enrollment_no),
@@ -565,11 +614,11 @@ export class SchoolStudentService {
         body.dob ? new Date(body.dob) : null,
         body.gender || null,
         body.bloodGroup || null,
-        body.fatherName || null,
-        body.motherName || null,
-        body.parentPhone || null,
-        body.parentEmail || null,
-        body.parentOccupation || null,
+        body.fatherName || body.father_name || null,
+        body.motherName || body.mother_name || null,
+        body.parentPhone || body.parent_phone || null,
+        body.parentEmail || body.parent_email || null,
+        body.parentOccupation || body.parent_occupation || null,
         body.currentAddress || body.address || null,
         body.city || null,
         body.state || null,
@@ -836,7 +885,7 @@ export class SchoolStudentService {
       devMode: result.devMode,
       error: result.error,
       parentEmail,
-       parentName,
+      parentName,
       studentName: student.name,
     };
   }
@@ -964,8 +1013,29 @@ export class SchoolStudentService {
     const curriculum = [];
     for (const sub of subjectRows) {
       const chapterRows = await this.ds.query(
-        `SELECT id, name FROM chapters WHERE subject_id = $1 ORDER BY sort_order, name`,
-        [sub.id]
+        `SELECT DISTINCT ch.id, ch.name, ch.sort_order
+         FROM chapters ch
+         JOIN subjects chapter_subject ON chapter_subject.id::text = ch.subject_id::text
+         WHERE ch.subject_id::text = $1::text
+            OR (
+              LOWER(TRIM(chapter_subject.name)) = LOWER(TRIM($2))
+              AND chapter_subject.institute_id::text = $3::text
+              AND (
+                (
+                  chapter_subject.class_id::text = $4::text
+                  AND (chapter_subject.section_id IS NULL OR chapter_subject.section_id::text = $5::text)
+                )
+                OR EXISTS (
+                  SELECT 1
+                  FROM teacher_academic_assignments taa
+                  WHERE taa.subject_id::text = chapter_subject.id::text
+                    AND taa.class_id::text = $4::text
+                    AND taa.section_id::text = $5::text
+                )
+              )
+            )
+         ORDER BY ch.sort_order, ch.name`,
+        [sub.id, sub.name, instituteId, student.class_id, student.section_id]
       );
 
       const chapters = [];

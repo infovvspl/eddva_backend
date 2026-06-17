@@ -55,15 +55,15 @@ export class SchoolMaterialController {
   getHighlights(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.getHighlights(user, id); }
 
   @Post(':id/highlights')
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   saveHighlight(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) { return this.svc.saveHighlight(user, id, body); }
 
   @Patch(':id/highlights/:highlightId')
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   updateHighlight(@SchoolUser() user: any, @Param('id') id: string, @Param('highlightId') highlightId: string, @Body() body: any) { return this.svc.updateHighlight(user, id, highlightId, body); }
 
   @Delete(':id/highlights/:highlightId')
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   deleteHighlight(@SchoolUser() user: any, @Param('id') id: string, @Param('highlightId') highlightId: string) { return this.svc.deleteHighlight(user, id, highlightId); }
 
   @Get(':id')

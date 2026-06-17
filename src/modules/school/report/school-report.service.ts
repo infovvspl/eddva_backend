@@ -6,7 +6,7 @@ import { DataSource } from 'typeorm';
 export class SchoolReportService {
   private resultSchemaReady = false;
 
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(@InjectDataSource('school') private readonly ds: DataSource) { }
 
   private async ensureResultSchema() {
     if (this.resultSchemaReady) return;
@@ -320,24 +320,95 @@ export class SchoolReportService {
       weakStudents: item.weakStudents.size,
     })).sort((a, b) => b.avgScore - a.avgScore);
 
-    const firstStudent = students[0];
-    const classAnalytics = [{
-      class: [firstStudent?.class_name, firstStudent?.section_name].filter(Boolean).join(' - ') || 'Assigned Classes',
-      avgScore: classAverage,
-      passRate,
-      topSubject: subjectAnalytics[0]?.subject || '-',
-      weakSubject: subjectAnalytics[subjectAnalytics.length - 1]?.subject || '-',
-      attendance: this.average(studentPerformance.map((student) => student.attendance).filter((value) => value > 0)),
-    }];
+    const uniqueClassSections = new Map<string, { classId: string; sectionId: string; className: string; sectionName: string }>();
+
+    if (scope.assignments && scope.assignments.length) {
+      for (const row of scope.assignments) {
+        const classId = String(row.class_id || row.classId || '');
+        const sectionId = String(row.section_id || row.sectionId || '');
+        if (classId && sectionId) {
+          const key = `${classId}|${sectionId}`;
+          if (!uniqueClassSections.has(key)) {
+            uniqueClassSections.set(key, {
+              classId,
+              sectionId,
+              className: row.class_name || row.className || 'Assigned Class',
+              sectionName: row.section_name || row.sectionName || '',
+            });
+          }
+        }
+      }
+    }
+
+    for (const student of studentPerformance) {
+      const classId = String(student.classId || '');
+      const sectionId = String(student.sectionId || '');
+      if (classId && sectionId) {
+        const key = `${classId}|${sectionId}`;
+        if (!uniqueClassSections.has(key)) {
+          uniqueClassSections.set(key, {
+            classId,
+            sectionId,
+            className: student.className || 'Assigned Class',
+            sectionName: student.sectionName || '',
+          });
+        }
+      }
+    }
+
+    const classAnalytics = Array.from(uniqueClassSections.values()).map((cs) => {
+      const classStudents = studentPerformance.filter(
+        (s) => String(s.classId || '') === cs.classId && String(s.sectionId || '') === cs.sectionId
+      );
+      const classEvaluated = classStudents.filter((s) => (resultsByStudent.get(String(s.id)) || []).length > 0);
+      const avgScore = classEvaluated.length ? this.average(classEvaluated.map((s) => s.avgScore)) : 0;
+      const passRate = classEvaluated.length
+        ? Math.round((classEvaluated.filter((s) => s.avgScore >= 40).length / classEvaluated.length) * 100)
+        : 0;
+      const attendance = this.average(classStudents.map((s) => s.attendance).filter((value) => value > 0));
+
+      const classSubjectScores = new Map<string, number[]>();
+      for (const student of classStudents) {
+        const studentResults = resultsByStudent.get(String(student.id)) || [];
+        for (const row of studentResults) {
+          const subject = row.subject_name || 'General';
+          if (!classSubjectScores.has(subject)) {
+            classSubjectScores.set(subject, []);
+          }
+          classSubjectScores.get(subject)!.push(row.percentage);
+        }
+      }
+
+      const classSubjectAnalytics = [...classSubjectScores.entries()].map(([subject, scores]) => ({
+        subject,
+        avgScore: this.average(scores),
+      })).sort((a, b) => b.avgScore - a.avgScore);
+
+      const topSubject = classSubjectAnalytics[0]?.subject || '-';
+      const weakSubject = classSubjectAnalytics[classSubjectAnalytics.length - 1]?.subject || '-';
+
+      const classLabel = [cs.className, cs.sectionName].filter(Boolean).join(' - ') || 'Assigned Class';
+
+      return {
+        class: classLabel,
+        avgScore,
+        passRate,
+        topSubject,
+        weakSubject,
+        attendance,
+      };
+    });
 
     const weaknesses = subjectAnalytics
       .filter((item) => item.weakStudents > 0 || item.avgScore < 60)
       .map((item) => ({ topic: item.subject, weakStudents: item.weakStudents, avgScore: item.avgScore }));
 
+    const overallAttendance = this.average(studentPerformance.map((student) => student.attendance).filter((value) => value > 0));
+
     const performance = [...monthScores.entries()].map(([month, item]) => ({
       month,
       avgScore: this.average(item.scores),
-      attendance: classAnalytics[0].attendance,
+      attendance: classAnalytics[0]?.attendance || overallAttendance || 0,
     }));
     const weeklyAverages = [...weeklyStudentScores.values()].map((scores) => this.average(scores));
     const weeklyAverage = this.average(weeklyAverages);
@@ -358,6 +429,7 @@ export class SchoolReportService {
       })),
     };
 
+    console.log('[DEBUG classReport] query:', query, 'classAnalytics:', classAnalytics);
     return {
       success: true,
       data: classAnalytics,

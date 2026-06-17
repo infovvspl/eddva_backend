@@ -33,6 +33,30 @@ export class SchoolTeacherService {
     return typeof val === 'object' && !Array.isArray(val) ? val : {};
   }
 
+  private buildTeacherDocuments(body: any, existing: any = {}) {
+    const docs = this.parseJsonObject(body.docs || body.documents);
+    const existingDetails = existing.teacherDetails || existing.profileDetails || {};
+    const teacherDetails = {
+      ...existingDetails,
+      nationality: body.nationality || existingDetails.nationality || null,
+      religion: body.religion || existingDetails.religion || null,
+      qualification: body.qualification || existingDetails.qualification || null,
+      degree: body.degree || existingDetails.degree || null,
+      specialization: body.specialization || existingDetails.specialization || null,
+      institute: body.institute || existingDetails.institute || null,
+      passingYear: body.passingYear || body.passing_year || existingDetails.passingYear || existingDetails.passing_year || null,
+      languages: body.languages || existingDetails.languages || null,
+      achievements: body.achievements || existingDetails.achievements || null,
+      employmentType: body.employmentType || body.employment_type || existingDetails.employmentType || existingDetails.employment_type || null,
+      permanentAddress: body.permanentAddress || body.permanent_address || existingDetails.permanentAddress || existingDetails.permanent_address || null,
+    };
+    return {
+      ...existing,
+      ...docs,
+      teacherDetails,
+    };
+  }
+
   private parseImportDate(str: any): Date | null {
     if (!str) return null;
     const s = String(str).trim();
@@ -248,7 +272,7 @@ export class SchoolTeacherService {
           body.pinCode || body.pin_code || null,
           body.allergies || null,
           body.medicalConditions || null,
-          JSON.stringify(body.docs || body.documents || {}),
+          JSON.stringify(this.buildTeacherDocuments(body)),
           body.shift || null,
           JSON.stringify(body.weekdays || []),
           body.officeHoursStart || null,
@@ -383,6 +407,8 @@ export class SchoolTeacherService {
 
     const mappedRows = rows.map(r => {
       const teacherAssignments = assignmentsRows.filter((a: any) => a.user_id === r.id);
+      const docs = this.parseJsonObject(r.documents);
+      const teacherDetails = docs.teacherDetails || docs.profileDetails || {};
       return {
         id: r.id,
         name: r.name,
@@ -421,7 +447,18 @@ export class SchoolTeacherService {
           country: r.country,
           allergies: r.allergies,
           medicalConditions: r.medical_conditions,
-          docs: this.parseJsonObject(r.documents),
+          docs,
+          nationality: teacherDetails.nationality,
+          religion: teacherDetails.religion,
+          qualification: teacherDetails.qualification,
+          degree: teacherDetails.degree,
+          specialization: teacherDetails.specialization,
+          institute: teacherDetails.institute,
+          passingYear: teacherDetails.passingYear,
+          languages: teacherDetails.languages,
+          achievements: teacherDetails.achievements,
+          employmentType: teacherDetails.employmentType,
+          permanentAddress: teacherDetails.permanentAddress,
           shift: r.shift,
           weekdays: this.parseJsonArray(r.weekdays),
           officeHoursStart: r.office_hours_start,
@@ -462,6 +499,8 @@ export class SchoolTeacherService {
     );
     if (!rows.length) throw new NotFoundException('Teacher not found');
     const r = rows[0];
+    const docs = this.parseJsonObject(r.documents);
+    const teacherDetails = docs.teacherDetails || docs.profileDetails || {};
     const tProfileId = r.teacher_profile_id;
     let assignments = [];
     let avgStudentScore = 0;
@@ -517,7 +556,18 @@ export class SchoolTeacherService {
         country: r.country,
         allergies: r.allergies,
         medicalConditions: r.medical_conditions,
-        docs: this.parseJsonObject(r.documents),
+        docs,
+        nationality: teacherDetails.nationality,
+        religion: teacherDetails.religion,
+        qualification: teacherDetails.qualification,
+        degree: teacherDetails.degree,
+        specialization: teacherDetails.specialization,
+        institute: teacherDetails.institute,
+        passingYear: teacherDetails.passingYear,
+        languages: teacherDetails.languages,
+        achievements: teacherDetails.achievements,
+        employmentType: teacherDetails.employmentType,
+        permanentAddress: teacherDetails.permanentAddress,
         shift: r.shift,
         weekdays: this.parseJsonArray(r.weekdays),
         officeHoursStart: r.office_hours_start,
@@ -550,6 +600,8 @@ export class SchoolTeacherService {
       `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),profile_image=COALESCE($4,profile_image),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
       [id, body.name, body.isActive, body.profileImage, body.phone],
     );
+    const existingTeacherRows: any[] = await this.ds.query(`SELECT documents FROM teachers WHERE user_id=$1`, [id]);
+    const documents = this.buildTeacherDocuments(body, this.parseJsonObject(existingTeacherRows[0]?.documents));
     await this.ds.query(
       `UPDATE teachers SET
         employee_id = COALESCE($2, employee_id),
@@ -608,7 +660,7 @@ export class SchoolTeacherService {
         body.pinCode || body.pin_code || null,
         body.allergies || null,
         body.medicalConditions || null,
-        body.docs || body.documents ? JSON.stringify(body.docs || body.documents) : null,
+        JSON.stringify(documents),
         body.shift || null,
         body.weekdays ? JSON.stringify(body.weekdays) : null,
         body.officeHoursStart || null,
@@ -670,7 +722,7 @@ export class SchoolTeacherService {
             body.pinCode || body.pin_code || null,
             body.allergies || null,
             body.medicalConditions || null,
-            JSON.stringify(body.docs || body.documents || {}),
+            JSON.stringify(this.buildTeacherDocuments(body)),
             body.shift || null,
             JSON.stringify(body.weekdays || []),
             body.officeHoursStart || null,
