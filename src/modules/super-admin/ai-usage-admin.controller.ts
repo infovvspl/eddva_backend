@@ -2,16 +2,15 @@ import { Controller, Get, Patch, Param, Query, Body, UseGuards, Request } from '
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AiUsageAdminService } from './ai-usage-admin.service';
 import { AiFeatureFlagService } from '../internal/ai-feature-flag.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { UserRole } from '../../database/entities/user.entity';
+import { SchoolJwtGuard } from '../school/guards/school-jwt.guard';
+import { SchoolRolesGuard } from '../school/guards/school-roles.guard';
+import { SchoolRoles } from '../school/decorators/school-roles.decorator';
 
 @ApiTags('Super Admin - AI Usage')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN)
-@Controller('super-admin/ai-usage')
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@SchoolRoles('SUPER_ADMIN')
+@Controller('school/super-admin/ai-usage')
 export class AiUsageAdminController {
   constructor(
     private readonly usageService: AiUsageAdminService,

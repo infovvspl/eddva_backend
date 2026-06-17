@@ -12,6 +12,8 @@ import { SchoolSuperAdminController } from './school-super-admin.controller';
 import { SchoolSuperAdminService } from './school-super-admin.service';
 import { AiUsageAdminController } from './ai-usage-admin.controller';
 import { AiUsageAdminService } from './ai-usage-admin.service';
+import { SchoolJwtGuard } from '../school/guards/school-jwt.guard';
+import { SchoolRolesGuard } from '../school/guards/school-roles.guard';
 
 import { Tenant } from '../../database/entities/tenant.entity';
 import { User } from '../../database/entities/user.entity';
@@ -43,6 +45,6 @@ import { InternalModule } from '../internal/internal.module';
     TypeOrmModule.forFeature([Tenant, User, Student, Batch, Enrollment, Lecture, TestSession, Announcement, StudyMaterial], 'coaching'),
   ],
   controllers: [SuperAdminController, PublicTenantController, PlatformSuperAdminController, SchoolSuperAdminController, AiUsageAdminController],
-  providers: [SuperAdminService, PlatformSuperAdminService, SchoolSuperAdminService, AiUsageAdminService],
+  providers: [SuperAdminService, PlatformSuperAdminService, SchoolSuperAdminService, AiUsageAdminService, SchoolJwtGuard, SchoolRolesGuard],
 })
 export class SuperAdminModule {}

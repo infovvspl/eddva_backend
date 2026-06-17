@@ -149,6 +149,40 @@ export class AiFeatureFlagService implements OnModuleInit {
     return { success: true };
   }
 
+  /** Fetch all flags relevant to a specific institute in one query.
+   *  Returns a map of featureId → { isEnabled, monthlyLimit }.
+   *  Institute-specific rows take precedence over global rows. */
+  async getInstituteFlags(
+    instituteId: string,
+    instituteType: 'school' | 'coaching',
+  ): Promise<Record<string, { isEnabled: boolean; monthlyLimit: number | null }>> {
+    await this.ensureTables();
+    const ds = this.getDs(instituteType);
+    const rows: Array<{
+      feature_id: string;
+      scope: string;
+      is_enabled: boolean;
+      monthly_request_limit: number | null;
+    }> = await ds.query(
+      `SELECT feature_id, scope, is_enabled, monthly_request_limit
+       FROM ai_feature_flags
+       WHERE scope = 'global' OR (scope = 'institute' AND institute_id = $1)
+       ORDER BY (scope = 'institute') DESC`,
+      [instituteId ?? ''],
+    );
+    const result: Record<string, { isEnabled: boolean; monthlyLimit: number | null }> = {};
+    // Rows ordered: institute first → first-write-wins gives institute precedence over global
+    for (const r of rows) {
+      if (!(r.feature_id in result)) {
+        result[r.feature_id] = {
+          isEnabled: r.is_enabled,
+          monthlyLimit: r.monthly_request_limit ?? null,
+        };
+      }
+    }
+    return result;
+  }
+
   async getGlobalFlags(product: 'school' | 'coaching' | 'all'): Promise<Record<string, boolean>> {
     await this.ensureTables();
     const result: Record<string, boolean> = {};

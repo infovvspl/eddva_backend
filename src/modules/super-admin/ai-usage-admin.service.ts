@@ -64,8 +64,39 @@ export class AiUsageAdminService {
 
   async getInstituteDetail(instituteId: string, product: Product, period: Period) {
     const { from } = this.dateRange(period);
-    const vertical = product === 'all' ? 'coaching' : product;
-    return this.usageSvc.getForInstitute(instituteId, vertical, { from });
+    const vertical = product === 'all' ? 'school' : product;
+    const instituteType: 'school' | 'coaching' = vertical === 'school' ? 'school' : 'coaching';
+
+    const [rawFeatures, flagMap] = await Promise.all([
+      this.usageSvc.getByFeature({ instituteId, vertical, from }) as Promise<any[]>,
+      this.flagSvc.getInstituteFlags(instituteId, instituteType),
+    ]);
+
+    const features = (rawFeatures as any[]).map((f) => {
+      const meta = AI_FEATURES.find((x) => x.id === f.feature);
+      const flag = flagMap[f.feature as string];
+      const requests = Number(f.requests ?? 0);
+      const success = Number(f.success ?? 0);
+      return {
+        featureId: f.feature as string,
+        featureLabel: meta?.label ?? String(f.feature),
+        category: meta?.category ?? 'shared',
+        requests,
+        cost: parseFloat(Number(f.cost ?? 0).toFixed(4)),
+        avgLatencyMs: Math.round(Number(f.avg_latency_ms ?? 0)),
+        isEnabled: flag?.isEnabled ?? true,
+        monthlyLimit: flag?.monthlyLimit ?? null,
+        currentUsage: requests,
+        successRate: requests > 0 ? Math.round((success / requests) * 100) : 100,
+      };
+    });
+
+    const totalRequests = features.reduce((s, f) => s + f.requests, 0);
+    const totalCost = parseFloat(features.reduce((s, f) => s + f.cost, 0).toFixed(4));
+    const totalSuccess = (rawFeatures as any[]).reduce((s, f) => s + Number(f.success ?? 0), 0);
+    const successRate = totalRequests > 0 ? Math.round((totalSuccess / totalRequests) * 100) : 100;
+
+    return { instituteId, totalRequests, totalCost, successRate, features };
   }
 
   async getFeatureFlags(product: Product) {

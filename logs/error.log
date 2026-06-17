@@ -27418,3 +27418,365 @@ Error: NotFoundException: Submission file is no longer available on this server
     at SchoolAssignmentService.resolveSubmissionFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:119:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-17T04:33:00.472Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-17T04:34:21.640Z] HEAD /uploads/1781332394119-52e51d8a-f725-4c89-97d9-a41b04aa86ba.png
+Status: 404
+Error: NotFoundException: Cannot HEAD /uploads/1781332394119-52e51d8a-f725-4c89-97d9-a41b04aa86ba.png
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:188:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-17T04:34:21.651Z] GET /uploads/1781332394119-52e51d8a-f725-4c89-97d9-a41b04aa86ba.png
+Status: 404
+Error: NotFoundException: Cannot GET /uploads/1781332394119-52e51d8a-f725-4c89-97d9-a41b04aa86ba.png
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:188:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-17T04:34:28.213Z] HEAD /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+Status: 404
+Error: NotFoundException: Cannot HEAD /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:188:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-17T04:34:28.218Z] GET /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+Status: 404
+Error: NotFoundException: Cannot GET /uploads/1780577469547-1ccba9e3-de19-4668-b17c-ac292d8cbaca.png
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at cors (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:188:7)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:224:17
+    at originCallback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-17T04:52:08.288Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T04:52:38.132Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T05:00:40.341Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-17T05:06:54.078Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T05:21:07.345Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-17T05:29:25.859Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:74:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T05:40:23.753Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:74:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T05:40:28.649Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:74:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T05:41:14.440Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T05:42:45.224Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T05:42:51.193Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T05:42:57.781Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T05:43:07.307Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T05:43:10.993Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T05:43:14.784Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T05:43:25.987Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-17T06:01:31.155Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T06:10:24.187Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T06:10:33.697Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T06:10:50.848Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T07:26:30.598Z] GET /api/v1/super-admin/ai-usage/feature-flags?product=all
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/ai-usage/feature-flags?product=all
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T07:26:32.658Z] GET /api/v1/super-admin/ai-usage/feature-flags?product=all
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/ai-usage/feature-flags?product=all
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T07:27:16.225Z] GET /api/v1/super-admin/ai-usage/institute/c259cd4e-b018-45e2-8e46-52a497ca49a1?product=school&period=month
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/ai-usage/institute/c259cd4e-b018-45e2-8e46-52a497ca49a1?product=school&period=month
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T07:28:55.079Z] GET /api/v1/super-admin/ai-usage/feature-flags?product=school
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/ai-usage/feature-flags?product=school
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T07:29:16.133Z] GET /api/v1/super-admin/ai-usage/feature-flags?product=school
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/ai-usage/feature-flags?product=school
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T07:31:06.978Z] GET /api/v1/super-admin/ai-usage/institute/c259cd4e-b018-45e2-8e46-52a497ca49a1?product=school&period=month
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/ai-usage/institute/c259cd4e-b018-45e2-8e46-52a497ca49a1?product=school&period=month
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T07:31:10.759Z] GET /api/v1/super-admin/ai-usage/feature-flags?product=school
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/super-admin/ai-usage/feature-flags?product=school
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T07:31:21.299Z] GET /api/v1/school/super-admin/ai-usage/feature-flags?product=school
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/super-admin/ai-usage/feature-flags?product=school
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T07:31:38.790Z] GET /api/v1/school/super-admin/ai-usage/feature-flags?product=school
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/super-admin/ai-usage/feature-flags?product=school
+    at callback (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\index.js:280:10)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:141:14)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+    at next (C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-17T07:44:00.813Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T07:53:31.366Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T09:36:04.888Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at C:\Users\HP\Desktop\apexiq-backend\apexiq\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T09:36:12.765Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T10:08:05.053Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T10:14:08.293Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T10:27:10.438Z] POST /api/v1/school/students
+Status: 400
+Error: BadRequestException: Email already exists
+    at SchoolStudentService.create (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\student\school-student.service.ts:76:32)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-17T10:36:20.937Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
