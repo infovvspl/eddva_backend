@@ -23,7 +23,7 @@ export class SchoolAdminUsersController {
   ) {
     // Never select password or sensitive tokens
     const safeFields = `u.id, u.name, u.email, u.role, u.is_active, u.phone, u.profile_image, u.institute_id, u.created_at AS "createdAt", u.updated_at AS "updatedAt", u.last_login_at AS "lastLoginAt", i.name AS institute_name`;
-    let where = `WHERE u.role IN ('SUPER_ADMIN', 'INSTITUTE_ADMIN')`;
+    let where = `WHERE u.role IN ('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'PARENT')`;
     const params: any[] = [];
 
     if (user.role === 'INSTITUTE_ADMIN') {

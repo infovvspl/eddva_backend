@@ -4,12 +4,12 @@ import { DataSource } from 'typeorm';
 
 @Injectable()
 export class SchoolDashboardService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(@InjectDataSource('school') private readonly ds: DataSource) { }
 
   async stats(user: any) {
     if (user.role === 'TEACHER') {
       const instituteId = user.instituteId;
-      
+
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
 
@@ -194,18 +194,18 @@ export class SchoolDashboardService {
       }));
 
       if (communications.length === 0) {
-         communications.push({ t: 'No recent notices found', badge: 0 });
+        communications.push({ t: 'No recent notices found', badge: 0 });
       }
 
-      return { 
-        currentInstitute: instRow[0]||null, 
-        totalTeachers: teachers[0].c, 
-        totalStudents: students[0].c, 
-        openComplaints: openComplaints[0].c, 
+      return {
+        currentInstitute: instRow[0] || null,
+        totalTeachers: teachers[0].c,
+        totalStudents: students[0].c,
+        openComplaints: openComplaints[0].c,
         complaintStatus: formattedComplaintStatus,
         communications: communications,
-        totalInstitutes: 1, 
-        pendingApprovals: 0 
+        totalInstitutes: 1,
+        pendingApprovals: 0
       };
     }
 
@@ -253,7 +253,7 @@ export class SchoolDashboardService {
       `),
       this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints`),
       this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status = 'RESOLVED'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status IN ('OPEN', 'PENDING')`),
+      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('OPEN', 'IN_PROGRESS')`),
       this.ds.query(`SELECT title, description FROM complaints`),
     ]);
 

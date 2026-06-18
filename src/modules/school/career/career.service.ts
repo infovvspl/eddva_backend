@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 import { InterestQuizResult } from './entities/interest-quiz-result.entity';
 import { CareerReport, CareerReportData } from './entities/career-report.entity';
 import { SubmitQuizDto } from './dto/career.dto';
@@ -46,6 +47,7 @@ export class CareerService implements OnModuleInit {
     private readonly reportRepo: Repository<CareerReport>,
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly aiBridge: AiBridgeService,
+    private readonly featureFlagService: AiFeatureFlagService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -321,6 +323,8 @@ export class CareerService implements OnModuleInit {
   // ── Report generation ───────────────────────────────────────────────────────
 
   async generateCareerReport(studentId: string, instituteId: string) {
+    const isEnabled = await this.featureFlagService.isFeatureEnabled(instituteId, 'school', 'career_guidance_report');
+    if (!isEnabled) throw new ForbiddenException('Career guidance report is currently disabled for your institute.');
     const quiz = await this.getLatestQuiz(studentId);
     if (!quiz) {
       throw new BadRequestException('Complete the interest quiz first.');

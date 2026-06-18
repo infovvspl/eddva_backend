@@ -155,9 +155,16 @@ export class SchoolStudentService {
   }
 
   async list(user: any, query: any) {
-    const instituteId = await this.resolveInstituteId(user, query.instituteId);
-    const params: any[] = [instituteId];
-    let filter = `u.institute_id=$1 AND u.role='STUDENT'`;
+    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const instituteId = isSuperAdmin && !query.instituteId
+      ? null
+      : await this.resolveInstituteId(user, query.instituteId);
+    const params: any[] = [];
+    let filter = `u.role='STUDENT'`;
+    if (instituteId) {
+      params.push(instituteId);
+      filter += ` AND u.institute_id=$${params.length}`;
+    }
 
     if (user.role === 'TEACHER') {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
@@ -280,11 +287,18 @@ export class SchoolStudentService {
   }
 
   async getStats(user: any, query: any = {}) {
-    const instituteId = await this.resolveInstituteId(user);
+    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const instituteId = isSuperAdmin && !query.instituteId
+      ? null
+      : await this.resolveInstituteId(user, query.instituteId);
 
-    const params: any[] = [instituteId];
+    const params: any[] = [];
     let joinClause = '';
-    let extraFilter = '';
+    let filter = `u.role = 'STUDENT'`;
+    if (instituteId) {
+      params.push(instituteId);
+      filter += ` AND u.institute_id = $${params.length}`;
+    }
 
     if (query.classId) {
       joinClause = `
@@ -293,7 +307,7 @@ export class SchoolStudentService {
         LEFT JOIN classes c ON sec.class_id = c.id
       `;
       params.push(query.classId);
-      extraFilter += ` AND c.id::text = $${params.length}::text`;
+      filter += ` AND c.id::text = $${params.length}::text`;
     }
 
     if (query.sectionId) {
@@ -306,7 +320,7 @@ export class SchoolStudentService {
         `;
       }
       params.push(query.sectionId);
-      extraFilter += ` AND s.section_id::text = $${params.length}::text`;
+      filter += ` AND s.section_id::text = $${params.length}::text`;
     }
 
     const statsQuery = `
@@ -320,7 +334,7 @@ export class SchoolStudentService {
         )::int AS "newThisMonth"
       FROM users u
       ${joinClause}
-      WHERE u.institute_id = $1 AND u.role = 'STUDENT'${extraFilter}
+      WHERE ${filter}
     `;
     const rows = await this.ds.query(statsQuery, params);
 
