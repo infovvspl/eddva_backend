@@ -319,9 +319,16 @@ export class SchoolTeacherService {
   }
 
   async list(user: any, query: any) {
-    const instituteId = await this.resolveInstituteId(user, query.instituteId);
-    const params: any[] = [instituteId];
-    let filter = `u.institute_id=$1 AND u.role='TEACHER'`;
+    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const instituteId = isSuperAdmin && !query.instituteId
+      ? null
+      : await this.resolveInstituteId(user, query.instituteId);
+    const params: any[] = [];
+    let filter = `u.role='TEACHER'`;
+    if (instituteId) {
+      params.push(instituteId);
+      filter += ` AND u.institute_id=$${params.length}`;
+    }
 
     const assignmentFilters: string[] = [];
     if (query.classId) {
@@ -395,6 +402,12 @@ export class SchoolTeacherService {
        FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
       params,
     );
+    const assignmentParams: any[] = [];
+    let assignmentFilter = '';
+    if (instituteId) {
+      assignmentParams.push(instituteId);
+      assignmentFilter = `WHERE t.institute_id = $1`;
+    }
     const assignmentsRows = await this.ds.query(`
       SELECT ta.*, c.name AS class_name, s.name AS section_name, sub.name AS subject_name, t.user_id
       FROM teacher_academic_assignments ta
@@ -402,8 +415,8 @@ export class SchoolTeacherService {
       LEFT JOIN sections s ON ta.section_id = s.id
       LEFT JOIN subjects sub ON ta.subject_id = sub.id
       JOIN teachers t ON ta.teacher_id = t.id
-      WHERE t.institute_id = $1
-    `, [instituteId]);
+      ${assignmentFilter}
+    `, assignmentParams);
 
     const mappedRows = rows.map(r => {
       const teacherAssignments = assignmentsRows.filter((a: any) => a.user_id === r.id);
@@ -443,11 +456,11 @@ export class SchoolTeacherService {
           city: r.city,
           state: r.state,
           pinCode: r.pin_code,
-          nationality: r.nationality || teacherDetails.nationality,
           country: r.country,
           allergies: r.allergies,
           medicalConditions: r.medical_conditions,
           docs,
+          nationality: r.nationality || teacherDetails.nationality,
           religion: teacherDetails.religion,
           qualification: teacherDetails.qualification,
           degree: teacherDetails.degree,

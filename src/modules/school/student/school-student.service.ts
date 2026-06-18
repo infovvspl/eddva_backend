@@ -155,9 +155,16 @@ export class SchoolStudentService {
   }
 
   async list(user: any, query: any) {
-    const instituteId = await this.resolveInstituteId(user, query.instituteId);
-    const params: any[] = [instituteId];
-    let filter = `u.institute_id=$1 AND u.role='STUDENT'`;
+    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const instituteId = isSuperAdmin && !query.instituteId
+      ? null
+      : await this.resolveInstituteId(user, query.instituteId);
+    const params: any[] = [];
+    let filter = `u.role='STUDENT'`;
+    if (instituteId) {
+      params.push(instituteId);
+      filter += ` AND u.institute_id=$${params.length}`;
+    }
 
     if (user.role === 'TEACHER') {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
@@ -279,8 +286,42 @@ export class SchoolStudentService {
     return { success: true, data: mapped, total, page, limit, totalPages };
   }
 
-  async getStats(user: any) {
-    const instituteId = await this.resolveInstituteId(user);
+  async getStats(user: any, query: any = {}) {
+    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const instituteId = isSuperAdmin && !query.instituteId
+      ? null
+      : await this.resolveInstituteId(user, query.instituteId);
+
+    const params: any[] = [];
+    let joinClause = '';
+    let filter = `u.role = 'STUDENT'`;
+    if (instituteId) {
+      params.push(instituteId);
+      filter += ` AND u.institute_id = $${params.length}`;
+    }
+
+    if (query.classId) {
+      joinClause = `
+        JOIN students s ON s.user_id = u.id
+        LEFT JOIN sections sec ON s.section_id = sec.id
+        LEFT JOIN classes c ON sec.class_id = c.id
+      `;
+      params.push(query.classId);
+      filter += ` AND c.id::text = $${params.length}::text`;
+    }
+
+    if (query.sectionId) {
+      if (!query.classId) {
+        // Need the joins even without classId if only sectionId is provided
+        joinClause = `
+          JOIN students s ON s.user_id = u.id
+          LEFT JOIN sections sec ON s.section_id = sec.id
+          LEFT JOIN classes c ON sec.class_id = c.id
+        `;
+      }
+      params.push(query.sectionId);
+      filter += ` AND s.section_id::text = $${params.length}::text`;
+    }
 
     const statsQuery = `
       SELECT 
@@ -292,9 +333,10 @@ export class SchoolStudentService {
             AND EXTRACT(YEAR FROM u.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
         )::int AS "newThisMonth"
       FROM users u
-      WHERE u.institute_id = $1 AND u.role = 'STUDENT'
+      ${joinClause}
+      WHERE ${filter}
     `;
-    const rows = await this.ds.query(statsQuery, [instituteId]);
+    const rows = await this.ds.query(statsQuery, params);
 
     return {
       success: true,

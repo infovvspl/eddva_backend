@@ -154,7 +154,9 @@ export class SchoolParentService {
     const [attendanceRows, marksRows, testsRows, homeworkRows, recentRows, upcomingRows] =
       await Promise.all([
         this.ds.query(
-          `SELECT COUNT(*) FILTER (WHERE LOWER(status) = 'present')::float AS present,
+          `SELECT COUNT(*) FILTER (WHERE LOWER(status) IN ('present', 'late'))::float AS present,
+                  COUNT(*) FILTER (WHERE LOWER(status) = 'absent')::float AS absent,
+                  COUNT(*) FILTER (WHERE LOWER(status) = 'leave')::float AS leave,
                   COUNT(*)::float AS total
            FROM attendances WHERE user_id = $1`,
           [child.id],
@@ -205,6 +207,8 @@ export class SchoolParentService {
       ]);
 
     const present = Number(attendanceRows[0]?.present ?? 0);
+    const absent = Number(attendanceRows[0]?.absent ?? 0);
+    const leave = Number(attendanceRows[0]?.leave ?? 0);
     const total = Number(attendanceRows[0]?.total ?? 0);
     const attendancePercentage = total > 0 ? Math.round((present / total) * 100) : null;
 
@@ -233,6 +237,12 @@ export class SchoolParentService {
 
     return {
       attendancePercentage,
+      attendanceSummary: {
+        present,
+        absent,
+        leave,
+        total,
+      },
       averageMarks,
       // No per-student submission tracking exists yet, so "submitted" is unknown.
       homeworkAssigned: homeworkAssigned || null,
@@ -258,15 +268,17 @@ export class SchoolParentService {
     const rows: any[] = await this.ds.query(sql, params);
     const countBy = (s: string) =>
       rows.filter((r) => String(r.status).toLowerCase() === s).length;
-    const present = countBy('present');
+    const present = countBy('present') + countBy('late');
     const absent = countBy('absent');
     const late = countBy('late');
+    const leave = countBy('leave');
     const total = rows.length;
     return {
       percentage: total > 0 ? Math.round((present / total) * 100) : null,
       present,
       absent,
       late,
+      leave,
       total,
       records: rows.map((r) => ({
         date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,

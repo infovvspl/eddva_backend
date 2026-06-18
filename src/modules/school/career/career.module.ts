@@ -5,11 +5,13 @@ import { CareerService } from './career.service';
 import { CareerController } from './career.controller';
 import { InterestQuizResult } from './entities/interest-quiz-result.entity';
 import { CareerReport } from './entities/career-report.entity';
+import { InternalModule } from '../../internal/internal.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([InterestQuizResult, CareerReport], 'school'),
     AiBridgeModule,
+    InternalModule,
   ],
   controllers: [CareerController],
   providers: [CareerService],
