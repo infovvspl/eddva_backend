@@ -253,7 +253,7 @@ export class SchoolDashboardService {
       `),
       this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints`),
       this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status = 'RESOLVED'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status IN ('OPEN', 'PENDING')`),
+      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('OPEN', 'IN_PROGRESS')`),
       this.ds.query(`SELECT title, description FROM complaints`),
     ]);
 
