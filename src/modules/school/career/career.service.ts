@@ -10,7 +10,7 @@ import { INTEREST_QUIZ_QUESTIONS, HollandLetter } from './data/quiz-questions';
 import { CAREER_PATHS, CareerPath } from './data/career-mappings';
 
 const HOLLAND_LETTERS: HollandLetter[] = ['R', 'I', 'A', 'S', 'E', 'C'];
-const RETAKE_MONTHS = 6;
+const RETAKE_MONTHS = 3;
 const REPORT_VALID_MONTHS = 3;
 
 interface SubjectMark {
@@ -57,6 +57,7 @@ export class CareerService implements OnModuleInit {
   private async ensureTables(): Promise<void> {
     if (this.tablesReady) return;
     try {
+      // ── Quiz results table ──────────────────────────────────────────────────
       await this.ds.query(`
         CREATE TABLE IF NOT EXISTS school_interest_quiz_results (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -70,6 +71,8 @@ export class CareerService implements OnModuleInit {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_interest_quiz_student ON school_interest_quiz_results (student_id, completed_at);
+
+        -- ── Career reports table ────────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS school_career_reports (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           student_id UUID NOT NULL,
@@ -80,10 +83,158 @@ export class CareerService implements OnModuleInit {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_career_reports_student ON school_career_reports (student_id, generated_at);
+
+        -- ── Single unified career paths table (static + AI-generated) ───────
+        CREATE TABLE IF NOT EXISTS school_career_paths (
+          id VARCHAR PRIMARY KEY,
+          title VARCHAR NOT NULL,
+          stream VARCHAR NOT NULL DEFAULT 'any',
+          description TEXT NOT NULL DEFAULT '',
+          exams JSONB NOT NULL DEFAULT '[]'::jsonb,
+          top_colleges JSONB NOT NULL DEFAULT '[]'::jsonb,
+          salary_range VARCHAR NOT NULL DEFAULT '',
+          required_subjects JSONB NOT NULL DEFAULT '{}'::jsonb,
+          holland_match JSONB NOT NULL DEFAULT '[]'::jsonb,
+          grade_relevance JSONB NOT NULL DEFAULT '[]'::jsonb,
+          is_custom BOOLEAN NOT NULL DEFAULT false,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        -- Ensure columns exist (for backward compatibility if table already exists)
+        ALTER TABLE school_career_paths ADD COLUMN IF NOT EXISTS duration VARCHAR NOT NULL DEFAULT '';
+        ALTER TABLE school_career_paths ADD COLUMN IF NOT EXISTS education_path JSONB NOT NULL DEFAULT '[]'::jsonb;
+        ALTER TABLE school_career_paths ADD COLUMN IF NOT EXISTS key_skills JSONB NOT NULL DEFAULT '[]'::jsonb;
+        ALTER TABLE school_career_paths ADD COLUMN IF NOT EXISTS job_roles JSONB NOT NULL DEFAULT '[]'::jsonb;
+        ALTER TABLE school_career_paths ADD COLUMN IF NOT EXISTS pros_cons JSONB NOT NULL DEFAULT '{"pros": [], "cons": []}'::jsonb;
+        ALTER TABLE school_career_paths ADD COLUMN IF NOT EXISTS focus_areas JSONB NOT NULL DEFAULT '[]'::jsonb;
       `);
+
+      // ── Seed static careers (idempotent — updates existing rows) ─────────────
+      for (const c of CAREER_PATHS) {
+        await this.ds.query(
+          `INSERT INTO school_career_paths
+             (id, title, stream, description, exams, top_colleges, salary_range,
+              required_subjects, holland_match, grade_relevance, is_custom,
+              duration, education_path, key_skills, job_roles, pros_cons)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12,$13,$14,$15)
+           ON CONFLICT (id) DO UPDATE SET
+             title = EXCLUDED.title,
+             stream = EXCLUDED.stream,
+             description = EXCLUDED.description,
+             exams = EXCLUDED.exams,
+             top_colleges = EXCLUDED.top_colleges,
+             salary_range = EXCLUDED.salary_range,
+             required_subjects = EXCLUDED.required_subjects,
+             holland_match = EXCLUDED.holland_match,
+             grade_relevance = EXCLUDED.grade_relevance,
+             duration = EXCLUDED.duration,
+             education_path = EXCLUDED.education_path,
+             key_skills = EXCLUDED.key_skills,
+             job_roles = EXCLUDED.job_roles,
+             pros_cons = EXCLUDED.pros_cons`,
+          [
+            c.id, c.title, c.stream, c.description,
+            JSON.stringify(c.exams),
+            JSON.stringify(c.topColleges),
+            c.salaryRange,
+            JSON.stringify(c.requiredSubjects),
+            JSON.stringify(c.hollandMatch),
+            JSON.stringify(c.gradeRelevance),
+            c.duration,
+            JSON.stringify(c.educationPath),
+            JSON.stringify(c.keySkills),
+            JSON.stringify(c.jobRoles),
+            JSON.stringify(c.prosCons),
+          ],
+        );
+      }
+
       this.tablesReady = true;
     } catch (err) {
       this.logger.warn(`ensureTables failed: ${(err as Error)?.message}`);
+    }
+  }
+
+  // ── Career helpers ───────────────────────────────────────────────────────────
+
+  /** Derives a URL-safe slug from any string. */
+  private slugify(s: string): string {
+    return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  }
+
+  /** Infers a stream from career title + focus area keywords. */
+  private inferStream(title: string, focusAreas: string[]): 'science' | 'commerce' | 'arts' | 'any' {
+    const src = [title, ...focusAreas].join(' ').toLowerCase();
+    if (/physic|chemist|biolog|math|neet|jee|engineer|medic|pharma|nurs|vet/.test(src)) return 'science';
+    if (/account|finance|commerce|econom|business|ca\b|tax|bank/.test(src)) return 'commerce';
+    if (/histor|geograph|english|political|humanit|journal|psych|law|social|art|film|music/.test(src)) return 'arts';
+    return 'any';
+  }
+
+  /**
+   * Fuzzy-maps an id/title string to an existing school_career_paths id.
+   * Returns the canonical id if a static match is found, otherwise null.
+   */
+  private fuzzyMatchId(src: string): string | null {
+    // Specific patterns BEFORE broad ones — order is critical
+    if (/psych|counsel|therap|mental_health|behavioural/.test(src)) return 'psychology';
+    if (/data_sci|machine_learn|artificial_intel|big_data|data_anal/.test(src)) return 'data_science';
+    if (/biotech|biotechnolog/.test(src)) return 'biotechnology';
+    if (/environ/.test(src)) return 'environmental_science';
+    if (/architect/.test(src)) return 'architecture';
+    if (/mbbs|medic|doctor|dental|surgery|physician|neet|health_care/.test(src)) return 'medicine';
+    if (/nurs/.test(src)) return 'nursing';
+    if (/pharma/.test(src)) return 'pharmacy';
+    if (/veterinar|bvsc/.test(src)) return 'veterinary_science';
+    if (/civil_serv|ias|ips|ifs|upsc/.test(src)) return 'civil_services';
+    if (/teach|educat|ctet|b_ed/.test(src)) return 'teaching';
+    if (/defens|army|navy|air_force|nda|cds|military/.test(src)) return 'defense';
+    if (/hotel|hospitality|tourism/.test(src)) return 'hospitality';
+    if (/sport|physical_edu|fitness|athlet/.test(src)) return 'sports';
+    if (/aviation|pilot|airline|aircraft/.test(src)) return 'aviation';
+    if (/social_work|ngo|welfare/.test(src)) return 'social_work';
+    if (/film|music|perform|theater|danc|actor|drama/.test(src)) return 'performing_arts';
+    if (/journal|broadcast|news/.test(src)) return 'journalism';
+    if (/fashion|graphic|interior_design|ux_design|product_design/.test(src)) return 'design';
+    if (/software|engineer|coding|program|tech/.test(src)) return 'engineering';
+    if (/law|legal|advocate|judiciary|clat/.test(src)) return 'law';
+    if (/account|chartered|audit|finance|ca\b|tax|bank/.test(src)) return 'chartered_accountancy';
+    if (/entrepreneur|startup|venture|business|mba/.test(src)) return 'entrepreneurship';
+    return null;
+  }
+
+  /**
+   * Saves AI-generated careers that don't already exist in school_career_paths.
+   * All careers — static and AI-generated — live in the same table.
+   */
+  private async saveAiCareers(
+    topCareers: Array<{ careerId?: string; title?: string; reasoning?: string; focusAreas?: string[] }>,
+  ): Promise<void> {
+    for (const item of topCareers) {
+      const title = (item.title || '').trim();
+      if (!title) continue;
+      // Try to fuzzy-match to an existing id — if it matches, the career is already in the table
+      const slug = this.slugify(title);
+      const combined = `${title} ${item.careerId || ''}`.toLowerCase();
+      if (this.fuzzyMatchId(combined) || this.fuzzyMatchId(slug)) continue;
+      const focusAreas: string[] = Array.isArray(item.focusAreas) ? item.focusAreas : [];
+      const stream = this.inferStream(title, focusAreas);
+      const description = (item.reasoning || '').trim() || `Explore a career in ${title}.`;
+      try {
+        await this.ds.query(
+          `INSERT INTO school_career_paths
+             (id, title, stream, description, exams, top_colleges, salary_range,
+              required_subjects, holland_match, grade_relevance, is_custom,
+              duration, education_path, key_skills, job_roles, pros_cons, focus_areas)
+           VALUES ($1, $2, $3, $4, '[]'::jsonb, '[]'::jsonb, '', '{}'::jsonb, '[]'::jsonb, '[9,10,11,12]'::jsonb, true,
+                   '', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '{"pros":[], "cons":[]}'::jsonb, $5::jsonb)
+           ON CONFLICT (id) DO NOTHING`,
+          [slug, title, stream, description, JSON.stringify(focusAreas)],
+        );
+        this.logger.log(`Saved new AI career to school_career_paths: ${title} (${slug})`);
+      } catch (err) {
+        this.logger.warn(`saveAiCareers failed for "${title}": ${(err as Error)?.message}`);
+      }
     }
   }
 
@@ -97,13 +248,23 @@ export class CareerService implements OnModuleInit {
   async getQuizStatus(studentId: string) {
     const latest = await this.getLatestQuiz(studentId);
     const now = new Date();
+
+    let canRetakeAfter = latest?.canRetakeAfter ?? null;
+    if (latest && latest.completedAt) {
+      const computedDate = new Date(latest.completedAt);
+      computedDate.setMonth(computedDate.getMonth() + RETAKE_MONTHS);
+      canRetakeAfter = computedDate;
+    }
+
+    const canRetake = !latest || !canRetakeAfter || canRetakeAfter <= now;
+
     return {
       success: true,
       data: {
         completed: !!latest,
         completedAt: latest?.completedAt ?? null,
-        canRetake: !latest || !latest.canRetakeAfter || latest.canRetakeAfter <= now,
-        canRetakeAfter: latest?.canRetakeAfter ?? null,
+        canRetake,
+        canRetakeAfter,
         hollandCode: latest?.hollandCode ?? null,
       },
     };
@@ -227,6 +388,12 @@ export class CareerService implements OnModuleInit {
       }),
     );
 
+    // Save any AI-generated careers not yet in school_career_paths so they
+    // appear for everyone in the unified Explore Careers list.
+    void this.saveAiCareers(reportData.topCareers).catch((e) =>
+      this.logger.warn(`saveAiCareers error: ${(e as Error)?.message}`),
+    );
+
     return { success: true, data: { report: reportData, generatedAt: now, validUntil } };
   }
 
@@ -249,14 +416,111 @@ export class CareerService implements OnModuleInit {
 
   // ── Explore ───────────────────────────────────────────────────────────────
 
-  getCareerExplore() {
-    return { success: true, data: CAREER_PATHS };
+  /**
+   * Returns all career paths from the single school_career_paths table.
+   * Static careers are seeded on boot; AI-generated ones are added dynamically.
+   */
+  async getCareerExplore() {
+    await this.ensureTables();
+    try {
+      const rows: Array<Record<string, unknown>> = await this.ds.query(
+        `SELECT id, title, stream, description, exams,
+                top_colleges AS "topColleges",
+                salary_range AS "salaryRange",
+                required_subjects AS "requiredSubjects",
+                holland_match AS "hollandMatch",
+                grade_relevance AS "gradeRelevance",
+                is_custom AS "isCustom",
+                duration,
+                education_path AS "educationPath",
+                key_skills AS "keySkills",
+                job_roles AS "jobRoles",
+                pros_cons AS "prosCons",
+                focus_areas AS "focusAreas"
+         FROM school_career_paths
+         ORDER BY is_custom ASC, created_at ASC`,
+      );
+      const careers: CareerPath[] = rows.map((r) => ({
+        id: String(r.id),
+        title: String(r.title),
+        stream: String(r.stream) as CareerPath['stream'],
+        description: String(r.description),
+        exams: Array.isArray(r.exams) ? (r.exams as string[]) : [],
+        topColleges: Array.isArray(r.topColleges) ? (r.topColleges as string[]) : [],
+        salaryRange: String(r.salaryRange || ''),
+        requiredSubjects: (r.requiredSubjects && typeof r.requiredSubjects === 'object' ? r.requiredSubjects : {}) as Record<string, number>,
+        hollandMatch: Array.isArray(r.hollandMatch) ? (r.hollandMatch as HollandLetter[]) : [],
+        gradeRelevance: Array.isArray(r.gradeRelevance) ? (r.gradeRelevance as number[]) : [],
+        duration: String(r.duration || ''),
+        educationPath: Array.isArray(r.educationPath) ? (r.educationPath as string[]) : [],
+        keySkills: Array.isArray(r.keySkills) ? (r.keySkills as string[]) : [],
+        jobRoles: Array.isArray(r.jobRoles) ? (r.jobRoles as string[]) : [],
+        prosCons: (r.prosCons && typeof r.prosCons === 'object' ? r.prosCons : { pros: [], cons: [] }) as CareerPath['prosCons'],
+        focusAreas: Array.isArray(r.focusAreas) ? (r.focusAreas as string[]) : [],
+      }));
+      return { success: true, data: careers };
+    } catch (err) {
+      this.logger.warn(`getCareerExplore failed: ${(err as Error)?.message}`);
+      // Fallback to static array if DB is unavailable
+      return { success: true, data: CAREER_PATHS };
+    }
   }
 
-  getCareerDetail(careerId: string) {
-    const career = CAREER_PATHS.find((c) => c.id === careerId);
-    if (!career) throw new BadRequestException('Career not found');
-    return { success: true, data: career };
+  /**
+   * Returns a single career from school_career_paths, with fuzzy matching
+   * so AI-generated IDs (e.g. "3", "psych_counseling") resolve correctly.
+   */
+  async getCareerDetail(careerId: string) {
+    await this.ensureTables();
+    const rawId = (careerId || '').toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+
+    // Fuzzy-match the id to a canonical one, then fall back to the raw id
+    const resolvedId = this.fuzzyMatchId(rawId) ?? rawId;
+
+    try {
+      const rows: Array<Record<string, unknown>> = await this.ds.query(
+        `SELECT id, title, stream, description, exams,
+                top_colleges AS "topColleges",
+                salary_range AS "salaryRange",
+                required_subjects AS "requiredSubjects",
+                holland_match AS "hollandMatch",
+                grade_relevance AS "gradeRelevance",
+                duration,
+                education_path AS "educationPath",
+                key_skills AS "keySkills",
+                job_roles AS "jobRoles",
+                pros_cons AS "prosCons",
+                focus_areas AS "focusAreas"
+         FROM school_career_paths WHERE id = $1 LIMIT 1`,
+        [resolvedId],
+      );
+      if (rows.length > 0) {
+        const r = rows[0];
+        const career: CareerPath = {
+          id: String(r.id),
+          title: String(r.title),
+          stream: String(r.stream) as CareerPath['stream'],
+          description: String(r.description),
+          exams: Array.isArray(r.exams) ? (r.exams as string[]) : [],
+          topColleges: Array.isArray(r.topColleges) ? (r.topColleges as string[]) : [],
+          salaryRange: String(r.salaryRange || ''),
+          requiredSubjects: (r.requiredSubjects && typeof r.requiredSubjects === 'object' ? r.requiredSubjects : {}) as Record<string, number>,
+          hollandMatch: Array.isArray(r.hollandMatch) ? (r.hollandMatch as HollandLetter[]) : [],
+          gradeRelevance: Array.isArray(r.gradeRelevance) ? (r.gradeRelevance as number[]) : [],
+          duration: String(r.duration || ''),
+          educationPath: Array.isArray(r.educationPath) ? (r.educationPath as string[]) : [],
+          keySkills: Array.isArray(r.keySkills) ? (r.keySkills as string[]) : [],
+          jobRoles: Array.isArray(r.jobRoles) ? (r.jobRoles as string[]) : [],
+          prosCons: (r.prosCons && typeof r.prosCons === 'object' ? r.prosCons : { pros: [], cons: [] }) as CareerPath['prosCons'],
+          focusAreas: Array.isArray(r.focusAreas) ? (r.focusAreas as string[]) : [],
+        };
+        return { success: true, data: career };
+      }
+    } catch (err) {
+      this.logger.warn(`getCareerDetail failed: ${(err as Error)?.message}`);
+    }
+
+    throw new BadRequestException('Career not found');
   }
 
   // ── Local scoring ───────────────────────────────────────────────────────────
