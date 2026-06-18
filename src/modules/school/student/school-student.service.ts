@@ -279,8 +279,35 @@ export class SchoolStudentService {
     return { success: true, data: mapped, total, page, limit, totalPages };
   }
 
-  async getStats(user: any) {
+  async getStats(user: any, query: any = {}) {
     const instituteId = await this.resolveInstituteId(user);
+
+    const params: any[] = [instituteId];
+    let joinClause = '';
+    let extraFilter = '';
+
+    if (query.classId) {
+      joinClause = `
+        JOIN students s ON s.user_id = u.id
+        LEFT JOIN sections sec ON s.section_id = sec.id
+        LEFT JOIN classes c ON sec.class_id = c.id
+      `;
+      params.push(query.classId);
+      extraFilter += ` AND c.id::text = $${params.length}::text`;
+    }
+
+    if (query.sectionId) {
+      if (!query.classId) {
+        // Need the joins even without classId if only sectionId is provided
+        joinClause = `
+          JOIN students s ON s.user_id = u.id
+          LEFT JOIN sections sec ON s.section_id = sec.id
+          LEFT JOIN classes c ON sec.class_id = c.id
+        `;
+      }
+      params.push(query.sectionId);
+      extraFilter += ` AND s.section_id::text = $${params.length}::text`;
+    }
 
     const statsQuery = `
       SELECT 
@@ -292,9 +319,10 @@ export class SchoolStudentService {
             AND EXTRACT(YEAR FROM u.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
         )::int AS "newThisMonth"
       FROM users u
-      WHERE u.institute_id = $1 AND u.role = 'STUDENT'
+      ${joinClause}
+      WHERE u.institute_id = $1 AND u.role = 'STUDENT'${extraFilter}
     `;
-    const rows = await this.ds.query(statsQuery, [instituteId]);
+    const rows = await this.ds.query(statsQuery, params);
 
     return {
       success: true,

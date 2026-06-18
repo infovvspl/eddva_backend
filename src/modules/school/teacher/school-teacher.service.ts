@@ -556,7 +556,6 @@ export class SchoolTeacherService {
         allergies: r.allergies,
         medicalConditions: r.medical_conditions,
         docs,
-        nationality: r.nationality || teacherDetails.nationality,
         religion: teacherDetails.religion,
         qualification: teacherDetails.qualification,
         degree: teacherDetails.degree,

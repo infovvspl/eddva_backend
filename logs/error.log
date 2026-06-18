@@ -27719,3 +27719,29 @@ Error: UnauthorizedException: Invalid credentials
     at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
 
+[2026-06-18T04:48:06.971Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\Edva\eddva_backend\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (D:\Edva\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-18T04:48:07.120Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Edva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-18T04:53:58.197Z] GET /uploads/1781758275755-851fc34a-c162-41d3-98df-7371e3d62907.pdf
+Status: 404
+Error: NotFoundException: Cannot GET /uploads/1781758275755-851fc34a-c162-41d3-98df-7371e3d62907.pdf
+    at callback (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Edva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Edva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\Edva\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\Edva\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
