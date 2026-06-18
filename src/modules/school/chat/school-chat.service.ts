@@ -34,24 +34,46 @@ export class SchoolChatService implements OnModuleInit {
 
   async getConversations(user: any, query: any) {
     const role = query.role || 'TEACHER';
+    const crossInstitute =
+      user.role === 'SUPER_ADMIN' || role.toUpperCase() === 'SUPER_ADMIN';
     const rows: any[] = await this.ds.query(
-      `SELECT 
-        cr.id AS room_id,
-        cr.type AS room_type,
-        cr.created_at,
-        peer.id AS peer_id,
-        peer.name AS peer_name,
-        peer.email AS peer_email,
-        peer.role AS peer_role,
-        (SELECT text FROM chat_messages WHERE room_id = cr.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-        (SELECT COUNT(*)::int FROM chat_messages WHERE room_id = cr.id AND receiver_id = $1::varchar AND is_read IS NOT TRUE) AS unread_count
-      FROM chat_rooms cr
-      JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id = $1
-      JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id != $1
-      JOIN users peer ON peer.id = cp2.user_id
-      WHERE cr.type = 'DM' AND LOWER(peer.role) = LOWER($2) AND peer.institute_id = $3
-      ORDER BY cr.created_at DESC`,
-      [user.id, role, user.instituteId]
+      crossInstitute
+        ? `SELECT
+            cr.id AS room_id,
+            cr.type AS room_type,
+            cr.created_at,
+            peer.id AS peer_id,
+            peer.name AS peer_name,
+            peer.email AS peer_email,
+            peer.role AS peer_role,
+            i.name AS peer_institute_name,
+            (SELECT text FROM chat_messages WHERE room_id = cr.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id = cr.id AND receiver_id = $1::varchar AND is_read IS NOT TRUE) AS unread_count
+          FROM chat_rooms cr
+          JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id = $1
+          JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id != $1
+          JOIN users peer ON peer.id = cp2.user_id
+          LEFT JOIN institutes i ON i.id = peer.institute_id
+          WHERE cr.type = 'DM' AND LOWER(peer.role) = LOWER($2)
+          ORDER BY cr.created_at DESC`
+        : `SELECT
+            cr.id AS room_id,
+            cr.type AS room_type,
+            cr.created_at,
+            peer.id AS peer_id,
+            peer.name AS peer_name,
+            peer.email AS peer_email,
+            peer.role AS peer_role,
+            NULL AS peer_institute_name,
+            (SELECT text FROM chat_messages WHERE room_id = cr.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id = cr.id AND receiver_id = $1::varchar AND is_read IS NOT TRUE) AS unread_count
+          FROM chat_rooms cr
+          JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id = $1
+          JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id != $1
+          JOIN users peer ON peer.id = cp2.user_id
+          WHERE cr.type = 'DM' AND LOWER(peer.role) = LOWER($2) AND peer.institute_id = $3
+          ORDER BY cr.created_at DESC`,
+      crossInstitute ? [user.id, role] : [user.id, role, user.instituteId],
     );
 
     const isTeacher = user.role === 'TEACHER';
@@ -62,6 +84,7 @@ export class SchoolChatService implements OnModuleInit {
       name: r.peer_name,
       email: r.peer_email,
       role: r.peer_role,
+      institute_name: r.peer_institute_name ?? null,
       last_message: r.last_message,
       unread_count: r.unread_count,
       created_at: r.created_at
@@ -151,6 +174,14 @@ export class SchoolChatService implements OnModuleInit {
           )
       `;
       params.push(user.id);
+    } else if (targetRole.toUpperCase() === 'SUPER_ADMIN') {
+      // Anyone looking up super admin users — no institute_id boundary
+      sql = `SELECT u.id, u.name, u.email, u.role, u.profile_image FROM users u WHERE LOWER(u.role) = 'super_admin' AND u.is_active IS NOT FALSE`;
+    } else if (user.role === 'SUPER_ADMIN' && targetRole.toUpperCase() === 'INSTITUTE_ADMIN') {
+      // Super admin looking up institute admins across all institutes
+      sql = `SELECT u.id, u.name, u.email, u.role, u.profile_image, i.name AS institute_name
+             FROM users u LEFT JOIN institutes i ON i.id = u.institute_id
+             WHERE LOWER(u.role) = 'institute_admin' AND u.is_active IS NOT FALSE`;
     } else {
       // Admin / Super Admin (or default rules for self-communication/staff)
       sql = `SELECT id, name, email, role, profile_image FROM users WHERE institute_id = $1 AND LOWER(role) = LOWER($2) AND is_active = true`;
@@ -345,6 +376,8 @@ export class SchoolChatService implements OnModuleInit {
           actionUrl = `/school/parent/communication?userId=${user.id}`;
         } else if (recipientRole === 'INSTITUTE_ADMIN') {
           actionUrl = `/school/admin/communications?userId=${user.id}`;
+        } else if (recipientRole === 'SUPER_ADMIN') {
+          actionUrl = `/school/admin/communication?userId=${user.id}`;
         }
 
         // Determine preview text for attachment/meeting

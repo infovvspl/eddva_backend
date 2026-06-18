@@ -70,7 +70,7 @@ export class SchoolJwtGuard implements CanActivate {
 
     let decoded: any;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'change_me_in_production');
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev_secret_change_in_prod');
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }

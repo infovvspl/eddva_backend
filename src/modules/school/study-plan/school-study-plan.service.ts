@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 
 @Injectable()
 export class SchoolStudyPlanService implements OnModuleInit {
@@ -11,6 +12,7 @@ export class SchoolStudyPlanService implements OnModuleInit {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly featureFlagService: AiFeatureFlagService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -949,6 +951,8 @@ export class SchoolStudyPlanService implements OnModuleInit {
 
   async startAiStudy(user: any, topicId: string) {
     await this.ensureTables();
+    const isEnabled = await this.featureFlagService.isFeatureEnabled(user.instituteId, 'school', 'personalised_study_plan');
+    if (!isEnabled) throw new ForbiddenException('AI study sessions are currently disabled for your institute.');
     const student = await this.getStudentProfile(user.id);
     const topicRows = await this.ds.query(
       `SELECT t.id AS topic_id, t.name AS topic_name, chap.name AS chapter_name, sub.name AS subject_name
@@ -1245,6 +1249,8 @@ export class SchoolStudyPlanService implements OnModuleInit {
 
   async askAiQuestion(user: any, topicId: string, sessionId: string, question: string) {
     await this.ensureTables();
+    const isEnabled = await this.featureFlagService.isFeatureEnabled(user.instituteId, 'school', 'personalised_study_plan');
+    if (!isEnabled) throw new ForbiddenException('AI study sessions are currently disabled for your institute.');
     const student = await this.getStudentProfile(user.id);
     const sessionRows = await this.ds.query(
       `SELECT * FROM school_ai_study_sessions WHERE id = $1 AND student_id = $2 AND topic_id = $3`,

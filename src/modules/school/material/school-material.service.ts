@@ -5,6 +5,7 @@ import { randomUUID, createHash } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 
 /** Material types accepted by the study_materials.type enum (school). */
 const ALLOWED_MATERIAL_TYPES = [
@@ -32,6 +33,7 @@ export class SchoolMaterialService implements OnModuleInit {
     private readonly s3Service: S3Service,
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: SchoolNotificationService,
+    private readonly featureFlagService: AiFeatureFlagService,
   ) { }
 
   /** Ensure newer material types exist on the study_materials.type enum. */
@@ -194,6 +196,8 @@ export class SchoolMaterialService implements OnModuleInit {
   async generateAiContent(user: any, body: any) {
     const ctx = await this.resolveContentContext(body);
     await this.validateTeacherAssignment(user, ctx.subject_id, 'AI_GENERATE_DENIED');
+    const isEnabled = await this.featureFlagService.isFeatureEnabled(user.instituteId, 'school', 'topic_content_generation');
+    if (!isEnabled) throw new ForbiddenException('Content generation is currently disabled for your institute.');
     const scope = await this.resolveSubjectScope(ctx.subject_id, user);
     const className = body.className || await this.resolveClassName(scope.classId);
 
