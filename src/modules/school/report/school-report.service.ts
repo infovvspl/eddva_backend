@@ -51,11 +51,12 @@ export class SchoolReportService {
     let assignments: any[] = [];
 
     const teacherUserId = query.teacherUserId || query.teacher_user_id || (user.role === 'TEACHER' ? user.id : null);
+    let teacherId = null;
     if (teacherUserId) {
-      const teacherRows: any[] = await this.ds.query(`SELECT id FROM teachers WHERE user_id::text=$1::text LIMIT 1`, [teacherUserId]);
-      const teacherId = teacherRows[0]?.id;
+      const teacherRows: any[] = await this.ds.query(`SELECT id FROM teachers WHERE user_id::text=$1::text OR id::text=$1::text LIMIT 1`, [teacherUserId]);
+      teacherId = teacherRows[0]?.id;
       if (!teacherId) {
-        return { instituteId, classIds: [], sectionIds: [], subjectIds: [], assignments: [], teacherUserId, isClassTeacherScope: false };
+        return { instituteId, classIds: [], sectionIds: [], subjectIds: [], assignments: [], teacherUserId, teacherId: null, isClassTeacherScope: false };
       }
 
       assignments = await this.ds.query(
@@ -123,6 +124,7 @@ export class SchoolReportService {
       subjectIds: [...new Set(subjectIds)],
       assignments,
       teacherUserId,
+      teacherId,
       isClassTeacherScope: assignments.some((row) => this.isTrue(row.is_class_teacher)),
     };
   }
@@ -130,6 +132,30 @@ export class SchoolReportService {
   async classReport(user: any, query: any) {
     await this.ensureResultSchema();
     const scope = await this.resolveClassScope(user, query);
+
+    // Retroactively sync evaluated submissions from results
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS assessment_submissions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        assessment_id UUID NOT NULL,
+        student_user_id UUID NOT NULL,
+        answer_text TEXT NULL,
+        file_path VARCHAR NULL,
+        status VARCHAR NOT NULL DEFAULT 'submitted',
+        started_at TIMESTAMPTZ NULL,
+        expires_at TIMESTAMPTZ NULL,
+        completed_at TIMESTAMPTZ NULL,
+        submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (assessment_id, student_user_id)
+      )
+    `).catch(() => {});
+    await this.ds.query(`
+      INSERT INTO assessment_submissions (assessment_id, student_user_id, status)
+      SELECT DISTINCT r.assessment_id, r.student_id, 'evaluated'
+      FROM results r
+      ON CONFLICT (assessment_id, student_user_id) DO UPDATE SET status = 'evaluated'
+    `).catch(err => console.error('Failed to sync existing results to assessment_submissions:', err));
 
     if (scope.teacherUserId && !scope.classIds.length && !scope.sectionIds.length) {
       return {
@@ -212,9 +238,13 @@ export class SchoolReportService {
          a.subject_id,
          sub.name AS subject_name
        FROM results r
+       INNER JOIN assessment_submissions sub_tbl
+          ON sub_tbl.assessment_id::text = r.assessment_id::text
+         AND sub_tbl.student_user_id::text = r.student_id::text
        LEFT JOIN assessments a ON a.id::text=r.assessment_id::text
        LEFT JOIN subjects sub ON sub.id::text=a.subject_id::text
-       WHERE r.student_id::text = ANY($1::text[])${resultFilter}`,
+       WHERE r.student_id::text = ANY($1::text[])
+         AND sub_tbl.status = 'evaluated'${resultFilter}`,
       resultParams,
     );
 
@@ -391,6 +421,7 @@ export class SchoolReportService {
 
       return {
         class: classLabel,
+        totalEvaluated: classEvaluated.length,
         avgScore,
         passRate,
         topSubject,
@@ -429,7 +460,99 @@ export class SchoolReportService {
       })),
     };
 
+    // Calculate dynamic performance stats from evaluated student submissions
+    let totalAssessmentsCreated = 0;
+    let totalStudentSubmissions = 0;
+    let evaluatedSubmissions = 0;
+    let pendingEvaluations = 0;
+    let averageStudentScore = 0;
+    let averageAccuracy = 0;
+    let highestScore = 0;
+    let lowestScore = 0;
+
+    let assessmentsToQuery: any[] = [];
+    if (scope.teacherUserId || scope.teacherId) {
+      const tUserId = scope.teacherUserId;
+      const tId = scope.teacherId;
+
+      let assessmentsQuery = `SELECT id, total_marks FROM assessments WHERE (teacher_id::text = $1::text OR teacher_id::text = $2::text)`;
+      const assessmentsParams: any[] = [tUserId, tId];
+
+      if (scope.classIds && scope.classIds.length) {
+        assessmentsParams.push(scope.classIds);
+        assessmentsQuery += ` OR (class_id::text = ANY($${assessmentsParams.length}::text[])`;
+        if (scope.subjectIds && scope.subjectIds.length) {
+          assessmentsParams.push(scope.subjectIds);
+          assessmentsQuery += ` AND subject_id::text = ANY($${assessmentsParams.length}::text[])`;
+        }
+        assessmentsQuery += `)`;
+      }
+
+      assessmentsToQuery = await this.ds.query(assessmentsQuery, assessmentsParams).catch(() => []);
+    } else {
+      let assessmentsQuery = `SELECT id, total_marks FROM assessments WHERE 1=1`;
+      const assessmentsParams: any[] = [];
+      if (scope.classIds && scope.classIds.length) {
+        assessmentsParams.push(scope.classIds);
+        assessmentsQuery += ` AND class_id::text = ANY($${assessmentsParams.length}::text[])`;
+      }
+      if (scope.subjectIds && scope.subjectIds.length) {
+        assessmentsParams.push(scope.subjectIds);
+        assessmentsQuery += ` AND subject_id::text = ANY($${assessmentsParams.length}::text[])`;
+      }
+      assessmentsToQuery = await this.ds.query(assessmentsQuery, assessmentsParams).catch(() => []);
+    }
+
+    totalAssessmentsCreated = assessmentsToQuery.length;
+
+    if (totalAssessmentsCreated > 0) {
+      const tAssessmentIds = assessmentsToQuery.map((a: any) => String(a.id));
+
+      const subRows = await this.ds.query(
+        `SELECT id, assessment_id, student_user_id, status FROM assessment_submissions WHERE assessment_id::text = ANY($1::text[]) AND student_user_id::text = ANY($2::text[])`,
+        [tAssessmentIds, studentIds]
+      ).catch(() => []);
+
+      const resRows = await this.ds.query(
+        `SELECT r.id, r.assessment_id, r.student_id, r.percentage, r.marks_obtained, r.total_marks, r.is_absent 
+         FROM results r
+         INNER JOIN assessment_submissions s 
+            ON s.assessment_id::text = r.assessment_id::text 
+           AND s.student_user_id::text = r.student_id::text
+         WHERE r.assessment_id::text = ANY($1::text[])
+           AND r.student_id::text = ANY($2::text[])
+           AND s.status = 'evaluated'`,
+        [tAssessmentIds, studentIds]
+      ).catch(() => []);
+
+      evaluatedSubmissions = subRows.filter((sub: any) => sub.status === 'evaluated').length;
+
+      pendingEvaluations = subRows.filter((sub: any) => 
+        (sub.status === 'submitted' || sub.status === 'auto_submitted') &&
+        !resRows.some((r: any) => String(r.assessment_id) === String(sub.assessment_id) && String(r.student_id) === String(sub.student_user_id))
+      ).length;
+
+      totalStudentSubmissions = evaluatedSubmissions + pendingEvaluations;
+
+      const validResults = resRows.filter((r: any) => !r.is_absent);
+      if (validResults.length > 0) {
+        const percentages = validResults.map((r: any) => {
+          const totalMarks = this.toNumber(r.total_marks, 100);
+          return r.percentage !== null && r.percentage !== undefined
+            ? this.toNumber(r.percentage)
+            : totalMarks ? (this.toNumber(r.marks_obtained) / totalMarks) * 100 : 0;
+        });
+
+        const totalPercentage = percentages.reduce((sum, p) => sum + p, 0);
+        averageStudentScore = Math.round(totalPercentage / percentages.length);
+        averageAccuracy = averageStudentScore;
+        highestScore = Math.round(Math.max(...percentages));
+        lowestScore = Math.round(Math.min(...percentages));
+      }
+    }
+
     console.log('[DEBUG classReport] query:', query, 'classAnalytics:', classAnalytics);
+    console.log(`[Teacher Performance Audit] Teacher ID: ${scope.teacherId || 'N/A'}, Assessments: ${totalAssessmentsCreated}, Submissions: ${totalStudentSubmissions}, Evaluated: ${evaluatedSubmissions}, Distinct Students: ${evaluatedStudents.length}`);
     return {
       success: true,
       data: classAnalytics,
@@ -438,10 +561,18 @@ export class SchoolReportService {
       performance,
       weeklyAnalysis,
       summary: {
-        classAverage,
+        classAverage: classAverage || averageStudentScore || 0,
         passRate,
         atRiskStudents,
         totalStudents: studentPerformance.length,
+        totalAssessmentsCreated,
+        totalStudentSubmissions,
+        evaluatedSubmissions,
+        pendingEvaluations,
+        averageStudentScore: averageStudentScore || classAverage || 0,
+        averageAccuracy: averageAccuracy || classAverage || 0,
+        highestScore,
+        lowestScore,
       },
       scope,
     };
