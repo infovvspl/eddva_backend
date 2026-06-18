@@ -226,12 +226,14 @@ export class SchoolStudentService {
 
     const rows: any[] = await this.ds.query(
       `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.profile_image,u.created_at,
+              u.institute_id,i.name AS institute_name,
               s.id AS profile_id,s.enrollment_no,s.roll_no,s.section_id,s.dob,s.gender,s.blood_group,
               s.father_name,s.mother_name,s.parent_phone,s.admission_date,
               s.parent_email,s.parent_occupation,s.address,s.city,s.state,s.pin_code,
               s.medical_conditions,s.allergies,s.documents,s.national_id,
               sec.name AS section_name,c.id AS class_id,c.name AS class_name
        FROM users u JOIN students s ON s.user_id=u.id
+       LEFT JOIN institutes i ON i.id=u.institute_id
        LEFT JOIN sections sec ON s.section_id=sec.id
        LEFT JOIN classes c ON sec.class_id=c.id
        WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
@@ -248,6 +250,8 @@ export class SchoolStudentService {
         isActive: r.is_active,
         profileImage: r.profile_image,
         createdAt: r.created_at,
+        instituteId: r.institute_id,
+        instituteName: r.institute_name,
         parentDetails,
         studentProfile: {
           id: r.profile_id,

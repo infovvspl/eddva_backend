@@ -28588,3 +28588,1079 @@ Error: QueryFailedError: invalid input value for enum complaints_status_enum: "P
     at async Promise.all (index 11)
     at async SchoolDashboardService.adminStats (D:\edtech\eddva_backend\dist\modules\school\dashboard\school-dashboard.service.js:203:208)
 
+[2026-06-18T10:48:01.795Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:01.813Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:02.276Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: QueryFailedError: Connection terminated unexpectedly
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\postgres\PostgresQueryRunner.js:216:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\DataSource.js:353:20)
+    at async SchoolDashboardService.stats (D:\edtech\eddva_backend\dist\modules\school\dashboard\school-dashboard.service.js:26:27)
+
+[2026-06-18T10:48:02.283Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:02.600Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:10.475Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:10.794Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:11.060Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:30.483Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:30.791Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:31.045Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:50.481Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:50.795Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:48:51.044Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:01.486Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:01.794Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:10.478Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:10.793Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:11.058Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:30.475Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:30.798Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:31.047Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:50.501Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:50.812Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:49:51.064Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:01.814Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:01.815Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:10.496Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:10.811Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:11.059Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:30.492Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:30.810Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:31.063Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:50.493Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:50.810Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:50:51.062Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:01.496Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:01.809Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:10.488Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:10.808Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:11.058Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:44.457Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:44.463Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:44.777Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:50.491Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:50.811Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:51:51.061Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:52:13.838Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:52:13.841Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:52:25.868Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:52:38.238Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:52:38.242Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:52:51.239Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:52:51.243Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:03.288Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:03.291Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:03.294Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:03.295Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:03.607Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:03.861Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:10.511Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:10.825Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:11.084Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:30.510Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:30.823Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:53:31.074Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:54:01.813Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:54:01.814Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:54:02.823Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:54:02.830Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:54:03.144Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:54:10.494Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:54:10.805Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:54:11.066Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:54:42.824Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:54:54.890Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:07.239Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:07.241Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:07.243Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:07.244Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:07.248Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:10.829Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:11.087Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:11.152Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:30.522Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:30.838Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:31.100Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:50.515Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:50.824Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:55:51.084Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:01.522Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:01.832Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:10.519Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:10.838Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:11.093Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:30.517Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:30.841Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:31.097Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:50.515Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:50.832Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:56:51.090Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:01.860Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:01.862Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:10.517Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:10.831Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:11.084Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:42.557Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:42.887Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:43.140Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:50.524Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:50.849Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:57:51.105Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:13.555Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:13.556Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:13.558Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:14.027Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:14.283Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:42.574Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:42.887Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:43.136Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:50.522Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:50.838Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:58:51.094Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:01.844Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:01.845Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:10.525Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:10.842Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:11.097Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:30.519Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:30.828Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:31.088Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:50.527Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:50.847Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T10:59:51.099Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:01.541Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:01.848Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:10.532Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:22.880Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:22.888Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:30.848Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:31.103Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:31.167Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:50.535Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:50.861Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:00:51.115Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:01.853Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:01.855Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:10.526Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:10.848Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:11.108Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:30.542Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:30.862Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:31.118Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:50.540Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:50.860Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:01:51.114Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:02:13.571Z] GET /api/v1/school/students?page=1&limit=10
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:02:13.573Z] GET /api/v1/school/students/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:02:13.574Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:02:13.897Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:02:14.147Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:02:30.536Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:02:30.862Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:02:31.104Z] GET /api/v1/school/doubts
+Status: 500
+Error: Error: getaddrinfo ENOTFOUND eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26)
+
+[2026-06-18T11:28:24.006Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-18T11:28:26.538Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-18T11:28:27.270Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-18T11:28:28.036Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-18T11:29:35.180Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-18T11:29:51.299Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-18T11:30:12.204Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-18T11:40:29.772Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-18T11:40:30.027Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-18T11:40:30.075Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-18T11:40:30.078Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-18T11:40:35.377Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-18T11:40:35.379Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-18T11:40:43.438Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-18T11:40:43.740Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-18T11:40:44.158Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-18T11:40:44.159Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-18T12:23:52.074Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\edtech\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+
+[2026-06-18T12:23:52.150Z] GET /api/v1/school/teachers?page=1&limit=10
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\edtech\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+
+[2026-06-18T12:24:23.447Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\edtech\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+
+[2026-06-18T12:24:23.781Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\edtech\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+
+[2026-06-18T12:24:23.848Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\edtech\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+
+[2026-06-18T12:24:31.742Z] GET /api/v1/school/teachers?page=1&limit=10
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\edtech\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+
+[2026-06-18T12:24:39.377Z] GET /api/v1/school/dashboard/stats
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\edtech\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+
+[2026-06-18T12:25:14.165Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\edtech\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+

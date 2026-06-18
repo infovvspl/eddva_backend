@@ -61,7 +61,15 @@ export class SchoolInstituteService {
 
   async list(page = 1, perPage = 20, status?: string, search?: string) {
     let sql = `
-      SELECT i.*, admin.name AS admin_name, admin.email AS admin_email
+      SELECT
+        i.*,
+        admin.name AS admin_name,
+        admin.email AS admin_email,
+        COALESCE(student_counts.total_students, 0)::int AS total_students,
+        COALESCE(teacher_counts.total_teachers, 0)::int AS total_teachers,
+        COALESCE(class_counts.total_classes, 0)::int AS total_classes,
+        COALESCE(parent_counts.total_parents, 0)::int AS total_parents,
+        COALESCE(active_user_counts.active_users, 0)::int AS active_users
       FROM institutes i
       LEFT JOIN LATERAL (
         SELECT u.name, u.email
@@ -71,6 +79,33 @@ export class SchoolInstituteService {
         ORDER BY u.created_at ASC
         LIMIT 1
       ) admin ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS total_students
+        FROM students s
+        WHERE s.institute_id::text = i.id::text
+      ) student_counts ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS total_teachers
+        FROM teachers t
+        WHERE t.institute_id::text = i.id::text
+      ) teacher_counts ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS total_classes
+        FROM classes c
+        WHERE c.institute_id::text = i.id::text
+      ) class_counts ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS total_parents
+        FROM users u
+        WHERE u.institute_id::text = i.id::text
+          AND u.role = 'PARENT'
+      ) parent_counts ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS active_users
+        FROM users u
+        WHERE u.institute_id::text = i.id::text
+          AND u.is_active = TRUE
+      ) active_user_counts ON TRUE
       WHERE 1=1`;
     const params: any[] = [];
     if (status && status.toUpperCase() !== 'ALL') { params.push(status.toUpperCase()); sql += ` AND i.status = $${params.length}`; }
@@ -87,7 +122,15 @@ export class SchoolInstituteService {
 
   async findOne(id: string) {
     const rows: any[] = await this.ds.query(
-      `SELECT i.*, admin.name AS admin_name, admin.email AS admin_email
+      `SELECT
+        i.*,
+        admin.name AS admin_name,
+        admin.email AS admin_email,
+        COALESCE(student_counts.total_students, 0)::int AS total_students,
+        COALESCE(teacher_counts.total_teachers, 0)::int AS total_teachers,
+        COALESCE(class_counts.total_classes, 0)::int AS total_classes,
+        COALESCE(parent_counts.total_parents, 0)::int AS total_parents,
+        COALESCE(active_user_counts.active_users, 0)::int AS active_users
        FROM institutes i
        LEFT JOIN LATERAL (
          SELECT u.name, u.email
@@ -97,6 +140,33 @@ export class SchoolInstituteService {
          ORDER BY u.created_at ASC
          LIMIT 1
        ) admin ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) AS total_students
+         FROM students s
+         WHERE s.institute_id::text = i.id::text
+       ) student_counts ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) AS total_teachers
+         FROM teachers t
+         WHERE t.institute_id::text = i.id::text
+       ) teacher_counts ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) AS total_classes
+         FROM classes c
+         WHERE c.institute_id::text = i.id::text
+       ) class_counts ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) AS total_parents
+         FROM users u
+         WHERE u.institute_id::text = i.id::text
+           AND u.role = 'PARENT'
+       ) parent_counts ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) AS active_users
+         FROM users u
+         WHERE u.institute_id::text = i.id::text
+           AND u.is_active = TRUE
+       ) active_user_counts ON TRUE
        WHERE i.id = $1`,
       [id],
     );
