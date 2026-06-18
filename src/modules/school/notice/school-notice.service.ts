@@ -164,4 +164,74 @@ export class SchoolNoticeService {
     await this.ds.query(`DELETE FROM notices WHERE id=$1`, [id]);
     return { success: true };
   }
+
+  async listPlatform(query: any) {
+    let sql = `
+      SELECT n.*, i.name AS institute_name
+      FROM notices n
+      LEFT JOIN institutes i ON i.id = n.institute_id
+    `;
+    const params: any[] = [];
+    const conditions: string[] = [];
+    if (query.instituteId) { params.push(query.instituteId); conditions.push(`n.institute_id=$${params.length}`); }
+    if (query.category)    { params.push(query.category);    conditions.push(`n.category=$${params.length}`); }
+    if (query.priority)    { params.push(query.priority);    conditions.push(`n.priority=$${params.length}`); }
+    if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`;
+    sql += ` ORDER BY n.created_at DESC LIMIT 200`;
+    const rows: any[] = await this.ds.query(sql, params);
+    return {
+      success: true,
+      data: rows.map(r => ({
+        id: r.id,
+        instituteId: r.institute_id,
+        instituteName: r.institute_name ?? null,
+        title: r.title,
+        content: r.content,
+        category: r.category,
+        priority: r.priority,
+        postedDate: r.posted_date,
+        expiryDate: r.expiry_date,
+        attachments: r.attachments,
+        targetRoles: r.target_roles,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      })),
+    };
+  }
+
+  async broadcast(user: any, body: any) {
+    const instituteIds: string[] = body.instituteIds ?? [];
+    let targetInstitutes: string[];
+    if (instituteIds.length > 0) {
+      targetInstitutes = instituteIds;
+    } else {
+      const rows: any[] = await this.ds.query(
+        `SELECT id FROM institutes WHERE status='ACTIVE'`,
+      );
+      targetInstitutes = rows.map(r => r.id);
+    }
+
+    if (!targetInstitutes.length) return { success: true, data: { sent: 0 } };
+
+    let sent = 0;
+    for (const instituteId of targetInstitutes) {
+      await this.ds.query(
+        `INSERT INTO notices (institute_id,title,content,category,priority,posted_date,expiry_date,attachments,target_roles)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          instituteId,
+          body.title,
+          this.noticeContent(body),
+          body.category || 'GENERAL',
+          body.priority || 'NORMAL',
+          body.postedDate ? new Date(body.postedDate) : new Date(),
+          body.expiryDate ? new Date(body.expiryDate) : null,
+          body.attachments ?? null,
+          body.targetRoles || null,
+        ],
+      );
+      sent++;
+    }
+    return { success: true, data: { sent } };
+  }
 }
