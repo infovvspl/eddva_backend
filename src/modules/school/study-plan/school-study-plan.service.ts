@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 
 @Injectable()
 export class SchoolStudyPlanService implements OnModuleInit {
@@ -11,6 +12,7 @@ export class SchoolStudyPlanService implements OnModuleInit {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly featureFlagService: AiFeatureFlagService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -229,13 +231,35 @@ export class SchoolStudyPlanService implements OnModuleInit {
                        ELSE 0 END) < 60`,
       [student.user_id]
     );
-    const weakSubjectIds = new Set(weakSubjectRows.map(r => r.subject_id));
+    // Fetch completed topics for the student
+    const progressRows = await this.ds.query(
+      `SELECT topic_id FROM school_topic_progress WHERE student_id = $1 AND status = 'completed'`,
+      [student.student_id]
+    );
+    const completedTopicIds = new Set<string>(progressRows.map(r => String(r.topic_id)));
 
-    // Round-robin distribution prioritising weak subjects
-    const prioritizedQueue = [
-      ...topics.filter(t => weakSubjectIds.has(t.subject_id)),
-      ...topics.filter(t => !weakSubjectIds.has(t.subject_id))
-    ];
+    // Group topics by subject_id, splitting into incomplete and completed lists
+    const subjectsMap = new Map<string, { topicsToSchedule: any[]; isRevision: boolean }>();
+    for (const topic of topics) {
+      if (!subjectsMap.has(topic.subject_id)) {
+        subjectsMap.set(topic.subject_id, { topicsToSchedule: [], isRevision: false });
+      }
+    }
+
+    // Populate the schedule lists for each subject
+    for (const [subjectId, info] of subjectsMap.entries()) {
+      const subjectTopics = topics.filter(t => t.subject_id === subjectId);
+      const incomplete = subjectTopics.filter(t => !completedTopicIds.has(String(t.topic_id)));
+
+      if (incomplete.length > 0) {
+        info.topicsToSchedule = incomplete;
+        info.isRevision = false;
+      } else {
+        // If all topics are completed, start intensive revision on the full list of topics
+        info.topicsToSchedule = subjectTopics;
+        info.isRevision = true;
+      }
+    }
 
     const todayStr = this.todayIst();
     const startDate = new Date(todayStr);
@@ -248,38 +272,45 @@ export class SchoolStudyPlanService implements OnModuleInit {
     const planId = planRows[0].id;
 
     for (let day = 0; day < 30; day++) {
-      const topicIndex = day % prioritizedQueue.length;
-      const topic = prioritizedQueue[topicIndex];
-
       const currentDay = new Date(startDate);
       currentDay.setDate(startDate.getDate() + day);
       const dateStr = currentDay.toISOString().split('T')[0];
 
-      // Lecture / study task
-      await this.ds.query(
-        `INSERT INTO school_plan_items (study_plan_id, scheduled_date, type, title, duration_minutes, xp_reward, subject_name, content_json)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [planId, dateStr, 'lecture', `Study: ${topic.topic_name}`, 30, 10, topic.subject_name, JSON.stringify({
-          topicId: topic.topic_id,
-          topicName: topic.topic_name,
-          chapterName: topic.chapter_name,
-          subjectId: topic.subject_id,
-          subjectName: topic.subject_name
-        })]
-      );
+      // Schedule one topic for every subject daily
+      for (const [subjectId, info] of subjectsMap.entries()) {
+        const topicIndex = day % info.topicsToSchedule.length;
+        const topic = info.topicsToSchedule[topicIndex];
+        const isRevision = info.isRevision;
 
-      // Practice task
-      await this.ds.query(
-        `INSERT INTO school_plan_items (study_plan_id, scheduled_date, type, title, duration_minutes, xp_reward, subject_name, content_json)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [planId, dateStr, 'practice', `Practice: ${topic.topic_name}`, 30, 15, topic.subject_name, JSON.stringify({
-          topicId: topic.topic_id,
-          topicName: topic.topic_name,
-          chapterName: topic.chapter_name,
-          subjectId: topic.subject_id,
-          subjectName: topic.subject_name
-        })]
-      );
+        const studyTitle = isRevision ? `Revision: ${topic.topic_name}` : `Study: ${topic.topic_name}`;
+        const practiceTitle = isRevision ? `Practice (Revision): ${topic.topic_name}` : `Practice: ${topic.topic_name}`;
+
+        // Lecture / study task
+        await this.ds.query(
+          `INSERT INTO school_plan_items (study_plan_id, scheduled_date, type, title, duration_minutes, xp_reward, subject_name, content_json)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [planId, dateStr, 'lecture', studyTitle, 30, 10, topic.subject_name, JSON.stringify({
+            topicId: topic.topic_id,
+            topicName: topic.topic_name,
+            chapterName: topic.chapter_name,
+            subjectId: topic.subject_id,
+            subjectName: topic.subject_name
+          })]
+        );
+
+        // Practice task
+        await this.ds.query(
+          `INSERT INTO school_plan_items (study_plan_id, scheduled_date, type, title, duration_minutes, xp_reward, subject_name, content_json)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [planId, dateStr, 'practice', practiceTitle, 30, 15, topic.subject_name, JSON.stringify({
+            topicId: topic.topic_id,
+            topicName: topic.topic_name,
+            chapterName: topic.chapter_name,
+            subjectId: topic.subject_id,
+            subjectName: topic.subject_name
+          })]
+        );
+      }
     }
 
     return { message: 'Plan generated successfully!' };
@@ -361,13 +392,34 @@ export class SchoolStudyPlanService implements OnModuleInit {
   async completeItem(user: any, itemId: string) {
     await this.ensureTables();
     const student = await this.getStudentProfile(user.id);
-    const items = await this.ds.query(`SELECT id, type, xp_reward, status FROM school_plan_items WHERE id = $1`, [itemId]);
+    const items = await this.ds.query(`SELECT id, type, xp_reward, status, content_json FROM school_plan_items WHERE id = $1`, [itemId]);
     if (!items.length) throw new NotFoundException('Plan item not found');
     const item = items[0];
 
     if (item.status !== 'completed') {
       await this.ds.query(`UPDATE school_plan_items SET status = 'completed', completed_at = NOW() WHERE id = $1`, [itemId]);
       await this.ds.query(`UPDATE students SET xp_total = COALESCE(xp_total, 0) + $1 WHERE id = $2`, [item.xp_reward, student.student_id]);
+
+      const content = typeof item.content_json === 'string' ? JSON.parse(item.content_json) : item.content_json;
+      if (content?.topicId) {
+        const progressRows = await this.ds.query(
+          `SELECT id FROM school_topic_progress WHERE student_id = $1 AND topic_id = $2`,
+          [student.student_id, content.topicId]
+        );
+        if (!progressRows.length) {
+          await this.ds.query(
+            `INSERT INTO school_topic_progress (student_id, topic_id, status, unlocked_at, completed_at)
+             VALUES ($1, $2, 'completed', NOW(), NOW())`,
+            [student.student_id, content.topicId]
+          );
+        } else {
+          await this.ds.query(
+            `UPDATE school_topic_progress SET status = 'completed', completed_at = COALESCE(completed_at, NOW())
+             WHERE student_id = $1 AND topic_id = $2`,
+            [student.student_id, content.topicId]
+          );
+        }
+      }
     }
     return { success: true, xpAwarded: item.xp_reward };
   }
@@ -949,6 +1001,8 @@ export class SchoolStudyPlanService implements OnModuleInit {
 
   async startAiStudy(user: any, topicId: string) {
     await this.ensureTables();
+    const isEnabled = await this.featureFlagService.isFeatureEnabled(user.instituteId, 'school', 'personalised_study_plan');
+    if (!isEnabled) throw new ForbiddenException('AI study sessions are currently disabled for your institute.');
     const student = await this.getStudentProfile(user.id);
     const topicRows = await this.ds.query(
       `SELECT t.id AS topic_id, t.name AS topic_name, chap.name AS chapter_name, sub.name AS subject_name
@@ -1245,6 +1299,8 @@ export class SchoolStudyPlanService implements OnModuleInit {
 
   async askAiQuestion(user: any, topicId: string, sessionId: string, question: string) {
     await this.ensureTables();
+    const isEnabled = await this.featureFlagService.isFeatureEnabled(user.instituteId, 'school', 'personalised_study_plan');
+    if (!isEnabled) throw new ForbiddenException('AI study sessions are currently disabled for your institute.');
     const student = await this.getStudentProfile(user.id);
     const sessionRows = await this.ds.query(
       `SELECT * FROM school_ai_study_sessions WHERE id = $1 AND student_id = $2 AND topic_id = $3`,

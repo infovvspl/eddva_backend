@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   OnModuleInit,
@@ -10,6 +11,7 @@ import { randomUUID } from 'crypto';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
 import { querySectionSubjects } from '../common/section-subjects';
+import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 
 type DoubtStatus = 'open' | 'ai_answered' | 'escalated' | 'teacher_answered';
 
@@ -21,6 +23,7 @@ export class SchoolDoubtService implements OnModuleInit {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly aiBridgeService: AiBridgeService,
     private readonly s3Service: S3Service,
+    private readonly featureFlagService: AiFeatureFlagService,
   ) {}
 
   /**
@@ -568,6 +571,8 @@ export class SchoolDoubtService implements OnModuleInit {
 
   async suggestTeacherAnswer(user: any, id: string) {
     await this.ensureTable();
+    const isEnabled = await this.featureFlagService.isFeatureEnabled(user.instituteId, 'school', 'doubt_resolver');
+    if (!isEnabled) throw new ForbiddenException('AI doubt resolution is currently disabled for your institute.');
     const existing = await this.findOne(user, id);
     const doubt = existing.data;
     const ai = await this.resolveWithAi(
