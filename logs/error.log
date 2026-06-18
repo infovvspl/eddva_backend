@@ -27697,3 +27697,8 @@ Error: NotFoundException: Cannot GET /api/v1/health
     at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
     at next (D:\Edva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
+[2026-06-18T07:57:09.072Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
