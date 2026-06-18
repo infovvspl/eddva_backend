@@ -10,6 +10,8 @@ import { Logger, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { Server, Socket } from 'socket.io';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 
 /**
  * Real-time direct messaging, typing indicators, and presence for school portals.
@@ -24,6 +26,7 @@ export class SchoolChatGateway implements OnGatewayDisconnect {
 
   constructor(
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    @InjectDataSource('school') private readonly ds: DataSource,
   ) {}
 
   @SubscribeMessage('join_user')
@@ -35,6 +38,28 @@ export class SchoolChatGateway implements OnGatewayDisconnect {
       const presence = { status: 'online', lastSeen: Date.now() };
       await this.cache.set(`presence:${userId}`, JSON.stringify(presence));
       this.server.emit('presence_change', { userId, ...presence });
+
+      try {
+        // Mark pending messages as delivered
+        await this.ds.query(
+          `UPDATE chat_messages SET is_delivered = true WHERE receiver_id = $1 AND is_delivered IS NOT TRUE`,
+          [userId],
+        );
+
+        // Fetch senders to notify them
+        const senders: any[] = await this.ds.query(
+          `SELECT DISTINCT sender_id FROM chat_messages WHERE receiver_id = $1`,
+          [userId],
+        );
+
+        senders.forEach((s) => {
+          if (s.sender_id) {
+            this.server.to(`user:${s.sender_id}`).emit('messages_delivered', { receiverId: userId });
+          }
+        });
+      } catch (err) {
+        this.logger.error(`Failed to handle delivered state on join_user: ${(err as Error).message}`);
+      }
     }
   }
 
