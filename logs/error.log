@@ -29243,3 +29243,211 @@ Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
     at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
     at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
+[2026-06-19T05:53:13.565Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T06:07:08.263Z] GET /api/v1/school/teachers/3d0eabde-0695-4935-9dd9-da21ae1dced8
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:08:16.258Z] GET /api/v1/school/notifications/preferences
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:08:16.274Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:08:16.282Z] GET /api/v1/school/auth/me
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:08:46.485Z] GET /api/v1/school/teachers/3d0eabde-0695-4935-9dd9-da21ae1dced8
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:10:40.358Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:10:40.373Z] GET /api/v1/school/notifications/preferences
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:10:40.384Z] GET /api/v1/school/auth/me
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:13:56.668Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:13:56.683Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:13:56.688Z] GET /api/v1/school/notifications/preferences
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:13:56.700Z] GET /api/v1/school/auth/me
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:14:27.100Z] GET /api/v1/school/teachers/3d0eabde-0695-4935-9dd9-da21ae1dced8
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:14:51.303Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:14:51.319Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:14:51.325Z] GET /api/v1/school/notifications/preferences
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:14:51.342Z] GET /api/v1/school/auth/me
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T07:21:30.952Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T07:33:23.262Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T07:36:16.527Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T07:44:59.352Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T07:45:41.730Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T07:47:00.326Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T07:47:47.829Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T08:01:22.679Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T08:04:21.117Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T09:07:39.922Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T09:14:38.167Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T09:14:51.171Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T09:15:03.932Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T09:20:15.669Z] GET /api/v1/tenants/resolve/192
+Status: 404
+Error: NotFoundException: Institute not found
+    at PublicTenantController.resolveBySubdomain (C:\EDDVA SCHOOL\eddva_backend\src\modules\super-admin\public-tenant.controller.ts:112:15)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T09:20:30.103Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
