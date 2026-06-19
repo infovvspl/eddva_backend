@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -205,6 +205,90 @@ export class SchoolTeacherService {
       `INSERT INTO activity_logs (institute_id, user_id, action, details) VALUES ($1, $2, $3, $4)`,
       [instituteId, adminUserId, 'TEACHER_ASSIGNMENT_CHANGE', JSON.stringify(auditDetails)]
     );
+  }
+
+  async getStats(user: any, query: any = {}) {
+    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const instituteId = isSuperAdmin && !query.instituteId
+      ? null
+      : await this.resolveInstituteId(user, query.instituteId);
+
+    const params: any[] = [];
+    let filter = `u.role = 'TEACHER'`;
+    if (instituteId) {
+      params.push(instituteId);
+      filter += ` AND u.institute_id = $${params.length}`;
+    }
+
+    const statsQuery = `
+      SELECT 
+        COUNT(*)::int AS "totalTeachers",
+        COUNT(*) FILTER (
+          WHERE EXTRACT(MONTH FROM u.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM u.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+        )::int AS "newThisMonth"
+      FROM users u
+      WHERE ${filter}
+    `;
+    const rows = await this.ds.query(statsQuery, params);
+    const totalTeachers = rows[0]?.totalTeachers || 0;
+    const newThisMonth = rows[0]?.newThisMonth || 0;
+
+    // Get today's attendance from attendances table (source of truth for teacher attendance)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const attParams: any[] = [todayStr];
+    let attFilter = `a.date = $1 AND u.role = 'TEACHER'`;
+    if (instituteId) {
+      attParams.push(instituteId);
+      attFilter += ` AND a.institute_id = $${attParams.length}`;
+    }
+
+    const attQuery = `
+      SELECT
+        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'present')::int AS "presentCount",
+        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'late')::int AS "lateCount",
+        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) IN ('half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')::int AS "halfDayCount",
+        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'absent')::int AS "explicitAbsentCount",
+        COUNT(DISTINCT a.user_id) FILTER (
+          WHERE LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
+             OR LOWER(a.status) LIKE 'half%'
+        )::int AS "presentToday"
+      FROM attendances a
+      JOIN users u ON a.user_id = u.id
+      WHERE ${attFilter}
+    `;
+    const attRows = await this.ds.query(attQuery, attParams);
+    const presentCount = attRows[0]?.presentCount || 0;
+    const lateCount = attRows[0]?.lateCount || 0;
+    const halfDayCount = attRows[0]?.halfDayCount || 0;
+    const explicitAbsentCount = attRows[0]?.explicitAbsentCount || 0;
+    const presentToday = attRows[0]?.presentToday || 0;
+
+    // Calculate absent count as: Total - Present Today
+    const absentToday = totalTeachers - presentToday;
+
+    // Add validation logs
+    const logger = new Logger('TeacherAttendanceStats');
+    logger.log(
+      `[Teacher Stats Validation] ` +
+      `Total Teachers: ${totalTeachers} | ` +
+      `Present Count: ${presentCount} | ` +
+      `Late Count: ${lateCount} | ` +
+      `Half Day Count: ${halfDayCount} | ` +
+      `Calculated Absent Count: ${absentToday} | ` +
+      `Explicit Absent Count: ${explicitAbsentCount} | ` +
+      `Explicit Matches Calculated: ${explicitAbsentCount === absentToday}`
+    );
+
+    return {
+      success: true,
+      data: {
+        totalTeachers,
+        presentToday,
+        absentToday,
+        newThisMonth,
+      }
+    };
   }
 
   async create(user: any, body: any) {
@@ -528,12 +612,12 @@ export class SchoolTeacherService {
       const batchIds = [...new Set(assignments.map(a => a.class_id).filter(Boolean))];
       if (batchIds.length > 0) {
         const perfRow = await this.ds.query(`
-          SELECT AVG(ts.accuracy)::float AS avg_accuracy, COUNT(ts.id)::int AS total_sessions
-          FROM test_sessions ts
-          INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
-          WHERE mt.batch_id = ANY($1) AND ts.status IN ('submitted', 'auto_submitted') AND ts.deleted_at IS NULL
+          SELECT AVG(r.percentage)::float AS avg_accuracy, COUNT(r.id)::int AS total_sessions
+          FROM results r
+          INNER JOIN assessments a ON r.assessment_id = a.id
+          WHERE a.class_id = ANY($1) AND r.status = 'published'
         `, [batchIds]);
-        avgStudentScore = perfRow[0]?.avg_accuracy ? Math.round(perfRow[0].avg_accuracy * 105) : 0;
+        avgStudentScore = perfRow[0]?.avg_accuracy ? Math.round(perfRow[0].avg_accuracy) : 0;
         if (avgStudentScore > 100) avgStudentScore = 100;
         totalTestsCount = perfRow[0]?.total_sessions || 0;
       }

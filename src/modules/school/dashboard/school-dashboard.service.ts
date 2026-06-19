@@ -170,14 +170,51 @@ export class SchoolDashboardService {
 
     if (user.role === 'INSTITUTE_ADMIN') {
       const instituteId = user.instituteId;
-      const [instRow, teachers, students, openComplaints, complaintStats, recentNotices] = await Promise.all([
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const [
+        instRow,
+        teachers,
+        students,
+        openComplaints,
+        complaintStats,
+        recentNotices,
+        studentAttRows,
+        teacherAttRows
+      ] = await Promise.all([
         this.ds.query(`SELECT * FROM institutes WHERE id=$1`, [instituteId]),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='TEACHER' AND institute_id=$1`, [instituteId]),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1`, [instituteId]),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status='OPEN' AND institute_id=$1`, [instituteId]),
         this.ds.query(`SELECT status AS name, COUNT(*)::int AS value FROM complaints WHERE institute_id=$1 GROUP BY status`, [instituteId]),
         this.ds.query(`SELECT id, title, posted_date FROM notices WHERE institute_id=$1 ORDER BY posted_date DESC LIMIT 3`, [instituteId]),
+        this.ds.query(`
+          SELECT COUNT(DISTINCT ar.student_id)::int AS present
+          FROM attendance_records ar
+          JOIN attendance_sessions asess ON ar.session_id = asess.id
+          WHERE asess.tenant_id = $1 AND asess.date = $2
+            AND (LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')
+        `, [instituteId, todayStr]),
+        this.ds.query(`
+          SELECT COUNT(DISTINCT a.user_id)::int AS present
+          FROM attendances a
+          JOIN users u ON a.user_id = u.id
+          WHERE a.institute_id = $1 AND a.date = $2 AND u.role = 'TEACHER'
+            AND (LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')
+        `, [instituteId, todayStr]),
       ]);
+
+      const totalStudents = students[0]?.c || 0;
+      const totalTeachers = teachers[0]?.c || 0;
+      const presentStudentsToday = studentAttRows[0]?.present || 0;
+      const presentTeachersToday = teacherAttRows[0]?.present || 0;
+
+      const studentAttendancePercentage = totalStudents > 0 
+        ? (presentStudentsToday / totalStudents) * 100 
+        : 0;
+      const teacherAttendancePercentage = totalTeachers > 0 
+        ? (presentTeachersToday / totalTeachers) * 100 
+        : 0;
 
       const formattedComplaintStatus = complaintStats.map((c: any) => ({
         name: c.name.replace('_', ' ').charAt(0).toUpperCase() + c.name.replace('_', ' ').slice(1).toLowerCase() + ' Tickets',
@@ -199,8 +236,10 @@ export class SchoolDashboardService {
 
       return {
         currentInstitute: instRow[0] || null,
-        totalTeachers: teachers[0].c,
-        totalStudents: students[0].c,
+        totalTeachers,
+        totalStudents,
+        studentAttendancePercentage,
+        teacherAttendancePercentage,
         openComplaints: openComplaints[0].c,
         complaintStatus: formattedComplaintStatus,
         communications: communications,
