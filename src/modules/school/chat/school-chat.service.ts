@@ -24,6 +24,7 @@ export class SchoolChatService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS is_forwarded BOOLEAN DEFAULT false,
       ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT false,
       ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS is_delivered BOOLEAN DEFAULT false,
       ADD COLUMN IF NOT EXISTS attachment_url VARCHAR,
       ADD COLUMN IF NOT EXISTS attachment_name VARCHAR;
     `)
@@ -237,9 +238,14 @@ export class SchoolChatService implements OnModuleInit {
     if (rooms.length) {
       const roomId = rooms[0].room_id;
       await this.ds.query(
-        `UPDATE chat_messages SET is_read = true WHERE room_id = $1 AND receiver_id = $2 AND is_read IS NOT TRUE`,
+        `UPDATE chat_messages SET is_read = true, is_delivered = true WHERE room_id = $1 AND receiver_id = $2 AND is_read IS NOT TRUE`,
         [roomId, userId]
       );
+      try {
+        this.gateway.server.to(`user:${peerId}`).emit('conversation_read', { roomId, readerId: userId });
+      } catch (err) {
+        console.error('Failed to emit conversation_read event:', err);
+      }
     }
     return { success: true };
   }
@@ -322,16 +328,28 @@ export class SchoolChatService implements OnModuleInit {
       }
     }
 
+    let isDelivered = false;
+    if (receiverId) {
+      try {
+        const pRaw = await this.cacheManager.get(`presence:${receiverId}`);
+        if (pRaw) {
+          const presence = JSON.parse(pRaw as string);
+          isDelivered = presence.status === 'online';
+        }
+      } catch {}
+    }
+
     const rows: any[] = await this.ds.query(
       `INSERT INTO chat_messages (
-         room_id, sender_id, receiver_id, text, is_read, tenant_id, 
+         room_id, sender_id, receiver_id, text, is_read, is_delivered, tenant_id, 
          parent_message_id, is_forwarded, attachment_url, attachment_name
-       ) VALUES ($1, $2, $3, $4, false, $5, $6, $7, $8, $9) RETURNING *`,
+       ) VALUES ($1, $2, $3, $4, false, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [
         roomId, 
         user.id, 
         receiverId ? String(receiverId) : null, 
         text, 
+        isDelivered,
         user.instituteId ?? null,
         parentMessageId,
         isForwarded,
