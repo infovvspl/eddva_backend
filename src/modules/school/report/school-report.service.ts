@@ -185,6 +185,7 @@ export class SchoolReportService {
          u.id AS student_id,
          u.name,
          s.roll_no,
+         s.enrollment_no,
          s.section_id,
          sec.name AS section_name,
          sec.class_id,
@@ -323,6 +324,7 @@ export class SchoolReportService {
       return {
         id: student.student_id,
         name: student.name,
+        enrollmentNo: student.enrollment_no || '-',
         classId: student.class_id || null,
         sectionId: student.section_id || null,
         className: student.class_name || null,

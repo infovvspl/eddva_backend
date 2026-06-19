@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -316,7 +316,6 @@ export class SchoolStudentService {
 
     if (query.sectionId) {
       if (!query.classId) {
-        // Need the joins even without classId if only sectionId is provided
         joinClause = `
           JOIN students s ON s.user_id = u.id
           LEFT JOIN sections sec ON s.section_id = sec.id
@@ -330,8 +329,6 @@ export class SchoolStudentService {
     const statsQuery = `
       SELECT 
         COUNT(*)::int AS "totalStudents",
-        COUNT(*) FILTER (WHERE u.is_active = TRUE)::int AS "activeStudents",
-        COUNT(*) FILTER (WHERE u.is_active = FALSE)::int AS "inactiveStudents",
         COUNT(*) FILTER (
           WHERE EXTRACT(MONTH FROM u.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
             AND EXTRACT(YEAR FROM u.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
@@ -341,14 +338,70 @@ export class SchoolStudentService {
       WHERE ${filter}
     `;
     const rows = await this.ds.query(statsQuery, params);
+    const totalStudents = rows[0]?.totalStudents || 0;
+    const newThisMonth = rows[0]?.newThisMonth || 0;
+
+    // Get today's attendance from attendance_records (source of truth)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const attParams: any[] = [todayStr];
+    let attFilter = `asess.date = $1`;
+    if (instituteId) {
+      attParams.push(instituteId);
+      attFilter += ` AND asess.tenant_id = $${attParams.length}`;
+    }
+    if (query.classId) {
+      attParams.push(query.classId);
+      attFilter += ` AND asess.class_id::text = $${attParams.length}::text`;
+    }
+    if (query.sectionId) {
+      attParams.push(query.sectionId);
+      attFilter += ` AND asess.section_id::text = $${attParams.length}::text`;
+    }
+
+    const attQuery = `
+      SELECT
+        COUNT(DISTINCT ar.student_id) FILTER (WHERE LOWER(ar.status) = 'present')::int AS "presentCount",
+        COUNT(DISTINCT ar.student_id) FILTER (WHERE LOWER(ar.status) = 'late')::int AS "lateCount",
+        COUNT(DISTINCT ar.student_id) FILTER (WHERE LOWER(ar.status) IN ('half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')::int AS "halfDayCount",
+        COUNT(DISTINCT ar.student_id) FILTER (WHERE LOWER(ar.status) = 'absent')::int AS "explicitAbsentCount",
+        COUNT(DISTINCT ar.student_id) FILTER (
+          WHERE LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
+             OR LOWER(ar.status) LIKE 'half%'
+        )::int AS "presentToday"
+      FROM attendance_records ar
+      JOIN attendance_sessions asess ON ar.session_id = asess.id
+      WHERE ${attFilter}
+    `;
+    const attRows = await this.ds.query(attQuery, attParams);
+    const presentCount = attRows[0]?.presentCount || 0;
+    const lateCount = attRows[0]?.lateCount || 0;
+    const halfDayCount = attRows[0]?.halfDayCount || 0;
+    const explicitAbsentCount = attRows[0]?.explicitAbsentCount || 0;
+    const presentToday = attRows[0]?.presentToday || 0;
+
+    // Calculate absent count as: Total - Present Today
+    const absentToday = totalStudents - presentToday;
+
+    // Add validation logs
+    const logger = new Logger('StudentAttendanceStats');
+    logger.log(
+      `[Student Stats Validation] ` +
+      `Total Students: ${totalStudents} | ` +
+      `Present Count: ${presentCount} | ` +
+      `Late Count: ${lateCount} | ` +
+      `Half Day Count: ${halfDayCount} | ` +
+      `Calculated Absent Count: ${absentToday} | ` +
+      `Explicit Absent Count: ${explicitAbsentCount} | ` +
+      `Explicit Matches Calculated: ${explicitAbsentCount === absentToday}`
+    );
 
     return {
       success: true,
       data: {
-        totalStudents: rows[0]?.totalStudents || 0,
-        activeStudents: rows[0]?.activeStudents || 0,
-        inactiveStudents: rows[0]?.inactiveStudents || 0,
-        newThisMonth: rows[0]?.newThisMonth || 0,
+        totalStudents,
+        presentToday,
+        absentToday,
+        newThisMonth,
       }
     };
   }
@@ -540,20 +593,34 @@ export class SchoolStudentService {
     if (!rows.length) throw new NotFoundException('Student not found');
     const r = rows[0];
 
-    const testSessions = r.profile_id ? await this.ds.query(`
+    const testSessions = r.user_id ? await this.ds.query(`
       SELECT 
-        ts.id,
-        ts.total_score AS "score",
-        ts.accuracy,
-        ts.correct_count AS "correctCount",
-        ts.wrong_count AS "wrongCount",
-        mt.title AS "mockTestTitle",
-        ts.submitted_at AS "submittedAt"
-      FROM test_sessions ts
-      INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
-      WHERE ts.student_id = $1 AND ts.status IN ('submitted', 'auto_submitted') AND ts.deleted_at IS NULL
-      ORDER BY ts.submitted_at DESC
-    `, [r.profile_id]) : [];
+        sub.id,
+        COALESCE(r.marks_obtained, sub.objective_score, 0) AS "score",
+        COALESCE(r.percentage, 
+                 CASE 
+                   WHEN sub.objective_total > 0 THEN (sub.objective_score / sub.objective_total) * 100 
+                   ELSE 0 
+                 END, 
+                 0) AS "accuracy",
+        CASE 
+          WHEN jsonb_typeof(sub.grading_details) = 'array' THEN
+            (SELECT count(*)::int FROM jsonb_array_elements(sub.grading_details) elem WHERE elem->>'status' = 'correct')
+          ELSE 0
+        END AS "correctCount",
+        CASE 
+          WHEN jsonb_typeof(sub.grading_details) = 'array' THEN
+            (SELECT count(*)::int FROM jsonb_array_elements(sub.grading_details) elem WHERE elem->>'status' = 'wrong')
+          ELSE 0
+        END AS "wrongCount",
+        a.title AS "mockTestTitle",
+        sub.submitted_at AS "submittedAt"
+      FROM assessment_submissions sub
+      INNER JOIN assessments a ON sub.assessment_id = a.id
+      LEFT JOIN results r ON r.assessment_id = sub.assessment_id AND r.student_id = sub.student_user_id
+      WHERE sub.student_user_id = $1 AND sub.status IN ('submitted', 'auto_submitted', 'evaluated')
+      ORDER BY sub.submitted_at DESC
+    `, [r.user_id]) : [];
 
     const documents = this.parseJsonObject(r.documents);
     const parentDetails = documents.parentDetails || {};

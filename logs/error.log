@@ -28847,3 +28847,162 @@ Error: Error: timeout exceeded when trying to connect
     at listOnTimeout (node:internal/timers:605:17)
     at process.processTimers (node:internal/timers:541:7)
 
+[2026-06-19T06:04:25.429Z] GET /api/v1/school/auth/me
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Program Files\Eddva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-19T06:16:45.577Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T06:19:22.532Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:20:04.056Z] GET /api/v1/school/academic/subjects?limit=1000
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (D:\Program Files\Eddva\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:605:17)
+    at processTimers (node:internal/timers:541:7)
+
+[2026-06-19T06:42:28.658Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:42:35.960Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:42:39.952Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:42:48.581Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:42:48.987Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:42:49.349Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:42:55.046Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:43:10.056Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:43:25.095Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:43:40.084Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:43:55.068Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:44:35.989Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:45:03.885Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:45:04.151Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:45:04.413Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T06:45:12.120Z] GET /api/v1/school/teachers/stats
+Status: 500
+Error: QueryFailedError: invalid input syntax for type uuid: "stats"
+    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+
+[2026-06-19T09:48:45.644Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
