@@ -28847,162 +28847,607 @@ Error: Error: timeout exceeded when trying to connect
     at listOnTimeout (node:internal/timers:605:17)
     at process.processTimers (node:internal/timers:541:7)
 
-[2026-06-19T06:04:25.429Z] GET /api/v1/school/auth/me
+[2026-06-19T05:20:04.309Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:46:07.423Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:46:07.553Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-19T05:46:15.805Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:51:45.876Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:51:47.245Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:51:49.046Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:52:21.307Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:52:21.435Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-19T05:52:38.556Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:52:47.323Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:52:54.403Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:52:54.749Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:53:07.507Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:53:27.504Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:53:47.489Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:54:07.492Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:54:27.490Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:54:47.495Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:55:07.504Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:08.499Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:23.039Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:23.361Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:27.492Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:47.498Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:55.783Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:56.183Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:57:49.240Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:57:53.900Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:58:13.317Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:58:13.630Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:58:14.226Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:58:45.083Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:15:05.471Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T06:15:05.773Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T06:15:09.341Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:15:19.926Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:15:20.573Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:16:43.057Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:19:21.140Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:20:33.142Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T06:20:33.443Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T06:20:33.458Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T06:20:33.756Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T05:53:13.565Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T06:07:08.263Z] GET /api/v1/school/teachers/3d0eabde-0695-4935-9dd9-da21ae1dced8
 Status: 500
 Error: Error: timeout exceeded when trying to connect
-    at Timeout._onTimeout (D:\Program Files\Eddva\eddva_backend\node_modules\pg-pool\index.js:224:27)
-    at listOnTimeout (node:internal/timers:605:17)
-    at processTimers (node:internal/timers:541:7)
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:16:45.577Z] POST /api/v1/auth/login
-Status: 401
-Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
-
-[2026-06-19T06:19:22.532Z] POST /api/v1/auth/login
-Status: 401
-Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-
-[2026-06-19T06:20:04.056Z] GET /api/v1/school/academic/subjects?limit=1000
+[2026-06-19T06:08:16.258Z] GET /api/v1/school/notifications/preferences
 Status: 500
 Error: Error: timeout exceeded when trying to connect
-    at Timeout._onTimeout (D:\Program Files\Eddva\eddva_backend\node_modules\pg-pool\index.js:224:27)
-    at listOnTimeout (node:internal/timers:605:17)
-    at processTimers (node:internal/timers:541:7)
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:42:28.658Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:08:16.274Z] GET /api/v1/school/notifications
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:42:35.960Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:08:16.282Z] GET /api/v1/school/auth/me
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:42:39.952Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:08:46.485Z] GET /api/v1/school/teachers/3d0eabde-0695-4935-9dd9-da21ae1dced8
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:42:48.581Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:10:40.358Z] GET /api/v1/school/notifications
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:42:48.987Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:10:40.373Z] GET /api/v1/school/notifications/preferences
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:42:49.349Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:10:40.384Z] GET /api/v1/school/auth/me
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:42:55.046Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:13:56.668Z] GET /api/v1/school/notifications
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:43:10.056Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:13:56.683Z] GET /api/v1/school/notifications/unread-count
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:43:25.095Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:13:56.688Z] GET /api/v1/school/notifications/preferences
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:43:40.084Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:13:56.700Z] GET /api/v1/school/auth/me
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:43:55.068Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:14:27.100Z] GET /api/v1/school/teachers/3d0eabde-0695-4935-9dd9-da21ae1dced8
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:44:35.989Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:14:51.303Z] GET /api/v1/school/notifications/unread-count
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:45:03.885Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:14:51.319Z] GET /api/v1/school/notifications
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:45:04.151Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:14:51.325Z] GET /api/v1/school/notifications/preferences
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:45:04.413Z] GET /api/v1/school/teachers/stats
+[2026-06-19T06:14:51.342Z] GET /api/v1/school/auth/me
 Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
 
-[2026-06-19T06:45:12.120Z] GET /api/v1/school/teachers/stats
-Status: 500
-Error: QueryFailedError: invalid input syntax for type uuid: "stats"
-    at PostgresQueryRunner.query (D:\Program Files\Eddva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async DataSource.query (D:\Program Files\Eddva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
-    at async SchoolTeacherService.findOne (D:\Program Files\Eddva\eddva_backend\src\modules\school\teacher\school-teacher.service.ts:505:25)
-
-[2026-06-19T09:48:45.644Z] POST /api/v1/auth/login
+[2026-06-19T07:21:30.952Z] POST /api/v1/auth/login
 Status: 401
 Error: UnauthorizedException: Invalid credentials
-    at AuthService.loginWithPassword (D:\Program Files\Eddva\eddva_backend\src\modules\auth\auth.service.ts:232:13)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T07:33:23.262Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T07:36:16.527Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T07:44:59.352Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T07:45:41.730Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T07:47:00.326Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T07:47:47.829Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T08:01:22.679Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T08:04:21.117Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T09:07:39.922Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T09:14:38.167Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T09:14:51.171Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T09:15:03.932Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T09:20:15.669Z] GET /api/v1/tenants/resolve/192
+Status: 404
+Error: NotFoundException: Institute not found
+    at PublicTenantController.resolveBySubdomain (C:\EDDVA SCHOOL\eddva_backend\src\modules\super-admin\public-tenant.controller.ts:112:15)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T09:20:30.103Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
 
