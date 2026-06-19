@@ -578,11 +578,12 @@ export class SchoolStudentService {
     }
     const rows: any[] = await this.ds.query(
       `SELECT u.id AS user_id, u.name, u.email, u.phone, u.profile_image, u.role, u.is_active, u.created_at,
+              u.institute_id,
               s.id AS profile_id, s.enrollment_no, s.roll_no, s.section_id, s.dob, s.gender, s.blood_group,
               s.father_name, s.mother_name, s.parent_phone, s.admission_date,
               s.parent_email, s.parent_occupation, s.address, s.city, s.state, s.pin_code,
               s.medical_conditions, s.allergies, s.documents, s.national_id,
-              sec.name AS section_name, c.name AS class_name, c.id AS class_id
+              sec.name AS section_name, c.name AS class_name, c.id AS class_id, c.academic_year
        FROM users u
        LEFT JOIN students s ON s.user_id=u.id
        LEFT JOIN sections sec ON s.section_id=sec.id
@@ -622,8 +623,34 @@ export class SchoolStudentService {
       ORDER BY sub.submitted_at DESC
     `, [r.user_id]) : [];
 
+    const attendanceStats = r.user_id ? await this.ds.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE LOWER(status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(status) LIKE 'half%')::int AS present,
+        COUNT(*)::int AS total
+      FROM attendance_records
+      WHERE student_id = $1
+    `, [r.user_id]) : [];
+    const attPresent = attendanceStats[0]?.present || 0;
+    const attTotal = attendanceStats[0]?.total || 0;
+    const attendancePercentage = attTotal > 0 ? Math.round((attPresent / attTotal) * 100) : null;
+
     const documents = this.parseJsonObject(r.documents);
-    const parentDetails = documents.parentDetails || {};
+    const parentDetails = {
+      fatherName: r.father_name,
+      motherName: r.mother_name,
+      parentPhone: r.parent_phone,
+      parentEmail: r.parent_email,
+      email: r.parent_email,
+      occupation: r.parent_occupation,
+      parentOccupation: r.parent_occupation,
+      primaryContact: documents.parentDetails?.primaryContact || 'father',
+      ...documents.parentDetails
+    };
+
+    const subjectRows =
+      r.section_id && r.institute_id
+        ? await querySectionSubjects(this.ds, r.institute_id, r.section_id, r.class_id)
+        : [];
 
     const mappedData = {
       id: r.user_id,
@@ -636,6 +663,7 @@ export class SchoolStudentService {
       createdAt: r.created_at,
       performance: testSessions,
       parentDetails,
+      attendancePercentage,
       studentProfile: {
         id: r.profile_id,
         enrollmentNo: r.enrollment_no,
@@ -660,12 +688,15 @@ export class SchoolStudentService {
         documents: this.parseJsonObject(r.documents),
         nationalId: r.national_id,
         classId: r.class_id,
+        academicYear: r.academic_year,
+        subjects: subjectRows.map((s) => s.name),
         section: r.section_id ? {
           id: r.section_id,
           name: r.section_name,
           class: {
             id: r.class_id,
-            name: r.class_name
+            name: r.class_name,
+            academicYear: r.academic_year
           }
         } : null
       }

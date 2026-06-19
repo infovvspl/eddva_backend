@@ -29451,3 +29451,69 @@ Error: UnauthorizedException: Invalid credentials
     at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
     at processTicksAndRejections (node:internal/process/task_queues:103:5)
 
+[2026-06-19T11:05:36.826Z] GET /api/v1/school/students/profile/me
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/profile/me
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T11:14:57.757Z] GET /api/v1/school/auth/me
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:75:13)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-19T11:14:57.880Z] GET /api/v1/school/students/profile/me
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/profile/me
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T11:15:36.636Z] GET /api/v1/school/students/profile/me
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/profile/me
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T11:16:19.879Z] GET /api/v1/school/students/profile/me
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/profile/me
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
