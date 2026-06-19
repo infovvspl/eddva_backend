@@ -391,6 +391,7 @@ export class SchoolTeacherService {
 
     const rows: any[] = await this.ds.query(
       `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.profile_image,
+              u.institute_id,i.name AS institute_name,
               t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
               t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
               t.address,t.city,t.state,t.pin_code,t.allergies,t.medical_conditions,t.documents,t.shift,t.weekdays,
@@ -399,7 +400,10 @@ export class SchoolTeacherService {
        COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM (SELECT DISTINCT class_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN classes c ON taa.class_id=c.id), '[]'::json) as classes,
        COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN sections s ON taa.section_id=s.id), '[]'::json) as sections,
        COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM (SELECT DISTINCT subject_id FROM teacher_academic_assignments WHERE teacher_id=t.id AND subject_id IS NOT NULL) taa JOIN subjects sub ON taa.subject_id=sub.id), '[]'::json) as subjects
-       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
+       FROM users u
+       LEFT JOIN teachers t ON t.user_id=u.id
+       LEFT JOIN institutes i ON i.id=u.institute_id
+       WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
       params,
     );
     const assignmentParams: any[] = [];
@@ -430,6 +434,8 @@ export class SchoolTeacherService {
         profileImage: r.profile_image,
         isActive: r.is_active,
         createdAt: r.created_at,
+        instituteId: r.institute_id,
+        instituteName: r.institute_name,
         classes: r.classes || [],
         sections: r.sections || [],
         subjects: r.subjects || [],

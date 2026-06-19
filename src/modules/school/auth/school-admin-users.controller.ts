@@ -20,6 +20,7 @@ export class SchoolAdminUsersController {
     @Query('search') search: string,
     @Query('page') page = '1',
     @Query('limit') limit = '50',
+    @Query('instituteId') instituteId: string,
   ) {
     // Never select password or sensitive tokens
     const safeFields = `u.id, u.name, u.email, u.role, u.is_active, u.phone, u.profile_image, u.institute_id, u.created_at AS "createdAt", u.updated_at AS "updatedAt", u.last_login_at AS "lastLoginAt", i.name AS institute_name`;
@@ -29,10 +30,13 @@ export class SchoolAdminUsersController {
     if (user.role === 'INSTITUTE_ADMIN') {
       params.push(user.instituteId);
       where += ` AND u.institute_id = $${params.length}`;
+    } else if (instituteId && instituteId !== 'ALL') {
+      params.push(instituteId);
+      where += ` AND u.institute_id = $${params.length}`;
     }
 
     if (role && role !== 'ALL') { params.push(role); where += ` AND u.role = $${params.length}`; }
-    if (status && status !== 'ALL') { params.push(status === 'active' ? true : false); where += ` AND u.is_active = $${params.length}`; }
+    if (status && status !== 'ALL') { params.push(String(status).toUpperCase() === 'ACTIVE'); where += ` AND u.is_active = $${params.length}`; }
     if (search) {
       params.push(`%${search}%`);
       where += ` AND (u.name ILIKE $${params.length} OR u.email ILIKE $${params.length})`;

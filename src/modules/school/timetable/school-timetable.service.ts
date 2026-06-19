@@ -133,12 +133,39 @@ export class SchoolTimetableService {
     const limit = Math.max(1, parseInt(query.limit) || 100);
     const offset = (page - 1) * limit;
 
+    let filterQuery = `WHERE t.institute_id::text=$1::text`;
+    const params: any[] = [instituteId];
+
+    if (query.teacherUserId) {
+      params.push(query.teacherUserId);
+      filterQuery += ` AND u.id::text=$${params.length}::text`;
+    }
+    if (query.sectionId) {
+      params.push(query.sectionId);
+      filterQuery += ` AND t.section_id::text=$${params.length}::text`;
+    }
+    if (query.subjectId) {
+      params.push(query.subjectId);
+      filterQuery += ` AND t.subject_id::text=$${params.length}::text`;
+    }
+    if (query.dayOfWeek) {
+      params.push(query.dayOfWeek);
+      filterQuery += ` AND t.day_of_week=$${params.length}::int`;
+    }
+
     const countRows = await this.ds.query(
-      `SELECT COUNT(*)::int AS total FROM timetables WHERE institute_id::text=$1::text`,
-      [instituteId]
+      `SELECT COUNT(*)::int AS total FROM timetables t
+       LEFT JOIN teachers teach ON t.teacher_id = teach.id
+       LEFT JOIN users u ON teach.user_id = u.id
+       ${filterQuery}`,
+      params
     );
     const total = parseInt(countRows[0]?.total || '0', 10);
     const totalPages = Math.ceil(total / limit);
+
+    params.push(limit, offset);
+    const limitParamIndex = params.length - 1;
+    const offsetParamIndex = params.length;
 
     const rows: any[] = await this.ds.query(
       `SELECT 
@@ -173,10 +200,10 @@ export class SchoolTimetableService {
       LEFT JOIN classes cls ON sec.class_id = cls.id
       LEFT JOIN teachers teach ON t.teacher_id = teach.id
       LEFT JOIN users u ON teach.user_id = u.id
-      WHERE t.institute_id::text=$1::text
+      ${filterQuery}
       ORDER BY t.day_of_week, t.start_time
-      LIMIT $2 OFFSET $3`,
-      [instituteId, limit, offset],
+      LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
+      params,
     );
 
     const formatted = rows.map((row) => ({
