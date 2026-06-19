@@ -29462,3 +29462,8 @@ Error: UnauthorizedException: Invalid credentials
     at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
     at processTicksAndRejections (node:internal/process/task_queues:103:5)
 
+[2026-06-19T11:05:10.128Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
