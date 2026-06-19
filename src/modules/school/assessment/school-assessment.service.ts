@@ -1169,6 +1169,14 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     );
     const result = rows[0];
 
+    // Ensure submission status is set to 'evaluated'
+    await this.ds.query(
+      `INSERT INTO assessment_submissions (assessment_id, student_user_id, status)
+       VALUES ($1, $2, 'evaluated')
+       ON CONFLICT (assessment_id, student_user_id) DO UPDATE SET status = 'evaluated', updated_at = NOW()`,
+      [body.assessmentId, body.studentId]
+    ).catch(err => console.error('Failed to sync submission status in saveResult:', err));
+
     // Notify the student
     try {
       const assessmentTitle = assessmentRows[0]?.title || 'Assessment';
