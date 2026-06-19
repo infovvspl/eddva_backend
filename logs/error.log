@@ -28847,6 +28847,402 @@ Error: Error: timeout exceeded when trying to connect
     at listOnTimeout (node:internal/timers:605:17)
     at process.processTimers (node:internal/timers:541:7)
 
+[2026-06-19T05:20:04.309Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:46:07.423Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:46:07.553Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-19T05:46:15.805Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:51:45.876Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:51:47.245Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:51:49.046Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:52:21.307Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:52:21.435Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.service.ts:92:23)
+    at async SchoolAuthController.login (D:\edtech\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-19T05:52:38.556Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:52:47.323Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:52:54.403Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:52:54.749Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:53:07.507Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:53:27.504Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:53:47.489Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:54:07.492Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:54:27.490Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:54:47.495Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:55:07.504Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:08.499Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:23.039Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:23.361Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:27.492Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:47.498Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:55.783Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:56:56.183Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:57:49.240Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:57:53.900Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:58:13.317Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:58:13.630Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:58:14.226Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T05:58:45.083Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:15:05.471Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T06:15:05.773Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T06:15:09.341Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:15:19.926Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:15:20.573Z] GET /api/v1/school/assignments
+Status: 400
+Error: BadRequestException: Institute ID is required
+    at SchoolAssignmentService.resolveInstituteId (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:37:13)
+    at SchoolAssignmentService.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.service.ts:269:30)
+    at SchoolAssignmentController.list (D:\edtech\eddva_backend\src\modules\school\assignment\school-assignment.controller.ts:32:21)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:16:43.057Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:19:21.140Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T06:20:33.142Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T06:20:33.443Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T06:20:33.458Z] GET /api/v1/school/admin/security/score
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/score
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T06:20:33.756Z] GET /api/v1/school/admin/security/sessions
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
 [2026-06-19T05:53:13.565Z] POST /api/v1/auth/login
 Status: 401
 Error: UnauthorizedException: Invalid credentials
