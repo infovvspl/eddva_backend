@@ -41,19 +41,19 @@ export class SchoolChatService implements OnModuleInit {
             cr.id AS room_id,
             cr.type AS room_type,
             cr.created_at,
-            peer.id AS peer_id,
-            peer.name AS peer_name,
-            peer.email AS peer_email,
-            peer.role AS peer_role,
+            cp2.user_id AS peer_id,
+            COALESCE(peer.name, 'Platform Admin') AS peer_name,
+            COALESCE(peer.email, '') AS peer_email,
+            COALESCE(peer.role, $2) AS peer_role,
             i.name AS peer_institute_name,
             (SELECT text FROM chat_messages WHERE room_id = cr.id ORDER BY created_at DESC LIMIT 1) AS last_message,
             (SELECT COUNT(*)::int FROM chat_messages WHERE room_id = cr.id AND receiver_id = $1::varchar AND is_read IS NOT TRUE) AS unread_count
           FROM chat_rooms cr
           JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id = $1
           JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id != $1
-          JOIN users peer ON peer.id = cp2.user_id
+          LEFT JOIN users peer ON peer.id = cp2.user_id
           LEFT JOIN institutes i ON i.id = peer.institute_id
-          WHERE cr.type = 'DM' AND LOWER(peer.role) = LOWER($2)
+          WHERE cr.type = 'DM' AND (LOWER(COALESCE(peer.role, $2)) = LOWER($2))
           ORDER BY cr.created_at DESC`
         : `SELECT
             cr.id AS room_id,
