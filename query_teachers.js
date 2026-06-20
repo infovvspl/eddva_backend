@@ -12,9 +12,11 @@ async function run() {
   await client.connect();
   try {
     const res = await client.query(`
-      SELECT column_name, is_nullable, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'attendances';
+      SELECT u.id, u.role, u.institute_id, u.email, a.status 
+      FROM users u
+      LEFT JOIN attendances a ON a.user_id = u.id AND a.date = CURRENT_DATE
+      WHERE u.role = 'TEACHER'
+      LIMIT 2;
     `);
     console.log(JSON.stringify(res.rows, null, 2));
   } catch (err) {
