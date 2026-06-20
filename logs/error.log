@@ -29613,3 +29613,530 @@ Error: NotFoundException: Cannot GET /api/v1/school/students/profile/me
     at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 >>>>>>> c77c17d7dd03795f7d9ccb2718899b61c27974bb
 
+[2026-06-20T04:57:42.914Z] GET /
+Status: 404
+Error: NotFoundException: Cannot GET /
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-20T04:57:43.061Z] GET /favicon.ico
+Status: 404
+Error: NotFoundException: Cannot GET /favicon.ico
+    at callback (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\edtech\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\edtech\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
+    at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
+    at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+
+[2026-06-20T05:03:26.581Z] POST /api/v1/auth/register
+Status: 400
+Error: BadRequestException: Bad Request Exception
+    at ValidationPipe.exceptionFactory (D:\edtech\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:101:20)
+    at ValidationPipe.transform (D:\edtech\eddva_backend\node_modules\@nestjs\common\pipes\validation.pipe.js:74:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveParamValue (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:148:23)
+    at async Promise.all (index 1)
+    at async pipesFn (D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:151:13)
+    at async D:\edtech\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:37:30
+
+[2026-06-20T05:09:23.669Z] GET /api/v1/calendar/feed?year=2026&month=6
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata (D:\edtech\eddva_backend\node_modules\typeorm\repository\src\repository\Repository.ts:54:40)
+    at Repository.find (D:\edtech\eddva_backend\node_modules\typeorm\repository\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (D:\edtech\eddva_backend\src\modules\institute-settings\calendar-feed.service.ts:206:47)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-20T05:09:24.988Z] GET /api/v1/calendar/feed?year=2026&month=6
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata (D:\edtech\eddva_backend\node_modules\typeorm\repository\src\repository\Repository.ts:54:40)
+    at Repository.find (D:\edtech\eddva_backend\node_modules\typeorm\repository\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (D:\edtech\eddva_backend\src\modules\institute-settings\calendar-feed.service.ts:206:47)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-20T07:05:20.278Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T07:05:20.682Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T07:05:52.089Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (D:\edtech\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-20T07:06:08.948Z] GET /api/v1/school/chat/users?role=INSTITUTE_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T07:06:09.623Z] GET /api/v1/school/chat/users?role=INSTITUTE_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T07:08:39.866Z] GET /api/v1/school/chat/users?role=INSTITUTE_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T07:08:40.456Z] GET /api/v1/school/chat/users?role=INSTITUTE_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T07:26:59.246Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:59:25)
+
+[2026-06-20T07:27:17.296Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:59:25)
+
+[2026-06-20T07:27:19.980Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:59:25)
+
+[2026-06-20T07:27:22.648Z] GET /api/v1/school/chat/messages/5a3a02f9-94fb-4db8-b219-f8ac39006d2d
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getMessagesByPeer (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:238:19)
+
+[2026-06-20T07:27:34.316Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.343Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.379Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.387Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.429Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.431Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.748Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.752Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.795Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.802Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.842Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:34.851Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:35.103Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:35.105Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:27:39.488Z] POST /api/v1/school/chat/messages
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.sendMessage (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:323:21)
+
+[2026-06-20T07:28:23.291Z] GET /api/v1/school/chat/messages/16c9ed84-2ffa-430f-a381-df012c0d7b22
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getMessagesByPeer (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:238:19)
+
+[2026-06-20T07:28:24.207Z] GET /api/v1/school/chat/messages/5a3a02f9-94fb-4db8-b219-f8ac39006d2d
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getMessagesByPeer (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:238:19)
+
+[2026-06-20T07:28:32.142Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:59:25)
+
+[2026-06-20T07:28:33.165Z] GET /api/v1/school/chat/messages/c7bf65ad-b8f1-4d43-9c72-9ee549b4cedf
+Status: 500
+Error: QueryFailedError: operator does not exist: uuid = character varying
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getMessagesByPeer (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:238:19)
+
+[2026-06-20T07:53:36.809Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T07:53:36.927Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:39.312Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:41.017Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:41.169Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:44.580Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:44.616Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:44.950Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:44.975Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:45.307Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:51.174Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:51.214Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:51.561Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:51.564Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:24:51.920Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:26:28.448Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:26:28.538Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:26:48.352Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:26:48.699Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:28:25.350Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:28:25.891Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:28:26.017Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:28:26.226Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:28:30.446Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:28:30.753Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:28:30.794Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:28:39.660Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:28:39.806Z] GET /api/v1/school/chat/conversations?role=SUPER_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
+[2026-06-20T09:28:40.041Z] GET /api/v1/school/chat/conversations?role=INSTITUTE_ADMIN
+Status: 500
+Error: QueryFailedError: could not determine data type of parameter $1
+    at PostgresQueryRunner.query (D:\edtech\eddva_backend\node_modules\typeorm\driver\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
+
