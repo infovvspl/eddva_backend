@@ -11,6 +11,7 @@ export class SchoolStudentController {
 
   @Post('bulk-import') bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
   @Post() create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
+  @Get('profile/me') getMyProfile(@SchoolUser() user: any) { return this.svc.findOne(user.id); }
   @Get('stats') stats(@SchoolUser() user: any, @Query() query: any) { return this.svc.getStats(user, query); }
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
   @Get('courses/my') myCourses(@SchoolUser() user: any) { return this.svc.getMyCourses(user); }
