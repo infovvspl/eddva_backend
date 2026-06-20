@@ -28847,3 +28847,57 @@ Error: Error: timeout exceeded when trying to connect
     at listOnTimeout (node:internal/timers:605:17)
     at process.processTimers (node:internal/timers:541:7)
 
+[2026-06-19T04:51:08.855Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T04:56:33.428Z] GET /api/v1/school/assignments/submissions/fc15a266-8c48-48bb-bfc9-96e62b306e24/file
+Status: 404
+Error: NotFoundException: Submission file is no longer available on this server
+    at SchoolAssignmentService.resolveSubmissionFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:119:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T04:56:33.597Z] GET /api/v1/school/assignments/submissions/fc15a266-8c48-48bb-bfc9-96e62b306e24/file
+Status: 404
+Error: NotFoundException: Submission file is no longer available on this server
+    at SchoolAssignmentService.resolveSubmissionFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:119:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T04:56:34.145Z] GET /api/v1/school/assignments/submissions/fc15a266-8c48-48bb-bfc9-96e62b306e24/file
+Status: 404
+Error: NotFoundException: Submission file is no longer available on this server
+    at SchoolAssignmentService.resolveSubmissionFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:119:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T04:56:34.547Z] GET /api/v1/school/assignments/submissions/fc15a266-8c48-48bb-bfc9-96e62b306e24/file
+Status: 404
+Error: NotFoundException: Submission file is no longer available on this server
+    at SchoolAssignmentService.resolveSubmissionFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:119:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T04:56:34.937Z] GET /api/v1/school/assignments/submissions/fc15a266-8c48-48bb-bfc9-96e62b306e24/file
+Status: 404
+Error: NotFoundException: Submission file is no longer available on this server
+    at SchoolAssignmentService.resolveSubmissionFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:119:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T04:56:43.259Z] GET /api/v1/school/assignments/submissions/fc15a266-8c48-48bb-bfc9-96e62b306e24/file
+Status: 404
+Error: NotFoundException: Submission file is no longer available on this server
+    at SchoolAssignmentService.resolveSubmissionFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:119:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T04:56:54.336Z] GET /api/v1/school/assignments/submissions/fc15a266-8c48-48bb-bfc9-96e62b306e24/file
+Status: 404
+Error: NotFoundException: Submission file is no longer available on this server
+    at SchoolAssignmentService.resolveSubmissionFile (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\school\assignment\school-assignment.service.ts:119:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-19T11:09:54.983Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\Users\HP\Desktop\apexiq-backend\apexiq\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
