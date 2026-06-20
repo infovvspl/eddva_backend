@@ -30140,3 +30140,171 @@ Error: QueryFailedError: could not determine data type of parameter $1
     at async DataSource.query (D:\edtech\eddva_backend\node_modules\typeorm\data-source\src\data-source\DataSource.ts:541:20)
     at async SchoolChatService.getConversations (D:\edtech\eddva_backend\src\modules\school\chat\school-chat.service.ts:79:25)
 
+[2026-06-20T05:02:36.355Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\Edva\eddva_backend\src\modules\school\auth\school-auth.service.ts:74:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (D:\Edva\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-20T05:04:45.150Z] GET /api/v1/calendar/feed?year=2026&month=6
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (D:\Edva\eddva_backend\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (D:\Edva\eddva_backend\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (D:\Edva\eddva_backend\src\modules\institute-settings\calendar-feed.service.ts:206:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-20T05:04:45.328Z] GET /api/v1/study-plans?startDate=2026-06-01&endDate=2026-06-30
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (D:\Edva\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (D:\Edva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-20T05:04:46.276Z] GET /api/v1/calendar/feed?year=2026&month=6
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (D:\Edva\eddva_backend\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (D:\Edva\eddva_backend\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (D:\Edva\eddva_backend\src\modules\institute-settings\calendar-feed.service.ts:206:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-20T05:04:46.656Z] GET /api/v1/study-plans?startDate=2026-06-01&endDate=2026-06-30
+Status: 403
+Error: ForbiddenException: Access denied. Required: [student]. Your role: institute_admin
+    at RolesGuard.canActivate (D:\Edva\eddva_backend\src\common\guards\roles.guard.ts:33:13)
+    at GuardsConsumer.tryActivate (D:\Edva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-20T05:09:23.972Z] POST /api/v1/internal/ai-usage/log
+Status: 401
+Error: UnauthorizedException: Invalid internal key
+    at InternalAiUsageController.logUsage (D:\Edva\eddva_backend\src\modules\internal\internal-ai-usage.controller.ts:16:13)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-20T05:10:01.648Z] POST /api/v1/internal/ai-usage/log
+Status: 401
+Error: UnauthorizedException: Invalid internal key
+    at InternalAiUsageController.logUsage (D:\Edva\eddva_backend\src\modules\internal\internal-ai-usage.controller.ts:16:13)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-20T05:12:49.831Z] POST /api/v1/internal/ai-usage/log
+Status: 401
+Error: UnauthorizedException: Invalid internal key
+    at InternalAiUsageController.logUsage (D:\Edva\eddva_backend\src\modules\internal\internal-ai-usage.controller.ts:16:13)
+    at D:\Edva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:38:29
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+[2026-06-20T06:48:00.147Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T06:48:01.534Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T06:48:06.408Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T06:48:06.603Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T06:48:12.607Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T06:48:14.085Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T06:48:22.967Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T06:48:23.340Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T06:48:27.919Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T06:48:28.289Z] GET /api/v1/school/chat/users?role=SUPER_ADMIN&q=
+Status: 500
+Error: QueryFailedError: bind message supplies 1 parameters, but prepared statement "" requires 0
+    at PostgresQueryRunner.query (D:\Edva\eddva_backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
+    at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
+
+[2026-06-20T07:39:40.851Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-20T07:40:18.691Z] GET /api/v1/school/doubts
+Status: 401
+Error: UnauthorizedException: Not authorized to access this route
+    at SchoolJwtGuard.canActivate (C:\EDDVA SCHOOL\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:69:23)
+    at GuardsConsumer.tryActivate (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async canActivateFn (C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async C:\EDDVA SCHOOL\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-20T07:40:49.584Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
