@@ -93,25 +93,16 @@ export class SchoolAuthService {
 
     const token = this.signSchoolToken(user);
 
-    if (user.role === 'TEACHER' && ip) {
-      // Clean IP by stripping IPv6 mapped prefix (::ffff:)
-      const cleanIp = ip.replace(/^::ffff:/, '');
-      const approvedIps = (process.env.APPROVED_TEACHER_IPS || '').split(',').map(i => i.trim());
-      
-      // Check if any approved IP is included in the cleaned IP string (handles X-Forwarded-For lists)
-      const isApproved = approvedIps.some(approved => cleanIp.includes(approved));
-      
-      if (isApproved) {
-        try {
-          await this.ds.query(
-            `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
-             ON CONFLICT (date, user_id) DO UPDATE SET status=EXCLUDED.status, remarks=EXCLUDED.remarks, updated_at=NOW()`,
-            [user.inst_id, user.id]
-          );
-        } catch (error) {
-          console.error(`Auto-attendance failed for teacher ${user.id}:`, error);
-          // Do not throw; allow login to succeed even if attendance insert fails
-        }
+    if (user.role === 'TEACHER') {
+      try {
+        await this.ds.query(
+          `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
+           ON CONFLICT (date, user_id) DO UPDATE SET status=EXCLUDED.status, remarks=EXCLUDED.remarks, updated_at=NOW()`,
+          [user.inst_id, user.id]
+        );
+      } catch (error) {
+        console.error(`Auto-attendance failed for teacher ${user.id}:`, error);
+        // Do not throw; allow login to succeed even if attendance insert fails
       }
     }
 
