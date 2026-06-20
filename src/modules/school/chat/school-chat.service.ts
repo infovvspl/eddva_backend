@@ -6,6 +6,17 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { SchoolNotificationGateway } from '../notification/school-notification.gateway';
 
+const LEGACY_VIRTUAL_SUPER_ADMIN_ID = 'demo-super-admin';
+const VIRTUAL_SUPER_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
+const VIRTUAL_SUPER_ADMIN_CONTACT = {
+  id: VIRTUAL_SUPER_ADMIN_ID,
+  name: 'EDVA Super Admin Support',
+  email: 'support@edva.in',
+  role: 'SUPER_ADMIN',
+  profile_image: null,
+  institute_name: 'Platform',
+};
+
 @Injectable()
 export class SchoolChatService implements OnModuleInit {
   constructor(
@@ -14,6 +25,34 @@ export class SchoolChatService implements OnModuleInit {
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly notificationGateway: SchoolNotificationGateway,
   ) {}
+
+  private chatActorIds(user: any): string[] {
+    const ids = new Set<string>();
+    const id = String(user?.id || '').trim();
+    if (id) ids.add(id);
+    if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN') {
+      ids.add(VIRTUAL_SUPER_ADMIN_ID);
+      ids.add(LEGACY_VIRTUAL_SUPER_ADMIN_ID);
+    }
+    return Array.from(ids);
+  }
+
+  private chatUserId(user: any): string {
+    const id = String(user?.id || '').trim();
+    if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN' && !this.isUuid(id)) {
+      return VIRTUAL_SUPER_ADMIN_ID;
+    }
+    return id;
+  }
+
+  private normalizeChatUserId(userId: any): string {
+    const id = String(userId || '').trim();
+    return id === LEGACY_VIRTUAL_SUPER_ADMIN_ID ? VIRTUAL_SUPER_ADMIN_ID : id;
+  }
+
+  private isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  }
 
 
   async onModuleInit() {
@@ -36,6 +75,7 @@ export class SchoolChatService implements OnModuleInit {
     const role = query.role || 'TEACHER';
     const crossInstitute =
       user.role === 'SUPER_ADMIN' || role.toUpperCase() === 'SUPER_ADMIN';
+    const actorIds = this.chatActorIds(user);
     const rows: any[] = await this.ds.query(
       crossInstitute
         ? `SELECT
@@ -48,10 +88,10 @@ export class SchoolChatService implements OnModuleInit {
             COALESCE(peer.role, $2) AS peer_role,
             i.name AS peer_institute_name,
             (SELECT text FROM chat_messages WHERE room_id = cr.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id = cr.id AND receiver_id = $1::varchar AND is_read IS NOT TRUE) AS unread_count
+            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id = cr.id AND receiver_id::text = ANY($3::text[]) AND is_read IS NOT TRUE) AS unread_count
           FROM chat_rooms cr
-          JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id = $1
-          JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id != $1
+          JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id::text = ANY($3::text[])
+          JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id::text != ALL($3::text[])
           LEFT JOIN users peer ON peer.id = cp2.user_id
           LEFT JOIN institutes i ON i.id = peer.institute_id
           WHERE cr.type = 'DM' AND (LOWER(COALESCE(peer.role, $2)) = LOWER($2))
@@ -66,14 +106,14 @@ export class SchoolChatService implements OnModuleInit {
             peer.role AS peer_role,
             NULL AS peer_institute_name,
             (SELECT text FROM chat_messages WHERE room_id = cr.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id = cr.id AND receiver_id = $1::varchar AND is_read IS NOT TRUE) AS unread_count
+            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id = cr.id AND receiver_id::text = $1::text AND is_read IS NOT TRUE) AS unread_count
           FROM chat_rooms cr
-          JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id = $1
-          JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id != $1
+          JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id::text = $1::text
+          JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id::text != $1::text
           JOIN users peer ON peer.id = cp2.user_id
           WHERE cr.type = 'DM' AND LOWER(peer.role) = LOWER($2) AND peer.institute_id = $3
           ORDER BY cr.created_at DESC`,
-      crossInstitute ? [user.id, role] : [user.id, role, user.instituteId],
+      crossInstitute ? [user.id, role, actorIds] : [user.id, role, user.instituteId],
     );
 
     const isTeacher = user.role === 'TEACHER';
@@ -176,25 +216,25 @@ export class SchoolChatService implements OnModuleInit {
       params.push(user.id);
     } else if (targetRole.toUpperCase() === 'SUPER_ADMIN') {
       // Anyone looking up super admin users — no institute_id boundary
-      sql = `SELECT u.id, u.name, u.email, u.role, u.profile_image FROM users u WHERE LOWER(u.role) = 'super_admin' AND u.is_active IS NOT FALSE`;
+      sql = `SELECT u.id, u.name, u.email, u.role, u.profile_image, 'Platform' AS institute_name FROM users u WHERE LOWER(u.role) = 'super_admin' AND u.is_active IS NOT FALSE`;
+      params.length = 0;
     } else if (user.role === 'SUPER_ADMIN' && targetRole.toUpperCase() === 'INSTITUTE_ADMIN') {
       // Super admin looking up institute admins across all institutes
       sql = `SELECT u.id, u.name, u.email, u.role, u.profile_image, i.name AS institute_name
              FROM users u LEFT JOIN institutes i ON i.id = u.institute_id
              WHERE LOWER(u.role) = 'institute_admin' AND u.is_active IS NOT FALSE`;
+      params.length = 0;
     } else {
       // Admin / Super Admin (or default rules for self-communication/staff)
       sql = `SELECT id, name, email, role, profile_image FROM users WHERE institute_id = $1 AND LOWER(role) = LOWER($2) AND is_active = true`;
       params.push(targetRole);
     }
-
-    if (query.q) {
-      params.push(`%${query.q}%`);
-      sql += ` AND (LOWER(name) LIKE LOWER($${params.length}) OR LOWER(email) LIKE LOWER($${params.length}))`;
-    }
     sql += ` ORDER BY name ASC`;
 
     const rows = await this.ds.query(sql, params);
+    if (targetRole.toUpperCase() === 'SUPER_ADMIN' && rows.length === 0) {
+      rows.push(VIRTUAL_SUPER_ADMIN_CONTACT);
+    }
 
     // Merge presence status
     const rowsWithPresence = await Promise.all(rows.map(async (r) => {
@@ -213,13 +253,15 @@ export class SchoolChatService implements OnModuleInit {
     return { success: true, data: rowsWithPresence };
   }
 
-  async getMessagesByPeer(userId: string, peerId: string) {
+  async getMessagesByPeer(user: any, peerId: string) {
+    const actorIds = this.chatActorIds(user);
+    const normalizedPeerId = this.normalizeChatUserId(peerId);
     const rooms = await this.ds.query(
       `SELECT cp1.room_id FROM chat_participants cp1
        JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
        JOIN chat_rooms cr ON cr.id = cp1.room_id
-       WHERE cr.type = 'DM' AND cp1.user_id = $1 AND cp2.user_id = $2`,
-      [userId, peerId]
+       WHERE cr.type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = $2::text`,
+      [actorIds, normalizedPeerId]
     );
     if (!rooms.length) {
       return { success: true, data: [] };
@@ -227,22 +269,24 @@ export class SchoolChatService implements OnModuleInit {
     return this.getMessages(rooms[0].room_id);
   }
 
-  async markRead(userId: string, peerId: string) {
+  async markRead(user: any, peerId: string) {
+    const actorIds = this.chatActorIds(user);
+    const normalizedPeerId = this.normalizeChatUserId(peerId);
     const rooms = await this.ds.query(
       `SELECT cp1.room_id FROM chat_participants cp1
        JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
        JOIN chat_rooms cr ON cr.id = cp1.room_id
-       WHERE cr.type = 'DM' AND cp1.user_id = $1 AND cp2.user_id = $2`,
-      [userId, peerId]
+       WHERE cr.type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = $2::text`,
+      [actorIds, normalizedPeerId]
     );
     if (rooms.length) {
       const roomId = rooms[0].room_id;
       await this.ds.query(
-        `UPDATE chat_messages SET is_read = true, is_delivered = true WHERE room_id = $1 AND receiver_id = $2 AND is_read IS NOT TRUE`,
-        [roomId, userId]
+        `UPDATE chat_messages SET is_read = true, is_delivered = true WHERE room_id = $1 AND receiver_id::text = ANY($2::text[]) AND is_read IS NOT TRUE`,
+        [roomId, actorIds]
       );
       try {
-        this.gateway.server.to(`user:${peerId}`).emit('conversation_read', { roomId, readerId: userId });
+        this.gateway.server.to(`user:${normalizedPeerId}`).emit('conversation_read', { roomId, readerId: user.id });
       } catch (err) {
         console.error('Failed to emit conversation_read event:', err);
       }
@@ -288,8 +332,10 @@ export class SchoolChatService implements OnModuleInit {
 
   async sendMessage(user: any, body: any) {
     let roomId = body.roomId;
-    let receiverId = body.receiverId;
+    let receiverId = this.normalizeChatUserId(body.receiverId);
     const text = body.content || body.text;
+    const senderId = this.chatUserId(user);
+    const actorIds = this.chatActorIds(user);
 
     const parentMessageId = body.parentMessageId || null;
     const isForwarded = body.isForwarded || false;
@@ -301,8 +347,8 @@ export class SchoolChatService implements OnModuleInit {
         `SELECT cp1.room_id FROM chat_participants cp1
          JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
          JOIN chat_rooms cr ON cr.id = cp1.room_id
-         WHERE cr.type = 'DM' AND cp1.user_id = $1 AND cp2.user_id = $2`,
-        [user.id, receiverId]
+         WHERE cr.type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = $2::text`,
+        [actorIds, receiverId]
       );
       if (rooms.length) {
         roomId = rooms[0].room_id;
@@ -313,15 +359,15 @@ export class SchoolChatService implements OnModuleInit {
         roomId = newRooms[0].id;
         await this.ds.query(
           `INSERT INTO chat_participants (room_id,user_id) VALUES ($1,$2),($1,$3)`,
-          [roomId, user.id, receiverId]
+          [roomId, senderId, receiverId]
         );
       }
     }
 
     if (!receiverId && roomId) {
       const participants = await this.ds.query(
-        `SELECT user_id FROM chat_participants WHERE room_id=$1 AND user_id!=$2`,
-        [roomId, user.id]
+        `SELECT user_id FROM chat_participants WHERE room_id=$1 AND user_id::text!=$2::text`,
+        [roomId, senderId]
       );
       if (participants.length) {
         receiverId = participants[0].user_id;
@@ -346,7 +392,7 @@ export class SchoolChatService implements OnModuleInit {
        ) VALUES ($1, $2, $3, $4, false, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [
         roomId, 
-        user.id, 
+        senderId, 
         receiverId ? String(receiverId) : null, 
         text, 
         isDelivered,
@@ -367,17 +413,17 @@ export class SchoolChatService implements OnModuleInit {
     if (receiverId) {
       try {
         // Determine recipient role for actionUrl
-        const recipientUser = await this.ds.query(`SELECT role FROM users WHERE id = $1`, [receiverId]);
-        const recipientRole = recipientUser[0]?.role;
+        const recipientUser = await this.ds.query(`SELECT role FROM users WHERE id::text = $1::text`, [receiverId]);
+        const recipientRole = recipientUser[0]?.role || ([VIRTUAL_SUPER_ADMIN_ID, LEGACY_VIRTUAL_SUPER_ADMIN_ID].includes(String(receiverId)) ? 'SUPER_ADMIN' : null);
         let actionUrl = '';
         if (recipientRole === 'TEACHER') {
-          actionUrl = `/school/teacher/chat?userId=${user.id}`;
+          actionUrl = `/school/teacher/chat?userId=${senderId}`;
         } else if (recipientRole === 'PARENT') {
-          actionUrl = `/school/parent/communication?userId=${user.id}`;
+          actionUrl = `/school/parent/communication?userId=${senderId}`;
         } else if (recipientRole === 'INSTITUTE_ADMIN') {
-          actionUrl = `/school/admin/communications?userId=${user.id}`;
+          actionUrl = `/school/admin/communications?userId=${senderId}`;
         } else if (recipientRole === 'SUPER_ADMIN') {
-          actionUrl = `/school/admin/communication?userId=${user.id}`;
+          actionUrl = `/school/admin/communication?userId=${senderId}`;
         }
 
         // Determine preview text for attachment/meeting
@@ -408,7 +454,7 @@ export class SchoolChatService implements OnModuleInit {
            VALUES ($1, $1, $2, 'chat', 'chat', $3, $4, false, $5, $6, NOW(), NOW()) RETURNING *`,
           [
             receiverId,
-            user.id,
+            senderId,
             `New message from ${user.name}`,
             previewText,
             user.instituteId ?? null,
