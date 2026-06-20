@@ -29243,6 +29243,7 @@ Error: NotFoundException: Cannot GET /api/v1/school/admin/security/sessions
     at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
     at next (D:\edtech\eddva_backend\node_modules\express\lib\router\route.js:145:7)
 
+<<<<<<< HEAD
 [2026-06-19T09:32:44.401Z] GET /
 Status: 404
 Error: NotFoundException: Cannot GET /
@@ -29336,4 +29337,279 @@ Error: NotFoundException: Cannot GET /favicon.ico
     at cors (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:188:7)
     at D:\edtech\eddva_backend\node_modules\cors\lib\index.js:224:17
     at originCallback (D:\edtech\eddva_backend\node_modules\cors\lib\index.js:214:15)
+=======
+[2026-06-19T05:53:13.565Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T06:07:08.263Z] GET /api/v1/school/teachers/3d0eabde-0695-4935-9dd9-da21ae1dced8
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:08:16.258Z] GET /api/v1/school/notifications/preferences
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:08:16.274Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:08:16.282Z] GET /api/v1/school/auth/me
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:08:46.485Z] GET /api/v1/school/teachers/3d0eabde-0695-4935-9dd9-da21ae1dced8
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:10:40.358Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:10:40.373Z] GET /api/v1/school/notifications/preferences
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:10:40.384Z] GET /api/v1/school/auth/me
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:13:56.668Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:13:56.683Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:13:56.688Z] GET /api/v1/school/notifications/preferences
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:13:56.700Z] GET /api/v1/school/auth/me
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:14:27.100Z] GET /api/v1/school/teachers/3d0eabde-0695-4935-9dd9-da21ae1dced8
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:14:51.303Z] GET /api/v1/school/notifications/unread-count
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:14:51.319Z] GET /api/v1/school/notifications
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:14:51.325Z] GET /api/v1/school/notifications/preferences
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T06:14:51.342Z] GET /api/v1/school/auth/me
+Status: 500
+Error: Error: timeout exceeded when trying to connect
+    at Timeout._onTimeout (C:\EDDVA SCHOOL\eddva_backend\node_modules\pg-pool\index.js:224:27)
+    at listOnTimeout (node:internal/timers:585:17)
+    at processTimers (node:internal/timers:521:7)
+
+[2026-06-19T07:21:30.952Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T07:33:23.262Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T07:36:16.527Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T07:44:59.352Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T07:45:41.730Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T07:47:00.326Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T07:47:47.829Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T08:01:22.679Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T08:04:21.117Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T09:07:39.922Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T09:14:38.167Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T09:14:51.171Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+
+[2026-06-19T09:15:03.932Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T09:20:15.669Z] GET /api/v1/tenants/resolve/192
+Status: 404
+Error: NotFoundException: Institute not found
+    at PublicTenantController.resolveBySubdomain (C:\EDDVA SCHOOL\eddva_backend\src\modules\super-admin\public-tenant.controller.ts:112:15)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T09:20:30.103Z] POST /api/v1/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at AuthService.loginWithPassword (C:\EDDVA SCHOOL\eddva_backend\src\modules\auth\auth.service.ts:232:13)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+[2026-06-19T11:05:36.826Z] GET /api/v1/school/students/profile/me
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/profile/me
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T11:14:57.757Z] GET /api/v1/school/auth/me
+Status: 401
+Error: UnauthorizedException: Invalid or expired token
+    at SchoolJwtGuard.canActivate (D:\Program Files\Eddva\eddva_backend\src\modules\school\guards\school-jwt.guard.ts:75:13)
+    at GuardsConsumer.tryActivate (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\guards\guards-consumer.js:15:34)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async canActivateFn (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:135:33)
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-execution-context.js:42:31
+    at async D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+
+[2026-06-19T11:14:57.880Z] GET /api/v1/school/students/profile/me
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/profile/me
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T11:15:36.636Z] GET /api/v1/school/students/profile/me
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/profile/me
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+
+[2026-06-19T11:16:19.879Z] GET /api/v1/school/students/profile/me
+Status: 404
+Error: NotFoundException: Cannot GET /api/v1/school/students/profile/me
+    at callback (D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\routes-resolver.js:77:19)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\@nestjs\core\router\router-proxy.js:9:23
+    at Layer.handle [as handle_request] (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:328:13)
+    at D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:346:12)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\index.js:280:10)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:141:14)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+    at next (D:\Program Files\Eddva\eddva_backend\node_modules\express\lib\router\route.js:145:7)
+>>>>>>> c77c17d7dd03795f7d9ccb2718899b61c27974bb
 
