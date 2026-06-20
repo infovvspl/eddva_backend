@@ -29663,3 +29663,19 @@ Error: QueryFailedError: bind message supplies 1 parameters, but prepared statem
     at async DataSource.query (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:541:20)
     at async SchoolChatService.getUsers (D:\Edva\eddva_backend\src\modules\school\chat\school-chat.service.ts:197:18)
 
+[2026-06-20T07:27:03.306Z] POST /api/v1/school/auth/login
+Status: 401
+Error: UnauthorizedException: Invalid credentials
+    at SchoolAuthService.login (D:\Edva\eddva_backend\src\modules\school\auth\school-auth.service.ts:74:29)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async SchoolAuthController.login (D:\Edva\eddva_backend\src\modules\school\auth\school-auth.controller.ts:18:18)
+
+[2026-06-20T07:27:34.845Z] GET /api/v1/calendar/feed?year=2026&month=6
+Status: 500
+Error: EntityMetadataNotFoundError: No metadata for "LectureAssignment" was found.
+    at DataSource.getMetadata (D:\Edva\eddva_backend\node_modules\src\data-source\DataSource.ts:451:30)
+    at Repository.get metadata [as metadata] (D:\Edva\eddva_backend\node_modules\src\repository\Repository.ts:54:40)
+    at Repository.find (D:\Edva\eddva_backend\node_modules\src\repository\Repository.ts:573:39)
+    at CalendarFeedService.getAggregatedFeed (D:\Edva\eddva_backend\src\modules\institute-settings\calendar-feed.service.ts:206:47)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
