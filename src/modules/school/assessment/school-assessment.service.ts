@@ -50,6 +50,7 @@ export class SchoolAssessmentService {
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS answer_key TEXT NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS language VARCHAR NULL DEFAULT 'en'`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS questions_json JSONB NULL`);
+    await this.ds.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_events_linked_id ON events (linked_id) WHERE linked_id IS NOT NULL`);
     this.schemaReady = true;
   }
 
@@ -620,6 +621,98 @@ export class SchoolAssessmentService {
     return row;
   }
 
+  private async syncCalendarEvent(manager: any, assessment: any, userId: string, instituteId: string) {
+    if (assessment.status === 'draft' || !assessment.scheduled_date) {
+      await manager.query(
+        `DELETE FROM events WHERE linked_id::text = $1::text`,
+        [assessment.id]
+      );
+      return;
+    }
+
+    let finalInstituteId = instituteId;
+    if (!finalInstituteId) {
+      const eventInst = await manager.query(
+        `SELECT institute_id FROM events WHERE linked_id::text = $1::text LIMIT 1`,
+        [assessment.id]
+      );
+      if (eventInst.length > 0) {
+        finalInstituteId = eventInst[0].institute_id;
+      } else if (assessment.class_id) {
+        const classRows = await manager.query(
+          `SELECT institute_id FROM classes WHERE id::text = $1::text LIMIT 1`,
+          [assessment.class_id]
+        );
+        finalInstituteId = classRows[0]?.institute_id || null;
+      }
+    }
+
+    if (!finalInstituteId) {
+      console.error('Cannot sync calendar event: instituteId is missing.');
+      return;
+    }
+
+    let finalUserId = userId;
+    if (!finalUserId) {
+      const eventCreator = await manager.query(
+        `SELECT created_by FROM events WHERE linked_id::text = $1::text LIMIT 1`,
+        [assessment.id]
+      );
+      if (eventCreator.length > 0) {
+        finalUserId = eventCreator[0].created_by;
+      } else {
+        const instUser = await manager.query(
+          `SELECT id FROM users WHERE institute_id::text = $1::text LIMIT 1`,
+          [finalInstituteId]
+        );
+        finalUserId = instUser[0]?.id || null;
+      }
+    }
+
+    if (!finalUserId) {
+      console.error('Cannot sync calendar event: userId is missing.');
+      return;
+    }
+
+    const start = new Date(assessment.scheduled_date);
+    const duration = Number(assessment.duration_minutes || 60);
+    const end = new Date(start.getTime() + duration * 60 * 1000);
+    const title = `Unit Test: ${assessment.title}`;
+    const description = `Scheduled assessment for ${assessment.title}`;
+
+    const existing = await manager.query(
+      `SELECT id FROM events WHERE linked_id::text = $1::text`,
+      [assessment.id]
+    );
+
+    if (existing.length > 0) {
+      await manager.query(
+        `UPDATE events
+         SET title = $2,
+             description = $3,
+             start_time = $4,
+             end_time = $5,
+             updated_at = NOW()
+         WHERE linked_id::text = $1::text`,
+        [assessment.id, title, description, start, end]
+      );
+    } else {
+      await manager.query(
+        `INSERT INTO events (institute_id, title, description, category, start_time, end_time, is_all_day, priority, created_by, linked_id)
+         VALUES ($1, $2, $3, 'EXAM', $4, $5, false, 'NORMAL', $6, $7)`,
+        [
+          finalInstituteId,
+          title,
+          description,
+          start,
+          end,
+          finalUserId,
+          assessment.id
+        ]
+      );
+    }
+  }
+
   private splitContentAndAnswerKey(contentText: string | null, answerKey: string | null) {
     let q = (contentText || '').trim();
     let a = (answerKey || '').trim();
@@ -814,58 +907,64 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     if (!title) {
       throw new BadRequestException('Assessment title is required');
     }
-    const rows: any[] = await this.ds.query(
-      `INSERT INTO assessments
-        (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, topic_id, answer_key, language, questions_json)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb) RETURNING *`,
-      [
-        title,
-        body.assessmentType || body.type || 'exam',
-        body.subjectId || body.subject_id || null,
-        classId,
-        body.totalMarks || body.total_marks || 100,
-        body.durationMinutes || body.duration_minutes || 60,
-        body.scheduledAt || body.scheduledDate || body.scheduled_date
-          ? new Date(body.scheduledAt || body.scheduledDate || body.scheduled_date)
-          : null,
-        body.status || 'scheduled',
-        contentText,
-        contentSource,
-        filePath,
-        body.chapterId || body.chapter_id || null,
-        body.topicId || body.topic_id || null,
-        answerKey,
-        body.language || 'en',
-        questionsJson.length ? JSON.stringify(questionsJson) : null,
-      ],
-    );
-    const assessment = rows[0];
 
-    // Notify students
-    try {
-      if (classId) {
-        const studentUsers = await this.ds.query(
-          `SELECT s.user_id FROM students s
-           JOIN sections sec ON s.section_id::text = sec.id::text
-           WHERE sec.class_id::text = $1`,
-          [classId]
-        );
+    return await this.ds.transaction(async (manager) => {
+      const rows: any[] = await manager.query(
+        `INSERT INTO assessments
+          (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, topic_id, answer_key, language, questions_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb) RETURNING *`,
+        [
+          title,
+          body.assessmentType || body.type || 'exam',
+          body.subjectId || body.subject_id || null,
+          classId,
+          body.totalMarks || body.total_marks || 100,
+          body.durationMinutes || body.duration_minutes || 60,
+          body.scheduledAt || body.scheduledDate || body.scheduled_date
+            ? new Date(body.scheduledAt || body.scheduledDate || body.scheduled_date)
+            : null,
+          body.status || 'scheduled',
+          contentText,
+          contentSource,
+          filePath,
+          body.chapterId || body.chapter_id || null,
+          body.topicId || body.topic_id || null,
+          answerKey,
+          body.language || 'en',
+          questionsJson.length ? JSON.stringify(questionsJson) : null,
+        ],
+      );
+      const assessment = rows[0];
 
-        for (const stu of studentUsers) {
-          await this.notificationService.create({
-            recipientId: stu.user_id,
-            type: 'assessment',
-            title: 'New Assessment Available',
-            message: `${body.title} is now available.`,
-            actionUrl: '/school/student/assessments',
-          });
+      // Sync calendar event
+      await this.syncCalendarEvent(manager, assessment, user.id, user.instituteId);
+
+      // Notify students
+      try {
+        if (classId) {
+          const studentUsers = await manager.query(
+            `SELECT s.user_id FROM students s
+             JOIN sections sec ON s.section_id::text = sec.id::text
+             WHERE sec.class_id::text = $1`,
+            [classId]
+          );
+
+          for (const stu of studentUsers) {
+            await this.notificationService.create({
+              recipientId: stu.user_id,
+              type: 'assessment',
+              title: 'New Assessment Available',
+              message: `${body.title} is now available.`,
+              actionUrl: '/school/student/assessments',
+            });
+          }
         }
+      } catch (notifErr) {
+        console.error('Failed to send assessment notifications:', notifErr);
       }
-    } catch (notifErr) {
-      console.error('Failed to send assessment notifications:', notifErr);
-    }
 
-    return { success: true, data: assessment };
+      return { success: true, data: assessment };
+    });
   }
 
   async findOne(user: any, id: string) {
@@ -887,55 +986,75 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       ? this.parseQuestionsFromMarkdown(contentText || '', answerKey || '')
       : null;
 
-    const rows: any[] = await this.ds.query(
-      `UPDATE assessments
-       SET title=COALESCE($2,title),
-           type=COALESCE($3,type),
-           total_marks=COALESCE($4,total_marks),
-           duration_minutes=COALESCE($5,duration_minutes),
-           status=COALESCE($6,status),
-           scheduled_date=COALESCE($7,scheduled_date),
-           content_text=COALESCE($8,content_text),
-           content_source=COALESCE($9,content_source),
-           file_path=COALESCE($10,file_path),
-           answer_key=COALESCE($11,answer_key),
-           language=COALESCE($12,language),
-           questions_json=COALESCE($13::jsonb,questions_json)
-       WHERE id=$1 RETURNING *`,
-      [
-        id,
-        body.title || null,
-        body.assessmentType || body.type || null,
-        body.totalMarks || body.total_marks || null,
-        body.durationMinutes || body.duration_minutes || null,
-        body.status || null,
-        body.scheduledAt || body.scheduledDate || body.scheduled_date
-          ? new Date(body.scheduledAt || body.scheduledDate || body.scheduled_date)
-          : null,
-        contentText,
-        body.contentSource || body.content_source || null,
-        body.filePath || body.file_path || null,
-        answerKey,
-        body.language || null,
-        questionsJson ? JSON.stringify(questionsJson) : null,
-      ],
-    );
-    if (!rows.length) throw new NotFoundException('Assessment not found');
-    const updated = rows[0];
-    const refreshedQuestions = this.parseQuestionsFromMarkdown(updated.content_text || '', updated.answer_key || '');
-    updated.questions_json = refreshedQuestions;
-    await this.ds.query(
-      `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text`,
-      [id, refreshedQuestions.length ? JSON.stringify(refreshedQuestions) : null],
-    );
-    return { success: true, data: updated };
+    return await this.ds.transaction(async (manager) => {
+      // Find the existing assessment's teacher and institute before updating
+      const assessmentInfo = await manager.query(
+        `SELECT a.teacher_id, u.institute_id
+         FROM assessments a
+         LEFT JOIN users u ON a.teacher_id = u.id
+         WHERE a.id::text = $1::text`,
+        [id]
+      );
+      const teacherId = assessmentInfo[0]?.teacher_id || null;
+      const instituteId = assessmentInfo[0]?.institute_id || null;
+
+      const rows: any[] = await manager.query(
+        `UPDATE assessments
+         SET title=COALESCE($2,title),
+             type=COALESCE($3,type),
+             total_marks=COALESCE($4,total_marks),
+             duration_minutes=COALESCE($5,duration_minutes),
+             status=COALESCE($6,status),
+             scheduled_date=COALESCE($7,scheduled_date),
+             content_text=COALESCE($8,content_text),
+             content_source=COALESCE($9,content_source),
+             file_path=COALESCE($10,file_path),
+             answer_key=COALESCE($11,answer_key),
+             language=COALESCE($12,language),
+             questions_json=COALESCE($13::jsonb,questions_json)
+         WHERE id=$1 RETURNING *`,
+        [
+          id,
+          body.title || null,
+          body.assessmentType || body.type || null,
+          body.totalMarks || body.total_marks || null,
+          body.durationMinutes || body.duration_minutes || null,
+          body.status || null,
+          body.scheduledAt || body.scheduledDate || body.scheduled_date
+            ? new Date(body.scheduledAt || body.scheduledDate || body.scheduled_date)
+            : null,
+          contentText,
+          body.contentSource || body.content_source || null,
+          body.filePath || body.file_path || null,
+          answerKey,
+          body.language || null,
+          questionsJson ? JSON.stringify(questionsJson) : null,
+        ],
+      );
+      if (!rows.length) throw new NotFoundException('Assessment not found');
+      const updated = rows[0];
+      const refreshedQuestions = this.parseQuestionsFromMarkdown(updated.content_text || '', updated.answer_key || '');
+      updated.questions_json = refreshedQuestions;
+      await manager.query(
+        `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text`,
+        [id, refreshedQuestions.length ? JSON.stringify(refreshedQuestions) : null],
+      );
+
+      // Sync calendar event
+      await this.syncCalendarEvent(manager, updated, teacherId, instituteId);
+
+      return { success: true, data: updated };
+    });
   }
 
   async remove(id: string) {
-    await this.ds.query(`DELETE FROM assessment_submissions WHERE assessment_id::text=$1::text`, [id]);
-    await this.ds.query(`DELETE FROM results WHERE assessment_id::text=$1::text`, [id]);
-    await this.ds.query(`DELETE FROM assessments WHERE id::text=$1::text`, [id]);
-    return { success: true };
+    return await this.ds.transaction(async (manager) => {
+      await manager.query(`DELETE FROM assessment_submissions WHERE assessment_id::text=$1::text`, [id]);
+      await manager.query(`DELETE FROM results WHERE assessment_id::text=$1::text`, [id]);
+      await manager.query(`DELETE FROM events WHERE linked_id::text=$1::text`, [id]);
+      await manager.query(`DELETE FROM assessments WHERE id::text=$1::text`, [id]);
+      return { success: true };
+    });
   }
 
 
@@ -1201,22 +1320,23 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const limit = Math.max(1, parseInt(query?.limit) || 100);
     const offset = (page - 1) * limit;
     const params: any[] = [instituteId];
-    const whereParts = ['ts.tenant_id = $1', 'ts.deleted_at IS NULL'];
+    const whereParts = ['s.institute_id = $1', 'sub.status IN (\'submitted\', \'auto_submitted\', \'evaluated\')'];
     const studentFilter = query?.studentId || query?.userId;
 
     if (studentFilter) {
       params.push(studentFilter);
-      whereParts.push(`(ts.student_id::text = $${params.length}::text OR s.user_id::text = $${params.length}::text)`);
+      whereParts.push(`(s.id::text = $${params.length}::text OR s.user_id::text = $${params.length}::text)`);
     }
 
     const whereSql = whereParts.join(' AND ');
 
     const countSql = `
       SELECT COUNT(*)::int AS total
-      FROM test_sessions ts
-      INNER JOIN students s ON ts.student_id = s.id
+      FROM assessment_submissions sub
+      INNER JOIN students s ON sub.student_user_id = s.user_id
       INNER JOIN users u ON s.user_id = u.id
-      INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
+      INNER JOIN assessments a ON sub.assessment_id = a.id
+      LEFT JOIN results r ON r.assessment_id = sub.assessment_id AND r.student_id = sub.student_user_id
       WHERE ${whereSql}
     `;
     const countResult = await this.ds.query(countSql, params);
@@ -1228,34 +1348,48 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
 
     const rows = await this.ds.query(`
       SELECT 
-        ts.id,
-        ts.status,
-        ts.submitted_at AS "submittedAt",
-        ts.total_score AS "totalScore",
-        ts.accuracy,
-        ts.correct_count AS "correctCount",
-        ts.wrong_count AS "wrongCount",
+        sub.id,
+        sub.status,
+        sub.submitted_at AS "submittedAt",
+        COALESCE(r.marks_obtained, sub.objective_score, 0) AS "totalScore",
+        COALESCE(r.percentage, 
+                 CASE 
+                   WHEN sub.objective_total > 0 THEN (sub.objective_score / sub.objective_total) * 100 
+                   ELSE 0 
+                 END, 
+                 0) AS "accuracy",
+        CASE 
+          WHEN jsonb_typeof(sub.grading_details) = 'array' THEN
+            (SELECT count(*)::int FROM jsonb_array_elements(sub.grading_details) elem WHERE elem->>'status' = 'correct')
+          ELSE 0
+        END AS "correctCount",
+        CASE 
+          WHEN jsonb_typeof(sub.grading_details) = 'array' THEN
+            (SELECT count(*)::int FROM jsonb_array_elements(sub.grading_details) elem WHERE elem->>'status' = 'wrong')
+          ELSE 0
+        END AS "wrongCount",
         s.id AS "studentId",
         s.user_id AS "userId",
         u.name AS "student_name",
-        mt.title AS "mock_test_title"
-      FROM test_sessions ts
-      INNER JOIN students s ON ts.student_id = s.id
+        a.title AS "mock_test_title"
+      FROM assessment_submissions sub
+      INNER JOIN students s ON sub.student_user_id = s.user_id
       INNER JOIN users u ON s.user_id = u.id
-      INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
+      INNER JOIN assessments a ON sub.assessment_id = a.id
+      LEFT JOIN results r ON r.assessment_id = sub.assessment_id AND r.student_id = sub.student_user_id
       WHERE ${whereSql}
-      ORDER BY ts.submitted_at DESC NULLS LAST
+      ORDER BY sub.submitted_at DESC NULLS LAST
       LIMIT $${limitIndex} OFFSET $${offsetIndex}
     `, rowParams);
 
     const mapped = rows.map((r: any) => ({
       id: r.id,
-      status: r.status,
+      status: r.status === 'evaluated' ? 'submitted' : r.status,
       submittedAt: r.submittedAt,
-      totalScore: r.totalScore,
-      accuracy: r.accuracy,
-      correctCount: r.correctCount,
-      wrongCount: r.wrongCount,
+      totalScore: Number(r.totalScore ?? 0),
+      accuracy: Number(r.accuracy ?? 0),
+      correctCount: Number(r.correctCount ?? 0),
+      wrongCount: Number(r.wrongCount ?? 0),
       studentId: r.studentId,
       userId: r.userId,
       student: {

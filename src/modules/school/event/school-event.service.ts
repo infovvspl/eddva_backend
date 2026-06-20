@@ -40,30 +40,33 @@ export class SchoolEventService {
 
   async list(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
-    let sql = `SELECT id, institute_id AS "instituteId", title, description, category, 
-                      start_time AS "startTime", end_time AS "endTime", 
-                      is_all_day AS "isAllDay", location, priority, 
-                      created_by AS "createdBy", created_at AS "createdAt", updated_at AS "updatedAt"
-               FROM events WHERE institute_id=$1`;
+    let sql = `SELECT e.id, e.institute_id AS "instituteId", e.title, e.description, e.category, 
+                      e.start_time AS "startTime", e.end_time AS "endTime", 
+                      e.is_all_day AS "isAllDay", e.location, e.priority, 
+                      e.created_by AS "createdBy", e.created_at AS "createdAt", e.updated_at AS "updatedAt",
+                      e.linked_id AS "linkedId", a.status AS "assessmentStatus"
+               FROM events e
+               LEFT JOIN assessments a ON e.linked_id::text = a.id::text
+               WHERE e.institute_id=$1`;
     const params: any[] = [instituteId];
     
     if (query.from) {
       params.push(new Date(query.from));
-      sql += ` AND start_time >= $${params.length}`;
+      sql += ` AND e.start_time >= $${params.length}`;
     }
     if (query.to) {
       params.push(new Date(query.to));
-      sql += ` AND start_time <= $${params.length}`;
+      sql += ` AND e.start_time <= $${params.length}`;
     }
     if (query.category && query.category !== 'All') {
       params.push(query.category);
-      sql += ` AND category=$${params.length}`;
+      sql += ` AND e.category=$${params.length}`;
     } else if (query.type && query.type !== 'All') {
       params.push(query.type);
-      sql += ` AND category=$${params.length}`;
+      sql += ` AND e.category=$${params.length}`;
     }
     
-    sql += ` ORDER BY start_time ASC`;
+    sql += ` ORDER BY e.start_time ASC`;
     const rows: any[] = await this.ds.query(sql, params);
 
     let filteredHols = HOLIDAYS_2026.map(h => ({
@@ -80,6 +83,7 @@ export class SchoolEventService {
       createdBy: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
+      linkedId: null,
     }));
 
     let filteredVacations = VACATIONS_2026.map(v => ({
@@ -96,6 +100,7 @@ export class SchoolEventService {
       createdBy: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
+      linkedId: null,
     }));
 
     // Filter by dates
@@ -132,15 +137,16 @@ export class SchoolEventService {
     const endTime = body.endTime ? new Date(body.endTime) : null;
     const isAllDay = body.isAllDay ?? false;
     const createdBy = user.id || null;
+    const linkedId = body.linkedId || null;
     
     const rows: any[] = await this.ds.query(
-      `INSERT INTO events (institute_id, title, description, category, start_time, end_time, is_all_day, location, priority, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+      `INSERT INTO events (institute_id, title, description, category, start_time, end_time, is_all_day, location, priority, created_by, linked_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
        RETURNING id, institute_id AS "instituteId", title, description, category, 
                  start_time AS "startTime", end_time AS "endTime", 
                  is_all_day AS "isAllDay", location, priority, 
-                 created_by AS "createdBy"`,
-      [instituteId, body.title, body.description || null, body.category || 'ACADEMIC', startTime, endTime, isAllDay, body.location || null, body.priority || 'NORMAL', createdBy],
+                 created_by AS "createdBy", linked_id AS "linkedId"`,
+      [instituteId, body.title, body.description || null, body.category || 'ACADEMIC', startTime, endTime, isAllDay, body.location || null, body.priority || 'NORMAL', createdBy, linkedId],
     );
     return { success: true, data: rows[0] };
   }
@@ -150,7 +156,8 @@ export class SchoolEventService {
       `SELECT id, institute_id AS "instituteId", title, description, category, 
               start_time AS "startTime", end_time AS "endTime", 
               is_all_day AS "isAllDay", location, priority, 
-              created_by AS "createdBy", created_at AS "createdAt", updated_at AS "updatedAt"
+              created_by AS "createdBy", created_at AS "createdAt", updated_at AS "updatedAt",
+              linked_id AS "linkedId"
        FROM events WHERE id=$1`,
       [id]
     );
@@ -172,9 +179,10 @@ export class SchoolEventService {
            is_all_day=COALESCE($7, is_all_day),
            location=COALESCE($8, location),
            priority=COALESCE($9, priority),
+           linked_id=$10,
            updated_at=NOW() 
        WHERE id=$1`,
-      [id, body.title, body.description, body.category, startTime, endTime, body.isAllDay, body.location, body.priority],
+      [id, body.title, body.description, body.category, startTime, endTime, body.isAllDay, body.location, body.priority, body.linkedId ?? null],
     );
     return { success: true };
   }

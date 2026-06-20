@@ -3,6 +3,18 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationGateway } from './school-notification.gateway';
 
+const NOTIFICATION_CATEGORY_MAP: Record<string, string[]> = {
+  attendance: ['attendance', 'attendance_warning', 'low_attendance'],
+  assignment: ['assignment', 'submission', 'assignment_submitted'],
+  assessment: ['assessment', 'exam', 'quiz'],
+  announcement: ['announcement', 'notice'],
+  live_class: ['live_class', 'live', 'meeting'],
+  study_material: ['study_material', 'material'],
+  fee: ['fee', 'fee_reminder'],
+  result: ['result', 'exam_result'],
+  general: ['general', 'info']
+};
+
 @Injectable()
 export class SchoolNotificationService {
   constructor(
@@ -20,11 +32,13 @@ export class SchoolNotificationService {
     }
 
     if (query.category && query.category.toLowerCase() !== 'all') {
-      params.push(query.category);
-      sql += ` AND (category=$${params.length} OR type=$${params.length})`;
+      const cat = query.category.toLowerCase();
+      const mappedTypes = NOTIFICATION_CATEGORY_MAP[cat] || [cat];
+      params.push(mappedTypes);
+      sql += ` AND (category = ANY($${params.length}) OR type = ANY($${params.length}))`;
     } else if (query.type) {
-      params.push(query.type);
-      sql += ` AND (category=$${params.length} OR type=$${params.length})`;
+      params.push([query.type]);
+      sql += ` AND (category = ANY($${params.length}) OR type = ANY($${params.length}))`;
     }
 
     if (query.search) {

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -205,6 +205,90 @@ export class SchoolTeacherService {
       `INSERT INTO activity_logs (institute_id, user_id, action, details) VALUES ($1, $2, $3, $4)`,
       [instituteId, adminUserId, 'TEACHER_ASSIGNMENT_CHANGE', JSON.stringify(auditDetails)]
     );
+  }
+
+  async getStats(user: any, query: any = {}) {
+    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const instituteId = isSuperAdmin && !query.instituteId
+      ? null
+      : await this.resolveInstituteId(user, query.instituteId);
+
+    const params: any[] = [];
+    let filter = `u.role = 'TEACHER'`;
+    if (instituteId) {
+      params.push(instituteId);
+      filter += ` AND u.institute_id = $${params.length}`;
+    }
+
+    const statsQuery = `
+      SELECT 
+        COUNT(*)::int AS "totalTeachers",
+        COUNT(*) FILTER (
+          WHERE EXTRACT(MONTH FROM u.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM u.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+        )::int AS "newThisMonth"
+      FROM users u
+      WHERE ${filter}
+    `;
+    const rows = await this.ds.query(statsQuery, params);
+    const totalTeachers = rows[0]?.totalTeachers || 0;
+    const newThisMonth = rows[0]?.newThisMonth || 0;
+
+    // Get today's attendance from attendances table (source of truth for teacher attendance)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const attParams: any[] = [todayStr];
+    let attFilter = `a.date = $1 AND u.role = 'TEACHER'`;
+    if (instituteId) {
+      attParams.push(instituteId);
+      attFilter += ` AND a.institute_id = $${attParams.length}`;
+    }
+
+    const attQuery = `
+      SELECT
+        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'present')::int AS "presentCount",
+        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'late')::int AS "lateCount",
+        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) IN ('half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')::int AS "halfDayCount",
+        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'absent')::int AS "explicitAbsentCount",
+        COUNT(DISTINCT a.user_id) FILTER (
+          WHERE LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
+             OR LOWER(a.status) LIKE 'half%'
+        )::int AS "presentToday"
+      FROM attendances a
+      JOIN users u ON a.user_id = u.id
+      WHERE ${attFilter}
+    `;
+    const attRows = await this.ds.query(attQuery, attParams);
+    const presentCount = attRows[0]?.presentCount || 0;
+    const lateCount = attRows[0]?.lateCount || 0;
+    const halfDayCount = attRows[0]?.halfDayCount || 0;
+    const explicitAbsentCount = attRows[0]?.explicitAbsentCount || 0;
+    const presentToday = attRows[0]?.presentToday || 0;
+
+    // Calculate absent count as: Total - Present Today
+    const absentToday = totalTeachers - presentToday;
+
+    // Add validation logs
+    const logger = new Logger('TeacherAttendanceStats');
+    logger.log(
+      `[Teacher Stats Validation] ` +
+      `Total Teachers: ${totalTeachers} | ` +
+      `Present Count: ${presentCount} | ` +
+      `Late Count: ${lateCount} | ` +
+      `Half Day Count: ${halfDayCount} | ` +
+      `Calculated Absent Count: ${absentToday} | ` +
+      `Explicit Absent Count: ${explicitAbsentCount} | ` +
+      `Explicit Matches Calculated: ${explicitAbsentCount === absentToday}`
+    );
+
+    return {
+      success: true,
+      data: {
+        totalTeachers,
+        presentToday,
+        absentToday,
+        newThisMonth,
+      }
+    };
   }
 
   async create(user: any, body: any) {
@@ -528,12 +612,12 @@ export class SchoolTeacherService {
       const batchIds = [...new Set(assignments.map(a => a.class_id).filter(Boolean))];
       if (batchIds.length > 0) {
         const perfRow = await this.ds.query(`
-          SELECT AVG(ts.accuracy)::float AS avg_accuracy, COUNT(ts.id)::int AS total_sessions
-          FROM test_sessions ts
-          INNER JOIN mock_tests mt ON ts.mock_test_id = mt.id
-          WHERE mt.batch_id = ANY($1) AND ts.status IN ('submitted', 'auto_submitted') AND ts.deleted_at IS NULL
+          SELECT AVG(r.percentage)::float AS avg_accuracy, COUNT(r.id)::int AS total_sessions
+          FROM results r
+          INNER JOIN assessments a ON r.assessment_id = a.id
+          WHERE a.class_id = ANY($1) AND r.status = 'published'
         `, [batchIds]);
-        avgStudentScore = perfRow[0]?.avg_accuracy ? Math.round(perfRow[0].avg_accuracy * 105) : 0;
+        avgStudentScore = perfRow[0]?.avg_accuracy ? Math.round(perfRow[0].avg_accuracy) : 0;
         if (avgStudentScore > 100) avgStudentScore = 100;
         totalTestsCount = perfRow[0]?.total_sessions || 0;
       }
@@ -860,5 +944,179 @@ export class SchoolTeacherService {
   async remove(id: string) {
     await this.ds.query(`DELETE FROM users WHERE id=$1`, [id]);
     return { success: true };
+  }
+
+  // ── Teacher Video Performance Analysis ────────────────────────────────────
+
+  private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+  private analysisColumnsReady = false;
+
+  private async ensureAnalysisColumns() {
+    if (this.analysisColumnsReady) return;
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS ai_teaching_analysis JSONB`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS ai_teaching_analysis_status VARCHAR(16)`);
+    this.analysisColumnsReady = true;
+  }
+
+  private async resolveTeacherUserId(teacherId: string, instituteId: string): Promise<string> {
+    // teacherId is users.id (what the list/findOne endpoints return as teacher.id).
+    // class_recordings.teacher_user_id stores that same users.id, so we just
+    // validate the user is a teacher in this institute and return teacherId as-is.
+    const rows = await this.ds.query(
+      `SELECT 1 FROM teachers WHERE user_id::text = $1 AND institute_id::text = $2 LIMIT 1`,
+      [teacherId, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Teacher not found');
+    return teacherId;
+  }
+
+  async getTeacherRecordings(user: any, teacherId: string, query: any) {
+    await this.ensureAnalysisColumns();
+    const instituteId = user.role === 'SUPER_ADMIN'
+      ? (query.instituteId ?? (() => { throw new BadRequestException('instituteId required'); })())
+      : user.instituteId;
+    const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
+    const page = Math.max(1, parseInt(query.page ?? '1'));
+    const limit = Math.min(50, parseInt(query.limit ?? '20'));
+    const offset = (page - 1) * limit;
+
+    const rows = await this.ds.query(`
+      SELECT
+        r.id, r.title, r.description, r.recorded_date, r.duration, r.views,
+        r.transcript_status, r.notes_status, r.quiz_status,
+        r.ai_teaching_analysis, r.ai_teaching_analysis_status,
+        r.created_at, r.language, r.source,
+        c.name AS class_name, sec.name AS section_name, sub.name AS subject_name,
+        COALESCE(AVG(p.watch_percentage), 0)::int AS avg_watch_pct,
+        COUNT(DISTINCT p.student_user_id) AS total_viewers,
+        COUNT(DISTINCT CASE WHEN p.watch_percentage >= 90 THEN p.student_user_id END) AS completed_count
+      FROM class_recordings r
+      LEFT JOIN classes c ON c.id::text = r.class_id::text
+      LEFT JOIN sections sec ON sec.id::text = r.section_id::text
+      LEFT JOIN subjects sub ON sub.id::text = r.subject_id::text
+      LEFT JOIN class_recording_progress p ON p.recording_id = r.id
+      WHERE r.institute_id::text = $1 AND r.teacher_user_id::text = $2
+      GROUP BY r.id, c.name, sec.name, sub.name
+      ORDER BY r.created_at DESC
+      LIMIT $3 OFFSET $4
+    `, [instituteId, teacherUserId, limit, offset]);
+
+    const countRows = await this.ds.query(
+      `SELECT COUNT(*) AS total FROM class_recordings WHERE institute_id::text = $1 AND teacher_user_id::text = $2`,
+      [instituteId, teacherUserId],
+    );
+
+    return {
+      data: rows,
+      meta: { total: parseInt(countRows[0]?.total ?? '0'), page, limit },
+    };
+  }
+
+  async getTeacherRecordingsSummary(user: any, teacherId: string, query: any) {
+    await this.ensureAnalysisColumns();
+    const instituteId = user.role === 'SUPER_ADMIN'
+      ? (query.instituteId ?? (() => { throw new BadRequestException('instituteId required'); })())
+      : user.instituteId;
+    const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
+
+    const [summary] = await this.ds.query(`
+      SELECT
+        COUNT(r.id)::int AS total_recordings,
+        COUNT(CASE WHEN r.transcript_status = 'done' THEN 1 END)::int AS transcribed_count,
+        COUNT(CASE WHEN r.notes_status = 'done' THEN 1 END)::int AS notes_count,
+        COUNT(CASE WHEN r.quiz_status = 'done' THEN 1 END)::int AS quiz_count,
+        COUNT(CASE WHEN r.ai_teaching_analysis IS NOT NULL THEN 1 END)::int AS analyzed_count,
+        COALESCE(AVG(p.watch_percentage), 0)::int AS avg_watch_pct,
+        COUNT(DISTINCT p.student_user_id)::int AS total_views,
+        COUNT(DISTINCT CASE WHEN p.watch_percentage >= 90 THEN p.student_user_id END)::int AS total_completions
+      FROM class_recordings r
+      LEFT JOIN class_recording_progress p ON p.recording_id = r.id
+      WHERE r.institute_id::text = $1 AND r.teacher_user_id::text = $2
+    `, [instituteId, teacherUserId]);
+
+    const liveRows = await this.ds.query(
+      `SELECT COUNT(*)::int AS total_live FROM school_live_lectures WHERE institute_id::text = $1 AND teacher_id::text = $2 AND status = 'ENDED'`,
+      [instituteId, teacherUserId],
+    ).catch(() => [{ total_live: 0 }]);
+
+    return { data: { ...summary, total_live: liveRows[0]?.total_live ?? 0 } };
+  }
+
+  async analyzeTeacherRecording(user: any, teacherId: string, recordingId: string, query: any) {
+    const instituteId = user.role === 'SUPER_ADMIN'
+      ? (query.instituteId ?? (() => { throw new BadRequestException('instituteId required'); })())
+      : user.instituteId;
+    const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
+
+    const rows = await this.ds.query(
+      `SELECT id, title, transcript, transcript_status FROM class_recordings WHERE id::text = $1 AND institute_id::text = $2 AND teacher_user_id::text = $3 LIMIT 1`,
+      [recordingId, instituteId, teacherUserId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const rec = rows[0];
+
+    await this.ensureAnalysisColumns();
+
+    if (!rec.transcript || rec.transcript.trim().length < 80) {
+      throw new BadRequestException('Recording has insufficient transcript content. Ensure transcription is complete first.');
+    }
+
+    await this.ds.query(
+      `UPDATE class_recordings SET ai_teaching_analysis_status = 'processing' WHERE id = $1`,
+      [recordingId],
+    );
+
+    const groqKey = process.env.GROQ_API_KEY ?? '';
+    if (!groqKey) {
+      await this.ds.query(`UPDATE class_recordings SET ai_teaching_analysis_status = 'failed' WHERE id = $1`, [recordingId]);
+      throw new BadRequestException('AI service not configured (GROQ_API_KEY missing).');
+    }
+
+    const transcript = rec.transcript.slice(0, 8000);
+    const prompt = `You are an expert education coach. Analyze this classroom teaching transcript and return structured JSON feedback.
+
+Transcript:
+"""
+${transcript}
+"""
+
+Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
+{
+  "overallScore": <integer 1-10>,
+  "summary": "<2-3 sentence holistic assessment>",
+  "clarity": { "score": <1-10>, "feedback": "<specific observation about explanation clarity and structure>" },
+  "pacing": { "score": <1-10>, "feedback": "<observation about lesson pacing, time allocation>" },
+  "contentCoverage": { "score": <1-10>, "feedback": "<observation about topic depth, examples, accuracy>" },
+  "studentEngagement": { "score": <1-10>, "feedback": "<observation about questions asked, interaction, energy>" },
+  "languageQuality": { "score": <1-10>, "feedback": "<observation about vocabulary, analogies, simplicity>" },
+  "suggestions": ["<concrete improvement 1>", "<concrete improvement 2>", "<concrete improvement 3>"],
+  "strengths": ["<identified strength 1>", "<identified strength 2>"]
+}`;
+
+    let analysis: any;
+    try {
+      const res = await fetch(this.GROQ_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+          max_tokens: 1024,
+        }),
+      });
+      const data: any = await res.json();
+      const content: string = data?.choices?.[0]?.message?.content ?? '{}';
+      analysis = JSON.parse(content.replace(/```json\n?|\n?```/g, '').trim());
+    } catch {
+      await this.ds.query(`UPDATE class_recordings SET ai_teaching_analysis_status = 'failed' WHERE id = $1`, [recordingId]);
+      throw new BadRequestException('AI analysis failed. Please try again.');
+    }
+
+    await this.ds.query(
+      `UPDATE class_recordings SET ai_teaching_analysis = $1::jsonb, ai_teaching_analysis_status = 'done' WHERE id = $2`,
+      [JSON.stringify(analysis), recordingId],
+    );
+    return { data: analysis };
   }
 }

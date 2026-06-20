@@ -56,11 +56,14 @@ export class SchoolCalendarService {
       to.setDate(to.getDate() - 1);
     }
 
-    let sql = `SELECT id, institute_id AS "instituteId", title, description, category, 
-                      start_time AS "startTime", end_time AS "endTime", 
-                      is_all_day AS "isAllDay", location, priority, 
-                      created_by AS "createdBy", created_at AS "createdAt", updated_at AS "updatedAt"
-               FROM events WHERE institute_id=$1`;
+    let sql = `SELECT e.id, e.institute_id AS "instituteId", e.title, e.description, e.category, 
+                      e.start_time AS "startTime", e.end_time AS "endTime", 
+                      e.is_all_day AS "isAllDay", e.location, e.priority, 
+                      e.created_by AS "createdBy", e.created_at AS "createdAt", e.updated_at AS "updatedAt",
+                      e.linked_id AS "linkedId", a.status AS "assessmentStatus"
+               FROM events e
+               LEFT JOIN assessments a ON e.linked_id::text = a.id::text
+               WHERE e.institute_id=$1`;
     const params: any[] = [instituteId];
 
     const startWindow = new Date(from);
@@ -69,19 +72,19 @@ export class SchoolCalendarService {
     endWindow.setDate(endWindow.getDate() + 14);
 
     params.push(startWindow);
-    sql += ` AND start_time >= $${params.length}`;
+    sql += ` AND e.start_time >= $${params.length}`;
     params.push(endWindow);
-    sql += ` AND start_time <= $${params.length}`;
+    sql += ` AND e.start_time <= $${params.length}`;
 
     if (role === 'TEACHER') {
-      sql += ` AND category IN ('EXAM', 'HOLIDAY', 'VACATION', 'TEACHER_MEETING', 'LIVE_CLASS', 'EMERGENCY_NOTICE', 'ACADEMIC')`;
+      sql += ` AND e.category IN ('EXAM', 'HOLIDAY', 'VACATION', 'TEACHER_MEETING', 'LIVE_CLASS', 'EMERGENCY_NOTICE', 'ACADEMIC')`;
     } else if (role === 'STUDENT') {
-      sql += ` AND category IN ('EXAM', 'HOLIDAY', 'VACATION', 'ASSIGNMENT', 'LIVE_CLASS', 'EMERGENCY_NOTICE', 'ACADEMIC')`;
+      sql += ` AND e.category IN ('EXAM', 'HOLIDAY', 'VACATION', 'ASSIGNMENT', 'LIVE_CLASS', 'EMERGENCY_NOTICE', 'ACADEMIC')`;
     } else if (role === 'PARENT') {
-      sql += ` AND category IN ('EXAM', 'HOLIDAY', 'VACATION', 'PARENT_MEETING', 'EMERGENCY_NOTICE', 'ACADEMIC')`;
+      sql += ` AND e.category IN ('EXAM', 'HOLIDAY', 'VACATION', 'PARENT_MEETING', 'EMERGENCY_NOTICE', 'ACADEMIC')`;
     }
 
-    sql += ` ORDER BY start_time ASC`;
+    sql += ` ORDER BY e.start_time ASC`;
     const rows: any[] = await this.ds.query(sql, params);
 
     let filteredHols = HOLIDAYS_2026.map(h => ({
@@ -94,6 +97,7 @@ export class SchoolCalendarService {
       endTime: `${h.date}T23:59:59.000Z`,
       isAllDay: true,
       priority: 'NORMAL',
+      linkedId: null,
     }));
 
     let filteredVacations = VACATIONS_2026.map(v => ({
@@ -106,6 +110,7 @@ export class SchoolCalendarService {
       endTime: `${v.endDate}T23:59:59.000Z`,
       isAllDay: true,
       priority: 'NORMAL',
+      linkedId: null,
     }));
 
     filteredHols = filteredHols.filter(h => new Date(h.startTime) >= startWindow && new Date(h.startTime) <= endWindow);
