@@ -10,17 +10,18 @@ import * as jwt from 'jsonwebtoken';
 export class SchoolAuthService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
 
-  private schoolJwtPayload(user: { id: string; role: string; email: string; institute_id?: string | null }) {
+  private schoolJwtPayload(user: { id: string; role: string; email: string; institute_id?: string | null; sessionId?: string }) {
     return {
       id: user.id,
       role: user.role,
       email: user.email,
       tenantType: 'school',
       instituteId: user.institute_id || null,
+      ...(user.sessionId ? { sessionId: user.sessionId } : {}),
     };
   }
 
-  private signSchoolToken(user: { id: string; role: string; email: string; institute_id?: string | null }) {
+  private signSchoolToken(user: { id: string; role: string; email: string; institute_id?: string | null; sessionId?: string }) {
     return jwt.sign(
       this.schoolJwtPayload(user),
       process.env.JWT_SECRET ||
@@ -33,7 +34,7 @@ export class SchoolAuthService {
     );
   }
 
-  async login(identifier: string, password: string, ip?: string) {
+  async login(identifier: string, password: string, ip?: string, userAgent?: string) {
     if (!identifier?.trim() || !password) {
       throw new BadRequestException('Email or phone and password are required');
     }
@@ -90,6 +91,13 @@ export class SchoolAuthService {
 
     const match = user.password ? await bcrypt.compare(password, user.password) : false;
     if (!match) throw new UnauthorizedException('Invalid credentials');
+
+    const sessionRows: any[] = await this.ds.query(
+      `INSERT INTO auth_sessions (user_id, ip_address, browser) VALUES ($1, $2, $3) RETURNING id`,
+      [user.id, ip || null, userAgent || null]
+    );
+    const sessionId = sessionRows[0].id;
+    user.sessionId = sessionId;
 
     const token = this.signSchoolToken(user);
 
