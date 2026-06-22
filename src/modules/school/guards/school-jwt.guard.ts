@@ -77,9 +77,9 @@ export class SchoolJwtGuard implements CanActivate {
 
     const userId = decoded.id || decoded.sub;
     const userRole = decoded.role;
-    const tokenInstituteId = decoded.instituteId || decoded.institute_id || null;
+    const tokenInstituteId = decoded.instituteId || decoded.institute_id || decoded.tenantId || null;
 
-    if (userId === 'demo-super-admin' || userRole?.toUpperCase() === 'SUPER_ADMIN') {
+    if (userId === 'demo-super-admin' || (!userId && userRole?.toUpperCase() === 'SUPER_ADMIN')) {
       req.user = {
         id: userId || 'demo-super-admin',
         email: decoded.email || 'admin@gmail.com',
@@ -110,7 +110,20 @@ export class SchoolJwtGuard implements CanActivate {
       [userId],
     );
 
-    if (!rows.length) throw new UnauthorizedException('User no longer exists');
+    if (!rows.length) {
+      if (userRole?.toUpperCase() === 'SUPER_ADMIN') {
+        req.user = {
+          id: userId,
+          email: decoded.email || 'admin@gmail.com',
+          role: 'SUPER_ADMIN',
+          name: decoded.name || 'Super Admin',
+          instituteId: tokenInstituteId,
+          isActive: true,
+        };
+        return true;
+      }
+      throw new UnauthorizedException('User no longer exists');
+    }
 
     const row = rows[0];
     if (!row.is_active) throw new UnauthorizedException('This user account is inactive');
