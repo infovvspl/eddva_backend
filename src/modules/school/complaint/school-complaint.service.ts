@@ -8,8 +8,13 @@ export class SchoolComplaintService {
 
   async list(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
-    let filter = `c.institute_id=$1`;
-    const params: any[] = [instituteId];
+    let filter = `1=1`;
+    const params: any[] = [];
+
+    if (instituteId) {
+      params.push(instituteId);
+      filter = `c.institute_id=$1`;
+    }
 
     if (query.status) {
       params.push(query.status);
@@ -49,9 +54,10 @@ export class SchoolComplaintService {
     const sortOrder = query.sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const sql = `
-      SELECT c.*, u.name AS raised_by_name 
+      SELECT c.*, u.name AS raised_by_name, i.name AS institute_name, i.logo AS institute_logo
       FROM complaints c 
       LEFT JOIN users u ON c.user_id=u.id 
+      LEFT JOIN institutes i ON c.institute_id = i.id
       WHERE ${filter}
       ORDER BY ${sortBy} ${sortOrder}
       LIMIT ${limit} OFFSET ${offset}
@@ -66,7 +72,12 @@ export class SchoolComplaintService {
       userId: r.user_id,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
-      raisedByName: r.raised_by_name
+      raisedByName: r.raised_by_name,
+      institute: r.institute_id ? {
+        id: r.institute_id,
+        name: r.institute_name,
+        logo: r.institute_logo
+      } : null
     }));
     return { success: true, data: mapped, total, page, limit, totalPages };
   }

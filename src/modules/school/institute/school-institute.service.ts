@@ -69,6 +69,7 @@ export class SchoolInstituteService {
         COALESCE(teacher_counts.total_teachers, 0)::int AS total_teachers,
         COALESCE(class_counts.total_classes, 0)::int AS total_classes,
         COALESCE(parent_counts.total_parents, 0)::int AS total_parents,
+        COALESCE(admin_counts.total_admins, 0)::int AS total_admins,
         COALESCE(active_user_counts.active_users, 0)::int AS active_users
       FROM institutes i
       LEFT JOIN LATERAL (
@@ -101,6 +102,12 @@ export class SchoolInstituteService {
           AND u.role = 'PARENT'
       ) parent_counts ON TRUE
       LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS total_admins
+        FROM users u
+        WHERE u.institute_id::text = i.id::text
+          AND u.role = 'INSTITUTE_ADMIN'
+      ) admin_counts ON TRUE
+      LEFT JOIN LATERAL (
         SELECT COUNT(*) AS active_users
         FROM users u
         WHERE u.institute_id::text = i.id::text
@@ -130,6 +137,7 @@ export class SchoolInstituteService {
         COALESCE(teacher_counts.total_teachers, 0)::int AS total_teachers,
         COALESCE(class_counts.total_classes, 0)::int AS total_classes,
         COALESCE(parent_counts.total_parents, 0)::int AS total_parents,
+        COALESCE(admin_counts.total_admins, 0)::int AS total_admins,
         COALESCE(active_user_counts.active_users, 0)::int AS active_users
        FROM institutes i
        LEFT JOIN LATERAL (
@@ -161,6 +169,12 @@ export class SchoolInstituteService {
          WHERE u.institute_id::text = i.id::text
            AND u.role = 'PARENT'
        ) parent_counts ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) AS total_admins
+         FROM users u
+         WHERE u.institute_id::text = i.id::text
+           AND u.role = 'INSTITUTE_ADMIN'
+       ) admin_counts ON TRUE
        LEFT JOIN LATERAL (
          SELECT COUNT(*) AS active_users
          FROM users u
