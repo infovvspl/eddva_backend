@@ -106,7 +106,7 @@ export class SchoolInstituteService {
         COALESCE(class_counts.total_classes, 0)::int AS total_classes,
         COALESCE(parent_counts.total_parents, 0)::int AS total_parents,
         COALESCE(admin_counts.total_admins, 0)::int AS total_admins,
-        COALESCE(active_user_counts.active_users, 0)::int AS active_users
+        COALESCE(active_user_counts.active_users, 0)::int AS active_users,
         COALESCE(student_counts.total_students, 0)::int AS student_count,
         COALESCE(teacher_counts.total_teachers, 0)::int AS teacher_count,
         COALESCE(class_counts.total_classes, 0)::int AS class_count,
@@ -179,7 +179,7 @@ export class SchoolInstituteService {
         COALESCE(class_counts.total_classes, 0)::int AS total_classes,
         COALESCE(parent_counts.total_parents, 0)::int AS total_parents,
         COALESCE(admin_counts.total_admins, 0)::int AS total_admins,
-        COALESCE(active_user_counts.active_users, 0)::int AS active_users
+        COALESCE(active_user_counts.active_users, 0)::int AS active_users,
         COALESCE(student_counts.total_students, 0)::int AS student_count,
         COALESCE(teacher_counts.total_teachers, 0)::int AS teacher_count,
         COALESCE(class_counts.total_classes, 0)::int AS class_count,
