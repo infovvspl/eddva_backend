@@ -15,6 +15,7 @@ import { IS_PUBLIC_KEY } from '../decorators/school-public.decorator';
 // calls at once) without re-querying. TTL stays small so role/active changes
 // take effect quickly.
 const USER_CACHE = new Map<string, { user: any; exp: number }>();
+const SESSION_CACHE = new Map<string, { exp: number }>();
 const USER_TTL_MS = 30_000;
 
 async function loadStudentProfile(ds: DataSource, userId: string) {
@@ -47,7 +48,7 @@ export class SchoolJwtGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     @InjectDataSource('school') private readonly ds: DataSource,
-  ) {}
+  ) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -93,6 +94,20 @@ export class SchoolJwtGuard implements CanActivate {
 
     if (!userId) {
       throw new UnauthorizedException('Invalid token structure: missing user ID');
+    }
+
+    if (sessionId) {
+      const cachedSession = SESSION_CACHE.get(sessionId);
+      if (!cachedSession || cachedSession.exp < Date.now()) {
+        const sessionRows: any[] = await this.ds.query(
+          `SELECT is_active FROM auth_sessions WHERE id = $1`,
+          [sessionId]
+        );
+        if (!sessionRows.length || !sessionRows[0].is_active) {
+          throw new UnauthorizedException('Session terminated');
+        }
+        SESSION_CACHE.set(sessionId, { exp: Date.now() + USER_TTL_MS });
+      }
     }
 
     const cached = USER_CACHE.get(userId);
@@ -144,11 +159,11 @@ export class SchoolJwtGuard implements CanActivate {
       studentProfile,
       institute: row.inst_id
         ? {
-            id: row.inst_id,
-            name: row.inst_name,
-            tenantDomain: row.tenant_domain,
-            status: row.inst_status,
-          }
+          id: row.inst_id,
+          name: row.inst_name,
+          tenantDomain: row.tenant_domain,
+          status: row.inst_status,
+        }
         : null,
     };
     USER_CACHE.set(userId, { user: resolvedUser, exp: Date.now() + USER_TTL_MS });

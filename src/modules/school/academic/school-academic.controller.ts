@@ -3,6 +3,7 @@ import { SchoolAcademicService } from './school-academic.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
+import { Audit } from '../../audit-log/audit.decorator';
 
 @Controller('school/academic')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
@@ -10,9 +11,18 @@ export class SchoolAcademicController {
   constructor(private readonly svc: SchoolAcademicService) {}
 
   @Get('classes') listClasses(@SchoolUser() user: any, @Query() query: any) { return this.svc.listClasses(user, query); }
-  @Post('classes') createClass(@SchoolUser() user: any, @Body() body: any) { return this.svc.createClass(user, body); }
-  @Put('classes/:id') updateClass(@Param('id') id: string, @Body() body: any) { return this.svc.updateClass(id, body); }
-  @Delete('classes/:id') deleteClass(@Param('id') id: string) { return this.svc.deleteClass(id); }
+
+  @Post('classes')
+  @Audit({ module: 'Academic', action: 'Class Create', description: 'Created academic class {body.name}' })
+  createClass(@SchoolUser() user: any, @Body() body: any) { return this.svc.createClass(user, body); }
+
+  @Put('classes/:id')
+  @Audit({ module: 'Academic', action: 'Class Edit', description: 'Updated academic class ID {params.id}' })
+  updateClass(@Param('id') id: string, @Body() body: any) { return this.svc.updateClass(id, body); }
+
+  @Delete('classes/:id')
+  @Audit({ module: 'Academic', action: 'Class Delete', description: 'Deleted academic class ID {params.id}' })
+  deleteClass(@Param('id') id: string) { return this.svc.deleteClass(id); }
 
   @Get('sections/:sectionId/teaching-map')
   getSectionTeachingMap(@Param('sectionId') sectionId: string) {
