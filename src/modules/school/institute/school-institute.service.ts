@@ -34,9 +34,45 @@ export class SchoolInstituteService {
     let institute;
     try {
       const rows: any[] = await this.ds.query(
-        `INSERT INTO institutes (name, email, phone, address, city, state, pin_code, logo, tenant_domain, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-        [name.trim(), body.email, body.phone||null, body.address||null, body.city||null, body.state||null, body.pinCode||null, body.logo||null, domain, body.status || 'PENDING'],
+        `INSERT INTO institutes (
+          name, email, phone, address, city, state, pin_code, logo, tenant_domain, status,
+          alternate_phone, principal_name, registration_no, plot_no, street_name, land_mark, district,
+          website, school_type, board, established_year, affiliation_no, total_classes,
+          total_students, total_teachers, ai_enabled, ai_features
+         )
+         VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
+         ) RETURNING *`,
+        [
+          name.trim(),
+          body.email,
+          body.phone || null,
+          body.address || null,
+          body.city || null,
+          body.state || null,
+          body.pinCode || body.pin_code || null,
+          body.logo || null,
+          domain,
+          body.status || 'PENDING',
+          body.alternatePhone || body.alternate_phone || null,
+          body.principalName || body.principal_name || null,
+          body.registrationNo || body.registration_no || null,
+          body.plotNo || body.plot_no || null,
+          body.streetName || body.street_name || null,
+          body.landMark || body.land_mark || null,
+          body.district || null,
+          body.website || null,
+          body.schoolType || body.school_type || null,
+          body.board || null,
+          body.establishedYear || body.established_year || null,
+          body.affiliationNo || body.affiliation_no || null,
+          body.totalClasses || body.total_classes || null,
+          body.totalStudents || body.total_students || null,
+          body.totalTeachers || body.total_teachers || null,
+          body.aiEnabled ?? body.ai_enabled ?? false,
+          JSON.stringify(body.aiFeatures || body.ai_features || {}),
+        ],
       );
       institute = rows[0];
     } catch (err: any) {
@@ -69,7 +105,13 @@ export class SchoolInstituteService {
         COALESCE(teacher_counts.total_teachers, 0)::int AS total_teachers,
         COALESCE(class_counts.total_classes, 0)::int AS total_classes,
         COALESCE(parent_counts.total_parents, 0)::int AS total_parents,
-        COALESCE(active_user_counts.active_users, 0)::int AS active_users
+        COALESCE(admin_counts.total_admins, 0)::int AS total_admins,
+        COALESCE(active_user_counts.active_users, 0)::int AS active_users,
+        COALESCE(student_counts.total_students, 0)::int AS student_count,
+        COALESCE(teacher_counts.total_teachers, 0)::int AS teacher_count,
+        COALESCE(class_counts.total_classes, 0)::int AS class_count,
+        COALESCE(parent_counts.total_parents, 0)::int AS parent_count,
+        COALESCE(active_user_counts.active_users, 0)::int AS active_user_count
       FROM institutes i
       LEFT JOIN LATERAL (
         SELECT u.name, u.email
@@ -101,6 +143,12 @@ export class SchoolInstituteService {
           AND u.role = 'PARENT'
       ) parent_counts ON TRUE
       LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS total_admins
+        FROM users u
+        WHERE u.institute_id::text = i.id::text
+          AND u.role = 'INSTITUTE_ADMIN'
+      ) admin_counts ON TRUE
+      LEFT JOIN LATERAL (
         SELECT COUNT(*) AS active_users
         FROM users u
         WHERE u.institute_id::text = i.id::text
@@ -130,7 +178,13 @@ export class SchoolInstituteService {
         COALESCE(teacher_counts.total_teachers, 0)::int AS total_teachers,
         COALESCE(class_counts.total_classes, 0)::int AS total_classes,
         COALESCE(parent_counts.total_parents, 0)::int AS total_parents,
-        COALESCE(active_user_counts.active_users, 0)::int AS active_users
+        COALESCE(admin_counts.total_admins, 0)::int AS total_admins,
+        COALESCE(active_user_counts.active_users, 0)::int AS active_users,
+        COALESCE(student_counts.total_students, 0)::int AS student_count,
+        COALESCE(teacher_counts.total_teachers, 0)::int AS teacher_count,
+        COALESCE(class_counts.total_classes, 0)::int AS class_count,
+        COALESCE(parent_counts.total_parents, 0)::int AS parent_count,
+        COALESCE(active_user_counts.active_users, 0)::int AS active_user_count
        FROM institutes i
        LEFT JOIN LATERAL (
          SELECT u.name, u.email
@@ -161,6 +215,12 @@ export class SchoolInstituteService {
          WHERE u.institute_id::text = i.id::text
            AND u.role = 'PARENT'
        ) parent_counts ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) AS total_admins
+         FROM users u
+         WHERE u.institute_id::text = i.id::text
+           AND u.role = 'INSTITUTE_ADMIN'
+       ) admin_counts ON TRUE
        LEFT JOIN LATERAL (
          SELECT COUNT(*) AS active_users
          FROM users u
@@ -202,6 +262,9 @@ export class SchoolInstituteService {
       }
     }
 
+    const aiEnabled = body.aiEnabled ?? body.ai_enabled;
+    const aiFeatures = body.aiFeatures ?? body.ai_features;
+
     await this.ds.query(
       `UPDATE institutes SET
        name=COALESCE($2,name),
@@ -220,6 +283,8 @@ export class SchoolInstituteService {
        district=COALESCE($15,district),
        pin_code=COALESCE($16,pin_code),
        status=COALESCE($17,status),
+       ai_enabled=COALESCE($18::boolean,ai_enabled),
+       ai_features=COALESCE($19::jsonb,ai_features),
        updated_at=NOW() WHERE id=$1`,
       [
         id,
@@ -239,6 +304,8 @@ export class SchoolInstituteService {
         body.district,
         body.pinCode ?? body.pin_code,
         body.status,
+        aiEnabled !== undefined ? aiEnabled : null,
+        aiFeatures !== undefined ? JSON.stringify(aiFeatures) : null,
       ],
     );
 

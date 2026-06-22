@@ -85,6 +85,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     const count = await this.redis.addViewer(lectureId, user.id);
     this.server.to(`teacher:${lectureId}`).emit('viewerCount', { count });
     client.emit('joined', { lectureId });
+    void this.svc.trackJoin(lectureId, user.id, user.name).catch(() => undefined);
   }
 
   @SubscribeMessage('teacher-join')
@@ -147,6 +148,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       userName: data.userName,
       emoji: payload.emoji,
     });
+    void this.svc.saveReaction(data.lectureId, data.userId, data.userName, payload.emoji).catch(() => undefined);
   }
 
   async handleDisconnect(client: Socket) {
@@ -161,5 +163,6 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
         raised: false,
       });
     }
+    void this.svc.trackLeave(data.lectureId, data.userId).catch(() => undefined);
   }
 }

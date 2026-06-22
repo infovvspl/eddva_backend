@@ -16,6 +16,7 @@ interface SchoolUser {
 @Injectable()
 export class SchoolLiveService implements OnModuleInit {
   private readonly logger = new Logger(SchoolLiveService.name);
+  private statsTablesReady = false;
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
@@ -53,9 +54,50 @@ export class SchoolLiveService implements OnModuleInit {
         )
       `);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_chat_lecture ON school_live_chat_messages (lecture_id)`);
+      await this.ds.query(`
+        CREATE TABLE IF NOT EXISTS school_live_participants (
+          lecture_id UUID NOT NULL,
+          user_id    UUID NOT NULL,
+          user_name  VARCHAR NOT NULL,
+          joined_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+          left_at    TIMESTAMPTZ,
+          duration_seconds INT,
+          PRIMARY KEY (lecture_id, user_id)
+        )
+      `);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_participants_lecture ON school_live_participants (lecture_id)`);
+      await this.ds.query(`
+        CREATE TABLE IF NOT EXISTS school_live_reactions (
+          id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          lecture_id UUID NOT NULL,
+          user_id    UUID NOT NULL,
+          user_name  VARCHAR NOT NULL,
+          emoji      VARCHAR(10) NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_reactions_lecture ON school_live_reactions (lecture_id)`);
+      this.statsTablesReady = true;
     } catch (err) {
       this.logger.warn(`ensureTables failed: ${(err as Error).message}`);
     }
+  }
+
+  private async ensureStatsTables() {
+    if (this.statsTablesReady) return;
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS school_live_participants (
+        lecture_id UUID NOT NULL, user_id UUID NOT NULL, user_name VARCHAR NOT NULL,
+        joined_at TIMESTAMPTZ NOT NULL DEFAULT now(), left_at TIMESTAMPTZ, duration_seconds INT,
+        PRIMARY KEY (lecture_id, user_id)
+      )`);
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS school_live_reactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        lecture_id UUID NOT NULL, user_id UUID NOT NULL, user_name VARCHAR NOT NULL,
+        emoji VARCHAR(10) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`);
+    this.statsTablesReady = true;
   }
 
   private get cdnBase(): string {
@@ -106,7 +148,8 @@ export class SchoolLiveService implements OnModuleInit {
   async getLecture(id: string) {
     const rows = await this.ds.query(
       `SELECT id, title, status, stream_key AS "streamKey", playback_url AS "playbackUrl",
-              institute_id AS "instituteId", teacher_id AS "teacherId", started_at AS "startedAt", ended_at AS "endedAt"
+              institute_id AS "instituteId", teacher_id AS "teacherId",
+              started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt"
        FROM school_live_lectures WHERE id = $1`,
       [id],
     );
@@ -119,7 +162,12 @@ export class SchoolLiveService implements OnModuleInit {
     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
       throw new NotFoundException('Lecture not found');
     }
-    return { url: lecture.playbackUrl, status: lecture.status, streamKey: lecture.streamKey };
+    return {
+      url: lecture.playbackUrl,
+      status: lecture.status,
+      streamKey: lecture.streamKey,
+      createdAt: lecture.createdAt,
+    };
   }
 
   /**
@@ -210,5 +258,81 @@ export class SchoolLiveService implements OnModuleInit {
        FROM school_live_chat_messages WHERE lecture_id = $1 ORDER BY created_at ASC LIMIT $2`,
       [lectureId, limit],
     );
+  }
+
+  // ── participant tracking (called by gateway) ─────────────────────────────
+  async trackJoin(lectureId: string, userId: string, userName: string) {
+    await this.ensureStatsTables();
+    await this.ds.query(
+      `INSERT INTO school_live_participants (lecture_id, user_id, user_name, joined_at)
+       VALUES ($1, $2, $3, now())
+       ON CONFLICT (lecture_id, user_id) DO UPDATE SET joined_at = now(), left_at = NULL, duration_seconds = NULL`,
+      [lectureId, userId, userName],
+    );
+  }
+
+  async trackLeave(lectureId: string, userId: string) {
+    await this.ds.query(
+      `UPDATE school_live_participants
+       SET left_at = now(),
+           duration_seconds = EXTRACT(EPOCH FROM (now() - joined_at))::int
+       WHERE lecture_id = $1 AND user_id = $2 AND left_at IS NULL`,
+      [lectureId, userId],
+    );
+  }
+
+  async saveReaction(lectureId: string, userId: string, userName: string, emoji: string) {
+    await this.ds.query(
+      `INSERT INTO school_live_reactions (lecture_id, user_id, user_name, emoji) VALUES ($1, $2, $3, $4)`,
+      [lectureId, userId, userName, emoji],
+    );
+  }
+
+  // ── post-class stats ─────────────────────────────────────────────────────
+  async getLectureStats(id: string, user: SchoolUser) {
+    await this.ensureStatsTables();
+    const lecture = await this.getLecture(id);
+    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      throw new NotFoundException('Lecture not found');
+    }
+
+    const [stats] = await this.ds.query(
+      `SELECT
+         l.id, l.title, l.status,
+         l.started_at AS "startedAt", l.ended_at AS "endedAt",
+         l.teacher_id AS "teacherId",
+         CASE WHEN l.started_at IS NOT NULL
+              THEN EXTRACT(EPOCH FROM (COALESCE(l.ended_at, now()) - l.started_at))::int
+              ELSE 0 END AS "durationSeconds",
+         COALESCE((SELECT COUNT(DISTINCT user_id) FROM school_live_participants WHERE lecture_id = l.id), 0)::int AS "totalParticipants",
+         COALESCE((SELECT COUNT(*) FROM school_live_chat_messages WHERE lecture_id = l.id), 0)::int AS "totalMessages",
+         COALESCE((SELECT COUNT(*) FROM school_live_reactions WHERE lecture_id = l.id), 0)::int AS "totalReactions",
+         COALESCE(
+           (SELECT json_agg(r ORDER BY r.count DESC)
+            FROM (SELECT emoji, COUNT(*)::int AS count FROM school_live_reactions WHERE lecture_id = l.id GROUP BY emoji) r),
+           '[]'::json
+         ) AS "reactionBreakdown",
+         COALESCE(
+           (SELECT json_agg(p ORDER BY p."joinedAt")
+            FROM (
+              SELECT user_id AS "userId", user_name AS "userName",
+                     joined_at AS "joinedAt", left_at AS "leftAt",
+                     duration_seconds AS "durationSeconds"
+              FROM school_live_participants WHERE lecture_id = l.id
+            ) p),
+           '[]'::json
+         ) AS "participants"
+       FROM school_live_lectures l WHERE l.id = $1`,
+      [id],
+    );
+
+    // Fetch teacher name
+    const [teacher] = await this.ds.query(
+      `SELECT name FROM users WHERE id = $1 LIMIT 1`,
+      [lecture.teacherId],
+    ).catch(() => [null]);
+
+    return { ...stats, teacherName: teacher?.name ?? null };
   }
 }
