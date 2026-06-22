@@ -585,9 +585,11 @@ export class SchoolTeacherService {
     return { success: true, data: mappedRows, total, page, limit, totalPages, kpis: { active, inactive, newThisMonth } };
   }
 
-  async findOne(id: string) {
-    const rows: any[] = await this.ds.query(
-      `SELECT u.*,
+  async findOne(user: any, id: string) {
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const instituteId = isSuperAdmin ? null : user?.instituteId;
+
+    let queryStr = `SELECT u.*,
               t.id AS teacher_profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
               t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
               t.address,t.city,t.state,t.pin_code,t.allergies,t.medical_conditions,t.documents,t.shift,t.weekdays,
@@ -596,9 +598,15 @@ export class SchoolTeacherService {
        COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM (SELECT DISTINCT class_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN classes c ON taa.class_id=c.id), '[]'::json) as classes,
        COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN sections s ON taa.section_id=s.id), '[]'::json) as sections,
        COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM (SELECT DISTINCT subject_id FROM teacher_academic_assignments WHERE teacher_id=t.id AND subject_id IS NOT NULL) taa JOIN subjects sub ON taa.subject_id=sub.id), '[]'::json) as subjects
-       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND u.role='TEACHER'`,
-      [id],
-    );
+       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND u.role='TEACHER'`;
+    
+    const params: any[] = [id];
+    if (instituteId) {
+      params.push(instituteId);
+      queryStr += ` AND u.institute_id=$2`;
+    }
+
+    const rows: any[] = await this.ds.query(queryStr, params);
     if (!rows.length) throw new NotFoundException('Teacher not found');
     const r = rows[0];
     const docs = this.parseJsonObject(r.documents);
@@ -607,6 +615,13 @@ export class SchoolTeacherService {
     let assignments = [];
     let avgStudentScore = 0;
     let totalTestsCount = 0;
+
+    let attendancePercentage = "—";
+    let classesConducted = 0;
+    let totalStudents = 0;
+    let assignmentsCreated = 0;
+    let assessmentsConducted = 0;
+
     if (tProfileId) {
       assignments = await this.getTeacherAssignments(tProfileId);
       const batchIds = [...new Set(assignments.map(a => a.class_id).filter(Boolean))];
@@ -621,12 +636,62 @@ export class SchoolTeacherService {
         if (avgStudentScore > 100) avgStudentScore = 100;
         totalTestsCount = perfRow[0]?.total_sessions || 0;
       }
+
+      const [attRow, classesRow, studentsRow, assignsRow, assessRow] = await Promise.all([
+        this.ds.query(`
+          SELECT 
+            COUNT(id) FILTER (WHERE LOWER(status) = 'present')::int AS present,
+            COUNT(id) FILTER (WHERE LOWER(status) = 'late')::int AS late,
+            COUNT(id) FILTER (WHERE LOWER(status) = 'absent')::int AS absent,
+            COUNT(id) FILTER (WHERE LOWER(status) = 'leave')::int AS leave_count
+          FROM attendances
+          WHERE user_id = $1
+        `, [r.id]),
+        this.ds.query(`
+          SELECT COUNT(DISTINCT class_id)::int AS c FROM teacher_academic_assignments WHERE teacher_id = $1
+        `, [tProfileId]),
+        this.ds.query(`
+          SELECT COUNT(DISTINCT s.user_id)::int AS c
+          FROM students s
+          JOIN teacher_academic_assignments ta ON s.section_id::text = ta.section_id::text
+          WHERE ta.teacher_id = $1
+        `, [tProfileId]),
+        this.ds.query(`
+          SELECT COUNT(*)::int AS c FROM assignments WHERE teacher_id = $1
+        `, [r.id]),
+        this.ds.query(`
+          SELECT COUNT(*)::int AS c FROM assessments WHERE teacher_id = $1
+        `, [tProfileId])
+      ]);
+
+      const attPresent = parseInt(attRow[0]?.present || '0', 10);
+      const attLate = parseInt(attRow[0]?.late || '0', 10);
+      const attAbsent = parseInt(attRow[0]?.absent || '0', 10);
+      const attLeave = parseInt(attRow[0]?.leave_count || '0', 10);
+      const attTotal = attPresent + attAbsent + attLate + attLeave;
+      if (attTotal > 0) {
+        attendancePercentage = `${Math.round(((attPresent + attLate) / attTotal) * 100)}%`;
+      } else {
+        attendancePercentage = "—";
+      }
+
+      classesConducted = classesRow[0]?.c || 0;
+      totalStudents = studentsRow[0]?.c || 0;
+      assignmentsCreated = assignsRow[0]?.c || 0;
+      assessmentsConducted = assessRow[0]?.c || 0;
     }
     const mappedData = {
       ...r,
       isActive: r.is_active,
       profileImage: r.profile_image,
       createdAt: r.created_at,
+      stats: {
+        attendancePercentage,
+        classesConducted,
+        totalStudents,
+        assignmentsCreated,
+        assessmentsConducted
+      },
       performance: {
         avgStudentScore: avgStudentScore || 0,
         totalTestsCount: totalTestsCount || 0
