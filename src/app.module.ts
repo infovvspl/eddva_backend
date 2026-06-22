@@ -37,6 +37,7 @@ import {
 } from './database/entities/live-class.entity';
 import { Announcement } from './database/entities/announcement.entity';
 import { TeacherProfile } from './database/entities/teacher.entity';
+import { AuditLog } from './database/entities/audit-log.entity';
 import { PYQAttempt, PYQYearStats } from './database/entities/pyq.entity';
 import { StudyMaterial } from './modules/study-material/study-material.entity';
 import { ExamSyllabusCache } from './database/entities/exam-syllabus.entity';
@@ -77,18 +78,19 @@ import { UploadModule } from './modules/upload/upload.module';
 import { GamesModule } from './modules/games/games.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { InternalModule } from './modules/internal/internal.module';
+import { AuditLogModule } from './modules/audit-log/audit-log.module';
 
 // ── School Module (all school sub-modules bundled) ────────────────────────────
 
 import { SchoolModule } from './modules/school/school.module';
 
-// ── Common ────────────────────────────────────────────────────────────────────
+// ── Common ────────────────----------------------------------------------------
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 const ALL_COACHING_ENTITIES = [
-  Tenant, User, Student,
+  Tenant, User, Student, AuditLog,
   Subject, Chapter, Topic, TopicResource,
   Question, QuestionOption,
   Batch, BatchSubjectTeacher, Enrollment, BatchFeedback,
@@ -154,6 +156,7 @@ const ALL_COACHING_ENTITIES = [
         // Survive transient network/RDS blips at startup instead of crashing.
         retryAttempts: 10,
         retryDelay: 3000,
+        entities: [AuditLog, ...((schoolDbConfig.entities || []) as any)],
       }),
     }),
 
@@ -228,6 +231,7 @@ const ALL_COACHING_ENTITIES = [
     GamesModule,
     GamificationModule,
     InternalModule,
+    AuditLogModule,
 
     // ── School Module ─────────────────────────────────────────────────────────
     SchoolModule,

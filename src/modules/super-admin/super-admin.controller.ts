@@ -28,6 +28,8 @@ import {
   UpdateUserStatusDto,
 } from './dto/super-admin.dto';
 
+import { Audit } from '../audit-log/audit.decorator';
+
 @ApiTags('Super Admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -37,6 +39,7 @@ export class SuperAdminController {
   constructor(private readonly superAdminService: SuperAdminService) {}
 
   @Post('tenants')
+  @Audit({ module: 'Institute', action: 'Create', description: 'Created tenant {body.name}' })
   @ApiOperation({ summary: 'Create a new tenant and bootstrap first institute admin' })
   createTenant(@Body() dto: CreateTenantDto) {
     return this.superAdminService.createTenant(dto);
@@ -61,6 +64,7 @@ export class SuperAdminController {
   }
 
   @Patch('tenants/:id')
+  @Audit({ module: 'Institute', action: 'Update', description: 'Updated tenant subscription / limits ID {params.id}' })
   @ApiOperation({ summary: 'Update tenant subscription or limits' })
   updateTenant(
     @Param('id', ParseUUIDPipe) id: string,
@@ -70,6 +74,7 @@ export class SuperAdminController {
   }
 
   @Delete('tenants/:id')
+  @Audit({ module: 'Institute', action: 'Delete', description: 'Suspended and deleted tenant ID {params.id}' })
   @ApiOperation({ summary: 'Suspend and soft delete a tenant' })
   deleteTenant(@Param('id', ParseUUIDPipe) id: string) {
     return this.superAdminService.deleteTenant(id);
@@ -82,6 +87,7 @@ export class SuperAdminController {
   }
 
   @Patch('users/:id/status')
+  @Audit({ module: 'Users', action: 'Admin Edit', description: 'Updated user ID {params.id} status to {body.status}' })
   @ApiOperation({ summary: 'Update user status across tenants' })
   updateUserStatus(
     @Param('id', ParseUUIDPipe) id: string,
@@ -91,6 +97,7 @@ export class SuperAdminController {
   }
 
   @Delete('users/:id')
+  @Audit({ module: 'Users', action: 'Admin Delete', description: 'Deleted user ID {params.id}' })
   @ApiOperation({ summary: 'Delete user permanently across the platform' })
   deleteUser(@Param('id', ParseUUIDPipe) id: string) {
     console.log(`[SuperAdmin] Deleting user: ${id}`);
