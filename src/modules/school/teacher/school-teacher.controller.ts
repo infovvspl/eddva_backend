@@ -9,7 +9,7 @@ import { Audit } from '../../audit-log/audit.decorator';
 @Controller('school/teachers')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolTeacherController {
-  constructor(private readonly svc: SchoolTeacherService) {}
+  constructor(private readonly svc: SchoolTeacherService) { }
 
   @Post('bulk-import') bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
 
