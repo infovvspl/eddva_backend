@@ -20,6 +20,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../database/entities/user.entity';
 
 import { PlatformSuperAdminService } from './platform-super-admin.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { Audit } from '../audit-log/audit.decorator';
 import {
   PlatformLoginDto,
   PlatformCreateInstituteDto,
@@ -31,11 +33,15 @@ import {
 @ApiTags('Platform Super Admin')
 @Controller('super-admin')
 export class PlatformSuperAdminController {
-  constructor(private readonly svc: PlatformSuperAdminService) {}
+  constructor(
+    private readonly svc: PlatformSuperAdminService,
+    private readonly auditLogService: AuditLogService,
+  ) {}
 
   // ── Auth (public — no JWT guard) ─────────────────────────────────────────
 
   @Post('auth/login')
+  @Audit({ module: 'Security', action: 'Login', description: 'Platform Super Admin logged in' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Super admin email+password login (coaching backend)' })
   login(@Body() dto: PlatformLoginDto) {
@@ -43,6 +49,15 @@ export class PlatformSuperAdminController {
   }
 
   // ── All routes below require SUPER_ADMIN JWT ─────────────────────────────
+
+  @Get('audit-logs')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get platform-wide audit logs' })
+  getAuditLogs(@Query() query: any) {
+    return this.auditLogService.findAll(query);
+  }
 
   @Get('dashboard')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -74,6 +89,7 @@ export class PlatformSuperAdminController {
   }
 
   @Post('tenants')
+  @Audit({ module: 'Institute', action: 'Create', description: 'Created institute {body.name}' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   @ApiBearerAuth()
@@ -92,6 +108,7 @@ export class PlatformSuperAdminController {
   }
 
   @Patch('tenants/:id')
+  @Audit({ module: 'Institute', action: 'Update', description: 'Updated institute plan/limits for ID {params.id}' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   @ApiBearerAuth()
@@ -104,6 +121,7 @@ export class PlatformSuperAdminController {
   }
 
   @Post('tenants/:id/suspend')
+  @Audit({ module: 'Institute', action: 'Suspend', description: 'Suspended institute ID {params.id} for reason: {body.reason}' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   @ApiBearerAuth()
@@ -117,6 +135,7 @@ export class PlatformSuperAdminController {
   }
 
   @Post('tenants/:id/reactivate')
+  @Audit({ module: 'Institute', action: 'Activate', description: 'Reactivated institute ID {params.id}' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   @ApiBearerAuth()
@@ -127,6 +146,7 @@ export class PlatformSuperAdminController {
   }
 
   @Delete('tenants/:id')
+  @Audit({ module: 'Institute', action: 'Delete', description: 'Deleted institute ID {params.id}' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
   @ApiBearerAuth()
