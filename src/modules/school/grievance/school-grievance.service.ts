@@ -1,10 +1,58 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 @Injectable()
-export class SchoolGrievanceService {
+export class SchoolGrievanceService implements OnModuleInit {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+
+  private ticketNumber(id: string) {
+    return `USR-${String(id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+  }
+
+  async onModuleInit() {
+    await this.ensureGrievanceMessagesTable();
+  }
+
+  private async ensureGrievanceMessagesTable() {
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS grievance_messages (
+        id uuid NOT NULL DEFAULT uuid_generate_v4(),
+        grievance_id uuid NOT NULL REFERENCES grievances(id) ON DELETE CASCADE,
+        sender_id character varying,
+        sender_role character varying,
+        sender_name character varying,
+        message text NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        CONSTRAINT "PK_grievance_messages" PRIMARY KEY (id)
+      )
+    `);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_grievance_messages_grievance_id ON grievance_messages (grievance_id)`);
+  }
+
+  private async findGrievanceForUser(id: string, user: any) {
+    const rows: any[] = await this.ds.query(
+      `SELECT g.*, u.institute_id AS raised_by_institute_id
+       FROM grievances g
+       LEFT JOIN users u ON g.raised_by = u.id
+       WHERE g.id=$1`,
+      [id],
+    );
+    if (!rows.length) throw new NotFoundException('Grievance not found');
+    const grievance = rows[0];
+
+    if (user.role === 'SUPER_ADMIN') return grievance;
+    if (user.role === 'INSTITUTE_ADMIN') {
+      if (String(grievance.raised_by_institute_id) !== String(user.instituteId)) {
+        throw new ForbiddenException('You do not have access to this ticket');
+      }
+      return grievance;
+    }
+    if (String(grievance.raised_by) !== String(user.id)) {
+      throw new ForbiddenException('You do not have access to this ticket');
+    }
+    return grievance;
+  }
 
   async list(user: any, query: any) {
     let filter = `1=1`;
@@ -28,11 +76,11 @@ export class SchoolGrievanceService {
     if (query.category) { params.push(query.category); filter += ` AND g.category=$${params.length}`; }
 
     if (query.search) {
-      const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+      const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.replace(/^#/, '').toLowerCase()}%`);
       if (searchTerms.length > 0) {
         const searchConditions = searchTerms.map((term: string) => {
           params.push(term);
-          return `(LOWER(g.title) LIKE $${params.length} OR LOWER(g.description) LIKE $${params.length} OR LOWER(u.name) LIKE $${params.length})`;
+          return `(LOWER(g.title) LIKE $${params.length} OR LOWER(g.description) LIKE $${params.length} OR LOWER(u.name) LIKE $${params.length} OR LOWER(CONCAT('USR-', SUBSTRING(REPLACE(g.id::text, '-', '') FROM 1 FOR 8))) LIKE $${params.length})`;
         });
         filter += ` AND (${searchConditions.join(' AND ')})`;
       }
@@ -56,8 +104,9 @@ export class SchoolGrievanceService {
       status: 'g.status',
       category: 'g.category',
       createdAt: 'g.created_at',
+      updatedAt: 'g.updated_at',
     };
-    const sortBy = allowedSortFields[query.sortBy] || 'g.created_at';
+    const sortBy = allowedSortFields[query.sortBy] || 'g.updated_at';
     const sortOrder = query.sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const sql = `
@@ -69,7 +118,18 @@ export class SchoolGrievanceService {
       LIMIT ${limit} OFFSET ${offset}
     `;
     const rows: any[] = await this.ds.query(sql, params);
-    return { success: true, data: rows, total, page, limit, totalPages };
+    return {
+      success: true,
+      data: rows.map((r) => ({
+        ...r,
+        ticket_number: this.ticketNumber(r.id),
+        ticketNumber: this.ticketNumber(r.id),
+      })),
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async create(user: any, body: any) {
@@ -80,18 +140,32 @@ export class SchoolGrievanceService {
       `INSERT INTO grievances (raised_by,title,category,description,status) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [user.id, body.title || body.subject || 'Grievance', body.category || body.type || null, body.description || null, body.status || 'OPEN'],
     );
-    return { success: true, data: rows[0] };
+    return {
+      success: true,
+      data: {
+        ...rows[0],
+        ticket_number: this.ticketNumber(rows[0].id),
+        ticketNumber: this.ticketNumber(rows[0].id),
+      },
+    };
   }
 
   async findOne(id: string) {
     const rows: any[] = await this.ds.query(`SELECT * FROM grievances WHERE id=$1`, [id]);
     if (!rows.length) throw new NotFoundException('Grievance not found');
-    return { success: true, data: rows[0] };
+    return {
+      success: true,
+      data: {
+        ...rows[0],
+        ticket_number: this.ticketNumber(rows[0].id),
+        ticketNumber: this.ticketNumber(rows[0].id),
+      },
+    };
   }
 
   async update(id: string, body: any) {
     await this.ds.query(
-      `UPDATE grievances SET title=COALESCE($2,title),category=COALESCE($3,category),description=COALESCE($4,description),status=COALESCE($5,status) WHERE id=$1`,
+      `UPDATE grievances SET title=COALESCE($2,title),category=COALESCE($3,category),description=COALESCE($4,description),status=COALESCE($5,status),updated_at=NOW() WHERE id=$1`,
       [id, body.title, body.category, body.description, body.status],
     );
     return { success: true };
@@ -100,5 +174,65 @@ export class SchoolGrievanceService {
   async remove(id: string) {
     await this.ds.query(`DELETE FROM grievances WHERE id=$1`, [id]);
     return { success: true };
+  }
+
+  async listMessages(user: any, id: string) {
+    await this.ensureGrievanceMessagesTable();
+    await this.findGrievanceForUser(id, user);
+
+    const rows: any[] = await this.ds.query(
+      `SELECT id, grievance_id, sender_id, sender_role, sender_name, message, created_at
+       FROM grievance_messages
+       WHERE grievance_id=$1
+       ORDER BY created_at ASC`,
+      [id],
+    );
+
+    return {
+      success: true,
+      data: rows.map((r) => ({
+        id: r.id,
+        grievanceId: r.grievance_id,
+        senderId: r.sender_id,
+        senderRole: r.sender_role,
+        senderName: r.sender_name,
+        content: r.message,
+        createdAt: r.created_at,
+      })),
+    };
+  }
+
+  async createMessage(user: any, id: string, body: any) {
+    await this.ensureGrievanceMessagesTable();
+    const grievance = await this.findGrievanceForUser(id, user);
+
+    if (user.role !== 'INSTITUTE_ADMIN' && String(grievance.raised_by) !== String(user.id)) {
+      throw new ForbiddenException('You do not have access to reply to this ticket');
+    }
+
+    const message = String(body.content || body.message || '').trim();
+    if (!message) throw new BadRequestException('Message is required');
+
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO grievance_messages (grievance_id, sender_id, sender_role, sender_name, message)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING id, grievance_id, sender_id, sender_role, sender_name, message, created_at`,
+      [id, user.id || null, user.role || null, user.name || null, message],
+    );
+    await this.ds.query(`UPDATE grievances SET updated_at=NOW() WHERE id=$1`, [id]);
+
+    const r = rows[0];
+    return {
+      success: true,
+      data: {
+        id: r.id,
+        grievanceId: r.grievance_id,
+        senderId: r.sender_id,
+        senderRole: r.sender_role,
+        senderName: r.sender_name,
+        content: r.message,
+        createdAt: r.created_at,
+      },
+    };
   }
 }
