@@ -18,6 +18,7 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { Audit } from '../../audit-log/audit.decorator';
 
 const uploadStorage = memoryStorage();
 
@@ -57,6 +58,7 @@ export class SchoolAssignmentController {
   }
 
   @Post()
+  @Audit({ module: 'Academic', action: 'Assignment Create', description: 'Created assignment {body.title}' })
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
   create(
@@ -68,6 +70,7 @@ export class SchoolAssignmentController {
   }
 
   @Post(':id/submit')
+  @Audit({ module: 'Academic', action: 'Assignment Submit', description: 'Submitted assignment ID {params.id}' })
   @SchoolRoles('STUDENT')
   @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
   submit(
@@ -86,6 +89,7 @@ export class SchoolAssignmentController {
   }
 
   @Post(':id/submissions/:submissionId/grade')
+  @Audit({ module: 'Academic', action: 'Assignment Grade', description: 'Graded assignment submission {params.submissionId}' })
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   gradeSubmission(
     @SchoolUser() user: any,

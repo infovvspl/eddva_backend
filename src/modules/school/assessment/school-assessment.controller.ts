@@ -8,6 +8,7 @@ import { SchoolAssessmentService } from './school-assessment.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
+import { Audit } from '../../audit-log/audit.decorator';
 
 const uploadsDir = join(__dirname, '../../../../uploads');
 mkdirSync(uploadsDir, { recursive: true });
@@ -30,6 +31,7 @@ export class SchoolAssessmentController {
   @Post('ai-generate') aiGenerate(@SchoolUser() user: any, @Body() body: any) { return this.svc.aiGenerateDraft(user, body); }
   @Post('translate') translate(@SchoolUser() user: any, @Body() body: { text: string; language: string }) { return this.svc.translateText(user, body.text, body.language); }
   @Post()
+  @Audit({ module: 'Assessment', action: 'Assessment Create', description: 'Created assessment {body.title}' })
   @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
   create(@SchoolUser() user: any, @Body() body: any, @UploadedFile() file?: Express.Multer.File) {
     return this.svc.create(user, body, file);
@@ -46,6 +48,7 @@ export class SchoolAssessmentController {
     return this.svc.saveAnswer(user, id, body);
   }
   @Post(':id/submit')
+  @Audit({ module: 'Assessment', action: 'Assessment Submit', description: 'Submitted assessment ID {params.id}' })
   @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
   submit(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any, @UploadedFile() file?: Express.Multer.File) {
     return this.svc.submitAssessment(user, id, body, file);
@@ -54,8 +57,14 @@ export class SchoolAssessmentController {
     return this.svc.listSubmissions(id);
   }
   @Get(':id') findOne(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.findOne(user, id); }
-  @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
-  @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(id); }
+
+  @Put(':id')
+  @Audit({ module: 'Assessment', action: 'Assessment Edit', description: 'Updated assessment ID {params.id}' })
+  update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
+
+  @Delete(':id')
+  @Audit({ module: 'Assessment', action: 'Assessment Delete', description: 'Deleted assessment ID {params.id}' })
+  remove(@Param('id') id: string) { return this.svc.remove(id); }
   @Get(':id/results') listResults(@Param('id') id: string) { return this.svc.listResults(id); }
   @Post('results') saveResult(@Body() body: any) { return this.svc.saveResult(body); }
 }

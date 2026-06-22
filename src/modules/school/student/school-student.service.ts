@@ -75,11 +75,34 @@ export class SchoolStudentService {
   }
 
   private async resolveInstituteId(user: any, bodyInstituteId?: string): Promise<string> {
-    if (user.role === 'SUPER_ADMIN') {
+    const role = String(user.role || '').toUpperCase();
+    const userInstituteId = user.instituteId || user.institute_id || null;
+    if (role === 'SUPER_ADMIN') {
+      if (userInstituteId) {
+        if (bodyInstituteId && bodyInstituteId !== userInstituteId) {
+          throw new BadRequestException('Unauthorized institute access');
+        }
+        return userInstituteId;
+      }
       if (!bodyInstituteId) throw new BadRequestException('instituteId is required for SUPER_ADMIN');
       return bodyInstituteId;
     }
     return user.instituteId;
+  }
+
+  private async resolveOptionalInstituteId(user: any, requestedInstituteId?: string): Promise<string | null> {
+    const role = String(user.role || '').toUpperCase();
+    const userInstituteId = user.instituteId || user.institute_id || null;
+    if (role === 'SUPER_ADMIN') {
+      if (userInstituteId) {
+        if (requestedInstituteId && requestedInstituteId !== 'ALL' && requestedInstituteId !== userInstituteId) {
+          throw new BadRequestException('Unauthorized institute access');
+        }
+        return userInstituteId;
+      }
+      return requestedInstituteId && requestedInstituteId !== 'ALL' ? requestedInstituteId : null;
+    }
+    return userInstituteId;
   }
 
   private async generateEnrollmentNo(instituteId: string): Promise<string> {
@@ -155,10 +178,7 @@ export class SchoolStudentService {
   }
 
   async list(user: any, query: any) {
-    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
-    const instituteId = isSuperAdmin && !query.instituteId
-      ? null
-      : await this.resolveInstituteId(user, query.instituteId);
+    const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
     const params: any[] = [];
     let filter = `u.role='STUDENT'`;
     if (instituteId) {
@@ -291,10 +311,7 @@ export class SchoolStudentService {
   }
 
   async getStats(user: any, query: any = {}) {
-    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
-    const instituteId = isSuperAdmin && !query.instituteId
-      ? null
-      : await this.resolveInstituteId(user, query.instituteId);
+    const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
 
     const params: any[] = [];
     let joinClause = '';

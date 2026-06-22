@@ -48,7 +48,7 @@ export class SchoolJwtGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     @InjectDataSource('school') private readonly ds: DataSource,
-  ) {}
+  ) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -78,10 +78,9 @@ export class SchoolJwtGuard implements CanActivate {
 
     const userId = decoded.id || decoded.sub;
     const userRole = decoded.role;
-    const tokenInstituteId = decoded.instituteId || decoded.institute_id || null;
-    const sessionId = decoded.sessionId;
+    const tokenInstituteId = decoded.instituteId || decoded.institute_id || decoded.tenantId || null;
 
-    if (userId === 'demo-super-admin' || userRole?.toUpperCase() === 'SUPER_ADMIN') {
+    if (userId === 'demo-super-admin' || (!userId && userRole?.toUpperCase() === 'SUPER_ADMIN')) {
       req.user = {
         id: userId || 'demo-super-admin',
         email: decoded.email || 'admin@gmail.com',
@@ -126,7 +125,20 @@ export class SchoolJwtGuard implements CanActivate {
       [userId],
     );
 
-    if (!rows.length) throw new UnauthorizedException('User no longer exists');
+    if (!rows.length) {
+      if (userRole?.toUpperCase() === 'SUPER_ADMIN') {
+        req.user = {
+          id: userId,
+          email: decoded.email || 'admin@gmail.com',
+          role: 'SUPER_ADMIN',
+          name: decoded.name || 'Super Admin',
+          instituteId: tokenInstituteId,
+          isActive: true,
+        };
+        return true;
+      }
+      throw new UnauthorizedException('User no longer exists');
+    }
 
     const row = rows[0];
     if (!row.is_active) throw new UnauthorizedException('This user account is inactive');
@@ -147,11 +159,11 @@ export class SchoolJwtGuard implements CanActivate {
       studentProfile,
       institute: row.inst_id
         ? {
-            id: row.inst_id,
-            name: row.inst_name,
-            tenantDomain: row.tenant_domain,
-            status: row.inst_status,
-          }
+          id: row.inst_id,
+          name: row.inst_name,
+          tenantDomain: row.tenant_domain,
+          status: row.inst_status,
+        }
         : null,
     };
     USER_CACHE.set(userId, { user: resolvedUser, exp: Date.now() + USER_TTL_MS });

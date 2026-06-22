@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../database/entities/user.entity';
 import { SchoolSuperAdminService } from './school-super-admin.service';
+import { Audit } from '../audit-log/audit.decorator';
 
 @ApiTags('Super Admin — School')
 @ApiBearerAuth()
@@ -36,18 +37,22 @@ export class SchoolSuperAdminController {
   }
 
   @Put('institutes/:id/approve')
+  @Audit({ module: 'Institute', action: 'Activate', description: 'Approved school institute ID {params.id}' })
   approveInstitute(@Param('id') id: string) {
     return this.svc.approveInstitute(id);
   }
 
   @Put('institutes/:id/reject')
+  @Audit({ module: 'Institute', action: 'Suspend', description: 'Rejected school institute ID {params.id}' })
   rejectInstitute(@Param('id') id: string) {
     return this.svc.rejectInstitute(id);
   }
 
   @Delete('institutes/:id')
+  @Audit({ module: 'Institute', action: 'Delete', description: 'Deleted school institute ID {params.id}' })
   @HttpCode(204)
   deleteInstitute(@Param('id') id: string) {
     return this.svc.deleteInstitute(id);
   }
 }
+
