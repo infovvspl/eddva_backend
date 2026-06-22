@@ -59,7 +59,13 @@ export class SchoolLiveController {
   @Get('lectures/:id/chat')
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   chat(@Param('id') id: string) {
-    return this.svc.getChatHistory(id);
+    return this.svc.getChatHistory(id, 500);
+  }
+
+  @Get('lectures/:id/stats')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  stats(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getLectureStats(id, user);
   }
 }
 

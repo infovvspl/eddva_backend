@@ -202,6 +202,9 @@ export class SchoolInstituteService {
       }
     }
 
+    const aiEnabled = body.aiEnabled ?? body.ai_enabled;
+    const aiFeatures = body.aiFeatures ?? body.ai_features;
+
     await this.ds.query(
       `UPDATE institutes SET
        name=COALESCE($2,name),
@@ -220,6 +223,8 @@ export class SchoolInstituteService {
        district=COALESCE($15,district),
        pin_code=COALESCE($16,pin_code),
        status=COALESCE($17,status),
+       ai_enabled=COALESCE($18::boolean,ai_enabled),
+       ai_features=COALESCE($19::jsonb,ai_features),
        updated_at=NOW() WHERE id=$1`,
       [
         id,
@@ -239,6 +244,8 @@ export class SchoolInstituteService {
         body.district,
         body.pinCode ?? body.pin_code,
         body.status,
+        aiEnabled !== undefined ? aiEnabled : null,
+        aiFeatures !== undefined ? JSON.stringify(aiFeatures) : null,
       ],
     );
 

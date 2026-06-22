@@ -190,7 +190,10 @@ async function bootstrap() {
     await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_users_role ON users (role)`);
     await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_users_institute ON users (institute_id)`);
     await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_institutes_status ON institutes (status)`);
-    logger.log('School DB indexes ensured');
+    await schoolDs.query(`ALTER TABLE institutes ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+    await schoolDs.query(`ALTER TABLE institutes ADD COLUMN IF NOT EXISTS ai_features JSONB NOT NULL DEFAULT '{"ai_doubt_solver":true,"ai_notes_generator":true,"ai_quiz_generator":true,"ai_study_planner":true,"ai_career_guidance":true}'`);
+    await schoolDs.query(`UPDATE institutes SET ai_features = '{"ai_doubt_solver":true,"ai_notes_generator":true,"ai_quiz_generator":true,"ai_study_planner":true,"ai_career_guidance":true}'::jsonb WHERE ai_features = '[]'::jsonb`);
+    logger.log('School DB indexes + institute AI columns ensured');
     
     // ── Run school DB migrations ───────────────────────────────────────────
     logger.log('Running school DB migrations...');
