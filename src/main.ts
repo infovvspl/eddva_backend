@@ -186,6 +186,28 @@ async function bootstrap() {
   // ── Ensure school DB has required indexes ─────────────────────────────────
   try {
     const schoolDs = app.get(getDataSourceToken('school'));
+    const instituteCols = [
+      `ADD COLUMN IF NOT EXISTS alternate_phone VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS website VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS school_type VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS board VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS established_year VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS affiliation_no VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS total_classes VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS total_students VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS total_teachers VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS academic_session VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS timezone VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS language VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS currency VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS subscription_plan VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS modules_permissions JSONB DEFAULT '{}'`,
+      `ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
+      `ADD COLUMN IF NOT EXISTS ai_features JSONB NOT NULL DEFAULT '{}'`,
+    ];
+    for (const col of instituteCols) {
+      await schoolDs.query(`ALTER TABLE institutes ${col}`);
+    }
     await schoolDs.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_school_users_email ON users (LOWER(email))`);
     await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_users_role ON users (role)`);
     await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_users_institute ON users (institute_id)`);

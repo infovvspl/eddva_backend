@@ -78,8 +78,32 @@ export class SchoolTeacherService {
   }
 
   private async resolveInstituteId(user: any, bodyId?: string): Promise<string> {
-    if (user.role === 'SUPER_ADMIN') { if (!bodyId) throw new BadRequestException('instituteId required'); return bodyId; }
+    const role = String(user.role || '').toUpperCase();
+    const userInstituteId = user.instituteId || user.institute_id || null;
+    if (role === 'SUPER_ADMIN') {
+      if (userInstituteId) {
+        if (bodyId && bodyId !== userInstituteId) throw new BadRequestException('Unauthorized institute access');
+        return userInstituteId;
+      }
+      if (!bodyId) throw new BadRequestException('instituteId required');
+      return bodyId;
+    }
     return user.instituteId;
+  }
+
+  private async resolveOptionalInstituteId(user: any, requestedInstituteId?: string): Promise<string | null> {
+    const role = String(user.role || '').toUpperCase();
+    const userInstituteId = user.instituteId || user.institute_id || null;
+    if (role === 'SUPER_ADMIN') {
+      if (userInstituteId) {
+        if (requestedInstituteId && requestedInstituteId !== 'ALL' && requestedInstituteId !== userInstituteId) {
+          throw new BadRequestException('Unauthorized institute access');
+        }
+        return userInstituteId;
+      }
+      return requestedInstituteId && requestedInstituteId !== 'ALL' ? requestedInstituteId : null;
+    }
+    return userInstituteId;
   }
 
   private async generateEmployeeId(instituteId: string): Promise<string> {
@@ -208,10 +232,7 @@ export class SchoolTeacherService {
   }
 
   async getStats(user: any, query: any = {}) {
-    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
-    const instituteId = isSuperAdmin && !query.instituteId
-      ? null
-      : await this.resolveInstituteId(user, query.instituteId);
+    const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
 
     const params: any[] = [];
     let filter = `u.role = 'TEACHER'`;
@@ -403,10 +424,7 @@ export class SchoolTeacherService {
   }
 
   async list(user: any, query: any) {
-    const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
-    const instituteId = isSuperAdmin && !query.instituteId
-      ? null
-      : await this.resolveInstituteId(user, query.instituteId);
+    const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
     const params: any[] = [];
     let filter = `u.role='TEACHER'`;
     if (instituteId) {

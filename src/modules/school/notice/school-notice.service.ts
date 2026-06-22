@@ -166,17 +166,20 @@ export class SchoolNoticeService {
   }
 
   async listPlatform(query: any) {
+    // Ensure the column exists (idempotent)
+    await this.ds.query(
+      `ALTER TABLE notices ADD COLUMN IF NOT EXISTS is_broadcast BOOLEAN NOT NULL DEFAULT FALSE`,
+    );
+
     let sql = `
       SELECT n.*, i.name AS institute_name
       FROM notices n
       LEFT JOIN institutes i ON i.id = n.institute_id
+      WHERE n.is_broadcast = TRUE
     `;
     const params: any[] = [];
-    const conditions: string[] = [];
-    if (query.instituteId) { params.push(query.instituteId); conditions.push(`n.institute_id=$${params.length}`); }
-    if (query.category)    { params.push(query.category);    conditions.push(`n.category=$${params.length}`); }
-    if (query.priority)    { params.push(query.priority);    conditions.push(`n.priority=$${params.length}`); }
-    if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`;
+    if (query.category) { params.push(query.category); sql += ` AND n.category=$${params.length}`; }
+    if (query.priority) { params.push(query.priority); sql += ` AND n.priority=$${params.length}`; }
     sql += ` ORDER BY n.created_at DESC LIMIT 200`;
     const rows: any[] = await this.ds.query(sql, params);
     return {
@@ -200,6 +203,11 @@ export class SchoolNoticeService {
   }
 
   async broadcast(user: any, body: any) {
+    // Ensure the column exists (idempotent)
+    await this.ds.query(
+      `ALTER TABLE notices ADD COLUMN IF NOT EXISTS is_broadcast BOOLEAN NOT NULL DEFAULT FALSE`,
+    );
+
     const instituteIds: string[] = body.instituteIds ?? [];
     let targetInstitutes: string[];
     if (instituteIds.length > 0) {
@@ -216,8 +224,8 @@ export class SchoolNoticeService {
     let sent = 0;
     for (const instituteId of targetInstitutes) {
       await this.ds.query(
-        `INSERT INTO notices (institute_id,title,content,category,priority,posted_date,expiry_date,attachments,target_roles)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        `INSERT INTO notices (institute_id,title,content,category,priority,posted_date,expiry_date,attachments,target_roles,is_broadcast)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,TRUE)`,
         [
           instituteId,
           body.title,
