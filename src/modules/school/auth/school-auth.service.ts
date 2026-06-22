@@ -181,7 +181,7 @@ export class SchoolAuthService {
   }
 
   async register(body: any) {
-    const { name, email, password, phone, tenantDomain, instituteName, address, city, state, pinCode, website, logo } = body;
+    const { name, email, password, phone, tenantDomain, instituteName, address, city, state, pinCode, logo } = body;
     if (!name || !email || !password || !instituteName) {
       throw new BadRequestException('name, email, password and instituteName are required');
     }
@@ -193,9 +193,43 @@ export class SchoolAuthService {
 
     const domainBase = tenantDomain || instituteName.toLowerCase().replace(/[^a-z0-9]/g, '');
     const instRows: any[] = await this.ds.query(
-      `INSERT INTO institutes (name, email, phone, address, city, state, pin_code, logo, tenant_domain, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'PENDING') RETURNING *`,
-      [instituteName, email, phone || null, address || null, city || null, state || null, pinCode || null, logo || null, domainBase],
+      `INSERT INTO institutes (
+        name, email, phone, address, city, state, pin_code, logo, tenant_domain, status,
+        alternate_phone, registration_no, plot_no, street_name, land_mark, district,
+        website, school_type, board, established_year, affiliation_no, total_classes,
+        total_students, total_teachers, ai_enabled, ai_features
+       )
+       VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,'PENDING',
+        $10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
+       ) RETURNING *`,
+      [
+        instituteName,
+        email,
+        phone || null,
+        address || null,
+        city || null,
+        state || null,
+        pinCode || null,
+        logo || null,
+        domainBase,
+        body.alternatePhone || body.alternate_phone || null,
+        body.registrationNo || body.registration_no || null,
+        body.plotNo || body.plot_no || null,
+        body.streetName || body.street_name || null,
+        body.landMark || body.land_mark || null,
+        body.district || null,
+        body.website || null,
+        body.schoolType || body.school_type || null,
+        body.board || null,
+        body.establishedYear || body.established_year || null,
+        body.affiliationNo || body.affiliation_no || null,
+        body.totalClasses || body.total_classes || null,
+        body.totalStudents || body.total_students || null,
+        body.totalTeachers || body.total_teachers || null,
+        body.aiEnabled ?? body.ai_enabled ?? false,
+        JSON.stringify(body.aiFeatures || body.ai_features || {}),
+      ],
     );
     const institute = instRows[0];
 

@@ -27,8 +27,11 @@ export class SchoolAdminUsersController {
     let where = `WHERE u.role IN ('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'PARENT')`;
     const params: any[] = [];
 
-    if (user.role === 'INSTITUTE_ADMIN') {
-      params.push(user.instituteId);
+    const userRole = String(user.role || '').toUpperCase();
+    const userInstituteId = user.instituteId || user.institute_id || null;
+
+    if (userRole === 'INSTITUTE_ADMIN' || (userRole === 'SUPER_ADMIN' && userInstituteId)) {
+      params.push(userInstituteId);
       where += ` AND u.institute_id = $${params.length}`;
     } else if (instituteId && instituteId !== 'ALL') {
       params.push(instituteId);
