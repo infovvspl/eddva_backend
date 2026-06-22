@@ -13,6 +13,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Audit } from '../audit-log/audit.decorator';
 import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadedFile, UseInterceptors } from '@nestjs/common';
@@ -92,6 +93,7 @@ export class AuthController {
   // ── Password Flow (for institute-created accounts) ─────────────────────
 
   @Post('login')
+  @Audit({ module: 'Security', action: 'Login', description: 'User logged in: {body.email}' })
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with phone + password (institute accounts)' })
@@ -147,6 +149,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Audit({ module: 'Security', action: 'Password Reset', description: 'Reset password' })
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset password using token' })
@@ -175,6 +178,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @Audit({ module: 'Security', action: 'Logout', description: 'User logged out' })
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout and invalidate refresh token' })
@@ -199,6 +203,7 @@ export class AuthController {
   }
 
   @Patch('profile')
+  @Audit({ module: 'Users', action: 'Admin Edit', description: 'Updated profile: {body.fullName}' })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update profile (name, email, FCM token)' })
   updateProfile(
@@ -211,6 +216,7 @@ export class AuthController {
   // ── Teacher Management (Institute Admin) ─────────────────────────────────
 
   @Post('teachers')
+  @Audit({ module: 'Users', action: 'Teacher Create', description: 'Created teacher account for {body.fullName}' })
   @ApiBearerAuth()
   @Roles(UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Create a teacher account (institute admin only)' })
@@ -222,6 +228,7 @@ export class AuthController {
   }
 
   @Post('teachers/bulk')
+  @Audit({ module: 'Users', action: 'Teacher Create', description: 'Bulk created teacher accounts' })
   @ApiBearerAuth()
   @Roles(UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Bulk create teachers from CSV data' })
@@ -254,6 +261,7 @@ export class AuthController {
   // ── Onboarding ────────────────────────────────────────────────────────────
 
   @Post('onboard')
+  @Audit({ module: 'Users', action: 'Student Edit', description: 'Student completed onboarding' })
   @ApiBearerAuth()
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Complete student onboarding — exam, class, goals' })
@@ -268,6 +276,7 @@ export class AuthController {
   // ── Teacher Onboarding ────────────────────────────────────────────────────
 
   @Post('teacher/onboard')
+  @Audit({ module: 'Users', action: 'Teacher Edit', description: 'Teacher completed onboarding' })
   @ApiBearerAuth()
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Complete teacher onboarding — profile, qualifications, expertise' })
@@ -280,6 +289,7 @@ export class AuthController {
   }
 
   @Post('teacher/onboard/skip')
+  @Audit({ module: 'Users', action: 'Teacher Edit', description: 'Teacher skipped onboarding' })
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
