@@ -28,12 +28,15 @@ import { StudyMaterialModule } from '../study-material/study-material.module';
 import { AiUsageModule } from '../ai-usage/ai-usage.module';
 import { InternalModule } from '../internal/internal.module';
 
+import { SchoolComplaintModule } from '../school/complaint/school-complaint.module';
+
 @Module({
   imports: [
     NotificationModule,
     StudyMaterialModule,
     AiUsageModule,
     InternalModule,
+    SchoolComplaintModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

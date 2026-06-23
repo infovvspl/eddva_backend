@@ -39,6 +39,9 @@ export class AuditLogInterceptor implements NestInterceptor {
         ? ipAddress.split(',')[0].trim()
         : ipAddress;
 
+    const isCoaching = request.url?.startsWith('/super-admin') || request.url?.startsWith('/admin');
+    const connection = isCoaching ? 'coaching' : 'school';
+
     return next.handle().pipe(
       tap((response) => {
         // Successful execution
@@ -69,6 +72,7 @@ export class AuditLogInterceptor implements NestInterceptor {
           formattedIp,
           'Success',
           instituteId,
+          connection,
         ).catch(() => {});
       }),
       catchError((err) => {
@@ -92,6 +96,7 @@ export class AuditLogInterceptor implements NestInterceptor {
           formattedIp,
           'Failure',
           instituteId,
+          connection,
         ).catch(() => {});
 
         return throwError(() => err);
