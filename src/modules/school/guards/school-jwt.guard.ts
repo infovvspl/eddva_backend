@@ -79,6 +79,7 @@ export class SchoolJwtGuard implements CanActivate {
     const userId = decoded.id || decoded.sub;
     const userRole = decoded.role;
     const tokenInstituteId = decoded.instituteId || decoded.institute_id || decoded.tenantId || null;
+    const sessionId = decoded.sessionId || decoded.session_id || null;
 
     if (userId === 'demo-super-admin' || (!userId && userRole?.toUpperCase() === 'SUPER_ADMIN')) {
       req.user = {
