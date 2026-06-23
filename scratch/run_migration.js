@@ -45,6 +45,24 @@ async function run() {
     console.log('details column already exists in activity_logs.');
   }
 
+  // Add updated_at column to grievances if it doesn't exist
+  console.log('Checking updated_at column in grievances...');
+  const checkGrievanceCol = await client.query(`
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name = 'grievances' AND column_name = 'updated_at';
+  `);
+
+  if (checkGrievanceCol.rows.length === 0) {
+    console.log('Adding updated_at column to grievances...');
+    await client.query(`
+      ALTER TABLE grievances ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+    `);
+    console.log('updated_at column added to grievances.');
+  } else {
+    console.log('updated_at column already exists in grievances.');
+  }
+
   console.log('Migration finished successfully!');
   await client.end();
 }
