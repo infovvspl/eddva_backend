@@ -492,27 +492,44 @@ export class SchoolParentService {
     return rows;
   }
 
-  async getGrievances(user: any) {
+  async getGrievances(user: any, query: any = {}) {
     const parent = await this.loadParent(user);
     try {
+      const params: any[] = [parent.id];
+      let filter = `raised_by = $1`;
+
+      if (query.search) {
+        const searchTerms = String(query.search).trim().split(' ').filter(Boolean).map((term: string) => `%${term.replace(/^#/, '').toLowerCase()}%`);
+        if (searchTerms.length > 0) {
+          const searchConditions = searchTerms.map((term: string) => {
+            params.push(term);
+            return `(LOWER(title) LIKE $${params.length} OR LOWER(description) LIKE $${params.length} OR LOWER(category) LIKE $${params.length} OR LOWER(CONCAT('USR-', SUBSTRING(REPLACE(id::text, '-', '') FROM 1 FOR 8))) LIKE $${params.length})`;
+          });
+          filter += ` AND (${searchConditions.join(' AND ')})`;
+        }
+      }
+
       const rows: any[] = await this.ds.query(
-        `SELECT * FROM grievances WHERE raised_by = $1 ORDER BY created_at DESC`,
-        [parent.id],
+        `SELECT * FROM grievances WHERE ${filter} ORDER BY updated_at DESC NULLS LAST, created_at DESC`,
+        params,
       );
 
       const formatStatus = (s: string) => {
         if (!s) return 'Open';
         const st = s.toUpperCase();
         if (st === 'IN_REVIEW' || st === 'IN REVIEW') return 'In Review';
+        if (st === 'REOPENED') return 'Reopened';
         if (st === 'RESOLVED') return 'Resolved';
         return 'Open';
       };
 
       return rows.map((r) => ({
-        ticketNumber: String(r.id).substring(0, 6).toUpperCase(),
+        id: r.id,
+        ticketNumber: `USR-${String(r.id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`,
         type: r.category || 'Other',
         subject: r.title || 'Grievance',
         description: r.description || '',
+        rawStatus: r.status || 'OPEN',
         status: formatStatus(r.status),
         date: r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Unknown Date',
         adminResponse: r.admin_response || r.adminResponse || null,
@@ -539,16 +556,33 @@ export class SchoolParentService {
       const r = rows[0];
       return {
         ...r,
-        ticketNumber: String(r.id).substring(0, 6).toUpperCase()
+        ticketNumber: `USR-${String(r.id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`
       };
     } catch {
       throw new NotFoundException('Grievance submission is not available for this institute yet');
     }
   }
 
+  async reopenGrievance(user: any, id: string) {
+    const parent = await this.loadParent(user);
+    const rows: any[] = await this.ds.query(
+      `UPDATE grievances SET status = 'REOPENED', updated_at = NOW() WHERE id = $1 AND raised_by = $2 RETURNING *`,
+      [id, parent.id],
+    );
+    if (!rows.length) throw new NotFoundException('Grievance not found');
+    const r = rows[0];
+    return {
+      ...r,
+      ticketNumber: `USR-${String(r.id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+      rawStatus: r.status || 'OPEN',
+      status: this.formatGrievanceStatus(r.status),
+    };
+  }
+
   private formatGrievanceStatus(status?: string | null) {
     const normalized = String(status || 'OPEN').toUpperCase();
     if (normalized === 'IN_PROGRESS') return 'In Review';
+    if (normalized === 'REOPENED') return 'Reopened';
     if (normalized === 'RESOLVED') return 'Resolved';
     if (normalized === 'CLOSED') return 'Closed';
     return 'Open';

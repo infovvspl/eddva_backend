@@ -3,6 +3,7 @@ import { SchoolChatService } from './school-chat.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
+import { Audit } from '../../audit-log/audit.decorator';
 
 @Controller('school/chat')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
@@ -19,7 +20,10 @@ export class SchoolChatController {
   @Post('rooms/:id/join') joinRoom(@Param('id') id: string, @SchoolUser() user: any) { return this.svc.joinRoom(id, user.id); }
   @Get('rooms/:id/messages') getMessages(@Param('id') id: string) { return this.svc.getMessages(id); }
   @Get('directory') getParentDirectory(@SchoolUser() user: any) { return this.svc.getParentDirectory(user); }
-  @Post('messages') sendMessage(@SchoolUser() user: any, @Body() body: any) { return this.svc.sendMessage(user, body); }
+
+  @Post('messages')
+  @Audit({ module: 'Communication', action: 'Message Sent', description: 'Sent chat message to peer' })
+  sendMessage(@SchoolUser() user: any, @Body() body: any) { return this.svc.sendMessage(user, body); }
   @Patch('messages/:messageId/edit') editMessage(@SchoolUser() user: any, @Param('messageId') messageId: string, @Body('content') content: string) { return this.svc.editMessage(user.id, messageId, content); }
   @Delete('messages/:messageId') deleteMessage(@SchoolUser() user: any, @Param('messageId') messageId: string) { return this.svc.deleteMessage(user.id, messageId); }
 }

@@ -4,14 +4,18 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { Audit } from '../../audit-log/audit.decorator';
 
 @Controller('school/teachers')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolTeacherController {
-  constructor(private readonly svc: SchoolTeacherService) {}
+  constructor(private readonly svc: SchoolTeacherService) { }
 
   @Post('bulk-import') bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
-  @Post() create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
+
+  @Post()
+  @Audit({ module: 'Users', action: 'Teacher Create', description: 'Created teacher {body.name}' })
+  create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
   @Get('stats') stats(@SchoolUser() user: any, @Query() query: any) { return this.svc.getStats(user, query); }
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
 
@@ -42,7 +46,13 @@ export class SchoolTeacherController {
   ) { return this.svc.analyzeTeacherRecording(user, teacherId, recordingId, query); }
   // ──────────────────────────────────────────────────────────────────────────
 
-  @Get(':id') findOne(@Param('id', ParseUUIDPipe) id: string) { return this.svc.findOne(id); }
-  @Put(':id') update(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) { return this.svc.update(user, id, body); }
-  @Delete(':id') remove(@Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(id); }
+  @Get(':id') findOne(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.findOne(user, id); }
+
+  @Put(':id')
+  @Audit({ module: 'Users', action: 'Teacher Edit', description: 'Updated teacher ID {params.id}' })
+  update(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) { return this.svc.update(user, id, body); }
+
+  @Delete(':id')
+  @Audit({ module: 'Users', action: 'Teacher Delete', description: 'Deleted teacher ID {params.id}' })
+  remove(@Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(id); }
 }

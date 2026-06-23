@@ -266,7 +266,9 @@ export class SchoolDashboardService {
       topInstRows,
       monthlyInstRows,
       monthlyUserRows,
+      monthlyRevenueRows,
       schoolAiSessionsRes,
+      aiHourlyRows,
       schoolMaterialsRes,
       securityAlertsRow,
     ] = await Promise.all([
@@ -307,29 +309,80 @@ export class SchoolDashboardService {
       `),
       // Monthly institute registrations (last 6 months)
       this.ds.query(`
-        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'Mon') AS name,
-               COUNT(*)::int AS institutes,
-               COUNT(*) FILTER (WHERE status = 'ACTIVE')::int AS approved
-        FROM institutes
-        WHERE created_at >= NOW() - INTERVAL '6 months'
-        GROUP BY DATE_TRUNC('month', created_at)
-        ORDER BY DATE_TRUNC('month', created_at)
+        WITH months AS (
+          SELECT generate_series(
+            DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
+            DATE_TRUNC('month', NOW()),
+            INTERVAL '1 month'
+          ) AS month_start
+        )
+        SELECT TO_CHAR(m.month_start, 'Mon') AS name,
+               COALESCE(COUNT(i.id), 0)::int AS institutes,
+               COALESCE(COUNT(i.id) FILTER (WHERE i.status = 'ACTIVE'), 0)::int AS approved
+        FROM months m
+        LEFT JOIN institutes i
+          ON DATE_TRUNC('month', i.created_at) = m.month_start
+        GROUP BY m.month_start
+        ORDER BY m.month_start
       `),
       // Monthly user registrations (last 6 months)
       this.ds.query(`
-        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'Mon') AS name,
-               COUNT(*)::int AS users,
-               COUNT(*) FILTER (WHERE is_active = TRUE)::int AS active
-        FROM users
-        WHERE created_at >= NOW() - INTERVAL '6 months'
-          AND role IN ('INSTITUTE_ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
-          AND institute_id IN (SELECT id FROM institutes)
-        GROUP BY DATE_TRUNC('month', created_at)
-        ORDER BY DATE_TRUNC('month', created_at)
+        WITH months AS (
+          SELECT generate_series(
+            DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
+            DATE_TRUNC('month', NOW()),
+            INTERVAL '1 month'
+          ) AS month_start
+        )
+        SELECT TO_CHAR(m.month_start, 'Mon') AS name,
+               COALESCE(COUNT(u.id), 0)::int AS users,
+               COALESCE(COUNT(u.id) FILTER (WHERE u.is_active = TRUE), 0)::int AS active
+        FROM months m
+        LEFT JOIN users u
+          ON DATE_TRUNC('month', u.created_at) = m.month_start
+         AND u.role IN ('INSTITUTE_ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+         AND u.institute_id IN (SELECT id FROM institutes)
+        GROUP BY m.month_start
+        ORDER BY m.month_start
+      `),
+      // Monthly fee billing / collection trend (last 6 months)
+      this.ds.query(`
+        WITH months AS (
+          SELECT generate_series(
+            DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
+            DATE_TRUNC('month', NOW()),
+            INTERVAL '1 month'
+          ) AS month_start
+        )
+        SELECT TO_CHAR(m.month_start, 'Mon') AS name,
+               COALESCE(SUM(f.amount), 0)::numeric AS billed,
+               COALESCE(SUM(f.amount) FILTER (WHERE UPPER(f.status::text) IN ('PAID', 'COMPLETED', 'RECEIVED')), 0)::numeric AS revenue
+        FROM months m
+        LEFT JOIN fees f
+          ON DATE_TRUNC('month', f.created_at) = m.month_start
+        GROUP BY m.month_start
+        ORDER BY m.month_start
       `),
       // School AI Sessions (school DB)
       this.ds.query(`
         SELECT COUNT(*)::int AS c FROM school_ai_study_sessions WHERE created_at >= CURRENT_DATE
+      `),
+      // Hourly AI usage from actual school AI study sessions today
+      this.ds.query(`
+        WITH hours AS (
+          SELECT generate_series(
+            DATE_TRUNC('day', NOW()),
+            DATE_TRUNC('day', NOW()) + INTERVAL '23 hours',
+            INTERVAL '1 hour'
+          ) AS hour_start
+        )
+        SELECT TO_CHAR(h.hour_start, 'HH24:00') AS time,
+               COALESCE(COUNT(s.id), 0)::int AS sessions
+        FROM hours h
+        LEFT JOIN school_ai_study_sessions s
+          ON DATE_TRUNC('hour', s.created_at) = h.hour_start
+        GROUP BY h.hour_start
+        ORDER BY h.hour_start
       `),
       // School DB Storage
       this.ds.query(`
@@ -351,27 +404,11 @@ export class SchoolDashboardService {
     // Otherwise, calculate dynamic requests based on sessions count (e.g., 15 per session + 8 baseline).
     const aiRequestsToday = aiSessionsCount > 0 ? aiSessionsCount * 15 + 8 : 0;
 
-    // Generate a premium bell-curve hourly trend dynamically based on the day's total (only if used today)
-    const aiUsageTrend = [];
-    for (let i = 0; i < 24; i++) {
-      const hh = String(i).padStart(2, '0') + ':00';
-      let usage = 0;
-      if (aiRequestsToday > 0) {
-        let factor = 0;
-        if (i >= 8 && i <= 17) {
-          factor = Math.sin(((i - 8) / 9) * Math.PI); // Peak around 12:30 PM
-        } else if (i > 17 && i <= 22) {
-          factor = Math.sin(((i - 17) / 5) * Math.PI) * 0.4; // Smaller evening peak
-        } else {
-          factor = 0.05; // Base night usage
-        }
-        usage = Math.max(0, Math.round(aiRequestsToday * factor * 0.3 + (i % 2 === 0 ? 1 : 0)));
-      }
-      aiUsageTrend.push({
-        time: hh,
-        usage,
-      });
-    }
+    const aiUsageTrend = aiHourlyRows.map((row: any) => ({
+      time: row.time,
+      usage: Number(row.sessions || 0) * 15,
+      sessions: Number(row.sessions || 0),
+    }));
 
     // Storage: Sum school database and convert to bytes, adding a baseline representing untracked files
     const schoolKb = Number(schoolMaterialsRes[0]?.total || 0);
@@ -412,6 +449,13 @@ export class SchoolDashboardService {
       systemHealth = 0.0;
     }
 
+    const revenueTrend = monthlyRevenueRows.map((row: any) => ({
+      name: row.name,
+      billed: Number(row.billed || 0),
+      revenue: Number(row.revenue || 0),
+    }));
+    const monthlyRevenue = revenueTrend[revenueTrend.length - 1]?.revenue || 0;
+
     return {
       totalInstitutes: totalInstRow[0].c,
       pendingApprovals: pendingRow[0].c,
@@ -424,7 +468,7 @@ export class SchoolDashboardService {
       // Chart data
       userGrowth: monthlyUserRows,
       instituteGrowth: monthlyInstRows,
-      revenueTrend: [],
+      revenueTrend,
       aiUsageTrend,
       // Tables
       recentInstitutes: recentInstitutesRows,
@@ -432,7 +476,7 @@ export class SchoolDashboardService {
       topInstitutes: topInstRows,
       // Misc (UI placeholders)
       activeUsers: activeUsersCount,
-      monthlyRevenue: 0,
+      monthlyRevenue,
       systemHealth,
       aiRequestsToday,
       storageUsageBytes,

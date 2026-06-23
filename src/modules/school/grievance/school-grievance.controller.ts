@@ -13,6 +13,8 @@ export class SchoolGrievanceController {
 
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
   @Post() create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
+  @Get(':id/messages') listMessages(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.listMessages(user, id); }
+  @Post(':id/messages') createMessage(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) { return this.svc.createMessage(user, id, body); }
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(id); }
   @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
   @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(id); }
