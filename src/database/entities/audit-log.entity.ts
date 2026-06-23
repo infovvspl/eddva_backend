@@ -32,6 +32,9 @@ export class AuditLog {
   @Column({ type: 'varchar', length: 20 })
   status: string;
 
+  @Column({ type: 'varchar', length: 20, default: 'school' })
+  vertical: string;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 }

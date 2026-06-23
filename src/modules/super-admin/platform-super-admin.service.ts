@@ -8,7 +8,7 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, Repository, Not } from 'typeorm';
 
 import { Tenant, TenantPlan, TenantStatus, TenantType } from '../../database/entities/tenant.entity';
 import { User, UserRole, UserStatus } from '../../database/entities/user.entity';
@@ -85,13 +85,23 @@ export class PlatformSuperAdminService {
       expiringPlans,
       planBreakdownRows,
     ] = await Promise.all([
-      this.tenantRepo.count({ where: { deletedAt: null as any } }),
-      this.tenantRepo.count({ where: { status: TenantStatus.ACTIVE, deletedAt: null as any } }),
-      this.tenantRepo.count({ where: { isSuspended: true, deletedAt: null as any } }),
-      this.studentRepo.count(),
-      this.userRepo.count({ where: { role: UserRole.TEACHER } }),
+      this.tenantRepo.count({ where: { type: Not(TenantType.PLATFORM), deletedAt: null as any } }),
+      this.tenantRepo.count({ where: { status: TenantStatus.ACTIVE, type: Not(TenantType.PLATFORM), deletedAt: null as any } }),
+      this.tenantRepo.count({ where: { isSuspended: true, type: Not(TenantType.PLATFORM), deletedAt: null as any } }),
+      this.dataSource.query(
+        `SELECT COUNT(DISTINCT s.id)::int AS count
+         FROM students s
+         LEFT JOIN tenants t ON t.id = s.tenant_id
+         WHERE s.deleted_at IS NULL AND (t.type != 'platform' OR t.id IS NULL)`
+      ).then(res => res[0]?.count || 0),
+      this.userRepo
+        .createQueryBuilder('u')
+        .leftJoin('u.tenant', 't')
+        .where('u.role = :role', { role: UserRole.TEACHER })
+        .andWhere('(t.type != :platformType OR u.tenant_id IS NULL)', { platformType: TenantType.PLATFORM })
+        .getCount(),
       this.tenantRepo.find({
-        where: { deletedAt: null as any },
+        where: { type: Not(TenantType.PLATFORM), deletedAt: null as any },
         order: { createdAt: 'DESC' },
         take: 5,
       }),
@@ -100,13 +110,14 @@ export class PlatformSuperAdminService {
         .where('t.planExpiresAt <= :limit', { limit: thirtyDaysLater })
         .andWhere('t.planExpiresAt >= :now', { now })
         .andWhere('t.deletedAt IS NULL')
+        .andWhere('t.type != :platformType', { platformType: TenantType.PLATFORM })
         .orderBy('t.planExpiresAt', 'ASC')
         .take(10)
         .getMany(),
       this.dataSource.query(`
         SELECT plan, COUNT(*)::int AS count
         FROM tenants
-        WHERE deleted_at IS NULL
+        WHERE deleted_at IS NULL AND type != 'platform'
         GROUP BY plan
       `),
     ]);
@@ -166,7 +177,8 @@ export class PlatformSuperAdminService {
 
     const qb = this.tenantRepo
       .createQueryBuilder('t')
-      .where('t.deletedAt IS NULL');
+      .where('t.deletedAt IS NULL')
+      .andWhere('t.type != :platformType', { platformType: TenantType.PLATFORM });
 
     if (query.status) qb.andWhere('t.status = :status', { status: query.status });
     if (query.plan)   qb.andWhere('t.plan = :plan',     { plan: query.plan });
@@ -177,19 +189,75 @@ export class PlatformSuperAdminService {
     qb.orderBy('t.createdAt', 'DESC').skip(skip).take(limit);
     const [tenants, total] = await qb.getManyAndCount();
 
-    const items = await Promise.all(
-      tenants.map(async (t) => {
-        const [studentCount, teacherCount] = await Promise.all([
-          this.studentRepo.count({ where: { tenantId: t.id } }),
-          this.userRepo.count({ where: { tenantId: t.id, role: UserRole.TEACHER } }),
-        ]);
-        return { ...t, studentCount, teacherCount };
-      }),
-    );
+    // Batch all counts and admin users in queries
+    const tenantIds = tenants.map((t) => t.id);
+    const [studentCounts, teacherCounts, adminUsers, activeCount, trialCount, suspendedCount, totalStudentsCount] = await Promise.all([
+      tenantIds.length
+        ? this.dataSource.query(
+            `SELECT t.id AS "tenantId", COUNT(DISTINCT s.id)::int AS cnt
+             FROM tenants t
+             LEFT JOIN students s ON (
+               (s.tenant_id = t.id OR s.id IN (SELECT student_id FROM enrollments WHERE tenant_id = t.id AND deleted_at IS NULL))
+               AND s.deleted_at IS NULL
+             )
+             WHERE t.id IN (${tenantIds.map((_, idx) => `$${idx + 1}`).join(', ')}) AND t.deleted_at IS NULL
+             GROUP BY t.id`,
+            tenantIds
+          )
+        : [],
+      tenantIds.length
+        ? this.userRepo
+            .createQueryBuilder('u')
+            .select('u.tenantId', 'tenantId')
+            .addSelect('COUNT(*)', 'cnt')
+            .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.TEACHER })
+            .groupBy('u.tenantId')
+            .getRawMany()
+        : [],
+      tenantIds.length
+        ? this.userRepo
+            .createQueryBuilder('u')
+            .select(['u.id', 'u.tenantId', 'u.email', 'u.phoneNumber', 'u.fullName'])
+            .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.INSTITUTE_ADMIN })
+            .getMany()
+        : [],
+      this.tenantRepo.count({ where: { status: TenantStatus.ACTIVE, type: Not(TenantType.PLATFORM) } }),
+      this.tenantRepo.count({ where: { status: TenantStatus.TRIAL, type: Not(TenantType.PLATFORM) } }),
+      this.tenantRepo.count({ where: { status: TenantStatus.SUSPENDED, type: Not(TenantType.PLATFORM) } }),
+      this.dataSource.query(
+        `SELECT COUNT(DISTINCT s.id)::int AS count
+         FROM students s
+         LEFT JOIN tenants t ON t.id = s.tenant_id
+         WHERE s.deleted_at IS NULL AND (t.type != 'platform' OR t.id IS NULL)`
+      ).then(res => res[0]?.count || 0),
+    ]);
+
+    const scMap = Object.fromEntries(studentCounts.map((r: any) => [r.tenantId, Number(r.cnt)]));
+    const tcMap = Object.fromEntries(teacherCounts.map((r: any) => [r.tenantId, Number(r.cnt)]));
+    const adminMap = Object.fromEntries(adminUsers.map((u: any) => [u.tenantId, u]));
+
+    const items = tenants.map((t) => {
+      const admin = adminMap[t.id];
+      return {
+        ...t,
+        studentCount: scMap[t.id] ?? 0,
+        teacherCount: tcMap[t.id] ?? 0,
+        adminEmail: admin?.email || null,
+        adminPhone: admin?.phoneNumber || null,
+        adminName: admin?.fullName || null,
+      };
+    });
 
     return {
       items,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      stats: {
+        total,
+        active: activeCount,
+        trial: trialCount,
+        suspended: suspendedCount,
+        students: totalStudentsCount,
+      },
     };
   }
 

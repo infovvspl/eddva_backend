@@ -21,7 +21,7 @@ export class SchoolActivityLogController {
     return this.auditLogService.findAll({
       ...query,
       instituteId: instituteId || undefined,
-    });
+    }, 'school');
   }
 
   @Post() createLog(@SchoolUser() user: any, @Body() body: any) { return this.svc.createLog(user, body); }

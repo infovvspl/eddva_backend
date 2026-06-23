@@ -39,7 +39,12 @@ export class AuditLogInterceptor implements NestInterceptor {
         ? ipAddress.split(',')[0].trim()
         : ipAddress;
 
-    const isCoaching = request.url?.startsWith('/super-admin') || request.url?.startsWith('/admin');
+    // Strip the global API prefix (e.g. /api/v1/) before matching route patterns
+    const rawUrl: string = request.url || '';
+    const routePath = rawUrl.replace(/^\/api\/v\d+\//, '').replace(/^\//, '');
+    // School routes start with 'school/' — all other routes belong to the coaching vertical
+    const isSchool = routePath.startsWith('school/');
+    const isCoaching = !isSchool && (routePath.startsWith('super-admin') || routePath.startsWith('admin') || routePath.startsWith('auth') || routePath.startsWith('tenants'));
     const connection = isCoaching ? 'coaching' : 'school';
 
     return next.handle().pipe(
