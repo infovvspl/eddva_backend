@@ -321,7 +321,7 @@ export class LiveClassGateway
         throw new Error('Socket is not joined to a live class');
       }
 
-      await this.liveClassService.respondToPoll(data.pollId, meta.userId, data.selectedOption);
+      await this.liveClassService.respondToPoll(data.pollId, meta.userId, data.selectedOption, meta.tenantId);
       this.server.to(data.sessionId).emit('live:poll-results-update', {
         pollId: data.pollId,
         results: await this.liveClassService.getPollResultsForBroadcast(data.pollId),

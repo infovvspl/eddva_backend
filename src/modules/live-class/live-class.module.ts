@@ -16,6 +16,7 @@ import { Student } from '../../database/entities/student.entity';
 import { User } from '../../database/entities/user.entity';
 import { ContentModule } from '../content/content.module';
 import { NotificationModule } from '../notification/notification.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 import { AgoraService } from './agora.service';
 import { BroadcastRelayGateway } from './broadcast-relay.gateway';
@@ -40,6 +41,7 @@ import { LiveClassService } from './live-class.service';
     ], 'coaching'),
     NotificationModule,
     ContentModule,
+    AuditLogModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

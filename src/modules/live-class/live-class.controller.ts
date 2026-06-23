@@ -23,6 +23,8 @@ import {
   CreatePollDto,
   GetTokenDto,
   PollRespondDto,
+  LiveClassesQueryDto,
+  RecordedClassesQueryDto,
 } from './dto/live-class.dto';
 import { LiveClassGateway } from './live-class.gateway';
 import { LiveClassService } from './live-class.service';
@@ -35,7 +37,7 @@ export class LiveClassController {
   constructor(
     private readonly liveClassService: LiveClassService,
     private readonly liveClassGateway: LiveClassGateway,
-  ) {}
+  ) { }
 
   @Post('token')
   @Roles(UserRole.TEACHER, UserRole.STUDENT, UserRole.INSTITUTE_ADMIN)
@@ -49,6 +51,38 @@ export class LiveClassController {
     }
 
     return this.liveClassService.getToken(dto.lectureId, user.id, tenantId, user.role);
+  }
+
+  @Get('running')
+  @Roles(UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Get currently running live classes for the institute' })
+  getRunningClasses(@TenantId() tenantId: string, @Query() query: LiveClassesQueryDto) {
+    return this.liveClassService.getRunningClasses(tenantId, query.page, query.limit);
+  }
+
+  @Get('upcoming')
+  @Roles(UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Get scheduled upcoming live classes for the institute' })
+  getUpcomingClasses(@TenantId() tenantId: string, @Query() query: LiveClassesQueryDto) {
+    return this.liveClassService.getUpcomingClasses(tenantId, query.page, query.limit);
+  }
+
+  @Get('completed')
+  @Roles(UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Get completed live classes for the institute' })
+  getCompletedClasses(@TenantId() tenantId: string, @Query() query: LiveClassesQueryDto) {
+    return this.liveClassService.getCompletedClasses(tenantId, query.page, query.limit);
+  }
+
+  @Get('recordings')
+  @Roles(UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Get recorded live classes' })
+  getRecordings(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: any,
+    @Query() query: RecordedClassesQueryDto,
+  ) {
+    return this.liveClassService.getRecordings(tenantId, user.id, user.role, query);
   }
 
   @Post(':lectureId/start')
@@ -97,8 +131,8 @@ export class LiveClassController {
   @Get(':lectureId/session')
   @Roles(UserRole.TEACHER, UserRole.STUDENT, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Get current session information' })
-  getSession(@Param('lectureId', ParseUUIDPipe) lectureId: string, @TenantId() tenantId: string) {
-    return this.liveClassService.getSession(lectureId, tenantId);
+  getSession(@Param('lectureId', ParseUUIDPipe) lectureId: string, @TenantId() tenantId: string, @CurrentUser() user: any) {
+    return this.liveClassService.getSession(lectureId, tenantId, user?.id, user?.role);
   }
 
   @Get(':lectureId/attendance')
@@ -129,7 +163,7 @@ export class LiveClassController {
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
   ) {
-    const poll = await this.liveClassService.createPoll(liveSessionId, user.id, dto, tenantId);
+    const poll = await this.liveClassService.createPoll(liveSessionId, user.id, dto, tenantId, user.role);
     this.liveClassGateway.broadcastNewPoll(liveSessionId, poll as any);
     return poll;
   }
@@ -142,7 +176,7 @@ export class LiveClassController {
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
   ) {
-    const poll = await this.liveClassService.closePoll(pollId, user.id, tenantId);
+    const poll = await this.liveClassService.closePoll(pollId, user.id, tenantId, user.role);
     this.liveClassGateway.broadcastPollClosed(
       poll.liveSessionId,
       poll.id,
@@ -159,8 +193,9 @@ export class LiveClassController {
     @Param('pollId', ParseUUIDPipe) pollId: string,
     @Body() dto: PollRespondDto,
     @CurrentUser() user: any,
+    @TenantId() tenantId: string,
   ) {
-    return this.liveClassService.respondToPoll(pollId, user.id, dto.selectedOption);
+    return this.liveClassService.respondToPoll(pollId, user.id, dto.selectedOption, tenantId);
   }
 
   @Get(':liveSessionId/polls')
@@ -188,7 +223,7 @@ export class LiveClassController {
     @CurrentUser() user: any,
     @TenantId() tenantId: string,
   ) {
-    const message = await this.liveClassService.pinMessage(messageId, user.id, tenantId);
+    const message = await this.liveClassService.pinMessage(messageId, user.id, tenantId, user.role);
     this.liveClassGateway.broadcastPinnedMessage(liveSessionId, message);
     return message;
   }

@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   ForbiddenException,
   Inject,
@@ -26,10 +26,11 @@ import { Student } from '../../database/entities/student.entity';
 import { User, UserRole } from '../../database/entities/user.entity';
 import { NotificationService } from '../notification/notification.service';
 import { ContentService } from '../content/content.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 import { AgoraService } from './agora.service';
 import { BunnyStreamService } from './bunny-stream.service';
-import { CreatePollDto } from './dto/live-class.dto';
+import { CreatePollDto, RecordedClassesQueryDto } from './dto/live-class.dto';
 
 @Injectable()
 export class LiveClassService {
@@ -63,15 +64,15 @@ export class LiveClassService {
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async getToken(lectureId: string, userId: string, tenantId: string, userRole: UserRole) {
-    // Look up by ID only â€” student tenantId may differ from lecture tenantId
     const lecture = await this.lectureRepo.findOne({
-      where: { id: lectureId },
+      where: { id: lectureId, tenantId },
       relations: ['topic'],
     });
-    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (!lecture) throw new NotFoundException('Lecture not found or you do not have access to it');
 
     if (lecture.type !== LectureType.LIVE) {
       throw new BadRequestException('Not a live lecture');
@@ -81,6 +82,14 @@ export class LiveClassService {
     }
 
     const session = await this.findOrCreateSession(lecture);
+
+    if (userRole === UserRole.INSTITUTE_ADMIN) {
+      try {
+        await this.auditLogService.log(userId, null, 'Institute Admin', 'Live Classes', 'Admin Joined Class', `Admin joined live session for lecture ${lectureId}`, null, 'Success', tenantId);
+      } catch (e) {
+        this.logger.error(`Audit logging failed: ${e.message}`);
+      }
+    }
 
     // â”€â”€ Bunny mode: return HLS URL (audience) or RTMP credentials (host) â”€â”€â”€â”€â”€â”€
     if (session.streamType === 'bunny') {
@@ -157,6 +166,16 @@ export class LiveClassService {
     let lecture = await this.getOwnedLiveLecture(lectureId, teacherId, tenantId, userRole);
     if (![LectureStatus.SCHEDULED, LectureStatus.DRAFT].includes(lecture.status)) {
       throw new BadRequestException('Class can only be started from scheduled or draft state');
+    }
+
+    try {
+      if (userRole === UserRole.INSTITUTE_ADMIN) {
+        await this.auditLogService.log(teacherId, null, 'Institute Admin', 'Live Classes', 'Admin Started Class', `Admin started live class for lecture ${lectureId}`, null, 'Success', tenantId);
+      } else {
+        await this.auditLogService.log(teacherId, null, 'Teacher', 'Live Classes', 'Teacher Started Class', `Teacher started live class for lecture ${lectureId}`, null, 'Success', tenantId);
+      }
+    } catch (e) {
+      this.logger.error(`Audit logging failed: ${e.message}`);
     }
 
     const session = await this.findOrCreateSession(lecture, streamType);
@@ -255,6 +274,16 @@ export class LiveClassService {
 
     if (session.status !== LiveSessionStatus.LIVE) {
       throw new BadRequestException('Only a live class can be ended');
+    }
+
+    try {
+      if (userRole === UserRole.INSTITUTE_ADMIN) {
+        await this.auditLogService.log(teacherId, null, 'Institute Admin', 'Live Classes', 'Admin Ended Class', `Admin ended live class for lecture ${lectureId}`, null, 'Success', tenantId);
+      } else {
+        await this.auditLogService.log(teacherId, null, 'Teacher', 'Live Classes', 'Teacher Ended Class', `Teacher ended live class for lecture ${lectureId}`, null, 'Success', tenantId);
+      }
+    } catch (e) {
+      this.logger.error(`Audit logging failed: ${e.message}`);
     }
 
     const now = new Date();
@@ -410,7 +439,7 @@ export class LiveClassService {
 
   async getBunnyStreamStatus(lectureId: string, tenantId: string) {
     const session = await this.liveSessionRepo.findOne({
-      where: { lectureId },
+      where: { lectureId, tenantId },
     });
     if (!session) {
       return { isLive: false, hlsUrl: null, viewerCount: 0 };
@@ -428,15 +457,20 @@ export class LiveClassService {
     };
   }
 
-  async getSession(lectureId: string, _tenantId: string) {
-    // Look up by lectureId only â€” the caller's tenantId may differ from the lecture's
-    // (e.g. student registered on platform tenant, lecture belongs to institute tenant).
-    // Authorization is enforced later in getToken via enrollment check.
+  async getSession(lectureId: string, tenantId: string, userId?: string, userRole?: UserRole) {
     const lecture = await this.lectureRepo.findOne({
-      where: { id: lectureId },
+      where: { id: lectureId, tenantId },
       relations: ['topic'],
     });
-    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (!lecture) throw new NotFoundException('Lecture not found or you do not have access to it');
+
+    if (userRole === UserRole.INSTITUTE_ADMIN && userId) {
+      try {
+        await this.auditLogService.log(userId, null, 'Institute Admin', 'Live Classes', 'Admin Viewed Session', `Admin viewed live session for lecture ${lectureId}`, null, 'Success', tenantId);
+      } catch (e) {
+        this.logger.error(`Audit logging failed: ${e.message}`);
+      }
+    }
 
     const session = await this.findOrCreateSession(lecture);
     const teacher = await this.userRepo.findOne({ where: { id: lecture.teacherId, tenantId: lecture.tenantId } });
@@ -502,8 +536,8 @@ export class LiveClassService {
     };
   }
 
-  async createPoll(liveSessionId: string, teacherId: string, dto: CreatePollDto, tenantId: string) {
-    await this.getLiveOwnedSession(liveSessionId, teacherId, tenantId);
+  async createPoll(liveSessionId: string, teacherId: string, dto: CreatePollDto, tenantId: string, userRole?: UserRole) {
+    await this.getLiveOwnedSession(liveSessionId, teacherId, tenantId, userRole);
     if (dto.correctOptionIndex !== undefined && dto.correctOptionIndex >= dto.options.length) {
       throw new BadRequestException('correctOptionIndex must reference a valid option');
     }
@@ -521,8 +555,8 @@ export class LiveClassService {
     );
   }
 
-  async closePoll(pollId: string, teacherId: string, tenantId: string) {
-    const poll = await this.getOwnedPoll(pollId, teacherId, tenantId);
+  async closePoll(pollId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
+    const poll = await this.getOwnedPoll(pollId, teacherId, tenantId, userRole);
     if (!poll.isActive) {
       throw new BadRequestException('Poll is already closed');
     }
@@ -537,9 +571,9 @@ export class LiveClassService {
     };
   }
 
-  async respondToPoll(pollId: string, studentId: string, selectedOption: number) {
+  async respondToPoll(pollId: string, studentId: string, selectedOption: number, tenantId: string) {
     const poll = await this.livePollRepo.findOne({
-      where: { id: pollId },
+      where: { id: pollId, tenantId },
       relations: ['liveSession'],
     });
     if (!poll) {
@@ -616,7 +650,7 @@ export class LiveClassService {
     };
   }
 
-  async pinMessage(messageId: string, teacherId: string, tenantId: string) {
+  async pinMessage(messageId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
     const message = await this.liveChatMessageRepo.findOne({
       where: { id: messageId, tenantId },
       relations: ['liveSession', 'liveSession.lecture'],
@@ -624,7 +658,7 @@ export class LiveClassService {
     if (!message) {
       throw new NotFoundException('Chat message not found');
     }
-    if (message.liveSession.lecture.teacherId !== teacherId) {
+    if (userRole !== UserRole.INSTITUTE_ADMIN && message.liveSession.lecture.teacherId !== teacherId) {
       throw new ForbiddenException('Only the lecture teacher can pin messages');
     }
 
@@ -733,9 +767,10 @@ export class LiveClassService {
     }
 
     const canDelete =
-      requesterRole === UserRole.TEACHER
+      requesterRole === UserRole.INSTITUTE_ADMIN ||
+      (requesterRole === UserRole.TEACHER
         ? message.liveSession.lecture.teacherId === requesterId
-        : message.senderId === requesterId;
+        : message.senderId === requesterId);
 
     if (!canDelete) {
       throw new ForbiddenException('You are not allowed to delete this message');
@@ -764,6 +799,206 @@ export class LiveClassService {
     return this.liveAttendanceRepo.count({
       where: { liveSessionId, leftAt: IsNull() },
     });
+  }
+
+  async getRunningClasses(tenantId: string, page: number = 1, limit: number = 20) {
+    const [sessions, total] = await this.liveSessionRepo.findAndCount({
+      where: { tenantId, status: LiveSessionStatus.LIVE },
+      relations: [
+        'lecture',
+        'lecture.batch',
+        'lecture.teacher',
+        'lecture.topic',
+        'lecture.topic.chapter',
+        'lecture.topic.chapter.subject',
+      ],
+      order: { startedAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const sessionIds = sessions.map((s) => s.id);
+    const viewerCounts = new Map<string, number>();
+
+    if (sessionIds.length > 0) {
+      const counts = await this.liveAttendanceRepo
+        .createQueryBuilder('attendance')
+        .select('attendance.liveSessionId', 'sessionId')
+        .addSelect('COUNT(attendance.id)', 'count')
+        .where('attendance.liveSessionId IN (:...sessionIds)', { sessionIds })
+        .andWhere('attendance.leftAt IS NULL')
+        .groupBy('attendance.liveSessionId')
+        .getRawMany();
+
+      counts.forEach((c) => {
+        viewerCounts.set(c.sessionId, parseInt(c.count, 10));
+      });
+    }
+
+    const items = sessions.map((session) => ({
+      lectureId: session.lectureId,
+      classId: session.lecture?.batch?.id || '',
+      className: session.lecture?.batch?.name || '',
+      subjectId: session.lecture?.topic?.chapter?.subject?.id || '',
+      subjectName: session.lecture?.topic?.chapter?.subject?.name || '',
+      teacherId: session.lecture?.teacherId || '',
+      teacherName: session.lecture?.teacher?.fullName || '',
+      startedAt: session.startedAt,
+      studentCount: viewerCounts.get(session.id) || 0,
+      status: 'live' as const,
+    }));
+
+    return { items, total, page, limit };
+  }
+
+  async getUpcomingClasses(tenantId: string, page: number = 1, limit: number = 20) {
+    const [lectures, total] = await this.lectureRepo.findAndCount({
+      where: { tenantId, type: LectureType.LIVE, status: LectureStatus.SCHEDULED },
+      relations: [
+        'batch',
+        'teacher',
+        'topic',
+        'topic.chapter',
+        'topic.chapter.subject',
+      ],
+      order: { scheduledAt: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const items = lectures.map((lecture) => ({
+      lectureId: lecture.id,
+      classId: lecture.batch?.id || '',
+      className: lecture.batch?.name || '',
+      subjectId: lecture.topic?.chapter?.subject?.id || '',
+      subjectName: lecture.topic?.chapter?.subject?.name || '',
+      teacherId: lecture.teacherId || '',
+      teacherName: lecture.teacher?.fullName || '',
+      scheduledAt: lecture.scheduledAt,
+      status: 'scheduled' as const,
+    }));
+
+    return { items, total, page, limit };
+  }
+
+  async getCompletedClasses(tenantId: string, page: number = 1, limit: number = 20) {
+    const [sessions, total] = await this.liveSessionRepo.findAndCount({
+      where: { tenantId, status: LiveSessionStatus.ENDED },
+      relations: [
+        'lecture',
+        'lecture.batch',
+        'lecture.teacher',
+        'lecture.topic',
+        'lecture.topic.chapter',
+        'lecture.topic.chapter.subject',
+      ],
+      order: { endedAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const items = sessions.map((session) => {
+      const durationMs =
+        session.endedAt && session.startedAt
+          ? new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()
+          : 0;
+      return {
+        lectureId: session.lectureId,
+        classId: session.lecture?.batch?.id || '',
+        className: session.lecture?.batch?.name || '',
+        subjectId: session.lecture?.topic?.chapter?.subject?.id || '',
+        subjectName: session.lecture?.topic?.chapter?.subject?.name || '',
+        teacherId: session.lecture?.teacherId || '',
+        teacherName: session.lecture?.teacher?.fullName || '',
+        endedAt: session.endedAt,
+        duration: Math.round(durationMs / 60000), // in minutes
+        status: 'completed' as const,
+      };
+    });
+
+    return { items, total, page, limit };
+  }
+
+  async getRecordings(tenantId: string, userId: string, role: string, query: RecordedClassesQueryDto) {
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      teacherId,
+      classId,
+      subjectId,
+      startDate,
+      endDate,
+    } = query;
+
+    const qb = this.liveSessionRepo
+      .createQueryBuilder('session')
+      .leftJoinAndSelect('session.lecture', 'lecture')
+      .leftJoinAndSelect('lecture.batch', 'batch')
+      .leftJoinAndSelect('lecture.teacher', 'teacher')
+      .leftJoinAndSelect('lecture.topic', 'topic')
+      .leftJoinAndSelect('topic.chapter', 'chapter')
+      .leftJoinAndSelect('chapter.subject', 'subject')
+      .where('session.tenantId = :tenantId', { tenantId })
+      .andWhere('session.recordingUrl IS NOT NULL');
+
+    if (role === UserRole.TEACHER) {
+      qb.andWhere('lecture.teacherId = :userId', { userId });
+    }
+
+    if (teacherId) {
+      qb.andWhere('lecture.teacherId = :teacherId', { teacherId });
+    }
+    if (classId) {
+      qb.andWhere('batch.id = :classId', { classId });
+    }
+    if (subjectId) {
+      qb.andWhere('subject.id = :subjectId', { subjectId });
+    }
+    if (startDate) {
+      qb.andWhere('session.startedAt >= :startDate', { startDate: new Date(startDate) });
+    }
+    if (endDate) {
+      qb.andWhere('session.startedAt <= :endDate', { endDate: new Date(endDate) });
+    }
+    if (search) {
+      qb.andWhere(
+        '(teacher.fullName ILike :search OR batch.name ILike :search OR subject.name ILike :search OR lecture.title ILike :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    qb.orderBy('session.startedAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [sessions, total] = await qb.getManyAndCount();
+
+    const items = sessions.map((session) => {
+      const durationMs =
+        session.endedAt && session.startedAt
+          ? new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()
+          : 0;
+
+      return {
+        recordingId: session.id,
+        title: session.lecture?.title || 'Recorded Class',
+        teacherId: session.lecture?.teacherId || '',
+        teacherName: session.lecture?.teacher?.fullName || '',
+        classId: session.lecture?.batch?.id || '',
+        className: session.lecture?.batch?.name || '',
+        sectionId: '',
+        sectionName: '',
+        subjectId: session.lecture?.topic?.chapter?.subject?.id || '',
+        subjectName: session.lecture?.topic?.chapter?.subject?.name || '',
+        duration: Math.round(durationMs / 60000), // in minutes
+        recordingUrl: session.recordingUrl,
+        thumbnailUrl: session.lecture?.thumbnailUrl || session.lecture?.batch?.thumbnailUrl || undefined,
+        recordedAt: session.startedAt || session.createdAt,
+      };
+    });
+
+    return { items, total, page, limit };
   }
 
   private async getLectureOrThrow(lectureId: string, tenantId: string) {
@@ -858,9 +1093,9 @@ export class LiveClassService {
     return session;
   }
 
-  private async getLiveOwnedSession(sessionId: string, teacherId: string, tenantId: string) {
+  private async getLiveOwnedSession(sessionId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
     const session = await this.getSessionByIdOrThrow(sessionId, tenantId);
-    if (session.lecture.teacherId !== teacherId) {
+    if (userRole !== UserRole.INSTITUTE_ADMIN && session.lecture.teacherId !== teacherId) {
       throw new ForbiddenException('Only the lecture teacher can manage this session');
     }
     if (session.status !== LiveSessionStatus.LIVE) {
@@ -869,7 +1104,7 @@ export class LiveClassService {
     return session;
   }
 
-  private async getOwnedPoll(pollId: string, teacherId: string, tenantId: string) {
+  private async getOwnedPoll(pollId: string, teacherId: string, tenantId: string, userRole?: UserRole) {
     const poll = await this.livePollRepo.findOne({
       where: { id: pollId, tenantId },
       relations: ['liveSession', 'liveSession.lecture'],
@@ -877,7 +1112,7 @@ export class LiveClassService {
     if (!poll) {
       throw new NotFoundException('Poll not found');
     }
-    if (poll.liveSession.lecture.teacherId !== teacherId) {
+    if (userRole !== UserRole.INSTITUTE_ADMIN && poll.liveSession.lecture.teacherId !== teacherId) {
       throw new ForbiddenException('Only the lecture teacher can close this poll');
     }
     return poll;

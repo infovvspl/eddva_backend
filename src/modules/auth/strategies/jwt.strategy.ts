@@ -34,8 +34,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   private userCache = new Map<string, { value: any; expiresAt: number }>();
   private readonly cacheTtlMs = 15000; // 15 seconds
 
-  async validate(payload: JwtPayload) {
-    const userId = payload.sub;
+  async validate(payload: any) {
+    const userId = payload.sub || payload.id;
+    if (!userId) {
+      throw new UnauthorizedException('Invalid token payload: missing user ID');
+    }
+
     const now = Date.now();
     const cached = this.userCache.get(userId);
 
