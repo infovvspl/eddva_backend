@@ -326,6 +326,9 @@ export class SuperAdminService {
       dbSizeRow,
       failedAuditCountRow,
       aiRequestsTodayRow,
+      monthlyInstRows,
+      monthlyUserRows,
+      aiHourlyRows,
     ] = await Promise.all([
       this.tenantRepo.count({ where: { type: Not(TenantType.PLATFORM) } }),
       this.tenantRepo.count({ where: { status: TenantStatus.ACTIVE, type: Not(TenantType.PLATFORM) } }),
@@ -352,6 +355,62 @@ export class SuperAdminService {
          WHERE created_at >= $1 AND (vertical = 'coaching' OR vertical IS NULL)`,
         [todayStart],
       ),
+      // Monthly institute registrations (last 6 months)
+      this.dataSource.query(`
+        WITH months AS (
+          SELECT generate_series(
+            DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
+            DATE_TRUNC('month', NOW()),
+            INTERVAL '1 month'
+          ) AS month_start
+        )
+        SELECT TO_CHAR(m.month_start, 'Mon') AS name,
+               COALESCE(COUNT(t.id), 0)::int AS institutes,
+               COALESCE(COUNT(t.id) FILTER (WHERE t.status = 'active'), 0)::int AS approved
+        FROM months m
+        LEFT JOIN tenants t
+          ON DATE_TRUNC('month', t.created_at) = m.month_start
+         AND t.type != 'platform'
+        GROUP BY m.month_start
+        ORDER BY m.month_start
+      `),
+      // Monthly user registrations (last 6 months)
+      this.dataSource.query(`
+        WITH months AS (
+          SELECT generate_series(
+            DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
+            DATE_TRUNC('month', NOW()),
+            INTERVAL '1 month'
+          ) AS month_start
+        )
+        SELECT TO_CHAR(m.month_start, 'Mon') AS name,
+               COALESCE(COUNT(u.id), 0)::int AS users,
+               COALESCE(COUNT(u.id) FILTER (WHERE u.status = 'active'), 0)::int AS active
+        FROM months m
+        LEFT JOIN users u
+          ON DATE_TRUNC('month', u.created_at) = m.month_start
+         AND u.role IN ('institute_admin', 'teacher', 'student', 'parent')
+        GROUP BY m.month_start
+        ORDER BY m.month_start
+      `),
+      // Hourly AI usage today
+      this.dataSource.query(`
+        WITH hours AS (
+          SELECT generate_series(
+            DATE_TRUNC('day', NOW()),
+            DATE_TRUNC('day', NOW()) + INTERVAL '23 hours',
+            INTERVAL '1 hour'
+          ) AS hour_start
+        )
+        SELECT TO_CHAR(h.hour_start, 'HH24:00') AS time,
+               COALESCE(COUNT(e.id), 0)::int AS usage
+        FROM hours h
+        LEFT JOIN ai_usage_events e
+          ON DATE_TRUNC('hour', e.created_at) = h.hour_start
+         AND (e.vertical = 'coaching' OR e.vertical IS NULL)
+        GROUP BY h.hour_start
+        ORDER BY h.hour_start
+      `),
     ]);
 
     const newTenantCount = await this.tenantRepo
@@ -389,6 +448,9 @@ export class SuperAdminService {
       systemHealth,
       securityAlerts: failedAuditCountRow?.[0]?.count || 0,
       aiRequestsToday: aiRequestsTodayRow?.[0]?.count || 0,
+      userGrowth: monthlyUserRows,
+      instituteGrowth: monthlyInstRows,
+      aiUsageTrend: aiHourlyRows,
     };
   }
 
