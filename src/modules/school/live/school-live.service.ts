@@ -61,10 +61,12 @@ export class SchoolLiveService implements OnModuleInit {
           user_name  VARCHAR NOT NULL,
           joined_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
           left_at    TIMESTAMPTZ,
+          hand_raised BOOLEAN NOT NULL DEFAULT FALSE,
           duration_seconds INT,
           PRIMARY KEY (lecture_id, user_id)
         )
       `);
+      await this.ds.query(`ALTER TABLE school_live_participants ADD COLUMN IF NOT EXISTS hand_raised BOOLEAN NOT NULL DEFAULT FALSE`);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_participants_lecture ON school_live_participants (lecture_id)`);
       await this.ds.query(`
         CREATE TABLE IF NOT EXISTS school_live_reactions (
@@ -88,9 +90,11 @@ export class SchoolLiveService implements OnModuleInit {
     await this.ds.query(`
       CREATE TABLE IF NOT EXISTS school_live_participants (
         lecture_id UUID NOT NULL, user_id UUID NOT NULL, user_name VARCHAR NOT NULL,
-        joined_at TIMESTAMPTZ NOT NULL DEFAULT now(), left_at TIMESTAMPTZ, duration_seconds INT,
+        joined_at TIMESTAMPTZ NOT NULL DEFAULT now(), left_at TIMESTAMPTZ,
+        hand_raised BOOLEAN NOT NULL DEFAULT FALSE, duration_seconds INT,
         PRIMARY KEY (lecture_id, user_id)
       )`);
+    await this.ds.query(`ALTER TABLE school_live_participants ADD COLUMN IF NOT EXISTS hand_raised BOOLEAN NOT NULL DEFAULT FALSE`);
     await this.ds.query(`
       CREATE TABLE IF NOT EXISTS school_live_reactions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -161,6 +165,9 @@ export class SchoolLiveService implements OnModuleInit {
     if (!lecture) throw new NotFoundException('Lecture not found');
     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
       throw new NotFoundException('Lecture not found');
+    }
+    if (String(user.role || '').toUpperCase() === 'STUDENT') {
+      void this.trackJoin(id, user.id, user.name || 'Student').catch(() => undefined);
     }
     return {
       url: lecture.playbackUrl,
@@ -264,20 +271,64 @@ export class SchoolLiveService implements OnModuleInit {
   async trackJoin(lectureId: string, userId: string, userName: string) {
     await this.ensureStatsTables();
     await this.ds.query(
-      `INSERT INTO school_live_participants (lecture_id, user_id, user_name, joined_at)
-       VALUES ($1, $2, $3, now())
-       ON CONFLICT (lecture_id, user_id) DO UPDATE SET joined_at = now(), left_at = NULL, duration_seconds = NULL`,
+      `INSERT INTO school_live_participants (lecture_id, user_id, user_name, joined_at, hand_raised)
+       VALUES ($1, $2, $3, now(), FALSE)
+       ON CONFLICT (lecture_id, user_id) DO UPDATE
+       SET joined_at = now(), user_name = EXCLUDED.user_name, left_at = NULL, hand_raised = FALSE, duration_seconds = NULL`,
       [lectureId, userId, userName],
     );
+  }
+
+  async getUserDisplayName(userId: string, fallback = 'User') {
+    const rows = await this.ds.query(
+      `SELECT name FROM users WHERE id::text = $1::text LIMIT 1`,
+      [userId],
+    ).catch(() => []);
+    return rows[0]?.name || fallback;
   }
 
   async trackLeave(lectureId: string, userId: string) {
     await this.ds.query(
       `UPDATE school_live_participants
        SET left_at = now(),
+           hand_raised = FALSE,
            duration_seconds = EXTRACT(EPOCH FROM (now() - joined_at))::int
        WHERE lecture_id = $1 AND user_id = $2 AND left_at IS NULL`,
       [lectureId, userId],
+    );
+  }
+
+  async setHandRaised(lectureId: string, userId: string, raised: boolean, userName = 'Student') {
+    await this.ensureStatsTables();
+    await this.ds.query(
+      `INSERT INTO school_live_participants (lecture_id, user_id, user_name, joined_at, left_at, hand_raised)
+       VALUES ($1, $2, $3, now(), NULL, $4)
+       ON CONFLICT (lecture_id, user_id) DO UPDATE
+       SET user_name = EXCLUDED.user_name,
+           left_at = NULL,
+           hand_raised = EXCLUDED.hand_raised`,
+      [lectureId, userId, userName, raised],
+    );
+  }
+
+  async getActiveParticipants(lectureId: string, user: SchoolUser) {
+    await this.ensureStatsTables();
+    const lecture = await this.getLecture(lectureId);
+    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      throw new NotFoundException('Lecture not found');
+    }
+
+    return this.ds.query(
+      `SELECT p.user_id AS "userId",
+              COALESCE(NULLIF(u.name, ''), p.user_name) AS "userName",
+              p.joined_at AS "joinedAt",
+              p.hand_raised AS "handRaised"
+       FROM school_live_participants p
+       LEFT JOIN users u ON u.id::text = p.user_id::text
+       WHERE p.lecture_id = $1 AND p.left_at IS NULL
+       ORDER BY p.joined_at ASC`,
+      [lectureId],
     );
   }
 
