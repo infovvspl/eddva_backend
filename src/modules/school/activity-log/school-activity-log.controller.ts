@@ -13,7 +13,7 @@ export class SchoolActivityLogController {
   constructor(
     private readonly svc: SchoolActivityLogService,
     private readonly auditLogService: AuditLogService,
-  ) {}
+  ) { }
 
   @Get('actors')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
@@ -58,8 +58,8 @@ export class SchoolActivityLogController {
 
     return this.auditLogService.findAll({
       ...query,
-      instituteId,
-    });
+      instituteId: instituteId || undefined,
+    }, 'school');
   }
 
   @Post()

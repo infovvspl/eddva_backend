@@ -9,7 +9,7 @@ import { Audit } from '../../audit-log/audit.decorator';
 @Controller('school/teachers')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolTeacherController {
-  constructor(private readonly svc: SchoolTeacherService) {}
+  constructor(private readonly svc: SchoolTeacherService) { }
 
   @Post('bulk-import') bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
 
@@ -46,7 +46,7 @@ export class SchoolTeacherController {
   ) { return this.svc.analyzeTeacherRecording(user, teacherId, recordingId, query); }
   // ──────────────────────────────────────────────────────────────────────────
 
-  @Get(':id') findOne(@Param('id', ParseUUIDPipe) id: string) { return this.svc.findOne(id); }
+  @Get(':id') findOne(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.findOne(user, id); }
 
   @Put(':id')
   @Audit({ module: 'Users', action: 'Teacher Edit', description: 'Updated teacher ID {params.id}' })

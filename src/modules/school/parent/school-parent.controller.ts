@@ -76,12 +76,17 @@ export class SchoolParentController {
     return this.svc.cancelMeetingRequest(user, id);
   }
 
-  @Get('grievances') getGrievances(@SchoolUser() user: any) {
-    return this.svc.getGrievances(user);
+  @Get('grievances') getGrievances(@SchoolUser() user: any, @Query() query: any) {
+    return this.svc.getGrievances(user, query);
   }
 
   @Post('grievances') submitGrievance(@SchoolUser() user: any, @Body() body: any) {
     return this.svc.submitGrievance(user, body);
+  }
+
+  @Put('grievances/:id/reopen')
+  reopenGrievance(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.reopenGrievance(user, id);
   }
 
   @Get('notifications') getNotifications(@SchoolUser() user: any) {

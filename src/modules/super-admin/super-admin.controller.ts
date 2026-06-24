@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   UseGuards,
+  Put,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 
@@ -16,6 +17,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../database/entities/user.entity';
+import { CurrentUser } from '../../common/decorators/auth.decorator';
+import { SchoolComplaintService } from '../school/complaint/school-complaint.service';
 
 import { SuperAdminService } from './super-admin.service';
 import {
@@ -36,7 +39,10 @@ import { Audit } from '../audit-log/audit.decorator';
 @Roles(UserRole.SUPER_ADMIN)
 @Controller('admin') // User management and tenant administration
 export class SuperAdminController {
-  constructor(private readonly superAdminService: SuperAdminService) {}
+  constructor(
+    private readonly superAdminService: SuperAdminService,
+    private readonly schoolComplaintService: SchoolComplaintService,
+  ) {}
 
   @Post('tenants')
   @Audit({ module: 'Institute', action: 'Create', description: 'Created tenant {body.name}' })
@@ -156,5 +162,42 @@ export class SuperAdminController {
   @ApiOperation({ summary: 'Verify OTP for phone verification (no user creation)' })
   verifyOnboardingOtp(@Body() dto: { phoneNumber: string; otp: string }) {
     return this.superAdminService.verifyOnboardingOtp(dto.phoneNumber, dto.otp);
+  }
+
+  @Get('complaints')
+  @ApiOperation({ summary: 'List coaching platform complaints' })
+  listComplaints(@CurrentUser() user: any, @Query() query: any) {
+    return this.schoolComplaintService.list(user, query, 'coaching');
+  }
+
+  @Post('complaints')
+  @ApiOperation({ summary: 'Create a platform complaint' })
+  createComplaint(@CurrentUser() user: any, @Body() body: any) {
+    return this.schoolComplaintService.create(user, body, 'coaching');
+  }
+
+  @Get('complaints/:id/messages')
+  listComplaintMessages(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.schoolComplaintService.listMessages(user, id, 'coaching');
+  }
+
+  @Post('complaints/:id/messages')
+  createComplaintMessage(@CurrentUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.schoolComplaintService.createMessage(user, id, body, 'coaching');
+  }
+
+  @Get('complaints/:id')
+  findOneComplaint(@Param('id') id: string) {
+    return this.schoolComplaintService.findOne(id, 'coaching');
+  }
+
+  @Put('complaints/:id')
+  updateComplaint(@Param('id') id: string, @Body() body: any) {
+    return this.schoolComplaintService.update(id, body, 'coaching');
+  }
+
+  @Delete('complaints/:id')
+  removeComplaint(@Param('id') id: string) {
+    return this.schoolComplaintService.remove(id, 'coaching');
   }
 }

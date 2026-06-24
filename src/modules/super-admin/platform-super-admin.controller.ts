@@ -56,7 +56,34 @@ export class PlatformSuperAdminController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get platform-wide audit logs' })
   getAuditLogs(@Query() query: any) {
-    return this.auditLogService.findAll(query);
+    return this.auditLogService.findAll(query, 'coaching');
+  }
+
+  @Get('security/summary')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get coaching platform security summary' })
+  getSecuritySummary() {
+    return this.svc.getSecuritySummary();
+  }
+
+  @Get('security/sessions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get coaching platform active security sessions' })
+  getSecuritySessions() {
+    return this.svc.getSecuritySessions();
+  }
+
+  @Delete('security/sessions/:sessionId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Force terminate a session' })
+  forceLogout(@Param('sessionId') sessionId: string) {
+    return this.svc.forceLogout(sessionId);
   }
 
   @Get('dashboard')
