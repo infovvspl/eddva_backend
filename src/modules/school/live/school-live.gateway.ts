@@ -106,9 +106,11 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     students.set(user.id, { userName: user.name, handRaised: false });
     this.activeStudents.set(lectureId, students);
     await this.svc.trackJoin(lectureId, user.id, user.name).catch(() => undefined);
-    this.server.to(`teacher:${lectureId}`).emit('viewerCount', { count: count || students.size });
+    const finalCount = count || students.size;
+    this.server.to(`teacher:${lectureId}`).emit('viewerCount', { count: finalCount });
+    this.server.to(`lecture:${lectureId}`).emit('viewerCount', { count: finalCount });
     this.emitParticipants(lectureId);
-    client.emit('joined', { lectureId });
+    client.emit('joined', { lectureId, viewerCount: finalCount });
   }
 
   @SubscribeMessage('teacher-join')
@@ -201,9 +203,9 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       else this.activeStudents.delete(data.lectureId);
       this.emitParticipants(data.lectureId);
     }
-    this.server.to(`teacher:${data.lectureId}`).emit('viewerCount', {
-      count: count || this.getActiveStudents(data.lectureId).length,
-    });
+    const finalCount = count || this.getActiveStudents(data.lectureId).length;
+    this.server.to(`teacher:${data.lectureId}`).emit('viewerCount', { count: finalCount });
+    this.server.to(`lecture:${data.lectureId}`).emit('viewerCount', { count: finalCount });
     if (data.handRaised) {
       await this.svc.setHandRaised(data.lectureId, data.userId, false, data.userName).catch(() => undefined);
       this.server.to(`teacher:${data.lectureId}`).emit('hand-raised', {

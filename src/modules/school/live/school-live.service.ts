@@ -174,6 +174,8 @@ export class SchoolLiveService implements OnModuleInit {
       status: lecture.status,
       streamKey: lecture.streamKey,
       createdAt: lecture.createdAt,
+      title: lecture.title,
+      startedAt: lecture.startedAt,
     };
   }
 
