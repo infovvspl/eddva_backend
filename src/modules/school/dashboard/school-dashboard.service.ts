@@ -356,7 +356,7 @@ export class SchoolDashboardService {
         )
         SELECT TO_CHAR(m.month_start, 'Mon') AS name,
                COALESCE(SUM(f.amount), 0)::numeric AS billed,
-               COALESCE(SUM(f.amount) FILTER (WHERE UPPER(f.status) IN ('PAID', 'COMPLETED', 'RECEIVED')), 0)::numeric AS revenue
+               COALESCE(SUM(f.amount) FILTER (WHERE UPPER(f.status::text) IN ('PAID', 'COMPLETED', 'RECEIVED')), 0)::numeric AS revenue
         FROM months m
         LEFT JOIN fees f
           ON DATE_TRUNC('month', f.created_at) = m.month_start
