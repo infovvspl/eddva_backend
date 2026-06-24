@@ -1,0 +1,34 @@
+{
+  "GOOD_MORNING": {
+    "title": "Good Morning, {name}!",
+    "body": "A new day to learn. Don't forget your scheduled study time today."
+  },
+  "CLASS_REMINDER": {
+    "title": "{subject} class in 15 mins",
+    "body": "Your {subject} class for {batch} starts at {time}. Be ready!"
+  },
+  "CLASS_STARTED": {
+    "title": "{subject} Class Started",
+    "body": "The {subject} class has started. Join now!"
+  },
+  "MISSED_CLASS": {
+    "title": "You missed {subject}",
+    "body": "You missed the {subject} class. You can watch the recording later."
+  },
+  "TEST_REMINDER": {
+    "title": "Test Tomorrow!",
+    "body": "You have a test scheduled for tomorrow at {time}. Keep revising!"
+  },
+  "FEE_DUE": {
+    "title": "Fee Reminder",
+    "body": "Your fee of {amount} is due on {date}."
+  },
+  "RESULT_PUBLISHED": {
+    "title": "Result Published",
+    "body": "Your result is out! You scored {score} with rank {rank}."
+  },
+  "GOOD_NIGHT": {
+    "title": "Good Night, {name}!",
+    "body": "Rest well to stay energized for tomorrow's classes."
+  }
+}
