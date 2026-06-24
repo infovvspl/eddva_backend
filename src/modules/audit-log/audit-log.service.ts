@@ -44,6 +44,8 @@ export class AuditLogService {
     module?: string;
     userId?: string;
     instituteId?: string;
+    role?: string;
+    status?: string;
   }) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 50;
@@ -61,6 +63,14 @@ export class AuditLogService {
 
     if (query.module) {
       qb.andWhere('log.module = :module', { module: query.module });
+    }
+
+    if (query.role) {
+      qb.andWhere('LOWER(log.role) = LOWER(:role)', { role: query.role });
+    }
+
+    if (query.status) {
+      qb.andWhere('LOWER(log.status) = LOWER(:status)', { status: query.status });
     }
 
     if (query.search) {
@@ -94,5 +104,22 @@ export class AuditLogService {
         totalPages: Math.ceil(total / limit) || 0,
       },
     };
+  }
+
+  async findUniqueActors(instituteId?: string) {
+    const qb = this.auditLogRepo
+      .createQueryBuilder('log')
+      .select('log.userId', 'id')
+      .addSelect('log.userName', 'name')
+      .where('log.userId IS NOT NULL')
+      .groupBy('log.userId')
+      .addGroupBy('log.userName')
+      .orderBy('log.userName', 'ASC');
+
+    if (instituteId) {
+      qb.andWhere('log.instituteId = :instituteId', { instituteId });
+    }
+
+    return qb.getRawMany();
   }
 }
