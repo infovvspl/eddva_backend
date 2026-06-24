@@ -81,6 +81,49 @@ export class SchoolLiveController {
   stats(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.getLectureStats(id, user);
   }
+
+  @Post('lectures/:id/polls')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  createPoll(
+    @SchoolUser() user: any,
+    @Param('id') id: string,
+    @Body() dto: { question: string; options: string[]; correctOption?: string },
+  ) {
+    return this.svc.createPoll(id, dto.question, dto.options, dto.correctOption);
+  }
+
+  @Post('lectures/:id/polls/:pollId/end')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  endPoll(
+    @SchoolUser() user: any,
+    @Param('id') id: string,
+    @Param('pollId') pollId: string,
+  ) {
+    return this.svc.endPoll(id, pollId);
+  }
+
+  @Get('lectures/:id/polls/active')
+  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  activePoll(@Param('id') id: string) {
+    return this.svc.getActivePoll(id);
+  }
+
+  @Post('lectures/:id/polls/:pollId/vote')
+  @SchoolRoles('STUDENT')
+  votePoll(
+    @SchoolUser() user: any,
+    @Param('id') id: string,
+    @Param('pollId') pollId: string,
+    @Body() dto: { option: string },
+  ) {
+    return this.svc.votePoll(id, pollId, user.id, user.name || 'Student', dto.option);
+  }
+
+  @Get('lectures/:id/polls')
+  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  listPolls(@Param('id') id: string) {
+    return this.svc.listPolls(id);
+  }
 }
 
 /**
