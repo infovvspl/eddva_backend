@@ -12,7 +12,7 @@ export class AuditLogService implements OnModuleInit {
     private readonly coachingAuditLogRepo: Repository<AuditLog>,
     @InjectDataSource('school') private readonly schoolDs: DataSource,
     @InjectDataSource('coaching') private readonly coachingDs: DataSource,
-  ) {}
+  ) { }
 
   private getRepo(connection: 'school' | 'coaching' = 'school'): Repository<AuditLog> {
     return connection === 'coaching' ? this.coachingAuditLogRepo : this.schoolAuditLogRepo;
@@ -127,6 +127,8 @@ export class AuditLogService implements OnModuleInit {
       module?: string;
       userId?: string;
       instituteId?: string;
+      role?: string;
+      status?: string;
     },
     connection: 'school' | 'coaching' = 'school',
   ) {
@@ -151,6 +153,14 @@ export class AuditLogService implements OnModuleInit {
 
     if (query.module) {
       qb.andWhere('log.module = :module', { module: query.module });
+    }
+
+    if (query.role) {
+      qb.andWhere('LOWER(log.role) = LOWER(:role)', { role: query.role });
+    }
+
+    if (query.status) {
+      qb.andWhere('LOWER(log.status) = LOWER(:status)', { status: query.status });
     }
 
     if (query.search) {
@@ -184,5 +194,23 @@ export class AuditLogService implements OnModuleInit {
         totalPages: Math.ceil(total / limit) || 0,
       },
     };
+  }
+
+  async findUniqueActors(instituteId?: string, connection: 'school' | 'coaching' = 'school') {
+    const repo = this.getRepo(connection);
+    const qb = repo
+      .createQueryBuilder('log')
+      .select('log.userId', 'id')
+      .addSelect('log.userName', 'name')
+      .where('log.userId IS NOT NULL')
+      .groupBy('log.userId')
+      .addGroupBy('log.userName')
+      .orderBy('log.userName', 'ASC');
+
+    if (instituteId) {
+      qb.andWhere('log.instituteId = :instituteId', { instituteId });
+    }
+
+    return qb.getRawMany();
   }
 }

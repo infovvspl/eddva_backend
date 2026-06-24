@@ -116,16 +116,12 @@ export class UploadController {
     const key = this.buildKey(tenantId, dto);
     const presignResult = await this.s3Service.presign(key, dto.contentType);
 
-    if (dto.type === UploadType.CHAT_ATTACHMENT) {
-      const host = this.config.get('app.url') || `${req.protocol}://${req.get('host')}`;
-      const proxyUrl = `${host}/api/v1/upload/proxy?url=${encodeURIComponent(presignResult.uploadUrl)}&contentType=${encodeURIComponent(dto.contentType)}`;
-      return {
-        uploadUrl: proxyUrl,
-        fileUrl: presignResult.fileUrl,
-      };
-    }
-
-    return presignResult;
+    const host = this.config.get('app.url') || `${req.protocol}://${req.get('host')}`;
+    const proxyUrl = `${host}/api/v1/upload/proxy?url=${encodeURIComponent(presignResult.uploadUrl)}&contentType=${encodeURIComponent(dto.contentType)}`;
+    return {
+      uploadUrl: proxyUrl,
+      fileUrl: presignResult.fileUrl,
+    };
   }
 
   @Put('upload/proxy')
@@ -141,17 +137,11 @@ export class UploadController {
       throw new BadRequestException('url query parameter is required');
     }
 
-    // Read the raw request body stream
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    const buffer = Buffer.concat(chunks);
-
     try {
-      await axios.put(s3Url, buffer, {
+      await axios.put(s3Url, req, {
         headers: {
           'Content-Type': contentType || req.headers['content-type'] || 'application/octet-stream',
+          'Content-Length': req.headers['content-length'],
         },
         maxContentLength: Infinity,
         maxBodyLength: Infinity,

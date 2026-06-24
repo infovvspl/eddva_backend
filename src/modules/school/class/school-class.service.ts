@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { ThumbnailService } from './thumbnail.service';
 
 /**
  * Class recordings (uploaded recorded lectures) for the school vertical.
@@ -23,6 +24,7 @@ export class SchoolClassService implements OnModuleInit {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly s3Service: S3Service,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly thumbnailService: ThumbnailService,
   ) {}
 
   async onModuleInit() {
@@ -67,6 +69,9 @@ export class SchoolClassService implements OnModuleInit {
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS notes_images JSONB DEFAULT '[]'::jsonb`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS quiz JSONB`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS quiz_status VARCHAR(16)`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS video_size BIGINT`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS resolution VARCHAR(32)`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_source VARCHAR(16) DEFAULT 'auto'`);
 
     // Progress and In-Video Quiz Segment Responses tracking
     await this.ds.query(`
@@ -144,7 +149,7 @@ export class SchoolClassService implements OnModuleInit {
   }
 
   /** Presigned S3 PUT URL for a recorded-class video (browser uploads directly). */
-  async presignUpload(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }) {
+  async presignUpload(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }, req?: any) {
     const instituteId = this.resolveInstituteId(user, (body as any).instituteId);
     const ct = body.contentType || '';
     const isImage = ct.startsWith('image/'); // thumbnails
@@ -159,7 +164,16 @@ export class SchoolClassService implements OnModuleInit {
     const safeName = (body.fileName || (isImage ? 'thumbnail' : 'recording')).replace(/[^a-zA-Z0-9.\-_]/g, '') || 'file';
     const key = `tenants/${instituteId}/${folder}/${Date.now()}-${randomUUID()}-${safeName}`;
     const { uploadUrl, fileUrl } = await this.s3Service.presign(key, ct);
-    return { success: true, data: { uploadUrl, fileUrl, key } };
+    
+    // Always use the backend proxy upload URL to bypass browser-to-S3 CORS preflight blocks.
+    let finalUploadUrl = uploadUrl;
+    if (req) {
+      const protocol = req.protocol || 'http';
+      const host = req.get('host');
+      finalUploadUrl = `${protocol}://${host}/api/v1/upload/proxy?url=${encodeURIComponent(uploadUrl)}&contentType=${encodeURIComponent(ct)}`;
+    }
+
+    return { success: true, data: { uploadUrl: finalUploadUrl, fileUrl, key } };
   }
 
   async list(user: any, query: any) {
@@ -182,6 +196,7 @@ export class SchoolClassService implements OnModuleInit {
              r.chapter_id, r.topic_id, r.thumbnail_url, r.source,
              r.transcript, r.transcript_status, r.language, r.notes, r.notes_status,
              r.notes_images, r.quiz, r.quiz_status,
+             r.video_size, r.resolution, r.thumbnail_source,
              c.name AS class_name, sec.name AS section_name, s.name AS subject_name, u.name AS teacher_name,
              ch.name AS chapter_name, t.name AS topic_name,
              COALESCE(ch.sort_order, 0) AS chapter_sort_order,
@@ -418,7 +433,115 @@ export class SchoolClassService implements OnModuleInit {
         .catch((err) => this.logger.warn(`Transcription kickoff failed for ${recording.id}: ${err?.message}`));
     }
 
+    // Auto-generate thumbnail if none was manually provided (non-blocking).
+    if (source === 'upload' && !body.thumbnailUrl) {
+      this.processThumbnail(recording.id, recording.video_url, recording.video_key, instituteId)
+        .catch((err) => this.logger.warn(`Thumbnail generation failed for ${recording.id}: ${err?.message}`));
+    }
+
     return { success: true, data: recording };
+  }
+
+  /**
+   * Background thumbnail generation via FFmpeg.
+   * Downloads video, captures a frame at ~5s, converts to WebP, uploads to S3.
+   */
+  private async processThumbnail(
+    recordingId: string,
+    videoUrl: string,
+    videoKey: string | null,
+    instituteId: string,
+  ): Promise<void> {
+    try {
+      // Use the S3 key for download if available (more reliable than presigned URL)
+      const downloadUrl = videoKey
+        ? await this.s3Service.presignGet(videoKey, 600)
+        : videoUrl;
+
+      const result = await this.thumbnailService.generateThumbnail(
+        downloadUrl,
+        recordingId,
+        instituteId,
+      );
+
+      if (!result) {
+        this.logger.warn(`Thumbnail generation returned null for recording ${recordingId}`);
+        return;
+      }
+
+      // Update the recording with the generated thumbnail and video metadata
+      const sets: string[] = [];
+      const params: any[] = [recordingId];
+      let idx = 2;
+
+      if (result.thumbnailUrl) {
+        sets.push(`thumbnail_url = $${idx}`);
+        params.push(result.thumbnailUrl);
+        idx++;
+        sets.push(`thumbnail_source = 'auto'`);
+      }
+      if (result.duration) {
+        sets.push(`duration = $${idx}`);
+        params.push(result.duration);
+        idx++;
+      }
+      if (result.resolution) {
+        sets.push(`resolution = $${idx}`);
+        params.push(result.resolution);
+        idx++;
+      }
+      if (result.videoSize) {
+        sets.push(`video_size = $${idx}`);
+        params.push(result.videoSize);
+        idx++;
+      }
+
+      if (sets.length > 0) {
+        await this.ds.query(
+          `UPDATE class_recordings SET ${sets.join(', ')} WHERE id = $1`,
+          params,
+        );
+        this.logger.log(`Thumbnail + metadata saved for recording ${recordingId}`);
+      }
+    } catch (err: any) {
+      this.logger.warn(`processThumbnail failed for ${recordingId}: ${err?.message}`);
+    }
+  }
+
+  /** Teacher-triggered: manually set or replace the thumbnail for a recording. */
+  async updateThumbnail(user: any, id: string, body: { thumbnailUrl: string }) {
+    await this.ensureTable();
+    if (!body.thumbnailUrl?.trim()) throw new BadRequestException('thumbnailUrl is required');
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT id FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+
+    await this.ds.query(
+      `UPDATE class_recordings SET thumbnail_url = $2, thumbnail_source = 'manual' WHERE id = $1`,
+      [id, body.thumbnailUrl.trim()],
+    );
+    return { success: true, message: 'Thumbnail updated' };
+  }
+
+  /** Re-generate the automatic thumbnail for a recording (teacher-triggered). */
+  async regenerateThumbnail(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT id, video_url, video_key, source FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const rec = rows[0];
+    if (rec.source === 'youtube') {
+      throw new BadRequestException('Thumbnail generation is only available for uploaded videos');
+    }
+    this.processThumbnail(rec.id, rec.video_url, rec.video_key || null, instituteId)
+      .catch((err) => this.logger.warn(`Thumbnail regeneration failed for ${id}: ${err?.message}`));
+    return { success: true, message: 'Thumbnail generation started' };
   }
 
   /**
