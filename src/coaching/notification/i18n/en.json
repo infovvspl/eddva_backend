@@ -30,5 +30,9 @@
   "GOOD_NIGHT": {
     "title": "Good Night, {name}!",
     "body": "Rest well to stay energized for tomorrow's classes."
+  },
+  "GOOD_AFTERNOON": {
+    "title": "Good Afternoon, {name}! ☀️",
+    "body": "Hope your morning was productive! Stay focused for the rest of the day."
   }
 }

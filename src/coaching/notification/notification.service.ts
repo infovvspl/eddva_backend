@@ -1,8 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getMessaging } from 'firebase-admin/messaging';
+
 import { DateTime } from 'luxon';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -10,6 +9,12 @@ import * as path from 'path';
 import { Student } from '../../database/entities/student.entity';
 import { CoachingNotificationLog } from '../../database/entities/coaching-notification-log.entity';
 import { CoachingNotificationType } from './notification.types';
+import {
+  Notification,
+  NotificationType,
+  NotificationChannel,
+  NotificationStatus,
+} from '../../database/entities/analytics.entity';
 
 @Injectable()
 export class CoachingNotificationService implements OnModuleInit {
@@ -18,10 +23,20 @@ export class CoachingNotificationService implements OnModuleInit {
   constructor(
     @InjectRepository(CoachingNotificationLog)
     private readonly notificationLogRepo: Repository<CoachingNotificationLog>,
+    @InjectRepository(Notification, 'coaching')
+    private readonly notificationRepo: Repository<Notification>,
   ) {}
 
   onModuleInit() {
-    if (!getApps().length) {
+    let admin: any;
+    try {
+      admin = require('firebase-admin');
+    } catch (e) {
+      this.logger.warn('firebase-admin is not installed. Push notifications will fail.');
+      return;
+    }
+
+    if (!admin.apps.length) {
       const serviceAccountParams = {
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
@@ -29,8 +44,8 @@ export class CoachingNotificationService implements OnModuleInit {
       };
 
       if (serviceAccountParams.projectId && serviceAccountParams.clientEmail && serviceAccountParams.privateKey) {
-        initializeApp({
-          credential: cert(serviceAccountParams),
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccountParams),
         });
         this.logger.log('Firebase Admin initialized successfully.');
       } else {
@@ -100,22 +115,33 @@ export class CoachingNotificationService implements OnModuleInit {
       let status = 'FAILED';
       let fcmMessageId = null;
 
-      if (student.fcmToken && getApps().length) {
+      if (student.fcmToken) {
+        let admin: any;
         try {
-          const response = await getMessaging().send({
-            token: student.fcmToken,
-            notification: {
-              title,
-              body,
-            },
-          });
-          status = 'SUCCESS';
-          fcmMessageId = response;
-        } catch (err) {
-          this.logger.error(`Failed to send Firebase notification to student ${student.id}: ${err.message}`);
+          admin = require('firebase-admin');
+        } catch (e) {
+          admin = null;
+        }
+
+        if (admin && admin.apps.length) {
+          try {
+            const response = await admin.messaging().send({
+              token: student.fcmToken,
+              notification: {
+                title,
+                body,
+              },
+            });
+            status = 'SUCCESS';
+            fcmMessageId = response;
+          } catch (err) {
+            this.logger.error(`Failed to send Firebase notification to student ${student.id}: ${err.message}`);
+          }
+        } else {
+          this.logger.warn(`Firebase not initialized. Cannot send FCM to student ${student.id}`);
         }
       } else {
-        this.logger.warn(`No FCM token for student ${student.id} or Firebase not initialized`);
+        this.logger.warn(`No FCM token for student ${student.id}`);
       }
 
       const log = this.notificationLogRepo.create({
@@ -127,6 +153,27 @@ export class CoachingNotificationService implements OnModuleInit {
       });
 
       await this.notificationLogRepo.save(log);
+
+      // Map CoachingNotificationType to NotificationType enum, defaulting to GENERAL
+      let mappedType = NotificationType.GENERAL;
+      const typeKey = type.toUpperCase() as keyof typeof NotificationType;
+      if (NotificationType[typeKey]) {
+        mappedType = NotificationType[typeKey];
+      }
+
+      const inAppNotification = this.notificationRepo.create({
+        userId: student.userId,
+        tenantId: student.tenantId || 'default', // Fallback if missing
+        type: mappedType,
+        channel: NotificationChannel.IN_APP,
+        status: NotificationStatus.SENT,
+        title,
+        body,
+        sentAt: new Date(),
+        data: { source: 'coaching_scheduler', notificationType: type },
+      });
+
+      await this.notificationRepo.save(inAppNotification);
     } catch (error) {
       this.logger.error(`Error in sendNotification: ${error.message}`);
     }

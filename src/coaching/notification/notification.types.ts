@@ -7,4 +7,5 @@ export enum CoachingNotificationType {
   FEE_DUE = 'FEE_DUE',
   RESULT_PUBLISHED = 'RESULT_PUBLISHED',
   GOOD_NIGHT = 'GOOD_NIGHT',
+  GOOD_AFTERNOON = 'GOOD_AFTERNOON',
 }

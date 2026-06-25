@@ -28,6 +28,17 @@ export class CoachingNotificationScheduler {
     }
   }
 
+  @Cron('0 12 * * *', { timeZone: 'Asia/Kolkata' })
+  async handleGoodAfternoon() {
+    this.logger.log('Running GOOD_AFTERNOON cron');
+    const students = await this.studentRepo.find({ where: { notificationEnabled: true } });
+    for (const student of students) {
+      await this.notificationService.sendNotification(student, CoachingNotificationType.GOOD_AFTERNOON, {
+        name: 'Student',
+      });
+    }
+  }
+
   @Cron('30 21 * * *', { timeZone: 'Asia/Kolkata' })
   async handleGoodNight() {
     this.logger.log('Running GOOD_NIGHT cron');
