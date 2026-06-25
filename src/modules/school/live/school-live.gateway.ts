@@ -53,6 +53,15 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     void this.redis.subscribe<{ lectureId: string }>(SCHOOL_LIVE_CHANNELS.ENDED, ({ lectureId }) => {
       this.server.to(`lecture:${lectureId}`).emit('stream-ended', { lectureId });
     });
+    void this.redis.subscribe<{ lectureId: string; poll: any }>(SCHOOL_LIVE_CHANNELS.POLL_CREATED, ({ lectureId, poll }) => {
+      this.server.to(`lecture:${lectureId}`).emit('poll-created', { poll });
+    });
+    void this.redis.subscribe<{ lectureId: string; pollId: string; results: any }>(SCHOOL_LIVE_CHANNELS.POLL_VOTED, ({ lectureId, pollId, results }) => {
+      this.server.to(`lecture:${lectureId}`).emit('poll-results', { pollId, results });
+    });
+    void this.redis.subscribe<{ lectureId: string; pollId: string }>(SCHOOL_LIVE_CHANNELS.POLL_ENDED, ({ lectureId, pollId }) => {
+      this.server.to(`lecture:${lectureId}`).emit('poll-ended', { pollId });
+    });
   }
 
   private verify(token?: string): { id: string; name: string; role: string } | null {
