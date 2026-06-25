@@ -34,5 +34,37 @@
   "GOOD_AFTERNOON": {
     "title": "Good Afternoon, {name}! ☀️",
     "body": "Hope your morning was productive! Stay focused for the rest of the day."
+  },
+  "VIDEO_INCOMPLETE": {
+    "title": "Continue watching, {name}! 🎬",
+    "body": "You left your {subject} lecture at {percentage}%. Finish it today!"
+  },
+  "MISSED_TEST": {
+    "title": "You missed a test, {name} 😟",
+    "body": "You missed the {testName} test. Check if a retake is available!"
+  },
+  "TEST_STARTING_SOON": {
+    "title": "Test starting in 30 mins! ⏱️",
+    "body": "{testName} begins soon, {name}. Get ready!"
+  },
+  "STUDY_PLAN_PENDING": {
+    "title": "Study plan awaits, {name}! 📚",
+    "body": "You have {taskCount} tasks pending for today. Let's get started!"
+  },
+  "STUDY_PLAN_COMPLETED": {
+    "title": "All done for today, {name}! 🎉",
+    "body": "You completed all your study tasks today. Amazing work!"
+  },
+  "NO_STUDY_PLAN": {
+    "title": "No study plan found, {name} 🗓️",
+    "body": "You don't have an active study plan. Generate your AI study plan today!"
+  },
+  "TEST_INSIGHT": {
+    "title": "Test insight for you, {name} 🧠",
+    "body": "Your last test had {errorCount} conceptual errors. Focus on revising those chapters!"
+  },
+  "GOOD_MORNING_WITH_PLAN": {
+    "title": "Good morning, {name}! ☀️",
+    "body": "You have {taskCount} study tasks and {classCount} live classes today. Make it count!"
   }
 }
