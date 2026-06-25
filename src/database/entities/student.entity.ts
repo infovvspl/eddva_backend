@@ -161,4 +161,20 @@ export class Student extends Base {
   // ── Parent ────────────────────────────────────────────────────────────────
   @Column({ name: 'parent_user_id', nullable: true })
   parentUserId: string;
+
+  // ── Notifications ─────────────────────────────────────────────────────────
+  @Column({ name: 'fcm_token', nullable: true })
+  fcmToken: string;
+
+  @Column({ name: 'language_preference', default: 'en' })
+  languagePreference: string;
+
+  @Column({ name: 'timezone', default: 'Asia/Kolkata' })
+  timezone: string;
+
+  @Column({ name: 'notification_enabled', default: true })
+  notificationEnabled: boolean;
+
+  @Column({ name: 'quiet_hours_override', default: false })
+  quietHoursOverride: boolean;
 }
