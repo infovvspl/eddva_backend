@@ -7,7 +7,10 @@ import { AuditLogInterceptor } from './audit-log.interceptor';
 
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([AuditLog], 'school')],
+  imports: [
+    TypeOrmModule.forFeature([AuditLog], 'school'),
+    TypeOrmModule.forFeature([AuditLog], 'coaching'),
+  ],
   providers: [
     AuditLogService,
     {

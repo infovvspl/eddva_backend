@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards, Req } from '@nestjs/common';
 import { SchoolClassService } from './school-class.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -20,7 +20,7 @@ export class SchoolClassController {
 
   @Post('recordings/upload-url')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
-  presignRecording(@SchoolUser() user: any, @Body() body: any) { return this.svc.presignUpload(user, body); }
+  presignRecording(@SchoolUser() user: any, @Body() body: any, @Req() req: any) { return this.svc.presignUpload(user, body, req); }
 
   @Post('recordings')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
@@ -69,4 +69,16 @@ export class SchoolClassController {
   @Delete('recordings/:id')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   removeRecording(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.remove(user, id); }
+
+  @Post('recordings/:id/thumbnail')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  updateThumbnail(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.updateThumbnail(user, id, body);
+  }
+
+  @Post('recordings/:id/regenerate-thumbnail')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  regenerateThumbnail(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.regenerateThumbnail(user, id);
+  }
 }

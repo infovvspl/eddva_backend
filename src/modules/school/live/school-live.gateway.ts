@@ -23,6 +23,12 @@ interface SocketData {
   handRaised?: boolean;
 }
 
+interface LiveParticipant {
+  userId: string;
+  userName: string;
+  handRaised?: boolean;
+}
+
 /**
  * Realtime layer for school live classes. Namespace `/school-live` (the
  * `/live`, `/chat`, `/stream` namespaces are owned by other modules).
@@ -30,6 +36,7 @@ interface SocketData {
 @WebSocketGateway({ namespace: '/school-live', cors: { origin: '*' } })
 export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
   private readonly logger = new Logger(SchoolLiveGateway.name);
+  private readonly activeStudents = new Map<string, Map<string, { userName: string; handRaised: boolean }>>();
 
   @WebSocketServer()
   server: Server;
@@ -46,6 +53,15 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     void this.redis.subscribe<{ lectureId: string }>(SCHOOL_LIVE_CHANNELS.ENDED, ({ lectureId }) => {
       this.server.to(`lecture:${lectureId}`).emit('stream-ended', { lectureId });
     });
+    void this.redis.subscribe<{ lectureId: string; poll: any }>(SCHOOL_LIVE_CHANNELS.POLL_CREATED, ({ lectureId, poll }) => {
+      this.server.to(`lecture:${lectureId}`).emit('poll-created', { poll });
+    });
+    void this.redis.subscribe<{ lectureId: string; pollId: string; results: any }>(SCHOOL_LIVE_CHANNELS.POLL_VOTED, ({ lectureId, pollId, results }) => {
+      this.server.to(`lecture:${lectureId}`).emit('poll-results', { pollId, results });
+    });
+    void this.redis.subscribe<{ lectureId: string; pollId: string }>(SCHOOL_LIVE_CHANNELS.POLL_ENDED, ({ lectureId, pollId }) => {
+      this.server.to(`lecture:${lectureId}`).emit('poll-ended', { pollId });
+    });
   }
 
   private verify(token?: string): { id: string; name: string; role: string } | null {
@@ -53,7 +69,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     try {
       const d: any = jwt.verify(
         token.replace(/^Bearer\s+/i, ''),
-        process.env.JWT_SECRET || 'change_me_in_production',
+        process.env.JWT_SECRET || 'dev_secret_change_in_prod',
       );
       const id = d.id || d.sub;
       if (!id) return null;
@@ -65,6 +81,17 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
 
   private isTeacher(role: string) {
     return role === 'TEACHER' || role === 'INSTITUTE_ADMIN' || role === 'SUPER_ADMIN';
+  }
+
+  private getActiveStudents(lectureId: string): LiveParticipant[] {
+    return Array.from(this.activeStudents.get(lectureId)?.entries() || [])
+      .map(([userId, info]) => ({ userId, userName: info.userName, handRaised: info.handRaised }));
+  }
+
+  private emitParticipants(lectureId: string) {
+    this.server.to(`teacher:${lectureId}`).emit('participants', {
+      students: this.getActiveStudents(lectureId),
+    });
   }
 
   @SubscribeMessage('join')
@@ -79,13 +106,20 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       return;
     }
     const { lectureId } = payload;
+    user.name = await this.svc.getUserDisplayName(user.id, user.name);
     client.join(`lecture:${lectureId}`);
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role };
 
     const count = await this.redis.addViewer(lectureId, user.id);
-    this.server.to(`teacher:${lectureId}`).emit('viewerCount', { count });
-    client.emit('joined', { lectureId });
-    void this.svc.trackJoin(lectureId, user.id, user.name).catch(() => undefined);
+    const students = this.activeStudents.get(lectureId) || new Map<string, { userName: string; handRaised: boolean }>();
+    students.set(user.id, { userName: user.name, handRaised: false });
+    this.activeStudents.set(lectureId, students);
+    await this.svc.trackJoin(lectureId, user.id, user.name).catch(() => undefined);
+    const finalCount = count || students.size;
+    this.server.to(`teacher:${lectureId}`).emit('viewerCount', { count: finalCount });
+    this.server.to(`lecture:${lectureId}`).emit('viewerCount', { count: finalCount });
+    this.emitParticipants(lectureId);
+    client.emit('joined', { lectureId, viewerCount: finalCount });
   }
 
   @SubscribeMessage('teacher-join')
@@ -100,11 +134,13 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       return;
     }
     const { lectureId } = payload;
+    user.name = await this.svc.getUserDisplayName(user.id, user.name);
     client.join(`teacher:${lectureId}`);
     client.join(`lecture:${lectureId}`);
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role };
     const viewerCount = await this.redis.viewerCount(lectureId);
-    client.emit('teacher-joined', { viewerCount });
+    const students = this.getActiveStudents(lectureId);
+    client.emit('teacher-joined', { viewerCount: viewerCount || students.length, students });
   }
 
   @SubscribeMessage('chat')
@@ -126,10 +162,24 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('raise-hand')
-  handleRaiseHand(@ConnectedSocket() client: Socket) {
+  async handleRaiseHand(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload?: { raised?: boolean },
+  ) {
     const data = client.data as SocketData;
     if (!data?.userId || !data?.lectureId) return;
-    data.handRaised = !data.handRaised;
+    data.handRaised = typeof payload?.raised === 'boolean' ? payload.raised : !data.handRaised;
+    await this.svc.setHandRaised(data.lectureId, data.userId, data.handRaised, data.userName).catch(() => undefined);
+    
+    // Update activeStudents map
+    const students = this.activeStudents.get(data.lectureId);
+    const student = students?.get(data.userId);
+    if (student) {
+      student.handRaised = data.handRaised;
+      students.set(data.userId, student);
+      this.emitParticipants(data.lectureId);
+    }
+
     this.server.to(`teacher:${data.lectureId}`).emit('hand-raised', {
       userId: data.userId,
       userName: data.userName,
@@ -155,8 +205,18 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     const data = client.data as SocketData;
     if (!data?.userId || !data?.lectureId) return;
     const count = await this.redis.removeViewer(data.lectureId, data.userId);
-    this.server.to(`teacher:${data.lectureId}`).emit('viewerCount', { count });
+    if (!this.isTeacher(data.role)) {
+      const students = this.activeStudents.get(data.lectureId);
+      students?.delete(data.userId);
+      if (students?.size) this.activeStudents.set(data.lectureId, students);
+      else this.activeStudents.delete(data.lectureId);
+      this.emitParticipants(data.lectureId);
+    }
+    const finalCount = count || this.getActiveStudents(data.lectureId).length;
+    this.server.to(`teacher:${data.lectureId}`).emit('viewerCount', { count: finalCount });
+    this.server.to(`lecture:${data.lectureId}`).emit('viewerCount', { count: finalCount });
     if (data.handRaised) {
+      await this.svc.setHandRaised(data.lectureId, data.userId, false, data.userName).catch(() => undefined);
       this.server.to(`teacher:${data.lectureId}`).emit('hand-raised', {
         userId: data.userId,
         userName: data.userName,

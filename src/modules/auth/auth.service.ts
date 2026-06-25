@@ -205,6 +205,10 @@ export class AuthService {
     await user.hashRefreshToken(tokens.refreshToken);
     await this.userRepo.save(user);
 
+    if (dto.fcmToken && user.role === UserRole.STUDENT) {
+      await this.studentRepo.update({ userId: user.id }, { fcmToken: dto.fcmToken });
+    }
+
     return {
       ...tokens,
       user: this.sanitizeUser(user),
@@ -245,6 +249,10 @@ export class AuthService {
     const tokens = await this.generateTokens(user);
     await user.hashRefreshToken(tokens.refreshToken);
     await this.userRepo.save(user);
+
+    if (dto.fcmToken && user.role === UserRole.STUDENT) {
+      await this.studentRepo.update({ userId: user.id }, { fcmToken: dto.fcmToken });
+    }
 
     const teacherProfile =
       user.role === UserRole.TEACHER
