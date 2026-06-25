@@ -79,6 +79,34 @@ export class SchoolLiveService implements OnModuleInit {
         )
       `);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_reactions_lecture ON school_live_reactions (lecture_id)`);
+
+      await this.ds.query(`
+        CREATE TABLE IF NOT EXISTS school_live_polls (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          lecture_id UUID NOT NULL REFERENCES school_live_lectures(id) ON DELETE CASCADE,
+          question VARCHAR NOT NULL,
+          options JSONB NOT NULL,
+          correct_option VARCHAR,
+          status VARCHAR NOT NULL DEFAULT 'ACTIVE',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await this.ds.query(`ALTER TABLE school_live_polls ADD COLUMN IF NOT EXISTS correct_option VARCHAR`);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_polls_lecture ON school_live_polls (lecture_id)`);
+
+      await this.ds.query(`
+        CREATE TABLE IF NOT EXISTS school_live_poll_votes (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          poll_id UUID NOT NULL REFERENCES school_live_polls(id) ON DELETE CASCADE,
+          user_id UUID NOT NULL,
+          user_name VARCHAR NOT NULL,
+          option VARCHAR NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          UNIQUE (poll_id, user_id)
+        )
+      `);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_poll_votes_poll ON school_live_poll_votes (poll_id)`);
+
       this.statsTablesReady = true;
     } catch (err) {
       this.logger.warn(`ensureTables failed: ${(err as Error).message}`);
@@ -384,8 +412,122 @@ export class SchoolLiveService implements OnModuleInit {
     const [teacher] = await this.ds.query(
       `SELECT name FROM users WHERE id = $1 LIMIT 1`,
       [lecture.teacherId],
-    ).catch(() => [null]);
-
-    return { ...stats, teacherName: teacher?.name ?? null };
-  }
+     ).catch(() => [null]);
+ 
+     // Fetch polls and results
+     const polls = await this.ds.query(
+       `SELECT id, question, options, correct_option AS "correctOption", status, created_at AS "createdAt",
+               COALESCE(
+                 (SELECT json_object_agg(option, count::int)
+                  FROM (SELECT option, COUNT(*)::int AS count FROM school_live_poll_votes WHERE poll_id = school_live_polls.id GROUP BY option) v
+                 ),
+                 '{}'::json
+               ) AS results
+        FROM school_live_polls WHERE lecture_id = $1 ORDER BY created_at ASC`,
+       [id],
+     );
+ 
+     return { ...stats, teacherName: teacher?.name ?? null, polls: polls || [] };
+   }
+ 
+   async createPoll(lectureId: string, question: string, options: string[], correctOption?: string) {
+     // End any currently active polls for this lecture
+     await this.ds.query(
+       `UPDATE school_live_polls SET status = 'ENDED' WHERE lecture_id = $1 AND status = 'ACTIVE'`,
+       [lectureId],
+     );
+ 
+     const [poll] = await this.ds.query(
+       `INSERT INTO school_live_polls (lecture_id, question, options, correct_option, status)
+        VALUES ($1, $2, $3, $4, 'ACTIVE')
+        RETURNING id, question, options, correct_option AS "correctOption", status, created_at AS "createdAt"`,
+       [lectureId, question, JSON.stringify(options), correctOption || null],
+     );
+ 
+     void this.redis.publish(SCHOOL_LIVE_CHANNELS.POLL_CREATED, { lectureId, poll }).catch(() => undefined);
+     return poll;
+   }
+ 
+   async endPoll(lectureId: string, pollId: string) {
+     await this.ds.query(
+       `UPDATE school_live_polls SET status = 'ENDED' WHERE id = $1 AND lecture_id = $2`,
+       [pollId, lectureId],
+     );
+ 
+     void this.redis.publish(SCHOOL_LIVE_CHANNELS.POLL_ENDED, { lectureId, pollId }).catch(() => undefined);
+     return { success: true };
+   }
+ 
+   async getActivePoll(lectureId: string) {
+     const [poll] = await this.ds.query(
+       `SELECT id, question, options, correct_option AS "correctOption", status, created_at AS "createdAt"
+        FROM school_live_polls WHERE lecture_id = $1 AND status = 'ACTIVE' LIMIT 1`,
+       [lectureId],
+     );
+ 
+     if (!poll) return null;
+ 
+     const votes = await this.ds.query(
+       `SELECT option, COUNT(*)::int AS count FROM school_live_poll_votes WHERE poll_id = $1 GROUP BY option`,
+       [poll.id],
+     );
+ 
+     const results: Record<string, number> = {};
+     for (const opt of poll.options) {
+       results[opt] = 0;
+     }
+     for (const v of votes) {
+       results[v.option] = v.count;
+     }
+ 
+     return { poll, results };
+   }
+ 
+   async votePoll(lectureId: string, pollId: string, userId: string, userName: string, option: string) {
+     await this.ds.query(
+       `INSERT INTO school_live_poll_votes (poll_id, user_id, user_name, option)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (poll_id, user_id) DO UPDATE SET option = EXCLUDED.option`,
+       [pollId, userId, userName, option],
+     );
+ 
+     // Get latest results
+     const [poll] = await this.ds.query(
+       `SELECT options FROM school_live_polls WHERE id = $1`,
+       [pollId],
+     );
+ 
+     const votes = await this.ds.query(
+       `SELECT option, COUNT(*)::int AS count FROM school_live_poll_votes WHERE poll_id = $1 GROUP BY option`,
+       [pollId],
+     );
+ 
+     const results: Record<string, number> = {};
+     if (poll) {
+       for (const opt of poll.options) {
+         results[opt] = 0;
+       }
+     }
+     for (const v of votes) {
+       results[v.option] = v.count;
+     }
+ 
+     void this.redis.publish(SCHOOL_LIVE_CHANNELS.POLL_VOTED, { lectureId, pollId, results }).catch(() => undefined);
+     return { success: true, results };
+   }
+ 
+   async listPolls(lectureId: string) {
+     const polls = await this.ds.query(
+       `SELECT id, question, options, correct_option AS "correctOption", status, created_at AS "createdAt",
+               COALESCE(
+                 (SELECT json_object_agg(option, count::int)
+                  FROM (SELECT option, COUNT(*)::int AS count FROM school_live_poll_votes WHERE poll_id = school_live_polls.id GROUP BY option) v
+                 ),
+                 '{}'::json
+               ) AS results
+        FROM school_live_polls WHERE lecture_id = $1 ORDER BY created_at ASC`,
+       [lectureId],
+     );
+     return polls || [];
+   }
 }

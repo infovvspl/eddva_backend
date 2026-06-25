@@ -5,6 +5,9 @@ import { createClient, RedisClientType } from 'redis';
 export const SCHOOL_LIVE_CHANNELS = {
   LIVE: 'school:lecture:live',
   ENDED: 'school:lecture:ended',
+  POLL_CREATED: 'school:lecture:poll_created',
+  POLL_VOTED: 'school:lecture:poll_voted',
+  POLL_ENDED: 'school:lecture:poll_ended',
 } as const;
 
 /**
@@ -56,8 +59,27 @@ export class SchoolLiveRedis implements OnModuleInit, OnModuleDestroy {
 
   // ── pub/sub ─────────────────────────────────────────────────────────────
   async publish(channel: string, payload: unknown): Promise<number> {
-    if (!this.pub?.isReady) return 0;
-    try { return await this.pub.publish(channel, JSON.stringify(payload)); } catch { return 0; }
+    if (!this.pub?.isReady) {
+      this.dispatchLocal(channel, payload);
+      return 0;
+    }
+    try {
+      return await this.pub.publish(channel, JSON.stringify(payload));
+    } catch {
+      this.dispatchLocal(channel, payload);
+      return 0;
+    }
+  }
+
+  private dispatchLocal(channel: string, payload: unknown) {
+    const handler = this.handlers.get(channel);
+    if (handler) {
+      try {
+        setTimeout(() => handler(payload), 0);
+      } catch (e) {
+        this.logger.warn(`Failed local dispatch on channel ${channel}: ${e}`);
+      }
+    }
   }
 
   async subscribe<T = any>(channel: string, handler: (msg: T) => void): Promise<void> {
