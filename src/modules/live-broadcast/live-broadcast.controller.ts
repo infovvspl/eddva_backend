@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Headers,
@@ -61,11 +62,25 @@ export class LectureController {
     return this.svc.getRecordingUrl(id, user);
   }
 
+  @Get(':id/stream-info')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Get OBS stream key + RTMP URL for owned broadcast' })
+  streamInfo(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    return this.svc.getStreamInfo(id, user);
+  }
+
   @Get(':id/stats')
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Live stats: current viewers, duration' })
   stats(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
     return this.svc.getStats(id, user);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Delete a scheduled or ended broadcast' })
+  delete(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    return this.svc.deleteLecture(id, user);
   }
 }
 

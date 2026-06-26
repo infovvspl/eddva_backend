@@ -66,7 +66,9 @@ export class SchoolAuthService {
     }
 
     const rows: any[] = await this.ds.query(
-      `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo
+      `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo,
+              i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features,
+              i.modules_permissions AS inst_modules_permissions
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE ${whereClause}`,
@@ -132,7 +134,15 @@ export class SchoolAuthService {
         instituteId: user.institute_id,
         studentProfile,
       },
-      institute: user.inst_id ? { id: user.inst_id, name: user.inst_name, tenantDomain: user.tenant_domain, logo: user.logo } : null,
+      institute: user.inst_id ? {
+        id: user.inst_id,
+        name: user.inst_name,
+        tenantDomain: user.tenant_domain,
+        logo: user.logo,
+        aiEnabled: user.inst_ai_enabled ?? false,
+        aiFeatures: user.inst_ai_features ?? {},
+        modulesPermissions: user.inst_modules_permissions ?? {},
+      } : null,
       tenantDomain: user.tenant_domain,
     };
   }
