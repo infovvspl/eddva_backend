@@ -206,15 +206,15 @@ export class SchoolMaterialService implements OnModuleInit {
     const isPresentation = contentType === 'presentation' || contentType === 'ppt';
     const typeSpecificInstruction =
       contentType === 'faq'
-        ? 'Generate a Frequently Asked Questions (FAQ) sheet only. Do not write notes, summary, study guide, or lesson sections. Use question-answer pairs: **Q1. <question?>** followed by **A.** <answer>. Include 12-15 real student questions grouped under sub-topic headings.'
+        ? 'Generate a Frequently Asked Questions (FAQ) sheet only. Do not write notes, summary, study guide, or lesson sections. Use question-answer pairs: **Q1. <question?>** followed by **A.** <answer>. Include 12-15 real student questions grouped under sub-topic headings. For all mathematics in FAQ, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$.'
         : contentType === 'revision_checklist'
           ? 'Generate a revision checklist only. Do not write notes or paragraphs. Group by sub-topic and make every actionable item a Markdown checkbox using - [ ].'
           : contentType === 'flashcard'
             ? 'Generate flashcards only. Use repeated **Q:** and **A:** pairs. Do not write normal notes.'
             : contentType === 'dpp'
-              ? 'For all mathematics in DPP, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$. Never output raw \\frac or \\sqrt outside dollar signs, and never use the Unicode square-root symbol.'
+              ? 'Generate a Daily Assessment question paper first. Put the answer key on the next page by adding a separate Markdown heading "## Answer Key" only after all questions. Do not include correct answers inline with questions. CRITICAL MCQ FORMATTING: Write each option (A-D) on a new line, never inline on a single line. For all mathematics in DPP, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$. Never output raw \\frac or \\sqrt outside dollar signs, and never use the Unicode square-root symbol.'
               : contentType === 'pyq'
-                ? `Generate school PYQ practice for ${className || 'the selected class'} only. Use class/board-style previous-year question patterns for this class, not JEE, NEET, or competitive exam PYQs. Do not include out-of-class difficulty, integer-type JEE numericals, multi-correct JEE patterns, or competitive exam traps. For mathematics, wrap only the expression in single dollar signs, e.g. Determine whether $3\\sqrt{5}$ is rational. Do not wrap complete English sentences in math delimiters.`
+                ? `Generate school PYQ practice for ${className || 'the selected class'} only. Use class/board-style previous-year question patterns for this class, not JEE, NEET, or competitive exam PYQs. Put all detailed solutions on the next page by adding a separate Markdown heading "## Detailed Solutions" only after all questions. Do not include solutions inline with questions. Do not include out-of-class difficulty, integer-type JEE numericals, multi-correct JEE patterns, or competitive exam traps. CRITICAL MCQ FORMATTING: Write each option (A-D) on a new line, never inline on a single line. Each question must show the exact real, authentic year of the board exam (e.g. CBSE 2021) next to the question number. It MUST be a real, authentic past year of the exam, never a dummy year or empty placeholder like '____' or 'Year' or '20XX'. For mathematics, wrap only the expression in single dollar signs, e.g. Determine whether $3\\sqrt{5}$ is rational. Do not wrap complete English sentences in math delimiters.`
                 : '';
     const extraContext = [
       isQuestionType && body.questionCount ? `Generate exactly ${body.questionCount} questions` : '',
@@ -848,7 +848,41 @@ export class SchoolMaterialService implements OnModuleInit {
 
   async findOne(user: any, id: string) {
     await this.assertStudentCanAccessMaterial(user, id);
-    const rows: any[] = await this.ds.query(`SELECT * FROM study_materials WHERE id=$1`, [id]);
+    const rows: any[] = await this.ds.query(
+      `SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        sm.class_id AS "classId",
+        sm.section_id AS "sectionId",
+        CASE
+          WHEN NULLIF(TRIM(s.name), '') IS NOT NULL THEN s.name
+          WHEN NULLIF(TRIM(sm.subject), '') IS NOT NULL AND sm.subject !~* '${UUID_TEXT_PATTERN}' THEN sm.subject
+          ELSE ''
+        END AS "subjectName",
+        COALESCE(c.name, topic_ch.name, NULLIF(sm.chapter, '')) AS "chapterName",
+        t.name AS "topicName"
+       FROM study_materials sm
+       LEFT JOIN subjects s ON sm.subject_id_fk = s.id
+       LEFT JOIN chapters c ON sm.chapter_id = c.id
+       LEFT JOIN topics t ON sm.topic_id = t.id
+       LEFT JOIN chapters topic_ch ON t.chapter_id = topic_ch.id
+       WHERE sm.id=$1`,
+      [id],
+    );
     if (!rows.length) throw new NotFoundException('Material not found');
     const row = rows[0];
     return {
@@ -857,16 +891,23 @@ export class SchoolMaterialService implements OnModuleInit {
         id: row.id,
         tenant_id: row.tenant_id,
         title: row.title,
-        subjectId: row.subject,
+        subjectId: row.subjectId,
+        subjectIdFk: row.subjectIdFk,
         description: row.description,
-        fileUrl: row.s3_key,
-        file_url: row.s3_key,
-        fileName: row.chapter,
-        file_name: row.chapter,
-        fileType: row.type,
-        file_type: row.type,
-        classId: row.class_id,
-        sectionId: row.section_id
+        fileUrl: row.fileUrl,
+        file_url: row.file_url,
+        fileName: row.fileName,
+        file_name: row.file_name,
+        fileType: row.fileType,
+        file_type: row.file_type,
+        fileSizeKb: row.fileSizeKb,
+        classId: row.classId,
+        sectionId: row.sectionId,
+        chapterId: row.chapterId,
+        topicId: row.topicId,
+        subjectName: row.subjectName,
+        chapterName: row.chapterName,
+        topicName: row.topicName,
       }
     };
   }

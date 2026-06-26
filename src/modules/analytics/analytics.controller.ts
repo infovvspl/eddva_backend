@@ -28,7 +28,7 @@ export class AnalyticsController {
   constructor(
     private readonly analyticsService: AnalyticsService,
     private readonly leaderboardService: LeaderboardService,
-  ) {}
+  ) { }
 
   @Get('performance')
   @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)

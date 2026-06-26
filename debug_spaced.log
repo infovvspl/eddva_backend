@@ -1,37 +1,30 @@
 {
-  "userId": "68c93269-426b-4c10-bc9c-b533e468a3fb",
-  "tenantId": "1c5e18a5-782d-46a5-86e7-8322b632191a",
+  "userId": "da39566f-a10c-4168-91dd-9b119723b3c7",
+  "tenantId": "73a505c3-23eb-4166-b019-8c9bc154a284",
   "effectiveTenantId": "73a505c3-23eb-4166-b019-8c9bc154a284",
-  "batchId": "2679076f-e84d-4b32-9f88-76ae3b3da213",
-  "studentId": "5532d95d-5d1a-4f4b-ae18-7cc978db026f",
-  "topicsResolved": 23,
+  "batchId": "2099f7c4-9f66-4287-8621-f6dc8905fe82",
+  "studentId": "8df200de-cce8-4e5a-9347-b2283a8bf7eb",
+  "topicsResolved": 4,
   "topicSample": [
     {
-      "id": "31b6de1b-e844-4b0c-a6d0-e8f67b83fd63",
-      "name": "Henry's Law"
+      "id": "4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c",
+      "name": "Photosynthesis"
     },
     {
-      "id": "53933c80-9388-45e3-9771-9e8df893f3bf",
-      "name": "Solution"
+      "id": "a211af56-9fab-471f-80fb-dfd438a840ad",
+      "name": "Central Nervous System"
     },
     {
-      "id": "1dc85f80-83fe-47f9-97e0-8eaa75efae49",
-      "name": "scalar and vector"
+      "id": "41dda54d-7a5f-4f26-8d25-c4fc777abb1d",
+      "name": "Excretion"
     }
   ],
-  "planId": "df5237a9-e5ae-4047-9c83-56b263f4f0c7",
-  "allPlanItems": 12,
-  "completedPracticeItems": 2,
-  "completedPracticeRefIds": [
-    "4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c",
-    "41dda54d-7a5f-4f26-8d25-c4fc777abb1d"
-  ],
-  "completedAiSessions": 9,
+  "planId": "acfd1c68-378e-474e-aaa5-bfd22fe64994",
+  "allPlanItems": 15,
+  "completedPracticeItems": 0,
+  "completedPracticeRefIds": [],
+  "completedAiSessions": 1,
   "aiSessionTopicIds": [
-    "063c5f79-fb87-4954-8492-96eb8900f6d9",
-    "0f8f124f-fe17-48e0-95b3-4dcd9e8de88e",
-    "31b6de1b-e844-4b0c-a6d0-e8f67b83fd63",
-    "34fe89d8-1651-4d47-9e3c-a0b03b6b8ab3",
-    "41dda54d-7a5f-4f26-8d25-c4fc777abb1d"
+    "a2132d93-8017-40fb-81e7-f06b25dc1769"
   ]
 }

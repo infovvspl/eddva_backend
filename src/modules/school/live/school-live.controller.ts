@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Headers,
@@ -29,7 +30,16 @@ export class SchoolLiveController {
   @Post('lectures')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   create(@SchoolUser() user: any, @Body() dto: CreateLiveLectureDto) {
-    return this.svc.createLecture(user, dto.title);
+    return this.svc.createLecture(user, dto.title, {
+      scheduledFor: dto.scheduledFor,
+      classId: dto.classId,
+      sectionId: dto.sectionId,
+      subjectId: dto.subjectId,
+      description: dto.description,
+      className: dto.className,
+      sectionName: dto.sectionName,
+      subjectName: dto.subjectName,
+    });
   }
 
   @Get('lectures')

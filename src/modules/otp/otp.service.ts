@@ -11,7 +11,7 @@ import twilio, { Twilio } from 'twilio';
 import { Resend } from 'resend';
 import * as bcrypt from 'bcryptjs';
 import { User } from '../../database/entities/user.entity';
-import { buildOtpEmailHtml } from './templates/email-otp.template';
+import { buildCoachingOtpEmailHtml } from './templates/coaching-otp.template';
 import {
   SendPhoneOtpDto, VerifyPhoneOtpDto,
   SendEmailOtpDto,  VerifyEmailOtpDto,
@@ -217,7 +217,7 @@ export class OtpService {
         from:    fromEmail,
         to:      [dto.email],
         subject: `${otp} is your EDDVA verification code`,
-        html:    buildOtpEmailHtml(otp, userName),
+        html:    buildCoachingOtpEmailHtml(otp, userName),
       });
     } catch (err: any) {
       this.logger.error('Resend email error', err?.message);

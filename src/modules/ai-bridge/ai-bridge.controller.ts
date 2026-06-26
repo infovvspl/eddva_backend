@@ -10,6 +10,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Headers,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -83,16 +84,29 @@ export class AiBridgeController {
     @Body() dto: StartTutorSessionDto,
     @CurrentUser('id') userId: string,
     @TenantId() tenantId: string,
+    @Headers('x-vertical') vertical?: string,
   ) {
-    return this.aiBridgeService.startTutorSession({ studentId: userId, topicId: dto.topicId, context: dto.context || '' }, tenantId);
+    return this.aiBridgeService.startTutorSession(
+      { studentId: userId, topicId: dto.topicId, context: dto.context || '' },
+      tenantId,
+      vertical,
+    );
   }
 
   @Post('tutor/continue')
   @Roles(UserRole.STUDENT)
   @AiFeature('ai_study_assistant')
   @HttpCode(HttpStatus.OK)
-  async continueTutorSession(@Body() dto: ContinueTutorSessionDto, @TenantId() tenantId: string) {
-    return this.aiBridgeService.continueTutorSession({ sessionId: dto.sessionId, studentMessage: dto.studentMessage }, tenantId);
+  async continueTutorSession(
+    @Body() dto: ContinueTutorSessionDto,
+    @TenantId() tenantId: string,
+    @Headers('x-vertical') vertical?: string,
+  ) {
+    return this.aiBridgeService.continueTutorSession(
+      { sessionId: dto.sessionId, studentMessage: dto.studentMessage },
+      tenantId,
+      vertical,
+    );
   }
 
   // ── AI #3 — Content Recommendation ───────────────────────────────────────

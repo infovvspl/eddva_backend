@@ -50,7 +50,7 @@ export class AnalyticsService {
     private readonly notificationService: NotificationService,
     @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
-  ) {}
+  ) { }
 
   async getPerformance(user: any, tenantId: string, studentIdOverride?: string) {
     const student = await this.resolveStudent(user, tenantId, studentIdOverride);
@@ -83,8 +83,8 @@ export class AnalyticsService {
     const sessionIds = sessions.map((session) => session.id);
     const attempts = sessionIds.length
       ? await this.attemptRepo.find({
-          where: { studentId, tenantId, testSessionId: In(sessionIds) },
-        })
+        where: { studentId, tenantId, testSessionId: In(sessionIds) },
+      })
       : [];
 
     const totalCorrect = sessions.reduce((sum, session) => sum + (session.correctCount || 0), 0);
@@ -124,10 +124,10 @@ export class AnalyticsService {
     profile.predictedRank = predictedRank;
     profile.avgSpeedSeconds = attempts.length
       ? Number(
-          (
-            attempts.reduce((sum, attempt) => sum + (attempt.timeSpentSeconds || 0), 0) / attempts.length
-          ).toFixed(2),
-        )
+        (
+          attempts.reduce((sum, attempt) => sum + (attempt.timeSpentSeconds || 0), 0) / attempts.length
+        ).toFixed(2),
+      )
       : 0;
     profile.lastUpdatedAt = new Date();
     await this.profileRepo.save(profile);
@@ -427,14 +427,14 @@ export class AnalyticsService {
 
     const speedVal = sessions.length
       ? Math.round(
-          sessions.reduce((acc: number, s: any) => {
-            const durationSec = s.submitted_at && s.started_at
-              ? (new Date(s.submitted_at).getTime() - new Date(s.started_at).getTime()) / 1000
-              : 0;
-            const attempts = (s.correct_count || 0) + (s.wrong_count || 0) + (s.skipped_count || 0);
-            return acc + (attempts > 0 ? durationSec / attempts : 0);
-          }, 0) / sessions.length,
-        )
+        sessions.reduce((acc, s) => {
+          const durationSec = s.submittedAt && s.startedAt
+            ? (s.submittedAt.getTime() - s.startedAt.getTime()) / 1000
+            : 0;
+          const attempts = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
+          return acc + (attempts > 0 ? durationSec / attempts : 0);
+        }, 0) / sessions.length,
+      )
       : 0;
 
     return {
@@ -460,52 +460,81 @@ export class AnalyticsService {
   async getStudentAdvancedEngagement(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
 
-    // 1. Daily Active Minutes (last 14 days)
-    const activeMinutes = await this.engagementRepo.query(
+    // 1. Daily Active Minutes (last 14 days) — aggregate ALL activity types
+    const activeMinutes = await this.dataSource.query(
       `
-        SELECT
-          DATE(logged_at) AS "date",
-          SUM((signals->>'durationSeconds')::int) / 60 AS "minutes"
-        FROM engagement_logs
-        WHERE student_id = $1 AND logged_at > NOW() - INTERVAL '14 days' AND deleted_at IS NULL
-        GROUP BY DATE(logged_at)
-        ORDER BY "date" ASC
+        WITH daily AS (
+          -- Engagement logs (lecture watch events)
+          SELECT DATE(logged_at) AS d,
+                 COALESCE(SUM((signals->>'durationSeconds')::int), 0) / 60 AS mins
+          FROM engagement_logs
+          WHERE student_id = $1 AND logged_at > NOW() - INTERVAL '14 days' AND deleted_at IS NULL
+          GROUP BY DATE(logged_at)
+
+          UNION ALL
+
+          -- Test sessions (duration = submitted - started)
+          SELECT DATE(started_at) AS d,
+                 COALESCE(SUM(EXTRACT(EPOCH FROM (submitted_at - started_at))::int), 0) / 60 AS mins
+          FROM test_sessions
+          WHERE student_id = $1 AND tenant_id = $2
+            AND status IN ('submitted', 'auto_submitted')
+            AND started_at > NOW() - INTERVAL '14 days'
+            AND submitted_at IS NOT NULL AND deleted_at IS NULL
+          GROUP BY DATE(started_at)
+
+          UNION ALL
+
+          -- AI study sessions
+          SELECT DATE(created_at) AS d,
+                 COALESCE(SUM(time_spent_seconds), 0) / 60 AS mins
+          FROM ai_study_sessions
+          WHERE student_id = $1 AND tenant_id = $2
+            AND created_at > NOW() - INTERVAL '14 days' AND deleted_at IS NULL
+          GROUP BY DATE(created_at)
+        )
+        SELECT d AS "date", SUM(mins)::int AS "minutes"
+        FROM daily
+        GROUP BY d
+        ORDER BY d ASC
       `,
-      [student.id],
+      [student.id, tenantId],
     );
 
-    // 2. Content Preference
-    const preferences = await this.engagementRepo.query(
-      `
-        SELECT
-          context AS "type",
-          COUNT(*)::int AS "count"
-        FROM engagement_logs
-        WHERE student_id = $1
-        GROUP BY context
-      `,
-      [student.id],
-    );
-    const totalEngagements = preferences.reduce((acc: number, p: any) => acc + p.count, 0) || 1;
+    // 2. Content Preference — count real activity types across all tables
+    const lectureCount = await this.lectureProgressRepo.count({
+      where: { studentId: student.id, tenantId },
+    });
+    const assessmentCount = await this.sessionRepo.count({
+      where: { studentId: student.id, tenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
+    });
+    const aiSessionCount = await this.aiStudyRepo.count({
+      where: { studentId: student.id, tenantId },
+    });
+
+    const totalActivities = (lectureCount + assessmentCount + aiSessionCount) || 1;
+    const contentPreference = [
+      { type: 'Recorded Lectures', percentage: Math.round((lectureCount / totalActivities) * 100) },
+      { type: 'Assessments', percentage: Math.round((assessmentCount / totalActivities) * 100) },
+      { type: 'AI Tutor', percentage: Math.round((aiSessionCount / totalActivities) * 100) },
+    ].filter(p => p.percentage > 0);
 
     // 3. Lecture Activity
     const lectureStats = await this.lectureProgressRepo.find({
       where: { studentId: student.id, tenantId },
     });
 
-    const aiSessions = await this.aiStudyRepo.count({
-      where: { studentId: student.id, tenantId },
+    // 4. Real notes count — AI study sessions with generated lesson content
+    const notesGenerated = await this.aiStudyRepo.count({
+      where: { studentId: student.id, tenantId, isCompleted: true },
     });
 
     return {
       dailyActiveMinutes: activeMinutes.map((m: any) => ({
-        date: m.date.toISOString().split('T')[0],
+        date: (m.date instanceof Date ? m.date.toISOString() : String(m.date)).split('T')[0],
         minutes: Number(m.minutes || 0),
       })),
-      contentPreference: preferences.map((p: any) => ({
-        type: p.type.charAt(0).toUpperCase() + p.type.slice(1) + 's',
-        percentage: Math.round((p.count / totalEngagements) * 100),
-      })),
+      contentPreference,
       lectureActivity: {
         totalWatched: lectureStats.length,
         completed: lectureStats.filter((s) => s.isCompleted).length,
@@ -513,8 +542,8 @@ export class AnalyticsService {
           lectureStats.reduce((acc, s) => acc + (s.watchPercentage || 0), 0) / (lectureStats.length || 1),
         ),
       },
-      notesGenerated: lectureStats.filter((s) => s.watchPercentage > 50).length, // Proxy for now
-      aiTutorSessions: aiSessions,
+      notesGenerated,
+      aiTutorSessions: aiSessionCount,
     };
   }
 
@@ -528,16 +557,33 @@ export class AnalyticsService {
 
     const today = new Date().toISOString().split('T')[0];
 
+    // Compute real weekly completion rate trend (last 4 weeks)
+    const completionRateTrend: { date: string; rate: number }[] = [];
+    const now = new Date();
+    for (let w = 3; w >= 0; w--) {
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - (w + 1) * 7);
+      const weekEnd = new Date(now);
+      weekEnd.setDate(now.getDate() - w * 7);
+      const weekStartStr = weekStart.toISOString().split('T')[0];
+      const weekEndStr = weekEnd.toISOString().split('T')[0];
+
+      const weekItems = planItems.filter(
+        (i) => i.scheduledDate >= weekStartStr && i.scheduledDate < weekEndStr,
+      );
+      const completedInWeek = weekItems.filter((i) => i.status === PlanItemStatus.COMPLETED).length;
+      const rate = weekItems.length > 0 ? Math.round((completedInWeek / weekItems.length) * 100) : 0;
+      const label = w === 0 ? 'This Week' : w === 1 ? 'Last Week' : `${w + 1} Weeks Ago`;
+      completionRateTrend.push({ date: label, rate });
+    }
+
     return {
       adherence: {
         completed: planItems.filter((i) => i.status === PlanItemStatus.COMPLETED).length,
         skipped: planItems.filter((i) => i.status === PlanItemStatus.SKIPPED).length,
         pending: planItems.filter((i) => i.status === PlanItemStatus.PENDING).length,
       },
-      completionRateTrend: [
-        { date: 'Last Week', rate: 75 },
-        { date: 'This Week', rate: 82 },
-      ],
+      completionRateTrend,
       currentStreak: student.currentStreak || 0,
       overdueItemsCount: planItems.filter(
         (i) => i.status === PlanItemStatus.PENDING && i.scheduledDate < today,
@@ -548,15 +594,38 @@ export class AnalyticsService {
   async getStudentInsights(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
     const profile = await this.profileRepo.findOne({ where: { studentId: student.id } });
-    
+
     const weakTopicCount = await this.weakTopicRepo.count({ where: { studentId: student.id } });
-    
+
     const overallAccuracy = profile?.overallAccuracy || 0;
-    
+
     // Readiness Score: Weighted average of accuracy and engagement
-    // For now, let's just use accuracy as a base and nudge it with consistency
-    const consistencyScore = Math.min(100, (student.currentStreak || 0) * 10 + 50); 
+    const consistencyScore = Math.min(100, (student.currentStreak || 0) * 10 + 50);
     const readinessScore = Math.round(overallAccuracy * 0.8 + consistencyScore * 0.2);
+
+    // Performance Trend: compare average score of last 5 sessions vs previous 5
+    const recentSessions = await this.sessionRepo.find({
+      where: { studentId: student.id, tenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
+      order: { createdAt: 'DESC' },
+      take: 10,
+    });
+
+    let performanceTrend: 'improving' | 'declining' | 'stable' = 'stable';
+    if (recentSessions.length >= 4) {
+      const half = Math.floor(recentSessions.length / 2);
+      const recentHalf = recentSessions.slice(0, half);
+      const olderHalf = recentSessions.slice(half);
+      const avgRecent = recentHalf.reduce((acc, s) => {
+        const attempted = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
+        return acc + (attempted > 0 ? ((s.correctCount || 0) / attempted) * 100 : 0);
+      }, 0) / recentHalf.length;
+      const avgOlder = olderHalf.reduce((acc, s) => {
+        const attempted = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
+        return acc + (attempted > 0 ? ((s.correctCount || 0) / attempted) * 100 : 0);
+      }, 0) / olderHalf.length;
+      const delta = avgRecent - avgOlder;
+      performanceTrend = delta > 5 ? 'improving' : delta < -5 ? 'declining' : 'stable';
+    }
 
     // Strong Topic Count: Topics with accuracy > 80%
     const strongTopicCount = await this.dataSource.query(
@@ -575,7 +644,7 @@ export class AnalyticsService {
 
     return {
       status: overallAccuracy > 75 ? "thriving" : overallAccuracy > 50 ? "on_track" : overallAccuracy > 30 ? "warning" : "at_risk",
-      performanceTrend: overallAccuracy > 60 ? "improving" : "stable",
+      performanceTrend,
       consistencyScore,
       readinessScore,
       weakTopicCount,
