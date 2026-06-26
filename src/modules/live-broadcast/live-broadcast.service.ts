@@ -122,7 +122,7 @@ export class LiveBroadcastService {
   }
 
   async listLectures(user: AuthUser) {
-    // Institute-wide scope for everyone (students see all their institute's lectures).
+    const serverIp = this.config.get<string>('streaming.serverIp');
     const lectures = await this.lectureRepo.find({
       where: { instituteId: user.tenantId },
       order: { scheduledAt: 'DESC', createdAt: 'DESC' },
@@ -135,6 +135,11 @@ export class LiveBroadcastService {
       startedAt: l.startedAt,
       endedAt: l.endedAt,
       teacherId: l.teacherId,
+      createdAt: l.createdAt,
+      // Only expose stream credentials to the owning teacher / admin
+      ...(l.teacherId === user.id || user.role === UserRole.INSTITUTE_ADMIN || user.role === UserRole.SUPER_ADMIN
+        ? { streamKey: l.streamKey, rtmpUrl: `rtmp://${serverIp}/live` }
+        : {}),
     }));
   }
 
@@ -219,6 +224,33 @@ export class LiveBroadcastService {
         removeOnFail: false,
       },
     );
+  }
+
+  /** Return stream credentials for a lecture the caller owns (any status except PROCESSED). */
+  async getStreamInfo(lectureId: string, user: AuthUser) {
+    const lecture = await this.getLectureWithAuth(lectureId, user);
+    if (user.role !== UserRole.TEACHER && user.role !== UserRole.INSTITUTE_ADMIN) {
+      throw new ForbiddenException('Only teachers can view stream credentials');
+    }
+    if (lecture.teacherId !== user.id && user.role !== UserRole.INSTITUTE_ADMIN) {
+      throw new ForbiddenException('You can only view credentials for your own streams');
+    }
+    const serverIp = this.config.get<string>('streaming.serverIp');
+    return {
+      lectureId: lecture.id,
+      streamKey: lecture.streamKey,
+      rtmpUrl: `rtmp://${serverIp}/live`,
+      status: lecture.status,
+    };
+  }
+
+  async deleteLecture(lectureId: string, user: AuthUser) {
+    const lecture = await this.getLectureWithAuth(lectureId, user);
+    if (lecture.teacherId !== user.id && user.role !== UserRole.INSTITUTE_ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('You can only delete your own broadcasts');
+    }
+    await this.lectureRepo.delete(lectureId);
+    return { success: true };
   }
 
   async getStats(lectureId: string, user: AuthUser) {
