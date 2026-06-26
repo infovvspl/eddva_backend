@@ -912,11 +912,13 @@ export class SchoolStudyPlanService implements OnModuleInit {
     const drillCount = sessionType === 'INTENSIVE' ? 10 : sessionType === 'STANDARD' ? 7 : sessionType === 'QUICK' ? 5 : 3;
     const baseDifficulty = accuracy < 40 ? 'easy' : accuracy < 65 ? 'medium' : 'hard';
 
+    const student = await this.getStudentProfile(user.id);
     let drillQuestions = [];
     try {
       const generated = await this.aiBridgeService.generateQuestionsFromTopic(
-        { topicId, topicName: topic.topic_name, count: drillCount, difficulty: baseDifficulty, type: 'mcq_single', subject: topic.subject_name, chapter: topic.chapter_name },
+        { topicId, topicName: topic.topic_name, count: drillCount, difficulty: baseDifficulty, type: 'mcq_single', subject: topic.subject_name, chapter: topic.chapter_name, examTarget: `Class ${student.class_name || '10'}` },
         user.instituteId,
+        'school',
       );
       if (Array.isArray(generated)) {
         drillQuestions = generated.map(q => {
@@ -1036,8 +1038,10 @@ export class SchoolStudyPlanService implements OnModuleInit {
               type: 'mcq_single',
               subject: topic.subject_name || undefined,
               chapter: topic.chapter_name || undefined,
+              examTarget: `Class ${student.class_name || '10'}`,
             },
             tenantId,
+            'school',
           ) as any[];
           if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
             practiceQuestions = rawQuestions
@@ -1090,6 +1094,7 @@ export class SchoolStudyPlanService implements OnModuleInit {
       const lessonResponse = await this.aiBridgeService.startTutorSession(
         { studentId: student.student_id, topicId, context: selfStudyPrompt },
         tenantId,
+        'school',
       ) as any;
 
       lessonMarkdown = this.normalizeSolvedExamplesFormatting(this.extractAiText(lessonResponse));
@@ -1137,8 +1142,10 @@ export class SchoolStudyPlanService implements OnModuleInit {
           type: 'mcq_single',
           subject: topic.subject_name || undefined,
           chapter: topic.chapter_name || undefined,
+          examTarget: `Class ${student.class_name || '10'}`,
         },
         tenantId,
+        'school',
       ) as any[];
 
       if (Array.isArray(rawQuestions)) {
@@ -1247,8 +1254,10 @@ export class SchoolStudyPlanService implements OnModuleInit {
               count: 8,
               difficulty: 'easy_medium',
               type: 'mcq_single',
+              examTarget: `Class ${student.class_name || '10'}`,
             },
             tenantId,
+            'school',
           ) as any[];
           if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
             practiceQuestions = rawQuestions
@@ -1319,6 +1328,7 @@ export class SchoolStudyPlanService implements OnModuleInit {
       const response = await this.aiBridgeService.continueTutorSession(
         { sessionId: session.ai_session_ref ?? sessionId, studentMessage: contextualQuestion },
         tenantId,
+        'school',
       ) as any;
       aiResponse = this.extractAiText(response);
     } catch (err) {
@@ -1490,8 +1500,10 @@ export class SchoolStudyPlanService implements OnModuleInit {
           type: 'mcq_single',
           subject: topic.subject_name || undefined,
           chapter: topic.chapter_name || undefined,
+          examTarget: `Class ${student.class_name || '10'}`,
         },
         tenantId,
+        'school',
       ) as any[];
     } catch (err) {
       this.logger.warn(`AI quiz generation failed for school topic ${topicId}: ${err.message}`);
