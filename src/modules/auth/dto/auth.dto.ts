@@ -99,6 +99,11 @@ export class VerifyOtpDto {
   @IsString()
   @IsNotEmpty()
   otp: string;
+
+  @ApiPropertyOptional({ example: 'fcm-token-string' })
+  @IsOptional()
+  @IsString()
+  fcmToken?: string;
 }
 
 export class LoginWithPasswordDto {
@@ -116,6 +121,11 @@ export class LoginWithPasswordDto {
   @IsString()
   @IsNotEmpty()
   password: string;
+
+  @ApiPropertyOptional({ example: 'fcm-token-string' })
+  @IsOptional()
+  @IsString()
+  fcmToken?: string;
 }
 
 export class ForgotPasswordDto {

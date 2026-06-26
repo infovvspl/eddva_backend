@@ -329,6 +329,10 @@ export class SuperAdminService {
       monthlyInstRows,
       monthlyUserRows,
       aiHourlyRows,
+      activeStudentsRow,
+      newEnrollmentsRow,
+      courseCompletionRow,
+      attendanceRow,
     ] = await Promise.all([
       this.tenantRepo.count({ where: { type: Not(TenantType.PLATFORM) } }),
       this.tenantRepo.count({ where: { status: TenantStatus.ACTIVE, type: Not(TenantType.PLATFORM) } }),
@@ -411,6 +415,47 @@ export class SuperAdminService {
         GROUP BY h.hour_start
         ORDER BY h.hour_start
       `),
+      // Active Students
+      this.dataSource.query(`
+        SELECT COUNT(DISTINCT s.id)::int AS count
+        FROM students s
+        LEFT JOIN tenants t ON t.id = s.tenant_id
+        LEFT JOIN users u ON u.id = s.user_id
+        WHERE s.deleted_at IS NULL AND u.deleted_at IS NULL
+          AND u.status = 'active'
+          AND (t.type != 'platform' OR t.id IS NULL)
+      `),
+      // New Enrollments (Current Month)
+      this.dataSource.query(`
+        SELECT COUNT(e.id)::int AS count
+        FROM enrollments e
+        LEFT JOIN tenants t ON t.id = e.tenant_id
+        WHERE e.deleted_at IS NULL AND e.enrolled_at >= $1
+          AND (t.type != 'platform' OR t.id IS NULL)
+      `, [monthStart]),
+      // Course Completion Rate
+      this.dataSource.query(`
+        SELECT AVG(lp.watch_percentage)::numeric AS avg_completion
+        FROM lecture_progress lp
+        LEFT JOIN tenants t ON t.id = lp.tenant_id
+        WHERE (t.type != 'platform' OR t.id IS NULL)
+      `),
+      // Average Attendance Rate
+      this.dataSource.query(`
+        SELECT AVG(
+          CASE WHEN EXTRACT(EPOCH FROM (ls.ended_at - ls.started_at)) > 0
+          THEN 
+            (GREATEST(0, EXTRACT(EPOCH FROM (
+              LEAST(COALESCE(la.left_at, NOW()), ls.ended_at) - GREATEST(la.joined_at, ls.started_at)
+            ))) / EXTRACT(EPOCH FROM (ls.ended_at - ls.started_at))) * 100
+          ELSE NULL END
+        )::numeric AS avg_rate
+        FROM live_attendances la
+        JOIN live_sessions ls ON ls.id = la.live_session_id
+        LEFT JOIN tenants t ON t.id = la.tenant_id
+        WHERE ls.ended_at IS NOT NULL AND ls.started_at IS NOT NULL
+        AND (t.type != 'platform' OR t.id IS NULL)
+      `),
     ]);
 
     const newTenantCount = await this.tenantRepo
@@ -431,8 +476,17 @@ export class SuperAdminService {
     const dbSizeInBytes = Number(dbSizeRow?.[0]?.size || 0);
     const storageUsageGb = Number((dbSizeInBytes / (1024 * 1024 * 1024)).toFixed(2));
 
-    // Dynamic system health: 100.0 if DB queries executed successfully, slightly random micro-fluctuation for realism [99.8 - 100.0]
-    const systemHealth = Number((99.8 + Math.random() * 0.2).toFixed(2));
+    const securityAlerts = failedAuditCountRow?.[0]?.count || 0;
+
+    // Deterministic system health: start at 100, deduct based on actual metrics
+    let systemHealthScore = 100;
+    if (securityAlerts > 0) {
+      systemHealthScore -= Math.min(securityAlerts * 0.5, 20); // up to 20% penalty for security alerts
+    }
+    if (storageUsageGb > 500) {
+      systemHealthScore -= 5; // 5% penalty for excessive storage
+    }
+    const systemHealth = Number(Math.max(0, Math.min(100, systemHealthScore)).toFixed(2));
 
     return {
       totalTenants,
@@ -446,11 +500,17 @@ export class SuperAdminService {
       newStudentsThisMonth: newStudentCount,
       storageUsage: storageUsageGb,
       systemHealth,
-      securityAlerts: failedAuditCountRow?.[0]?.count || 0,
+      securityAlerts,
       aiRequestsToday: aiRequestsTodayRow?.[0]?.count || 0,
       userGrowth: monthlyUserRows,
       instituteGrowth: monthlyInstRows,
       aiUsageTrend: aiHourlyRows,
+      studentFocus: {
+        activeStudents: activeStudentsRow?.[0]?.count || 0,
+        newEnrollments: newEnrollmentsRow?.[0]?.count || 0,
+        averageAttendanceRate: attendanceRow?.[0]?.avg_rate != null ? Number(attendanceRow[0].avg_rate).toFixed(1) + '%' : 'N/A',
+        courseCompletionRate: courseCompletionRow?.[0]?.avg_completion != null ? Number(courseCompletionRow[0].avg_completion).toFixed(1) + '%' : 'N/A',
+      },
     };
   }
 

@@ -1,44 +1,34 @@
-const jwt = require('jsonwebtoken');
 const axios = require('axios');
-
-const secret = 'your-super-secret-jwt-key-change-in-production';
-const payload = {
-  id: '3d0eabde-0695-4935-9dd9-da21ae1dced8',
-  role: 'TEACHER',
-  instituteId: 'c259cd4e-b018-45e2-8e46-52a497ca49a1'
-};
-
-const token = jwt.sign(payload, secret);
+const { NestFactory } = require('@nestjs/core');
+const { JwtService } = require('@nestjs/jwt');
+const { AppModule } = require('./dist/app.module.js');
 
 async function run() {
+  const app = await NestFactory.createApplicationContext(AppModule);
+  
   try {
-    console.log("Testing Chapter Creation...");
-    const res = await axios.post('http://localhost:3000/api/v1/school/topics/chapters', {
-      subjectId: '6bda44a0-0523-42cc-90f6-97e50286b91e',
-      name: 'Test Chapter Auto',
-      orderIndex: 1
-    }, {
+    const jwtService = app.get(JwtService);
+    
+    // Create a super admin payload
+    const payload = { sub: '00000000-0000-0000-0000-000000000000', email: 'admin@eddva.com', role: 'super_admin' };
+    const token = jwtService.sign(payload);
+    
+    console.log('--- Calling /admin/stats endpoint ---');
+    const response = await axios.get('http://localhost:3000/api/v1/admin/stats', {
       headers: { Authorization: `Bearer ${token}` }
     });
-    console.log("Chapter Creation Success:", res.data);
     
-    const chapterId = res.data.data.id;
-    console.log("Testing Topic Creation with Chapter ID:", chapterId);
-    const res2 = await axios.post('http://localhost:3000/api/v1/school/topics', {
-      chapterId: chapterId,
-      name: 'Test Topic Auto',
-      orderIndex: 1
-    }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    console.log("Topic Creation Success:", res2.data);
-    
+    console.log(JSON.stringify(response.data, null, 2));
+
   } catch (err) {
     if (err.response) {
-      console.error("HTTP Error:", err.response.status, err.response.data);
+      console.error('API Error:', err.response.data);
     } else {
-      console.error("Network Error:", err.message);
+      console.error(err);
     }
+  } finally {
+    await app.close();
   }
 }
+
 run();
