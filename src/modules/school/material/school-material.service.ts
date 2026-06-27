@@ -75,6 +75,7 @@ export class SchoolMaterialService implements OnModuleInit {
       await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS note TEXT`);
       await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS ai_tags JSONB`);
       await this.ds.query(`UPDATE school_material_highlights SET category = 'concept' WHERE category IS NULL`);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_material_highlights_material_user ON school_material_highlights (material_id, created_by)`);
     } catch (err) {
       this.logger.warn(`Could not create/update school_material_highlights table: ${(err as Error).message}`);
     }

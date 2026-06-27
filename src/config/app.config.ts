@@ -89,11 +89,17 @@ export const storageConfig = registerAs('storage', () => ({
 }));
 
 /** Self-hosted RTMP → HLS live streaming (nginx ingest server + secrets). */
-export const streamingConfig = registerAs('streaming', () => ({
-  // Shared secret nginx sends on on_publish / on_publish_done callbacks.
-  rtmpSecret: process.env.RTMP_SECRET || '',
-  // Public IP/host of the nginx-rtmp ingest server shown to teachers (OBS).
-  serverIp:   process.env.STREAMING_SERVER_IP || '127.0.0.1',
-  // Public R2/CDN origin that serves HLS:  {cdnBaseUrl}/{streamKey}/index.m3u8
-  cdnBaseUrl: (process.env.LIVE_CDN_BASE_URL || '').replace(/\/$/, ''),
-}));
+export const streamingConfig = registerAs('streaming', () => {
+  const isProd = process.env.NODE_ENV === 'production';
+  const rtmpSecret = process.env.RTMP_SECRET || '';
+
+  if (isProd && !rtmpSecret) {
+    throw new Error('RTMP_SECRET environment variable is required in production');
+  }
+
+  return {
+    rtmpSecret,
+    serverIp:   process.env.STREAMING_SERVER_IP || '127.0.0.1',
+    cdnBaseUrl: (process.env.LIVE_CDN_BASE_URL || '').replace(/\/$/, ''),
+  };
+});

@@ -175,6 +175,46 @@ export class SchoolNotificationService {
     return { success: true };
   }
 
+  /**
+   * Inserts one notification row per active user in the institute in a single
+   * INSERT...SELECT, then fires real-time gateway events (in-memory, no extra
+   * DB round-trips). Returns the count of rows inserted.
+   */
+  async bulkCreateForInstitute(
+    instituteId: string,
+    notif: { type: string; title: string; message: string; actionUrl?: string },
+    targetRoles?: string[],
+  ): Promise<number> {
+    let sql = `
+      INSERT INTO notifications (user_id, recipient_id, type, title, message, action_url, is_read, category, priority)
+      SELECT id, id, $2, $3, $4, $5, false, 'announcement', 'medium'
+      FROM users
+      WHERE institute_id = $1 AND is_active = TRUE
+    `;
+    const params: any[] = [instituteId, notif.type, notif.title, notif.message, notif.actionUrl || null];
+    if (targetRoles?.length) {
+      params.push(targetRoles);
+      sql += ` AND role = ANY($${params.length})`;
+    }
+    sql += ` RETURNING id, recipient_id`;
+
+    const rows: any[] = await this.ds.query(sql, params);
+    for (const row of rows) {
+      if (row.recipient_id) {
+        this.gateway.emitNotification(row.recipient_id, {
+          id: row.id,
+          type: notif.type,
+          title: notif.title,
+          message: notif.message,
+          actionUrl: notif.actionUrl || null,
+          isRead: false,
+          createdAt: new Date(),
+        });
+      }
+    }
+    return rows.length;
+  }
+
   async bulkRead(user: any, ids: string[]) {
     if (!ids || !ids.length) return { success: true };
     await this.ds.query(
