@@ -266,6 +266,8 @@ export class SchoolInstituteService {
     const aiFeatures = body.aiFeatures ?? body.ai_features;
     const modulesPermissions = body.modulesPermissions ?? body.modules_permissions;
 
+    console.log('UPDATE INSTITUTE - BODY:', JSON.stringify({ aiEnabled, aiFeatures, modulesPermissions }));
+
     await this.ds.query(
       `UPDATE institutes SET
        name=COALESCE($2,name),
@@ -285,8 +287,8 @@ export class SchoolInstituteService {
        pin_code=COALESCE($16,pin_code),
        status=COALESCE($17,status),
        ai_enabled=COALESCE($18::boolean,ai_enabled),
-       ai_features=COALESCE($19::jsonb,ai_features),
-       modules_permissions=COALESCE($20::jsonb,modules_permissions),
+       ai_features=CASE WHEN $19::jsonb IS NOT NULL THEN COALESCE(ai_features,'{}'::jsonb) || $19::jsonb ELSE ai_features END,
+       modules_permissions=CASE WHEN $20::jsonb IS NOT NULL THEN COALESCE(modules_permissions,'{}'::jsonb) || $20::jsonb ELSE modules_permissions END,
        updated_at=NOW() WHERE id=$1`,
       [
         id,
