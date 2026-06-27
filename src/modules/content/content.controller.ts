@@ -816,7 +816,7 @@ export class ContentController {
     @ApiParam({ name: 'topicId', type: 'string' })
     generateAiTopicContent(
         @Param('topicId', ParseUUIDPipe) topicId: string,
-        @Body() body: { contentType: string; difficulty: string; length: string; examTarget?: string; courseName?: string; extraContext?: string },
+        @Body() body: { contentType: string; difficulty: string; length: string; examTarget?: string; courseName?: string; extraContext?: string; questionCount?: number },
         @TenantId() tenantId: string,
     ) {
         return this.contentService.generateTopicAiContent(topicId, body, tenantId);

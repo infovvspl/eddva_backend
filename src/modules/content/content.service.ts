@@ -2999,7 +2999,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
 
     async generateTopicAiContent(
         topicId: string,
-        dto: { contentType: string; difficulty: string; length: string; batchId?: string; examTarget?: string; courseName?: string; extraContext?: string },
+        dto: { contentType: string; difficulty: string; length: string; batchId?: string; examTarget?: string; courseName?: string; extraContext?: string; questionCount?: number },
         tenantId: string,
     ): Promise<{ content: string; contentType: string }> {
         const topic = await this.topicRepo.findOne({
@@ -3048,6 +3048,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 examTarget: resolvedExamTarget,
                 courseName: resolvedCourseName,
                 extraContext,
+                questionCount: dto.questionCount,
             },
             tenantId,
             'coaching',
