@@ -347,17 +347,27 @@ export class AnalyticsService {
     const student = await this.resolveStudent(user, tenantId);
 
     // 1. Score Trend (last 15 sessions)
-    const sessions = await this.sessionRepo.find({
-      where: { studentId: student.id, tenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
-      order: { createdAt: 'DESC' },
-      take: 15,
-    });
-    const scoreTrend = sessions.reverse().map((s) => {
-      const attempted = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
-      const score = attempted > 0
-        ? Math.round((s.correctCount || 0) / attempted * 100)
-        : 0;
-      return { date: s.createdAt.toISOString().split('T')[0], score };
+    const sessions = await this.dataSource.query(
+      `SELECT id, correct_count, wrong_count, skipped_count, accuracy,
+              started_at, submitted_at, created_at
+       FROM test_sessions
+       WHERE student_id = $1
+         AND tenant_id = $2
+         AND status IN ('submitted', 'auto_submitted')
+       ORDER BY created_at DESC
+       LIMIT 15`,
+      [student.id, tenantId]
+    );
+    const scoreTrend = sessions.reverse().map((s: any) => {
+      const correct = s.correct_count || 0;
+      const wrong = s.wrong_count || 0;
+      const skipped = s.skipped_count || 0;
+      const attempted = correct + wrong + skipped;
+      const score = attempted > 0 ? Math.round(correct / attempted * 100) : 0;
+      return {
+        date: new Date(s.created_at).toISOString().split('T')[0],
+        score,
+      };
     });
 
     // 2. Subject Accuracy
@@ -365,35 +375,45 @@ export class AnalyticsService {
 
     // 3. Topic Performance (Detailed)
     const topicPerformance = await this.dataSource.query(
-      `
-        SELECT
-          t.id AS "topicId",
-          t.name AS "topicName",
-          AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END)::float AS "accuracy",
-          COUNT(*)::int AS "attempts",
-          AVG(qa.time_spent_seconds)::int AS "timeTaken"
-        FROM question_attempts qa
-        INNER JOIN questions q ON q.id = qa.question_id
-        INNER JOIN topics t ON t.id = q.topic_id
-        WHERE qa.student_id = $1 AND qa.tenant_id = $2 AND qa.deleted_at IS NULL
-        GROUP BY t.id, t.name
-        ORDER BY "accuracy" ASC
-        LIMIT 10
-      `,
-      [student.id, tenantId],
+      `SELECT
+         t.id AS "topicId",
+         t.name AS "topicName",
+         ROUND(
+           CASE WHEN COUNT(qa.id) > 0
+           THEN COUNT(qa.id) FILTER (WHERE qa.is_correct = true)::float
+                / COUNT(qa.id) * 100
+           ELSE 0 END
+         )::int AS "accuracy",
+         COUNT(qa.id) FILTER (WHERE qa.is_correct = false)::int AS "errorCount",
+         COUNT(qa.id) FILTER (WHERE qa.error_type = 'time')::int AS "timeErrors"
+       FROM topics t
+       INNER JOIN questions q ON q.topic_id = t.id
+         AND q.deleted_at IS NULL
+       INNER JOIN question_attempts qa ON qa.question_id = q.id
+         AND qa.student_id = $1
+         AND qa.tenant_id = $2
+         AND qa.deleted_at IS NULL
+       WHERE t.tenant_id = $2
+         AND t.deleted_at IS NULL
+       GROUP BY t.id, t.name
+       ORDER BY "accuracy" ASC
+       LIMIT 10`,
+      [student.id, tenantId]
     );
 
     // 4. Mistake Patterns
     const mistakes = await this.dataSource.query(
-      `
-        SELECT
-          error_type AS "type",
-          COUNT(*)::int AS "count"
-        FROM question_attempts
-        WHERE student_id = $1 AND tenant_id = $2 AND is_correct = false AND error_type IS NOT NULL AND deleted_at IS NULL
-        GROUP BY error_type
-      `,
-      [student.id, tenantId],
+      `SELECT
+         error_type AS "type",
+         COUNT(*)::int AS "count"
+       FROM question_attempts
+       WHERE student_id = $1
+         AND tenant_id = $2
+         AND error_type IS NOT NULL
+         AND deleted_at IS NULL
+       GROUP BY error_type
+       ORDER BY count DESC`,
+      [student.id, tenantId]
     );
 
     const errorTypeMap: any = {
@@ -401,6 +421,8 @@ export class AnalyticsService {
       silly: 'Silly Mistake',
       time: 'Time Pressure',
       guess: 'Wild Guess',
+      skip: 'Skipped Questions',
+      careless: 'Careless Error',
     };
 
     const speedVal = sessions.length
