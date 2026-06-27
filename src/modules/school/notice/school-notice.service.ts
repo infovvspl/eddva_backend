@@ -30,16 +30,11 @@ export class SchoolNoticeService {
     const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 20));
     const offset = (page - 1) * limit;
 
-    const countRows: any[] = await this.ds.query(
-      `SELECT COUNT(*)::int AS total FROM notices WHERE ${filter}`,
-      params,
-    );
+    const [countRows, rows] = await Promise.all([
+      this.ds.query(`SELECT COUNT(*)::int AS total FROM notices WHERE ${filter}`, params),
+      this.ds.query(`SELECT * FROM notices WHERE ${filter} ORDER BY posted_date DESC NULLS LAST, created_at DESC LIMIT ${limit} OFFSET ${offset}`, params),
+    ]);
     const total = countRows[0]?.total ?? 0;
-
-    const rows: any[] = await this.ds.query(
-      `SELECT * FROM notices WHERE ${filter} ORDER BY posted_date DESC NULLS LAST, created_at DESC LIMIT ${limit} OFFSET ${offset}`,
-      params,
-    );
     const mapped = rows.map(r => ({
       id: r.id,
       instituteId: r.institute_id,
@@ -224,25 +219,21 @@ export class SchoolNoticeService {
 
     if (!targetInstitutes.length) return { success: true, data: { sent: 0 } };
 
-    let sent = 0;
-    for (const instituteId of targetInstitutes) {
-      await this.ds.query(
-        `INSERT INTO notices (institute_id,title,content,category,priority,posted_date,expiry_date,attachments,target_roles,is_broadcast)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,TRUE)`,
-        [
-          instituteId,
-          body.title,
-          this.noticeContent(body),
-          body.category || 'GENERAL',
-          body.priority || 'NORMAL',
-          body.postedDate ? new Date(body.postedDate) : new Date(),
-          body.expiryDate ? new Date(body.expiryDate) : null,
-          body.attachments ?? null,
-          body.targetRoles || null,
-        ],
-      );
-      sent++;
-    }
-    return { success: true, data: { sent } };
+    await this.ds.query(
+      `INSERT INTO notices (institute_id,title,content,category,priority,posted_date,expiry_date,attachments,target_roles,is_broadcast)
+       SELECT unnest($1::uuid[]),$2,$3,$4,$5,$6,$7,$8,$9,TRUE`,
+      [
+        targetInstitutes,
+        body.title,
+        this.noticeContent(body),
+        body.category || 'GENERAL',
+        body.priority || 'NORMAL',
+        body.postedDate ? new Date(body.postedDate) : new Date(),
+        body.expiryDate ? new Date(body.expiryDate) : null,
+        body.attachments ?? null,
+        body.targetRoles || null,
+      ],
+    );
+    return { success: true, data: { sent: targetInstitutes.length } };
   }
 }

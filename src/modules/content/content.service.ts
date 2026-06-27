@@ -199,6 +199,11 @@ export class ContentService {
 
     // â”€â”€â”€ SUBJECTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    private async bustContentCache(tenantId: string) {
+        const gen = await this.cacheManager.get<number>(`coaching:content-gen:${tenantId}`) ?? 0;
+        await this.cacheManager.set(`coaching:content-gen:${tenantId}`, gen + 1, 60 * 60 * 1000);
+    }
+
     async createSubject(dto: CreateSubjectDto, tenantId: string): Promise<Subject> {
         this.logger.log(`Creating subject for tenant ${tenantId}`);
         const subject = this.subjectRepo.create({
@@ -211,6 +216,11 @@ export class ContentService {
     }
 
     async getSubjects(query: SubjectQueryDto, tenantId: string): Promise<Subject[]> {
+        const gen = await this.cacheManager.get<number>(`coaching:content-gen:${tenantId}`) ?? 0;
+        const cacheKey = `coaching:subjects:${tenantId}:${query.batchId ?? ''}:${query.examTarget ?? ''}:g${gen}`;
+        const cached = await this.cacheManager.get<Subject[]>(cacheKey);
+        if (cached) return cached;
+
         const where: FindOptionsWhere<Subject> = { tenantId, isActive: true };
         if (query.examTarget) where.examTarget = this.normalizeSubjectExamTarget(query.examTarget);
 
@@ -319,12 +329,17 @@ export class ContentService {
             }
 
             if (byName.size > 0) {
-                return Array.from(byName.values()).sort(
+                const subjectsResult = Array.from(byName.values()).sort(
                     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name),
                 );
+                await this.cacheManager.set(cacheKey, subjectsResult, 30 * 60 * 1000);
+                return subjectsResult;
             }
 
-            if (assignedNames.length === 0) return [];
+            if (assignedNames.length === 0) {
+                await this.cacheManager.set(cacheKey, [], 30 * 60 * 1000);
+                return [];
+            }
 
             const filtered = tenantSubjects.filter(s => assignedNames.includes(s.name.toLowerCase().trim()));
             const seen = new Map<string, Subject>();
@@ -332,7 +347,9 @@ export class ContentService {
                 const key = s.name.toLowerCase().trim();
                 if (!seen.has(key) || s.batchId === null) seen.set(key, s);
             }
-            return Array.from(seen.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+            const filteredResult = Array.from(seen.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+            await this.cacheManager.set(cacheKey, filteredResult, 30 * 60 * 1000);
+            return filteredResult;
         }
 
         const all = await this.subjectRepo.find({
@@ -341,7 +358,7 @@ export class ContentService {
             order: { sortOrder: 'ASC', createdAt: 'ASC' },
         });
 
-        // Deduplicate by name â€” prefer global (batchId = null) over batch-scoped copies
+        // Deduplicate by name — prefer global (batchId = null) over batch-scoped copies
         const seen = new Map<string, Subject>();
         for (const s of all) {
             const key = s.name.toLowerCase().trim();
@@ -349,16 +366,24 @@ export class ContentService {
                 seen.set(key, s);
             }
         }
-        return Array.from(seen.values()).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+        const allResult = Array.from(seen.values()).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+        await this.cacheManager.set(cacheKey, allResult, 30 * 60 * 1000);
+        return allResult;
     }
 
     async getSubjectById(id: string, tenantId: string): Promise<Subject> {
+        const gen = await this.cacheManager.get<number>(`coaching:content-gen:${tenantId}`) ?? 0;
+        const cacheKey = `coaching:subject:${id}:${tenantId}:g${gen}`;
+        const cached = await this.cacheManager.get<Subject>(cacheKey);
+        if (cached) return cached;
+
         const subject = await this.subjectRepo.findOne({
             where: { id, tenantId },
             relations: ['chapters', 'chapters.topics'],
             order: { sortOrder: 'ASC' } as any,
         });
         if (!subject) throw new NotFoundException(`Subject ${id} not found`);
+        await this.cacheManager.set(cacheKey, subject, 30 * 60 * 1000);
         return subject;
     }
 
@@ -372,7 +397,9 @@ export class ContentService {
                 ? this.normalizeSubjectExamTarget(dto.examTarget)
                 : subject.examTarget,
         });
-        return this.subjectRepo.save(subject);
+        const saved = await this.subjectRepo.save(subject);
+        await this.bustContentCache(tenantId);
+        return saved;
     }
 
     async deleteSubject(id: string, tenantId: string): Promise<{ message: string }> {
@@ -380,6 +407,7 @@ export class ContentService {
         const subject = await this.subjectRepo.findOne({ where: { id, tenantId } });
         if (!subject) throw new NotFoundException(`Subject ${id} not found`);
         await this.subjectRepo.softDelete(id);
+        await this.bustContentCache(tenantId);
         return { message: 'Subject deleted successfully' };
     }
 
@@ -499,6 +527,7 @@ export class ContentService {
             }
         });
 
+        await this.bustContentCache(tenantId);
         return {
             message: `Import complete`,
             created: stats,
@@ -520,26 +549,36 @@ export class ContentService {
     }
 
     async getChapters(subjectId: string, tenantId: string): Promise<Chapter[]> {
+        const gen = await this.cacheManager.get<number>(`coaching:content-gen:${tenantId}`) ?? 0;
+        const cacheKey = `coaching:chapters:${subjectId}:${tenantId}:g${gen}`;
+        const cached = await this.cacheManager.get<Chapter[]>(cacheKey);
+        if (cached) return cached;
+
         const subject = await this.subjectRepo.findOne({ where: { id: subjectId, tenantId } });
         if (!subject) throw new NotFoundException(`Subject ${subjectId} not found`);
 
-        return this.chapterRepo.find({
+        const chapters = await this.chapterRepo.find({
             where: { subjectId, tenantId, isActive: true },
             order: { sortOrder: 'ASC', createdAt: 'ASC' },
         });
+        await this.cacheManager.set(cacheKey, chapters, 30 * 60 * 1000);
+        return chapters;
     }
 
     async updateChapter(id: string, dto: UpdateChapterDto, tenantId: string): Promise<Chapter> {
         const chapter = await this.chapterRepo.findOne({ where: { id, tenantId } });
         if (!chapter) throw new NotFoundException(`Chapter ${id} not found`);
         Object.assign(chapter, dto);
-        return this.chapterRepo.save(chapter);
+        const saved = await this.chapterRepo.save(chapter);
+        await this.bustContentCache(tenantId);
+        return saved;
     }
 
     async deleteChapter(id: string, tenantId: string): Promise<{ message: string }> {
         const chapter = await this.chapterRepo.findOne({ where: { id, tenantId } });
         if (!chapter) throw new NotFoundException(`Chapter ${id} not found`);
         await this.chapterRepo.softDelete(id);
+        await this.bustContentCache(tenantId);
         return { message: 'Chapter deleted successfully' };
     }
 
@@ -563,26 +602,36 @@ export class ContentService {
     }
 
     async getTopics(chapterId: string, tenantId: string): Promise<Topic[]> {
+        const gen = await this.cacheManager.get<number>(`coaching:content-gen:${tenantId}`) ?? 0;
+        const cacheKey = `coaching:topics:${chapterId}:${tenantId}:g${gen}`;
+        const cached = await this.cacheManager.get<Topic[]>(cacheKey);
+        if (cached) return cached;
+
         const chapter = await this.chapterRepo.findOne({ where: { id: chapterId, tenantId } });
         if (!chapter) throw new NotFoundException(`Chapter ${chapterId} not found`);
 
-        return this.topicRepo.find({
+        const topics = await this.topicRepo.find({
             where: { chapterId, tenantId, isActive: true },
             order: { sortOrder: 'ASC', createdAt: 'ASC' },
         });
+        await this.cacheManager.set(cacheKey, topics, 30 * 60 * 1000);
+        return topics;
     }
 
     async updateTopic(id: string, dto: UpdateTopicDto, tenantId: string): Promise<Topic> {
         const topic = await this.topicRepo.findOne({ where: { id, tenantId } });
         if (!topic) throw new NotFoundException(`Topic ${id} not found`);
         Object.assign(topic, dto);
-        return this.topicRepo.save(topic);
+        const saved = await this.topicRepo.save(topic);
+        await this.bustContentCache(tenantId);
+        return saved;
     }
 
     async deleteTopic(id: string, tenantId: string): Promise<{ message: string }> {
         const topic = await this.topicRepo.findOne({ where: { id, tenantId } });
         if (!topic) throw new NotFoundException(`Topic ${id} not found`);
         await this.topicRepo.softDelete(id);
+        await this.bustContentCache(tenantId);
         return { message: 'Topic deleted successfully' };
     }
 

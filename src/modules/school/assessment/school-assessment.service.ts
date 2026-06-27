@@ -949,15 +949,17 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
             [classId]
           );
 
-          for (const stu of studentUsers) {
-            await this.notificationService.create({
-              recipientId: stu.user_id,
-              type: 'assessment',
-              title: 'New Assessment Available',
-              message: `${body.title} is now available.`,
-              actionUrl: '/school/student/assessments',
-            });
-          }
+          await Promise.allSettled(
+            studentUsers.map((stu: any) =>
+              this.notificationService.create({
+                recipientId: stu.user_id,
+                type: 'assessment',
+                title: 'New Assessment Available',
+                message: `${body.title} is now available.`,
+                actionUrl: '/school/student/assessments',
+              }),
+            ),
+          );
         }
       } catch (notifErr) {
         console.error('Failed to send assessment notifications:', notifErr);

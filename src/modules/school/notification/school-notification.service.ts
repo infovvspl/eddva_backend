@@ -46,24 +46,20 @@ export class SchoolNotificationService {
       sql += ` AND (title ILIKE $${params.length} OR message ILIKE $${params.length})`;
     }
 
-    // First get the total count for pagination metadata
-    const countSql = `SELECT COUNT(*)::int AS count FROM (${sql}) AS count_query`;
-    const countRows = await this.ds.query(countSql, params);
-    const total = countRows[0]?.count ?? 0;
-
     // Apply pagination
-    sql += ` ORDER BY created_at DESC`;
     const limit = parseInt(query.limit, 10) || 20;
     const page = parseInt(query.page, 10) || 1;
     const offset = (page - 1) * limit;
 
-    params.push(limit);
-    sql += ` LIMIT $${params.length}`;
+    const dataSql = sql + ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const countSql = `SELECT COUNT(*)::int AS count FROM (${sql}) AS count_query`;
+    const dataParams = [...params, limit, offset];
 
-    params.push(offset);
-    sql += ` OFFSET $${params.length}`;
-
-    const rows: any[] = await this.ds.query(sql, params);
+    const [countRows, rows] = await Promise.all([
+      this.ds.query(countSql, params),
+      this.ds.query(dataSql, dataParams),
+    ]);
+    const total = countRows[0]?.count ?? 0;
     
     const mapped = rows.map(r => ({
       id: r.id,

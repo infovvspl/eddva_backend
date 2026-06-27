@@ -587,15 +587,17 @@ export class SchoolAssignmentService {
         [classId, sectionId],
       );
 
-      for (const stu of studentUsers) {
-        await this.notificationService.create({
-          recipientId: stu.user_id,
-          type: 'assignment',
-          title: 'New Assignment',
-          message: `${body.title} has been uploaded.`,
-          actionUrl: '/school/student/assignments',
-        });
-      }
+      await Promise.allSettled(
+        studentUsers.map((stu) =>
+          this.notificationService.create({
+            recipientId: stu.user_id,
+            type: 'assignment',
+            title: 'New Assignment',
+            message: `${body.title} has been uploaded.`,
+            actionUrl: '/school/student/assignments',
+          }),
+        ),
+      );
     } catch (notifErr) {
       console.error('Failed to send assignment upload notifications:', notifErr);
     }

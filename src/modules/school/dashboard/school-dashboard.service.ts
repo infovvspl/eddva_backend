@@ -32,38 +32,37 @@ export class SchoolDashboardService {
       let assignmentsList = [];
 
       if (teacherId) {
-        classes = await this.ds.query(`
-          SELECT DISTINCT c.id, c.name 
-          FROM teacher_academic_assignments ta 
-          JOIN classes c ON ta.class_id = c.id 
-          WHERE ta.teacher_id = $1
-          ORDER BY c.name
-        `, [teacherId]);
-
-        sections = await this.ds.query(`
-          SELECT DISTINCT s.id, s.name, s.class_id
-          FROM teacher_academic_assignments ta 
-          JOIN sections s ON ta.section_id = s.id 
-          WHERE ta.teacher_id = $1
-          ORDER BY s.name
-        `, [teacherId]);
-
-        subjects = await this.ds.query(`
-          SELECT DISTINCT sub.id, sub.name
-          FROM teacher_academic_assignments ta 
-          JOIN subjects sub ON ta.subject_id = sub.id 
-          WHERE ta.teacher_id = $1
-          ORDER BY sub.name
-        `, [teacherId]);
-
-        assignmentsList = await this.ds.query(`
-          SELECT ta.class_id, c.name AS class_name, ta.section_id, s.name AS section_name, ta.subject_id, sub.name AS subject_name, ta.is_class_teacher
-          FROM teacher_academic_assignments ta
-          LEFT JOIN classes c ON ta.class_id = c.id
-          LEFT JOIN sections s ON ta.section_id = s.id
-          LEFT JOIN subjects sub ON ta.subject_id = sub.id
-          WHERE ta.teacher_id = $1
-        `, [teacherId]);
+        [classes, sections, subjects, assignmentsList] = await Promise.all([
+          this.ds.query(`
+            SELECT DISTINCT c.id, c.name
+            FROM teacher_academic_assignments ta
+            JOIN classes c ON ta.class_id = c.id
+            WHERE ta.teacher_id = $1
+            ORDER BY c.name
+          `, [teacherId]),
+          this.ds.query(`
+            SELECT DISTINCT s.id, s.name, s.class_id
+            FROM teacher_academic_assignments ta
+            JOIN sections s ON ta.section_id = s.id
+            WHERE ta.teacher_id = $1
+            ORDER BY s.name
+          `, [teacherId]),
+          this.ds.query(`
+            SELECT DISTINCT sub.id, sub.name
+            FROM teacher_academic_assignments ta
+            JOIN subjects sub ON ta.subject_id = sub.id
+            WHERE ta.teacher_id = $1
+            ORDER BY sub.name
+          `, [teacherId]),
+          this.ds.query(`
+            SELECT ta.class_id, c.name AS class_name, ta.section_id, s.name AS section_name, ta.subject_id, sub.name AS subject_name, ta.is_class_teacher
+            FROM teacher_academic_assignments ta
+            LEFT JOIN classes c ON ta.class_id = c.id
+            LEFT JOIN sections s ON ta.section_id = s.id
+            LEFT JOIN subjects sub ON ta.subject_id = sub.id
+            WHERE ta.teacher_id = $1
+          `, [teacherId]),
+        ]);
       }
 
       const now = new Date();

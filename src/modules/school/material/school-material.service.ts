@@ -813,15 +813,17 @@ export class SchoolMaterialService implements OnModuleInit {
         };
         const fileTypeWord = typeLabels[type] || 'Study Material';
 
-        for (const stu of studentUsers) {
-          await this.notificationService.create({
-            recipientId: stu.user_id,
-            type: 'study_material',
-            title: 'New Study Material',
-            message: `${body.title} (${fileTypeWord}) has been uploaded.`,
-            actionUrl: '/school/student/study-materials',
-          });
-        }
+        await Promise.allSettled(
+          studentUsers.map((stu: any) =>
+            this.notificationService.create({
+              recipientId: stu.user_id,
+              type: 'study_material',
+              title: 'New Study Material',
+              message: `${body.title} (${fileTypeWord}) has been uploaded.`,
+              actionUrl: '/school/student/study-materials',
+            }),
+          ),
+        );
       }
     } catch (notifErr) {
       console.error('Failed to send study material upload notifications:', notifErr);

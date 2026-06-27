@@ -717,19 +717,41 @@ export class SchoolStudyPlanService implements OnModuleInit {
       }
     }
 
+    // Batch-fetch all chapters and topics to avoid N+1 queries
+    const [allChapterRows, ] = await Promise.all([
+      this.ds.query(
+        `SELECT id, name, subject_id FROM chapters WHERE subject_id = ANY($1::uuid[]) ORDER BY sort_order, name`,
+        [subjectIds]
+      ),
+    ]);
+    const allChapterIds = allChapterRows.map((c: any) => c.id);
+    const allTopicRows = allChapterIds.length
+      ? await this.ds.query(
+          `SELECT id, name, chapter_id FROM topics WHERE chapter_id = ANY($1::uuid[]) ORDER BY sort_order, name`,
+          [allChapterIds]
+        )
+      : [];
+
+    const chaptersBySubject = new Map<string, any[]>();
+    for (const chap of allChapterRows) {
+      const key = String(chap.subject_id);
+      if (!chaptersBySubject.has(key)) chaptersBySubject.set(key, []);
+      chaptersBySubject.get(key)!.push(chap);
+    }
+    const topicsByChapter = new Map<string, any[]>();
+    for (const top of allTopicRows) {
+      const key = String(top.chapter_id);
+      if (!topicsByChapter.has(key)) topicsByChapter.set(key, []);
+      topicsByChapter.get(key)!.push(top);
+    }
+
     const subjects = [];
     for (const sub of subjectRows) {
-      const chapterRows = await this.ds.query(
-        `SELECT id, name FROM chapters WHERE subject_id = $1 ORDER BY sort_order, name`,
-        [sub.id]
-      );
+      const chapterRows = chaptersBySubject.get(String(sub.id)) || [];
 
       const chapters = [];
       for (const chap of chapterRows) {
-        const topicRows = await this.ds.query(
-          `SELECT id, name FROM topics WHERE chapter_id = $1 ORDER BY sort_order, name`,
-          [chap.id]
-        );
+        const topicRows = topicsByChapter.get(String(chap.id)) || [];
 
         const topics = topicRows.map((top: any) => {
           const isCompleted = completedTopicIds.has(top.id);
