@@ -59,6 +59,7 @@ export class RecordingHighlightService {
   }
 
   async createHighlight(recordingId: string, user: any, dto: CreateHighlightDto) {
+
     await this.verifyRecordingAccess(recordingId, user, true);
 
     if (dto.startOffset < 0 || dto.endOffset <= dto.startOffset) {
@@ -93,7 +94,7 @@ export class RecordingHighlightService {
         `,
         [
           recordingId,
-          user.userId,
+          user.id,
           dto.startOffset,
           dto.endOffset,
           displayOrder,
@@ -139,7 +140,7 @@ export class RecordingHighlightService {
         SET deleted_at = NOW(), updated_by = $1, updated_at = NOW() 
         WHERE id::text = $2
         `,
-        [user.userId, highlightId]
+        [user.id, highlightId]
       );
       await queryRunner.commitTransaction();
       return { success: true };
