@@ -57,6 +57,12 @@ export class SchoolLiveController {
     return this.svc.listLive(user);
   }
 
+  @Delete('lectures/:id')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  delete(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.deleteLecture(id, user);
+  }
+
   @Post('lectures/:id/end')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   end(@SchoolUser() user: any, @Param('id') id: string) {
