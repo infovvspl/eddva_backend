@@ -182,7 +182,9 @@ export class SchoolDashboardService {
         complaintStats,
         recentNotices,
         studentAttRows,
-        teacherAttRows
+        teacherAttRows,
+        liveClassesCountRow,
+        scheduledClassesCountRow
       ] = await Promise.all([
         this.ds.query(`SELECT * FROM institutes WHERE id=$1`, [instituteId]),
         this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='TEACHER' AND institute_id=$1`, [instituteId]),
@@ -204,6 +206,8 @@ export class SchoolDashboardService {
           WHERE a.institute_id = $1 AND a.date = $2 AND u.role = 'TEACHER'
             AND (LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')
         `, [instituteId, todayStr]),
+        this.ds.query(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND status = 'LIVE'`, [instituteId]),
+        this.ds.query(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND DATE(scheduled_for) = DATE($2)`, [instituteId, todayStr]),
       ]);
 
       const totalStudents = students[0]?.c || 0;
@@ -246,7 +250,11 @@ export class SchoolDashboardService {
         complaintStatus: formattedComplaintStatus,
         communications: communications,
         totalInstitutes: 1,
-        pendingApprovals: 0
+        pendingApprovals: 0,
+        liveClassesCount: liveClassesCountRow[0]?.c || 0,
+        scheduledClassesCount: scheduledClassesCountRow[0]?.c || 0,
+        presentStudentsToday,
+        presentTeachersToday
       };
     }
 

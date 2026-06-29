@@ -119,7 +119,7 @@ export class SchoolJwtGuard implements CanActivate {
 
     const rows: any[] = await this.ds.query(
       `SELECT u.id, u.email, u.name, u.role, u.profile_image, u.institute_id, u.is_active, 
-              i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status
+              i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo AS inst_logo
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE u.id = $1`,
@@ -164,6 +164,7 @@ export class SchoolJwtGuard implements CanActivate {
           name: row.inst_name,
           tenantDomain: row.tenant_domain,
           status: row.inst_status,
+          logo: row.inst_logo,
         }
         : null,
     };
