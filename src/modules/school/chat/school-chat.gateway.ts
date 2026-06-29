@@ -29,8 +29,28 @@ export class SchoolChatGateway implements OnGatewayDisconnect {
 
   constructor(
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
-    @InjectDataSource('school') private readonly ds: DataSource,
+    @InjectDataSource('school') private readonly schoolDs: DataSource,
+    @InjectDataSource('coaching') private readonly coachingDs: DataSource,
   ) {}
+
+  private async getDataSourcesForUser(userId: string): Promise<DataSource[]> {
+    const aliases = this.chatUserAliases(userId);
+    if (aliases.includes(VIRTUAL_SUPER_ADMIN_ID)) {
+      return [this.schoolDs, this.coachingDs];
+    }
+    try {
+      const rows = await this.schoolDs.query(
+        `SELECT id FROM users WHERE id::text = ANY($1::text[])`,
+        [aliases]
+      );
+      if (rows.length > 0) {
+        return [this.schoolDs];
+      }
+    } catch (e) {
+      this.logger.error(`Failed to look up user in school DB: ${e.message}`);
+    }
+    return [this.coachingDs];
+  }
 
   private chatUserAliases(userId: any): string[] {
     const id = String(userId || '').trim();
@@ -59,23 +79,26 @@ export class SchoolChatGateway implements OnGatewayDisconnect {
       aliases.forEach((id) => this.server.emit('presence_change', { userId: id, ...presence }));
 
       try {
-        // Mark pending messages as delivered
-        await this.ds.query(
-          `UPDATE chat_messages SET is_delivered = true WHERE receiver_id::text = ANY($1::text[]) AND is_delivered IS NOT TRUE`,
-          [aliases],
-        );
+        const dataSources = await this.getDataSourcesForUser(userId);
+        for (const ds of dataSources) {
+          // Mark pending messages as delivered
+          await ds.query(
+            `UPDATE chat_messages SET is_delivered = true WHERE receiver_id::text = ANY($1::text[]) AND is_delivered IS NOT TRUE`,
+            [aliases],
+          );
 
-        // Fetch senders to notify them
-        const senders: any[] = await this.ds.query(
-          `SELECT DISTINCT sender_id FROM chat_messages WHERE receiver_id::text = ANY($1::text[])`,
-          [aliases],
-        );
+          // Fetch senders to notify them
+          const senders: any[] = await ds.query(
+            `SELECT DISTINCT sender_id FROM chat_messages WHERE receiver_id::text = ANY($1::text[])`,
+            [aliases],
+          );
 
-        senders.forEach((s) => {
-          if (s.sender_id) {
-            this.emitToUserAliases(s.sender_id, 'messages_delivered', { receiverId: aliases[0] });
-          }
-        });
+          senders.forEach((s) => {
+            if (s.sender_id) {
+              this.emitToUserAliases(s.sender_id, 'messages_delivered', { receiverId: aliases[0] });
+            }
+          });
+        }
       } catch (err) {
         this.logger.error(`Failed to handle delivered state on join_user: ${(err as Error).message}`);
       }
