@@ -97,7 +97,7 @@ export class SuperAdminService {
           aiEnabled: dto.aiEnabled ?? false,
           aiFeatures: dto.aiFeatures ?? [],
           metadata: {
-            modulesPermissions: {
+            modulesPermissions: dto.modulesPermissions ?? {
               live_lectures: true,
               mock_tests: true,
               doubt_queue: true,
@@ -254,10 +254,22 @@ export class SuperAdminService {
     const tenant = await this.tenantRepo.findOne({ where: { id } });
     if (!tenant) throw new NotFoundException(`Tenant ${id} not found`);
 
+    const { modulesPermissions, ...restDto } = dto;
+
     Object.assign(tenant, {
-      ...dto,
-      trialEndsAt: dto.trialEndsAt ? new Date(dto.trialEndsAt) : tenant.trialEndsAt,
+      ...restDto,
+      trialEndsAt: restDto.trialEndsAt ? new Date(restDto.trialEndsAt) : tenant.trialEndsAt,
     });
+
+    if (modulesPermissions !== undefined) {
+      tenant.metadata = {
+        ...tenant.metadata,
+        modulesPermissions: {
+          ...(tenant.metadata?.modulesPermissions ?? {}),
+          ...modulesPermissions
+        }
+      };
+    }
 
     const saved = await this.tenantRepo.save(tenant);
 

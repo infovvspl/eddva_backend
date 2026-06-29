@@ -12,6 +12,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  IsObject,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -83,6 +84,11 @@ export class CreateTenantDto {
   @IsArray()
   @IsString({ each: true })
   aiFeatures?: AiFeatureKey[];
+
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  modulesPermissions?: Record<string, boolean>;
 }
 
 export class TenantListQueryDto {
@@ -156,6 +162,11 @@ export class UpdateTenantDto {
   @IsArray()
   @IsString({ each: true })
   aiFeatures?: AiFeatureKey[];
+
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  modulesPermissions?: Record<string, boolean>;
 }
 
 export class AdminUserListQueryDto {
