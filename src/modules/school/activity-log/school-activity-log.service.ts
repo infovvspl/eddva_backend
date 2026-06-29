@@ -20,7 +20,11 @@ export class SchoolActivityLogService {
     if (query.userId) { params.push(query.userId); sql += ` AND al.user_id=$${params.length}`; }
     if (query.action) { params.push(`%${query.action}%`); sql += ` AND al.action ILIKE $${params.length}`; }
     sql += ` ORDER BY al.created_at DESC`;
-    if (query.limit) { params.push(Number(query.limit)); sql += ` LIMIT $${params.length}`; }
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 100);
+    const offset = (page - 1) * limit;
+    params.push(limit, offset);
+    sql += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
     const rows: any[] = await this.ds.query(sql, params);
     return { success: true, count: rows.length, data: rows };
   }

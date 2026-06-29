@@ -57,6 +57,12 @@ export class SchoolLiveController {
     return this.svc.listLive(user);
   }
 
+  @Delete('lectures/:id')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  delete(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.deleteLecture(id, user);
+  }
+
   @Post('lectures/:id/end')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   end(@SchoolUser() user: any, @Param('id') id: string) {
@@ -71,8 +77,8 @@ export class SchoolLiveController {
 
   @Get('lectures/:id/chat')
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  chat(@Param('id') id: string) {
-    return this.svc.getChatHistory(id, 500);
+  chat(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getChatHistory(id, user, 500);
   }
 
   @Get('lectures/:id/participants/active')
@@ -102,7 +108,7 @@ export class SchoolLiveController {
     @Param('id') id: string,
     @Body() dto: { question: string; options: string[]; correctOption?: string },
   ) {
-    return this.svc.createPoll(id, dto.question, dto.options, dto.correctOption);
+    return this.svc.createPoll(id, user, dto.question, dto.options, dto.correctOption);
   }
 
   @Post('lectures/:id/polls/:pollId/end')
@@ -117,8 +123,8 @@ export class SchoolLiveController {
 
   @Get('lectures/:id/polls/active')
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  activePoll(@Param('id') id: string) {
-    return this.svc.getActivePoll(id);
+  activePoll(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getActivePoll(id, user);
   }
 
   @Post('lectures/:id/polls/:pollId/vote')
@@ -129,13 +135,13 @@ export class SchoolLiveController {
     @Param('pollId') pollId: string,
     @Body() dto: { option: string },
   ) {
-    return this.svc.votePoll(id, pollId, user.id, user.name || 'Student', dto.option);
+    return this.svc.votePoll(id, pollId, user, user.name || 'Student', dto.option);
   }
 
   @Get('lectures/:id/polls')
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  listPolls(@Param('id') id: string) {
-    return this.svc.listPolls(id);
+  listPolls(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.listPolls(id, user);
   }
 }
 

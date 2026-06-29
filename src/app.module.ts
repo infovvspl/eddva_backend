@@ -79,7 +79,7 @@ import { GamesModule } from './modules/games/games.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { InternalModule } from './modules/internal/internal.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
-import { FeatureFlagModule } from './modules/common/guards/feature-flag.module';
+import { CoachingChatModule } from './modules/chat/chat.module';
 
 // ── School Module (all school sub-modules bundled) ────────────────────────────
 
@@ -233,7 +233,7 @@ const ALL_COACHING_ENTITIES = [
     GamificationModule,
     InternalModule,
     AuditLogModule,
-    FeatureFlagModule,
+    CoachingChatModule,
 
     // ── School Module ─────────────────────────────────────────────────────────
     SchoolModule,

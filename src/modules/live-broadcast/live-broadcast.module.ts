@@ -7,8 +7,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { R2Module } from '../storage/r2.module';
 import { BroadcastChatMessage } from './entities/broadcast-chat-message.entity';
 import { BroadcastLecture } from './entities/broadcast-lecture.entity';
+import { BroadcastParticipant } from './entities/broadcast-participant.entity';
+import { BroadcastPoll } from './entities/broadcast-poll.entity';
+import { BroadcastPollVote } from './entities/broadcast-poll-vote.entity';
+import { BroadcastReaction } from './entities/broadcast-reaction.entity';
 import { BroadcastSession } from './entities/broadcast-session.entity';
-import { LectureController, StreamHookController } from './live-broadcast.controller';
+import { LectureController, LectureHlsController, StreamHookController } from './live-broadcast.controller';
 import { RECORDINGS_QUEUE } from './live-broadcast.constants';
 import { LiveBroadcastGateway } from './live-broadcast.gateway';
 import { RecordingProcessor } from './live-broadcast.processor';
@@ -20,7 +24,15 @@ import { LiveBroadcastService } from './live-broadcast.service';
     ConfigModule,
     R2Module,
     TypeOrmModule.forFeature(
-      [BroadcastLecture, BroadcastSession, BroadcastChatMessage],
+      [
+        BroadcastLecture,
+        BroadcastSession,
+        BroadcastChatMessage,
+        BroadcastParticipant,
+        BroadcastPoll,
+        BroadcastPollVote,
+        BroadcastReaction,
+      ],
       'coaching',
     ),
     BullModule.registerQueue({ name: RECORDINGS_QUEUE }),
@@ -30,7 +42,7 @@ import { LiveBroadcastService } from './live-broadcast.service';
       useFactory: (cfg: ConfigService) => ({ secret: cfg.get<string>('jwt.secret') }),
     }),
   ],
-  controllers: [LectureController, StreamHookController],
+  controllers: [LectureController, LectureHlsController, StreamHookController],
   providers: [LiveBroadcastService, LiveBroadcastRedis, LiveBroadcastGateway, RecordingProcessor],
   exports: [LiveBroadcastService],
 })

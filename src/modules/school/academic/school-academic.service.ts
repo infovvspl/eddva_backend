@@ -1,10 +1,44 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import type { Cache } from 'cache-manager';
+
+const ACADEMIC_TTL = 30 * 60 * 1000; // 30 min — class/section structure is quasi-static
 
 @Injectable()
 export class SchoolAcademicService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) { }
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) { }
+
+  private classListKey(instituteId: string, academicYear?: string) {
+    return `school:classes:list:${instituteId}:${academicYear ?? '_'}`;
+  }
+
+  private sectionListKey(instituteId: string, classId?: string, academicYear?: string) {
+    return `school:sections:list:${instituteId}:${classId ?? '_'}:${academicYear ?? '_'}`;
+  }
+
+  private async invalidateClassCaches(instituteId: string) {
+    // Bust the main no-year key and the current academic-year key (covers most callers)
+    await Promise.all([
+      this.cache.del(this.classListKey(instituteId)),
+      this.cache.del(this.classListKey(instituteId, new Date().getFullYear().toString())),
+      this.cache.del(this.classListKey(instituteId, '2025-2026')),
+      this.cache.del(this.classListKey(instituteId, '2024-2025')),
+    ]).catch(() => undefined);
+  }
+
+  private async invalidateSectionCaches(instituteId: string, classId?: string) {
+    await Promise.all([
+      this.cache.del(this.sectionListKey(instituteId)),
+      this.cache.del(this.sectionListKey(instituteId, classId)),
+      this.classListKey(instituteId), // class list embeds section counts
+    ]).catch(() => undefined);
+    await this.invalidateClassCaches(instituteId);
+  }
 
   private async resolveInstituteId(user: any, bodyId?: string): Promise<string> {
     return user.role === 'SUPER_ADMIN'
@@ -15,10 +49,10 @@ export class SchoolAcademicService {
   // Classes
 
   async listClasses(user: any, query: any) {
-    const instituteId = await this.resolveInstituteId(
-      user,
-      query.instituteId,
-    );
+    const instituteId = await this.resolveInstituteId(user, query.instituteId);
+    const cacheKey = this.classListKey(instituteId, query.academicYear);
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached;
 
     let rows: any[];
 
@@ -128,32 +162,20 @@ export class SchoolAcademicService {
       );
     }
 
-    return { success: true, data: rows };
+    const result = { success: true, data: rows };
+    await this.cache.set(cacheKey, result, ACADEMIC_TTL);
+    return result;
   }
 
   async createClass(user: any, body: any) {
-    const instituteId = await this.resolveInstituteId(
-      user,
-      body.instituteId,
-    );
+    const instituteId = await this.resolveInstituteId(user, body.instituteId);
 
     const rows: any[] = await this.ds.query(
-      `
-      INSERT INTO classes (
-        institute_id,
-        name,
-        academic_year
-      )
-      VALUES ($1, $2, $3)
-      RETURNING *
-      `,
-      [
-        instituteId,
-        body.name,
-        body.academicYear || '2025-2026',
-      ],
+      `INSERT INTO classes (institute_id, name, academic_year) VALUES ($1, $2, $3) RETURNING *`,
+      [instituteId, body.name, body.academicYear || '2025-2026'],
     );
 
+    await this.invalidateClassCaches(instituteId);
     return { success: true, data: rows[0] };
   }
 
@@ -219,18 +241,19 @@ export class SchoolAcademicService {
       [id],
     );
 
-    return { success: true, data: rows[0] };
+    const updatedClass = rows[0];
+    if (updatedClass?.institute_id) {
+      await this.invalidateClassCaches(updatedClass.institute_id);
+    }
+    return { success: true, data: updatedClass };
   }
 
   async deleteClass(id: string) {
-    await this.ds.query(
-      `
-      DELETE FROM classes
-      WHERE id = $1
-      `,
-      [id],
-    );
-
+    const classRows: any[] = await this.ds.query(`SELECT institute_id FROM classes WHERE id=$1`, [id]);
+    await this.ds.query(`DELETE FROM classes WHERE id=$1`, [id]);
+    if (classRows[0]?.institute_id) {
+      await this.invalidateClassCaches(classRows[0].institute_id);
+    }
     return { success: true };
   }
 
@@ -238,6 +261,10 @@ export class SchoolAcademicService {
 
   async listSections(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
+    const cacheKey = this.sectionListKey(instituteId, query.classId, query.academicYear);
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached;
+
     let baseQuery = `SELECT sec.*,c.name AS class_name FROM sections sec LEFT JOIN classes c ON sec.class_id::text=c.id::text WHERE c.institute_id=$1`;
     const params: any[] = [instituteId];
 
@@ -253,7 +280,9 @@ export class SchoolAcademicService {
     baseQuery += ` ORDER BY sec.name`;
     const rows = await this.ds.query(baseQuery, params);
 
-    return { success: true, data: rows };
+    const result = { success: true, data: rows };
+    await this.cache.set(cacheKey, result, ACADEMIC_TTL);
+    return result;
   }
 
   async createSection(user: any, body: any) {
@@ -276,34 +305,42 @@ export class SchoolAcademicService {
       ],
     );
 
+    // Invalidate caches — a new section changes class/section lists
+    if (rows[0]?.class_id) {
+      const classRows: any[] = await this.ds.query(
+        `SELECT institute_id FROM classes WHERE id=$1`, [rows[0].class_id],
+      );
+      if (classRows[0]?.institute_id) {
+        await this.invalidateSectionCaches(classRows[0].institute_id, rows[0].class_id);
+      }
+    }
     return { success: true, data: rows[0] };
   }
 
   async updateSection(id: string, body: any) {
+    const secRows: any[] = await this.ds.query(
+      `SELECT sec.class_id, c.institute_id FROM sections sec JOIN classes c ON c.id::text=sec.class_id::text WHERE sec.id=$1`,
+      [id],
+    );
     await this.ds.query(
-      `
-      UPDATE sections
-      SET
-        name = COALESCE($2, name),
-        academic_year = COALESCE($3, academic_year),
-        updated_at = NOW()
-      WHERE id = $1
-      `,
+      `UPDATE sections SET name=COALESCE($2,name), academic_year=COALESCE($3,academic_year), updated_at=NOW() WHERE id=$1`,
       [id, body.name, body.academicYear],
     );
-
+    if (secRows[0]?.institute_id) {
+      await this.invalidateSectionCaches(secRows[0].institute_id, secRows[0].class_id);
+    }
     return { success: true };
   }
 
   async deleteSection(id: string) {
-    await this.ds.query(
-      `
-      DELETE FROM sections
-      WHERE id = $1
-      `,
+    const secRows: any[] = await this.ds.query(
+      `SELECT sec.class_id, c.institute_id FROM sections sec JOIN classes c ON c.id::text=sec.class_id::text WHERE sec.id=$1`,
       [id],
     );
-
+    await this.ds.query(`DELETE FROM sections WHERE id=$1`, [id]);
+    if (secRows[0]?.institute_id) {
+      await this.invalidateSectionCaches(secRows[0].institute_id, secRows[0].class_id);
+    }
     return { success: true };
   }
 

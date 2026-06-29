@@ -1,9 +1,12 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 
@@ -50,10 +53,29 @@ export class AnalyticsService {
     private readonly notificationService: NotificationService,
     @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
-  ) { }
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
+
+  private studentCacheKeys(studentId: string) {
+    return [
+      `coaching:perf:${studentId}`,
+      `coaching:adv-perf:${studentId}`,
+      `coaching:adv-eng:${studentId}`,
+      `coaching:adv-plan:${studentId}`,
+      `coaching:insights:${studentId}`,
+    ];
+  }
+
+  private async bustStudentCache(studentId: string) {
+    await Promise.all(this.studentCacheKeys(studentId).map((k) => this.cache.del(k)));
+  }
 
   async getPerformance(user: any, tenantId: string, studentIdOverride?: string) {
     const student = await this.resolveStudent(user, tenantId, studentIdOverride);
+    const cacheKey = `coaching:perf:${student.id}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
+
     const profile = await this.profileRepo.findOne({ where: { studentId: student.id } });
     const weakTopics = await this.weakTopicRepo.find({
       where: { studentId: student.id },
@@ -61,10 +83,12 @@ export class AnalyticsService {
       order: { wrongCount: 'DESC', updatedAt: 'DESC' },
     });
 
-    return {
+    const result = {
       performanceProfile: this.serializeProfile(profile, student.id),
       weakTopics: weakTopics.map((topic) => this.serializeWeakTopic(topic)),
     };
+    await this.cache.set(cacheKey, result, 5 * 60 * 1000);
+    return result;
   }
 
   async refreshPerformance(user: any, tenantId: string, studentIdOverride?: string) {
@@ -73,6 +97,7 @@ export class AnalyticsService {
   }
 
   async refreshPerformanceForStudent(studentId: string, tenantId: string) {
+    await this.bustStudentCache(studentId);
     const sessions = await this.sessionRepo.find({
       where: [
         { studentId, tenantId, status: TestSessionStatus.SUBMITTED },
@@ -232,10 +257,9 @@ export class AnalyticsService {
 
     await this.weakTopicRepo.delete({ studentId });
 
-    const saved: WeakTopic[] = [];
-    for (const row of rows) {
+    const toSave = rows.map((row) => {
       const severity = this.mapSeverity(Number(row.wrongCount || 0));
-      const weakTopic = this.weakTopicRepo.create({
+      return this.weakTopicRepo.create({
         studentId,
         topicId: row.topicId,
         severity,
@@ -245,10 +269,9 @@ export class AnalyticsService {
         rewindCount: Number(row.timeErrors || 0) + Number(row.sillyErrors || 0),
         lastAttemptedAt: row.lastAttemptedAt ? new Date(row.lastAttemptedAt) : null,
       });
-      saved.push(await this.weakTopicRepo.save(weakTopic));
-    }
+    });
 
-    return saved;
+    return this.weakTopicRepo.save(toSave);
   }
 
   private async computePerSubjectAccuracy(studentId: string, tenantId: string) {
@@ -276,15 +299,11 @@ export class AnalyticsService {
 
   private async resolveStudent(user: any, tenantId: string, studentIdOverride?: string) {
     if (user.role === UserRole.STUDENT) {
-      if (studentIdOverride) {
-        const student = await this.studentRepo.findOne({ where: { userId: user.id, tenantId } });
-        if (!student || student.id !== studentIdOverride) {
-          throw new ForbiddenException('Students can only access their own analytics');
-        }
-      }
-
       const student = await this.studentRepo.findOne({ where: { userId: user.id, tenantId } });
       if (!student) throw new NotFoundException('Student not found');
+      if (studentIdOverride && student.id !== studentIdOverride) {
+        throw new ForbiddenException('Students can only access their own analytics');
+      }
       return student;
     }
 
@@ -343,8 +362,23 @@ export class AnalyticsService {
       topic: topic.topic,
     };
   }
+  private async resolveEffectiveTenantId(studentId: string, fallbackTenantId: string): Promise<string> {
+    const enrollments = await this.dataSource.query(`
+      SELECT b.tenant_id
+      FROM enrollments e
+      JOIN batches b ON b.id = e.batch_id
+      WHERE e.student_id = $1 AND e.tenant_id = $2 AND e.status = 'active'
+      ORDER BY e.enrolled_at DESC
+      LIMIT 1
+    `, [studentId, fallbackTenantId]);
+    return enrollments[0]?.tenant_id ?? fallbackTenantId;
+  }
   async getStudentAdvancedPerformance(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
+    const cacheKey = `coaching:adv-perf:${student.id}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
 
     // 1. Score Trend (last 15 sessions)
     const sessions = await this.dataSource.query(
@@ -356,7 +390,7 @@ export class AnalyticsService {
          AND status IN ('submitted', 'auto_submitted')
        ORDER BY created_at DESC
        LIMIT 15`,
-      [student.id, tenantId]
+      [student.id, effectiveTenantId]
     );
     const scoreTrend = sessions.reverse().map((s: any) => {
       const correct = s.correct_count || 0;
@@ -371,7 +405,7 @@ export class AnalyticsService {
     });
 
     // 2. Subject Accuracy
-    const subjectAccuracy = await this.computePerSubjectAccuracy(student.id, tenantId);
+    const subjectAccuracy = await this.computePerSubjectAccuracy(student.id, effectiveTenantId);
 
     // 3. Topic Performance (Detailed)
     const topicPerformance = await this.dataSource.query(
@@ -398,7 +432,7 @@ export class AnalyticsService {
        GROUP BY t.id, t.name
        ORDER BY "accuracy" ASC
        LIMIT 10`,
-      [student.id, tenantId]
+      [student.id, effectiveTenantId]
     );
 
     // 4. Mistake Patterns
@@ -413,7 +447,7 @@ export class AnalyticsService {
          AND deleted_at IS NULL
        GROUP BY error_type
        ORDER BY count DESC`,
-      [student.id, tenantId]
+      [student.id, effectiveTenantId]
     );
 
     const errorTypeMap: any = {
@@ -437,12 +471,12 @@ export class AnalyticsService {
       )
       : 0;
 
-    return {
+    const result = {
       scoreTrend,
       subjectAccuracy,
       topicPerformance: topicPerformance.map((t: any) => ({
         ...t,
-        score: Math.round(t.accuracy), // Frontend expects score and accuracy
+        score: Math.round(t.accuracy),
         accuracy: Math.round(t.accuracy),
       })),
       mistakePatterns: mistakes.map((m: any) => ({
@@ -455,10 +489,17 @@ export class AnalyticsService {
         trend: scoreTrend.length > 1 && scoreTrend[scoreTrend.length - 1].score > scoreTrend[0].score ? 'improving' : 'stable',
       },
     };
+    await this.cache.set(`coaching:adv-perf:${student.id}`, result, 5 * 60 * 1000);
+    return result;
   }
 
   async getStudentAdvancedEngagement(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
+ 
+    const cacheKey = `coaching:adv-eng:${student.id}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
 
     // 1. Daily Active Minutes (last 14 days) — aggregate ALL activity types
     const activeMinutes = await this.dataSource.query(
@@ -470,9 +511,9 @@ export class AnalyticsService {
           FROM engagement_logs
           WHERE student_id = $1 AND logged_at > NOW() - INTERVAL '14 days' AND deleted_at IS NULL
           GROUP BY DATE(logged_at)
-
+ 
           UNION ALL
-
+ 
           -- Test sessions (duration = submitted - started)
           SELECT DATE(started_at) AS d,
                  COALESCE(SUM(EXTRACT(EPOCH FROM (submitted_at - started_at))::int), 0) / 60 AS mins
@@ -482,9 +523,9 @@ export class AnalyticsService {
             AND started_at > NOW() - INTERVAL '14 days'
             AND submitted_at IS NOT NULL AND deleted_at IS NULL
           GROUP BY DATE(started_at)
-
+ 
           UNION ALL
-
+ 
           -- AI study sessions
           SELECT DATE(created_at) AS d,
                  COALESCE(SUM(time_spent_seconds), 0) / 60 AS mins
@@ -498,38 +539,38 @@ export class AnalyticsService {
         GROUP BY d
         ORDER BY d ASC
       `,
-      [student.id, tenantId],
+      [student.id, effectiveTenantId],
     );
-
+ 
     // 2. Content Preference — count real activity types across all tables
     const lectureCount = await this.lectureProgressRepo.count({
-      where: { studentId: student.id, tenantId },
+      where: { studentId: student.id, tenantId: effectiveTenantId },
     });
     const assessmentCount = await this.sessionRepo.count({
-      where: { studentId: student.id, tenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
+      where: { studentId: student.id, tenantId: effectiveTenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
     });
     const aiSessionCount = await this.aiStudyRepo.count({
-      where: { studentId: student.id, tenantId },
+      where: { studentId: student.id, tenantId: effectiveTenantId },
     });
-
+ 
     const totalActivities = (lectureCount + assessmentCount + aiSessionCount) || 1;
     const contentPreference = [
       { type: 'Recorded Lectures', percentage: Math.round((lectureCount / totalActivities) * 100) },
       { type: 'Assessments', percentage: Math.round((assessmentCount / totalActivities) * 100) },
       { type: 'AI Tutor', percentage: Math.round((aiSessionCount / totalActivities) * 100) },
     ].filter(p => p.percentage > 0);
-
+ 
     // 3. Lecture Activity
     const lectureStats = await this.lectureProgressRepo.find({
-      where: { studentId: student.id, tenantId },
+      where: { studentId: student.id, tenantId: effectiveTenantId },
     });
-
+ 
     // 4. Real notes count — AI study sessions with generated lesson content
     const notesGenerated = await this.aiStudyRepo.count({
-      where: { studentId: student.id, tenantId, isCompleted: true },
+      where: { studentId: student.id, tenantId: effectiveTenantId, isCompleted: true },
     });
 
-    return {
+    const engResult = {
       dailyActiveMinutes: activeMinutes.map((m: any) => ({
         date: (m.date instanceof Date ? m.date.toISOString() : String(m.date)).split('T')[0],
         minutes: Number(m.minutes || 0),
@@ -545,10 +586,15 @@ export class AnalyticsService {
       notesGenerated,
       aiTutorSessions: aiSessionCount,
     };
+    await this.cache.set(`coaching:adv-eng:${student.id}`, engResult, 5 * 60 * 1000);
+    return engResult;
   }
 
   async getStudentAdvancedStudyPlan(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+    const cacheKey = `coaching:adv-plan:${student.id}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
 
     const planItems = await this.planItemRepo.find({
       where: { studyPlan: { studentId: student.id } },
@@ -577,7 +623,7 @@ export class AnalyticsService {
       completionRateTrend.push({ date: label, rate });
     }
 
-    return {
+    const planResult = {
       adherence: {
         completed: planItems.filter((i) => i.status === PlanItemStatus.COMPLETED).length,
         skipped: planItems.filter((i) => i.status === PlanItemStatus.SKIPPED).length,
@@ -589,10 +635,16 @@ export class AnalyticsService {
         (i) => i.status === PlanItemStatus.PENDING && i.scheduledDate < today,
       ).length,
     };
+    await this.cache.set(`coaching:adv-plan:${student.id}`, planResult, 5 * 60 * 1000);
+    return planResult;
   }
 
   async getStudentInsights(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
+    const cacheKey = `coaching:insights:${student.id}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
     const profile = await this.profileRepo.findOne({ where: { studentId: student.id } });
 
     const weakTopicCount = await this.weakTopicRepo.count({ where: { studentId: student.id } });
@@ -605,7 +657,7 @@ export class AnalyticsService {
 
     // Performance Trend: compare average score of last 5 sessions vs previous 5
     const recentSessions = await this.sessionRepo.find({
-      where: { studentId: student.id, tenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
+      where: { studentId: student.id, tenantId: effectiveTenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
       order: { createdAt: 'DESC' },
       take: 10,
     });
@@ -639,10 +691,10 @@ export class AnalyticsService {
           HAVING AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END) > 80
         ) t
       `,
-      [student.id, tenantId],
+      [student.id, effectiveTenantId],
     ).then(res => Number(res[0]?.count || 0));
 
-    return {
+    const insightsResult = {
       status: overallAccuracy > 75 ? "thriving" : overallAccuracy > 50 ? "on_track" : overallAccuracy > 30 ? "warning" : "at_risk",
       performanceTrend,
       consistencyScore,
@@ -650,5 +702,7 @@ export class AnalyticsService {
       weakTopicCount,
       strongTopicCount,
     };
+    await this.cache.set(cacheKey, insightsResult, 5 * 60 * 1000);
+    return insightsResult;
   }
 }

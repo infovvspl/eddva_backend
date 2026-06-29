@@ -815,17 +815,19 @@ export class DoubtService {
     const subjectName = topic?.chapter?.subject?.name;
     const subjectLabel = subjectName ? ` (${subjectName})` : '';
 
-    for (const recipient of recipients) {
-      await this.notificationService.send({
-        userId: recipient.id,
-        tenantId: recipient.tenantId,
-        title: `New doubt from a student${subjectLabel}`,
-        body: `Topic: ${topicLabel} — "${(doubt.questionText || '').slice(0, 80)}"`,
-        channels: ['push', 'in_app'],
-        refType: 'doubt_escalated',
-        refId: doubt.id,
-      });
-    }
+    await Promise.allSettled(
+      recipients.map(recipient =>
+        this.notificationService.send({
+          userId: recipient.id,
+          tenantId: recipient.tenantId,
+          title: `New doubt from a student${subjectLabel}`,
+          body: `Topic: ${topicLabel} — "${(doubt.questionText || '').slice(0, 80)}"`,
+          channels: ['push', 'in_app'],
+          refType: 'doubt_escalated',
+          refId: doubt.id,
+        }),
+      ),
+    );
   }
 
   /** One student row per user (unique user_id); enrollments may be on other tenants' batches. */

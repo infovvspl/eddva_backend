@@ -75,6 +75,7 @@ export class SchoolMaterialService implements OnModuleInit {
       await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS note TEXT`);
       await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS ai_tags JSONB`);
       await this.ds.query(`UPDATE school_material_highlights SET category = 'concept' WHERE category IS NULL`);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_material_highlights_material_user ON school_material_highlights (material_id, created_by)`);
     } catch (err) {
       this.logger.warn(`Could not create/update school_material_highlights table: ${(err as Error).message}`);
     }
@@ -812,15 +813,17 @@ export class SchoolMaterialService implements OnModuleInit {
         };
         const fileTypeWord = typeLabels[type] || 'Study Material';
 
-        for (const stu of studentUsers) {
-          await this.notificationService.create({
-            recipientId: stu.user_id,
-            type: 'study_material',
-            title: 'New Study Material',
-            message: `${body.title} (${fileTypeWord}) has been uploaded.`,
-            actionUrl: '/school/student/study-materials',
-          });
-        }
+        await Promise.allSettled(
+          studentUsers.map((stu: any) =>
+            this.notificationService.create({
+              recipientId: stu.user_id,
+              type: 'study_material',
+              title: 'New Study Material',
+              message: `${body.title} (${fileTypeWord}) has been uploaded.`,
+              actionUrl: '/school/student/study-materials',
+            }),
+          ),
+        );
       }
     } catch (notifErr) {
       console.error('Failed to send study material upload notifications:', notifErr);

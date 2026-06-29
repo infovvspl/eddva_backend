@@ -18,21 +18,22 @@ export class SchoolFeeService {
     const offset = (page - 1) * limit;
 
     const countSql = `SELECT COUNT(*)::int AS total FROM fees f ${whereClause}`;
-    const countResult = await this.ds.query(countSql, params);
-    const total = parseInt(countResult[0]?.total || '0', 10);
-    const totalPages = Math.ceil(total / limit);
-
     const sql = `
-      SELECT f.*, u.name AS student_name 
-      FROM fees f 
-      LEFT JOIN users u ON f.student_id=u.id 
-      ${whereClause} 
-      ORDER BY f.due_date DESC 
+      SELECT f.*, u.name AS student_name
+      FROM fees f
+      LEFT JOIN users u ON f.student_id=u.id
+      ${whereClause}
+      ORDER BY f.due_date DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
-    params.push(limit, offset);
+    const dataParams = [...params, limit, offset];
 
-    const rows: any[] = await this.ds.query(sql, params);
+    const [countResult, rows] = await Promise.all([
+      this.ds.query(countSql, params),
+      this.ds.query(sql, dataParams),
+    ]);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
     return { success: true, data: rows, total, page, limit, totalPages };
   }
 

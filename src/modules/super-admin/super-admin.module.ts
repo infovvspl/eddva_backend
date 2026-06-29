@@ -11,6 +11,7 @@ import { PlatformSuperAdminService } from './platform-super-admin.service';
 import { SchoolSuperAdminController } from './school-super-admin.controller';
 import { SchoolSuperAdminService } from './school-super-admin.service';
 import { AiUsageAdminController } from './ai-usage-admin.controller';
+import { CoachingAiUsageAdminController } from './coaching-ai-usage-admin.controller';
 import { AiUsageAdminService } from './ai-usage-admin.service';
 import { SchoolJwtGuard } from '../school/guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../school/guards/school-roles.guard';
@@ -47,7 +48,7 @@ import { SchoolComplaintModule } from '../school/complaint/school-complaint.modu
     }),
     TypeOrmModule.forFeature([Tenant, User, Student, Batch, Enrollment, Lecture, TestSession, Announcement, StudyMaterial], 'coaching'),
   ],
-  controllers: [SuperAdminController, PublicTenantController, PlatformSuperAdminController, SchoolSuperAdminController, AiUsageAdminController],
+  controllers: [SuperAdminController, PublicTenantController, PlatformSuperAdminController, SchoolSuperAdminController, AiUsageAdminController, CoachingAiUsageAdminController],
   providers: [SuperAdminService, PlatformSuperAdminService, SchoolSuperAdminService, AiUsageAdminService, SchoolJwtGuard, SchoolRolesGuard],
 })
 export class SuperAdminModule {}

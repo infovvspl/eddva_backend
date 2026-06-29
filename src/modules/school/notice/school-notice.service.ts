@@ -22,11 +22,19 @@ export class SchoolNoticeService {
 
   async list(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
-    let sql = `SELECT * FROM notices WHERE institute_id=$1`;
+    let filter = `institute_id=$1`;
     const params: any[] = [instituteId];
-    if (query.category) { params.push(query.category); sql += ` AND category=$${params.length}`; }
-    sql += ` ORDER BY posted_date DESC NULLS LAST, created_at DESC`;
-    const rows: any[] = await this.ds.query(sql, params);
+    if (query.category) { params.push(query.category); filter += ` AND category=$${params.length}`; }
+
+    const page = Math.max(1, parseInt(query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 20));
+    const offset = (page - 1) * limit;
+
+    const [countRows, rows] = await Promise.all([
+      this.ds.query(`SELECT COUNT(*)::int AS total FROM notices WHERE ${filter}`, params),
+      this.ds.query(`SELECT * FROM notices WHERE ${filter} ORDER BY posted_date DESC NULLS LAST, created_at DESC LIMIT ${limit} OFFSET ${offset}`, params),
+    ]);
+    const total = countRows[0]?.total ?? 0;
     const mapped = rows.map(r => ({
       id: r.id,
       instituteId: r.institute_id,
@@ -41,7 +49,7 @@ export class SchoolNoticeService {
       createdAt: r.created_at,
       updatedAt: r.updated_at
     }));
-    return { success: true, data: mapped };
+    return { success: true, data: mapped, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async create(user: any, body: any) {
@@ -63,31 +71,21 @@ export class SchoolNoticeService {
     );
     const r = rows[0];
 
-    // Dispatch in-app notifications to targeted users
-    try {
-      let userQuery = `SELECT id FROM users WHERE institute_id = $1 AND is_active = TRUE`;
-      const userParams = [instituteId];
-
-      if (body.targetRoles && body.targetRoles.length > 0) {
-        const roles = Array.isArray(body.targetRoles) ? body.targetRoles : [body.targetRoles];
-        userQuery += ` AND role = ANY($2)`;
-        userParams.push(roles);
-      }
-      
-      const targetUsers = await this.ds.query(userQuery, userParams);
-
-      for (const targetUser of targetUsers) {
-        await this.notificationService.create({
-          recipientId: targetUser.id,
+    // Dispatch in-app notifications to all targeted users in one INSERT...SELECT
+    void this.notificationService
+      .bulkCreateForInstitute(
+        instituteId,
+        {
           type: 'announcement',
           title: 'School Announcement',
           message: body.title,
           actionUrl: '/school/student/announcements',
-        });
-      }
-    } catch (notifErr) {
-      console.error('Failed to dispatch notifications for notice:', notifErr);
-    }
+        },
+        body.targetRoles?.length
+          ? (Array.isArray(body.targetRoles) ? body.targetRoles : [body.targetRoles])
+          : undefined,
+      )
+      .catch((notifErr: Error) => console.error('Failed to dispatch notifications for notice:', notifErr));
 
     return {
       success: true,
@@ -221,25 +219,21 @@ export class SchoolNoticeService {
 
     if (!targetInstitutes.length) return { success: true, data: { sent: 0 } };
 
-    let sent = 0;
-    for (const instituteId of targetInstitutes) {
-      await this.ds.query(
-        `INSERT INTO notices (institute_id,title,content,category,priority,posted_date,expiry_date,attachments,target_roles,is_broadcast)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,TRUE)`,
-        [
-          instituteId,
-          body.title,
-          this.noticeContent(body),
-          body.category || 'GENERAL',
-          body.priority || 'NORMAL',
-          body.postedDate ? new Date(body.postedDate) : new Date(),
-          body.expiryDate ? new Date(body.expiryDate) : null,
-          body.attachments ?? null,
-          body.targetRoles || null,
-        ],
-      );
-      sent++;
-    }
-    return { success: true, data: { sent } };
+    await this.ds.query(
+      `INSERT INTO notices (institute_id,title,content,category,priority,posted_date,expiry_date,attachments,target_roles,is_broadcast)
+       SELECT unnest($1::uuid[]),$2,$3,$4,$5,$6,$7,$8,$9,TRUE`,
+      [
+        targetInstitutes,
+        body.title,
+        this.noticeContent(body),
+        body.category || 'GENERAL',
+        body.priority || 'NORMAL',
+        body.postedDate ? new Date(body.postedDate) : new Date(),
+        body.expiryDate ? new Date(body.expiryDate) : null,
+        body.attachments ?? null,
+        body.targetRoles || null,
+      ],
+    );
+    return { success: true, data: { sent: targetInstitutes.length } };
   }
 }

@@ -354,11 +354,17 @@ export class SchoolAttendanceService {
       sessionId = session[0].id;
     }
 
+    // Batch-delete existing records for all students in one round-trip
+    const studentIds = (body.students || []).map((s: any) => s.student_id);
+    if (studentIds.length) {
+      await this.ds.query(
+        `DELETE FROM attendance_records WHERE session_id = $1 AND student_id = ANY($2::uuid[])`,
+        [sessionId, studentIds],
+      );
+    }
+
     // Insert student attendance records
     for (const s of (body.students || [])) {
-      await this.ds.query(`
-        DELETE FROM attendance_records WHERE session_id = $1 AND student_id = $2
-      `, [sessionId, s.student_id]);
 
       await this.ds.query(`
         INSERT INTO attendance_records (
@@ -545,27 +551,24 @@ export class SchoolAttendanceService {
     const tenantId = user.instituteId;
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Total Students
-    const totalStudentsResult = await this.ds.query(`
-      SELECT COUNT(*) AS count FROM students WHERE institute_id = $1
-    `, [tenantId]);
+    const [totalStudentsResult, sessionsToday, recordsToday] = await Promise.all([
+      this.ds.query(`SELECT COUNT(*) AS count FROM students WHERE institute_id = $1`, [tenantId]),
+      this.ds.query(
+        `SELECT COUNT(*) AS count FROM attendance_sessions WHERE tenant_id = $1 AND date = $2`,
+        [tenantId, todayStr],
+      ),
+      this.ds.query(
+        `SELECT ar.status, COUNT(ar.id) AS count
+         FROM attendance_records ar
+         JOIN attendance_sessions asess ON ar.session_id = asess.id
+         WHERE asess.tenant_id = $1 AND asess.date = $2
+         GROUP BY ar.status`,
+        [tenantId, todayStr],
+      ),
+    ]);
+
     const totalStudents = parseInt(totalStudentsResult[0]?.count || '0');
-
-    // Sessions today
-    const sessionsToday = await this.ds.query(`
-      SELECT COUNT(*) AS count FROM attendance_sessions 
-      WHERE tenant_id = $1 AND date = $2
-    `, [tenantId, todayStr]);
     const classesMarkedToday = parseInt(sessionsToday[0]?.count || '0');
-
-    // Present & Absent counts today from session records
-    const recordsToday = await this.ds.query(`
-      SELECT ar.status, COUNT(ar.id) AS count
-      FROM attendance_records ar
-      JOIN attendance_sessions asess ON ar.session_id = asess.id
-      WHERE asess.tenant_id = $1 AND asess.date = $2
-      GROUP BY ar.status
-    `, [tenantId, todayStr]);
 
     let presentToday = 0;
     let absentToday = 0;
