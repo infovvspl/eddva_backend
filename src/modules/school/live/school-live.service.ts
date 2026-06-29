@@ -449,10 +449,10 @@ export class SchoolLiveService implements OnModuleInit {
               ELSE 0 END AS "durationSeconds",
          COALESCE((SELECT COUNT(DISTINCT user_id) FROM school_live_participants WHERE lecture_id = l.id), 0)::int AS "totalParticipants",
          COALESCE((SELECT COUNT(*) FROM school_live_chat_messages WHERE lecture_id = l.id), 0)::int AS "totalMessages",
-         COALESCE((SELECT COUNT(*) FROM school_live_reactions WHERE lecture_id = l.id), 0)::int AS "totalReactions",
+         COALESCE((SELECT COUNT(DISTINCT user_id) FROM school_live_reactions WHERE lecture_id = l.id), 0)::int AS "totalReactions",
          COALESCE(
            (SELECT json_agg(r ORDER BY r.count DESC)
-            FROM (SELECT emoji, COUNT(*)::int AS count FROM school_live_reactions WHERE lecture_id = l.id GROUP BY emoji) r),
+            FROM (SELECT emoji, COUNT(DISTINCT user_id)::int AS count FROM school_live_reactions WHERE lecture_id = l.id GROUP BY emoji) r),
            '[]'::json
          ) AS "reactionBreakdown",
          COALESCE(
