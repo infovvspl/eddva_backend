@@ -72,7 +72,7 @@ export class AuthService {
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly mailService: MailService,
     private readonly s3Service: S3Service,
-  ) {}
+  ) { }
 
   // â”€â”€ Student Self-Registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -850,22 +850,22 @@ export class AuthService {
       updatedAt: user.updatedAt,
       tenant: tenant
         ? {
-            id: tenant.id,
-            name: tenant.name,
-            subdomain: tenant.subdomain,
-            type: tenant.type,
-            status: tenant.status,
-            plan: tenant.plan,
-            logoUrl: tenant.logoUrl,
-            brandColor: tenant.brandColor,
-            welcomeMessage: tenant.welcomeMessage,
-            city: tenant.city,
-            state: tenant.state,
-            onboardingComplete: tenant.onboardingComplete,
-            maxStudents: tenant.maxStudents,
-            maxTeachers: tenant.maxTeachers,
-            metadata: (toJsonSafeDeep(tenant.metadata ?? {}) ?? {}) as Record<string, unknown>,
-          }
+          id: tenant.id,
+          name: tenant.name,
+          subdomain: tenant.subdomain,
+          type: tenant.type,
+          status: tenant.status,
+          plan: tenant.plan,
+          logoUrl: tenant.logoUrl,
+          brandColor: tenant.brandColor,
+          welcomeMessage: tenant.welcomeMessage,
+          city: tenant.city,
+          state: tenant.state,
+          onboardingComplete: tenant.onboardingComplete,
+          maxStudents: tenant.maxStudents,
+          maxTeachers: tenant.maxTeachers,
+          metadata: (toJsonSafeDeep(tenant.metadata ?? {}) ?? {}) as Record<string, unknown>,
+        }
         : undefined,
     };
   }
