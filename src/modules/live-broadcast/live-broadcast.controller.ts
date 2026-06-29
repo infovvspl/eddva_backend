@@ -23,9 +23,12 @@ import { UserRole } from '../../database/entities/user.entity';
 import { CreateLectureDto, RtmpEventDto } from './dto/live-broadcast.dto';
 import { LiveBroadcastService } from './live-broadcast.service';
 
+import { RequireFeature, FeatureFlagGuard } from '../common/guards/feature-flag.guard';
+
 @ApiTags('live-broadcast')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireFeature('live_lectures')
+@UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagGuard)
 @Controller('lectures')
 export class LectureController {
   constructor(private readonly svc: LiveBroadcastService) {}

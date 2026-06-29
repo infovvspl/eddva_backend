@@ -9,6 +9,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser, Public, TenantId } from '../../common/decorators/auth.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { FeatureFlagGuard, RequireFeature } from '../common/guards/feature-flag.guard';
 import { UserRole } from '../../database/entities/user.entity';
 import { StudyMaterialService } from './study-material.service';
 import {
@@ -89,7 +90,8 @@ export class StudyMaterialAdminController {
 
 @ApiTags('Study Materials — Public')
 @Controller('study-materials')
-@UseGuards(JwtAuthGuard)
+@RequireFeature('content_library')
+@UseGuards(JwtAuthGuard, FeatureFlagGuard)
 export class StudyMaterialPublicController {
   constructor(private readonly svc: StudyMaterialService) {}
 
