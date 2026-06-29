@@ -937,11 +937,12 @@ export class AuthService {
     if (!tenantId) return { aiEnabled: false, aiFeatures: [] };
     const tenant = await this.tenantRepo.findOne({
       where: { id: tenantId },
-      select: ['id', 'aiEnabled', 'aiFeatures'],
+      select: ['id', 'aiEnabled', 'aiFeatures', 'metadata'],
     });
     return {
       aiEnabled: tenant?.aiEnabled ?? false,
       aiFeatures: (tenant?.aiFeatures ?? []) as string[],
+      modulesPermissions: tenant?.metadata?.modulesPermissions ?? {},
     };
   }
 }
