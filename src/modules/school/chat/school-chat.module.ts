@@ -8,6 +8,7 @@ import { SchoolNotificationModule } from '../notification/school-notification.mo
   imports: [SchoolNotificationModule],
   controllers: [SchoolChatController],
   providers: [SchoolChatService, SchoolChatGateway],
+  exports: [SchoolChatGateway],
 })
 export class SchoolChatModule {}
 
