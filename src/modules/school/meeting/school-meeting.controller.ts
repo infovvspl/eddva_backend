@@ -4,9 +4,12 @@ import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolMeetingService } from './school-meeting.service';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 @Controller('school/meetings')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@SchoolFeature('module', 'meetings')
 export class SchoolMeetingController {
   constructor(private readonly svc: SchoolMeetingService) {}
 

@@ -20,10 +20,14 @@ import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { Audit } from '../../audit-log/audit.decorator';
 
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
+
 const uploadStorage = memoryStorage();
 
 @Controller('school/assignments')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@SchoolFeature('module', 'assignments')
 export class SchoolAssignmentController {
   constructor(private readonly svc: SchoolAssignmentService) { }
 

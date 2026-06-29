@@ -7,8 +7,8 @@ import { CreateHighlightDto } from './recording-highlight.dto';
 export class RecordingHighlightService {
   private readonly logger = new Logger(RecordingHighlightService.name);
 
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
-
+  constructor(@InjectDataSource('school') private readonly ds: DataSource) { }
+  w
   /**
    * Helper to verify if user has access to a recording.
    * Also verifies if the teacher is the one who created it (for write actions).
@@ -16,7 +16,7 @@ export class RecordingHighlightService {
   async verifyRecordingAccess(recordingId: string, user: any, requireTeacherOwnership: boolean = false): Promise<void> {
     const isStudent = user.role === 'STUDENT';
     const isTeacher = user.role === 'TEACHER';
-    
+
     // Check if recording exists in the tenant
     const rows = await this.ds.query(
       `SELECT id, teacher_user_id FROM class_recordings WHERE id::text = $1 AND institute_id::text = $2 LIMIT 1`,
@@ -72,7 +72,7 @@ export class RecordingHighlightService {
     const displayOrder = dto.startOffset;
 
     let newId: string;
-    
+
     // Execute inside a transaction
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();
@@ -93,7 +93,7 @@ export class RecordingHighlightService {
         `,
         [
           recordingId,
-          user.userId,
+          user.id,
           dto.startOffset,
           dto.endOffset,
           displayOrder,
@@ -102,7 +102,7 @@ export class RecordingHighlightService {
           dto.notesHash || null
         ]
       );
-      
+
       newId = result[0].id;
       await queryRunner.commitTransaction();
       return result[0];
