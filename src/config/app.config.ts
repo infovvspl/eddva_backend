@@ -99,7 +99,7 @@ export const streamingConfig = registerAs('streaming', () => {
 
   return {
     rtmpSecret,
-    serverIp:   process.env.STREAMING_SERVER_IP || '127.0.0.1',
+    serverIp:   process.env.STREAMING_SERVER_IP || '13.127.31.213',
     cdnBaseUrl: (process.env.LIVE_CDN_BASE_URL || '').replace(/\/$/, ''),
   };
 });

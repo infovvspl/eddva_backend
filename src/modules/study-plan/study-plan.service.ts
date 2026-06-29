@@ -950,8 +950,9 @@ export class StudyPlanService {
     let drillQuestions: Array<{ question: string; options: string[]; correctAnswer: string; explanation: string; difficulty: string }> = [];
     try {
       const generated = await this.aiBridgeService.generateQuestionsFromTopic(
-        { topicId, topicName: topic.name, count: drillCount, difficulty: baseDifficulty, type: 'mcq_single', subject: topic.chapter?.subject?.name, chapter: topic.chapter?.name },
+        { topicId, topicName: topic.name, count: drillCount, difficulty: baseDifficulty, type: 'mcq_single', subject: topic.chapter?.subject?.name, chapter: topic.chapter?.name, examTarget: student.examTarget ?? undefined },
         tenantId,
+        'coaching',
       );
       if (Array.isArray(generated)) {
         drillQuestions = generated.map(q => {

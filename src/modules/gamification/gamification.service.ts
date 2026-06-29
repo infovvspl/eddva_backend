@@ -6,7 +6,7 @@ import { Cache } from 'cache-manager';
 import { Student } from '../../database/entities/student.entity';
 import { GamificationHistory } from '../../database/entities/gamification.entity';
 import { NotificationService } from '../notification/notification.service';
-import { recordStudentActivity } from '../school/common/gamification-helper';
+import { recordStudentActivity } from '../../common/gamification-helper';
 
 @Injectable()
 export class GamificationService implements OnModuleInit {

@@ -2290,6 +2290,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             const lessonResponse = await this.aiBridgeService.startTutorSession(
                 { studentId: student.id, topicId, context: selfStudyPrompt },
                 tenantId,
+                'coaching',
             ) as any;
 
             lessonMarkdown = this.normalizeSolvedExamplesFormatting(this.extractAiText(lessonResponse));
@@ -2444,6 +2445,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             const response = await this.aiBridgeService.continueTutorSession(
                 { sessionId: session.aiSessionRef ?? sessionId, studentMessage: contextualQuestion },
                 tenantId,
+                'coaching',
             ) as any;
             aiResponse = this.extractAiText(response);
         } catch (err) {
@@ -3046,7 +3048,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
 
     async generateTopicAiContent(
         topicId: string,
-        dto: { contentType: string; difficulty: string; length: string; extraContext?: string },
+        dto: { contentType: string; difficulty: string; length: string; batchId?: string; examTarget?: string; courseName?: string; extraContext?: string; questionCount?: number },
         tenantId: string,
     ): Promise<{ content: string; contentType: string }> {
         const topic = await this.topicRepo.findOne({
@@ -3055,19 +3057,63 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         });
         if (!topic) throw new NotFoundException(`Topic ${topicId} not found`);
 
+        const subject = (topic as any).chapter?.subject as Subject | undefined;
+        const requestedBatchId = dto.batchId || subject?.batchId;
+        const batch = requestedBatchId
+            ? await this.batchRepo.findOne({ where: { id: requestedBatchId, tenantId } })
+            : null;
+        const resolvedExamTarget = this.resolveCourseExamTarget(
+            batch?.examTarget ?? dto.examTarget ?? subject?.examTarget,
+        );
+        const resolvedCourseName = batch?.name || dto.courseName || resolvedExamTarget;
+        const contentType = String(dto.contentType || 'notes').trim().toLowerCase();
+        const isQuestionType = contentType === 'dpp' || contentType === 'pyq';
+        const typeSpecificInstruction =
+            contentType === 'faq'
+                ? 'Generate a Frequently Asked Questions (FAQ) sheet only. Do not write notes, summary, study guide, or lesson sections. Use question-answer pairs: **Q1. <question?>** on a new line, followed by **A.** <answer> on a new line. Include 12-15 real student questions grouped under sub-topic headings. For numerical questions, the answer must provide a detailed step-by-step solution where each new step is on a new line (never in paragraph format). For theory questions, the answer must provide a total, complete solution explaining the concept. Do not just give the final answer; provide the full, comprehensive explanation. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3. For all mathematics in FAQ, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$.'
+                : contentType === 'checklist' || contentType === 'revision_checklist'
+                    ? 'Generate a revision checklist only. Do not write notes or paragraphs. Group by sub-topic and make every actionable item a Markdown checkbox using - [ ].'
+                    : contentType === 'flashcard'
+                        ? 'Generate flashcards only. Use repeated **Q:** and **A:** pairs. Do not write normal notes.'
+                        : contentType === 'dpp'
+                            ? `Generate a ${resolvedExamTarget} Daily Practice Problem sheet first. Put all detailed solutions on the next page by adding a separate Markdown heading "## Detailed Solutions" only after all questions. Do not include solutions inline with questions. For all numerical questions, provide a detailed step-by-step solution showing calculations and working, where each new mathematical step is written on a new line, never combined into a single paragraph. For all MCQ and theory questions, provide the complete explanation/reasoning along with the correct option, not just the option letter alone. Use ${resolvedExamTarget}-appropriate MCQs, assertion-reason where relevant, and numericals. CRITICAL MCQ FORMATTING: Write each option (A-D) on a new line, never inline on a single line. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3. For all mathematics in DPP, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$. Never output raw \\frac or \\sqrt outside dollar signs.`
+                            : contentType === 'pyq'
+                                ? `Generate ${resolvedExamTarget} previous-year-question style practice only, based on the enrolled course target. Put all detailed solutions on the next page by adding a separate Markdown heading "## Detailed Solutions" only after all questions. Do not include solutions inline with questions. For all numerical questions, provide a detailed step-by-step solution showing calculations and working, where each new mathematical step is written on a new line, never combined into a single paragraph. For all MCQ and theory questions, provide the complete explanation/reasoning along with the correct option, not just the option letter alone. Avoid school-board-only framing unless the course target explicitly requires it. CRITICAL MCQ FORMATTING: Write each option (A-D) on a new line, never inline on a single line. Each question must show the exact real, authentic year and name of the exam (e.g. JEE Main 2019, NEET 2020) next to the question number. It MUST be a real, authentic past year of the exam, never a dummy year or empty placeholder like '____' or 'Year' or '20XX'. CRITICAL MATH NOTATION: For all mathematics, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3. For all mathematics in PYQ, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$. Never output raw \\frac or \\sqrt outside dollar signs.`
+                                : '';
+        const extraContext = [
+            isQuestionType ? 'Use only the course exam target supplied in this request; do not mix JEE and NEET unless the target is JEE/NEET.' : '',
+            typeSpecificInstruction,
+            (dto.extraContext || '').trim(),
+        ].filter(Boolean).join('. ') || undefined;
+
         const result = await this.aiBridgeService.generateTopicContent(
             {
                 topicName: topic.name,
-                subjectName: (topic as any).chapter?.subject?.name ?? '',
+                subjectName: subject?.name ?? '',
                 chapterName: (topic as any).chapter?.name ?? '',
-                contentType: dto.contentType,
-                difficulty: dto.difficulty,
-                length: dto.length,
-                extraContext: dto.extraContext,
+                contentType,
+                difficulty: isQuestionType ? 'intermediate' : dto.difficulty,
+                length: isQuestionType ? 'detailed' : dto.length,
+                examTarget: resolvedExamTarget,
+                courseName: resolvedCourseName,
+                extraContext,
+                questionCount: dto.questionCount,
             },
             tenantId,
+            'coaching',
         );
         return { content: result.content, contentType: result.contentType };
+    }
+
+    private resolveCourseExamTarget(raw?: string | null): string {
+        const value = String(raw ?? '').trim();
+        const lower = value.toLowerCase();
+        const hasJee = lower.includes('jee');
+        const hasNeet = lower.includes('neet');
+        if (lower.includes('both') || (hasJee && hasNeet)) return 'JEE/NEET';
+        if (hasNeet) return 'NEET';
+        if (hasJee) return 'JEE';
+        return value || 'JEE';
     }
 
     async saveTopicAiResource(
@@ -3079,6 +3125,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         const typeMap: Record<string, ResourceType> = {
             dpp: ResourceType.DPP,
             pyq: ResourceType.PYQ,
+            faq: ResourceType.FAQ,
             notes: ResourceType.NOTES,
             mindmap: ResourceType.MINDMAP,
         };

@@ -196,18 +196,20 @@ export class AiBridgeService {
   async startTutorSession(
     payload: { studentId: string; topicId: string; context: string },
     tenantId?: string,
+    vertical?: string,
   ) {
-    return this.post('/tutor/session', payload, tenantId);
+    return this.post('/tutor/session', payload, tenantId, undefined, vertical);
   }
 
   async continueTutorSession(
     payload: { sessionId: string; studentMessage: string },
     tenantId?: string,
+    vertical?: string,
   ) {
     return this.post('/tutor/continue', {
       ...payload,
       studentMessage: this.withMathDerivationStyleHint(payload.studentMessage),
-    }, tenantId);
+    }, tenantId, undefined, vertical);
   }
 
   private withMathDerivationStyleHint(text: string): string {
@@ -1426,6 +1428,7 @@ export class AiBridgeService {
       examTarget?: string;
       courseName?: string;
       extraContext?: string;
+      questionCount?: number;
     },
     tenantId?: string,
     vertical?: string,
