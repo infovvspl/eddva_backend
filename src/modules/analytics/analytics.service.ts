@@ -343,8 +343,20 @@ export class AnalyticsService {
       topic: topic.topic,
     };
   }
+  private async resolveEffectiveTenantId(studentId: string, fallbackTenantId: string): Promise<string> {
+    const enrollments = await this.dataSource.query(`
+      SELECT b.tenant_id
+      FROM enrollments e
+      JOIN batches b ON b.id = e.batch_id
+      WHERE e.student_id = $1 AND e.tenant_id = $2 AND e.status = 'active'
+      ORDER BY e.enrolled_at DESC
+      LIMIT 1
+    `, [studentId, fallbackTenantId]);
+    return enrollments[0]?.tenant_id ?? fallbackTenantId;
+  }
   async getStudentAdvancedPerformance(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
 
     // 1. Score Trend (last 15 sessions)
     const sessions = await this.dataSource.query(
@@ -356,7 +368,7 @@ export class AnalyticsService {
          AND status IN ('submitted', 'auto_submitted')
        ORDER BY created_at DESC
        LIMIT 15`,
-      [student.id, tenantId]
+      [student.id, effectiveTenantId]
     );
     const scoreTrend = sessions.reverse().map((s: any) => {
       const correct = s.correct_count || 0;
@@ -371,7 +383,7 @@ export class AnalyticsService {
     });
 
     // 2. Subject Accuracy
-    const subjectAccuracy = await this.computePerSubjectAccuracy(student.id, tenantId);
+    const subjectAccuracy = await this.computePerSubjectAccuracy(student.id, effectiveTenantId);
 
     // 3. Topic Performance (Detailed)
     const topicPerformance = await this.dataSource.query(
@@ -398,7 +410,7 @@ export class AnalyticsService {
        GROUP BY t.id, t.name
        ORDER BY "accuracy" ASC
        LIMIT 10`,
-      [student.id, tenantId]
+      [student.id, effectiveTenantId]
     );
 
     // 4. Mistake Patterns
@@ -413,7 +425,7 @@ export class AnalyticsService {
          AND deleted_at IS NULL
        GROUP BY error_type
        ORDER BY count DESC`,
-      [student.id, tenantId]
+      [student.id, effectiveTenantId]
     );
 
     const errorTypeMap: any = {
@@ -459,7 +471,8 @@ export class AnalyticsService {
 
   async getStudentAdvancedEngagement(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
-
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
+ 
     // 1. Daily Active Minutes (last 14 days) — aggregate ALL activity types
     const activeMinutes = await this.dataSource.query(
       `
@@ -470,9 +483,9 @@ export class AnalyticsService {
           FROM engagement_logs
           WHERE student_id = $1 AND logged_at > NOW() - INTERVAL '14 days' AND deleted_at IS NULL
           GROUP BY DATE(logged_at)
-
+ 
           UNION ALL
-
+ 
           -- Test sessions (duration = submitted - started)
           SELECT DATE(started_at) AS d,
                  COALESCE(SUM(EXTRACT(EPOCH FROM (submitted_at - started_at))::int), 0) / 60 AS mins
@@ -482,9 +495,9 @@ export class AnalyticsService {
             AND started_at > NOW() - INTERVAL '14 days'
             AND submitted_at IS NOT NULL AND deleted_at IS NULL
           GROUP BY DATE(started_at)
-
+ 
           UNION ALL
-
+ 
           -- AI study sessions
           SELECT DATE(created_at) AS d,
                  COALESCE(SUM(time_spent_seconds), 0) / 60 AS mins
@@ -498,35 +511,35 @@ export class AnalyticsService {
         GROUP BY d
         ORDER BY d ASC
       `,
-      [student.id, tenantId],
+      [student.id, effectiveTenantId],
     );
-
+ 
     // 2. Content Preference — count real activity types across all tables
     const lectureCount = await this.lectureProgressRepo.count({
-      where: { studentId: student.id, tenantId },
+      where: { studentId: student.id, tenantId: effectiveTenantId },
     });
     const assessmentCount = await this.sessionRepo.count({
-      where: { studentId: student.id, tenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
+      where: { studentId: student.id, tenantId: effectiveTenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
     });
     const aiSessionCount = await this.aiStudyRepo.count({
-      where: { studentId: student.id, tenantId },
+      where: { studentId: student.id, tenantId: effectiveTenantId },
     });
-
+ 
     const totalActivities = (lectureCount + assessmentCount + aiSessionCount) || 1;
     const contentPreference = [
       { type: 'Recorded Lectures', percentage: Math.round((lectureCount / totalActivities) * 100) },
       { type: 'Assessments', percentage: Math.round((assessmentCount / totalActivities) * 100) },
       { type: 'AI Tutor', percentage: Math.round((aiSessionCount / totalActivities) * 100) },
     ].filter(p => p.percentage > 0);
-
+ 
     // 3. Lecture Activity
     const lectureStats = await this.lectureProgressRepo.find({
-      where: { studentId: student.id, tenantId },
+      where: { studentId: student.id, tenantId: effectiveTenantId },
     });
-
+ 
     // 4. Real notes count — AI study sessions with generated lesson content
     const notesGenerated = await this.aiStudyRepo.count({
-      where: { studentId: student.id, tenantId, isCompleted: true },
+      where: { studentId: student.id, tenantId: effectiveTenantId, isCompleted: true },
     });
 
     return {
@@ -593,6 +606,7 @@ export class AnalyticsService {
 
   async getStudentInsights(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
     const profile = await this.profileRepo.findOne({ where: { studentId: student.id } });
 
     const weakTopicCount = await this.weakTopicRepo.count({ where: { studentId: student.id } });
@@ -605,7 +619,7 @@ export class AnalyticsService {
 
     // Performance Trend: compare average score of last 5 sessions vs previous 5
     const recentSessions = await this.sessionRepo.find({
-      where: { studentId: student.id, tenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
+      where: { studentId: student.id, tenantId: effectiveTenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
       order: { createdAt: 'DESC' },
       take: 10,
     });
@@ -639,7 +653,7 @@ export class AnalyticsService {
           HAVING AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END) > 80
         ) t
       `,
-      [student.id, tenantId],
+      [student.id, effectiveTenantId],
     ).then(res => Number(res[0]?.count || 0));
 
     return {
