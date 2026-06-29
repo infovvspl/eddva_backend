@@ -18,46 +18,49 @@ export class SchoolComplaintService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    await this.ensureTablesExist(this.schoolDs);
-    await this.ensureTablesExist(this.coachingDs);
+    // School DB: complaints + grievances are TypeORM entities — only create the messages table here
+    await this.ensureTablesExist(this.schoolDs, false);
+    // Coaching DB: no TypeORM entities for these — create all three tables
+    await this.ensureTablesExist(this.coachingDs, true);
   }
 
-  private async ensureTablesExist(ds: DataSource) {
+  private async ensureTablesExist(ds: DataSource, createParentTables: boolean) {
     try {
       // Ensure uuid-ossp extension is enabled
       await ds.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
 
-      // Ensure complaints table exists
-      await ds.query(`
-        CREATE TABLE IF NOT EXISTS complaints (
-          id uuid NOT NULL DEFAULT uuid_generate_v4(),
-          institute_id uuid,
-          user_id uuid,
-          title character varying NOT NULL,
-          description text,
-          status character varying DEFAULT 'OPEN',
-          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-          deleted_at TIMESTAMP WITH TIME ZONE,
-          CONSTRAINT "PK_complaints" PRIMARY KEY (id)
-        )
-      `);
+      if (createParentTables) {
+        // Coaching DB: TypeORM does not manage complaints/grievances there
+        await ds.query(`
+          CREATE TABLE IF NOT EXISTS complaints (
+            id uuid NOT NULL DEFAULT uuid_generate_v4(),
+            institute_id uuid,
+            user_id uuid,
+            title character varying NOT NULL,
+            description text,
+            status character varying DEFAULT 'OPEN',
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+            deleted_at TIMESTAMP WITH TIME ZONE,
+            CONSTRAINT "PK_complaints" PRIMARY KEY (id)
+          )
+        `);
 
-      // Ensure grievances table exists
-      await ds.query(`
-        CREATE TABLE IF NOT EXISTS grievances (
-          id uuid NOT NULL DEFAULT uuid_generate_v4(),
-          raised_by uuid,
-          title character varying NOT NULL,
-          category character varying,
-          description text,
-          status character varying DEFAULT 'OPEN',
-          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-          deleted_at TIMESTAMP WITH TIME ZONE,
-          CONSTRAINT "PK_grievances" PRIMARY KEY (id)
-        )
-      `);
+        await ds.query(`
+          CREATE TABLE IF NOT EXISTS grievances (
+            id uuid NOT NULL DEFAULT uuid_generate_v4(),
+            raised_by uuid,
+            title character varying NOT NULL,
+            category character varying,
+            description text,
+            status character varying DEFAULT 'OPEN',
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+            deleted_at TIMESTAMP WITH TIME ZONE,
+            CONSTRAINT "PK_grievances" PRIMARY KEY (id)
+          )
+        `);
+      }
 
       // Ensure complaint_messages table exists
       await ds.query(`
@@ -74,6 +77,19 @@ export class SchoolComplaintService implements OnModuleInit {
       `);
 
       await ds.query(`CREATE INDEX IF NOT EXISTS idx_complaint_messages_complaint_id ON complaint_messages (complaint_id)`);
+      await ds.query(`CREATE INDEX IF NOT EXISTS idx_complaints_institute_status ON complaints (institute_id, status, created_at)`);
+      await ds.query(`CREATE INDEX IF NOT EXISTS idx_grievances_raised_by_status ON grievances (raised_by, status, created_at)`);
+      // Migrate sender_id from VARCHAR to UUID for consistent JOIN performance
+      await ds.query(`
+        DO $$ BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'complaint_messages' AND column_name = 'sender_id' AND data_type = 'character varying'
+          ) THEN
+            ALTER TABLE complaint_messages ALTER COLUMN sender_id TYPE UUID USING sender_id::uuid;
+          END IF;
+        END $$
+      `).catch(() => undefined);
     } catch (err) {
       console.warn('Ensure complaints tables failed:', err.message);
     }

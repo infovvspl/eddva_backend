@@ -22,14 +22,14 @@ export class SchoolAuthService {
   }
 
   private signSchoolToken(user: { id: string; role: string; email: string; institute_id?: string | null; sessionId?: string }) {
+    // School uses its own secret so school JWTs cannot authenticate against coaching endpoints
+    const secret = process.env.SCHOOL_JWT_SECRET ||
+      (process.env.NODE_ENV === 'production'
+        ? (() => { throw new InternalServerErrorException('SCHOOL_JWT_SECRET not configured'); })()
+        : 'dev_school_secret_change_in_prod');
     return jwt.sign(
       this.schoolJwtPayload(user),
-      process.env.JWT_SECRET ||
-        (process.env.NODE_ENV === 'production'
-          ? (() => {
-              throw new InternalServerErrorException('JWT_SECRET not configured');
-            })()
-          : 'dev_secret_change_in_prod'),
+      secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any,
     );
   }

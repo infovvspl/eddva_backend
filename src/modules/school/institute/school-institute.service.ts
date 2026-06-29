@@ -158,14 +158,18 @@ export class SchoolInstituteService {
     const params: any[] = [];
     if (status && status.toUpperCase() !== 'ALL') { params.push(status.toUpperCase()); sql += ` AND i.status = $${params.length}`; }
     if (search) { params.push(`%${search}%`); sql += ` AND i.name ILIKE $${params.length}`; }
-    sql += ` ORDER BY i.created_at DESC LIMIT $${params.length+1} OFFSET $${params.length+2}`;
-    params.push(Number(perPage), (Number(page)-1)*Number(perPage));
-    const rows: any[] = await this.ds.query(sql, params);
     const validStatus = status && status.toUpperCase() !== 'ALL';
     const countSql = `SELECT COUNT(*)::int AS c FROM institutes WHERE 1=1${validStatus ? ' AND status=$1' : ''}${search ? ` AND name ILIKE $${validStatus?2:1}` : ''}`;
-    const countParams = [...(validStatus?[status.toUpperCase()]:[]), ...(search?[`%${search}%`]:[])];
-    const cnt: any[] = await this.ds.query(countSql, countParams);
-    return { data: rows, total: cnt[0]?.c || 0, page, perPage };
+    const countParams = [...(validStatus?[status!.toUpperCase()]:[]), ...(search?[`%${search}%`]:[])];
+
+    sql += ` ORDER BY i.created_at DESC LIMIT $${params.length+1} OFFSET $${params.length+2}`;
+    params.push(Number(perPage), (Number(page)-1)*Number(perPage));
+
+    const [rows, cnt] = await Promise.all([
+      this.ds.query(sql, params),
+      this.ds.query(countSql, countParams),
+    ]);
+    return { data: rows as any[], total: (cnt as any[])[0]?.c || 0, page, perPage };
   }
 
   async findOne(id: string) {

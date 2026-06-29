@@ -65,6 +65,21 @@ export class BroadcastLecture {
   @Column({ type: 'text', array: true, default: ['360p', '480p', '720p', '1080p'] })
   qualities: string[];
 
+  @Column({ name: 'batch_id', type: 'uuid', nullable: true })
+  batchId: string | null;
+
+  @Column({ name: 'subject_id', type: 'uuid', nullable: true })
+  subjectId: string | null;
+
+  @Column({ name: 'description', type: 'text', nullable: true })
+  description: string | null;
+
+  @Column({ name: 'batch_name', type: 'varchar', length: 200, nullable: true })
+  batchName: string | null;
+
+  @Column({ name: 'subject_name', type: 'varchar', length: 200, nullable: true })
+  subjectName: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

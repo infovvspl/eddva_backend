@@ -137,6 +137,33 @@ export class UploadController {
       throw new BadRequestException('url query parameter is required');
     }
 
+    // SECURITY: only allow presigned S3/R2 URLs — block SSRF to internal hosts
+    let parsedUrl: URL;
+    try { parsedUrl = new URL(s3Url); } catch {
+      throw new BadRequestException('Invalid URL');
+    }
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const allowedPatterns = [
+      /\.amazonaws\.com$/,
+      /\.r2\.cloudflarestorage\.com$/,
+      /\.r2\.dev$/,
+      /\.backblazeb2\.com$/,
+    ];
+    if (!allowedPatterns.some(p => p.test(hostname))) {
+      throw new BadRequestException('Proxy target not allowed');
+    }
+    // Block private/loopback addresses just in case a valid-looking hostname resolves internally
+    if (
+      hostname === 'localhost' ||
+      /^127\./.test(hostname) ||
+      /^10\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+      hostname === '169.254.169.254'
+    ) {
+      throw new BadRequestException('Proxy target not allowed');
+    }
+
     try {
       await axios.put(s3Url, req, {
         headers: {

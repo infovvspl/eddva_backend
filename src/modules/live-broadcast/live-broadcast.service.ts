@@ -6,16 +6,20 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bull';
 import { randomBytes } from 'crypto';
-import { Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 
 import { UserRole } from '../../database/entities/user.entity';
 import { R2Service } from '../storage/r2.service';
-import { CreateLectureDto } from './dto/live-broadcast.dto';
+import { CreateLectureDto, CreatePollDto } from './dto/live-broadcast.dto';
 import { BroadcastChatMessage } from './entities/broadcast-chat-message.entity';
 import { BroadcastLecture, BroadcastStatus } from './entities/broadcast-lecture.entity';
+import { BroadcastParticipant } from './entities/broadcast-participant.entity';
+import { BroadcastPoll } from './entities/broadcast-poll.entity';
+import { BroadcastPollVote } from './entities/broadcast-poll-vote.entity';
+import { BroadcastReaction } from './entities/broadcast-reaction.entity';
 import {
   RECORDING_JOB,
   RECORDINGS_QUEUE,
@@ -23,11 +27,14 @@ import {
 } from './live-broadcast.constants';
 import { LIVE_CHANNELS, LiveBroadcastRedis } from './live-broadcast.redis';
 
-interface AuthUser {
+export interface AuthUser {
   id: string;
   role: UserRole | string;
   tenantId: string;
+  name?: string;
 }
+
+const ALLOWED_REACTIONS = ['👍', '❤️', '😮', '😂', '🔥', '👏'];
 
 @Injectable()
 export class LiveBroadcastService {
@@ -38,7 +45,16 @@ export class LiveBroadcastService {
     private readonly lectureRepo: Repository<BroadcastLecture>,
     @InjectRepository(BroadcastChatMessage, 'coaching')
     private readonly chatRepo: Repository<BroadcastChatMessage>,
+    @InjectRepository(BroadcastParticipant, 'coaching')
+    private readonly participantRepo: Repository<BroadcastParticipant>,
+    @InjectRepository(BroadcastPoll, 'coaching')
+    private readonly pollRepo: Repository<BroadcastPoll>,
+    @InjectRepository(BroadcastPollVote, 'coaching')
+    private readonly pollVoteRepo: Repository<BroadcastPollVote>,
+    @InjectRepository(BroadcastReaction, 'coaching')
+    private readonly reactionRepo: Repository<BroadcastReaction>,
     @InjectQueue(RECORDINGS_QUEUE) private readonly recordingsQueue: Queue<RecordingJobData>,
+    @InjectDataSource('coaching') private readonly ds: DataSource,
     private readonly r2: R2Service,
     private readonly redis: LiveBroadcastRedis,
     private readonly config: ConfigService,
@@ -90,6 +106,18 @@ export class LiveBroadcastService {
     return lecture;
   }
 
+  async getUserDisplayName(userId: string, fallback = 'User'): Promise<string> {
+    try {
+      const rows = await this.ds.query(
+        `SELECT full_name FROM users WHERE id::text = $1::text LIMIT 1`,
+        [userId],
+      );
+      return rows[0]?.full_name || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
   // ── endpoints ──────────────────────────────────────────────────────────────
   async createLecture(user: AuthUser, dto: CreateLectureDto) {
     const instituteId = user.tenantId;
@@ -105,6 +133,11 @@ export class LiveBroadcastService {
         status: BroadcastStatus.SCHEDULED,
         scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
         qualities,
+        batchId: dto.batchId || null,
+        subjectId: dto.subjectId || null,
+        description: dto.description || null,
+        batchName: dto.batchName || null,
+        subjectName: dto.subjectName || null,
       }),
     );
 
@@ -136,7 +169,11 @@ export class LiveBroadcastService {
       endedAt: l.endedAt,
       teacherId: l.teacherId,
       createdAt: l.createdAt,
-      // Only expose stream credentials to the owning teacher / admin
+      batchId: l.batchId,
+      batchName: l.batchName,
+      subjectId: l.subjectId,
+      subjectName: l.subjectName,
+      description: l.description,
       ...(l.teacherId === user.id || user.role === UserRole.INSTITUTE_ADMIN || user.role === UserRole.SUPER_ADMIN
         ? { streamKey: l.streamKey, rtmpUrl: `rtmp://${serverIp}/live` }
         : {}),
@@ -153,18 +190,29 @@ export class LiveBroadcastService {
       title: l.title,
       startedAt: l.startedAt,
       teacherId: l.teacherId,
+      batchId: l.batchId,
+      batchName: l.batchName,
+      subjectId: l.subjectId,
+      subjectName: l.subjectName,
     }));
   }
 
   async getStreamUrl(lectureId: string, user: AuthUser) {
     const lecture = await this.getLectureWithAuth(lectureId, user);
-    if (lecture.status !== BroadcastStatus.LIVE) {
-      throw new ForbiddenException('This lecture is not currently live');
+    // Direct CDN URL — no expiry (same as school live). Signed URLs are only used for recordings.
+    const cdnDomain = this.r2.cdnDomain;
+    const url = `https://${cdnDomain}/live/${lecture.instituteId}/${lecture.streamKey}/master.m3u8`;
+    if (String(user.role || '').toLowerCase() === 'student') {
+      void this.trackJoin(lectureId, user.id, user.name || 'Student').catch(() => undefined);
     }
-    const expiresIn = 1800; // 30 min
-    const key = `live/${lecture.instituteId}/${lecture.streamKey}/master.m3u8`;
-    const url = await this.r2.getSignedUrl(this.r2.liveBucket, key, expiresIn);
-    return { url, expiresIn };
+    return {
+      url,
+      status: lecture.status,
+      streamKey: lecture.streamKey,
+      title: lecture.title,
+      startedAt: lecture.startedAt,
+      createdAt: lecture.createdAt,
+    };
   }
 
   async getRecordingUrl(lectureId: string, user: AuthUser) {
@@ -172,7 +220,7 @@ export class LiveBroadcastService {
     if (lecture.status !== BroadcastStatus.PROCESSED) {
       throw new ForbiddenException('Recording is not ready yet');
     }
-    const expiresIn = 14400; // 4 hours
+    const expiresIn = 14400;
     const recKey = lecture.recordingR2Path || `recordings/${lecture.instituteId}/${lecture.id}/lecture.mp4`;
     const thumbKey = lecture.thumbnailR2Path || `recordings/${lecture.instituteId}/${lecture.id}/thumbnail.jpg`;
     const [url, thumbnailUrl] = await Promise.all([
@@ -183,56 +231,63 @@ export class LiveBroadcastService {
   }
 
   /**
-   * Called by nginx-rtmp on publish. MUST be fast (< 200ms). Validates the
-   * stream key, flips the lecture to LIVE, and publishes a Redis event.
+   * nginx-rtmp on_publish callback. MUST be fast (< 200ms). Allows
+   * re-streaming an ended lecture — resets status to LIVE.
    */
   async validateStream(streamKey: string): Promise<boolean> {
     const lecture = await this.findByStreamKey(streamKey);
     if (!lecture) return false;
-    if (lecture.status !== BroadcastStatus.SCHEDULED) return false;
-
-    await this.markLive(lecture.id);
+    if (lecture.status === BroadcastStatus.PROCESSED || lecture.status === BroadcastStatus.PROCESSING_FAILED) {
+      return false;
+    }
+    await this.lectureRepo.update(lecture.id, {
+      status: BroadcastStatus.LIVE,
+      startedAt: new Date(),
+      endedAt: null,
+    });
     await this.redis.publish(LIVE_CHANNELS.LIVE, {
       lectureId: lecture.id,
       instituteId: lecture.instituteId,
     });
-
-    // Build the HLS master playlist without blocking the nginx response.
     void this.r2
       .generateAndUploadMasterPlaylist(lecture.instituteId, lecture.streamKey, lecture.qualities)
       .catch((e) => this.logger.error(`master.m3u8 upload failed: ${e.message}`));
-
     return true;
   }
 
-  /** Called by nginx-rtmp on publish_done — end the lecture + queue recording. */
   async streamEnded(streamKey: string): Promise<void> {
     const lecture = await this.findByStreamKey(streamKey);
     if (!lecture) return;
-
     await this.markEnded(lecture.id);
     await this.redis.publish(LIVE_CHANNELS.ENDED, { lectureId: lecture.id });
-
     await this.recordingsQueue.add(
       RECORDING_JOB,
       { lectureId: lecture.id, streamKey: lecture.streamKey, instId: lecture.instituteId },
-      {
-        delay: 5000,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 30000 },
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
+      { delay: 5000, attempts: 3, backoff: { type: 'exponential', delay: 30000 }, removeOnComplete: true, removeOnFail: false },
     );
   }
 
-  /** Return stream credentials for a lecture the caller owns (any status except PROCESSED). */
+  async endLecture(lectureId: string, user: AuthUser) {
+    const lecture = await this.getLectureWithAuth(lectureId, user);
+    if (lecture.teacherId !== user.id && user.role !== UserRole.INSTITUTE_ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Only the lecture owner or an admin can end it');
+    }
+    if (lecture.status !== BroadcastStatus.ENDED) {
+      await this.lectureRepo.update(lectureId, {
+        status: BroadcastStatus.ENDED,
+        endedAt: new Date(),
+      });
+      await this.redis.publish(LIVE_CHANNELS.ENDED, { lectureId });
+    }
+    return { success: true, status: BroadcastStatus.ENDED };
+  }
+
   async getStreamInfo(lectureId: string, user: AuthUser) {
     const lecture = await this.getLectureWithAuth(lectureId, user);
-    if (user.role !== UserRole.TEACHER && user.role !== UserRole.INSTITUTE_ADMIN) {
+    if (user.role !== UserRole.TEACHER && user.role !== UserRole.INSTITUTE_ADMIN && user.role !== UserRole.SUPER_ADMIN) {
       throw new ForbiddenException('Only teachers can view stream credentials');
     }
-    if (lecture.teacherId !== user.id && user.role !== UserRole.INSTITUTE_ADMIN) {
+    if (lecture.teacherId !== user.id && user.role !== UserRole.INSTITUTE_ADMIN && user.role !== UserRole.SUPER_ADMIN) {
       throw new ForbiddenException('You can only view credentials for your own streams');
     }
     const serverIp = this.config.get<string>('streaming.serverIp');
@@ -253,20 +308,202 @@ export class LiveBroadcastService {
     return { success: true };
   }
 
+  // ── stats ────────────────────────────────────────────────────────────────
   async getStats(lectureId: string, user: AuthUser) {
     const lecture = await this.getLectureWithAuth(lectureId, user);
     const currentViewers = await this.redis.viewerCount(lecture.id);
     const durationSeconds = lecture.startedAt
       ? Math.floor(((lecture.endedAt ?? new Date()).getTime() - lecture.startedAt.getTime()) / 1000)
       : 0;
-    return { currentViewers, startedAt: lecture.startedAt, durationSeconds };
+
+    const [totalParticipants, totalMessages, reactionBreakdown, participants, polls] = await Promise.all([
+      this.participantRepo.count({ where: { lectureId } }),
+      this.chatRepo.count({ where: { lectureId } }),
+      this.ds.query(
+        `SELECT emoji, COUNT(*)::int AS count FROM broadcast_reactions WHERE lecture_id = $1 GROUP BY emoji ORDER BY count DESC`,
+        [lectureId],
+      ).catch(() => []),
+      this.participantRepo.find({ where: { lectureId }, order: { joinedAt: 'ASC' } }).catch(() => []),
+      this.listPolls(lectureId, user).catch(() => []),
+    ]);
+
+    return {
+      id: lecture.id,
+      title: lecture.title,
+      status: lecture.status,
+      startedAt: lecture.startedAt,
+      endedAt: lecture.endedAt,
+      teacherId: lecture.teacherId,
+      durationSeconds,
+      currentViewers,
+      totalParticipants,
+      totalMessages,
+      reactionBreakdown,
+      participants: participants.map((p) => ({
+        userId: p.userId,
+        userName: p.userName,
+        joinedAt: p.joinedAt,
+        leftAt: p.leftAt,
+        durationSeconds: p.durationSeconds,
+        handRaised: p.handRaised,
+      })),
+      polls,
+    };
   }
 
-  // ── chat (used by the gateway) ──────────────────────────────────────────────
-  async saveChat(userId: string, lectureId: string, text: string) {
+  // ── chat ─────────────────────────────────────────────────────────────────
+  async saveChat(userId: string, lectureId: string, text: string, userName?: string) {
     const msg = await this.chatRepo.save(
       this.chatRepo.create({ userId, lectureId, text: text.slice(0, 500) }),
     );
-    return { id: msg.id, lectureId, userId, text: msg.text, createdAt: msg.createdAt };
+    return { id: msg.id, lectureId, userId, userName: userName || userId, text: msg.text, createdAt: msg.createdAt };
+  }
+
+  async getChatHistory(lectureId: string, user: AuthUser, limit = 500) {
+    await this.getLectureWithAuth(lectureId, user);
+    return this.chatRepo.find({
+      where: { lectureId },
+      order: { createdAt: 'ASC' },
+      take: limit,
+    });
+  }
+
+  // ── participant tracking ──────────────────────────────────────────────────
+  async trackJoin(lectureId: string, userId: string, userName: string): Promise<void> {
+    await this.participantRepo.upsert(
+      { lectureId, userId, userName, joinedAt: new Date(), leftAt: null, handRaised: false, durationSeconds: null },
+      { conflictPaths: ['lectureId', 'userId'], skipUpdateIfNoValuesChanged: false },
+    );
+  }
+
+  async trackLeave(lectureId: string, userId: string): Promise<void> {
+    const participant = await this.participantRepo.findOne({ where: { lectureId, userId } });
+    if (!participant || participant.leftAt) return;
+    const durationSeconds = Math.floor((Date.now() - participant.joinedAt.getTime()) / 1000);
+    await this.participantRepo.update(
+      { lectureId, userId },
+      { leftAt: new Date(), handRaised: false, durationSeconds },
+    );
+  }
+
+  async setHandRaised(lectureId: string, userId: string, raised: boolean, userName = 'Student'): Promise<void> {
+    await this.participantRepo.upsert(
+      { lectureId, userId, userName, joinedAt: new Date(), leftAt: null, handRaised: raised },
+      { conflictPaths: ['lectureId', 'userId'], skipUpdateIfNoValuesChanged: false },
+    );
+  }
+
+  async getActiveParticipants(lectureId: string, user: AuthUser) {
+    await this.getLectureWithAuth(lectureId, user);
+    return this.participantRepo.find({
+      where: { lectureId, leftAt: IsNull() },
+      order: { joinedAt: 'ASC' },
+    });
+  }
+
+  /**
+   * Same-origin HLS proxy. Fetches the HLS manifest/segment from the public CDN
+   * and re-serves it with CORS headers so hls.js (XHR) isn't blocked.
+   * `file` must be a flat filename — no path traversal allowed.
+   */
+  async proxyHls(streamKey: string, file: string): Promise<{ contentType: string; body: Buffer } | null> {
+    if (!streamKey || !file) return null;
+    if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
+    if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
+    const lecture = await this.findByStreamKey(streamKey);
+    if (!lecture) return null;
+    const cdnDomain = this.r2.cdnDomain;
+    const remoteUrl = `https://${cdnDomain}/live/${lecture.instituteId}/${streamKey}/${file}`;
+    try {
+      const r = await fetch(remoteUrl, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return null;
+      const contentType =
+        r.headers.get('content-type') ||
+        (file.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl'
+          : file.endsWith('.ts') ? 'video/mp2t'
+          : 'application/octet-stream');
+      return { contentType, body: Buffer.from(await r.arrayBuffer()) };
+    } catch {
+      return null;
+    }
+  }
+
+  async saveReaction(lectureId: string, userId: string, userName: string, emoji: string): Promise<void> {
+    if (!ALLOWED_REACTIONS.includes(emoji)) return;
+    await this.reactionRepo.save(this.reactionRepo.create({ lectureId, userId, userName, emoji }));
+  }
+
+  // ── polls ─────────────────────────────────────────────────────────────────
+  async createPoll(lectureId: string, user: AuthUser, dto: CreatePollDto) {
+    await this.getLectureWithAuth(lectureId, user);
+    await this.pollRepo.update({ lectureId, status: 'ACTIVE' }, { status: 'ENDED' });
+    const poll = await this.pollRepo.save(
+      this.pollRepo.create({
+        lectureId,
+        question: dto.question,
+        options: dto.options,
+        correctOption: dto.correctOption || null,
+        status: 'ACTIVE',
+      }),
+    );
+    void this.redis.publish(LIVE_CHANNELS.POLL_CREATED, { lectureId, poll }).catch(() => undefined);
+    return poll;
+  }
+
+  async endPoll(lectureId: string, pollId: string, user: AuthUser) {
+    await this.getLectureWithAuth(lectureId, user);
+    await this.pollRepo.update({ id: pollId, lectureId }, { status: 'ENDED' });
+    void this.redis.publish(LIVE_CHANNELS.POLL_ENDED, { lectureId, pollId }).catch(() => undefined);
+    return { success: true };
+  }
+
+  async getActivePoll(lectureId: string, user: AuthUser) {
+    await this.getLectureWithAuth(lectureId, user);
+    const poll = await this.pollRepo.findOne({ where: { lectureId, status: 'ACTIVE' } });
+    if (!poll) return null;
+    return { poll, results: await this.getPollResults(poll.id, poll.options) };
+  }
+
+  async votePoll(lectureId: string, pollId: string, user: AuthUser, userName: string, option: string) {
+    await this.getLectureWithAuth(lectureId, user);
+    await this.pollVoteRepo.upsert(
+      { pollId, userId: user.id, userName, option },
+      { conflictPaths: ['pollId', 'userId'], skipUpdateIfNoValuesChanged: false },
+    );
+    const poll = await this.pollRepo.findOne({ where: { id: pollId } });
+    const results = poll ? await this.getPollResults(pollId, poll.options) : {};
+    void this.redis.publish(LIVE_CHANNELS.POLL_VOTED, { lectureId, pollId, results }).catch(() => undefined);
+    return { success: true, results };
+  }
+
+  async listPolls(lectureId: string, user: AuthUser) {
+    await this.getLectureWithAuth(lectureId, user);
+    const polls = await this.pollRepo.find({ where: { lectureId }, order: { createdAt: 'ASC' } });
+    return Promise.all(
+      polls.map(async (p) => ({
+        id: p.id,
+        question: p.question,
+        options: p.options,
+        correctOption: p.correctOption,
+        status: p.status,
+        createdAt: p.createdAt,
+        results: await this.getPollResults(p.id, p.options),
+      })),
+    );
+  }
+
+  private async getPollResults(pollId: string, options: string[]): Promise<Record<string, number>> {
+    const votes = await this.pollVoteRepo
+      .createQueryBuilder('v')
+      .select('v.option', 'option')
+      .addSelect('COUNT(*)', 'count')
+      .where('v.pollId = :pollId', { pollId })
+      .groupBy('v.option')
+      .getRawMany<{ option: string; count: string }>();
+
+    const results: Record<string, number> = {};
+    for (const opt of options) results[opt] = 0;
+    for (const v of votes) results[v.option] = parseInt(v.count, 10);
+    return results;
   }
 }

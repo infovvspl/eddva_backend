@@ -52,6 +52,7 @@ export class SchoolLiveService implements OnModuleInit {
       await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS subject_name VARCHAR`);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_school_live_lectures_institute ON school_live_lectures (institute_id)`);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_school_live_lectures_status ON school_live_lectures (status)`);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_school_live_lectures_inst_sched ON school_live_lectures (institute_id, scheduled_for)`);
       await this.ds.query(`
         CREATE TABLE IF NOT EXISTS school_live_chat_messages (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -344,7 +345,12 @@ export class SchoolLiveService implements OnModuleInit {
     return rows[0];
   }
 
-  async getChatHistory(lectureId: string, limit = 100) {
+  async getChatHistory(lectureId: string, user: SchoolUser, limit = 100) {
+    const lecture = await this.getLecture(lectureId);
+    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      throw new NotFoundException('Lecture not found');
+    }
     return this.ds.query(
       `SELECT id, user_id AS "userId", user_name AS "userName", text, created_at AS "createdAt"
        FROM school_live_chat_messages WHERE lecture_id = $1 ORDER BY created_at ASC LIMIT $2`,
@@ -485,7 +491,12 @@ export class SchoolLiveService implements OnModuleInit {
      return { ...stats, teacherName: teacher?.name ?? null, polls: polls || [] };
    }
  
-   async createPoll(lectureId: string, question: string, options: string[], correctOption?: string) {
+   async createPoll(lectureId: string, user: SchoolUser, question: string, options: string[], correctOption?: string) {
+     const lecture = await this.getLecture(lectureId);
+     if (!lecture) throw new NotFoundException('Lecture not found');
+     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+       throw new NotFoundException('Lecture not found');
+     }
      // End any currently active polls for this lecture
      await this.ds.query(
        `UPDATE school_live_polls SET status = 'ENDED' WHERE lecture_id = $1 AND status = 'ACTIVE'`,
@@ -513,7 +524,12 @@ export class SchoolLiveService implements OnModuleInit {
      return { success: true };
    }
  
-   async getActivePoll(lectureId: string) {
+   async getActivePoll(lectureId: string, user: SchoolUser) {
+     const lecture = await this.getLecture(lectureId);
+     if (!lecture) throw new NotFoundException('Lecture not found');
+     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+       throw new NotFoundException('Lecture not found');
+     }
      const [poll] = await this.ds.query(
        `SELECT id, question, options, correct_option AS "correctOption", status, created_at AS "createdAt"
         FROM school_live_polls WHERE lecture_id = $1 AND status = 'ACTIVE' LIMIT 1`,
@@ -538,12 +554,17 @@ export class SchoolLiveService implements OnModuleInit {
      return { poll, results };
    }
  
-   async votePoll(lectureId: string, pollId: string, userId: string, userName: string, option: string) {
+   async votePoll(lectureId: string, pollId: string, user: SchoolUser, userName: string, option: string) {
+     const lecture = await this.getLecture(lectureId);
+     if (!lecture) throw new NotFoundException('Lecture not found');
+     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+       throw new NotFoundException('Lecture not found');
+     }
      await this.ds.query(
        `INSERT INTO school_live_poll_votes (poll_id, user_id, user_name, option)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (poll_id, user_id) DO UPDATE SET option = EXCLUDED.option`,
-       [pollId, userId, userName, option],
+       [pollId, user.id, userName, option],
      );
  
      // Get latest results
@@ -571,7 +592,12 @@ export class SchoolLiveService implements OnModuleInit {
      return { success: true, results };
    }
  
-   async listPolls(lectureId: string) {
+   async listPolls(lectureId: string, user: SchoolUser) {
+     const lecture = await this.getLecture(lectureId);
+     if (!lecture) throw new NotFoundException('Lecture not found');
+     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+       throw new NotFoundException('Lecture not found');
+     }
      const polls = await this.ds.query(
        `SELECT id, question, options, correct_option AS "correctOption", status, created_at AS "createdAt",
                COALESCE(

@@ -1,15 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import type { Cache } from 'cache-manager';
+
+const TEACHER_TTL = 5 * 60 * 1000;   // 5 min — upcoming classes & attendance change intra-day
+const ADMIN_TTL   = 5 * 60 * 1000;   // 5 min — today's attendance figures update frequently
+const SUPER_TTL   = 5 * 60 * 1000;   // 5 min — aggregate counts; systemHealth computed live
 
 @Injectable()
 export class SchoolDashboardService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) { }
 
   async stats(user: any) {
     if (user.role === 'TEACHER') {
+      const cacheKey = `school:dashboard:teacher:${user.id}`;
+      const cached = await this.cache.get(cacheKey);
+      if (cached) return cached;
+
       const instituteId = user.instituteId;
 
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
@@ -21,38 +32,37 @@ export class SchoolDashboardService {
       let assignmentsList = [];
 
       if (teacherId) {
-        classes = await this.ds.query(`
-          SELECT DISTINCT c.id, c.name 
-          FROM teacher_academic_assignments ta 
-          JOIN classes c ON ta.class_id = c.id 
-          WHERE ta.teacher_id = $1
-          ORDER BY c.name
-        `, [teacherId]);
-
-        sections = await this.ds.query(`
-          SELECT DISTINCT s.id, s.name, s.class_id
-          FROM teacher_academic_assignments ta 
-          JOIN sections s ON ta.section_id = s.id 
-          WHERE ta.teacher_id = $1
-          ORDER BY s.name
-        `, [teacherId]);
-
-        subjects = await this.ds.query(`
-          SELECT DISTINCT sub.id, sub.name
-          FROM teacher_academic_assignments ta 
-          JOIN subjects sub ON ta.subject_id = sub.id 
-          WHERE ta.teacher_id = $1
-          ORDER BY sub.name
-        `, [teacherId]);
-
-        assignmentsList = await this.ds.query(`
-          SELECT ta.class_id, c.name AS class_name, ta.section_id, s.name AS section_name, ta.subject_id, sub.name AS subject_name, ta.is_class_teacher
-          FROM teacher_academic_assignments ta
-          LEFT JOIN classes c ON ta.class_id = c.id
-          LEFT JOIN sections s ON ta.section_id = s.id
-          LEFT JOIN subjects sub ON ta.subject_id = sub.id
-          WHERE ta.teacher_id = $1
-        `, [teacherId]);
+        [classes, sections, subjects, assignmentsList] = await Promise.all([
+          this.ds.query(`
+            SELECT DISTINCT c.id, c.name
+            FROM teacher_academic_assignments ta
+            JOIN classes c ON ta.class_id = c.id
+            WHERE ta.teacher_id = $1
+            ORDER BY c.name
+          `, [teacherId]),
+          this.ds.query(`
+            SELECT DISTINCT s.id, s.name, s.class_id
+            FROM teacher_academic_assignments ta
+            JOIN sections s ON ta.section_id = s.id
+            WHERE ta.teacher_id = $1
+            ORDER BY s.name
+          `, [teacherId]),
+          this.ds.query(`
+            SELECT DISTINCT sub.id, sub.name
+            FROM teacher_academic_assignments ta
+            JOIN subjects sub ON ta.subject_id = sub.id
+            WHERE ta.teacher_id = $1
+            ORDER BY sub.name
+          `, [teacherId]),
+          this.ds.query(`
+            SELECT ta.class_id, c.name AS class_name, ta.section_id, s.name AS section_name, ta.subject_id, sub.name AS subject_name, ta.is_class_teacher
+            FROM teacher_academic_assignments ta
+            LEFT JOIN classes c ON ta.class_id = c.id
+            LEFT JOIN sections s ON ta.section_id = s.id
+            LEFT JOIN subjects sub ON ta.subject_id = sub.id
+            WHERE ta.teacher_id = $1
+          `, [teacherId]),
+        ]);
       }
 
       const now = new Date();
@@ -138,12 +148,11 @@ export class SchoolDashboardService {
         attendanceClassCount = classRows.length;
       }
 
-      return {
+      const teacherResult = {
         totalStudents: studentsCount[0]?.c ?? 0,
         assignments: assignmentsCount[0]?.c ?? 0,
         assessments: assessmentsCount[0]?.c ?? 0,
         upcomingClasses: schedules,
-        // Attendance stats
         attendancePresent: attPresent,
         attendanceAbsent: attAbsent,
         attendanceLate: attLate,
@@ -167,10 +176,16 @@ export class SchoolDashboardService {
           }))
         }
       };
+      await this.cache.set(cacheKey, teacherResult, TEACHER_TTL);
+      return teacherResult;
     }
 
 
     if (user.role === 'INSTITUTE_ADMIN') {
+      const cacheKey = `school:dashboard:admin:${user.instituteId}`;
+      const cached = await this.cache.get(cacheKey);
+      if (cached) return cached;
+
       const instituteId = user.instituteId;
       const todayStr = new Date().toISOString().split('T')[0];
 
@@ -236,7 +251,7 @@ export class SchoolDashboardService {
         communications.push({ t: 'No recent notices found', badge: 0 });
       }
 
-      return {
+      const adminResult = {
         currentInstitute: instRow[0] || null,
         totalTeachers,
         totalStudents,
@@ -248,9 +263,36 @@ export class SchoolDashboardService {
         totalInstitutes: 1,
         pendingApprovals: 0
       };
+      await this.cache.set(cacheKey, adminResult, ADMIN_TTL);
+      return adminResult;
     }
 
     // ── SUPER_ADMIN ─────────────────────────────────────────────────────────
+    // systemHealth uses a live DB ping + memory snapshot — always computed fresh.
+    // Everything else (counts, charts) is cached.
+    const superCacheKey = 'school:dashboard:superadmin';
+    const superCached = await this.cache.get<Record<string, any>>(superCacheKey);
+
+    // Compute live system health regardless of cache
+    let systemHealth = 99.9;
+    try {
+      const dbStart = Date.now();
+      await this.ds.query('SELECT 1');
+      const dbLatency = Date.now() - dbStart;
+      let latencyDeduction = 0;
+      if (dbLatency > 80) latencyDeduction = Math.min(4, (dbLatency - 80) / 40);
+      const memory = process.memoryUsage();
+      const heapUsagePercent = (memory.heapUsed / memory.heapTotal) * 100;
+      let memoryDeduction = 0;
+      if (heapUsagePercent > 80) memoryDeduction = (heapUsagePercent - 80) * 0.2;
+      systemHealth = parseFloat((99.9 - latencyDeduction - memoryDeduction).toFixed(1));
+      systemHealth = Math.max(94.0, Math.min(99.9, systemHealth));
+    } catch {
+      systemHealth = 0.0;
+    }
+
+    if (superCached) return { ...superCached, systemHealth };
+
     const [
       totalInstRow,
       pendingRow,
@@ -422,33 +464,6 @@ export class SchoolDashboardService {
     // Security Alerts: successful admin audits in last 24h (or 0 if none)
     const securityAlerts = securityAlertsRow[0]?.c || 0;
 
-    // Calculate system health dynamically based on DB ping latency and heap memory utilization
-    let systemHealth = 99.9;
-    try {
-      const dbStart = Date.now();
-      await this.ds.query('SELECT 1');
-      const dbLatency = Date.now() - dbStart;
-
-      // Deduct slightly if DB latency is higher than 80ms
-      let latencyDeduction = 0;
-      if (dbLatency > 80) {
-        latencyDeduction = Math.min(4, (dbLatency - 80) / 40);
-      }
-
-      // Deduct based on memory utilization (heapUsed vs heapTotal)
-      const memory = process.memoryUsage();
-      const heapUsagePercent = (memory.heapUsed / memory.heapTotal) * 100;
-      let memoryDeduction = 0;
-      if (heapUsagePercent > 80) {
-        memoryDeduction = (heapUsagePercent - 80) * 0.2;
-      }
-
-      systemHealth = parseFloat((99.9 - latencyDeduction - memoryDeduction).toFixed(1));
-      systemHealth = Math.max(94.0, Math.min(99.9, systemHealth));
-    } catch {
-      systemHealth = 0.0;
-    }
-
     const revenueTrend = monthlyRevenueRows.map((row: any) => ({
       name: row.name,
       billed: Number(row.billed || 0),
@@ -456,7 +471,7 @@ export class SchoolDashboardService {
     }));
     const monthlyRevenue = revenueTrend[revenueTrend.length - 1]?.revenue || 0;
 
-    return {
+    const superResult = {
       totalInstitutes: totalInstRow[0].c,
       pendingApprovals: pendingRow[0].c,
       totalTeachers: totalTeachersRow[0].c,
@@ -465,25 +480,22 @@ export class SchoolDashboardService {
       openComplaints: openComplaintsRow[0].c,
       totalUsers: totalUsersRow[0].c,
       activeSchools: activeSchoolsRow[0].c,
-      // Chart data
       userGrowth: monthlyUserRows,
       instituteGrowth: monthlyInstRows,
       revenueTrend,
       aiUsageTrend,
-      // Tables
       recentInstitutes: recentInstitutesRows,
       recentTickets: recentTicketsRows,
       topInstitutes: topInstRows,
-      // Misc (UI placeholders)
       activeUsers: activeUsersCount,
       monthlyRevenue,
-      systemHealth,
       aiRequestsToday,
       storageUsageBytes,
       activeUsersOnline,
       securityAlerts,
     };
-
+    await this.cache.set(superCacheKey, superResult, SUPER_TTL);
+    return { ...superResult, systemHealth };
   }
 
   async adminStats(user: any) {

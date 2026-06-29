@@ -64,16 +64,16 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     });
   }
 
-  private verify(token?: string): { id: string; name: string; role: string } | null {
+  private verify(token?: string): { id: string; name: string; role: string; instituteId: string | null } | null {
     if (!token) return null;
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) return null;
     try {
-      const d: any = jwt.verify(
-        token.replace(/^Bearer\s+/i, ''),
-        process.env.JWT_SECRET || 'dev_secret_change_in_prod',
-      );
+      const d: any = jwt.verify(token.replace(/^Bearer\s+/i, ''), jwtSecret);
       const id = d.id || d.sub;
       if (!id) return null;
-      return { id, name: d.name || d.fullName || 'User', role: String(d.role || '').toUpperCase() };
+      const instituteId = d.instituteId || d.institute_id || d.tenantId || null;
+      return { id, name: d.name || d.fullName || 'User', role: String(d.role || '').toUpperCase(), instituteId };
     } catch {
       return null;
     }
@@ -106,6 +106,19 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       return;
     }
     const { lectureId } = payload;
+
+    const lecture = await this.svc.getLecture(lectureId);
+    if (!lecture) {
+      client.emit('live-error', { message: 'Lecture not found' });
+      client.disconnect();
+      return;
+    }
+    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      client.emit('live-error', { message: 'Unauthorized' });
+      client.disconnect();
+      return;
+    }
+
     user.name = await this.svc.getUserDisplayName(user.id, user.name);
     client.join(`lecture:${lectureId}`);
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role };

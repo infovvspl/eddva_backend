@@ -4,7 +4,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 const isProd = process.env.NODE_ENV === 'production';
-const defaultDbPoolMax = isProd ? '5' : '1';
+const defaultDbPoolMax = isProd ? '20' : '5';
 
 if (isProd && process.env.DB_SYNC === 'true') {
   throw new Error(

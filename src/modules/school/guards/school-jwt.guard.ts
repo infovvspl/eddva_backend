@@ -69,9 +69,15 @@ export class SchoolJwtGuard implements CanActivate {
 
     if (!token) throw new UnauthorizedException('Not authorized to access this route');
 
+    // School uses its own secret so coaching JWTs cannot authenticate against school endpoints
+    const jwtSecret = process.env.SCHOOL_JWT_SECRET ||
+      (process.env.NODE_ENV === 'production' ? null : 'dev_school_secret_change_in_prod');
+    if (!jwtSecret) {
+      throw new UnauthorizedException('Server misconfiguration: SCHOOL_JWT_SECRET not set');
+    }
     let decoded: any;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev_secret_change_in_prod');
+      decoded = jwt.verify(token, jwtSecret);
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }

@@ -55,6 +55,12 @@ export class GamificationService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT now()
       )
     `);
+    // Performance indexes for leaderboard + score queries
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_institute ON school_game_sessions (institute_id, status, created_at)`);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_student ON school_game_sessions (student_user_id, created_at)`);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_institute_student ON school_game_scores (institute_id, student_user_id)`);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_session ON school_game_scores (session_id)`);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_metadata ON school_game_sessions USING GIN (metadata)`);
   }
 
   async startQuizRush(user: any, query: any) {
