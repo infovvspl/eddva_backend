@@ -2,9 +2,12 @@ import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } fro
 import { SchoolTimetableService } from './school-timetable.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 @Controller('school/schedules')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@SchoolFeature('module', 'timetable')
 export class SchoolScheduleController {
   constructor(private readonly svc: SchoolTimetableService) {}
 

@@ -140,8 +140,8 @@ export class SchoolAuthService {
         tenantDomain: user.tenant_domain,
         logo: user.logo,
         aiEnabled: user.inst_ai_enabled ?? false,
-        aiFeatures: user.inst_ai_features ?? {},
-        modulesPermissions: user.inst_modules_permissions ?? {},
+        aiFeatures: typeof user.inst_ai_features === 'string' ? JSON.parse(user.inst_ai_features) : (user.inst_ai_features ?? {}),
+        modulesPermissions: typeof user.inst_modules_permissions === 'string' ? JSON.parse(user.inst_modules_permissions) : (user.inst_modules_permissions ?? {}),
       } : null,
       tenantDomain: user.tenant_domain,
     };
