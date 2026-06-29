@@ -21,9 +21,12 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { CreateLiveLectureDto } from './dto/school-live.dto';
 import { SchoolLiveService } from './school-live.service';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 @Controller('school/live')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@SchoolFeature('module', 'live_classes')
 export class SchoolLiveController {
   constructor(private readonly svc: SchoolLiveService) {}
 

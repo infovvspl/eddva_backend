@@ -5,6 +5,8 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 interface SchoolUserCtx {
   id: string;
@@ -17,7 +19,8 @@ interface SchoolUserCtx {
  * Full paths: /api/v1/school/career/*
  */
 @Controller('school/career')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@SchoolFeature('ai', 'ai_career_guidance')
 export class CareerController {
   constructor(private readonly svc: CareerService) {}
 

@@ -27,6 +27,7 @@ export class RecordingHighlightController {
     @Param('recordingId', ParseUUIDPipe) recordingId: string,
     @Body() dto: CreateHighlightDto,
   ) {
+    console.log('HIGHLIGHT DEBUG user object:', JSON.stringify(user));
     return this.highlightService.createHighlight(recordingId, user, dto);
   }
 

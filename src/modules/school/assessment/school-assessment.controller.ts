@@ -9,6 +9,8 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { Audit } from '../../audit-log/audit.decorator';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 const uploadsDir = join(__dirname, '../../../../uploads');
 mkdirSync(uploadsDir, { recursive: true });
@@ -21,7 +23,8 @@ const uploadStorage = diskStorage({
 });
 
 @Controller('school/assessments')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@SchoolFeature('module', 'assessments')
 export class SchoolAssessmentController {
   constructor(private readonly svc: SchoolAssessmentService) {}
 
