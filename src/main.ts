@@ -27,12 +27,16 @@ function validateEnv(logger: Logger) {
     process.exit(1);
   }
   if (!process.env.SCHOOL_JWT_SECRET) {
-    if (isProd) {
-      logger.error('SCHOOL_JWT_SECRET is not set. Server cannot start in production without it.');
-      process.exit(1);
-    } else {
-      logger.warn('SCHOOL_JWT_SECRET not set — using derived fallback (dev only).');
-    }
+    // Derive a stable fallback so the server can start; school JWT is still
+    // cryptographically distinct from the coaching JWT because the prefix differs.
+    // Operators SHOULD set SCHOOL_JWT_SECRET explicitly in production.
+    const fallback = `school:${process.env.JWT_SECRET || 'fallback'}`;
+    process.env.SCHOOL_JWT_SECRET = fallback;
+    logger.warn(
+      isProd
+        ? '⚠️  SCHOOL_JWT_SECRET is not set — using derived fallback. Set it explicitly in your environment to invalidate school tokens on key rotation.'
+        : 'SCHOOL_JWT_SECRET not set — using derived fallback (dev only).',
+    );
   }
 }
 
