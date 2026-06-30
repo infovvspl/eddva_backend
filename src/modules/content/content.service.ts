@@ -63,25 +63,255 @@ type YoutubeTranscriptApi = {
 @Injectable()
 export class ContentService {
     private readonly logger = new Logger(ContentService.name);
+    private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
     private static readonly presetExamTargets = new Set(['jee', 'neet', 'both']);
     private static readonly hindiLikeLectureLanguages = new Set(['hi', 'hinglish', 'hi-in']);
     private static readonly odiaLectureLanguages = new Set(['od', 'odia', 'od-in', 'or', 'or-in']);
 
-    private _extractAiNoteImages(result: any): AiNoteImage[] {
-        const images = result?.images ?? result?.noteImages ?? result?.aiNoteImages ?? result?.ai_note_images;
-        if (!Array.isArray(images)) return [];
-        return images
-            .filter((img: any) => img && typeof img === 'object' && typeof img.url === 'string' && img.url.trim())
-            .map((img: any) => ({
-                url: String(img.url).trim(),
-                caption: img.caption ? String(img.caption).trim() : undefined,
-                section_heading: img.section_heading ? String(img.section_heading).trim() : undefined,
-                evidence_quote: img.evidence_quote ? String(img.evidence_quote).trim() : undefined,
-                prompt: img.prompt ? String(img.prompt).trim() : undefined,
-                provider: img.provider ? String(img.provider).trim() : undefined,
-                model: img.model ? String(img.model).trim() : undefined,
-                image_size: img.image_size ? String(img.image_size).trim() : undefined,
-            }));
+    private async _extractNoteImageSearchTerms(
+        notes: string,
+        language = 'en',
+    ): Promise<Array<{ heading: string; searchTerm: string; caption: string }>> {
+        const groqKey = process.env.GROQ_API_KEY || '';
+        if (!groqKey) return [];
+
+        try {
+            const response = await fetch(this.GROQ_URL, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${groqKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.3-70b-versatile',
+                    response_format: { type: 'json_object' },
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are a JSON-only API that returns {"sections": [...]}.',
+                        },
+                        {
+                            role: 'user',
+                            content: `Given these lecture notes (Markdown), identify 3-4 major section headings (## or ###) that would benefit from an illustrative educational image.
+
+For each section:
+- "heading": copy the exact heading line from the notes (include the ## or ### prefix).
+- "searchTerm": 4-7 English words, specific to that sub-topic, including a visual hint such as diagram, photograph, chart, illustration, map, microscope, or experiment.
+- "caption": one sentence describing what the image shows and how it supports the section. ${language === 'od' ? 'Write the caption in Odia.' : ''}
+
+Return ONLY: {"sections": [{"heading": "## Exact Heading", "searchTerm": "...", "caption": "..."}]}
+
+NOTES:
+${notes.slice(0, 4000)}`,
+                        },
+                    ],
+                    temperature: 0.3,
+                    max_tokens: 1024,
+                }),
+            });
+            if (!response.ok) return [];
+            const data: any = await response.json();
+            const parsed = JSON.parse(data?.choices?.[0]?.message?.content || '{}');
+            const sections = parsed.sections || parsed;
+            if (!Array.isArray(sections)) return [];
+            return sections
+                .slice(0, 4)
+                .filter((section: any) =>
+                    section?.heading && section?.searchTerm && typeof section.heading === 'string',
+                )
+                .map((section: any) => ({
+                    heading: String(section.heading).trim(),
+                    searchTerm: String(section.searchTerm).trim(),
+                    caption: String(section.caption || section.searchTerm).trim(),
+                }));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logger.warn(`Could not plan coaching note image searches: ${message}`);
+            return [];
+        }
+    }
+
+    private async _searchNoteImage(searchTerm: string, tenantId: string, language = 'en'): Promise<string | null> {
+        const visualHints = ['diagram', 'photo', 'photograph', 'illustration', 'chart', 'map', 'microscope', 'experiment', 'figure'];
+
+        try {
+            let englishTerm = searchTerm;
+            if (language === 'od' && /[\u0B00-\u0B7F]/.test(searchTerm)) {
+                const translated = await this.aiBridgeService.translateText(
+                    { text: searchTerm, targetLanguage: 'en' },
+                    tenantId,
+                ) as any;
+                englishTerm = String(
+                    translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
+                ).trim() || searchTerm;
+            }
+
+            const baseQuery = visualHints.some((hint) => englishTerm.toLowerCase().includes(hint))
+                ? englishTerm
+                : `${englishTerm} educational diagram`;
+            const preferredQuery = language === 'od'
+                ? `${baseQuery} with Odia labels`
+                : baseQuery;
+            const result = await this.aiBridgeService.searchEducationalImages(
+                { query: preferredQuery, limit: 5, language },
+                tenantId,
+            );
+            const preferred = result.images.slice(0, 3).find((image) => image?.imageUrl)?.imageUrl || null;
+            if (preferred || language !== 'od') return preferred;
+
+            const fallback = await this.aiBridgeService.searchEducationalImages(
+                { query: baseQuery, limit: 5, language: 'en' },
+                tenantId,
+            );
+            return fallback.images.slice(0, 3).find((image) => image?.imageUrl)?.imageUrl || null;
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logger.warn(`SerpApi coaching note image search failed: ${message}`);
+            return null;
+        }
+    }
+
+    private async _storeSearchedNoteImage(
+        imageUrl: string,
+        tenantId: string,
+        lectureId: string,
+        fileStem: string,
+    ): Promise<string | null> {
+        try {
+            const response = await fetch(imageUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+                    Referer: 'https://www.google.com/',
+                    Accept: 'image/webp,image/apng,image/jpeg,image/png,image/*,*/*;q=0.8',
+                },
+                signal: AbortSignal.timeout(12000),
+            });
+            if (!response.ok) return null;
+            const contentType = (response.headers.get('content-type') || '').split(';')[0].trim();
+            if (!contentType.startsWith('image/')) return null;
+            const buffer = Buffer.from(await response.arrayBuffer());
+            if (buffer.length < 2048) return null;
+
+            const extensionByMime: Record<string, string> = {
+                'image/jpeg': 'jpg',
+                'image/png': 'png',
+                'image/webp': 'webp',
+                'image/gif': 'gif',
+            };
+            const extension = extensionByMime[contentType] || 'jpg';
+            const key = `tenants/${tenantId}/lecture-notes/${lectureId}/${fileStem}.${extension}`;
+            await this.s3Service.upload(key, buffer, contentType);
+            return this.s3Service.toPublicUrl(key);
+        } catch {
+            return null;
+        }
+    }
+
+    private _insertSearchedImageAfterHeading(
+        notes: string,
+        heading: string,
+        imageUrl: string,
+        caption: string,
+    ): string {
+        const normalizeHeading = (value: string) => value
+            .normalize('NFC')
+            .replace(/^\s*#{1,6}\s*/, '')
+            .replace(/[*_`~]/g, '')
+            .replace(/^\s*\d+[.)-]?\s*/, '')
+            .replace(/[：:|–—-]+$/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+        const headingText = normalizeHeading(heading);
+        const lines = notes.split('\n');
+        let index = lines.findIndex(
+            (line) => /^\s*#{1,6}\s+/.test(line) && normalizeHeading(line) === headingText,
+        );
+        if (index === -1) {
+            index = lines.findIndex((line) => {
+                if (!/^\s*#{1,6}\s+/.test(line)) return false;
+                const candidate = normalizeHeading(line);
+                return candidate.includes(headingText) || headingText.includes(candidate);
+            });
+        }
+        const safeCaption = caption.replace(/\]/g, '\\]');
+        const imageMarkdown = `\n![${safeCaption}](${imageUrl})\n*${caption}*\n`;
+        if (index === -1) {
+            return `${notes.trimEnd()}\n\n${imageMarkdown.trim()}\n`;
+        }
+        lines.splice(index + 1, 0, imageMarkdown);
+        return lines.join('\n');
+    }
+
+    private _stripEmbeddedNoteImages(notes: string): string {
+        return notes
+            .replace(/\n!\[.*?\]\(https?:\/\/.*?\)\n\*.*?\*\n/g, '\n')
+            .replace(/\n\n!\[.*?\]\(https?:\/\/.*?\)\n/g, '\n');
+    }
+
+    private async _enrichCoachingNotesWithImageSearch(
+        notes: string,
+        lectureId: string,
+        tenantId: string,
+        language = 'en',
+    ): Promise<{ notes: string; images: AiNoteImage[] }> {
+        const sections = await this._extractNoteImageSearchTerms(notes, language);
+        if (!sections.length) return { notes, images: [] };
+
+        let enrichedNotes = notes;
+        const images: AiNoteImage[] = [];
+        for (let index = 0; index < sections.length; index += 1) {
+            const section = sections[index];
+            const sourceUrl = await this._searchNoteImage(section.searchTerm, tenantId, language);
+            if (!sourceUrl) continue;
+            const storedUrl = await this._storeSearchedNoteImage(
+                sourceUrl,
+                tenantId,
+                lectureId,
+                `${Date.now()}-${index}`,
+            );
+            if (!storedUrl) continue;
+
+            enrichedNotes = this._insertSearchedImageAfterHeading(
+                enrichedNotes,
+                section.heading,
+                storedUrl,
+                section.caption,
+            );
+            images.push({
+                url: storedUrl,
+                caption: section.caption,
+                section_heading: section.heading,
+                prompt: section.searchTerm,
+                provider: 'serpapi',
+                model: 'google-images',
+            });
+            if (index < sections.length - 1) {
+                await new Promise((resolve) => setTimeout(resolve, 600));
+            }
+        }
+        return { notes: enrichedNotes, images };
+    }
+
+    private _enrichAndPersistCoachingNoteImages(
+        notes: string,
+        lectureId: string,
+        tenantId: string,
+        language = 'en',
+    ): void {
+        void this._enrichCoachingNotesWithImageSearch(notes, lectureId, tenantId, language)
+            .then(async (enriched) => {
+                if (!enriched.images.length) return;
+                await this.lectureRepo.update(lectureId, {
+                    aiNotesMarkdown: enriched.notes,
+                    aiNoteImages: enriched.images,
+                });
+                this.logger.log(`Coaching notes enriched with ${enriched.images.length} searched image(s) for lecture ${lectureId}`);
+            })
+            .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : String(error);
+                this.logger.warn(`Coaching note image search failed for lecture ${lectureId}: ${message}`);
+            });
     }
 
     constructor(
@@ -1069,10 +1299,12 @@ export class ContentService {
             if (notes) updates.aiNotesMarkdown = String(notes);
             const concepts = result?.key_concepts ?? result?.keyConcepts;
             if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
-            const noteImages = this._extractAiNoteImages(result);
-            updates.aiNoteImages = noteImages;
+            updates.aiNoteImages = [];
 
             await this.lectureRepo.update(lectureId, updates);
+            if (updates.aiNotesMarkdown) {
+                this._enrichAndPersistCoachingNoteImages(updates.aiNotesMarkdown, lectureId, tenantId, lectureLanguage);
+            }
             this.logger.log(`YouTube AI notes complete for lecture ${lectureId} (${transcriptToStore.length} chars transcript)`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -1205,33 +1437,24 @@ export class ContentService {
             throw new ForbiddenException('AI transcription is not enabled for your institution.');
         }
 
-        const lectureLanguage = this.normalizeLectureLanguage(lecture.lectureLanguage);
-        const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
-
-        const result = await this.aiBridgeService.regenerateNoteImage(
-            {
-                topicId: lecture.topicId,
-                caption,
-                visualDescription,
-                evidenceQuote,
-                sectionHeading,
-                notes: lecture.aiNotesMarkdown || '',
-                language: aiLanguage,
-            },
+        const searchTerm = [visualDescription, caption].map((value) => value?.trim()).filter(Boolean).join(' ');
+        if (!searchTerm) throw new BadRequestException('An image search description is required');
+        const sourceUrl = await this._searchNoteImage(
+            searchTerm,
             tenantId,
-        ) as any;
-
-        if (!result || !result.url) {
-            throw new BadRequestException(result?.error || 'Failed to regenerate image');
-        }
+            this.normalizeLectureLanguage(lecture.lectureLanguage),
+        );
+        if (!sourceUrl) throw new BadRequestException('No suitable image search result was found');
+        const searchedImageUrl = await this._storeSearchedNoteImage(
+            sourceUrl,
+            tenantId,
+            id,
+            `replacement-${Date.now()}`,
+        );
+        if (!searchedImageUrl) throw new BadRequestException('The selected image could not be stored');
 
         let notesMarkdown = lecture.aiNotesMarkdown || '';
-        let overlayMarker = '';
-        if (Array.isArray(result.overlay_labels) && result.overlay_labels.length > 0) {
-            const base64Labels = Buffer.from(JSON.stringify({ labels: result.overlay_labels })).toString('base64url');
-            overlayMarker = ` <<NOTE_IMAGE_OVERLAY:${base64Labels}>>`;
-        }
-        const newMarkdownImg = `![${caption}${overlayMarker}](${result.url})`;
+        const newMarkdownImg = `![${caption}](${searchedImageUrl})`;
 
         const escapedOldUrl = oldImageUrl.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         const imgRegex = new RegExp(`!\\[[^\\]]*\\]\\(${escapedOldUrl}\\)`, 'g');
@@ -1239,14 +1462,13 @@ export class ContentService {
 
         let noteImages = Array.isArray(lecture.aiNoteImages) ? lecture.aiNoteImages : [];
         const newImageObj = {
-            url: result.url,
-            caption: result.caption,
-            section_heading: result.section_heading,
-            evidence_quote: result.evidence_quote,
-            prompt: result.prompt,
-            provider: result.provider,
-            model: result.model,
-            image_size: result.image_size,
+            url: searchedImageUrl,
+            caption,
+            section_heading: sectionHeading,
+            evidence_quote: evidenceQuote,
+            prompt: searchTerm,
+            provider: 'serpapi',
+            model: 'google-images',
         };
 
         let replaced = false;
@@ -1267,15 +1489,53 @@ export class ContentService {
         });
 
         return {
-            message: 'Image regenerated successfully',
+            message: 'Replacement image found successfully',
             image: {
-                url: result.url,
-                caption: result.caption,
-                visualDescription: result.visual_description,
-                overlayLabels: result.overlay_labels,
-                sectionHeading: result.section_heading,
-                evidenceQuote: result.evidence_quote,
+                url: searchedImageUrl,
+                caption,
+                visualDescription,
+                overlayLabels: [],
+                sectionHeading,
+                evidenceQuote,
             },
+        };
+    }
+
+    async refreshNoteImages(
+        id: string,
+        userId: string,
+        userRole: UserRole,
+        tenantId: string,
+    ): Promise<{ message: string; imageCount: number }> {
+        const lecture = await this.lectureRepo.findOne({ where: { id, tenantId } });
+        if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
+        if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
+            throw new ForbiddenException('You can only refresh visuals for your own lectures');
+        }
+        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+            throw new ForbiddenException('AI lecture notes are not enabled for your institution.');
+        }
+        if (!lecture.aiNotesMarkdown || lecture.aiNotesMarkdown.trim().length < 20) {
+            throw new BadRequestException('No AI notes available yet');
+        }
+
+        const cleanNotes = this._stripEmbeddedNoteImages(lecture.aiNotesMarkdown);
+        const enriched = await this._enrichCoachingNotesWithImageSearch(
+            cleanNotes,
+            id,
+            tenantId,
+            this.normalizeLectureLanguage(lecture.lectureLanguage),
+        );
+        if (!enriched.images.length) {
+            throw new BadRequestException('No suitable educational images were found');
+        }
+        await this.lectureRepo.update(id, {
+            aiNotesMarkdown: enriched.notes,
+            aiNoteImages: enriched.images,
+        });
+        return {
+            message: 'Visuals refreshed successfully',
+            imageCount: enriched.images.length,
         };
     }
 
@@ -1289,7 +1549,7 @@ export class ContentService {
         this.logger.log(`Regenerating notes for lecture ${lectureId} (${transcript.length} chars, language=${aiLanguage})`);
         try {
             const notesResult = await this.aiBridgeService.generateNotesFromTranscript(
-                { transcript, topicId: topicId ?? '', language: aiLanguage },
+                { transcript, topicId: topicId ?? '', language: aiLanguage, skipImageGeneration: true },
                 tenantId,
             ) as any;
             const notes = notesResult?.notes ?? notesResult?.notesMarkdown ?? notesResult?.notes_markdown ?? null;
@@ -1301,8 +1561,11 @@ export class ContentService {
                 throw new Error('AI notes response did not contain usable notes');
             }
             if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
-            updates.aiNoteImages = this._extractAiNoteImages(notesResult);
+            updates.aiNoteImages = [];
             if (Object.keys(updates).length) await this.lectureRepo.update(lectureId, updates);
+            if (updates.aiNotesMarkdown) {
+                this._enrichAndPersistCoachingNoteImages(updates.aiNotesMarkdown, lectureId, tenantId, aiLanguage);
+            }
             this.logger.log(`Notes regenerated for lecture ${lectureId}`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
