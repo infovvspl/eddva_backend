@@ -1259,9 +1259,10 @@ export class BatchService {
       password: tempPassword,
       tenantId,
       role: UserRole.STUDENT,
-      status: UserStatus.PENDING_VERIFICATION,
+      status: UserStatus.ACTIVE,
       isFirstLogin: true,
       phoneVerified: true,
+      emailVerified: true,
     });
     await this.userRepo.save(user);
 
@@ -1317,9 +1318,10 @@ export class BatchService {
           password: tempPassword,
           tenantId,
           role: UserRole.STUDENT,
-          status: UserStatus.PENDING_VERIFICATION,
+          status: UserStatus.ACTIVE,
           isFirstLogin: true,
           phoneVerified: true,
+          emailVerified: true,
         });
         await this.userRepo.save(user);
 

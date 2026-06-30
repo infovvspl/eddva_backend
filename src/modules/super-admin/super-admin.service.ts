@@ -96,8 +96,15 @@ export class SuperAdminService {
           trialEndsAt: null,
           aiEnabled: dto.aiEnabled ?? false,
           aiFeatures: dto.aiFeatures ?? [],
+          operationalModel: dto.operationalModel ?? 'TEACHER_BASED',
+          adminPortalEnabled: dto.adminPortalEnabled !== false,
+          teacherPortalEnabled: dto.teacherPortalEnabled !== false,
+          studentPortalEnabled: dto.studentPortalEnabled !== false,
+          parentPortalEnabled: dto.parentPortalEnabled !== false,
+          multiAdminEnabled: dto.multiAdminEnabled !== false,
         }),
       );
+
 
       const admin = await manager.save(
         manager.create(User, {

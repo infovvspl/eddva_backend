@@ -74,13 +74,13 @@ export class AuthService {
     private readonly s3Service: S3Service,
   ) {}
 
-  // â”€â”€ Student Self-Registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ————————————————————————————————————————————————————————————————————————————
 
   async registerStudent(dto: StudentRegisterDto, _tenantId: string) {
-    // Self-registration always goes to the platform tenant â€” no subdomain dependency
+    // Self-registration uses the resolved tenant (from subdomain or header) if present, otherwise platform tenant
     const platformTenant = await this.tenantRepo.findOne({ where: { subdomain: 'platform' } });
     if (!platformTenant) throw new Error('Platform tenant not configured');
-    const tenantId = platformTenant.id;
+    const tenantId = _tenantId || platformTenant.id;
 
     // Normalize phone number
     const normalizedPhone = this.normalizeLoginPhone(dto.phoneNumber);
@@ -109,8 +109,9 @@ export class AuthService {
         password: dto.password, // @BeforeInsert hook hashes this
         tenantId,
         role: UserRole.STUDENT,
-        status: UserStatus.PENDING_VERIFICATION,
-        phoneVerified: false,
+        status: UserStatus.ACTIVE,
+        phoneVerified: true,
+        emailVerified: true,
         isFirstLogin: false,
       });
       const savedUser = await manager.save(user);
@@ -139,7 +140,7 @@ export class AuthService {
         user: this.sanitizeUser(savedUser),
         isNewUser: true,
         onboardingRequired: true,
-        message: 'Account created. Please verify your phone and email to activate your profile.',
+        message: 'Account created successfully. You can now log in.',
       };
     });
   }
@@ -240,9 +241,11 @@ export class AuthService {
       throw new UnauthorizedException('Account suspended. Contact your institute admin.');
     }
 
-    // Require verification for pending users
+    // Auto-activate pending users on login (verification removed)
     if (user.status === UserStatus.PENDING_VERIFICATION) {
-      throw new UnauthorizedException('Please verify your phone and email before logging in.');
+      user.status = UserStatus.ACTIVE;
+      user.phoneVerified = true;
+      user.emailVerified = true;
     }
 
     user.lastLoginAt = new Date();
@@ -509,6 +512,11 @@ export class AuthService {
       }
     }
 
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    const isStaffBased = tenant?.operationalModel === 'STAFF_BASED';
+    const roleToAssign = isStaffBased ? UserRole.INSTITUTE_ADMIN : UserRole.TEACHER;
+    const permissionGroup = isStaffBased ? dto.permissionGroup : null;
+
     const tempPassword = dto.password || this.generateTempPassword();
 
     const teacher = this.userRepo.create({
@@ -517,15 +525,16 @@ export class AuthService {
       email: dto.email,
       password: tempPassword,
       tenantId,
-      role: UserRole.TEACHER,
-      status: UserStatus.PENDING_VERIFICATION,
+      role: roleToAssign,
+      permissionGroup,
+      status: UserStatus.ACTIVE,
       isFirstLogin: true,
       phoneVerified: true,
+      emailVerified: true,
     });
     await this.userRepo.save(teacher);
 
     // Send credentials email
-    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
     const instituteName = tenant?.name || 'EDVA';
     this.mailService.sendCredentials(dto.email, dto.fullName, dto.email, tempPassword, instituteName)
       .catch(err => this.logger.error(`Failed sending credentials email: ${err.message}`));
@@ -533,9 +542,10 @@ export class AuthService {
     return {
       teacher: this.sanitizeUser(teacher),
       tempPassword,
-      message: 'Teacher created. Credentials sent via email.',
+      message: isStaffBased ? 'Staff member created. Credentials sent via email.' : 'Teacher created. Credentials sent via email.',
     };
   }
+
 
   async bulkCreateTeachers(dto: BulkCreateTeacherDto, tenantId: string) {
     const results: { fullName: string; email: string; tempPassword: string; status: string; error?: string }[] = [];
@@ -561,6 +571,10 @@ export class AuthService {
           }
         }
 
+        const isStaffBased = tenant?.operationalModel === 'STAFF_BASED';
+        const roleToAssign = isStaffBased ? UserRole.INSTITUTE_ADMIN : UserRole.TEACHER;
+        const permissionGroup = isStaffBased ? t.permissionGroup : null;
+
         const tempPassword = t.password || this.generateTempPassword();
         const teacher = this.userRepo.create({
           phoneNumber: t.phoneNumber,
@@ -568,12 +582,15 @@ export class AuthService {
           email: t.email,
           password: tempPassword,
           tenantId,
-          role: UserRole.TEACHER,
-          status: UserStatus.PENDING_VERIFICATION,
+          role: roleToAssign,
+          permissionGroup,
+          status: UserStatus.ACTIVE,
           isFirstLogin: true,
           phoneVerified: true,
+          emailVerified: true,
         });
         await this.userRepo.save(teacher);
+
 
         // Send credentials email (fire-and-forget)
         if (t.email) {
@@ -598,18 +615,34 @@ export class AuthService {
   }
 
   async getTeachers(tenantId: string) {
-    const teachers = await this.userRepo.find({
-      where: { tenantId, role: UserRole.TEACHER },
-      order: { createdAt: 'DESC' },
-    });
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    const isStaffBased = tenant?.operationalModel === 'STAFF_BASED';
+
+    let teachers;
+    if (isStaffBased) {
+      teachers = await this.userRepo.find({
+        where: { tenantId, role: UserRole.INSTITUTE_ADMIN, permissionGroup: Not(IsNull()) },
+        order: { createdAt: 'DESC' },
+      });
+    } else {
+      teachers = await this.userRepo.find({
+        where: { tenantId, role: UserRole.TEACHER },
+        order: { createdAt: 'DESC' },
+      });
+    }
     return teachers.map((t) => this.sanitizeUser(t));
   }
 
+
   async getTeacherDetail(teacherId: string, tenantId: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    const isStaffBased = tenant?.operationalModel === 'STAFF_BASED';
+
     const teacher = await this.userRepo.findOne({
-      where: { id: teacherId, tenantId, role: UserRole.TEACHER },
+      where: { id: teacherId, tenantId, role: isStaffBased ? UserRole.INSTITUTE_ADMIN : UserRole.TEACHER },
     });
-    if (!teacher) throw new NotFoundException('Teacher not found');
+    if (!teacher) throw new NotFoundException(isStaffBased ? 'Staff member not found' : 'Teacher not found');
+
 
     // Batches assigned to this teacher
     const batches = await this.batchRepo.find({
@@ -844,6 +877,7 @@ export class AuthService {
       lastLoginAt: user.lastLoginAt,
       role: user.role,
       status: user.status,
+      permissionGroup: user.permissionGroup,
       notificationPrefs: user.notificationPrefs,
       fcmToken: user.fcmToken,
       createdAt: user.createdAt,
@@ -864,9 +898,15 @@ export class AuthService {
             onboardingComplete: tenant.onboardingComplete,
             maxStudents: tenant.maxStudents,
             maxTeachers: tenant.maxTeachers,
+            adminPortalEnabled: tenant.adminPortalEnabled,
+            teacherPortalEnabled: tenant.teacherPortalEnabled,
+            studentPortalEnabled: tenant.studentPortalEnabled,
+            parentPortalEnabled: tenant.parentPortalEnabled,
+            multiAdminEnabled: tenant.multiAdminEnabled,
             metadata: (toJsonSafeDeep(tenant.metadata ?? {}) ?? {}) as Record<string, unknown>,
           }
         : undefined,
+
     };
   }
 
