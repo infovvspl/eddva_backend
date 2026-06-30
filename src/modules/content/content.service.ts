@@ -146,24 +146,15 @@ ${notes.slice(0, 4000)}`,
                 ).trim() || searchTerm;
             }
 
-            const baseQuery = visualHints.some((hint) => englishTerm.toLowerCase().includes(hint))
+            const query = visualHints.some((hint) => englishTerm.toLowerCase().includes(hint))
                 ? englishTerm
                 : `${englishTerm} educational diagram`;
-            const preferredQuery = language === 'od'
-                ? `${baseQuery} with Odia labels`
-                : baseQuery;
-            const result = await this.aiBridgeService.searchEducationalImages(
-                { query: preferredQuery, limit: 5, language },
-                tenantId,
-            );
-            const preferred = result.images.slice(0, 3).find((image) => image?.imageUrl)?.imageUrl || null;
-            if (preferred || language !== 'od') return preferred;
 
-            const fallback = await this.aiBridgeService.searchEducationalImages(
-                { query: baseQuery, limit: 5, language: 'en' },
+            const result = await this.aiBridgeService.searchEducationalImages(
+                { query, limit: 5, language: 'en' },
                 tenantId,
             );
-            return fallback.images.slice(0, 3).find((image) => image?.imageUrl)?.imageUrl || null;
+            return result.images.slice(0, 3).find((image) => image?.imageUrl)?.imageUrl || null;
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             this.logger.warn(`SerpApi coaching note image search failed: ${message}`);

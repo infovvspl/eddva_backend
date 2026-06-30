@@ -610,7 +610,7 @@ export class SchoolClassService implements OnModuleInit {
       this.logger.log(`Notes saved (${notes.length} chars) for recording ${recordingId}`);
 
       // Phase 3: enrich notes with section images — non-blocking, notes already visible to students.
-      this.enrichNotesWithImages(notes, recordingId, instituteId)
+      this.enrichNotesWithImages(notes, recordingId, instituteId, language)
         .then(async (enriched) => {
           if (!enriched.images.length) return;
           await this.ds.query(
@@ -631,7 +631,7 @@ export class SchoolClassService implements OnModuleInit {
     await this.ensureTable();
     const instituteId = this.resolveInstituteId(user);
     const rows = await this.ds.query(
-      `SELECT id, notes FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      `SELECT id, notes, language FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
       [id, instituteId],
     );
     if (!rows.length) throw new NotFoundException('Recording not found');
@@ -641,7 +641,7 @@ export class SchoolClassService implements OnModuleInit {
     }
     // Strip previously-embedded images so we re-insert fresh ones at clean positions.
     const strippedNotes = this.stripEmbeddedImages(rec.notes);
-    this.enrichNotesWithImages(strippedNotes, id, instituteId)
+    this.enrichNotesWithImages(strippedNotes, id, instituteId, this.normalizeLanguage(rec.language))
       .then(async (enriched) => {
         if (!enriched.images.length) return;
         await this.ds.query(
@@ -664,78 +664,73 @@ export class SchoolClassService implements OnModuleInit {
 
   private async extractImageSearchTerms(
     notes: string,
+    language = 'en',
+    instituteId?: string,
   ): Promise<Array<{heading: string; searchTerm: string; caption: string}>> {
-    const groqKey = process.env.GROQ_API_KEY || '';
-    if (!groqKey) return [];
-    const truncated = notes.slice(0, 4000);
     try {
-      const res = await fetch(this.GROQ_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          response_format: { type: 'json_object' },
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a JSON-only API that returns {"sections": [...]}.',
-            },
-            {
-              role: 'user',
-              content: `Given these lecture notes (Markdown), identify 3–4 major section headings (## or ###) that would benefit from an illustrative educational image.
-
-For each section:
-- "heading": copy the exact heading line from the notes (include the ## or ### prefix).
-- "searchTerm": 4–7 words, be SPECIFIC to that sub-topic, include a visual type hint (diagram, photograph, chart, illustration, map, microscope, experiment).
-- "caption": one sentence describing exactly what the image shows and how it helps students understand this section.
-
-Return ONLY: {"sections": [{"heading": "## Exact Heading", "searchTerm": "...", "caption": "..."}]}
-
-NOTES:
-${truncated}`,
-            },
-          ],
-          temperature: 0.3,
-          max_tokens: 1024,
-        }),
-      });
-      if (!res.ok) return [];
-      const data: any = await res.json();
-      const parsed = JSON.parse(data.choices[0].message.content);
-      const sections = parsed.sections || parsed;
-      if (!Array.isArray(sections)) return [];
+      this.logger.log(`[extractImageSearchTerms] Calling AI bridge extract-image-terms (Language: ${language})...`);
+      const result: any = await this.aiBridgeService.extractImageSearchTerms(
+        { notes, language },
+        instituteId,
+      );
+      const sections = result?.sections || [];
+      this.logger.log(`[extractImageSearchTerms] Successfully extracted ${sections.length} headings.`);
       return sections
         .slice(0, 4)
         .filter((s: any) => s?.heading && s?.searchTerm && typeof s.heading === 'string');
-    } catch {
+    } catch (err: any) {
+      this.logger.error(`[extractImageSearchTerms] Failed to extract search terms: ${err?.message}`, err?.stack);
       return [];
     }
   }
 
-  private async fetchSerperImage(searchTerm: string): Promise<string | null> {
-    const serperKey = process.env.SERPER_API_KEY || '';
-    if (!serperKey) return null;
+  private async fetchSerperImage(searchTerm: string, instituteId: string, language = 'en'): Promise<string | null> {
+    this.logger.log(`[Serper Search] Query initiated for term: "${searchTerm}" (Language: ${language})`);
     try {
-      const visualHints = ['diagram', 'photo', 'illustration', 'chart', 'map', 'microscope', 'experiment', 'image', 'figure'];
-      const lower = searchTerm.toLowerCase();
-      const enriched = visualHints.some((h) => lower.includes(h))
-        ? searchTerm
-        : `${searchTerm} educational diagram`;
-      const res = await fetch(this.SERPER_URL, {
-        method: 'POST',
-        headers: { 'X-API-KEY': serperKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: enriched, num: 5 }),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) return null;
-      const data: any = await res.json();
-      const images: any[] = data.images || [];
-      // Try candidates until one downloads successfully
-      for (const img of images.slice(0, 3)) {
-        if (img?.imageUrl) return img.imageUrl;
+      let englishTerm = searchTerm;
+      const hasOdiaChars = /[\u0B00-\u0B7F]/.test(searchTerm);
+      if (language === 'od' && hasOdiaChars) {
+        try {
+          this.logger.log(`[Serper Search] Odia script detected. Translating search term: "${searchTerm}"`);
+          const translated: any = await this.aiBridgeService.translateText(
+            { text: searchTerm, targetLanguage: 'en' },
+            instituteId,
+          );
+          const translatedText = String(
+            translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
+          ).trim();
+          if (translatedText) {
+            englishTerm = translatedText;
+            this.logger.log(`[Serper Search] Translated search term to: "${englishTerm}"`);
+          }
+        } catch (err: any) {
+          this.logger.warn(`[Serper Search] Translation failed for search term "${searchTerm}": ${err?.message}`);
+        }
       }
+
+      const visualHints = ['diagram', 'photo', 'illustration', 'chart', 'map', 'microscope', 'experiment', 'image', 'figure'];
+      const query = visualHints.some((h) => englishTerm.toLowerCase().includes(h))
+        ? englishTerm
+        : `${englishTerm} educational diagram`;
+
+      this.logger.log(`[Serper Search] Sending Serper request via bridge for: "${query}" (Language: en)`);
+      const result = await this.aiBridgeService.searchEducationalImages(
+        { query, limit: 5, language: 'en' },
+        instituteId,
+      );
+
+      const images = result?.images || [];
+      this.logger.log(`[Serper Search] Serper returned ${images.length} candidate(s) for: "${query}"`);
+      for (const img of images.slice(0, 3)) {
+        if (img?.imageUrl) {
+          this.logger.log(`[Serper Search] Selected image URL: ${img.imageUrl}`);
+          return img.imageUrl;
+        }
+      }
+      this.logger.log(`[Serper Search] No images resolved for query: "${query}"`);
       return null;
-    } catch {
+    } catch (err: any) {
+      this.logger.warn(`[Serper Search] Serper school image search failed: ${err?.message}`);
       return null;
     }
   }
@@ -772,14 +767,33 @@ ${truncated}`,
     imageUrl: string,
     caption: string,
   ): string {
-    const headingText = heading.replace(/^#{1,6}\s*/, '').trim().toLowerCase();
+    const normalizeHeading = (value: string) => value
+      .normalize('NFC')
+      .replace(/^\s*#{1,6}\s*/, '')
+      .replace(/[*_`~]/g, '')
+      .replace(/^\s*\d+[.)-]?\s*/, '')
+      .replace(/[：:|–—-]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    const headingText = normalizeHeading(heading);
     const lines = notes.split('\n');
-    const idx = lines.findIndex((line) =>
-      line.replace(/^#{1,6}\s*/, '').trim().toLowerCase() === headingText,
+    let index = lines.findIndex(
+      (line) => /^\s*#{1,6}\s+/.test(line) && normalizeHeading(line) === headingText,
     );
-    if (idx === -1) return notes;
-    const imageBlock = `\n![${caption}](${imageUrl})\n*${caption}*\n`;
-    lines.splice(idx + 1, 0, imageBlock);
+    if (index === -1) {
+      index = lines.findIndex((line) => {
+        if (!/^\s*#{1,6}\s+/.test(line)) return false;
+        const candidate = normalizeHeading(line);
+        return candidate.includes(headingText) || headingText.includes(candidate);
+      });
+    }
+    const safeCaption = caption.replace(/\]/g, '\\]');
+    const imageMarkdown = `\n![${safeCaption}](${imageUrl})\n*${caption}*\n`;
+    if (index === -1) {
+      return `${notes.trimEnd()}\n\n${imageMarkdown.trim()}\n`;
+    }
+    lines.splice(index + 1, 0, imageMarkdown);
     return lines.join('\n');
   }
 
@@ -787,8 +801,10 @@ ${truncated}`,
     notes: string,
     recordingId: string,
     instituteId: string,
+    language = 'en',
   ): Promise<{notes: string; images: Array<{heading: string; searchTerm: string; s3Url: string; caption: string}>}> {
-    const sections = await this.extractImageSearchTerms(notes);
+    const sections = await this.extractImageSearchTerms(notes, language, instituteId);
+    this.logger.log(`[Image Enrichment] Starting note enrichment for recording ${recordingId}. Found ${sections.length} headings to enrich.`);
     if (!sections.length) return { notes, images: [] };
 
     const images: Array<{heading: string; searchTerm: string; s3Url: string; caption: string}> = [];
@@ -796,17 +812,26 @@ ${truncated}`,
 
     for (let i = 0; i < sections.length; i++) {
       const section = sections[i];
+      this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Processing heading: "${section.heading}" (Search term: "${section.searchTerm}")`);
       try {
-        const imageUrl = await this.fetchSerperImage(section.searchTerm);
-        if (!imageUrl) continue;
+        const imageUrl = await this.fetchSerperImage(section.searchTerm, instituteId, language);
+        if (!imageUrl) {
+          this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Skip: No image URL resolved`);
+          continue;
+        }
 
         const rawExt = imageUrl.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
         const safeExt = ['jpg', 'jpeg', 'png', 'webp'].includes(rawExt) ? rawExt : 'jpg';
         const s3Key = `tenants/${instituteId}/class-notes/${recordingId}/${i}.${safeExt}`;
 
+        this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Downloading and uploading image to S3 path: ${s3Key}`);
         const s3Url = await this.downloadAndUploadToS3(imageUrl, s3Key);
-        if (!s3Url) continue;
+        if (!s3Url) {
+          this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Skip: Download or S3 upload failed`);
+          continue;
+        }
 
+        this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Image saved to S3. Injecting markdown into notes text.`);
         enrichedNotes = this.insertImageAfterHeading(enrichedNotes, section.heading, s3Url, section.caption);
         images.push({ heading: section.heading, searchTerm: section.searchTerm, s3Url, caption: section.caption });
       } catch (err: any) {
@@ -815,6 +840,7 @@ ${truncated}`,
       if (i < sections.length - 1) await new Promise((r) => setTimeout(r, 600));
     }
 
+    this.logger.log(`[Image Enrichment] Complete. Successfully embedded ${images.length} of ${sections.length} images.`);
     return { notes: enrichedNotes, images };
   }
 
@@ -859,7 +885,7 @@ ${truncated}`,
     await this.ensureTable();
     const instituteId = this.resolveInstituteId(user);
     const rows = await this.ds.query(
-      `SELECT id, title, transcript, notes, topic_id FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      `SELECT id, title, transcript, notes, topic_id, language FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
       [id, instituteId],
     );
     if (!rows.length) throw new NotFoundException('Recording not found');
@@ -885,6 +911,7 @@ ${truncated}`,
           lectureTitle: rec.title || 'Lecture',
           topicId: rec.topic_id || '',
           numQuestions: 5,
+          language: rec.language,
         },
         instituteId,
       );
