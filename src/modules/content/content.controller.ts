@@ -437,6 +437,19 @@ export class ContentController {
         return this.contentService.regenerateNotes(id, user.id, user.role, tenantId);
     }
 
+    @Post('lectures/:id/regenerate-notes-images')
+    @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Refresh AI note visuals using educational image search' })
+    @ApiParam({ name: 'id', type: 'string' })
+    refreshNoteImages(
+        @Param('id', ParseUUIDPipe) id: string,
+        @CurrentUser() user: any,
+        @TenantId() tenantId: string,
+    ) {
+        return this.contentService.refreshNoteImages(id, user.id, user.role, tenantId);
+    }
+
     @Post('lectures/:id/regenerate-note-image')
     @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
     @HttpCode(HttpStatus.OK)
