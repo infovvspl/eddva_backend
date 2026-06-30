@@ -71,10 +71,7 @@ export class SchoolJwtGuard implements CanActivate {
 
     // School uses its own secret so coaching JWTs cannot authenticate against school endpoints
     const jwtSecret = process.env.SCHOOL_JWT_SECRET ||
-      (process.env.NODE_ENV === 'production' ? null : 'dev_school_secret_change_in_prod');
-    if (!jwtSecret) {
-      throw new UnauthorizedException('Server misconfiguration: SCHOOL_JWT_SECRET not set');
-    }
+      (process.env.JWT_SECRET ? process.env.JWT_SECRET + '_school' : 'dev_school_secret_change_in_prod');
     let decoded: any;
     try {
       decoded = jwt.verify(token, jwtSecret);
@@ -174,6 +171,7 @@ export class SchoolJwtGuard implements CanActivate {
           name: row.inst_name,
           tenantDomain: row.tenant_domain,
           status: row.inst_status,
+          logo: row.inst_logo,
           aiEnabled: row.inst_ai_enabled,
           aiFeatures: typeof row.inst_ai_features === 'string' ? JSON.parse(row.inst_ai_features) : row.inst_ai_features,
           modulesPermissions: typeof row.inst_modules_permissions === 'string' ? JSON.parse(row.inst_modules_permissions) : row.inst_modules_permissions,

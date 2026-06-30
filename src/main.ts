@@ -18,8 +18,27 @@ for (const file of ['.env', '.env.local']) {
   if (existsSync(file)) dotenv.config({ path: file, override: true });
 }
 // Trigger restart
+function validateEnv(logger: Logger) {
+  const isProd = process.env.NODE_ENV === 'production';
+  const required = ['JWT_SECRET', 'JWT_REFRESH_SECRET'];
+  const missing = required.filter(k => !process.env[k]);
+  if (missing.length) {
+    logger.error(`Missing required env vars: ${missing.join(', ')}. Server cannot start.`);
+    process.exit(1);
+  }
+  if (!process.env.SCHOOL_JWT_SECRET) {
+    if (isProd) {
+      logger.error('SCHOOL_JWT_SECRET is not set. Server cannot start in production without it.');
+      process.exit(1);
+    } else {
+      logger.warn('SCHOOL_JWT_SECRET not set — using derived fallback (dev only).');
+    }
+  }
+}
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+  validateEnv(logger);
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
