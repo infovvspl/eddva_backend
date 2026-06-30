@@ -590,6 +590,7 @@ export class AiBridgeService {
       chapter?: string;   // adds curriculum breadcrumb & scope constraint
       /** For subject tests: exact chapter names from the DB — AI must ONLY generate from these */
       chapters?: string[];
+      language?: string;
     },
     tenantId?: string,
     vertical?: string,
@@ -607,6 +608,7 @@ export class AiBridgeService {
       chapter: dto.chapter,
       chapters: dto.chapters,           // subject-test: exact DB chapters to generate from
       seed: (dto as any).seed,          // force LLM variety
+      language: dto.language,
     }, tenantId, undefined, vertical);
 
     const questions = this.resolveToQuestionList(raw);
