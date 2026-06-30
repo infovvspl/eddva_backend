@@ -6,6 +6,7 @@ import { BatchService } from './batch.service';
 
 import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
 import { BatchFeedback } from '../../database/entities/batch-feedback.entity';
+import { PlatformConfig, PaymentTransaction } from '../../database/entities/payment.entity';
 import { Student } from '../../database/entities/student.entity';
 import { Tenant } from '../../database/entities/tenant.entity';
 import { User } from '../../database/entities/user.entity';
@@ -22,6 +23,7 @@ import { NotificationModule } from '../notification/notification.module';
       Batch, BatchSubjectTeacher, Enrollment, BatchFeedback, Student, Tenant, User,
       LectureProgress, Lecture, TestSession, Doubt,
       WeakTopic, EngagementLog, Topic, Subject, Chapter, TopicResource,
+      PlatformConfig, PaymentTransaction,
     ], 'coaching'),
   ],
   controllers: [BatchController],

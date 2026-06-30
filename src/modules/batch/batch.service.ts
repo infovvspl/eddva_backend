@@ -16,6 +16,7 @@ import { In, Repository, MoreThan } from 'typeorm';
 
 import { NotificationService } from '../notification/notification.service';
 import { MailService } from '../mail/mail.service';
+import { PlatformConfig, PaymentTransaction, PaymentStatus } from '../../database/entities/payment.entity';
 import { Batch, BatchStatus, BatchSubjectTeacher, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
 import { BatchFeedback } from '../../database/entities/batch-feedback.entity';
 import { TestSession, TestSessionStatus } from '../../database/entities/assessment.entity';
@@ -85,10 +86,23 @@ export class BatchService {
     private readonly chapterRepo: Repository<Chapter>,
     @InjectRepository(TopicResource, 'coaching')
     private readonly topicResourceRepo: Repository<TopicResource>,
+    @InjectRepository(PlatformConfig, 'coaching')
+    private readonly platformConfigRepo: Repository<PlatformConfig>,
+    @InjectRepository(PaymentTransaction, 'coaching')
+    private readonly paymentTxRepo: Repository<PaymentTransaction>,
     private readonly notificationService: NotificationService,
     private readonly mailService: MailService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
+
+  /** Returns current platform config, creating a default row if none exists. */
+  async getPlatformConfig(): Promise<PlatformConfig> {
+    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
+    if (!cfg) {
+      cfg = await this.platformConfigRepo.save(this.platformConfigRepo.create({ commissionPercent: 5, isSingleton: true }));
+    }
+    return cfg;
+  }
 
   private normalizeBatchExamTarget(value: string) {
     const cleaned = value.trim().replace(/\s+/g, ' ');
@@ -129,7 +143,7 @@ export class BatchService {
       teacherId: dto.teacherId ?? null,
       isPaid,
       feeAmount: isPaid ? dto.feeAmount : null,
-      platformFeePercent: 20,
+      platformFeePercent: Number((await this.getPlatformConfig()).commissionPercent),
       startDate: dto.startDate ?? null,
       endDate: dto.endDate ?? null,
       status: BatchStatus.ACTIVE,
@@ -1687,7 +1701,7 @@ export class BatchService {
     if (existing) return existing;
 
     // Enroll using batch's tenantId and record payment
-    return this.enrollmentRepo.save(
+    const enrollment = await this.enrollmentRepo.save(
       this.enrollmentRepo.create({
         tenantId: batch.tenantId,
         batchId,
@@ -1697,5 +1711,39 @@ export class BatchService {
         feePaidAt: new Date(),
       }),
     );
+
+    // Record payment transaction for admin reporting
+    try {
+      const commissionPct = Number(batch.platformFeePercent ?? 5);
+      const amount = Number(batch.feeAmount ?? 0);
+      const commissionAmount = Math.round(amount * commissionPct) / 100;
+      const netAmount = amount - commissionAmount;
+
+      const [studentUser, tenant] = await Promise.all([
+        this.userRepo.findOne({ where: { id: userId } }),
+        this.tenantRepo.findOne({ where: { id: batch.tenantId } }),
+      ]);
+
+      await this.paymentTxRepo.save(this.paymentTxRepo.create({
+        tenantId: batch.tenantId,
+        batchId,
+        studentId: student.id,
+        enrollmentId: enrollment.id,
+        amount,
+        commissionPercent: commissionPct,
+        commissionAmount,
+        netAmount,
+        razorpayOrderId: dto.razorpay_order_id,
+        razorpayPaymentId: dto.razorpay_payment_id,
+        status: PaymentStatus.SUCCESS,
+        batchName: batch.name,
+        studentName: studentUser?.fullName ?? null,
+        instituteName: tenant?.name ?? null,
+      }));
+    } catch (err) {
+      this.logger.warn(`Failed to save payment transaction: ${(err as any)?.message}`);
+    }
+
+    return enrollment;
   }
 }
