@@ -68,7 +68,7 @@ export class SuperAdminService {
     @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-  ) {}
+  ) { }
 
   async createTenant(dto: CreateTenantDto) {
     const existing = await this.tenantRepo.findOne({ where: { subdomain: dto.subdomain } });
@@ -96,6 +96,18 @@ export class SuperAdminService {
           trialEndsAt: null,
           aiEnabled: dto.aiEnabled ?? false,
           aiFeatures: dto.aiFeatures ?? [],
+          metadata: {
+            modulesPermissions: dto.modulesPermissions ?? {
+              live_lectures: true,
+              mock_tests: true,
+              doubt_queue: true,
+              leaderboard: true,
+              calendar: true,
+              pyq_bank: true,
+              content_library: true,
+              notifications: true,
+            },
+          },
         }),
       );
 
@@ -148,7 +160,7 @@ export class SuperAdminService {
     const [studentCounts, teacherCounts, lastActivities, adminUsers, activeCount, trialCount, suspendedCount, totalStudentsCount] = await Promise.all([
       tenantIds.length
         ? this.dataSource.query(
-            `SELECT t.id AS "tenantId", COUNT(DISTINCT s.id)::int AS cnt
+          `SELECT t.id AS "tenantId", COUNT(DISTINCT s.id)::int AS cnt
              FROM tenants t
              LEFT JOIN students s ON (
                (s.tenant_id = t.id OR s.id IN (SELECT student_id FROM enrollments WHERE tenant_id = t.id AND deleted_at IS NULL))
@@ -156,33 +168,33 @@ export class SuperAdminService {
              )
              WHERE t.id IN (${tenantIds.map((_, idx) => `$${idx + 1}`).join(', ')}) AND t.deleted_at IS NULL
              GROUP BY t.id`,
-            tenantIds
-          )
+          tenantIds
+        )
         : [],
       tenantIds.length
         ? this.userRepo
-            .createQueryBuilder('u')
-            .select('u.tenantId', 'tenantId')
-            .addSelect('COUNT(*)', 'cnt')
-            .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.TEACHER })
-            .groupBy('u.tenantId')
-            .getRawMany()
+          .createQueryBuilder('u')
+          .select('u.tenantId', 'tenantId')
+          .addSelect('COUNT(*)', 'cnt')
+          .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.TEACHER })
+          .groupBy('u.tenantId')
+          .getRawMany()
         : [],
       tenantIds.length
         ? this.userRepo
-            .createQueryBuilder('u')
-            .select('u.tenantId', 'tenantId')
-            .addSelect('MAX(u.lastLoginAt)', 'lastActivity')
-            .where('u.tenantId IN (:...ids)', { ids: tenantIds })
-            .groupBy('u.tenantId')
-            .getRawMany()
+          .createQueryBuilder('u')
+          .select('u.tenantId', 'tenantId')
+          .addSelect('MAX(u.lastLoginAt)', 'lastActivity')
+          .where('u.tenantId IN (:...ids)', { ids: tenantIds })
+          .groupBy('u.tenantId')
+          .getRawMany()
         : [],
       tenantIds.length
         ? this.userRepo
-            .createQueryBuilder('u')
-            .select(['u.id', 'u.tenantId', 'u.email', 'u.phoneNumber', 'u.fullName'])
-            .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.INSTITUTE_ADMIN })
-            .getMany()
+          .createQueryBuilder('u')
+          .select(['u.id', 'u.tenantId', 'u.email', 'u.phoneNumber', 'u.fullName'])
+          .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.INSTITUTE_ADMIN })
+          .getMany()
         : [],
       this.tenantRepo.count({ where: { status: TenantStatus.ACTIVE, type: Not(TenantType.PLATFORM) } }),
       this.tenantRepo.count({ where: { status: TenantStatus.TRIAL, type: Not(TenantType.PLATFORM) } }),
@@ -242,10 +254,22 @@ export class SuperAdminService {
     const tenant = await this.tenantRepo.findOne({ where: { id } });
     if (!tenant) throw new NotFoundException(`Tenant ${id} not found`);
 
+    const { modulesPermissions, ...restDto } = dto;
+
     Object.assign(tenant, {
-      ...dto,
-      trialEndsAt: dto.trialEndsAt ? new Date(dto.trialEndsAt) : tenant.trialEndsAt,
+      ...restDto,
+      trialEndsAt: restDto.trialEndsAt ? new Date(restDto.trialEndsAt) : tenant.trialEndsAt,
     });
+
+    if (modulesPermissions !== undefined) {
+      tenant.metadata = {
+        ...tenant.metadata,
+        modulesPermissions: {
+          ...(tenant.metadata?.modulesPermissions ?? {}),
+          ...modulesPermissions
+        }
+      };
+    }
 
     const saved = await this.tenantRepo.save(tenant);
 
@@ -305,7 +329,7 @@ export class SuperAdminService {
   async deleteUser(id: string) {
     const user = await this.userRepo.findOne({ where: { id } });
     if (!user) throw new NotFoundException(`User ${id} not found`);
-    
+
     await this.userRepo.softDelete(id);
     return { message: 'User deleted successfully' };
   }
@@ -587,7 +611,7 @@ export class SuperAdminService {
     limit?: number;
     search?: string;
   }) {
-    const page  = Math.max(1, query.page  ?? 1);
+    const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(100, query.limit ?? 20);
     const offset = (page - 1) * limit;
 
@@ -681,7 +705,7 @@ export class SuperAdminService {
       JOIN tenants t ON t.id = e.tenant_id
       WHERE e.deleted_at IS NULL
         ${query.tenantId ? `AND e.tenant_id = '${query.tenantId}'` : ''}
-        ${query.batchId  ? `AND e.batch_id  = '${query.batchId}'`  : ''}
+        ${query.batchId ? `AND e.batch_id  = '${query.batchId}'` : ''}
       GROUP BY b.id, b.name, t.name
       ORDER BY total_revenue DESC NULLS LAST
     `);

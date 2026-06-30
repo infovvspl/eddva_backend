@@ -23,6 +23,7 @@ import { UserRole } from '../../database/entities/user.entity';
 
 import { AssessmentService } from './assessment.service';
 import { CreateMockTestDto, MockTestListQueryDto, UpdateMockTestDto } from './dto/mock-test.dto';
+import { FeatureFlagGuard, RequireFeature } from '../common/guards/feature-flag.guard';
 import { AnswerQuestionDto } from './dto/answer.dto';
 import { SessionListQueryDto, StartSessionDto } from './dto/session.dto';
 
@@ -47,6 +48,8 @@ export class AssessmentController {
 
   @Get('mock-tests')
   @ApiOperation({ summary: 'List mock tests' })
+  @RequireFeature('mock_tests')
+  @UseGuards(FeatureFlagGuard)
   getMockTests(
     @Query() query: MockTestListQueryDto,
     @CurrentUser() user: any,
@@ -58,6 +61,8 @@ export class AssessmentController {
   @Get('mock-tests/:id')
   @SkipThrottle()
   @ApiOperation({ summary: 'Get a mock test by id' })
+  @RequireFeature('mock_tests')
+  @UseGuards(FeatureFlagGuard)
   @ApiParam({ name: 'id', type: 'string' })
   getMockTestById(
     @Param('id', ParseUUIDPipe) id: string,

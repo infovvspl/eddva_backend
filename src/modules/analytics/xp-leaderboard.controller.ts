@@ -5,12 +5,14 @@ import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { FeatureFlagGuard, RequireFeature } from '../common/guards/feature-flag.guard';
 import { UserRole } from '../../database/entities/user.entity';
 import { XpLeaderboardService } from './xp-leaderboard.service';
 
 @ApiTags('XP Leaderboard')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireFeature('leaderboard')
+@UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagGuard)
 @Roles(UserRole.STUDENT)
 @Controller('leaderboard')
 export class XpLeaderboardController {
