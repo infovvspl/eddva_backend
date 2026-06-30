@@ -88,7 +88,11 @@ export class User extends Base {
   @Column({ name: 'fcm_token', nullable: true })
   fcmToken: string;
 
+  @Column({ name: 'permission_group', nullable: true })
+  permissionGroup: string;
+
   // ── Hooks ─────────────────────────────────────────────────────────────────
+
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword() {

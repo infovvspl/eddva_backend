@@ -172,6 +172,8 @@ async function bootstrap() {
       `ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ`,
       `ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE`,
       `ADD COLUMN IF NOT EXISTS suspension_reason VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS admin_portal_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
+      `ADD COLUMN IF NOT EXISTS student_portal_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
       `ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`,
     ];
     for (const col of tenantCols) {
@@ -328,4 +330,4 @@ async function bootstrap() {
 
 bootstrap();
 
-// Trigger Restart 2
+// Trigger Restart 3

@@ -105,6 +105,25 @@ export class Tenant extends Base {
   @Column({ name: 'suspension_reason', nullable: true })
   suspensionReason: string;
 
+  @Column({ name: 'operational_model', type: 'varchar', default: 'TEACHER_BASED' })
+  operationalModel: 'TEACHER_BASED' | 'STAFF_BASED';
+
+  @Column({ name: 'admin_portal_enabled', default: true })
+  adminPortalEnabled: boolean;
+
+  @Column({ name: 'teacher_portal_enabled', default: true })
+  teacherPortalEnabled: boolean;
+
+  @Column({ name: 'student_portal_enabled', default: true })
+  studentPortalEnabled: boolean;
+
+  @Column({ name: 'parent_portal_enabled', default: true })
+  parentPortalEnabled: boolean;
+
+  @Column({ name: 'multi_admin_enabled', default: true })
+  multiAdminEnabled: boolean;
+
   @Column({ type: 'jsonb', nullable: true, default: {} })
   metadata: Record<string, any>;
 }
+
