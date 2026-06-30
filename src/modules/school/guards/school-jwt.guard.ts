@@ -171,6 +171,7 @@ export class SchoolJwtGuard implements CanActivate {
           name: row.inst_name,
           tenantDomain: row.tenant_domain,
           status: row.inst_status,
+          logo: row.inst_logo,
           aiEnabled: row.inst_ai_enabled,
           aiFeatures: typeof row.inst_ai_features === 'string' ? JSON.parse(row.inst_ai_features) : row.inst_ai_features,
           modulesPermissions: typeof row.inst_modules_permissions === 'string' ? JSON.parse(row.inst_modules_permissions) : row.inst_modules_permissions,

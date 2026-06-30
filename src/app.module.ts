@@ -89,6 +89,7 @@ import { SchoolModule } from './modules/school/school.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { RtmpHooksModule } from './modules/rtmp-hooks/rtmp-hooks.module';
 
 const ALL_COACHING_ENTITIES = [
   Tenant, User, Student, AuditLog,
@@ -237,6 +238,7 @@ const ALL_COACHING_ENTITIES = [
 
     // ── School Module ─────────────────────────────────────────────────────────
     SchoolModule,
+    RtmpHooksModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
