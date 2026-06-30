@@ -231,6 +231,11 @@ export class CreateTeacherDto {
   @IsOptional()
   @IsString()
   role?: string;
+
+  @ApiPropertyOptional({ example: 'uuid-string' })
+  @IsOptional()
+  @IsString()
+  roleId?: string;
 }
 
 

@@ -309,7 +309,10 @@ export class AuthService {
   ): Promise<User | null> {
     const email = dto.email?.trim();
     if (email) {
-      const matches = await this.userRepo.find({ where: { email: ILike(email) } });
+      const matches = await this.userRepo.find({
+        where: { email: ILike(email) },
+        relations: ['customRole'],
+      });
       if (matches.length === 0) return null;
 
       const scoped =
@@ -344,7 +347,10 @@ export class AuthService {
     }
 
     for (const variant of phoneVariants) {
-      const matches = await this.userRepo.find({ where: { phoneNumber: variant } });
+      const matches = await this.userRepo.find({
+        where: { phoneNumber: variant },
+        relations: ['customRole'],
+      });
       if (matches.length === 0) continue;
 
       const scoped =
@@ -527,12 +533,17 @@ export class AuthService {
       tenantId,
       role: roleToAssign,
       permissionGroup,
+      roleId: isStaffBased ? dto.roleId : null,
       status: UserStatus.ACTIVE,
       isFirstLogin: true,
       phoneVerified: true,
       emailVerified: true,
     });
-    await this.userRepo.save(teacher);
+    const saved = await this.userRepo.save(teacher);
+    const teacherWithRole = await this.userRepo.findOne({
+      where: { id: saved.id },
+      relations: ['customRole'],
+    });
 
     // Send credentials email
     const instituteName = tenant?.name || 'EDVA';
@@ -540,7 +551,7 @@ export class AuthService {
       .catch(err => this.logger.error(`Failed sending credentials email: ${err.message}`));
 
     return {
-      teacher: this.sanitizeUser(teacher),
+      teacher: this.sanitizeUser(teacherWithRole || teacher),
       tempPassword,
       message: isStaffBased ? 'Staff member created. Credentials sent via email.' : 'Teacher created. Credentials sent via email.',
     };
@@ -584,6 +595,7 @@ export class AuthService {
           tenantId,
           role: roleToAssign,
           permissionGroup,
+          roleId: isStaffBased ? t.roleId : null,
           status: UserStatus.ACTIVE,
           isFirstLogin: true,
           phoneVerified: true,
@@ -621,12 +633,17 @@ export class AuthService {
     let teachers;
     if (isStaffBased) {
       teachers = await this.userRepo.find({
-        where: { tenantId, role: UserRole.INSTITUTE_ADMIN, permissionGroup: Not(IsNull()) },
+        where: [
+          { tenantId, role: UserRole.INSTITUTE_ADMIN, permissionGroup: Not(IsNull()) },
+          { tenantId, role: UserRole.INSTITUTE_ADMIN, roleId: Not(IsNull()) }
+        ],
+        relations: ['customRole'],
         order: { createdAt: 'DESC' },
       });
     } else {
       teachers = await this.userRepo.find({
         where: { tenantId, role: UserRole.TEACHER },
+        relations: ['customRole'],
         order: { createdAt: 'DESC' },
       });
     }
@@ -640,6 +657,7 @@ export class AuthService {
 
     const teacher = await this.userRepo.findOne({
       where: { id: teacherId, tenantId, role: isStaffBased ? UserRole.INSTITUTE_ADMIN : UserRole.TEACHER },
+      relations: ['customRole'],
     });
     if (!teacher) throw new NotFoundException(isStaffBased ? 'Staff member not found' : 'Teacher not found');
 
@@ -754,7 +772,7 @@ export class AuthService {
   async getMe(userId: string) {
     const user = await this.userRepo.findOne({
       where: { id: userId },
-      relations: ['tenant'],
+      relations: ['tenant', 'customRole'],
     });
     if (!user) throw new NotFoundException('User not found');
 
@@ -878,6 +896,12 @@ export class AuthService {
       role: user.role,
       status: user.status,
       permissionGroup: user.permissionGroup,
+      roleId: user.roleId,
+      customRole: user.customRole ? {
+        id: user.customRole.id,
+        name: user.customRole.name,
+        permissions: user.customRole.permissions,
+      } : null,
       notificationPrefs: user.notificationPrefs,
       fcmToken: user.fcmToken,
       createdAt: user.createdAt,

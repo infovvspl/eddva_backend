@@ -52,10 +52,18 @@ export class RolesGuard implements CanActivate {
     );
 
     // If requiredRoles contains UserRole.TEACHER and we are STAFF_BASED (teacherPortalEnabled is false),
-    // allow institute_admin users who are DIRECTOR or ACADEMIC_COORDINATOR (or primary admin, where permissionGroup is null/undefined)
+    // allow institute_admin users who are:
+    // 1. DIRECTOR or ACADEMIC_COORDINATOR (or primary admin, where permissionGroup is null/undefined)
+    // 2. Or who have a customRole with any academic/teaching permission
     if (!hasRole && requiredRoles.includes(UserRole.TEACHER) && user.role === UserRole.INSTITUTE_ADMIN && !teacherPortalEnabled) {
       const allowedGroups = ['DIRECTOR', 'ACADEMIC_COORDINATOR'];
-      if (!user.permissionGroup || allowedGroups.includes(String(user.permissionGroup).toUpperCase())) {
+      const hasLegacyPermission = !user.permissionGroup || allowedGroups.includes(String(user.permissionGroup).toUpperCase());
+      
+      const academicPermissions = ['batches', 'content', 'mock_tests', 'lectures', 'doubts', 'quizzes', 'analytics', 'calendar'];
+      const userPermissions = user.customRole?.permissions || [];
+      const hasDynamicPermission = Array.isArray(userPermissions) && userPermissions.some(p => academicPermissions.includes(p));
+
+      if (hasLegacyPermission || hasDynamicPermission) {
         hasRole = true;
       }
     }
