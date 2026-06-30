@@ -63,25 +63,255 @@ type YoutubeTranscriptApi = {
 @Injectable()
 export class ContentService {
     private readonly logger = new Logger(ContentService.name);
+    private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
     private static readonly presetExamTargets = new Set(['jee', 'neet', 'both']);
     private static readonly hindiLikeLectureLanguages = new Set(['hi', 'hinglish', 'hi-in']);
     private static readonly odiaLectureLanguages = new Set(['od', 'odia', 'od-in', 'or', 'or-in']);
 
-    private _extractAiNoteImages(result: any): AiNoteImage[] {
-        const images = result?.images ?? result?.noteImages ?? result?.aiNoteImages ?? result?.ai_note_images;
-        if (!Array.isArray(images)) return [];
-        return images
-            .filter((img: any) => img && typeof img === 'object' && typeof img.url === 'string' && img.url.trim())
-            .map((img: any) => ({
-                url: String(img.url).trim(),
-                caption: img.caption ? String(img.caption).trim() : undefined,
-                section_heading: img.section_heading ? String(img.section_heading).trim() : undefined,
-                evidence_quote: img.evidence_quote ? String(img.evidence_quote).trim() : undefined,
-                prompt: img.prompt ? String(img.prompt).trim() : undefined,
-                provider: img.provider ? String(img.provider).trim() : undefined,
-                model: img.model ? String(img.model).trim() : undefined,
-                image_size: img.image_size ? String(img.image_size).trim() : undefined,
-            }));
+    private async _extractNoteImageSearchTerms(
+        notes: string,
+        language = 'en',
+    ): Promise<Array<{ heading: string; searchTerm: string; caption: string }>> {
+        const groqKey = process.env.GROQ_API_KEY || '';
+        if (!groqKey) return [];
+
+        try {
+            const response = await fetch(this.GROQ_URL, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${groqKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.3-70b-versatile',
+                    response_format: { type: 'json_object' },
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are a JSON-only API that returns {"sections": [...]}.',
+                        },
+                        {
+                            role: 'user',
+                            content: `Given these lecture notes (Markdown), identify 3-4 major section headings (## or ###) that would benefit from an illustrative educational image.
+
+For each section:
+- "heading": copy the exact heading line from the notes (include the ## or ### prefix).
+- "searchTerm": 4-7 English words, specific to that sub-topic, including a visual hint such as diagram, photograph, chart, illustration, map, microscope, or experiment.
+- "caption": one sentence describing what the image shows and how it supports the section. ${language === 'od' ? 'Write the caption in Odia.' : ''}
+
+Return ONLY: {"sections": [{"heading": "## Exact Heading", "searchTerm": "...", "caption": "..."}]}
+
+NOTES:
+${notes.slice(0, 4000)}`,
+                        },
+                    ],
+                    temperature: 0.3,
+                    max_tokens: 1024,
+                }),
+            });
+            if (!response.ok) return [];
+            const data: any = await response.json();
+            const parsed = JSON.parse(data?.choices?.[0]?.message?.content || '{}');
+            const sections = parsed.sections || parsed;
+            if (!Array.isArray(sections)) return [];
+            return sections
+                .slice(0, 4)
+                .filter((section: any) =>
+                    section?.heading && section?.searchTerm && typeof section.heading === 'string',
+                )
+                .map((section: any) => ({
+                    heading: String(section.heading).trim(),
+                    searchTerm: String(section.searchTerm).trim(),
+                    caption: String(section.caption || section.searchTerm).trim(),
+                }));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logger.warn(`Could not plan coaching note image searches: ${message}`);
+            return [];
+        }
+    }
+
+    private async _searchNoteImage(searchTerm: string, tenantId: string, language = 'en'): Promise<string | null> {
+        const visualHints = ['diagram', 'photo', 'photograph', 'illustration', 'chart', 'map', 'microscope', 'experiment', 'figure'];
+
+        try {
+            let englishTerm = searchTerm;
+            if (language === 'od' && /[\u0B00-\u0B7F]/.test(searchTerm)) {
+                const translated = await this.aiBridgeService.translateText(
+                    { text: searchTerm, targetLanguage: 'en' },
+                    tenantId,
+                ) as any;
+                englishTerm = String(
+                    translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
+                ).trim() || searchTerm;
+            }
+
+            const baseQuery = visualHints.some((hint) => englishTerm.toLowerCase().includes(hint))
+                ? englishTerm
+                : `${englishTerm} educational diagram`;
+            const preferredQuery = language === 'od'
+                ? `${baseQuery} with Odia labels`
+                : baseQuery;
+            const result = await this.aiBridgeService.searchEducationalImages(
+                { query: preferredQuery, limit: 5, language },
+                tenantId,
+            );
+            const preferred = result.images.slice(0, 3).find((image) => image?.imageUrl)?.imageUrl || null;
+            if (preferred || language !== 'od') return preferred;
+
+            const fallback = await this.aiBridgeService.searchEducationalImages(
+                { query: baseQuery, limit: 5, language: 'en' },
+                tenantId,
+            );
+            return fallback.images.slice(0, 3).find((image) => image?.imageUrl)?.imageUrl || null;
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logger.warn(`SerpApi coaching note image search failed: ${message}`);
+            return null;
+        }
+    }
+
+    private async _storeSearchedNoteImage(
+        imageUrl: string,
+        tenantId: string,
+        lectureId: string,
+        fileStem: string,
+    ): Promise<string | null> {
+        try {
+            const response = await fetch(imageUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+                    Referer: 'https://www.google.com/',
+                    Accept: 'image/webp,image/apng,image/jpeg,image/png,image/*,*/*;q=0.8',
+                },
+                signal: AbortSignal.timeout(12000),
+            });
+            if (!response.ok) return null;
+            const contentType = (response.headers.get('content-type') || '').split(';')[0].trim();
+            if (!contentType.startsWith('image/')) return null;
+            const buffer = Buffer.from(await response.arrayBuffer());
+            if (buffer.length < 2048) return null;
+
+            const extensionByMime: Record<string, string> = {
+                'image/jpeg': 'jpg',
+                'image/png': 'png',
+                'image/webp': 'webp',
+                'image/gif': 'gif',
+            };
+            const extension = extensionByMime[contentType] || 'jpg';
+            const key = `tenants/${tenantId}/lecture-notes/${lectureId}/${fileStem}.${extension}`;
+            await this.s3Service.upload(key, buffer, contentType);
+            return this.s3Service.toPublicUrl(key);
+        } catch {
+            return null;
+        }
+    }
+
+    private _insertSearchedImageAfterHeading(
+        notes: string,
+        heading: string,
+        imageUrl: string,
+        caption: string,
+    ): string {
+        const normalizeHeading = (value: string) => value
+            .normalize('NFC')
+            .replace(/^\s*#{1,6}\s*/, '')
+            .replace(/[*_`~]/g, '')
+            .replace(/^\s*\d+[.)-]?\s*/, '')
+            .replace(/[：:|–—-]+$/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+        const headingText = normalizeHeading(heading);
+        const lines = notes.split('\n');
+        let index = lines.findIndex(
+            (line) => /^\s*#{1,6}\s+/.test(line) && normalizeHeading(line) === headingText,
+        );
+        if (index === -1) {
+            index = lines.findIndex((line) => {
+                if (!/^\s*#{1,6}\s+/.test(line)) return false;
+                const candidate = normalizeHeading(line);
+                return candidate.includes(headingText) || headingText.includes(candidate);
+            });
+        }
+        const safeCaption = caption.replace(/\]/g, '\\]');
+        const imageMarkdown = `\n![${safeCaption}](${imageUrl})\n*${caption}*\n`;
+        if (index === -1) {
+            return `${notes.trimEnd()}\n\n${imageMarkdown.trim()}\n`;
+        }
+        lines.splice(index + 1, 0, imageMarkdown);
+        return lines.join('\n');
+    }
+
+    private _stripEmbeddedNoteImages(notes: string): string {
+        return notes
+            .replace(/\n!\[.*?\]\(https?:\/\/.*?\)\n\*.*?\*\n/g, '\n')
+            .replace(/\n\n!\[.*?\]\(https?:\/\/.*?\)\n/g, '\n');
+    }
+
+    private async _enrichCoachingNotesWithImageSearch(
+        notes: string,
+        lectureId: string,
+        tenantId: string,
+        language = 'en',
+    ): Promise<{ notes: string; images: AiNoteImage[] }> {
+        const sections = await this._extractNoteImageSearchTerms(notes, language);
+        if (!sections.length) return { notes, images: [] };
+
+        let enrichedNotes = notes;
+        const images: AiNoteImage[] = [];
+        for (let index = 0; index < sections.length; index += 1) {
+            const section = sections[index];
+            const sourceUrl = await this._searchNoteImage(section.searchTerm, tenantId, language);
+            if (!sourceUrl) continue;
+            const storedUrl = await this._storeSearchedNoteImage(
+                sourceUrl,
+                tenantId,
+                lectureId,
+                `${Date.now()}-${index}`,
+            );
+            if (!storedUrl) continue;
+
+            enrichedNotes = this._insertSearchedImageAfterHeading(
+                enrichedNotes,
+                section.heading,
+                storedUrl,
+                section.caption,
+            );
+            images.push({
+                url: storedUrl,
+                caption: section.caption,
+                section_heading: section.heading,
+                prompt: section.searchTerm,
+                provider: 'serpapi',
+                model: 'google-images',
+            });
+            if (index < sections.length - 1) {
+                await new Promise((resolve) => setTimeout(resolve, 600));
+            }
+        }
+        return { notes: enrichedNotes, images };
+    }
+
+    private _enrichAndPersistCoachingNoteImages(
+        notes: string,
+        lectureId: string,
+        tenantId: string,
+        language = 'en',
+    ): void {
+        void this._enrichCoachingNotesWithImageSearch(notes, lectureId, tenantId, language)
+            .then(async (enriched) => {
+                if (!enriched.images.length) return;
+                await this.lectureRepo.update(lectureId, {
+                    aiNotesMarkdown: enriched.notes,
+                    aiNoteImages: enriched.images,
+                });
+                this.logger.log(`Coaching notes enriched with ${enriched.images.length} searched image(s) for lecture ${lectureId}`);
+            })
+            .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : String(error);
+                this.logger.warn(`Coaching note image search failed for lecture ${lectureId}: ${message}`);
+            });
     }
 
     constructor(
@@ -199,6 +429,11 @@ export class ContentService {
 
     // â”€â”€â”€ SUBJECTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    private async bustContentCache(tenantId: string) {
+        const gen = await this.cacheManager.get<number>(`coaching:content-gen:${tenantId}`) ?? 0;
+        await this.cacheManager.set(`coaching:content-gen:${tenantId}`, gen + 1, 60 * 60 * 1000);
+    }
+
     async createSubject(dto: CreateSubjectDto, tenantId: string): Promise<Subject> {
         this.logger.log(`Creating subject for tenant ${tenantId}`);
         const subject = this.subjectRepo.create({
@@ -211,6 +446,11 @@ export class ContentService {
     }
 
     async getSubjects(query: SubjectQueryDto, tenantId: string): Promise<Subject[]> {
+        const gen = await this.cacheManager.get<number>(`coaching:content-gen:${tenantId}`) ?? 0;
+        const cacheKey = `coaching:subjects:${tenantId}:${query.batchId ?? ''}:${query.examTarget ?? ''}:g${gen}`;
+        const cached = await this.cacheManager.get<Subject[]>(cacheKey);
+        if (cached) return cached;
+
         const where: FindOptionsWhere<Subject> = { tenantId, isActive: true };
         if (query.examTarget) where.examTarget = this.normalizeSubjectExamTarget(query.examTarget);
 
@@ -319,12 +559,17 @@ export class ContentService {
             }
 
             if (byName.size > 0) {
-                return Array.from(byName.values()).sort(
+                const subjectsResult = Array.from(byName.values()).sort(
                     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name),
                 );
+                await this.cacheManager.set(cacheKey, subjectsResult, 30 * 60 * 1000);
+                return subjectsResult;
             }
 
-            if (assignedNames.length === 0) return [];
+            if (assignedNames.length === 0) {
+                await this.cacheManager.set(cacheKey, [], 30 * 60 * 1000);
+                return [];
+            }
 
             const filtered = tenantSubjects.filter(s => assignedNames.includes(s.name.toLowerCase().trim()));
             const seen = new Map<string, Subject>();
@@ -332,7 +577,9 @@ export class ContentService {
                 const key = s.name.toLowerCase().trim();
                 if (!seen.has(key) || s.batchId === null) seen.set(key, s);
             }
-            return Array.from(seen.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+            const filteredResult = Array.from(seen.values()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+            await this.cacheManager.set(cacheKey, filteredResult, 30 * 60 * 1000);
+            return filteredResult;
         }
 
         const all = await this.subjectRepo.find({
@@ -341,7 +588,7 @@ export class ContentService {
             order: { sortOrder: 'ASC', createdAt: 'ASC' },
         });
 
-        // Deduplicate by name â€” prefer global (batchId = null) over batch-scoped copies
+        // Deduplicate by name — prefer global (batchId = null) over batch-scoped copies
         const seen = new Map<string, Subject>();
         for (const s of all) {
             const key = s.name.toLowerCase().trim();
@@ -349,16 +596,24 @@ export class ContentService {
                 seen.set(key, s);
             }
         }
-        return Array.from(seen.values()).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+        const allResult = Array.from(seen.values()).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+        await this.cacheManager.set(cacheKey, allResult, 30 * 60 * 1000);
+        return allResult;
     }
 
     async getSubjectById(id: string, tenantId: string): Promise<Subject> {
+        const gen = await this.cacheManager.get<number>(`coaching:content-gen:${tenantId}`) ?? 0;
+        const cacheKey = `coaching:subject:${id}:${tenantId}:g${gen}`;
+        const cached = await this.cacheManager.get<Subject>(cacheKey);
+        if (cached) return cached;
+
         const subject = await this.subjectRepo.findOne({
             where: { id, tenantId },
             relations: ['chapters', 'chapters.topics'],
             order: { sortOrder: 'ASC' } as any,
         });
         if (!subject) throw new NotFoundException(`Subject ${id} not found`);
+        await this.cacheManager.set(cacheKey, subject, 30 * 60 * 1000);
         return subject;
     }
 
@@ -372,7 +627,9 @@ export class ContentService {
                 ? this.normalizeSubjectExamTarget(dto.examTarget)
                 : subject.examTarget,
         });
-        return this.subjectRepo.save(subject);
+        const saved = await this.subjectRepo.save(subject);
+        await this.bustContentCache(tenantId);
+        return saved;
     }
 
     async deleteSubject(id: string, tenantId: string): Promise<{ message: string }> {
@@ -380,6 +637,7 @@ export class ContentService {
         const subject = await this.subjectRepo.findOne({ where: { id, tenantId } });
         if (!subject) throw new NotFoundException(`Subject ${id} not found`);
         await this.subjectRepo.softDelete(id);
+        await this.bustContentCache(tenantId);
         return { message: 'Subject deleted successfully' };
     }
 
@@ -499,6 +757,7 @@ export class ContentService {
             }
         });
 
+        await this.bustContentCache(tenantId);
         return {
             message: `Import complete`,
             created: stats,
@@ -520,26 +779,36 @@ export class ContentService {
     }
 
     async getChapters(subjectId: string, tenantId: string): Promise<Chapter[]> {
+        const gen = await this.cacheManager.get<number>(`coaching:content-gen:${tenantId}`) ?? 0;
+        const cacheKey = `coaching:chapters:${subjectId}:${tenantId}:g${gen}`;
+        const cached = await this.cacheManager.get<Chapter[]>(cacheKey);
+        if (cached) return cached;
+
         const subject = await this.subjectRepo.findOne({ where: { id: subjectId, tenantId } });
         if (!subject) throw new NotFoundException(`Subject ${subjectId} not found`);
 
-        return this.chapterRepo.find({
+        const chapters = await this.chapterRepo.find({
             where: { subjectId, tenantId, isActive: true },
             order: { sortOrder: 'ASC', createdAt: 'ASC' },
         });
+        await this.cacheManager.set(cacheKey, chapters, 30 * 60 * 1000);
+        return chapters;
     }
 
     async updateChapter(id: string, dto: UpdateChapterDto, tenantId: string): Promise<Chapter> {
         const chapter = await this.chapterRepo.findOne({ where: { id, tenantId } });
         if (!chapter) throw new NotFoundException(`Chapter ${id} not found`);
         Object.assign(chapter, dto);
-        return this.chapterRepo.save(chapter);
+        const saved = await this.chapterRepo.save(chapter);
+        await this.bustContentCache(tenantId);
+        return saved;
     }
 
     async deleteChapter(id: string, tenantId: string): Promise<{ message: string }> {
         const chapter = await this.chapterRepo.findOne({ where: { id, tenantId } });
         if (!chapter) throw new NotFoundException(`Chapter ${id} not found`);
         await this.chapterRepo.softDelete(id);
+        await this.bustContentCache(tenantId);
         return { message: 'Chapter deleted successfully' };
     }
 
@@ -563,26 +832,36 @@ export class ContentService {
     }
 
     async getTopics(chapterId: string, tenantId: string): Promise<Topic[]> {
+        const gen = await this.cacheManager.get<number>(`coaching:content-gen:${tenantId}`) ?? 0;
+        const cacheKey = `coaching:topics:${chapterId}:${tenantId}:g${gen}`;
+        const cached = await this.cacheManager.get<Topic[]>(cacheKey);
+        if (cached) return cached;
+
         const chapter = await this.chapterRepo.findOne({ where: { id: chapterId, tenantId } });
         if (!chapter) throw new NotFoundException(`Chapter ${chapterId} not found`);
 
-        return this.topicRepo.find({
+        const topics = await this.topicRepo.find({
             where: { chapterId, tenantId, isActive: true },
             order: { sortOrder: 'ASC', createdAt: 'ASC' },
         });
+        await this.cacheManager.set(cacheKey, topics, 30 * 60 * 1000);
+        return topics;
     }
 
     async updateTopic(id: string, dto: UpdateTopicDto, tenantId: string): Promise<Topic> {
         const topic = await this.topicRepo.findOne({ where: { id, tenantId } });
         if (!topic) throw new NotFoundException(`Topic ${id} not found`);
         Object.assign(topic, dto);
-        return this.topicRepo.save(topic);
+        const saved = await this.topicRepo.save(topic);
+        await this.bustContentCache(tenantId);
+        return saved;
     }
 
     async deleteTopic(id: string, tenantId: string): Promise<{ message: string }> {
         const topic = await this.topicRepo.findOne({ where: { id, tenantId } });
         if (!topic) throw new NotFoundException(`Topic ${id} not found`);
         await this.topicRepo.softDelete(id);
+        await this.bustContentCache(tenantId);
         return { message: 'Topic deleted successfully' };
     }
 
@@ -1020,10 +1299,12 @@ export class ContentService {
             if (notes) updates.aiNotesMarkdown = String(notes);
             const concepts = result?.key_concepts ?? result?.keyConcepts;
             if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
-            const noteImages = this._extractAiNoteImages(result);
-            updates.aiNoteImages = noteImages;
+            updates.aiNoteImages = [];
 
             await this.lectureRepo.update(lectureId, updates);
+            if (updates.aiNotesMarkdown) {
+                this._enrichAndPersistCoachingNoteImages(updates.aiNotesMarkdown, lectureId, tenantId, lectureLanguage);
+            }
             this.logger.log(`YouTube AI notes complete for lecture ${lectureId} (${transcriptToStore.length} chars transcript)`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -1156,33 +1437,24 @@ export class ContentService {
             throw new ForbiddenException('AI transcription is not enabled for your institution.');
         }
 
-        const lectureLanguage = this.normalizeLectureLanguage(lecture.lectureLanguage);
-        const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
-
-        const result = await this.aiBridgeService.regenerateNoteImage(
-            {
-                topicId: lecture.topicId,
-                caption,
-                visualDescription,
-                evidenceQuote,
-                sectionHeading,
-                notes: lecture.aiNotesMarkdown || '',
-                language: aiLanguage,
-            },
+        const searchTerm = [visualDescription, caption].map((value) => value?.trim()).filter(Boolean).join(' ');
+        if (!searchTerm) throw new BadRequestException('An image search description is required');
+        const sourceUrl = await this._searchNoteImage(
+            searchTerm,
             tenantId,
-        ) as any;
-
-        if (!result || !result.url) {
-            throw new BadRequestException(result?.error || 'Failed to regenerate image');
-        }
+            this.normalizeLectureLanguage(lecture.lectureLanguage),
+        );
+        if (!sourceUrl) throw new BadRequestException('No suitable image search result was found');
+        const searchedImageUrl = await this._storeSearchedNoteImage(
+            sourceUrl,
+            tenantId,
+            id,
+            `replacement-${Date.now()}`,
+        );
+        if (!searchedImageUrl) throw new BadRequestException('The selected image could not be stored');
 
         let notesMarkdown = lecture.aiNotesMarkdown || '';
-        let overlayMarker = '';
-        if (Array.isArray(result.overlay_labels) && result.overlay_labels.length > 0) {
-            const base64Labels = Buffer.from(JSON.stringify({ labels: result.overlay_labels })).toString('base64url');
-            overlayMarker = ` <<NOTE_IMAGE_OVERLAY:${base64Labels}>>`;
-        }
-        const newMarkdownImg = `![${caption}${overlayMarker}](${result.url})`;
+        const newMarkdownImg = `![${caption}](${searchedImageUrl})`;
 
         const escapedOldUrl = oldImageUrl.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         const imgRegex = new RegExp(`!\\[[^\\]]*\\]\\(${escapedOldUrl}\\)`, 'g');
@@ -1190,14 +1462,13 @@ export class ContentService {
 
         let noteImages = Array.isArray(lecture.aiNoteImages) ? lecture.aiNoteImages : [];
         const newImageObj = {
-            url: result.url,
-            caption: result.caption,
-            section_heading: result.section_heading,
-            evidence_quote: result.evidence_quote,
-            prompt: result.prompt,
-            provider: result.provider,
-            model: result.model,
-            image_size: result.image_size,
+            url: searchedImageUrl,
+            caption,
+            section_heading: sectionHeading,
+            evidence_quote: evidenceQuote,
+            prompt: searchTerm,
+            provider: 'serpapi',
+            model: 'google-images',
         };
 
         let replaced = false;
@@ -1218,15 +1489,53 @@ export class ContentService {
         });
 
         return {
-            message: 'Image regenerated successfully',
+            message: 'Replacement image found successfully',
             image: {
-                url: result.url,
-                caption: result.caption,
-                visualDescription: result.visual_description,
-                overlayLabels: result.overlay_labels,
-                sectionHeading: result.section_heading,
-                evidenceQuote: result.evidence_quote,
+                url: searchedImageUrl,
+                caption,
+                visualDescription,
+                overlayLabels: [],
+                sectionHeading,
+                evidenceQuote,
             },
+        };
+    }
+
+    async refreshNoteImages(
+        id: string,
+        userId: string,
+        userRole: UserRole,
+        tenantId: string,
+    ): Promise<{ message: string; imageCount: number }> {
+        const lecture = await this.lectureRepo.findOne({ where: { id, tenantId } });
+        if (!lecture) throw new NotFoundException(`Lecture ${id} not found`);
+        if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
+            throw new ForbiddenException('You can only refresh visuals for your own lectures');
+        }
+        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+            throw new ForbiddenException('AI lecture notes are not enabled for your institution.');
+        }
+        if (!lecture.aiNotesMarkdown || lecture.aiNotesMarkdown.trim().length < 20) {
+            throw new BadRequestException('No AI notes available yet');
+        }
+
+        const cleanNotes = this._stripEmbeddedNoteImages(lecture.aiNotesMarkdown);
+        const enriched = await this._enrichCoachingNotesWithImageSearch(
+            cleanNotes,
+            id,
+            tenantId,
+            this.normalizeLectureLanguage(lecture.lectureLanguage),
+        );
+        if (!enriched.images.length) {
+            throw new BadRequestException('No suitable educational images were found');
+        }
+        await this.lectureRepo.update(id, {
+            aiNotesMarkdown: enriched.notes,
+            aiNoteImages: enriched.images,
+        });
+        return {
+            message: 'Visuals refreshed successfully',
+            imageCount: enriched.images.length,
         };
     }
 
@@ -1240,7 +1549,7 @@ export class ContentService {
         this.logger.log(`Regenerating notes for lecture ${lectureId} (${transcript.length} chars, language=${aiLanguage})`);
         try {
             const notesResult = await this.aiBridgeService.generateNotesFromTranscript(
-                { transcript, topicId: topicId ?? '', language: aiLanguage },
+                { transcript, topicId: topicId ?? '', language: aiLanguage, skipImageGeneration: true },
                 tenantId,
             ) as any;
             const notes = notesResult?.notes ?? notesResult?.notesMarkdown ?? notesResult?.notes_markdown ?? null;
@@ -1252,8 +1561,11 @@ export class ContentService {
                 throw new Error('AI notes response did not contain usable notes');
             }
             if (Array.isArray(concepts) && concepts.length) updates.aiKeyConcepts = concepts;
-            updates.aiNoteImages = this._extractAiNoteImages(notesResult);
+            updates.aiNoteImages = [];
             if (Object.keys(updates).length) await this.lectureRepo.update(lectureId, updates);
+            if (updates.aiNotesMarkdown) {
+                this._enrichAndPersistCoachingNoteImages(updates.aiNotesMarkdown, lectureId, tenantId, aiLanguage);
+            }
             this.logger.log(`Notes regenerated for lecture ${lectureId}`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);

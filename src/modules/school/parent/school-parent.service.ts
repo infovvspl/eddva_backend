@@ -298,7 +298,8 @@ export class SchoolParentService {
        FROM results r
        JOIN assessments a ON a.id = r.assessment_id
        WHERE r.student_id = $1
-       ORDER BY a.scheduled_date DESC NULLS LAST`,
+       ORDER BY a.scheduled_date DESC NULLS LAST
+       LIMIT 200`,
       [child.id],
     );
     const graded = rows.filter(
@@ -330,7 +331,8 @@ export class SchoolParentService {
       `SELECT id, title, type, scheduled_date, total_marks, status
        FROM assessments
        WHERE class_id::text = $1::text
-       ORDER BY scheduled_date DESC NULLS LAST`,
+       ORDER BY scheduled_date DESC NULLS LAST
+       LIMIT 200`,
       [child.class_id],
     );
     const now = Date.now();

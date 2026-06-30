@@ -1,6 +1,8 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { DataSource, Repository } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
@@ -9,6 +11,9 @@ import { CareerReport, CareerReportData } from './entities/career-report.entity'
 import { SubmitQuizDto } from './dto/career.dto';
 import { INTEREST_QUIZ_QUESTIONS, HollandLetter } from './data/quiz-questions';
 import { CAREER_PATHS, CareerPath } from './data/career-mappings';
+import { CAREER_REPORT_JOB, CAREER_REPORT_QUEUE } from './career.constants';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 
 const HOLLAND_LETTERS: HollandLetter[] = ['R', 'I', 'A', 'S', 'E', 'C'];
 const RETAKE_MONTHS = 3;
@@ -48,6 +53,8 @@ export class CareerService implements OnModuleInit {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly aiBridge: AiBridgeService,
     private readonly featureFlagService: AiFeatureFlagService,
+    @InjectQueue(CAREER_REPORT_QUEUE) private readonly reportQueue: Queue,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -109,6 +116,9 @@ export class CareerService implements OnModuleInit {
         ALTER TABLE school_career_paths ADD COLUMN IF NOT EXISTS job_roles JSONB NOT NULL DEFAULT '[]'::jsonb;
         ALTER TABLE school_career_paths ADD COLUMN IF NOT EXISTS pros_cons JSONB NOT NULL DEFAULT '{"pros": [], "cons": []}'::jsonb;
         ALTER TABLE school_career_paths ADD COLUMN IF NOT EXISTS focus_areas JSONB NOT NULL DEFAULT '[]'::jsonb;
+        -- NULL institute_id = global/static career visible to all schools
+        ALTER TABLE school_career_paths ADD COLUMN IF NOT EXISTS institute_id UUID;
+        CREATE INDEX IF NOT EXISTS idx_career_paths_institute ON school_career_paths (institute_id);
       `);
 
       // ── Seed static careers (idempotent — updates existing rows) ─────────────
@@ -211,6 +221,7 @@ export class CareerService implements OnModuleInit {
    */
   private async saveAiCareers(
     topCareers: Array<{ careerId?: string; title?: string; reasoning?: string; focusAreas?: string[] }>,
+    instituteId: string,
   ): Promise<void> {
     for (const item of topCareers) {
       const title = (item.title || '').trim();
@@ -222,22 +233,26 @@ export class CareerService implements OnModuleInit {
       const focusAreas: string[] = Array.isArray(item.focusAreas) ? item.focusAreas : [];
       const stream = this.inferStream(title, focusAreas);
       const description = (item.reasoning || '').trim() || `Explore a career in ${title}.`;
+      // Use institute-scoped id so the same AI career can exist per-institute without conflict
+      const scopedId = `${slug}_${instituteId.replace(/-/g, '').slice(0, 8)}`;
       try {
         await this.ds.query(
           `INSERT INTO school_career_paths
              (id, title, stream, description, exams, top_colleges, salary_range,
               required_subjects, holland_match, grade_relevance, is_custom,
-              duration, education_path, key_skills, job_roles, pros_cons, focus_areas)
+              duration, education_path, key_skills, job_roles, pros_cons, focus_areas, institute_id)
            VALUES ($1, $2, $3, $4, '[]'::jsonb, '[]'::jsonb, '', '{}'::jsonb, '[]'::jsonb, '[9,10,11,12]'::jsonb, true,
-                   '', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '{"pros":[], "cons":[]}'::jsonb, $5::jsonb)
+                   '', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '{"pros":[], "cons":[]}'::jsonb, $5::jsonb, $6)
            ON CONFLICT (id) DO NOTHING`,
-          [slug, title, stream, description, JSON.stringify(focusAreas)],
+          [scopedId, title, stream, description, JSON.stringify(focusAreas), instituteId],
         );
-        this.logger.log(`Saved new AI career to school_career_paths: ${title} (${slug})`);
+        this.logger.log(`Saved new AI career to school_career_paths: ${title} (${scopedId})`);
       } catch (err) {
         this.logger.warn(`saveAiCareers failed for "${title}": ${(err as Error)?.message}`);
       }
     }
+    // Bust the explore cache so the next request sees the new AI careers
+    await this.cache.del(this.careerExploreCacheKey(instituteId)).catch(() => undefined);
   }
 
   // ── Quiz ──────────────────────────────────────────────────────────────────
@@ -322,13 +337,31 @@ export class CareerService implements OnModuleInit {
 
   // ── Report generation ───────────────────────────────────────────────────────
 
+  /**
+   * Validates preconditions then enqueues the AI generation job.
+   * Returns 202 immediately — the client polls GET /career/report for the result.
+   */
   async generateCareerReport(studentId: string, instituteId: string) {
     const isEnabled = await this.featureFlagService.isFeatureEnabled(instituteId, 'school', 'career_guidance_report');
     if (!isEnabled) throw new ForbiddenException('Career guidance report is currently disabled for your institute.');
     const quiz = await this.getLatestQuiz(studentId);
-    if (!quiz) {
-      throw new BadRequestException('Complete the interest quiz first.');
-    }
+    if (!quiz) throw new BadRequestException('Complete the interest quiz first.');
+
+    await this.reportQueue.add(
+      CAREER_REPORT_JOB,
+      { studentId, instituteId },
+      { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true },
+    );
+    return { success: true, data: { status: 'queued', message: 'Your career report is being generated. Check back in a moment.' } };
+  }
+
+  /**
+   * The actual AI generation logic — called by CareerReportProcessor.
+   * Runs off the HTTP thread inside a Bull worker.
+   */
+  async runReportGeneration(studentId: string, instituteId: string): Promise<void> {
+    const quiz = await this.getLatestQuiz(studentId);
+    if (!quiz) return;
 
     const profile = await this.getStudentProfile(studentId);
     const grade = this.parseGrade(profile.className);
@@ -341,64 +374,47 @@ export class CareerService implements OnModuleInit {
     const attendancePercentage = await this.getAttendancePercentage(studentId);
     const homeworkRate = await this.getHomeworkRate(profile);
 
-    // Local pre-scoring → top 5 careers for the AI to reason about.
     const topCareerMatches = this.scoreCareers(quiz.hollandCode, strongSubjects, grade).slice(0, 5);
 
-    let reportData: CareerReportData;
-    try {
-      const aiResponse = await this.aiBridge.generateCareerGuidance(
-        {
-          studentName: profile.name,
-          grade,
-          board: 'CBSE',
-          instituteId,
-          subjectMarks,
-          strongSubjects,
-          weakSubjects,
-          quizTestSummary,
-          attendancePercentage,
-          homeworkRate,
-          hollandCode: quiz.hollandCode,
-          hollandScores: quiz.scores,
-          topCareerMatches,
-        },
+    const aiResponse = await this.aiBridge.generateCareerGuidance(
+      {
+        studentName: profile.name,
+        grade,
+        board: 'CBSE',
         instituteId,
-      );
-      const report = (aiResponse?.report ?? {}) as Partial<CareerReportData>;
-      reportData = {
-        topCareers: Array.isArray(report.topCareers) ? report.topCareers : [],
-        overallAnalysis: report.overallAnalysis ?? '',
-        streamRecommendation: report.streamRecommendation ?? null,
-        immediateActions: Array.isArray(report.immediateActions) ? report.immediateActions : [],
-        encouragement: report.encouragement ?? '',
-        generatedForGrade: grade,
-      };
-    } catch (err) {
-      this.logger.error(`Career AI generation failed for student ${studentId}: ${(err as Error)?.message}`);
-      throw new BadRequestException('Career report generation is temporarily unavailable. Please try again shortly.');
-    }
+        subjectMarks,
+        strongSubjects,
+        weakSubjects,
+        quizTestSummary,
+        attendancePercentage,
+        homeworkRate,
+        hollandCode: quiz.hollandCode,
+        hollandScores: quiz.scores,
+        topCareerMatches,
+      },
+      instituteId,
+    );
+    const report = (aiResponse?.report ?? {}) as Partial<CareerReportData>;
+    const reportData: CareerReportData = {
+      topCareers: Array.isArray(report.topCareers) ? report.topCareers : [],
+      overallAnalysis: report.overallAnalysis ?? '',
+      streamRecommendation: report.streamRecommendation ?? null,
+      immediateActions: Array.isArray(report.immediateActions) ? report.immediateActions : [],
+      encouragement: report.encouragement ?? '',
+      generatedForGrade: grade,
+    };
 
     const now = new Date();
     const validUntil = new Date(now);
     validUntil.setMonth(validUntil.getMonth() + REPORT_VALID_MONTHS);
 
     await this.reportRepo.save(
-      this.reportRepo.create({
-        studentId,
-        instituteId,
-        reportData,
-        generatedAt: now,
-        validUntil,
-      }),
+      this.reportRepo.create({ studentId, instituteId, reportData, generatedAt: now, validUntil }),
     );
 
-    // Save any AI-generated careers not yet in school_career_paths so they
-    // appear for everyone in the unified Explore Careers list.
-    void this.saveAiCareers(reportData.topCareers).catch((e) =>
+    void this.saveAiCareers(reportData.topCareers, instituteId).catch((e) =>
       this.logger.warn(`saveAiCareers error: ${(e as Error)?.message}`),
     );
-
-    return { success: true, data: { report: reportData, generatedAt: now, validUntil } };
   }
 
   async getCareerReport(studentId: string) {
@@ -420,12 +436,22 @@ export class CareerService implements OnModuleInit {
 
   // ── Explore ───────────────────────────────────────────────────────────────
 
+  private careerExploreCacheKey(instituteId: string) {
+    return `school:career:explore:${instituteId}`;
+  }
+
   /**
-   * Returns all career paths from the single school_career_paths table.
-   * Static careers are seeded on boot; AI-generated ones are added dynamically.
+   * Returns all career paths. Results are cached in Redis for 10 minutes —
+   * the ~60 static rows are global/rarely-changing; only AI-generated rows vary
+   * per institute. Cache is invalidated when new AI careers are saved.
    */
-  async getCareerExplore() {
+  async getCareerExplore(instituteId: string) {
     await this.ensureTables();
+    const cacheKey = this.careerExploreCacheKey(instituteId);
+
+    const cached = await this.cache.get<CareerPath[]>(cacheKey);
+    if (cached) return { success: true, data: cached };
+
     try {
       const rows: Array<Record<string, unknown>> = await this.ds.query(
         `SELECT id, title, stream, description, exams,
@@ -442,7 +468,9 @@ export class CareerService implements OnModuleInit {
                 pros_cons AS "prosCons",
                 focus_areas AS "focusAreas"
          FROM school_career_paths
+         WHERE institute_id IS NULL OR institute_id = $1
          ORDER BY is_custom ASC, created_at ASC`,
+        [instituteId],
       );
       const careers: CareerPath[] = rows.map((r) => ({
         id: String(r.id),
@@ -462,10 +490,11 @@ export class CareerService implements OnModuleInit {
         prosCons: (r.prosCons && typeof r.prosCons === 'object' ? r.prosCons : { pros: [], cons: [] }) as CareerPath['prosCons'],
         focusAreas: Array.isArray(r.focusAreas) ? (r.focusAreas as string[]) : [],
       }));
+
+      await this.cache.set(cacheKey, careers, 3_600_000); // 1 hr TTL — career paths are static
       return { success: true, data: careers };
     } catch (err) {
       this.logger.warn(`getCareerExplore failed: ${(err as Error)?.message}`);
-      // Fallback to static array if DB is unavailable
       return { success: true, data: CAREER_PATHS };
     }
   }
@@ -473,13 +502,16 @@ export class CareerService implements OnModuleInit {
   /**
    * Returns a single career from school_career_paths, with fuzzy matching
    * so AI-generated IDs (e.g. "3", "psych_counseling") resolve correctly.
+   * Cached for 1 hour — career detail content is static/rarely changes.
    */
-  async getCareerDetail(careerId: string) {
+  async getCareerDetail(careerId: string, instituteId: string) {
     await this.ensureTables();
     const rawId = (careerId || '').toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-
-    // Fuzzy-match the id to a canonical one, then fall back to the raw id
     const resolvedId = this.fuzzyMatchId(rawId) ?? rawId;
+
+    const cacheKey = `school:career:detail:${resolvedId}:${instituteId}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached;
 
     try {
       const rows: Array<Record<string, unknown>> = await this.ds.query(
@@ -495,8 +527,10 @@ export class CareerService implements OnModuleInit {
                 job_roles AS "jobRoles",
                 pros_cons AS "prosCons",
                 focus_areas AS "focusAreas"
-         FROM school_career_paths WHERE id = $1 LIMIT 1`,
-        [resolvedId],
+         FROM school_career_paths
+         WHERE id = $1 AND (institute_id IS NULL OR institute_id = $2)
+         LIMIT 1`,
+        [resolvedId, instituteId],
       );
       if (rows.length > 0) {
         const r = rows[0];
@@ -518,7 +552,9 @@ export class CareerService implements OnModuleInit {
           prosCons: (r.prosCons && typeof r.prosCons === 'object' ? r.prosCons : { pros: [], cons: [] }) as CareerPath['prosCons'],
           focusAreas: Array.isArray(r.focusAreas) ? (r.focusAreas as string[]) : [],
         };
-        return { success: true, data: career };
+        const result = { success: true, data: career };
+        await this.cache.set(cacheKey, result, 3_600_000); // 1 hr
+        return result;
       }
     } catch (err) {
       this.logger.warn(`getCareerDetail failed: ${(err as Error)?.message}`);

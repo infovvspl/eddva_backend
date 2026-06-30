@@ -205,11 +205,12 @@ export class AiBridgeController {
   @AiFeature('ai_content_generation')
   @HttpCode(HttpStatus.OK)
   async generateQuestionsFromTopic(
-    @Body() body: { topicId: string; topicName: string; count?: number; difficulty?: string; type?: string; style?: string; examTarget?: string; subject?: string; chapter?: string; notes?: string | string[]; subjectName?: string; chapterName?: string },
+    @Body() body: { topicId: string; topicName: string; count?: number; difficulty?: string; type?: string; style?: string; examTarget?: string; subject?: string; chapter?: string; notes?: string | string[]; subjectName?: string; chapterName?: string; language?: string },
     @TenantId() tenantId: string,
   ) {
+    console.log('[AI Bridge Controller] Incoming request language:', body.language);
     return this.aiBridgeService.generateQuestionsFromTopic(
-      { topicId: body.topicId, topicName: body.topicName, count: body.count || 10, difficulty: body.difficulty || 'medium', type: body.type || 'mcq_single', style: body.style, examTarget: body.examTarget, subject: body.subject, chapter: body.chapter, notes: body.notes },
+      { topicId: body.topicId, topicName: body.topicName, count: body.count || 10, difficulty: body.difficulty || 'medium', type: body.type || 'mcq_single', style: body.style, examTarget: body.examTarget, subject: body.subject, chapter: body.chapter, notes: body.notes, language: body.language },
       tenantId,
     );
   }
@@ -228,11 +229,11 @@ export class AiBridgeController {
   @AiFeature('ai_content_generation')
   @HttpCode(HttpStatus.OK)
   async generateQuizForLecture(
-    @Body() dto: { notes?: string; transcript?: string; lectureTitle?: string; topicId?: string; numQuestions?: number; courseLevel?: string },
+    @Body() dto: { notes?: string; transcript?: string; lectureTitle?: string; topicId?: string; numQuestions?: number; courseLevel?: string; language?: 'en' | 'hi' | 'hinglish' | 'od' },
     @TenantId() tenantId: string,
   ) {
     return this.aiBridgeService.generateQuizForLecture(
-      { notes: dto.notes || '', transcript: dto.transcript || '', lectureTitle: dto.lectureTitle || 'Lecture', topicId: dto.topicId || '', numQuestions: dto.numQuestions ?? 5, courseLevel: dto.courseLevel },
+      { notes: dto.notes || '', transcript: dto.transcript || '', lectureTitle: dto.lectureTitle || 'Lecture', topicId: dto.topicId || '', numQuestions: dto.numQuestions ?? 5, courseLevel: dto.courseLevel, language: dto.language || 'en' },
       tenantId,
     );
   }

@@ -153,58 +153,60 @@ export class SchoolTimetableService {
       filterQuery += ` AND t.day_of_week=$${params.length}::int`;
     }
 
-    const countRows = await this.ds.query(
-      `SELECT COUNT(*)::int AS total FROM timetables t
-       LEFT JOIN teachers teach ON t.teacher_id = teach.id
-       LEFT JOIN users u ON teach.user_id = u.id
-       ${filterQuery}`,
-      params
-    );
+    const dataParams = [...params, limit, offset];
+    const limitParamIndex = dataParams.length - 1;
+    const offsetParamIndex = dataParams.length;
+
+    const [countRows, rows] = await Promise.all([
+      this.ds.query(
+        `SELECT COUNT(*)::int AS total FROM timetables t
+         LEFT JOIN teachers teach ON t.teacher_id = teach.id
+         LEFT JOIN users u ON teach.user_id = u.id
+         ${filterQuery}`,
+        params,
+      ),
+      this.ds.query(
+        `SELECT
+          t.id AS "id",
+          t.day_of_week AS "dayOfWeekInt",
+          t.start_time AS "startTime",
+          t.end_time AS "endTime",
+          t.room AS "room",
+          t.period_number AS "periodNumber",
+          t.type AS "type",
+          t.meeting_link AS "meetingLink",
+          t.remarks AS "remarks",
+          t.subject_id AS "subjectId",
+          t.teacher_id AS "teacherId",
+          t.section_id AS "sectionId",
+          t.period_id AS "periodId",
+          sp.period_name AS "periodName",
+          sp.period_type AS "periodType",
+          sub.id AS "subject_id",
+          sub.name AS "subject_name",
+          sec.id AS "section_id",
+          sec.name AS "section_name",
+          cls.id AS "class_id",
+          cls.name AS "class_name",
+          teach.id AS "teacher_id",
+          u.id AS "user_id",
+          u.name AS "user_name"
+        FROM timetables t
+        LEFT JOIN school_periods sp ON t.period_id = sp.id OR (t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
+        LEFT JOIN subjects sub ON t.subject_id = sub.id
+        LEFT JOIN sections sec ON t.section_id = sec.id
+        LEFT JOIN classes cls ON sec.class_id = cls.id
+        LEFT JOIN teachers teach ON t.teacher_id = teach.id
+        LEFT JOIN users u ON teach.user_id = u.id
+        ${filterQuery}
+        ORDER BY t.day_of_week, t.start_time
+        LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
+        dataParams,
+      ),
+    ]);
+
     const total = parseInt(countRows[0]?.total || '0', 10);
     const totalPages = Math.ceil(total / limit);
-
-    params.push(limit, offset);
-    const limitParamIndex = params.length - 1;
-    const offsetParamIndex = params.length;
-
-    const rows: any[] = await this.ds.query(
-      `SELECT 
-        t.id AS "id",
-        t.day_of_week AS "dayOfWeekInt",
-        t.start_time AS "startTime",
-        t.end_time AS "endTime",
-        t.room AS "room",
-        t.period_number AS "periodNumber",
-        t.type AS "type",
-        t.meeting_link AS "meetingLink",
-        t.remarks AS "remarks",
-        t.subject_id AS "subjectId",
-        t.teacher_id AS "teacherId",
-        t.section_id AS "sectionId",
-        t.period_id AS "periodId",
-        sp.period_name AS "periodName",
-        sp.period_type AS "periodType",
-        sub.id AS "subject_id",
-        sub.name AS "subject_name",
-        sec.id AS "section_id",
-        sec.name AS "section_name",
-        cls.id AS "class_id",
-        cls.name AS "class_name",
-        teach.id AS "teacher_id",
-        u.id AS "user_id",
-        u.name AS "user_name"
-      FROM timetables t
-      LEFT JOIN school_periods sp ON t.period_id = sp.id OR (t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
-      LEFT JOIN subjects sub ON t.subject_id = sub.id
-      LEFT JOIN sections sec ON t.section_id = sec.id
-      LEFT JOIN classes cls ON sec.class_id = cls.id
-      LEFT JOIN teachers teach ON t.teacher_id = teach.id
-      LEFT JOIN users u ON teach.user_id = u.id
-      ${filterQuery}
-      ORDER BY t.day_of_week, t.start_time
-      LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
-      params,
-    );
 
     const formatted = rows.map((row) => ({
       id: row.id,
@@ -382,15 +384,17 @@ export class SchoolTimetableService {
       if (body.sectionId) {
         const studentUsers = await this.ds.query(`SELECT user_id FROM students WHERE section_id = $1`, [body.sectionId]);
         const typeBadge = slotData.type === 'live' ? '🔴 Live ' : (slotData.type === 'lab' ? '🧪 Lab ' : (slotData.type === 'extra' ? '✨ Extra ' : ''));
-        for (const stu of studentUsers) {
-          await this.notificationService.create({
-            recipientId: stu.user_id,
-            type: 'general',
-            title: `📅 New ${typeBadge}Class Scheduled`,
-            message: `Subject: ${slotData.subject?.name || 'Class'}\n${slotData.dayOfWeek} • Period ${slotData.periodNumber || 1}\n${slotData.startTime} - ${slotData.endTime}\nRoom: ${slotData.room || 'N/A'}${slotData.meetingLink ? '\nLink provided' : ''}`,
-            actionUrl: '/school/student/timetable',
-          });
-        }
+        await Promise.allSettled(
+          studentUsers.map((stu: any) =>
+            this.notificationService.create({
+              recipientId: stu.user_id,
+              type: 'general',
+              title: `📅 New ${typeBadge}Class Scheduled`,
+              message: `Subject: ${slotData.subject?.name || 'Class'}\n${slotData.dayOfWeek} • Period ${slotData.periodNumber || 1}\n${slotData.startTime} - ${slotData.endTime}\nRoom: ${slotData.room || 'N/A'}${slotData.meetingLink ? '\nLink provided' : ''}`,
+              actionUrl: '/school/student/timetable',
+            }),
+          ),
+        );
       }
     } catch(e) {
       console.error('Failed to notify students of new timetable', e);
@@ -529,15 +533,17 @@ export class SchoolTimetableService {
     try {
       if (slotData.sectionId) {
         const studentUsers = await this.ds.query(`SELECT user_id FROM students WHERE section_id = $1`, [slotData.sectionId]);
-        for (const stu of studentUsers) {
-          await this.notificationService.create({
-            recipientId: stu.user_id,
-            type: 'general',
-            title: '🔔 Timetable Updated',
-            message: `${slotData.subject?.name || 'Class'} class timing has changed.\nNew Schedule:\n${slotData.dayOfWeek} • ${slotData.startTime} - ${slotData.endTime}`,
-            actionUrl: '/school/student/timetable',
-          });
-        }
+        await Promise.allSettled(
+          studentUsers.map((stu: any) =>
+            this.notificationService.create({
+              recipientId: stu.user_id,
+              type: 'general',
+              title: '🔔 Timetable Updated',
+              message: `${slotData.subject?.name || 'Class'} class timing has changed.\nNew Schedule:\n${slotData.dayOfWeek} • ${slotData.startTime} - ${slotData.endTime}`,
+              actionUrl: '/school/student/timetable',
+            }),
+          ),
+        );
       }
     } catch(e) {
       console.error('Failed to notify students of timetable update', e);
@@ -557,15 +563,17 @@ export class SchoolTimetableService {
     try {
       if (slotData && slotData.sectionId) {
         const studentUsers = await this.ds.query(`SELECT user_id FROM students WHERE section_id = $1`, [slotData.sectionId]);
-        for (const stu of studentUsers) {
-          await this.notificationService.create({
-            recipientId: stu.user_id,
-            type: 'general',
-            title: '❌ Class Cancelled',
-            message: `${slotData.subject?.name || 'Class'}\n${slotData.dayOfWeek} • ${slotData.startTime}\nPlease check the updated timetable.`,
-            actionUrl: '/school/student/timetable',
-          });
-        }
+        await Promise.allSettled(
+          studentUsers.map((stu: any) =>
+            this.notificationService.create({
+              recipientId: stu.user_id,
+              type: 'general',
+              title: '❌ Class Cancelled',
+              message: `${slotData.subject?.name || 'Class'}\n${slotData.dayOfWeek} • ${slotData.startTime}\nPlease check the updated timetable.`,
+              actionUrl: '/school/student/timetable',
+            }),
+          ),
+        );
       }
     } catch(e) {
       console.error('Failed to notify students of timetable removal', e);
@@ -587,23 +595,24 @@ export class SchoolTimetableService {
     const offset = (page - 1) * limit;
 
     const countSql = `SELECT COUNT(*)::int AS total FROM schedules s ${whereClause}`;
-    const countResult = await this.ds.query(countSql, params);
-    const total = parseInt(countResult[0]?.total || '0', 10);
-    const totalPages = Math.ceil(total / limit);
-
-    const sql = `
-      SELECT s.*, c.name AS class_name, sub.name AS subject_name, u.name AS teacher_name 
-      FROM schedules s 
-      LEFT JOIN classes c ON s.class_id::text=c.id::text 
-      LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text 
-      LEFT JOIN users u ON s.teacher_id::text=u.id::text 
-      ${whereClause} 
-      ORDER BY s.day_of_week, s.start_time 
+    const dataSql = `
+      SELECT s.*, c.name AS class_name, sub.name AS subject_name, u.name AS teacher_name
+      FROM schedules s
+      LEFT JOIN classes c ON s.class_id::text=c.id::text
+      LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text
+      LEFT JOIN users u ON s.teacher_id::text=u.id::text
+      ${whereClause}
+      ORDER BY s.day_of_week, s.start_time
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
-    params.push(limit, offset);
+    const dataParams = [...params, limit, offset];
 
-    const rows: any[] = await this.ds.query(sql, params);
+    const [countResult, rows] = await Promise.all([
+      this.ds.query(countSql, params),
+      this.ds.query(dataSql, dataParams),
+    ]);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit);
     return { success: true, data: rows, total, page, limit, totalPages };
   }
 
@@ -627,26 +636,28 @@ export class SchoolTimetableService {
           `SELECT s.user_id FROM students s JOIN sections sec ON s.section_id = sec.id WHERE sec.class_id::text = $1`,
           [body.classId]
         );
-        for (const stu of studentUsers) {
-          await this.notificationService.create({
+        const studentNotifs = studentUsers.map((stu: any) =>
+          this.notificationService.create({
             recipientId: stu.user_id,
             type: 'live_class',
             title: 'New Live Class Scheduled',
             message: `${className} ${subjectName} Live Class has been scheduled for ${body.dayOfWeek} at ${body.startTime}.`,
             actionUrl: '/school/student/live-classes',
-          });
-        }
+          }),
+        );
 
         // Notify teacher (body.teacherId is users.id)
-        if (body.teacherId) {
-          await this.notificationService.create({
-            recipientId: body.teacherId,
-            type: 'live_class',
-            title: 'New Class Assigned',
-            message: `You have been assigned to teach ${className} ${subjectName} Live Class.`,
-            actionUrl: '/school/teacher/classes',
-          });
-        }
+        const teacherNotif = body.teacherId
+          ? this.notificationService.create({
+              recipientId: body.teacherId,
+              type: 'live_class',
+              title: 'New Class Assigned',
+              message: `You have been assigned to teach ${className} ${subjectName} Live Class.`,
+              actionUrl: '/school/teacher/classes',
+            })
+          : null;
+
+        await Promise.allSettled([...studentNotifs, ...(teacherNotif ? [teacherNotif] : [])]);
       }
     } catch (notifErr) {
       console.error('Failed to send schedule notifications:', notifErr);

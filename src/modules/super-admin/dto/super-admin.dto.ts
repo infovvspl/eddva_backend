@@ -12,6 +12,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  IsObject,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -118,6 +119,10 @@ export class CreateTenantDto {
   @IsBoolean()
   @Transform(({ value }) => value === true || value === 'true')
   multiAdminEnabled?: boolean;
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  modulesPermissions?: Record<string, boolean>;
 }
 
 
@@ -227,6 +232,10 @@ export class UpdateTenantDto {
   @IsBoolean()
   @Transform(({ value }) => value === true || value === 'true')
   multiAdminEnabled?: boolean;
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  modulesPermissions?: Record<string, boolean>;
 }
 
 

@@ -18,6 +18,7 @@ import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { FeatureFlagGuard, RequireFeature } from '../common/guards/feature-flag.guard';
 import { UserRole } from '../../database/entities/user.entity';
 
 import { DoubtService } from './doubt.service';
@@ -33,7 +34,8 @@ import {
 
 @ApiTags('Doubt')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireFeature('doubt_queue')
+@UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagGuard)
 @Controller('doubts')
 export class DoubtController {
   constructor(private readonly doubtService: DoubtService) {}

@@ -6,6 +6,9 @@ export const LIVE_CHANNELS = {
   LIVE: 'lecture:live',
   ENDED: 'lecture:ended',
   PROCESSED: 'lecture:processed',
+  POLL_CREATED: 'lecture:poll_created',
+  POLL_VOTED: 'lecture:poll_voted',
+  POLL_ENDED: 'lecture:poll_ended',
 } as const;
 
 /**
@@ -139,6 +142,18 @@ export class LiveBroadcastRedis implements OnModuleInit, OnModuleDestroy {
       return await this.pub.sCard(this.viewersKey(lectureId));
     } catch {
       return 0;
+    }
+  }
+
+  // ── chat rate limit: max `limit` actions per `windowSec` per user ─────────
+  async allowAction(key: string, limit: number, windowSec: number): Promise<boolean> {
+    if (!this.pub?.isReady) return true;
+    try {
+      const count = await this.pub.incr(key);
+      if (count === 1) await this.pub.expire(key, windowSec);
+      return count <= limit;
+    } catch {
+      return true;
     }
   }
 }

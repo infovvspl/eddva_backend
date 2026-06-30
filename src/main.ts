@@ -18,8 +18,31 @@ for (const file of ['.env', '.env.local']) {
   if (existsSync(file)) dotenv.config({ path: file, override: true });
 }
 // Trigger restart
+function validateEnv(logger: Logger) {
+  const isProd = process.env.NODE_ENV === 'production';
+  const required = ['JWT_SECRET', 'JWT_REFRESH_SECRET'];
+  const missing = required.filter(k => !process.env[k]);
+  if (missing.length) {
+    logger.error(`Missing required env vars: ${missing.join(', ')}. Server cannot start.`);
+    process.exit(1);
+  }
+  if (!process.env.SCHOOL_JWT_SECRET) {
+    // Derive a stable fallback so the server can start; school JWT is still
+    // cryptographically distinct from the coaching JWT because the prefix differs.
+    // Operators SHOULD set SCHOOL_JWT_SECRET explicitly in production.
+    const fallback = `school:${process.env.JWT_SECRET || 'fallback'}`;
+    process.env.SCHOOL_JWT_SECRET = fallback;
+    logger.warn(
+      isProd
+        ? '⚠️  SCHOOL_JWT_SECRET is not set — using derived fallback. Set it explicitly in your environment to invalidate school tokens on key rotation.'
+        : 'SCHOOL_JWT_SECRET not set — using derived fallback (dev only).',
+    );
+  }
+}
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+  validateEnv(logger);
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
@@ -173,6 +196,74 @@ async function bootstrap() {
       )
     `);
     logger.log('Tenant columns + batch_feedbacks table ensured');
+
+    // ── Broadcast extended tables (participants, polls, reactions) ──────────
+    // New columns on broadcast_lectures (batch/subject metadata)
+    const broadcastLectureCols = [
+      `ADD COLUMN IF NOT EXISTS batch_id UUID`,
+      `ADD COLUMN IF NOT EXISTS subject_id UUID`,
+      `ADD COLUMN IF NOT EXISTS description TEXT`,
+      `ADD COLUMN IF NOT EXISTS batch_name VARCHAR(200)`,
+      `ADD COLUMN IF NOT EXISTS subject_name VARCHAR(200)`,
+    ];
+    for (const col of broadcastLectureCols) {
+      await coachingDs.query(`ALTER TABLE broadcast_lectures ${col}`).catch(() => {/* table may not exist yet */});
+    }
+
+    await coachingDs.query(`
+      CREATE TABLE IF NOT EXISTS "broadcast_participants" (
+        "lecture_id"       UUID        NOT NULL,
+        "user_id"          UUID        NOT NULL,
+        "user_name"        VARCHAR(200) NOT NULL,
+        "joined_at"        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        "left_at"          TIMESTAMPTZ,
+        "hand_raised"      BOOLEAN     NOT NULL DEFAULT FALSE,
+        "duration_seconds" INTEGER,
+        CONSTRAINT "PK_broadcast_participants" PRIMARY KEY ("lecture_id", "user_id")
+      )
+    `);
+    await coachingDs.query(`CREATE INDEX IF NOT EXISTS "IDX_broadcast_participants_lecture" ON "broadcast_participants" ("lecture_id")`);
+
+    await coachingDs.query(`
+      CREATE TABLE IF NOT EXISTS "broadcast_polls" (
+        "id"             UUID        NOT NULL DEFAULT gen_random_uuid(),
+        "lecture_id"     UUID        NOT NULL,
+        "question"       VARCHAR(500) NOT NULL,
+        "options"        JSONB       NOT NULL DEFAULT '[]',
+        "correct_option" VARCHAR(200),
+        "status"         VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+        "created_at"     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT "PK_broadcast_polls" PRIMARY KEY ("id")
+      )
+    `);
+    await coachingDs.query(`CREATE INDEX IF NOT EXISTS "IDX_broadcast_polls_lecture" ON "broadcast_polls" ("lecture_id")`);
+
+    await coachingDs.query(`
+      CREATE TABLE IF NOT EXISTS "broadcast_poll_votes" (
+        "id"       UUID        NOT NULL DEFAULT gen_random_uuid(),
+        "poll_id"  UUID        NOT NULL,
+        "user_id"  UUID        NOT NULL,
+        "user_name" VARCHAR(200) NOT NULL,
+        "option"   VARCHAR(200) NOT NULL,
+        CONSTRAINT "PK_broadcast_poll_votes" PRIMARY KEY ("id"),
+        CONSTRAINT "UQ_broadcast_poll_votes_user" UNIQUE ("poll_id", "user_id")
+      )
+    `);
+
+    await coachingDs.query(`
+      CREATE TABLE IF NOT EXISTS "broadcast_reactions" (
+        "id"         UUID        NOT NULL DEFAULT gen_random_uuid(),
+        "lecture_id" UUID        NOT NULL,
+        "user_id"    UUID        NOT NULL,
+        "user_name"  VARCHAR(200) NOT NULL,
+        "emoji"      VARCHAR(10) NOT NULL,
+        "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT "PK_broadcast_reactions" PRIMARY KEY ("id")
+      )
+    `);
+    await coachingDs.query(`CREATE INDEX IF NOT EXISTS "IDX_broadcast_reactions_lecture" ON "broadcast_reactions" ("lecture_id")`);
+
+    logger.log('Broadcast extended tables ensured');
   } catch (err) {
     logger.warn(`Tenant column migration skipped: ${err.message}`);
   }

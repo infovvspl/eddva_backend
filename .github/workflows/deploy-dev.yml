@@ -30,6 +30,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: SCHOOL_JWT_SECRET
           script: |
             set -e
             cd /home/ubuntu/eddva_backend_dev
@@ -37,6 +38,10 @@ jobs:
             git reset --hard origin/dev
             npm ci
             npm run build
+            # Inject secrets into .env (add if missing, update if present)
+            grep -q '^SCHOOL_JWT_SECRET=' .env \
+              && sed -i "s|^SCHOOL_JWT_SECRET=.*|SCHOOL_JWT_SECRET=${SCHOOL_JWT_SECRET}|" .env \
+              || echo "SCHOOL_JWT_SECRET=${SCHOOL_JWT_SECRET}" >> .env
             if pm2 list | grep -q eddva-backend-dev; then
               pm2 restart eddva-backend-dev --update-env
             else

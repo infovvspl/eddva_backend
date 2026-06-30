@@ -318,16 +318,17 @@ export class SchoolChatService implements OnModuleInit {
     return { success: true, message: 'Joined room successfully' };
   }
 
-  async getMessages(roomId: string) {
+  async getMessages(roomId: string, limit = 200) {
     const rows: any[] = await this.ds.query(
-      `SELECT cm.*,u.name AS sender_name,u.profile_image AS sender_photo 
-       FROM chat_messages cm 
-       LEFT JOIN users u ON cm.sender_id=u.id 
-       WHERE cm.room_id=$1 
-       ORDER BY cm.created_at ASC`,
-      [roomId],
+      `SELECT cm.*,u.name AS sender_name,u.profile_image AS sender_photo
+       FROM chat_messages cm
+       LEFT JOIN users u ON cm.sender_id=u.id
+       WHERE cm.room_id=$1
+       ORDER BY cm.created_at DESC
+       LIMIT $2`,
+      [roomId, limit],
     );
-    return { success: true, data: rows.map((r) => ({ ...r, content: r.text })) };
+    return { success: true, data: rows.reverse().map((r) => ({ ...r, content: r.text })) };
   }
 
   async sendMessage(user: any, body: any) {

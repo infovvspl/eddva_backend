@@ -1,4 +1,6 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, MoreThan } from 'typeorm';
 
@@ -39,6 +41,7 @@ export class TeacherAnalyticsService {
     @InjectRepository(Chapter, 'coaching') private readonly chapterRepo: Repository<Chapter>,
     @InjectRepository(User, 'coaching') private readonly userRepo: Repository<User>,
     private readonly notificationService: NotificationService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -103,6 +106,10 @@ export class TeacherAnalyticsService {
   // ─── 1. Overview ──────────────────────────────────────────────────────────
 
   async getOverview(user: TeacherAnalyticsActor, tenantId: string, query: TeacherAnalyticsQueryDto) {
+    const cacheKey = `coaching:ta:overview:${user.id}:${tenantId}:${query.batchId ?? ''}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
+
     const { batches, studentIds } = await this.getTeacherStudentIds(user, tenantId, query.batchId);
 
     const totalStudents = studentIds.length;
@@ -148,7 +155,7 @@ export class TeacherAnalyticsService {
     ).length;
     const resolvedDoubts = doubts.filter((d) => d.status === DoubtStatus.TEACHER_RESOLVED).length;
 
-    return {
+    const overviewResult = {
       totalBatches,
       totalStudents,
       quizzes: {
@@ -167,18 +174,24 @@ export class TeacherAnalyticsService {
       },
       batches: batches.map((b) => ({ id: b.id, name: b.name, status: b.status })),
     };
+    await this.cache.set(cacheKey, overviewResult, 5 * 60 * 1000);
+    return overviewResult;
   }
 
   // ─── 2. Class Performance ─────────────────────────────────────────────────
 
   async getClassPerformance(user: TeacherAnalyticsActor, tenantId: string, query: ClassPerformanceQueryDto) {
+    const page = query.page || 1;
+    const limit = query.limit || 30;
+    const cacheKey = `coaching:ta:class-perf:${user.id}:${tenantId}:${query.batchId ?? ''}:${page}:${limit}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
+
     const { studentIds } = await this.getTeacherStudentIds(user, tenantId, query.batchId);
     if (!studentIds.length) {
       return { data: [], meta: { total: 0, page: 1, limit: query.limit || 30, totalPages: 0 } };
     }
 
-    const page = query.page || 1;
-    const limit = query.limit || 30;
     const skip = (page - 1) * limit;
 
     const students = await this.studentRepo.find({
@@ -280,15 +293,21 @@ export class TeacherAnalyticsService {
       rank: rankMap.get(s.studentId) ?? 0,
     }));
 
-    return {
+    const classPerfResult = {
       data: paginated,
       meta: { total: rows.length, page, limit, totalPages: Math.ceil(rows.length / limit) },
     };
+    await this.cache.set(cacheKey, classPerfResult, 5 * 60 * 1000);
+    return classPerfResult;
   }
 
   // ─── 3. Topic Coverage ────────────────────────────────────────────────────
 
   async getTopicCoverage(user: TeacherAnalyticsActor, tenantId: string, query: TeacherAnalyticsQueryDto) {
+    const cacheKey = `coaching:ta:topic-cov:${user.id}:${tenantId}:${query.batchId ?? ''}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
+
     const { batches, studentIds } = await this.getTeacherStudentIds(user, tenantId, query.batchId);
     if (!studentIds.length) return [];
 
@@ -460,7 +479,9 @@ export class TeacherAnalyticsService {
     taughtItems.sort((a, b) => b.affectedStudents - a.affectedStudents);
     untaughtItems.sort((a, b) => b.affectedStudents - a.affectedStudents);
 
-    return [...taughtItems, ...untaughtItems].slice(0, 50);
+    const topicCoverageResult = [...taughtItems, ...untaughtItems].slice(0, 50);
+    await this.cache.set(cacheKey, topicCoverageResult, 5 * 60 * 1000);
+    return topicCoverageResult;
   }
 
   // ─── 4. Engagement Heatmap ────────────────────────────────────────────────
@@ -750,12 +771,19 @@ export class TeacherAnalyticsService {
     const batches = await this.getAccessibleBatches(user, tenantId);
     if (!batches.length) return [];
 
+    const batchIds = batches.map((b) => b.id);
+    const allEnrollments = await this.enrollmentRepo.find({
+      where: { tenantId, batchId: In(batchIds), status: EnrollmentStatus.ACTIVE },
+    });
+    const enrollmentsByBatch = new Map<string, string[]>();
+    for (const e of allEnrollments) {
+      if (!enrollmentsByBatch.has(e.batchId)) enrollmentsByBatch.set(e.batchId, []);
+      enrollmentsByBatch.get(e.batchId)!.push(e.studentId);
+    }
+
     const results = await Promise.all(
       batches.map(async (batch) => {
-        const enrollments = await this.enrollmentRepo.find({
-          where: { tenantId, batchId: batch.id, status: EnrollmentStatus.ACTIVE },
-        });
-        const studentIds = enrollments.map((e) => e.studentId);
+        const studentIds = enrollmentsByBatch.get(batch.id) ?? [];
         if (!studentIds.length) {
           return { batchId: batch.id, batchName: batch.name, studentCount: 0, avgScore: 0, avgWatch: 0, doubtCount: 0 };
         }
@@ -1016,8 +1044,14 @@ export class TeacherAnalyticsService {
   async getSmartInsights(user: TeacherAnalyticsActor, tenantId: string, batchId?: string) {
     const insights: { type: string; severity: 'warning' | 'critical' | 'info'; title: string; description: string; action: string }[] = [];
 
+    // Fetch all three data sets in parallel — each internally calls getTeacherStudentIds
+    const [perfData, topicData, doubtData] = await Promise.all([
+      this.getClassPerformance(user, tenantId, { batchId, limit: 1000, page: 1 }),
+      this.getTopicCoverage(user, tenantId, { batchId }),
+      this.getDoubtAnalytics(user, tenantId, { batchId }),
+    ]);
+
     // 1. Class performance — low scorers
-    const perfData = await this.getClassPerformance(user, tenantId, { batchId, limit: 1000, page: 1 });
     const lowScorers = perfData.data.filter((s) => s.avgScore < 50);
     if (lowScorers.length > 0) {
       insights.push({
@@ -1030,7 +1064,6 @@ export class TeacherAnalyticsService {
     }
 
     // 2. Topic coverage — weak topics & gate pass
-    const topicData = await this.getTopicCoverage(user, tenantId, { batchId });
     const highConfusionTopics = topicData
       .filter((t) => t.affectedPercentage > 50)
       .slice(0, 3);
@@ -1058,7 +1091,6 @@ export class TeacherAnalyticsService {
     }
 
     // 3. Doubt analytics
-    const doubtData = await this.getDoubtAnalytics(user, tenantId, { batchId });
     const openEscalated = (doubtData.summary as any).openEscalated || 0;
     if (openEscalated > 5) {
       insights.push({

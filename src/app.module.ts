@@ -79,6 +79,7 @@ import { GamesModule } from './modules/games/games.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { InternalModule } from './modules/internal/internal.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
+import { CoachingChatModule } from './modules/chat/chat.module';
 
 // ── School Module (all school sub-modules bundled) ────────────────────────────
 
@@ -88,6 +89,7 @@ import { SchoolModule } from './modules/school/school.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { RtmpHooksModule } from './modules/rtmp-hooks/rtmp-hooks.module';
 
 const ALL_COACHING_ENTITIES = [
   Tenant, User, Student, AuditLog,
@@ -232,9 +234,11 @@ const ALL_COACHING_ENTITIES = [
     GamificationModule,
     InternalModule,
     AuditLogModule,
+    CoachingChatModule,
 
     // ── School Module ─────────────────────────────────────────────────────────
     SchoolModule,
+    RtmpHooksModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

@@ -281,6 +281,7 @@ export class AiBridgeService {
       transcript: string;
       topicId: string;
       language: 'en' | 'hi' | 'hinglish' | 'hi-in' | 'od' | 'odia' | 'or' | 'or-in';
+      skipImageGeneration?: boolean;
     },
     tenantId?: string,
   ) {
@@ -345,6 +346,22 @@ export class AiBridgeService {
     tenantId?: string,
   ) {
     return this.post('/stt/regenerate-note-image', payload, tenantId, 180_000);
+  }
+
+  async searchEducationalImages(
+    payload: { query: string; limit?: number; language?: string },
+    tenantId?: string,
+  ): Promise<{
+    images: Array<{
+      imageUrl: string;
+      thumbnailUrl?: string;
+      title?: string;
+      source?: string;
+      sourcePage?: string;
+    }>;
+    provider: 'serpapi';
+  }> {
+    return this.post('/search/educational-images', payload, tenantId, 30_000);
   }
 
   // ── AI #8 — Student Feedback Engine ──────────────────────────────────────
@@ -573,6 +590,7 @@ export class AiBridgeService {
       chapter?: string;   // adds curriculum breadcrumb & scope constraint
       /** For subject tests: exact chapter names from the DB — AI must ONLY generate from these */
       chapters?: string[];
+      language?: string;
     },
     tenantId?: string,
     vertical?: string,
@@ -590,6 +608,7 @@ export class AiBridgeService {
       chapter: dto.chapter,
       chapters: dto.chapters,           // subject-test: exact DB chapters to generate from
       seed: (dto as any).seed,          // force LLM variety
+      language: dto.language,
     }, tenantId, undefined, vertical);
 
     const questions = this.resolveToQuestionList(raw);
@@ -1371,13 +1390,18 @@ export class AiBridgeService {
       topicId?: string;
       numQuestions?: number;
       courseLevel?: string;
+      language?: 'en' | 'hi' | 'hinglish' | 'od';
     },
     tenantId?: string,
   ) {
+    const isOdia = dto.language === 'od';
+    const languageInstruction = isOdia
+      ? 'Generate all question text, option text, segment titles, and explanations in natural Odia (ଓଡ଼ିଆ) only. Keep JSON keys and option labels A/B/C/D unchanged.'
+      : 'Generate questions and explanations in English only.';
     const payload = {
       ...dto,
-      // Enforce English instructions for the LLM
-      lectureTitle: `${dto.lectureTitle} (Generate questions and explanation in English only)`,
+      lectureTitle: `${dto.lectureTitle} (${languageInstruction})`,
+      languageInstruction,
     };
     const raw = await this.post<any>('/quiz/generate', payload, tenantId);
     this.logger.log(`[AI #14] Received raw response from Django: ${JSON.stringify(raw)}`);

@@ -10,7 +10,7 @@ import { SchoolRoles } from '../school/decorators/school-roles.decorator';
 @ApiBearerAuth()
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 @SchoolRoles('SUPER_ADMIN')
-@Controller(['super-admin/ai-usage', 'school/super-admin/ai-usage'])
+@Controller('school/super-admin/ai-usage')
 export class AiUsageAdminController {
   constructor(
     private readonly usageService: AiUsageAdminService,

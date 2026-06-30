@@ -135,10 +135,22 @@ export class BatchService {
       status: BatchStatus.ACTIVE,
     });
 
-    return this.batchRepo.save(batch);
+    const saved = await this.batchRepo.save(batch);
+    await this.bustBatchesCache(tenantId);
+    return saved;
+  }
+
+  private async bustBatchesCache(tenantId: string) {
+    const gen = await this.cacheManager.get<number>(`coaching:batches-gen:${tenantId}`) ?? 0;
+    await this.cacheManager.set(`coaching:batches-gen:${tenantId}`, gen + 1, 60 * 60 * 1000);
   }
 
   async getBatches(query: BatchListQueryDto, user: any, tenantId: string) {
+    const gen = await this.cacheManager.get<number>(`coaching:batches-gen:${tenantId}`) ?? 0;
+    const cacheKey = `coaching:batches:${tenantId}:${user.id}:${user.role}:${query.status ?? ''}:${query.examTarget ?? ''}:g${gen}`;
+    const cachedBatches = await this.cacheManager.get(cacheKey);
+    if (cachedBatches) return cachedBatches as any;
+
     const qb = this.batchRepo
       .createQueryBuilder('batch')
       .leftJoinAndSelect('batch.teacher', 'teacher')
@@ -192,16 +204,24 @@ export class BatchService {
       .getRawMany();
 
     const countMap = new Map<string, number>(counts.map(r => [r.batchId, Number(r.count)]));
-    return Promise.all(batches.map(async (b) => {
+
+    // Single bulk feedback query for all batches — avoids N separate aggregate queries
+    const feedbackRows = batchIds.length
+      ? await this.batchFeedbackRepo
+          .createQueryBuilder('f')
+          .select('f.batchId', 'batchId')
+          .addSelect('AVG(f.rating)', 'averageRating')
+          .addSelect('COUNT(f.id)', 'ratingCount')
+          .where('f.batchId IN (:...batchIds)', { batchIds })
+          .andWhere('f.tenantId = :tenantId', { tenantId })
+          .groupBy('f.batchId')
+          .getRawMany()
+      : [];
+    const feedbackMap = new Map(feedbackRows.map(f => [f.batchId, f]));
+
+    const batchList = batches.map((b) => {
       const n = countMap.get(b.id) ?? 0;
-      const bFeedback = await this.batchFeedbackRepo
-        .createQueryBuilder('f')
-        .select('AVG(f.rating)', 'averageRating')
-        .addSelect('COUNT(f.id)', 'ratingCount')
-        .where('f.batchId = :batchId', { batchId: b.id })
-        .andWhere('f.tenantId = :tenantId', { tenantId })
-        .getRawOne();
-        
+      const bFeedback = feedbackMap.get(b.id);
       return toJsonSafeDeep({
         id: b.id,
         tenantId: b.tenantId,
@@ -229,7 +249,9 @@ export class BatchService {
         averageRating: bFeedback?.averageRating ? Number(Number(bFeedback.averageRating).toFixed(1)) : 0,
         ratingCount: bFeedback?.ratingCount ? Number(bFeedback.ratingCount) : 0,
       }) as Record<string, unknown>;
-    }));
+    });
+    await this.cacheManager.set(cacheKey, batchList, 2 * 60 * 1000);
+    return batchList;
   }
 
   async getBatchById(id: string, user: any, tenantId: string) {
@@ -415,7 +437,9 @@ export class BatchService {
       class: nextClass,
       feeAmount: dto.isPaid === false ? null : (dto.feeAmount ?? batch.feeAmount),
     });
-    return this.batchRepo.save(batch);
+    const updated = await this.batchRepo.save(batch);
+    await this.bustBatchesCache(tenantId);
+    return updated;
   }
 
   async getDashboardStats(tenantId: string) {
@@ -480,26 +504,32 @@ export class BatchService {
 
     const activeBatches = batches.filter(b => b.status === BatchStatus.ACTIVE);
 
-    // Recent batches (top 5) with student count
-    const recentBatchesWithCount = await Promise.all(
-      batches.slice(0, 6).map(async b => {
-        const studentCount = await this.enrollmentRepo.count({
-          where: { batchId: b.id, status: EnrollmentStatus.ACTIVE },
-        });
-        return {
-          id: b.id,
-          name: b.name,
-          examTarget: b.examTarget,
-          class: b.class,
-          status: b.status,
-          teacherName: b.teacher?.fullName || null,
-          studentCount,
-          maxStudents: b.maxStudents,
-          startDate: b.startDate,
-          endDate: b.endDate,
-        };
-      }),
-    );
+    // Recent batches (top 6) with student count — single GROUP BY instead of N COUNT queries
+    const recentBatchList = batches.slice(0, 6);
+    const recentBatchIds = recentBatchList.map(b => b.id);
+    const recentCountRows = recentBatchIds.length
+      ? await this.enrollmentRepo
+          .createQueryBuilder('e')
+          .select('e.batchId', 'batchId')
+          .addSelect('COUNT(*)', 'count')
+          .where('e.batchId IN (:...ids)', { ids: recentBatchIds })
+          .andWhere('e.status = :status', { status: EnrollmentStatus.ACTIVE })
+          .groupBy('e.batchId')
+          .getRawMany()
+      : [];
+    const recentCountMap = new Map(recentCountRows.map(r => [r.batchId, Number(r.count)]));
+    const recentBatchesWithCount = recentBatchList.map(b => ({
+      id: b.id,
+      name: b.name,
+      examTarget: b.examTarget,
+      class: b.class,
+      status: b.status,
+      teacherName: b.teacher?.fullName || null,
+      studentCount: recentCountMap.get(b.id) ?? 0,
+      maxStudents: b.maxStudents,
+      startDate: b.startDate,
+      endDate: b.endDate,
+    }));
 
     return {
       stats: {
@@ -523,6 +553,7 @@ export class BatchService {
     if (!batch) throw new NotFoundException(`Batch ${id} not found`);
 
     await this.batchRepo.softDelete(id);
+    await this.bustBatchesCache(tenantId);
     return { message: 'Batch deleted successfully' };
   }
 
@@ -1119,20 +1150,20 @@ export class BatchService {
   async sendBulkReminder(batchId: string, user: any, tenantId: string) {
     const { students } = await this.getInactiveStudents(batchId, user, tenantId);
 
-    let sent = 0;
-    for (const s of students) {
-      if (!s.userId) continue;
-      await this.notificationService.send({
-        userId: s.userId,
-        tenantId,
-        title: "We miss you! 👋",
-        body: "You haven't logged in for a few days. Your study plan is waiting — let's get back on track!",
-        channels: ['in_app', 'push'],
-        refType: 'inactive_reminder',
-        refId: batchId,
-      });
-      sent++;
-    }
+    const sendResults = await Promise.allSettled(
+      students
+        .filter(s => !!s.userId)
+        .map(s => this.notificationService.send({
+          userId: s.userId,
+          tenantId,
+          title: "We miss you! 👋",
+          body: "You haven't logged in for a few days. Your study plan is waiting — let's get back on track!",
+          channels: ['in_app', 'push'],
+          refType: 'inactive_reminder',
+          refId: batchId,
+        })),
+    );
+    const sent = sendResults.filter(r => r.status === 'fulfilled').length;
 
     return { sent, message: `Reminder sent to ${sent} inactive student(s)` };
   }

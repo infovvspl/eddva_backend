@@ -1,6 +1,10 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import type { Cache } from 'cache-manager';
+
+const SUBJECT_TTL = 30 * 60 * 1000; // 30 min — curriculum changes are admin-initiated
 
 function normalizeSubjectName(name: string): string {
   if (!name) return '';
@@ -41,14 +45,39 @@ function normalizeSubjectName(name: string): string {
 
 @Injectable()
 export class SchoolSubjectService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
   private async resolveInstituteId(user: any, id?: string) {
     return user.role === 'SUPER_ADMIN' ? (id||user.instituteId) : user.instituteId;
   }
 
+  private subjectListKey(instituteId: string, classId?: string, sectionId?: string, page = 1, limit = 10) {
+    return `school:subjects:list:${instituteId}:${classId ?? '_'}:${sectionId ?? '_'}:p${page}:l${limit}`;
+  }
+
+  async invalidateSubjectCache(instituteId: string) {
+    // Pattern-bust by deleting the most common key variants (page 1, common limits)
+    const limits = [10, 20, 50, 100];
+    const keys: string[] = [this.subjectListKey(instituteId)];
+    for (const l of limits) keys.push(this.subjectListKey(instituteId, undefined, undefined, 1, l));
+    await Promise.all(keys.map((k) => this.cache.del(k))).catch(() => undefined);
+  }
+
   async list(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 10);
+
+    // Only cache non-search requests — search results vary per term
+    const cacheKey = query.search ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);
+    if (cacheKey) {
+      const cached = await this.cache.get(cacheKey);
+      if (cached) return cached;
+    }
+
     let filter = `s.institute_id=$1`;
     const params: any[] = [instituteId];
 
@@ -72,8 +101,6 @@ export class SchoolSubjectService {
       }
     }
 
-    const page = Math.max(1, parseInt(query.page) || 1);
-    const limit = Math.max(1, parseInt(query.limit) || 10);
     const offset = (page - 1) * limit;
 
     const countQuery = `
@@ -118,7 +145,9 @@ export class SchoolSubjectService {
     `;
     
     const rows: any[] = await this.ds.query(sql, params);
-    return { success: true, data: rows, total, page, limit, totalPages };
+    const result = { success: true, data: rows, total, page, limit, totalPages };
+    if (cacheKey) await this.cache.set(cacheKey, result, SUBJECT_TTL);
+    return result;
   }
 
   async create(user: any, body: any) {
@@ -154,14 +183,14 @@ export class SchoolSubjectService {
     }
 
     const rows: any[] = await this.ds.query(
-      `INSERT INTO subjects (institute_id,name,class_id,section_id,code,type,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`, 
+      `INSERT INTO subjects (institute_id,name,class_id,section_id,code,type,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [instituteId,normalizedName,body.classId||null,body.sectionId||null,body.code||null,body.type||'Theory',body.description||null]
     );
+    await this.invalidateSubjectCache(instituteId);
     return { success: true, data: rows[0] };
   }
 
   async update(id: string, body: any) {
-    console.log('Update subject called!', { id, body });
     const currentRows = await this.ds.query(`SELECT * FROM subjects WHERE id = $1`, [id]);
     if (currentRows.length === 0) {
       throw new BadRequestException('Subject not found');
@@ -200,16 +229,18 @@ export class SchoolSubjectService {
       }
     }
     
-    const result = await this.ds.query(
-      `UPDATE subjects SET name=COALESCE($2,name),class_id=$3,section_id=$4,code=COALESCE($5,code),type=COALESCE($6,type),description=COALESCE($7,description),updated_at=NOW() WHERE id=$1 RETURNING *`, 
+    await this.ds.query(
+      `UPDATE subjects SET name=COALESCE($2,name),class_id=$3,section_id=$4,code=COALESCE($5,code),type=COALESCE($6,type),description=COALESCE($7,description),updated_at=NOW() WHERE id=$1`,
       [id, body.name ? normalizedName : current.name, classId, sectionId, body.code, body.type, body.description]
     );
-    console.log('Update result:', result);
+    await this.invalidateSubjectCache(current.institute_id);
     return { success: true };
   }
 
   async remove(id: string) {
+    const subRows: any[] = await this.ds.query(`SELECT institute_id FROM subjects WHERE id=$1`, [id]);
     await this.ds.query(`DELETE FROM subjects WHERE id=$1`, [id]);
+    if (subRows[0]?.institute_id) await this.invalidateSubjectCache(subRows[0].institute_id);
     return { success: true };
   }
 

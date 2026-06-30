@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { CareerService } from './career.service';
 import { SubmitQuizDto } from './dto/career.dto';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
@@ -43,6 +43,7 @@ export class CareerController {
   }
 
   @Post('report/generate')
+  @HttpCode(HttpStatus.ACCEPTED)
   @SchoolRoles('STUDENT')
   generateReport(@SchoolUser() user: SchoolUserCtx) {
     return this.svc.generateCareerReport(user.id, user.instituteId);
@@ -56,13 +57,13 @@ export class CareerController {
 
   @Get('explore')
   @SchoolRoles('STUDENT')
-  explore() {
-    return this.svc.getCareerExplore();
+  explore(@SchoolUser() user: SchoolUserCtx) {
+    return this.svc.getCareerExplore(user.instituteId);
   }
 
   @Get('explore/:careerId')
   @SchoolRoles('STUDENT')
-  exploreOne(@Param('careerId') careerId: string) {
-    return this.svc.getCareerDetail(careerId);
+  exploreOne(@SchoolUser() user: SchoolUserCtx, @Param('careerId') careerId: string) {
+    return this.svc.getCareerDetail(careerId, user.instituteId);
   }
 }
