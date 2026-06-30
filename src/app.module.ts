@@ -47,6 +47,7 @@ import {
 } from './database/entities/xp.entity';
 import { GameSession, QuizRushScore, Quest, QuestStage, StudentQuest, QuestReward, MathSprintScore, MemoryMatchScore, WordMasterScore } from './database/entities/game.entity';
 import { GamificationHistory } from './database/entities/gamification.entity';
+import { PlatformConfig, PaymentTransaction } from './database/entities/payment.entity';
 
 
 // ── Coaching Modules ───────────────────────────────────────────────────────────
@@ -113,6 +114,7 @@ const ALL_COACHING_ENTITIES = [
   GameSession, QuizRushScore, Quest, QuestStage, StudentQuest, QuestReward, MathSprintScore, MemoryMatchScore, WordMasterScore,
   GamificationHistory,
   BroadcastLecture, BroadcastSession, BroadcastChatMessage,
+  PlatformConfig, PaymentTransaction,
 ];
 
 @Module({

@@ -28,9 +28,37 @@ export class RolesGuard implements CanActivate {
     }
 
     const userRole = String(user.role || '').toUpperCase();
-    const hasRole = requiredRoles.some(
+    const tenant = user.tenant;
+
+    if (tenant) {
+      if (userRole === 'INSTITUTE_ADMIN' && tenant.adminPortalEnabled === false) {
+        throw new ForbiddenException('Admin portal is disabled for this institute');
+      }
+      if (userRole === 'TEACHER' && tenant.teacherPortalEnabled === false) {
+        throw new ForbiddenException('Teacher portal is disabled for this institute');
+      }
+      if (userRole === 'STUDENT' && tenant.studentPortalEnabled === false) {
+        throw new ForbiddenException('Student portal is disabled for this institute');
+      }
+      if (userRole === 'PARENT' && tenant.parentPortalEnabled === false) {
+        throw new ForbiddenException('Parent portal is disabled for this institute');
+      }
+    }
+
+    const teacherPortalEnabled = tenant ? tenant.teacherPortalEnabled !== false : true;
+
+    let hasRole = requiredRoles.some(
       (role) => String(role).toUpperCase() === userRole,
     );
+
+    // If requiredRoles contains UserRole.TEACHER and we are STAFF_BASED (teacherPortalEnabled is false),
+    // allow institute_admin users who are DIRECTOR or ACADEMIC_COORDINATOR (or primary admin, where permissionGroup is null/undefined)
+    if (!hasRole && requiredRoles.includes(UserRole.TEACHER) && user.role === UserRole.INSTITUTE_ADMIN && !teacherPortalEnabled) {
+      const allowedGroups = ['DIRECTOR', 'ACADEMIC_COORDINATOR'];
+      if (!user.permissionGroup || allowedGroups.includes(String(user.permissionGroup).toUpperCase())) {
+        hasRole = true;
+      }
+    }
 
     if (!hasRole) {
       throw new ForbiddenException(
@@ -39,5 +67,6 @@ export class RolesGuard implements CanActivate {
     }
 
     return true;
+
   }
 }

@@ -20,6 +20,7 @@ import { Tenant } from '../../database/entities/tenant.entity';
 import { User } from '../../database/entities/user.entity';
 import { Student } from '../../database/entities/student.entity';
 import { Batch, Enrollment } from '../../database/entities/batch.entity';
+import { PlatformConfig, PaymentTransaction } from '../../database/entities/payment.entity';
 import { Lecture } from '../../database/entities/learning.entity';
 import { TestSession } from '../../database/entities/assessment.entity';
 import { Announcement } from '../../database/entities/announcement.entity';
@@ -46,7 +47,7 @@ import { SchoolComplaintModule } from '../school/complaint/school-complaint.modu
         signOptions: { expiresIn: cfg.get<string>('jwt.expiresIn') },
       }),
     }),
-    TypeOrmModule.forFeature([Tenant, User, Student, Batch, Enrollment, Lecture, TestSession, Announcement, StudyMaterial], 'coaching'),
+    TypeOrmModule.forFeature([Tenant, User, Student, Batch, Enrollment, Lecture, TestSession, Announcement, StudyMaterial, PlatformConfig, PaymentTransaction], 'coaching'),
   ],
   controllers: [SuperAdminController, PublicTenantController, PlatformSuperAdminController, SchoolSuperAdminController, AiUsageAdminController, CoachingAiUsageAdminController],
   providers: [SuperAdminService, PlatformSuperAdminService, SchoolSuperAdminService, AiUsageAdminService, SchoolJwtGuard, SchoolRolesGuard],

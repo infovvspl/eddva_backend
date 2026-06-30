@@ -13,6 +13,7 @@ import { DataSource, Repository, Not } from 'typeorm';
 import { randomBytes } from 'crypto';
 
 import { NotificationService } from '../notification/notification.service';
+import { PlatformConfig, PaymentTransaction } from '../../database/entities/payment.entity';
 import { Batch, Enrollment, EnrollmentStatus, BatchStatus } from '../../database/entities/batch.entity';
 import { TestSession } from '../../database/entities/assessment.entity';
 import { Lecture } from '../../database/entities/learning.entity';
@@ -63,12 +64,81 @@ export class SuperAdminService {
     private readonly announcementRepo: Repository<Announcement>,
     @InjectRepository(StudyMaterial, 'coaching')
     private readonly studyMaterialRepo: Repository<StudyMaterial>,
+    @InjectRepository(PlatformConfig, 'coaching')
+    private readonly platformConfigRepo: Repository<PlatformConfig>,
+    @InjectRepository(PaymentTransaction, 'coaching')
+    private readonly paymentTxRepo: Repository<PaymentTransaction>,
     private readonly notificationService: NotificationService,
     private readonly configService: ConfigService,
     @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) { }
+
+  // ── Platform Config ──────────────────────────────────────────────────────────
+
+  async getPlatformConfig() {
+    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
+    if (!cfg) {
+      cfg = await this.platformConfigRepo.save(
+        this.platformConfigRepo.create({ commissionPercent: 5, isSingleton: true }),
+      );
+    }
+    return { commissionPercent: Number(cfg.commissionPercent) };
+  }
+
+  async updateCommission(commissionPercent: number) {
+    if (commissionPercent < 0 || commissionPercent > 100) {
+      throw new BadRequestException('Commission must be between 0 and 100');
+    }
+    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
+    if (!cfg) {
+      cfg = this.platformConfigRepo.create({ isSingleton: true });
+    }
+    cfg.commissionPercent = commissionPercent;
+    await this.platformConfigRepo.save(cfg);
+    return { commissionPercent };
+  }
+
+  // ── Payment Transactions ─────────────────────────────────────────────────────
+
+  async listPayments(page = 1, limit = 50, tenantId?: string) {
+    const take = Math.min(limit, 100);
+    const skip = (page - 1) * take;
+
+    const qb = this.paymentTxRepo.createQueryBuilder('pt')
+      .orderBy('pt.createdAt', 'DESC')
+      .take(take)
+      .skip(skip);
+
+    if (tenantId) qb.where('pt.tenantId = :tenantId', { tenantId });
+
+    const [rows, total] = await qb.getManyAndCount();
+
+    const totalRevenue = rows.reduce((s, r) => s + Number(r.amount), 0);
+    const totalCommission = rows.reduce((s, r) => s + Number(r.commissionAmount), 0);
+    const totalNet = rows.reduce((s, r) => s + Number(r.netAmount), 0);
+
+    return {
+      data: rows.map(r => ({
+        id: r.id,
+        batchId: r.batchId,
+        batchName: r.batchName,
+        studentId: r.studentId,
+        studentName: r.studentName,
+        instituteName: r.instituteName,
+        amount: Number(r.amount),
+        commissionPercent: Number(r.commissionPercent),
+        commissionAmount: Number(r.commissionAmount),
+        netAmount: Number(r.netAmount),
+        razorpayPaymentId: r.razorpayPaymentId,
+        status: r.status,
+        createdAt: r.createdAt,
+      })),
+      pagination: { total, page, limit: take },
+      summary: { totalRevenue, totalCommission, totalNet },
+    };
+  }
 
   async createTenant(dto: CreateTenantDto) {
     const existing = await this.tenantRepo.findOne({ where: { subdomain: dto.subdomain } });
@@ -96,6 +166,12 @@ export class SuperAdminService {
           trialEndsAt: null,
           aiEnabled: dto.aiEnabled ?? false,
           aiFeatures: dto.aiFeatures ?? [],
+          operationalModel: dto.operationalModel ?? 'TEACHER_BASED',
+          adminPortalEnabled: dto.adminPortalEnabled !== false,
+          teacherPortalEnabled: dto.teacherPortalEnabled !== false,
+          studentPortalEnabled: dto.studentPortalEnabled !== false,
+          parentPortalEnabled: dto.parentPortalEnabled !== false,
+          multiAdminEnabled: dto.multiAdminEnabled !== false,
           metadata: {
             modulesPermissions: dto.modulesPermissions ?? {
               live_lectures: true,
@@ -110,6 +186,7 @@ export class SuperAdminService {
           },
         }),
       );
+
 
       const admin = await manager.save(
         manager.create(User, {

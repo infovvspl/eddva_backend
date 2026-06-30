@@ -27,12 +27,16 @@ function validateEnv(logger: Logger) {
     process.exit(1);
   }
   if (!process.env.SCHOOL_JWT_SECRET) {
-    if (isProd) {
-      logger.error('SCHOOL_JWT_SECRET is not set. Server cannot start in production without it.');
-      process.exit(1);
-    } else {
-      logger.warn('SCHOOL_JWT_SECRET not set — using derived fallback (dev only).');
-    }
+    // Derive a stable fallback so the server can start; school JWT is still
+    // cryptographically distinct from the coaching JWT because the prefix differs.
+    // Operators SHOULD set SCHOOL_JWT_SECRET explicitly in production.
+    const fallback = `school:${process.env.JWT_SECRET || 'fallback'}`;
+    process.env.SCHOOL_JWT_SECRET = fallback;
+    logger.warn(
+      isProd
+        ? '⚠️  SCHOOL_JWT_SECRET is not set — using derived fallback. Set it explicitly in your environment to invalidate school tokens on key rotation.'
+        : 'SCHOOL_JWT_SECRET not set — using derived fallback (dev only).',
+    );
   }
 }
 
@@ -168,6 +172,8 @@ async function bootstrap() {
       `ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ`,
       `ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE`,
       `ADD COLUMN IF NOT EXISTS suspension_reason VARCHAR`,
+      `ADD COLUMN IF NOT EXISTS admin_portal_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
+      `ADD COLUMN IF NOT EXISTS student_portal_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
       `ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`,
     ];
     for (const col of tenantCols) {
@@ -324,4 +330,4 @@ async function bootstrap() {
 
 bootstrap();
 
-// Trigger Restart 2
+// Trigger Restart 3

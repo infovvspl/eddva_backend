@@ -10,6 +10,10 @@ import {
   Query,
   UseGuards,
   Put,
+  ParseIntPipe,
+  DefaultValuePipe,
+  ParseFloatPipe,
+  Optional,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 
@@ -199,5 +203,31 @@ export class SuperAdminController {
   @Delete('complaints/:id')
   removeComplaint(@Param('id') id: string) {
     return this.schoolComplaintService.remove(id, 'coaching');
+  }
+
+  // ── Platform Config ───────────────────────────────────────────────────────────
+
+  @Get('platform-config')
+  @ApiOperation({ summary: 'Get platform-wide config (commission rate, etc.)' })
+  getPlatformConfig() {
+    return this.superAdminService.getPlatformConfig();
+  }
+
+  @Patch('platform-config')
+  @ApiOperation({ summary: 'Update platform commission percentage' })
+  updateCommission(@Body('commissionPercent') commissionPercent: number) {
+    return this.superAdminService.updateCommission(Number(commissionPercent));
+  }
+
+  // ── Payment Transactions ──────────────────────────────────────────────────────
+
+  @Get('payments')
+  @ApiOperation({ summary: 'List all payment transactions with summary' })
+  listPayments(
+    @Query('page') page = 1,
+    @Query('limit') limit = 50,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    return this.superAdminService.listPayments(Number(page), Number(limit), tenantId);
   }
 }
