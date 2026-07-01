@@ -13,6 +13,7 @@ import { coachingDbConfig, schoolDbConfig } from './config/database.config';
 
 // ── Coaching Entities ──────────────────────────────────────────────────────────
 import { Tenant } from './database/entities/tenant.entity';
+import { Role } from './database/entities/role.entity';
 import { User } from './database/entities/user.entity';
 import { Student } from './database/entities/student.entity';
 import { Subject, Chapter, Topic, TopicResource } from './database/entities/subject.entity';
@@ -63,6 +64,7 @@ import { DoubtModule } from './modules/doubt/doubt.module';
 import { BatchModule } from './modules/batch/batch.module';
 import { StudyPlanModule } from './modules/study-plan/study-plan.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { RoleModule } from './modules/role/role.module';
 import { LiveClassModule } from './modules/live-class/live-class.module';
 import { LiveBroadcastModule } from './modules/live-broadcast/live-broadcast.module';
 import { BroadcastLecture } from './modules/live-broadcast/entities/broadcast-lecture.entity';
@@ -97,7 +99,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { RtmpHooksModule } from './modules/rtmp-hooks/rtmp-hooks.module';
 
 const ALL_COACHING_ENTITIES = [
-  Tenant, User, Student, AuditLog,
+  Tenant, User, Student, AuditLog, Role,
   Subject, Chapter, Topic, TopicResource,
   Question, QuestionOption,
   Batch, BatchSubjectTeacher, Enrollment, BatchFeedback,
@@ -227,6 +229,7 @@ const ALL_COACHING_ENTITIES = [
     BatchModule,
     StudyPlanModule,
     SuperAdminModule,
+    RoleModule,
     LiveClassModule,
     LiveBroadcastModule,
     MailModule,

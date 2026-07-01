@@ -348,6 +348,19 @@ export class AiBridgeService {
     return this.post('/stt/regenerate-note-image', payload, tenantId, 180_000);
   }
 
+  async extractImageSearchTerms(
+    payload: { notes: string; language: string },
+    tenantId?: string,
+  ): Promise<{
+    sections: Array<{
+      heading: string;
+      searchTerm: string;
+      caption: string;
+    }>;
+  }> {
+    return this.post('/stt/extract-image-terms', payload, tenantId, 60_000);
+  }
+
   async searchEducationalImages(
     payload: { query: string; limit?: number; language?: string },
     tenantId?: string,
