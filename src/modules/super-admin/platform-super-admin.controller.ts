@@ -106,6 +106,15 @@ export class PlatformSuperAdminController {
 
   // ── Tenant / Institute management ────────────────────────────────────────
 
+  @Get('institutes/needing-attention/count')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Count institutes needing super admin attention' })
+  getInstitutesNeedingAttentionCount() {
+    return this.svc.getInstitutesNeedingAttentionCount();
+  }
+
   @Get('tenants')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)

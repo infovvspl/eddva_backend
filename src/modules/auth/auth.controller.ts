@@ -118,7 +118,7 @@ export class AuthController {
       return null;
     }
     const parts = hostname.split('.');
-    const reserved = new Set(['localhost', 'www', 'edva', 'apexiq', 'platform']);
+    const reserved = new Set(['localhost', 'www', 'edva', 'apexiq', 'platform', 'dev-api', 'api']);
     if (parts.length === 2 && parts[1] === 'localhost') {
       const sub = parts[0].toLowerCase();
       return reserved.has(sub) ? null : sub;

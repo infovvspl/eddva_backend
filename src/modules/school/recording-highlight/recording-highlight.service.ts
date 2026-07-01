@@ -139,7 +139,7 @@ export class RecordingHighlightService {
         SET deleted_at = NOW(), updated_by = $1, updated_at = NOW() 
         WHERE id::text = $2
         `,
-        [user.userId, highlightId]
+        [user.id, highlightId]
       );
       await queryRunner.commitTransaction();
       return { success: true };

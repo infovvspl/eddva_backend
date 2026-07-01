@@ -573,6 +573,24 @@ export class SuperAdminService {
 
     const mrrEstimate = tenants.reduce((sum, tenant) => sum + (PLAN_PRICES[tenant.plan] || 0), 0);
 
+    const needingAttentionResult = await this.dataSource.query(`
+      WITH stats AS (
+        SELECT t.id,
+          ((t.status = 'trial' AND t.trial_ends_at <= NOW() + INTERVAL '7 days') OR
+           (t.plan_expires_at IS NOT NULL AND t.plan_expires_at <= NOW() + INTERVAL '7 days')) AS expiring_sub,
+          (t.created_at < NOW() - INTERVAL '14 days' AND
+           COALESCE((SELECT MAX(u.last_login_at) FROM users u WHERE u.tenant_id = t.id AND u.role IN ('institute_admin', 'teacher') AND u.deleted_at IS NULL), t.created_at) < NOW() - INTERVAL '14 days') AS inactive,
+          ((SELECT COUNT(*)::int FROM complaints c WHERE c.institute_id = t.id AND c.status = 'OPEN' AND c.deleted_at IS NULL) >= 1) AS open_tickets,
+          (t.onboarding_complete = false AND t.created_at < NOW() - INTERVAL '2 days') AS stalled_onboard
+        FROM tenants t
+        WHERE t.deleted_at IS NULL AND t.type != 'platform'
+      )
+      SELECT COUNT(DISTINCT id)::int AS count
+      FROM stats
+      WHERE expiring_sub = true OR inactive = true OR open_tickets = true OR stalled_onboard = true
+    `);
+    const institutesNeedingAttention = needingAttentionResult[0]?.count || 0;
+
     // Calculate database size in GB
     const dbSizeInBytes = Number(dbSizeRow?.[0]?.size || 0);
     const storageUsageGb = Number((dbSizeInBytes / (1024 * 1024 * 1024)).toFixed(2));
@@ -597,6 +615,7 @@ export class SuperAdminService {
       totalTeachers,
       totalAiRequests: totalAiRequestsRow?.[0]?.count || 0,
       mrrEstimate,
+      institutesNeedingAttention,
       newTenantsThisMonth: newTenantCount,
       newStudentsThisMonth: newStudentCount,
       storageUsage: storageUsageGb,
@@ -604,6 +623,7 @@ export class SuperAdminService {
       securityAlerts,
       aiRequestsToday: aiRequestsTodayRow?.[0]?.count || 0,
       userGrowth: monthlyUserRows,
+      sidebarMetrics: [], // unused placeholder
       instituteGrowth: monthlyInstRows,
       aiUsageTrend: aiHourlyRows,
       studentFocus: {

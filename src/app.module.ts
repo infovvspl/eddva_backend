@@ -14,6 +14,7 @@ import { TenantAiFeatureModule } from './common/services/tenant-ai-feature.modul
 
 // ── Coaching Entities ──────────────────────────────────────────────────────────
 import { Tenant } from './database/entities/tenant.entity';
+import { Role } from './database/entities/role.entity';
 import { User } from './database/entities/user.entity';
 import { Student } from './database/entities/student.entity';
 import { Subject, Chapter, Topic, TopicResource } from './database/entities/subject.entity';
@@ -64,11 +65,16 @@ import { DoubtModule } from './modules/doubt/doubt.module';
 import { BatchModule } from './modules/batch/batch.module';
 import { StudyPlanModule } from './modules/study-plan/study-plan.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { RoleModule } from './modules/role/role.module';
 import { LiveClassModule } from './modules/live-class/live-class.module';
 import { LiveBroadcastModule } from './modules/live-broadcast/live-broadcast.module';
 import { BroadcastLecture } from './modules/live-broadcast/entities/broadcast-lecture.entity';
 import { BroadcastSession } from './modules/live-broadcast/entities/broadcast-session.entity';
 import { BroadcastChatMessage } from './modules/live-broadcast/entities/broadcast-chat-message.entity';
+import { BroadcastParticipant } from './modules/live-broadcast/entities/broadcast-participant.entity';
+import { BroadcastPoll } from './modules/live-broadcast/entities/broadcast-poll.entity';
+import { BroadcastPollVote } from './modules/live-broadcast/entities/broadcast-poll-vote.entity';
+import { BroadcastReaction } from './modules/live-broadcast/entities/broadcast-reaction.entity';
 import { MailModule } from './modules/mail/mail.module';
 import { InstituteSettingsModule } from './modules/institute-settings/institute-settings.module';
 import { PYQModule } from './modules/pyq/pyq.module';
@@ -94,7 +100,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { RtmpHooksModule } from './modules/rtmp-hooks/rtmp-hooks.module';
 
 const ALL_COACHING_ENTITIES = [
-  Tenant, User, Student, AuditLog,
+  Tenant, User, Student, AuditLog, Role,
   Subject, Chapter, Topic, TopicResource,
   Question, QuestionOption,
   Batch, BatchSubjectTeacher, Enrollment, BatchFeedback,
@@ -115,6 +121,7 @@ const ALL_COACHING_ENTITIES = [
   GameSession, QuizRushScore, Quest, QuestStage, StudentQuest, QuestReward, MathSprintScore, MemoryMatchScore, WordMasterScore,
   GamificationHistory,
   BroadcastLecture, BroadcastSession, BroadcastChatMessage,
+  BroadcastParticipant, BroadcastPoll, BroadcastPollVote, BroadcastReaction,
   PlatformConfig, PaymentTransaction,
 ];
 
@@ -223,6 +230,7 @@ const ALL_COACHING_ENTITIES = [
     BatchModule,
     StudyPlanModule,
     SuperAdminModule,
+    RoleModule,
     LiveClassModule,
     LiveBroadcastModule,
     MailModule,

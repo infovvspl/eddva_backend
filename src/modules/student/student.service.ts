@@ -145,6 +145,7 @@ export class StudentService {
       topicId: string;
       topicName: string;
       subjectName: string;
+      batchId: string;
       accuracy: string;
       wrongCount: string;
       severity: 'critical' | 'high' | 'medium' | 'low';
@@ -154,6 +155,7 @@ export class StudentService {
           t.id AS "topicId",
           t.name AS "topicName",
           s.name AS "subjectName",
+          s.batch_id AS "batchId",
           AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END)::float AS "accuracy",
           SUM(CASE WHEN qa.is_correct = false THEN 1 ELSE 0 END)::int AS "wrongCount",
           CASE
@@ -174,7 +176,7 @@ export class StudentService {
           AND ts.status IN ('submitted', 'auto_submitted')
           AND qa.answered_at >= (NOW() - INTERVAL '30 days')
           ${batchFilter}
-        GROUP BY t.id, t.name, s.name
+        GROUP BY t.id, t.name, s.name, s.batch_id
         HAVING COUNT(*) >= 3
         ORDER BY
           AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END) ASC,
@@ -191,6 +193,7 @@ export class StudentService {
         subjectName: r.subjectName,
         accuracy: Number(Number(r.accuracy || 0).toFixed(2)),
         severity: r.severity,
+        batchId: r.batchId,
         topic: {
           id: r.topicId,
           name: r.topicName,
@@ -205,7 +208,15 @@ export class StudentService {
       order: { severity: 'DESC' },
       take: 5,
     });
-    return fallback;
+    return fallback.map((f) => ({
+      topicId: f.topicId,
+      topicName: f.topic?.name || 'Unknown',
+      subjectName: f.topic?.chapter?.subject?.name,
+      accuracy: f.accuracy,
+      severity: f.severity,
+      batchId: f.topic?.chapter?.subject?.batchId,
+      topic: f.topic,
+    }));
   }
 
   private buildRecommendations(
@@ -361,9 +372,9 @@ export class StudentService {
             completedTopics: Number(completedTopics),
             inProgressTopics: Number(inProgressTopics),
             totalTopics,
-            overallPct: totalLectures > 0
-              ? Math.round((Number(watchedLectures) / totalLectures) * 100)
-              : (totalTopics > 0 ? Math.round((Number(completedTopics) / totalTopics) * 100) : 0),
+            overallPct: totalTopics > 0
+              ? Math.round((Number(completedTopics) / totalTopics) * 100)
+              : (totalLectures > 0 ? Math.round((Number(watchedLectures) / totalLectures) * 100) : 0),
           },
         };
       }),
@@ -558,9 +569,9 @@ export class StudentService {
         completedTopics: completedCount,
         totalLectures,
         watchedLectures,
-        progressPercent: totalLectures > 0
-          ? Math.round((watchedLectures / totalLectures) * 100)
-          : (totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0),
+        progressPercent: totalTopics > 0
+          ? Math.round((completedCount / totalTopics) * 100)
+          : (totalLectures > 0 ? Math.round((watchedLectures / totalLectures) * 100) : 0),
       },
       curriculum,
     };

@@ -412,8 +412,9 @@ export class LiveBroadcastService {
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
     const lecture = await this.findByStreamKey(streamKey);
     if (!lecture) return null;
-    const cdnDomain = this.r2.cdnDomain;
-    const remoteUrl = `https://${cdnDomain}/live/${lecture.instituteId}/${streamKey}/${file}`;
+    const cdnBase = (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '')
+      || `https://${this.r2.cdnDomain}`;
+    const remoteUrl = `${cdnBase}/live/${lecture.instituteId}/${streamKey}/${file}`;
     try {
       const r = await fetch(remoteUrl, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) return null;
