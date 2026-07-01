@@ -13,6 +13,7 @@ import { DataSource, Repository, Not } from 'typeorm';
 import { randomBytes } from 'crypto';
 
 import { NotificationService } from '../notification/notification.service';
+import { PlatformConfig, PaymentTransaction } from '../../database/entities/payment.entity';
 import { Batch, Enrollment, EnrollmentStatus, BatchStatus } from '../../database/entities/batch.entity';
 import { TestSession } from '../../database/entities/assessment.entity';
 import { Lecture } from '../../database/entities/learning.entity';
@@ -63,12 +64,81 @@ export class SuperAdminService {
     private readonly announcementRepo: Repository<Announcement>,
     @InjectRepository(StudyMaterial, 'coaching')
     private readonly studyMaterialRepo: Repository<StudyMaterial>,
+    @InjectRepository(PlatformConfig, 'coaching')
+    private readonly platformConfigRepo: Repository<PlatformConfig>,
+    @InjectRepository(PaymentTransaction, 'coaching')
+    private readonly paymentTxRepo: Repository<PaymentTransaction>,
     private readonly notificationService: NotificationService,
     private readonly configService: ConfigService,
     @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-  ) {}
+  ) { }
+
+  // ── Platform Config ──────────────────────────────────────────────────────────
+
+  async getPlatformConfig() {
+    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
+    if (!cfg) {
+      cfg = await this.platformConfigRepo.save(
+        this.platformConfigRepo.create({ commissionPercent: 5, isSingleton: true }),
+      );
+    }
+    return { commissionPercent: Number(cfg.commissionPercent) };
+  }
+
+  async updateCommission(commissionPercent: number) {
+    if (commissionPercent < 0 || commissionPercent > 100) {
+      throw new BadRequestException('Commission must be between 0 and 100');
+    }
+    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
+    if (!cfg) {
+      cfg = this.platformConfigRepo.create({ isSingleton: true });
+    }
+    cfg.commissionPercent = commissionPercent;
+    await this.platformConfigRepo.save(cfg);
+    return { commissionPercent };
+  }
+
+  // ── Payment Transactions ─────────────────────────────────────────────────────
+
+  async listPayments(page = 1, limit = 50, tenantId?: string) {
+    const take = Math.min(limit, 100);
+    const skip = (page - 1) * take;
+
+    const qb = this.paymentTxRepo.createQueryBuilder('pt')
+      .orderBy('pt.createdAt', 'DESC')
+      .take(take)
+      .skip(skip);
+
+    if (tenantId) qb.where('pt.tenantId = :tenantId', { tenantId });
+
+    const [rows, total] = await qb.getManyAndCount();
+
+    const totalRevenue = rows.reduce((s, r) => s + Number(r.amount), 0);
+    const totalCommission = rows.reduce((s, r) => s + Number(r.commissionAmount), 0);
+    const totalNet = rows.reduce((s, r) => s + Number(r.netAmount), 0);
+
+    return {
+      data: rows.map(r => ({
+        id: r.id,
+        batchId: r.batchId,
+        batchName: r.batchName,
+        studentId: r.studentId,
+        studentName: r.studentName,
+        instituteName: r.instituteName,
+        amount: Number(r.amount),
+        commissionPercent: Number(r.commissionPercent),
+        commissionAmount: Number(r.commissionAmount),
+        netAmount: Number(r.netAmount),
+        razorpayPaymentId: r.razorpayPaymentId,
+        status: r.status,
+        createdAt: r.createdAt,
+      })),
+      pagination: { total, page, limit: take },
+      summary: { totalRevenue, totalCommission, totalNet },
+    };
+  }
 
   async createTenant(dto: CreateTenantDto) {
     const existing = await this.tenantRepo.findOne({ where: { subdomain: dto.subdomain } });
@@ -96,8 +166,27 @@ export class SuperAdminService {
           trialEndsAt: null,
           aiEnabled: dto.aiEnabled ?? false,
           aiFeatures: dto.aiFeatures ?? [],
+          operationalModel: dto.operationalModel ?? 'TEACHER_BASED',
+          adminPortalEnabled: dto.adminPortalEnabled !== false,
+          teacherPortalEnabled: dto.teacherPortalEnabled !== false,
+          studentPortalEnabled: dto.studentPortalEnabled !== false,
+          parentPortalEnabled: dto.parentPortalEnabled !== false,
+          multiAdminEnabled: dto.multiAdminEnabled !== false,
+          metadata: {
+            modulesPermissions: dto.modulesPermissions ?? {
+              live_lectures: true,
+              mock_tests: true,
+              doubt_queue: true,
+              leaderboard: true,
+              calendar: true,
+              pyq_bank: true,
+              content_library: true,
+              notifications: true,
+            },
+          },
         }),
       );
+
 
       const admin = await manager.save(
         manager.create(User, {
@@ -148,7 +237,7 @@ export class SuperAdminService {
     const [studentCounts, teacherCounts, lastActivities, adminUsers, activeCount, trialCount, suspendedCount, totalStudentsCount] = await Promise.all([
       tenantIds.length
         ? this.dataSource.query(
-            `SELECT t.id AS "tenantId", COUNT(DISTINCT s.id)::int AS cnt
+          `SELECT t.id AS "tenantId", COUNT(DISTINCT s.id)::int AS cnt
              FROM tenants t
              LEFT JOIN students s ON (
                (s.tenant_id = t.id OR s.id IN (SELECT student_id FROM enrollments WHERE tenant_id = t.id AND deleted_at IS NULL))
@@ -156,33 +245,33 @@ export class SuperAdminService {
              )
              WHERE t.id IN (${tenantIds.map((_, idx) => `$${idx + 1}`).join(', ')}) AND t.deleted_at IS NULL
              GROUP BY t.id`,
-            tenantIds
-          )
+          tenantIds
+        )
         : [],
       tenantIds.length
         ? this.userRepo
-            .createQueryBuilder('u')
-            .select('u.tenantId', 'tenantId')
-            .addSelect('COUNT(*)', 'cnt')
-            .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.TEACHER })
-            .groupBy('u.tenantId')
-            .getRawMany()
+          .createQueryBuilder('u')
+          .select('u.tenantId', 'tenantId')
+          .addSelect('COUNT(*)', 'cnt')
+          .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.TEACHER })
+          .groupBy('u.tenantId')
+          .getRawMany()
         : [],
       tenantIds.length
         ? this.userRepo
-            .createQueryBuilder('u')
-            .select('u.tenantId', 'tenantId')
-            .addSelect('MAX(u.lastLoginAt)', 'lastActivity')
-            .where('u.tenantId IN (:...ids)', { ids: tenantIds })
-            .groupBy('u.tenantId')
-            .getRawMany()
+          .createQueryBuilder('u')
+          .select('u.tenantId', 'tenantId')
+          .addSelect('MAX(u.lastLoginAt)', 'lastActivity')
+          .where('u.tenantId IN (:...ids)', { ids: tenantIds })
+          .groupBy('u.tenantId')
+          .getRawMany()
         : [],
       tenantIds.length
         ? this.userRepo
-            .createQueryBuilder('u')
-            .select(['u.id', 'u.tenantId', 'u.email', 'u.phoneNumber', 'u.fullName'])
-            .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.INSTITUTE_ADMIN })
-            .getMany()
+          .createQueryBuilder('u')
+          .select(['u.id', 'u.tenantId', 'u.email', 'u.phoneNumber', 'u.fullName'])
+          .where('u.tenantId IN (:...ids) AND u.role = :role', { ids: tenantIds, role: UserRole.INSTITUTE_ADMIN })
+          .getMany()
         : [],
       this.tenantRepo.count({ where: { status: TenantStatus.ACTIVE, type: Not(TenantType.PLATFORM) } }),
       this.tenantRepo.count({ where: { status: TenantStatus.TRIAL, type: Not(TenantType.PLATFORM) } }),
@@ -242,10 +331,22 @@ export class SuperAdminService {
     const tenant = await this.tenantRepo.findOne({ where: { id } });
     if (!tenant) throw new NotFoundException(`Tenant ${id} not found`);
 
+    const { modulesPermissions, ...restDto } = dto;
+
     Object.assign(tenant, {
-      ...dto,
-      trialEndsAt: dto.trialEndsAt ? new Date(dto.trialEndsAt) : tenant.trialEndsAt,
+      ...restDto,
+      trialEndsAt: restDto.trialEndsAt ? new Date(restDto.trialEndsAt) : tenant.trialEndsAt,
     });
+
+    if (modulesPermissions !== undefined) {
+      tenant.metadata = {
+        ...tenant.metadata,
+        modulesPermissions: {
+          ...(tenant.metadata?.modulesPermissions ?? {}),
+          ...modulesPermissions
+        }
+      };
+    }
 
     const saved = await this.tenantRepo.save(tenant);
 
@@ -305,7 +406,7 @@ export class SuperAdminService {
   async deleteUser(id: string) {
     const user = await this.userRepo.findOne({ where: { id } });
     if (!user) throw new NotFoundException(`User ${id} not found`);
-    
+
     await this.userRepo.softDelete(id);
     return { message: 'User deleted successfully' };
   }
@@ -329,6 +430,10 @@ export class SuperAdminService {
       monthlyInstRows,
       monthlyUserRows,
       aiHourlyRows,
+      activeStudentsRow,
+      newEnrollmentsRow,
+      courseCompletionRow,
+      attendanceRow,
     ] = await Promise.all([
       this.tenantRepo.count({ where: { type: Not(TenantType.PLATFORM) } }),
       this.tenantRepo.count({ where: { status: TenantStatus.ACTIVE, type: Not(TenantType.PLATFORM) } }),
@@ -411,6 +516,47 @@ export class SuperAdminService {
         GROUP BY h.hour_start
         ORDER BY h.hour_start
       `),
+      // Active Students
+      this.dataSource.query(`
+        SELECT COUNT(DISTINCT s.id)::int AS count
+        FROM students s
+        LEFT JOIN tenants t ON t.id = s.tenant_id
+        LEFT JOIN users u ON u.id = s.user_id
+        WHERE s.deleted_at IS NULL AND u.deleted_at IS NULL
+          AND u.status = 'active'
+          AND (t.type != 'platform' OR t.id IS NULL)
+      `),
+      // New Enrollments (Current Month)
+      this.dataSource.query(`
+        SELECT COUNT(e.id)::int AS count
+        FROM enrollments e
+        LEFT JOIN tenants t ON t.id = e.tenant_id
+        WHERE e.deleted_at IS NULL AND e.enrolled_at >= $1
+          AND (t.type != 'platform' OR t.id IS NULL)
+      `, [monthStart]),
+      // Course Completion Rate
+      this.dataSource.query(`
+        SELECT AVG(lp.watch_percentage)::numeric AS avg_completion
+        FROM lecture_progress lp
+        LEFT JOIN tenants t ON t.id = lp.tenant_id
+        WHERE (t.type != 'platform' OR t.id IS NULL)
+      `),
+      // Average Attendance Rate
+      this.dataSource.query(`
+        SELECT AVG(
+          CASE WHEN EXTRACT(EPOCH FROM (ls.ended_at - ls.started_at)) > 0
+          THEN 
+            (GREATEST(0, EXTRACT(EPOCH FROM (
+              LEAST(COALESCE(la.left_at, NOW()), ls.ended_at) - GREATEST(la.joined_at, ls.started_at)
+            ))) / EXTRACT(EPOCH FROM (ls.ended_at - ls.started_at))) * 100
+          ELSE NULL END
+        )::numeric AS avg_rate
+        FROM live_attendances la
+        JOIN live_sessions ls ON ls.id = la.live_session_id
+        LEFT JOIN tenants t ON t.id = la.tenant_id
+        WHERE ls.ended_at IS NOT NULL AND ls.started_at IS NOT NULL
+        AND (t.type != 'platform' OR t.id IS NULL)
+      `),
     ]);
 
     const newTenantCount = await this.tenantRepo
@@ -427,12 +573,39 @@ export class SuperAdminService {
 
     const mrrEstimate = tenants.reduce((sum, tenant) => sum + (PLAN_PRICES[tenant.plan] || 0), 0);
 
+    const needingAttentionResult = await this.dataSource.query(`
+      WITH stats AS (
+        SELECT t.id,
+          ((t.status = 'trial' AND t.trial_ends_at <= NOW() + INTERVAL '7 days') OR
+           (t.plan_expires_at IS NOT NULL AND t.plan_expires_at <= NOW() + INTERVAL '7 days')) AS expiring_sub,
+          (t.created_at < NOW() - INTERVAL '14 days' AND
+           COALESCE((SELECT MAX(u.last_login_at) FROM users u WHERE u.tenant_id = t.id AND u.role IN ('institute_admin', 'teacher') AND u.deleted_at IS NULL), t.created_at) < NOW() - INTERVAL '14 days') AS inactive,
+          ((SELECT COUNT(*)::int FROM complaints c WHERE c.institute_id = t.id AND c.status = 'OPEN' AND c.deleted_at IS NULL) >= 1) AS open_tickets,
+          (t.onboarding_complete = false AND t.created_at < NOW() - INTERVAL '2 days') AS stalled_onboard
+        FROM tenants t
+        WHERE t.deleted_at IS NULL AND t.type != 'platform'
+      )
+      SELECT COUNT(DISTINCT id)::int AS count
+      FROM stats
+      WHERE expiring_sub = true OR inactive = true OR open_tickets = true OR stalled_onboard = true
+    `);
+    const institutesNeedingAttention = needingAttentionResult[0]?.count || 0;
+
     // Calculate database size in GB
     const dbSizeInBytes = Number(dbSizeRow?.[0]?.size || 0);
     const storageUsageGb = Number((dbSizeInBytes / (1024 * 1024 * 1024)).toFixed(2));
 
-    // Dynamic system health: 100.0 if DB queries executed successfully, slightly random micro-fluctuation for realism [99.8 - 100.0]
-    const systemHealth = Number((99.8 + Math.random() * 0.2).toFixed(2));
+    const securityAlerts = failedAuditCountRow?.[0]?.count || 0;
+
+    // Deterministic system health: start at 100, deduct based on actual metrics
+    let systemHealthScore = 100;
+    if (securityAlerts > 0) {
+      systemHealthScore -= Math.min(securityAlerts * 0.5, 20); // up to 20% penalty for security alerts
+    }
+    if (storageUsageGb > 500) {
+      systemHealthScore -= 5; // 5% penalty for excessive storage
+    }
+    const systemHealth = Number(Math.max(0, Math.min(100, systemHealthScore)).toFixed(2));
 
     return {
       totalTenants,
@@ -442,15 +615,23 @@ export class SuperAdminService {
       totalTeachers,
       totalAiRequests: totalAiRequestsRow?.[0]?.count || 0,
       mrrEstimate,
+      institutesNeedingAttention,
       newTenantsThisMonth: newTenantCount,
       newStudentsThisMonth: newStudentCount,
       storageUsage: storageUsageGb,
       systemHealth,
-      securityAlerts: failedAuditCountRow?.[0]?.count || 0,
+      securityAlerts,
       aiRequestsToday: aiRequestsTodayRow?.[0]?.count || 0,
       userGrowth: monthlyUserRows,
+      sidebarMetrics: [], // unused placeholder
       instituteGrowth: monthlyInstRows,
       aiUsageTrend: aiHourlyRows,
+      studentFocus: {
+        activeStudents: activeStudentsRow?.[0]?.count || 0,
+        newEnrollments: newEnrollmentsRow?.[0]?.count || 0,
+        averageAttendanceRate: attendanceRow?.[0]?.avg_rate != null ? Number(attendanceRow[0].avg_rate).toFixed(1) + '%' : 'N/A',
+        courseCompletionRate: courseCompletionRow?.[0]?.avg_completion != null ? Number(courseCompletionRow[0].avg_completion).toFixed(1) + '%' : 'N/A',
+      },
     };
   }
 
@@ -527,7 +708,7 @@ export class SuperAdminService {
     limit?: number;
     search?: string;
   }) {
-    const page  = Math.max(1, query.page  ?? 1);
+    const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(100, query.limit ?? 20);
     const offset = (page - 1) * limit;
 
@@ -621,7 +802,7 @@ export class SuperAdminService {
       JOIN tenants t ON t.id = e.tenant_id
       WHERE e.deleted_at IS NULL
         ${query.tenantId ? `AND e.tenant_id = '${query.tenantId}'` : ''}
-        ${query.batchId  ? `AND e.batch_id  = '${query.batchId}'`  : ''}
+        ${query.batchId ? `AND e.batch_id  = '${query.batchId}'` : ''}
       GROUP BY b.id, b.name, t.name
       ORDER BY total_revenue DESC NULLS LAST
     `);

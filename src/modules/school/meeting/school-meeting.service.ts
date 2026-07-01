@@ -8,7 +8,6 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
-import { async } from 'rxjs';
 
 type MeetingRow = {
   id: string;
@@ -422,7 +421,10 @@ export class SchoolMeetingService implements OnModuleInit {
       sql += ` AND m.created_by = $2`;
     }
 
-    sql += ` ORDER BY m.meeting_date DESC NULLS LAST, m.created_at DESC`;
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(query.limit) || 20));
+    const offset = (page - 1) * limit;
+    sql += ` ORDER BY m.meeting_date DESC NULLS LAST, m.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
     const rows: any[] = await this.ds.query(sql, params);
     return rows.map((row) => this.mapMeeting(row, user.id));
   }
@@ -612,6 +614,11 @@ export class SchoolMeetingService implements OnModuleInit {
     const status = this.normalizeStatus(body.status, user.role === 'PARENT' ? 'pending' : 'scheduled');
     const created: any[] = [];
 
+    // Fetch institute admins once — avoids 1 DB query per recipient in bulk meetings
+    const instituteAdmins = ['PARENT', 'TEACHER'].includes(user.role)
+      ? await this.getInstituteAdmins(instituteId, user.id)
+      : [];
+
     for (const recipient of recipients) {
       const teacherUserId =
         user.role === 'TEACHER'
@@ -668,9 +675,8 @@ export class SchoolMeetingService implements OnModuleInit {
       created.push(rows[0]);
       await this.notifyMeeting(recipient.id, creator, rows[0], recipient.role || null, recipient.name || null);
 
-      if (['PARENT', 'TEACHER'].includes(user.role)) {
-        const admins = await this.getInstituteAdmins(instituteId, user.id);
-        for (const admin of admins) {
+      if (instituteAdmins.length) {
+        for (const admin of instituteAdmins) {
           await this.notificationService.create({
             userId: admin.id,
             recipientId: admin.id,

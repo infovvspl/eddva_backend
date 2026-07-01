@@ -11,10 +11,10 @@ import type { Response } from 'express';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { ILike, Repository, Not } from 'typeorm';
 import { DataSource } from 'typeorm';
 import { Public } from '../../common/decorators/auth.decorator';
-import { Tenant, TenantStatus } from '../../database/entities/tenant.entity';
+import { Tenant, TenantStatus, TenantType } from '../../database/entities/tenant.entity';
 import { SuperAdminService } from './super-admin.service';
 import { StudyMaterialService } from '../study-material/study-material.service';
 
@@ -29,6 +29,19 @@ export class PublicTenantController {
     private readonly superAdminService: SuperAdminService,
     private readonly studyMaterialService: StudyMaterialService,
   ) {}
+
+  @Get('public/active')
+  @Public()
+  @ApiOperation({ summary: 'Get list of active coaching institutes' })
+  async getActiveInstitutes() {
+    return this.tenantRepo.find({
+      where: [
+        { status: TenantStatus.ACTIVE, type: Not(TenantType.PLATFORM) },
+        { status: TenantStatus.TRIAL, type: Not(TenantType.PLATFORM) },
+      ],
+      select: ['id', 'name', 'subdomain', 'logoUrl', 'brandColor', 'city'],
+    });
+  }
 
   @Get('public/catalog')
   @Public()
@@ -95,7 +108,7 @@ export class PublicTenantController {
     const sub = subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
     const tenant = await this.tenantRepo.findOne({
       where: { subdomain: ILike(sub) },
-      select: ['id', 'name', 'subdomain', 'status', 'plan', 'logoUrl', 'brandColor', 'welcomeMessage'],
+      select: ['id', 'name', 'subdomain', 'status', 'plan', 'logoUrl', 'brandColor', 'welcomeMessage', 'adminPortalEnabled', 'teacherPortalEnabled', 'studentPortalEnabled', 'parentPortalEnabled'],
     });
 
     if (!tenant) {
@@ -144,6 +157,10 @@ export class PublicTenantController {
       logoUrl: tenant.logoUrl,
       brandColor: tenant.brandColor,
       welcomeMessage: tenant.welcomeMessage,
+      adminPortalEnabled: tenant.adminPortalEnabled,
+      teacherPortalEnabled: tenant.teacherPortalEnabled,
+      studentPortalEnabled: tenant.studentPortalEnabled,
+      parentPortalEnabled: tenant.parentPortalEnabled,
     };
   }
 

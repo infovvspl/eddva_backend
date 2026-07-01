@@ -27,9 +27,12 @@ import {
 import { LiveClassGateway } from './live-class.gateway';
 import { LiveClassService } from './live-class.service';
 
+import { RequireFeature, FeatureFlagGuard } from '../common/guards/feature-flag.guard';
+
 @ApiTags('live-class')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireFeature('live_lectures')
+@UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagGuard)
 @Controller('live-class')
 export class LiveClassController {
   constructor(

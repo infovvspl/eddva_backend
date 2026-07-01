@@ -28,6 +28,17 @@ export class SchoolGrievanceService implements OnModuleInit {
       )
     `);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_grievance_messages_grievance_id ON grievance_messages (grievance_id)`);
+    // Migrate sender_id from VARCHAR to UUID for consistent JOIN performance
+    await this.ds.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'grievance_messages' AND column_name = 'sender_id' AND data_type = 'character varying'
+        ) THEN
+          ALTER TABLE grievance_messages ALTER COLUMN sender_id TYPE UUID USING sender_id::uuid;
+        END IF;
+      END $$
+    `).catch(() => undefined);
   }
 
   private async findGrievanceForUser(id: string, user: any) {

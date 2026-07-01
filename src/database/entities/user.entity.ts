@@ -88,7 +88,18 @@ export class User extends Base {
   @Column({ name: 'fcm_token', nullable: true })
   fcmToken: string;
 
+  @Column({ name: 'permission_group', nullable: true })
+  permissionGroup: string;
+
+  @Column({ name: 'role_id', nullable: true })
+  roleId: string;
+
+  @ManyToOne('Role', { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'role_id' })
+  customRole: any;
+
   // ── Hooks ─────────────────────────────────────────────────────────────────
+
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword() {

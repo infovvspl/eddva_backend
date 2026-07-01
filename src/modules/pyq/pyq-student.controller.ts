@@ -6,6 +6,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { FeatureFlagGuard, RequireFeature } from '../common/guards/feature-flag.guard';
 import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../database/entities/user.entity';
@@ -14,7 +15,8 @@ import { PYQFilterDto, StartPYQSessionDto, SubmitPYQAnswerDto } from './dto/pyq.
 
 @ApiTags('Student — PYQ Practice')
 @Controller('assessments')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireFeature('pyq_bank')
+@UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagGuard)
 @Roles(UserRole.STUDENT)
 export class PYQStudentController {
   constructor(private readonly pyqService: PYQService) {}

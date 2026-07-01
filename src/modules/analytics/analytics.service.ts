@@ -1,9 +1,12 @@
-﻿import {
+import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 
@@ -50,10 +53,29 @@ export class AnalyticsService {
     private readonly notificationService: NotificationService,
     @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
+
+  private studentCacheKeys(studentId: string) {
+    return [
+      `coaching:perf:${studentId}`,
+      `coaching:adv-perf:${studentId}`,
+      `coaching:adv-eng:${studentId}`,
+      `coaching:adv-plan:${studentId}`,
+      `coaching:insights:${studentId}`,
+    ];
+  }
+
+  private async bustStudentCache(studentId: string) {
+    await Promise.all(this.studentCacheKeys(studentId).map((k) => this.cache.del(k)));
+  }
 
   async getPerformance(user: any, tenantId: string, studentIdOverride?: string) {
     const student = await this.resolveStudent(user, tenantId, studentIdOverride);
+    const cacheKey = `coaching:perf:${student.id}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
+
     const profile = await this.profileRepo.findOne({ where: { studentId: student.id } });
     const weakTopics = await this.weakTopicRepo.find({
       where: { studentId: student.id },
@@ -61,10 +83,12 @@ export class AnalyticsService {
       order: { wrongCount: 'DESC', updatedAt: 'DESC' },
     });
 
-    return {
+    const result = {
       performanceProfile: this.serializeProfile(profile, student.id),
       weakTopics: weakTopics.map((topic) => this.serializeWeakTopic(topic)),
     };
+    await this.cache.set(cacheKey, result, 5 * 60 * 1000);
+    return result;
   }
 
   async refreshPerformance(user: any, tenantId: string, studentIdOverride?: string) {
@@ -73,6 +97,7 @@ export class AnalyticsService {
   }
 
   async refreshPerformanceForStudent(studentId: string, tenantId: string) {
+    await this.bustStudentCache(studentId);
     const sessions = await this.sessionRepo.find({
       where: [
         { studentId, tenantId, status: TestSessionStatus.SUBMITTED },
@@ -83,8 +108,8 @@ export class AnalyticsService {
     const sessionIds = sessions.map((session) => session.id);
     const attempts = sessionIds.length
       ? await this.attemptRepo.find({
-          where: { studentId, tenantId, testSessionId: In(sessionIds) },
-        })
+        where: { studentId, tenantId, testSessionId: In(sessionIds) },
+      })
       : [];
 
     const totalCorrect = sessions.reduce((sum, session) => sum + (session.correctCount || 0), 0);
@@ -124,10 +149,10 @@ export class AnalyticsService {
     profile.predictedRank = predictedRank;
     profile.avgSpeedSeconds = attempts.length
       ? Number(
-          (
-            attempts.reduce((sum, attempt) => sum + (attempt.timeSpentSeconds || 0), 0) / attempts.length
-          ).toFixed(2),
-        )
+        (
+          attempts.reduce((sum, attempt) => sum + (attempt.timeSpentSeconds || 0), 0) / attempts.length
+        ).toFixed(2),
+      )
       : 0;
     profile.lastUpdatedAt = new Date();
     await this.profileRepo.save(profile);
@@ -232,10 +257,9 @@ export class AnalyticsService {
 
     await this.weakTopicRepo.delete({ studentId });
 
-    const saved: WeakTopic[] = [];
-    for (const row of rows) {
+    const toSave = rows.map((row) => {
       const severity = this.mapSeverity(Number(row.wrongCount || 0));
-      const weakTopic = this.weakTopicRepo.create({
+      return this.weakTopicRepo.create({
         studentId,
         topicId: row.topicId,
         severity,
@@ -245,10 +269,9 @@ export class AnalyticsService {
         rewindCount: Number(row.timeErrors || 0) + Number(row.sillyErrors || 0),
         lastAttemptedAt: row.lastAttemptedAt ? new Date(row.lastAttemptedAt) : null,
       });
-      saved.push(await this.weakTopicRepo.save(weakTopic));
-    }
+    });
 
-    return saved;
+    return this.weakTopicRepo.save(toSave);
   }
 
   private async computePerSubjectAccuracy(studentId: string, tenantId: string) {
@@ -276,15 +299,11 @@ export class AnalyticsService {
 
   private async resolveStudent(user: any, tenantId: string, studentIdOverride?: string) {
     if (user.role === UserRole.STUDENT) {
-      if (studentIdOverride) {
-        const student = await this.studentRepo.findOne({ where: { userId: user.id, tenantId } });
-        if (!student || student.id !== studentIdOverride) {
-          throw new ForbiddenException('Students can only access their own analytics');
-        }
-      }
-
       const student = await this.studentRepo.findOne({ where: { userId: user.id, tenantId } });
       if (!student) throw new NotFoundException('Student not found');
+      if (studentIdOverride && student.id !== studentIdOverride) {
+        throw new ForbiddenException('Students can only access their own analytics');
+      }
       return student;
     }
 
@@ -343,57 +362,92 @@ export class AnalyticsService {
       topic: topic.topic,
     };
   }
+  private async resolveEffectiveTenantId(studentId: string, fallbackTenantId: string): Promise<string> {
+    const enrollments = await this.dataSource.query(`
+      SELECT b.tenant_id
+      FROM enrollments e
+      JOIN batches b ON b.id = e.batch_id
+      WHERE e.student_id = $1 AND e.tenant_id = $2 AND e.status = 'active'
+      ORDER BY e.enrolled_at DESC
+      LIMIT 1
+    `, [studentId, fallbackTenantId]);
+    return enrollments[0]?.tenant_id ?? fallbackTenantId;
+  }
   async getStudentAdvancedPerformance(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
+    const cacheKey = `coaching:adv-perf:${student.id}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
 
     // 1. Score Trend (last 15 sessions)
-    const sessions = await this.sessionRepo.find({
-      where: { studentId: student.id, tenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
-      order: { createdAt: 'DESC' },
-      take: 15,
-    });
-    const scoreTrend = sessions.reverse().map((s) => {
-      const attempted = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
-      const score = attempted > 0
-        ? Math.round((s.correctCount || 0) / attempted * 100)
-        : 0;
-      return { date: s.createdAt.toISOString().split('T')[0], score };
+    const sessions = await this.dataSource.query(
+      `SELECT id, correct_count, wrong_count, skipped_count, accuracy,
+              started_at, submitted_at, created_at
+       FROM test_sessions
+       WHERE student_id = $1
+         AND tenant_id = $2
+         AND status IN ('submitted', 'auto_submitted')
+       ORDER BY created_at DESC
+       LIMIT 15`,
+      [student.id, effectiveTenantId]
+    );
+    const scoreTrend = sessions.reverse().map((s: any) => {
+      const correct = s.correct_count || 0;
+      const wrong = s.wrong_count || 0;
+      const skipped = s.skipped_count || 0;
+      const attempted = correct + wrong + skipped;
+      const score = attempted > 0 ? Math.round(correct / attempted * 100) : 0;
+      return {
+        date: new Date(s.created_at).toISOString().split('T')[0],
+        score,
+      };
     });
 
     // 2. Subject Accuracy
-    const subjectAccuracy = await this.computePerSubjectAccuracy(student.id, tenantId);
+    const subjectAccuracy = await this.computePerSubjectAccuracy(student.id, effectiveTenantId);
 
     // 3. Topic Performance (Detailed)
     const topicPerformance = await this.dataSource.query(
-      `
-        SELECT
-          t.id AS "topicId",
-          t.name AS "topicName",
-          AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END)::float AS "accuracy",
-          COUNT(*)::int AS "attempts",
-          AVG(qa.time_spent_seconds)::int AS "timeTaken"
-        FROM question_attempts qa
-        INNER JOIN questions q ON q.id = qa.question_id
-        INNER JOIN topics t ON t.id = q.topic_id
-        WHERE qa.student_id = $1 AND qa.tenant_id = $2 AND qa.deleted_at IS NULL
-        GROUP BY t.id, t.name
-        ORDER BY "accuracy" ASC
-        LIMIT 10
-      `,
-      [student.id, tenantId],
+      `SELECT
+         t.id AS "topicId",
+         t.name AS "topicName",
+         ROUND(
+           CASE WHEN COUNT(qa.id) > 0
+           THEN COUNT(qa.id) FILTER (WHERE qa.is_correct = true)::float
+                / COUNT(qa.id) * 100
+           ELSE 0 END
+         )::int AS "accuracy",
+         COUNT(qa.id) FILTER (WHERE qa.is_correct = false)::int AS "errorCount",
+         COUNT(qa.id) FILTER (WHERE qa.error_type = 'time')::int AS "timeErrors"
+       FROM topics t
+       INNER JOIN questions q ON q.topic_id = t.id
+         AND q.deleted_at IS NULL
+       INNER JOIN question_attempts qa ON qa.question_id = q.id
+         AND qa.student_id = $1
+         AND qa.tenant_id = $2
+         AND qa.deleted_at IS NULL
+       WHERE t.tenant_id = $2
+         AND t.deleted_at IS NULL
+       GROUP BY t.id, t.name
+       ORDER BY "accuracy" ASC
+       LIMIT 10`,
+      [student.id, effectiveTenantId]
     );
 
     // 4. Mistake Patterns
     const mistakes = await this.dataSource.query(
-      `
-        SELECT
-          error_type AS "type",
-          COUNT(*)::int AS "count"
-        FROM question_attempts
-        WHERE student_id = $1 AND tenant_id = $2 AND is_correct = false AND error_type IS NOT NULL AND deleted_at IS NULL
-        GROUP BY error_type
-      `,
-      [student.id, tenantId],
+      `SELECT
+         error_type AS "type",
+         COUNT(*)::int AS "count"
+       FROM question_attempts
+       WHERE student_id = $1
+         AND tenant_id = $2
+         AND error_type IS NOT NULL
+         AND deleted_at IS NULL
+       GROUP BY error_type
+       ORDER BY count DESC`,
+      [student.id, effectiveTenantId]
     );
 
     const errorTypeMap: any = {
@@ -401,26 +455,28 @@ export class AnalyticsService {
       silly: 'Silly Mistake',
       time: 'Time Pressure',
       guess: 'Wild Guess',
+      skip: 'Skipped Questions',
+      careless: 'Careless Error',
     };
 
     const speedVal = sessions.length
       ? Math.round(
-          sessions.reduce((acc, s) => {
-            const durationSec = s.submittedAt && s.startedAt
-              ? (s.submittedAt.getTime() - s.startedAt.getTime()) / 1000
-              : 0;
-            const attempts = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
-            return acc + (attempts > 0 ? durationSec / attempts : 0);
-          }, 0) / sessions.length,
-        )
+        sessions.reduce((acc, s) => {
+          const durationSec = s.submittedAt && s.startedAt
+            ? (s.submittedAt.getTime() - s.startedAt.getTime()) / 1000
+            : 0;
+          const attempts = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
+          return acc + (attempts > 0 ? durationSec / attempts : 0);
+        }, 0) / sessions.length,
+      )
       : 0;
 
-    return {
+    const result = {
       scoreTrend,
       subjectAccuracy,
       topicPerformance: topicPerformance.map((t: any) => ({
         ...t,
-        score: Math.round(t.accuracy), // Frontend expects score and accuracy
+        score: Math.round(t.accuracy),
         accuracy: Math.round(t.accuracy),
       })),
       mistakePatterns: mistakes.map((m: any) => ({
@@ -433,57 +489,93 @@ export class AnalyticsService {
         trend: scoreTrend.length > 1 && scoreTrend[scoreTrend.length - 1].score > scoreTrend[0].score ? 'improving' : 'stable',
       },
     };
+    await this.cache.set(`coaching:adv-perf:${student.id}`, result, 5 * 60 * 1000);
+    return result;
   }
 
   async getStudentAdvancedEngagement(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
+ 
+    const cacheKey = `coaching:adv-eng:${student.id}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
 
-    // 1. Daily Active Minutes (last 14 days)
-    const activeMinutes = await this.engagementRepo.query(
+    // 1. Daily Active Minutes (last 14 days) — aggregate ALL activity types
+    const activeMinutes = await this.dataSource.query(
       `
-        SELECT
-          DATE(logged_at) AS "date",
-          SUM((signals->>'durationSeconds')::int) / 60 AS "minutes"
-        FROM engagement_logs
-        WHERE student_id = $1 AND logged_at > NOW() - INTERVAL '14 days' AND deleted_at IS NULL
-        GROUP BY DATE(logged_at)
-        ORDER BY "date" ASC
+        WITH daily AS (
+          -- Engagement logs (lecture watch events)
+          SELECT DATE(logged_at) AS d,
+                 COALESCE(SUM((signals->>'durationSeconds')::int), 0) / 60 AS mins
+          FROM engagement_logs
+          WHERE student_id = $1 AND logged_at > NOW() - INTERVAL '14 days' AND deleted_at IS NULL
+          GROUP BY DATE(logged_at)
+ 
+          UNION ALL
+ 
+          -- Test sessions (duration = submitted - started)
+          SELECT DATE(started_at) AS d,
+                 COALESCE(SUM(EXTRACT(EPOCH FROM (submitted_at - started_at))::int), 0) / 60 AS mins
+          FROM test_sessions
+          WHERE student_id = $1 AND tenant_id = $2
+            AND status IN ('submitted', 'auto_submitted')
+            AND started_at > NOW() - INTERVAL '14 days'
+            AND submitted_at IS NOT NULL AND deleted_at IS NULL
+          GROUP BY DATE(started_at)
+ 
+          UNION ALL
+ 
+          -- AI study sessions
+          SELECT DATE(created_at) AS d,
+                 COALESCE(SUM(time_spent_seconds), 0) / 60 AS mins
+          FROM ai_study_sessions
+          WHERE student_id = $1 AND tenant_id = $2
+            AND created_at > NOW() - INTERVAL '14 days' AND deleted_at IS NULL
+          GROUP BY DATE(created_at)
+        )
+        SELECT d AS "date", SUM(mins)::int AS "minutes"
+        FROM daily
+        GROUP BY d
+        ORDER BY d ASC
       `,
-      [student.id],
+      [student.id, effectiveTenantId],
     );
-
-    // 2. Content Preference
-    const preferences = await this.engagementRepo.query(
-      `
-        SELECT
-          context AS "type",
-          COUNT(*)::int AS "count"
-        FROM engagement_logs
-        WHERE student_id = $1
-        GROUP BY context
-      `,
-      [student.id],
-    );
-    const totalEngagements = preferences.reduce((acc: number, p: any) => acc + p.count, 0) || 1;
-
+ 
+    // 2. Content Preference — count real activity types across all tables
+    const lectureCount = await this.lectureProgressRepo.count({
+      where: { studentId: student.id, tenantId: effectiveTenantId },
+    });
+    const assessmentCount = await this.sessionRepo.count({
+      where: { studentId: student.id, tenantId: effectiveTenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
+    });
+    const aiSessionCount = await this.aiStudyRepo.count({
+      where: { studentId: student.id, tenantId: effectiveTenantId },
+    });
+ 
+    const totalActivities = (lectureCount + assessmentCount + aiSessionCount) || 1;
+    const contentPreference = [
+      { type: 'Recorded Lectures', percentage: Math.round((lectureCount / totalActivities) * 100) },
+      { type: 'Assessments', percentage: Math.round((assessmentCount / totalActivities) * 100) },
+      { type: 'AI Tutor', percentage: Math.round((aiSessionCount / totalActivities) * 100) },
+    ].filter(p => p.percentage > 0);
+ 
     // 3. Lecture Activity
     const lectureStats = await this.lectureProgressRepo.find({
-      where: { studentId: student.id, tenantId },
+      where: { studentId: student.id, tenantId: effectiveTenantId },
+    });
+ 
+    // 4. Real notes count — AI study sessions with generated lesson content
+    const notesGenerated = await this.aiStudyRepo.count({
+      where: { studentId: student.id, tenantId: effectiveTenantId, isCompleted: true },
     });
 
-    const aiSessions = await this.aiStudyRepo.count({
-      where: { studentId: student.id, tenantId },
-    });
-
-    return {
+    const engResult = {
       dailyActiveMinutes: activeMinutes.map((m: any) => ({
-        date: m.date.toISOString().split('T')[0],
+        date: (m.date instanceof Date ? m.date.toISOString() : String(m.date)).split('T')[0],
         minutes: Number(m.minutes || 0),
       })),
-      contentPreference: preferences.map((p: any) => ({
-        type: p.type.charAt(0).toUpperCase() + p.type.slice(1) + 's',
-        percentage: Math.round((p.count / totalEngagements) * 100),
-      })),
+      contentPreference,
       lectureActivity: {
         totalWatched: lectureStats.length,
         completed: lectureStats.filter((s) => s.isCompleted).length,
@@ -491,13 +583,18 @@ export class AnalyticsService {
           lectureStats.reduce((acc, s) => acc + (s.watchPercentage || 0), 0) / (lectureStats.length || 1),
         ),
       },
-      notesGenerated: lectureStats.filter((s) => s.watchPercentage > 50).length, // Proxy for now
-      aiTutorSessions: aiSessions,
+      notesGenerated,
+      aiTutorSessions: aiSessionCount,
     };
+    await this.cache.set(`coaching:adv-eng:${student.id}`, engResult, 5 * 60 * 1000);
+    return engResult;
   }
 
   async getStudentAdvancedStudyPlan(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+    const cacheKey = `coaching:adv-plan:${student.id}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
 
     const planItems = await this.planItemRepo.find({
       where: { studyPlan: { studentId: student.id } },
@@ -506,35 +603,81 @@ export class AnalyticsService {
 
     const today = new Date().toISOString().split('T')[0];
 
-    return {
+    // Compute real weekly completion rate trend (last 4 weeks)
+    const completionRateTrend: { date: string; rate: number }[] = [];
+    const now = new Date();
+    for (let w = 3; w >= 0; w--) {
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - (w + 1) * 7);
+      const weekEnd = new Date(now);
+      weekEnd.setDate(now.getDate() - w * 7);
+      const weekStartStr = weekStart.toISOString().split('T')[0];
+      const weekEndStr = weekEnd.toISOString().split('T')[0];
+
+      const weekItems = planItems.filter(
+        (i) => i.scheduledDate >= weekStartStr && i.scheduledDate < weekEndStr,
+      );
+      const completedInWeek = weekItems.filter((i) => i.status === PlanItemStatus.COMPLETED).length;
+      const rate = weekItems.length > 0 ? Math.round((completedInWeek / weekItems.length) * 100) : 0;
+      const label = w === 0 ? 'This Week' : w === 1 ? 'Last Week' : `${w + 1} Weeks Ago`;
+      completionRateTrend.push({ date: label, rate });
+    }
+
+    const planResult = {
       adherence: {
         completed: planItems.filter((i) => i.status === PlanItemStatus.COMPLETED).length,
         skipped: planItems.filter((i) => i.status === PlanItemStatus.SKIPPED).length,
         pending: planItems.filter((i) => i.status === PlanItemStatus.PENDING).length,
       },
-      completionRateTrend: [
-        { date: 'Last Week', rate: 75 },
-        { date: 'This Week', rate: 82 },
-      ],
+      completionRateTrend,
       currentStreak: student.currentStreak || 0,
       overdueItemsCount: planItems.filter(
         (i) => i.status === PlanItemStatus.PENDING && i.scheduledDate < today,
       ).length,
     };
+    await this.cache.set(`coaching:adv-plan:${student.id}`, planResult, 5 * 60 * 1000);
+    return planResult;
   }
 
   async getStudentInsights(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
+    const cacheKey = `coaching:insights:${student.id}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any;
     const profile = await this.profileRepo.findOne({ where: { studentId: student.id } });
-    
+
     const weakTopicCount = await this.weakTopicRepo.count({ where: { studentId: student.id } });
-    
+
     const overallAccuracy = profile?.overallAccuracy || 0;
-    
+
     // Readiness Score: Weighted average of accuracy and engagement
-    // For now, let's just use accuracy as a base and nudge it with consistency
-    const consistencyScore = Math.min(100, (student.currentStreak || 0) * 10 + 50); 
+    const consistencyScore = Math.min(100, (student.currentStreak || 0) * 10 + 50);
     const readinessScore = Math.round(overallAccuracy * 0.8 + consistencyScore * 0.2);
+
+    // Performance Trend: compare average score of last 5 sessions vs previous 5
+    const recentSessions = await this.sessionRepo.find({
+      where: { studentId: student.id, tenantId: effectiveTenantId, status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]) },
+      order: { createdAt: 'DESC' },
+      take: 10,
+    });
+
+    let performanceTrend: 'improving' | 'declining' | 'stable' = 'stable';
+    if (recentSessions.length >= 4) {
+      const half = Math.floor(recentSessions.length / 2);
+      const recentHalf = recentSessions.slice(0, half);
+      const olderHalf = recentSessions.slice(half);
+      const avgRecent = recentHalf.reduce((acc, s) => {
+        const attempted = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
+        return acc + (attempted > 0 ? ((s.correctCount || 0) / attempted) * 100 : 0);
+      }, 0) / recentHalf.length;
+      const avgOlder = olderHalf.reduce((acc, s) => {
+        const attempted = (s.correctCount || 0) + (s.wrongCount || 0) + (s.skippedCount || 0);
+        return acc + (attempted > 0 ? ((s.correctCount || 0) / attempted) * 100 : 0);
+      }, 0) / olderHalf.length;
+      const delta = avgRecent - avgOlder;
+      performanceTrend = delta > 5 ? 'improving' : delta < -5 ? 'declining' : 'stable';
+    }
 
     // Strong Topic Count: Topics with accuracy > 80%
     const strongTopicCount = await this.dataSource.query(
@@ -548,16 +691,18 @@ export class AnalyticsService {
           HAVING AVG(CASE WHEN qa.is_correct = true THEN 100 ELSE 0 END) > 80
         ) t
       `,
-      [student.id, tenantId],
+      [student.id, effectiveTenantId],
     ).then(res => Number(res[0]?.count || 0));
 
-    return {
+    const insightsResult = {
       status: overallAccuracy > 75 ? "thriving" : overallAccuracy > 50 ? "on_track" : overallAccuracy > 30 ? "warning" : "at_risk",
-      performanceTrend: overallAccuracy > 60 ? "improving" : "stable",
+      performanceTrend,
       consistencyScore,
       readinessScore,
       weakTopicCount,
       strongTopicCount,
     };
+    await this.cache.set(cacheKey, insightsResult, 5 * 60 * 1000);
+    return insightsResult;
   }
 }

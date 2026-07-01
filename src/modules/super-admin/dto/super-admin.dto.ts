@@ -12,6 +12,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  IsObject,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -83,7 +84,47 @@ export class CreateTenantDto {
   @IsArray()
   @IsString({ each: true })
   aiFeatures?: AiFeatureKey[];
+
+  @ApiPropertyOptional({ example: 'TEACHER_BASED' })
+  @IsOptional()
+  @IsString()
+  operationalModel?: 'TEACHER_BASED' | 'STAFF_BASED';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  adminPortalEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  teacherPortalEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  studentPortalEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  parentPortalEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  multiAdminEnabled?: boolean;
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  modulesPermissions?: Record<string, boolean>;
 }
+
 
 export class TenantListQueryDto {
   @ApiPropertyOptional({ enum: TenantStatus })
@@ -156,7 +197,47 @@ export class UpdateTenantDto {
   @IsArray()
   @IsString({ each: true })
   aiFeatures?: AiFeatureKey[];
+
+  @ApiPropertyOptional({ example: 'TEACHER_BASED' })
+  @IsOptional()
+  @IsString()
+  operationalModel?: 'TEACHER_BASED' | 'STAFF_BASED';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  adminPortalEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  teacherPortalEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  studentPortalEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  parentPortalEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  multiAdminEnabled?: boolean;
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  modulesPermissions?: Record<string, boolean>;
 }
+
 
 export class AdminUserListQueryDto {
   @ApiPropertyOptional()

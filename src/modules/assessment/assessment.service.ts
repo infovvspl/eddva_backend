@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -86,7 +86,7 @@ export class AssessmentService {
     private readonly studyPlanService: StudyPlanService,
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   async createMockTest(dto: CreateMockTestDto, user: any, tenantId: string) {
     const schema = await this.getMockTestSchema();
@@ -175,10 +175,10 @@ export class AssessmentService {
   private inferType(scope: MockTestScope, dto: CreateMockTestDto): MockTestType {
     if (dto.type) return dto.type;
     switch (scope) {
-      case MockTestScope.TOPIC:   return MockTestType.TOPIC_TEST;
+      case MockTestScope.TOPIC: return MockTestType.TOPIC_TEST;
       case MockTestScope.CHAPTER: return MockTestType.CHAPTER_TEST;
       case MockTestScope.SUBJECT: return MockTestType.SUBJECT_TEST;
-      default:                    return MockTestType.FULL_MOCK;
+      default: return MockTestType.FULL_MOCK;
     }
   }
 
@@ -242,7 +242,7 @@ export class AssessmentService {
       filters.push(`mt.is_published = $${index++}`);
       params.push(query.isPublished);
     }
-    
+
     if (query.examMode) {
       filters.push(`mt.exam_mode = $${index++}`);
       params.push(query.examMode);
@@ -280,7 +280,7 @@ export class AssessmentService {
     );
 
     const total = countResult[0]?.total || 0;
-    
+
     // Explicitly map raw SQL rows to camelCase for consistency
     const mappedData = data.map(row => ({
       ...row,
@@ -349,9 +349,9 @@ export class AssessmentService {
 
     const newScope = dto.scope ?? (
       dto.topicId ? MockTestScope.TOPIC :
-      dto.chapterId ? MockTestScope.CHAPTER :
-      dto.subjectId ? MockTestScope.SUBJECT :
-      mockTest.scope
+        dto.chapterId ? MockTestScope.CHAPTER :
+          dto.subjectId ? MockTestScope.SUBJECT :
+            mockTest.scope
     );
 
     Object.assign(mockTest, {
@@ -688,8 +688,8 @@ export class AssessmentService {
           if (accuracy < 70) {
             const severity =
               accuracy < 30 ? WeakTopicSeverity.CRITICAL
-              : accuracy < 50 ? WeakTopicSeverity.HIGH
-              : WeakTopicSeverity.MEDIUM;
+                : accuracy < 50 ? WeakTopicSeverity.HIGH
+                  : WeakTopicSeverity.MEDIUM;
 
             const existing = await manager.findOne(WeakTopic, {
               where: { studentId: student.id, topicId },
@@ -757,12 +757,12 @@ export class AssessmentService {
 
     // Award XP for mock-test completion.
     const MOCK_TEST_XP = 20;
-    await this.studentRepo.increment({ id: student.id }, 'xpTotal', MOCK_TEST_XP).catch(() => {});
+    await this.studentRepo.increment({ id: student.id }, 'xpTotal', MOCK_TEST_XP).catch(() => { });
 
     // If this mock test exists in study-plan, mark it complete automatically.
     await this.studyPlanService
       .completeByReference(student.id, sessionTenant, existing.mockTestId, PlanItemType.MOCK_TEST)
-      .catch(() => {});
+      .catch(() => { });
 
     return this.getSessionResult(sessionId, { id: userId, role: UserRole.STUDENT }, tenantId);
   }
@@ -847,10 +847,10 @@ export class AssessmentService {
           timeTakenSeconds: attempt.timeSpentSeconds,
           rubricBreakdown: question
             ? this.gradingService.getDescriptiveRubricBreakdown(
-                question as any,
-                attempt as any,
-                sessionGradingCtx,
-              )
+              question as any,
+              attempt as any,
+              sessionGradingCtx,
+            )
             : null,
         },
       };
@@ -1106,11 +1106,23 @@ export class AssessmentService {
 
   async getProgressReport(user: any, tenantId: string, studentIdOverride?: string) {
     const studentId = await this.resolveProgressStudentId(user, tenantId, studentIdOverride);
-    const studentProfile = await this.studentRepo.findOne({ where: { id: studentId, tenantId } });
+    const studentProfile = await this.studentRepo.findOne({ where: { id: studentId } });
+
+    // Resolve the effective tenant ID for retrieving analytics and subjects.
+    // If the student is enrolled in a batch, use the batch's tenant ID, as mock tests and learning progress are tracked there.
+    let effectiveTenantId = tenantId;
+    if (studentProfile) {
+      const enrollment = await this.enrollmentRepo.findOne({
+        where: { studentId: studentProfile.id, tenantId, status: EnrollmentStatus.ACTIVE },
+        relations: ['batch'],
+        order: { enrolledAt: 'DESC' },
+      }).catch(() => null);
+      effectiveTenantId = enrollment?.batch?.tenantId ?? studentProfile.tenantId ?? tenantId;
+    }
 
     // 1. Content tree
     const allSubjects = await this.subjectRepo.find({
-      where: { tenantId },
+      where: { tenantId: effectiveTenantId },
       order: { sortOrder: 'ASC', name: 'ASC' } as any,
     });
     const filteredSubjects = this.filterAndDedupeSubjectsForExamTarget(
@@ -1135,7 +1147,7 @@ export class AssessmentService {
 
     // 2. Quiz gate progress (TopicProgress rows)
     const progressRows = topicIds.length
-      ? await this.progressRepo.find({ where: { studentId, tenantId } })
+      ? await this.progressRepo.find({ where: { studentId, tenantId: effectiveTenantId } })
       : [];
     const progressMap = new Map(progressRows.map(p => [p.topicId, p]));
 
@@ -1149,7 +1161,7 @@ export class AssessmentService {
           JOIN lectures l ON l.id = lp.lecture_id
           WHERE lp.student_id = $1 AND l.tenant_id = $2 AND l.topic_id = ANY($3)
           GROUP BY l.topic_id
-        `, [studentId, tenantId, topicIds])
+        `, [studentId, effectiveTenantId, topicIds])
       : [];
     const lectureMap = new Map<string, { avg_watch: number; any_completed: boolean }>(
       lectureRows.map((r: any) => [r.topic_id, r]),
@@ -1159,13 +1171,13 @@ export class AssessmentService {
     const pyqRows = topicIds.length
       ? await this.dataSource.query(`
           SELECT q.topic_id,
-                 COUNT(*)::int AS attempted,
-                 SUM(CASE WHEN pa.is_correct THEN 1 ELSE 0 END)::int AS correct
+             COUNT(*)::int AS attempted,
+             SUM(CASE WHEN pa.is_correct THEN 1 ELSE 0 END)::int AS correct
           FROM pyq_attempts pa
           JOIN questions q ON q.id = pa.question_id
           WHERE pa.student_id = $1 AND pa.tenant_id = $2 AND q.topic_id = ANY($3)
           GROUP BY q.topic_id
-        `, [studentId, tenantId, topicIds])
+        `, [studentId, effectiveTenantId, topicIds])
       : [];
     const pyqMap = new Map<string, { attempted: number; correct: number }>(
       pyqRows.map((r: any) => [r.topic_id, r]),
@@ -1179,7 +1191,7 @@ export class AssessmentService {
           FROM ai_study_sessions
           WHERE student_id = $1 AND tenant_id = $2 AND topic_id = ANY($3)
           ORDER BY topic_id, created_at DESC
-        `, [studentId, tenantId, topicIds])
+        `, [studentId, effectiveTenantId, topicIds])
       : [];
     const aiMap = new Map<string, { completed: boolean }>(
       aiRows.map((r: any) => [r.topic_id, r]),
@@ -1201,7 +1213,7 @@ export class AssessmentService {
     const chapterById = new Map(chapters.map((c) => [c.id, c]));
 
     const syllabusSubjects =
-      await this.getOrCreateAiRoadmapSyllabus(tenantId, studentProfile, filteredSubjects, chapters, chapterTopicsMap);
+      await this.getOrCreateAiRoadmapSyllabus(effectiveTenantId, studentProfile, filteredSubjects, chapters, chapterTopicsMap);
 
     // 7. Assemble tree + summary
     let totalTopics = 0, completedTopics = 0, inProgressTopics = 0, unlockedTopics = 0;
@@ -1230,7 +1242,7 @@ export class AssessmentService {
           const pyq = matchedTopicId ? pyqMap.get(matchedTopicId) : null;
           const ai = matchedTopicId ? aiMap.get(matchedTopicId) : null;
           const status = prog?.status ?? TopicStatus.LOCKED;
-          
+
           if (status === TopicStatus.COMPLETED) { completedTopics++; sCompleted++; cCompleted++; }
           else if (status === TopicStatus.IN_PROGRESS) inProgressTopics++;
           else if (status === TopicStatus.UNLOCKED) unlockedTopics++;
@@ -1242,9 +1254,9 @@ export class AssessmentService {
             cAccSum += accuracy; cAccCount++;
           }
           const pyqAttempted = pyq ? Number(pyq.attempted) : 0;
-          const pyqCorrect   = pyq ? Number(pyq.correct)   : 0;
+          const pyqCorrect = pyq ? Number(pyq.correct) : 0;
           totalPYQAttempted += pyqAttempted;
-          totalPYQCorrect   += pyqCorrect;
+          totalPYQCorrect += pyqCorrect;
           if (lec?.any_completed) totalLecturesCompleted++;
           return {
             topicId: matchedTopicId ?? `ai-topic-${subjectIdx}-${chapterIdx}-${topicIdx}`,
@@ -1394,9 +1406,13 @@ export class AssessmentService {
     const topicOnlyInSubject = topics.find((t) => {
       const chapter = chapterById.get(t.chapterId);
       const subject = chapter ? subjectById.get(chapter.subjectId) : null;
+      if (this.normalizeLabel(subject?.name || '') !== targetSubject) return false;
+
+      const dbTopicNormalized = this.normalizeLabel(t.name || '');
       return (
-        this.normalizeLabel(subject?.name || '') === targetSubject &&
-        this.normalizeLabel(t.name || '') === targetTopic
+        dbTopicNormalized === targetTopic ||
+        dbTopicNormalized.includes(targetTopic) ||
+        targetTopic.includes(dbTopicNormalized)
       );
     });
     return topicOnlyInSubject?.id ?? null;
@@ -1436,7 +1452,7 @@ export class AssessmentService {
     }
 
     const generated = await this.generateAiSyllabus(tenantId, examTarget, examYear);
-    
+
     // If AI generation succeeded, cache it and return
     if (generated.length > 0) {
       try {
@@ -1493,19 +1509,19 @@ export class AssessmentService {
         subjectName: String(s?.subjectName || '').trim(),
         chapters: Array.isArray(s?.chapters)
           ? s.chapters
-              .map((c: any) => ({
-                chapterName: String(c?.chapterName || '').trim(),
-                topics: Array.isArray(c?.topics)
-                  ? c.topics
-                      .map((t: any) =>
-                        typeof t === 'string'
-                          ? { topicName: String(t).trim() }
-                          : { topicName: String(t?.topicName || '').trim() },
-                      )
-                      .filter((t: any) => t.topicName)
-                  : [],
-              }))
-              .filter((c: any) => c.chapterName && c.topics.length > 0)
+            .map((c: any) => ({
+              chapterName: String(c?.chapterName || '').trim(),
+              topics: Array.isArray(c?.topics)
+                ? c.topics
+                  .map((t: any) =>
+                    typeof t === 'string'
+                      ? { topicName: String(t).trim() }
+                      : { topicName: String(t?.topicName || '').trim() },
+                  )
+                  .filter((t: any) => t.topicName)
+                : [],
+            }))
+            .filter((c: any) => c.chapterName && c.topics.length > 0)
           : [],
       }))
       .filter((s: any) => s.subjectName && s.chapters.length > 0);
@@ -1776,9 +1792,9 @@ export class AssessmentService {
 
     // --- Sample questions: 40% easy, 40% medium, 20% hard, MCQ only ---
     const TARGET_TOTAL = 40;
-    const targetEasy   = Math.round(TARGET_TOTAL * 0.4);
+    const targetEasy = Math.round(TARGET_TOTAL * 0.4);
     const targetMedium = Math.round(TARGET_TOTAL * 0.4);
-    const targetHard   = TARGET_TOTAL - targetEasy - targetMedium;
+    const targetHard = TARGET_TOTAL - targetEasy - targetMedium;
 
     const fetchByDifficulty = async (difficulty: string, limit: number) =>
       this.questionRepo
@@ -2176,13 +2192,13 @@ export class AssessmentService {
       );
       const set = new Set(rows.map((r) => r.column_name));
       this.mockTestSchemaCache = {
-        batchId:               set.has('batch_id'),
-        topicId:               set.has('topic_id'),
-        passingMarks:          set.has('passing_marks'),
-        isPublished:           set.has('is_published'),
-        shuffleQuestions:      set.has('shuffle_questions'),
+        batchId: set.has('batch_id'),
+        topicId: set.has('topic_id'),
+        passingMarks: set.has('passing_marks'),
+        isPublished: set.has('is_published'),
+        shuffleQuestions: set.has('shuffle_questions'),
         showAnswersAfterSubmit: set.has('show_answers_after_submit'),
-        allowReattempt:        set.has('allow_reattempt'),
+        allowReattempt: set.has('allow_reattempt'),
       };
     } catch (error: unknown) {
       this.logger.warn(`Failed to inspect mock_tests schema: ${(error as Error).message}`);

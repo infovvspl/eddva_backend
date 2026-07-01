@@ -10,7 +10,7 @@ export class SchoolPptService {
   private readonly logger = new Logger(SchoolPptService.name);
 
   private readonly GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-  private readonly SERPER_API_KEY = process.env.SERPER_API_KEY || '';
+  private readonly SERPER_API_KEY = process.env.SERPER_API_KEY || process.env.SERPER_KEY || '';
   private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
   private readonly SERPER_URL = 'https://google.serper.dev/images';
 

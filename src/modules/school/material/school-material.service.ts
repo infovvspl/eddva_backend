@@ -75,6 +75,7 @@ export class SchoolMaterialService implements OnModuleInit {
       await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS note TEXT`);
       await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS ai_tags JSONB`);
       await this.ds.query(`UPDATE school_material_highlights SET category = 'concept' WHERE category IS NULL`);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_material_highlights_material_user ON school_material_highlights (material_id, created_by)`);
     } catch (err) {
       this.logger.warn(`Could not create/update school_material_highlights table: ${(err as Error).message}`);
     }
@@ -206,15 +207,15 @@ export class SchoolMaterialService implements OnModuleInit {
     const isPresentation = contentType === 'presentation' || contentType === 'ppt';
     const typeSpecificInstruction =
       contentType === 'faq'
-        ? 'Generate a Frequently Asked Questions (FAQ) sheet only. Do not write notes, summary, study guide, or lesson sections. Use question-answer pairs: **Q1. <question?>** followed by **A.** <answer>. Include 12-15 real student questions grouped under sub-topic headings.'
+        ? 'Generate a Frequently Asked Questions (FAQ) sheet only. Do not write notes, summary, study guide, or lesson sections. FAQ means questions that are repeatedly asked in target exams. For every question, you must specify the actual past exam years it was asked (e.g., CBSE Class 10 2018, 2021). Format each question as: "**Q1. [EXAMTAG: <exam target and comma-separated years>] <question?>**" on its own line, followed by "**A.** <answer>" on a new line. Include 12-15 real student questions grouped under sub-topic headings. For numerical questions, the answer must provide a detailed step-by-step solution where each new step is on a new line (never in paragraph format). For theory questions, the answer must provide a total, complete solution explaining the concept. Do not just give the final answer; provide the full, comprehensive explanation. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3.'
         : contentType === 'revision_checklist'
           ? 'Generate a revision checklist only. Do not write notes or paragraphs. Group by sub-topic and make every actionable item a Markdown checkbox using - [ ].'
           : contentType === 'flashcard'
             ? 'Generate flashcards only. Use repeated **Q:** and **A:** pairs. Do not write normal notes.'
             : contentType === 'dpp'
-              ? 'For all mathematics in DPP, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$. Never output raw \\frac or \\sqrt outside dollar signs, and never use the Unicode square-root symbol.'
+              ? 'Generate a Daily Assessment question paper first. Put all detailed solutions on the next page by adding a separate Markdown heading "## Detailed Solutions" only after all questions. Do not include solutions inline with questions. For all numerical questions, provide a detailed step-by-step solution showing calculations and working, where each new mathematical step is written on a new line, never combined into a single paragraph. For all MCQ and theory questions, provide the complete explanation/reasoning along with the correct option, not just the option letter alone. CRITICAL MCQ FORMATTING: Write each option (A-D) on a new line, never inline on a single line. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3. For all mathematics in DPP, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$. Never output raw \\frac or \\sqrt outside dollar signs, and never use the Unicode square-root symbol.'
               : contentType === 'pyq'
-                ? `Generate school PYQ practice for ${className || 'the selected class'} only. Use class/board-style previous-year question patterns for this class, not JEE, NEET, or competitive exam PYQs. Do not include out-of-class difficulty, integer-type JEE numericals, multi-correct JEE patterns, or competitive exam traps. For mathematics, wrap only the expression in single dollar signs, e.g. Determine whether $3\\sqrt{5}$ is rational. Do not wrap complete English sentences in math delimiters.`
+                ? `Generate school PYQ practice for ${className || 'the selected class'} only. Use class/board-style previous-year question patterns for this class, not JEE, NEET, or competitive exam PYQs. Put all detailed solutions on the next page by adding a separate Markdown heading "## Detailed Solutions" only after all questions. Do not include solutions inline with questions. For all numerical questions, provide a detailed step-by-step solution showing calculations and working, where each new mathematical step is written on a new line, never combined into a single paragraph. For all MCQ and theory questions, provide the complete explanation/reasoning along with the correct option, not just the option letter alone. Do not include out-of-class difficulty, integer-type JEE numericals, multi-correct JEE patterns, or competitive exam traps. CRITICAL MCQ FORMATTING: Write each option (A-D) on a new line, never inline on a single line. Each question must show the exact real, authentic year and class of the board exam (e.g. CBSE ${className || 'Class 10'} 2021) next to the question number. It MUST be a real, authentic past year of the exam, never a dummy year or empty placeholder like '____' or 'Year' or '20XX'. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3. For mathematics, wrap only the expression in single dollar signs, e.g. Determine whether $3\\sqrt{5}$ is rational. Do not wrap complete English sentences in math delimiters.`
                 : '';
     const extraContext = [
       isQuestionType && body.questionCount ? `Generate exactly ${body.questionCount} questions` : '',
@@ -812,15 +813,17 @@ export class SchoolMaterialService implements OnModuleInit {
         };
         const fileTypeWord = typeLabels[type] || 'Study Material';
 
-        for (const stu of studentUsers) {
-          await this.notificationService.create({
-            recipientId: stu.user_id,
-            type: 'study_material',
-            title: 'New Study Material',
-            message: `${body.title} (${fileTypeWord}) has been uploaded.`,
-            actionUrl: '/school/student/study-materials',
-          });
-        }
+        await Promise.allSettled(
+          studentUsers.map((stu: any) =>
+            this.notificationService.create({
+              recipientId: stu.user_id,
+              type: 'study_material',
+              title: 'New Study Material',
+              message: `${body.title} (${fileTypeWord}) has been uploaded.`,
+              actionUrl: '/school/student/study-materials',
+            }),
+          ),
+        );
       }
     } catch (notifErr) {
       console.error('Failed to send study material upload notifications:', notifErr);
@@ -848,7 +851,41 @@ export class SchoolMaterialService implements OnModuleInit {
 
   async findOne(user: any, id: string) {
     await this.assertStudentCanAccessMaterial(user, id);
-    const rows: any[] = await this.ds.query(`SELECT * FROM study_materials WHERE id=$1`, [id]);
+    const rows: any[] = await this.ds.query(
+      `SELECT
+        sm.id,
+        sm.tenant_id,
+        sm.title,
+        sm.subject AS "subjectId",
+        sm.subject_id_fk AS "subjectIdFk",
+        sm.chapter_id AS "chapterId",
+        sm.topic_id AS "topicId",
+        sm.description,
+        sm.s3_key AS "fileUrl",
+        sm.s3_key AS "file_url",
+        sm.chapter AS "fileName",
+        sm.chapter AS "file_name",
+        sm.type::text AS "fileType",
+        sm.type::text AS "file_type",
+        sm.file_size_kb AS "fileSizeKb",
+        sm.created_at AS "createdAt",
+        sm.class_id AS "classId",
+        sm.section_id AS "sectionId",
+        CASE
+          WHEN NULLIF(TRIM(s.name), '') IS NOT NULL THEN s.name
+          WHEN NULLIF(TRIM(sm.subject), '') IS NOT NULL AND sm.subject !~* '${UUID_TEXT_PATTERN}' THEN sm.subject
+          ELSE ''
+        END AS "subjectName",
+        COALESCE(c.name, topic_ch.name, NULLIF(sm.chapter, '')) AS "chapterName",
+        t.name AS "topicName"
+       FROM study_materials sm
+       LEFT JOIN subjects s ON sm.subject_id_fk = s.id
+       LEFT JOIN chapters c ON sm.chapter_id = c.id
+       LEFT JOIN topics t ON sm.topic_id = t.id
+       LEFT JOIN chapters topic_ch ON t.chapter_id = topic_ch.id
+       WHERE sm.id=$1`,
+      [id],
+    );
     if (!rows.length) throw new NotFoundException('Material not found');
     const row = rows[0];
     return {
@@ -857,16 +894,23 @@ export class SchoolMaterialService implements OnModuleInit {
         id: row.id,
         tenant_id: row.tenant_id,
         title: row.title,
-        subjectId: row.subject,
+        subjectId: row.subjectId,
+        subjectIdFk: row.subjectIdFk,
         description: row.description,
-        fileUrl: row.s3_key,
-        file_url: row.s3_key,
-        fileName: row.chapter,
-        file_name: row.chapter,
-        fileType: row.type,
-        file_type: row.type,
-        classId: row.class_id,
-        sectionId: row.section_id
+        fileUrl: row.fileUrl,
+        file_url: row.file_url,
+        fileName: row.fileName,
+        file_name: row.file_name,
+        fileType: row.fileType,
+        file_type: row.file_type,
+        fileSizeKb: row.fileSizeKb,
+        classId: row.classId,
+        sectionId: row.sectionId,
+        chapterId: row.chapterId,
+        topicId: row.topicId,
+        subjectName: row.subjectName,
+        chapterName: row.chapterName,
+        topicName: row.topicName,
       }
     };
   }

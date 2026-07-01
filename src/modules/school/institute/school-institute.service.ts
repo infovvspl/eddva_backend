@@ -158,14 +158,18 @@ export class SchoolInstituteService {
     const params: any[] = [];
     if (status && status.toUpperCase() !== 'ALL') { params.push(status.toUpperCase()); sql += ` AND i.status = $${params.length}`; }
     if (search) { params.push(`%${search}%`); sql += ` AND i.name ILIKE $${params.length}`; }
-    sql += ` ORDER BY i.created_at DESC LIMIT $${params.length+1} OFFSET $${params.length+2}`;
-    params.push(Number(perPage), (Number(page)-1)*Number(perPage));
-    const rows: any[] = await this.ds.query(sql, params);
     const validStatus = status && status.toUpperCase() !== 'ALL';
     const countSql = `SELECT COUNT(*)::int AS c FROM institutes WHERE 1=1${validStatus ? ' AND status=$1' : ''}${search ? ` AND name ILIKE $${validStatus?2:1}` : ''}`;
-    const countParams = [...(validStatus?[status.toUpperCase()]:[]), ...(search?[`%${search}%`]:[])];
-    const cnt: any[] = await this.ds.query(countSql, countParams);
-    return { data: rows, total: cnt[0]?.c || 0, page, perPage };
+    const countParams = [...(validStatus?[status!.toUpperCase()]:[]), ...(search?[`%${search}%`]:[])];
+
+    sql += ` ORDER BY i.created_at DESC LIMIT $${params.length+1} OFFSET $${params.length+2}`;
+    params.push(Number(perPage), (Number(page)-1)*Number(perPage));
+
+    const [rows, cnt] = await Promise.all([
+      this.ds.query(sql, params),
+      this.ds.query(countSql, countParams),
+    ]);
+    return { data: rows as any[], total: (cnt as any[])[0]?.c || 0, page, perPage };
   }
 
   async findOne(id: string) {
@@ -264,6 +268,9 @@ export class SchoolInstituteService {
 
     const aiEnabled = body.aiEnabled ?? body.ai_enabled;
     const aiFeatures = body.aiFeatures ?? body.ai_features;
+    const modulesPermissions = body.modulesPermissions ?? body.modules_permissions;
+
+    console.log('UPDATE INSTITUTE - BODY:', JSON.stringify({ aiEnabled, aiFeatures, modulesPermissions }));
 
     await this.ds.query(
       `UPDATE institutes SET
@@ -284,7 +291,8 @@ export class SchoolInstituteService {
        pin_code=COALESCE($16,pin_code),
        status=COALESCE($17,status),
        ai_enabled=COALESCE($18::boolean,ai_enabled),
-       ai_features=COALESCE($19::jsonb,ai_features),
+       ai_features=CASE WHEN $19::jsonb IS NOT NULL THEN COALESCE(ai_features,'{}'::jsonb) || $19::jsonb ELSE ai_features END,
+       modules_permissions=CASE WHEN $20::jsonb IS NOT NULL THEN COALESCE(modules_permissions,'{}'::jsonb) || $20::jsonb ELSE modules_permissions END,
        updated_at=NOW() WHERE id=$1`,
       [
         id,
@@ -306,6 +314,7 @@ export class SchoolInstituteService {
         body.status,
         aiEnabled !== undefined ? aiEnabled : null,
         aiFeatures !== undefined ? JSON.stringify(aiFeatures) : null,
+        modulesPermissions !== undefined ? JSON.stringify(modulesPermissions) : null,
       ],
     );
 

@@ -454,15 +454,18 @@ export class StudentService {
         : [];
     const lectureCountMap = new Map(lectureCounts.map(r => [r.topic_id, r]));
 
-    // Build teacher info per subject
-    const teacherMap = new Map<string, { id: string; name: string } | null>();
-    for (const a of assignments) {
-      const teacher = await this.dataSource.query(
-        `SELECT u.id, u.full_name AS name FROM users u WHERE u.id = $1 LIMIT 1`,
-        [a.teacherId],
-      );
-      teacherMap.set(a.subjectName.toLowerCase(), teacher[0] ?? null);
-    }
+    // Build teacher info per subject — one bulk query instead of N per-assignment queries
+    const assignmentTeacherIds = assignments.map(a => a.teacherId).filter(Boolean);
+    const teacherRows: Array<{ id: string; name: string }> = assignmentTeacherIds.length
+      ? await this.dataSource.query(
+          `SELECT u.id, u.full_name AS name FROM users u WHERE u.id = ANY($1)`,
+          [assignmentTeacherIds],
+        )
+      : [];
+    const teacherRowMap = new Map(teacherRows.map(r => [r.id, r]));
+    const teacherMap = new Map<string, { id: string; name: string } | null>(
+      assignments.map(a => [a.subjectName.toLowerCase(), teacherRowMap.get(a.teacherId) ?? null]),
+    );
 
     // Build response tree
     const curriculum = filteredSubjects.map(subject => ({
@@ -1019,15 +1022,18 @@ export class StudentService {
       : [];
     const lectureCountMap = new Map(lectureCounts.map(r => [r.topic_id, Number(r.total)]));
 
-    // Teacher map per subject
-    const teacherMap = new Map<string, { id: string; name: string } | null>();
-    for (const a of assignments) {
-      const rows = await this.dataSource.query(
-        `SELECT u.id, u.full_name AS name FROM users u WHERE u.id = $1 LIMIT 1`,
-        [a.teacherId],
-      );
-      teacherMap.set(a.subjectName.toLowerCase(), rows[0] ?? null);
-    }
+    // Teacher map per subject — one bulk query instead of N per-assignment queries
+    const previewTeacherIds = assignments.map(a => a.teacherId).filter(Boolean);
+    const previewTeacherRows: Array<{ id: string; name: string }> = previewTeacherIds.length
+      ? await this.dataSource.query(
+          `SELECT u.id, u.full_name AS name FROM users u WHERE u.id = ANY($1)`,
+          [previewTeacherIds],
+        )
+      : [];
+    const previewTeacherRowMap = new Map(previewTeacherRows.map(r => [r.id, r]));
+    const teacherMap = new Map<string, { id: string; name: string } | null>(
+      assignments.map(a => [a.subjectName.toLowerCase(), previewTeacherRowMap.get(a.teacherId) ?? null]),
+    );
 
     const curriculum = filteredSubjects.map(subject => ({
       id:        subject.id,

@@ -41,8 +41,18 @@ export class SchoolLiveService implements OnModuleInit {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
+      // Scheduling columns — added after initial table creation (safe no-ops if already present)
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ`);
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS class_id UUID`);
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS section_id UUID`);
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS subject_id UUID`);
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS description TEXT`);
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS class_name VARCHAR`);
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS section_name VARCHAR`);
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS subject_name VARCHAR`);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_school_live_lectures_institute ON school_live_lectures (institute_id)`);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_school_live_lectures_status ON school_live_lectures (status)`);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_school_live_lectures_inst_sched ON school_live_lectures (institute_id, scheduled_for)`);
       await this.ds.query(`
         CREATE TABLE IF NOT EXISTS school_live_chat_messages (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -141,14 +151,44 @@ export class SchoolLiveService implements OnModuleInit {
   }
 
   // ── teacher: create a live lecture ──────────────────────────────────────
-  async createLecture(user: SchoolUser, title: string) {
+  async createLecture(
+    user: SchoolUser,
+    title: string,
+    opts?: {
+      scheduledFor?: string;
+      classId?: string;
+      sectionId?: string;
+      subjectId?: string;
+      description?: string;
+      className?: string;
+      sectionName?: string;
+      subjectName?: string;
+    },
+  ) {
     const streamKey = randomBytes(16).toString('hex');
     const playbackUrl = this.playbackUrlFor(streamKey);
     const rows = await this.ds.query(
-      `INSERT INTO school_live_lectures (title, institute_id, teacher_id, stream_key, status, playback_url)
-       VALUES ($1, $2, $3, $4, 'SCHEDULED', $5)
+      `INSERT INTO school_live_lectures
+         (title, institute_id, teacher_id, stream_key, status, playback_url,
+          scheduled_for, class_id, section_id, subject_id, description,
+          class_name, section_name, subject_name)
+       VALUES ($1,$2,$3,$4,'SCHEDULED',$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING id`,
-      [title, user.instituteId, user.id, streamKey, playbackUrl],
+      [
+        title,
+        user.instituteId,
+        user.id,
+        streamKey,
+        playbackUrl,
+        opts?.scheduledFor || null,
+        opts?.classId || null,
+        opts?.sectionId || null,
+        opts?.subjectId || null,
+        opts?.description || null,
+        opts?.className || null,
+        opts?.sectionName || null,
+        opts?.subjectName || null,
+      ],
     );
     return {
       lectureId: rows[0].id,
@@ -161,7 +201,10 @@ export class SchoolLiveService implements OnModuleInit {
   async listLectures(user: SchoolUser) {
     const rows = await this.ds.query(
       `SELECT id, title, status, stream_key AS "streamKey", playback_url AS "playbackUrl",
-              teacher_id AS "teacherId", started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt"
+              teacher_id AS "teacherId", started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt",
+              scheduled_for AS "scheduledFor", class_id AS "classId", section_id AS "sectionId",
+              subject_id AS "subjectId", description,
+              class_name AS "className", section_name AS "sectionName", subject_name AS "subjectName"
        FROM school_live_lectures WHERE institute_id = $1 ORDER BY created_at DESC`,
       [user.instituteId],
     );
@@ -181,7 +224,10 @@ export class SchoolLiveService implements OnModuleInit {
     const rows = await this.ds.query(
       `SELECT id, title, status, stream_key AS "streamKey", playback_url AS "playbackUrl",
               institute_id AS "instituteId", teacher_id AS "teacherId",
-              started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt"
+              started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt",
+              scheduled_for AS "scheduledFor", class_id AS "classId", section_id AS "sectionId",
+              subject_id AS "subjectId", description,
+              class_name AS "className", section_name AS "sectionName", subject_name AS "subjectName"
        FROM school_live_lectures WHERE id = $1`,
       [id],
     );
@@ -267,6 +313,16 @@ export class SchoolLiveService implements OnModuleInit {
     return { success: true, status: 'ENDED' };
   }
 
+  async deleteLecture(id: string, user: SchoolUser) {
+    const lecture = await this.getLecture(id);
+    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      throw new NotFoundException('Lecture not found');
+    }
+    await this.ds.query(`DELETE FROM school_live_lectures WHERE id = $1`, [id]);
+    return { success: true };
+  }
+
   async streamEnded(streamKey: string): Promise<void> {
     const rows = await this.ds.query(`SELECT id FROM school_live_lectures WHERE stream_key = $1`, [streamKey]);
     if (!rows.length) return;
@@ -289,7 +345,12 @@ export class SchoolLiveService implements OnModuleInit {
     return rows[0];
   }
 
-  async getChatHistory(lectureId: string, limit = 100) {
+  async getChatHistory(lectureId: string, user: SchoolUser, limit = 100) {
+    const lecture = await this.getLecture(lectureId);
+    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      throw new NotFoundException('Lecture not found');
+    }
     return this.ds.query(
       `SELECT id, user_id AS "userId", user_name AS "userName", text, created_at AS "createdAt"
        FROM school_live_chat_messages WHERE lecture_id = $1 ORDER BY created_at ASC LIMIT $2`,
@@ -388,10 +449,10 @@ export class SchoolLiveService implements OnModuleInit {
               ELSE 0 END AS "durationSeconds",
          COALESCE((SELECT COUNT(DISTINCT user_id) FROM school_live_participants WHERE lecture_id = l.id), 0)::int AS "totalParticipants",
          COALESCE((SELECT COUNT(*) FROM school_live_chat_messages WHERE lecture_id = l.id), 0)::int AS "totalMessages",
-         COALESCE((SELECT COUNT(*) FROM school_live_reactions WHERE lecture_id = l.id), 0)::int AS "totalReactions",
+         COALESCE((SELECT COUNT(DISTINCT user_id) FROM school_live_reactions WHERE lecture_id = l.id), 0)::int AS "totalReactions",
          COALESCE(
            (SELECT json_agg(r ORDER BY r.count DESC)
-            FROM (SELECT emoji, COUNT(*)::int AS count FROM school_live_reactions WHERE lecture_id = l.id GROUP BY emoji) r),
+            FROM (SELECT emoji, COUNT(DISTINCT user_id)::int AS count FROM school_live_reactions WHERE lecture_id = l.id GROUP BY emoji) r),
            '[]'::json
          ) AS "reactionBreakdown",
          COALESCE(
@@ -430,7 +491,12 @@ export class SchoolLiveService implements OnModuleInit {
      return { ...stats, teacherName: teacher?.name ?? null, polls: polls || [] };
    }
  
-   async createPoll(lectureId: string, question: string, options: string[], correctOption?: string) {
+   async createPoll(lectureId: string, user: SchoolUser, question: string, options: string[], correctOption?: string) {
+     const lecture = await this.getLecture(lectureId);
+     if (!lecture) throw new NotFoundException('Lecture not found');
+     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+       throw new NotFoundException('Lecture not found');
+     }
      // End any currently active polls for this lecture
      await this.ds.query(
        `UPDATE school_live_polls SET status = 'ENDED' WHERE lecture_id = $1 AND status = 'ACTIVE'`,
@@ -458,7 +524,12 @@ export class SchoolLiveService implements OnModuleInit {
      return { success: true };
    }
  
-   async getActivePoll(lectureId: string) {
+   async getActivePoll(lectureId: string, user: SchoolUser) {
+     const lecture = await this.getLecture(lectureId);
+     if (!lecture) throw new NotFoundException('Lecture not found');
+     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+       throw new NotFoundException('Lecture not found');
+     }
      const [poll] = await this.ds.query(
        `SELECT id, question, options, correct_option AS "correctOption", status, created_at AS "createdAt"
         FROM school_live_polls WHERE lecture_id = $1 AND status = 'ACTIVE' LIMIT 1`,
@@ -483,12 +554,17 @@ export class SchoolLiveService implements OnModuleInit {
      return { poll, results };
    }
  
-   async votePoll(lectureId: string, pollId: string, userId: string, userName: string, option: string) {
+   async votePoll(lectureId: string, pollId: string, user: SchoolUser, userName: string, option: string) {
+     const lecture = await this.getLecture(lectureId);
+     if (!lecture) throw new NotFoundException('Lecture not found');
+     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+       throw new NotFoundException('Lecture not found');
+     }
      await this.ds.query(
        `INSERT INTO school_live_poll_votes (poll_id, user_id, user_name, option)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (poll_id, user_id) DO UPDATE SET option = EXCLUDED.option`,
-       [pollId, userId, userName, option],
+       [pollId, user.id, userName, option],
      );
  
      // Get latest results
@@ -516,7 +592,12 @@ export class SchoolLiveService implements OnModuleInit {
      return { success: true, results };
    }
  
-   async listPolls(lectureId: string) {
+   async listPolls(lectureId: string, user: SchoolUser) {
+     const lecture = await this.getLecture(lectureId);
+     if (!lecture) throw new NotFoundException('Lecture not found');
+     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+       throw new NotFoundException('Lecture not found');
+     }
      const polls = await this.ds.query(
        `SELECT id, question, options, correct_option AS "correctOption", status, created_at AS "createdAt",
                COALESCE(

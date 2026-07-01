@@ -22,14 +22,12 @@ export class SchoolAuthService {
   }
 
   private signSchoolToken(user: { id: string; role: string; email: string; institute_id?: string | null; sessionId?: string }) {
+    // School uses its own secret so school JWTs cannot authenticate against coaching endpoints
+    const secret = process.env.SCHOOL_JWT_SECRET ||
+      (process.env.JWT_SECRET ? process.env.JWT_SECRET + '_school' : 'dev_school_secret_change_in_prod');
     return jwt.sign(
       this.schoolJwtPayload(user),
-      process.env.JWT_SECRET ||
-        (process.env.NODE_ENV === 'production'
-          ? (() => {
-              throw new InternalServerErrorException('JWT_SECRET not configured');
-            })()
-          : 'dev_secret_change_in_prod'),
+      secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any,
     );
   }
@@ -66,7 +64,9 @@ export class SchoolAuthService {
     }
 
     const rows: any[] = await this.ds.query(
-      `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo
+      `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo,
+              i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features,
+              i.modules_permissions AS inst_modules_permissions
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE ${whereClause}`,
@@ -132,7 +132,15 @@ export class SchoolAuthService {
         instituteId: user.institute_id,
         studentProfile,
       },
-      institute: user.inst_id ? { id: user.inst_id, name: user.inst_name, tenantDomain: user.tenant_domain, logo: user.logo } : null,
+      institute: user.inst_id ? {
+        id: user.inst_id,
+        name: user.inst_name,
+        tenantDomain: user.tenant_domain,
+        logo: user.logo,
+        aiEnabled: user.inst_ai_enabled ?? false,
+        aiFeatures: typeof user.inst_ai_features === 'string' ? JSON.parse(user.inst_ai_features) : (user.inst_ai_features ?? {}),
+        modulesPermissions: typeof user.inst_modules_permissions === 'string' ? JSON.parse(user.inst_modules_permissions) : (user.inst_modules_permissions ?? {}),
+      } : null,
       tenantDomain: user.tenant_domain,
     };
   }

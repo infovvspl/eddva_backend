@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Inject, Logger } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Cron } from '@nestjs/schedule';
 import { DataSource, In, Repository } from 'typeorm';
@@ -29,6 +31,7 @@ export class LeaderboardService {
     private readonly eloRepo: Repository<StudentElo>,
     @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   async getLeaderboard(query: LeaderboardQueryDto, user: any, tenantId: string) {
@@ -145,42 +148,59 @@ export class LeaderboardService {
     this.logger.log(`Global leaderboard recompute complete for ${period}`);
   }
 
-  private async queryGlobalLeaderboardRows(tenantId: string) {
-    return this.leaderboardRepo
+  private async queryGlobalLeaderboardRows(tenantId: string, monthStart?: Date, monthEnd?: Date) {
+    const qb = this.leaderboardRepo
       .createQueryBuilder('entry')
       .innerJoinAndSelect('entry.student', 'student')
       .leftJoinAndSelect('student.user', 'user')
       .where('entry.scope = :scope', { scope: LeaderboardScope.GLOBAL })
       .andWhere('entry.period = :period', { period: LeaderboardPeriod.MONTHLY })
-      .andWhere('student.tenantId = :tenantId', { tenantId })
-      .orderBy('entry.rank', 'ASC')
-      .addOrderBy('entry.score', 'DESC')
-      .getMany();
+      .andWhere('student.tenantId = :tenantId', { tenantId });
+    if (monthStart && monthEnd) {
+      qb.andWhere('entry.computedAt >= :monthStart', { monthStart })
+        .andWhere('entry.computedAt < :monthEnd', { monthEnd });
+    }
+    return qb.orderBy('entry.rank', 'ASC').addOrderBy('entry.score', 'DESC').getMany();
   }
 
   private async getStoredGlobalLeaderboard(tenantId: string, period: string) {
+    const cacheKey = `coaching:lb:global:${tenantId}:${period}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any[];
+
     const monthStart = new Date(`${period}-01T00:00:00.000Z`);
     const monthEnd = new Date(monthStart);
     monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
 
-    const rows = await this.queryGlobalLeaderboardRows(tenantId);
-    const filtered = rows.filter((entry) => entry.computedAt >= monthStart && entry.computedAt < monthEnd);
-    if (!filtered.length) {
+    const rows = await this.queryGlobalLeaderboardRows(tenantId, monthStart, monthEnd);
+    if (!rows.length) {
       try {
         await this.recomputeGlobalLeaderboard();
       } catch (e) {
         this.logger.warn(`recomputeGlobalLeaderboard failed: ${(e as Error).message}`);
       }
-      const recomputed = await this.queryGlobalLeaderboardRows(tenantId);
-      const fresh = recomputed.filter((e) => e.computedAt >= monthStart && e.computedAt < monthEnd);
-      return fresh.map((entry) => this.serializeLeaderboardEntry(entry));
+      const recomputed = await this.queryGlobalLeaderboardRows(tenantId, monthStart, monthEnd);
+      const result = recomputed.map((entry) => this.serializeLeaderboardEntry(entry));
+      await this.cache.set(cacheKey, result, 5 * 60 * 1000);
+      return result;
     }
 
-    return filtered.map((entry) => this.serializeLeaderboardEntry(entry));
+    const result = rows.map((entry) => this.serializeLeaderboardEntry(entry));
+    await this.cache.set(cacheKey, result, 5 * 60 * 1000);
+    return result;
   }
 
   private async computeDynamicLeaderboard(scope: LeaderboardScope, scopeValue: string, tenantId: string) {
-    const students = await this.studentRepo.find({ where: { tenantId }, relations: ['user'] });
+    const cacheKey = `coaching:lb:${scope}:${scopeValue}:${tenantId}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached as any[];
+
+    const studentWhere: Record<string, any> = { tenantId };
+    if (scope === LeaderboardScope.STATE) studentWhere.state = scopeValue;
+    else if (scope === LeaderboardScope.CITY) studentWhere.city = scopeValue;
+    else if (scope === LeaderboardScope.SCHOOL) studentWhere.coachingName = scopeValue;
+
+    const students = await this.studentRepo.find({ where: studentWhere as any, relations: ['user'] });
     const profiles = await this.profileRepo.find({
       where: { studentId: In(students.map((student) => student.id)) },
     });
@@ -192,25 +212,14 @@ export class LeaderboardService {
     const eloMap = new Map(elos.map((elo) => [elo.studentId, elo]));
 
     const filteredStudents = students.filter((student) => {
-      switch (scope) {
-        case LeaderboardScope.STATE:
-          return student.state === scopeValue;
-        case LeaderboardScope.CITY:
-          return student.city === scopeValue;
-        case LeaderboardScope.SCHOOL:
-          return student.coachingName === scopeValue;
-        case LeaderboardScope.SUBJECT: {
-          const subjectAccuracy = profileMap.get(student.id)?.subjectAccuracy || {};
-          return Object.prototype.hasOwnProperty.call(subjectAccuracy, scopeValue);
-        }
-        case LeaderboardScope.BATTLE_XP:
-          return true;
-        default:
-          return true;
+      if (scope === LeaderboardScope.SUBJECT) {
+        const subjectAccuracy = profileMap.get(student.id)?.subjectAccuracy || {};
+        return Object.prototype.hasOwnProperty.call(subjectAccuracy, scopeValue);
       }
+      return true;
     });
 
-    return filteredStudents
+    const dynamicResult = filteredStudents
       .map((student) => {
         const profile = profileMap.get(student.id);
         const elo = eloMap.get(student.id);
@@ -234,6 +243,8 @@ export class LeaderboardService {
       })
       .sort((a, b) => b.score - a.score)
       .map((entry, index) => ({ ...entry, rank: index + 1 }));
+    await this.cache.set(cacheKey, dynamicResult, 5 * 60 * 1000);
+    return dynamicResult;
   }
 
   private async getCurrentStudentRank(rows: any[], user: any, tenantId: string) {

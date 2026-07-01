@@ -560,7 +560,7 @@ export class SchoolStudentService {
         };
       }
     } catch (e) {
-      console.warn('[getDashboard] Could not query gamification_profiles (table might not exist yet):', e.message);
+      console.warn('[getDashboard] Could not query gamification_profiles (table might not exist yet):', (e as Error)?.message);
     }
 
     return {
@@ -1171,56 +1171,92 @@ export class SchoolStudentService {
       [student.class_id, student.section_id]
     );
 
-    const curriculum = [];
-    for (const sub of subjectRows) {
-      const chapterRows = await this.ds.query(
-        `SELECT DISTINCT ch.id, ch.name, ch.sort_order
-         FROM chapters ch
-         JOIN subjects chapter_subject ON chapter_subject.id::text = ch.subject_id::text
-         WHERE ch.subject_id::text = $1::text
-            OR (
-              LOWER(TRIM(chapter_subject.name)) = LOWER(TRIM($2))
-              AND chapter_subject.institute_id::text = $3::text
-              AND (
-                (
-                  chapter_subject.class_id::text = $4::text
-                  AND (chapter_subject.section_id IS NULL OR chapter_subject.section_id::text = $5::text)
-                )
-                OR EXISTS (
-                  SELECT 1
-                  FROM teacher_academic_assignments taa
-                  WHERE taa.subject_id::text = chapter_subject.id::text
-                    AND taa.class_id::text = $4::text
-                    AND taa.section_id::text = $5::text
+    // Pre-fetch chapters for all subjects in parallel (one query per subject,
+    // concurrent) — avoids the sequential N×M×K round-trip cascade.
+    const chaptersBySubjectId = new Map<string, any[]>();
+    await Promise.all(
+      subjectRows.map(async (sub: any) => {
+        const rows: any[] = await this.ds.query(
+          `SELECT DISTINCT ch.id, ch.name, ch.sort_order
+           FROM chapters ch
+           JOIN subjects chapter_subject ON chapter_subject.id::text = ch.subject_id::text
+           WHERE ch.subject_id::text = $1::text
+              OR (
+                LOWER(TRIM(chapter_subject.name)) = LOWER(TRIM($2))
+                AND chapter_subject.institute_id::text = $3::text
+                AND (
+                  (
+                    chapter_subject.class_id::text = $4::text
+                    AND (chapter_subject.section_id IS NULL OR chapter_subject.section_id::text = $5::text)
+                  )
+                  OR EXISTS (
+                    SELECT 1
+                    FROM teacher_academic_assignments taa
+                    WHERE taa.subject_id::text = chapter_subject.id::text
+                      AND taa.class_id::text = $4::text
+                      AND taa.section_id::text = $5::text
+                  )
                 )
               )
-            )
-         ORDER BY ch.sort_order, ch.name`,
-        [sub.id, sub.name, instituteId, student.class_id, student.section_id]
-      );
-
-      const chapters = [];
-      for (const chap of chapterRows) {
-        const topicRows = await this.ds.query(
-          `SELECT id, name FROM topics WHERE chapter_id = $1 ORDER BY sort_order, name`,
-          [chap.id]
+           ORDER BY ch.sort_order, ch.name`,
+          [sub.id, sub.name, instituteId, student.class_id, student.section_id],
         );
+        chaptersBySubjectId.set(sub.id, rows);
+      }),
+    );
 
-        const topics = [];
-        for (const top of topicRows) {
-          const materialRows = await this.ds.query(
-            `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description
-             FROM study_materials
-             WHERE topic_id = $1 AND tenant_id = $2::uuid`,
-            [top.id, instituteId]
-          );
+    // Collect all chapter IDs → single bulk topic query
+    const allChapterIds: string[] = [];
+    for (const chapters of chaptersBySubjectId.values()) {
+      for (const c of chapters) allChapterIds.push(c.id);
+    }
 
+    const topicsByChapterId = new Map<string, any[]>();
+    if (allChapterIds.length) {
+      const allTopics: any[] = await this.ds.query(
+        `SELECT id, name, chapter_id FROM topics WHERE chapter_id = ANY($1::uuid[]) ORDER BY sort_order, name`,
+        [allChapterIds],
+      );
+      for (const t of allTopics) {
+        const list = topicsByChapterId.get(t.chapter_id) ?? [];
+        list.push(t);
+        topicsByChapterId.set(t.chapter_id, list);
+      }
+    }
+
+    // Collect all topic IDs → single bulk material query
+    const allTopicIds: string[] = [];
+    for (const topics of topicsByChapterId.values()) {
+      for (const t of topics) allTopicIds.push(t.id);
+    }
+
+    const materialsByTopicId = new Map<string, any[]>();
+    if (allTopicIds.length) {
+      const allMaterials: any[] = await this.ds.query(
+        `SELECT id, title, type::text AS type, s3_key AS "fileUrl", file_size_kb AS "fileSizeKb", description, topic_id
+         FROM study_materials
+         WHERE topic_id = ANY($1::uuid[]) AND tenant_id = $2::uuid`,
+        [allTopicIds, instituteId],
+      );
+      for (const m of allMaterials) {
+        const list = materialsByTopicId.get(m.topic_id) ?? [];
+        list.push(m);
+        materialsByTopicId.set(m.topic_id, list);
+      }
+    }
+
+    // Assemble tree from pre-fetched maps (zero additional DB queries)
+    const curriculum = subjectRows.map((sub: any) => {
+      const chapterRows = chaptersBySubjectId.get(sub.id) ?? [];
+      const chapters = chapterRows.map((chap: any) => {
+        const topicRows = topicsByChapterId.get(chap.id) ?? [];
+        const topics = topicRows.map((top: any) => {
+          const materialRows = materialsByTopicId.get(top.id) ?? [];
           const resourceCounts = materialRows.reduce((acc: any, r: any) => {
             acc[r.type] = (acc[r.type] || 0) + 1;
             return acc;
           }, {});
-
-          topics.push({
+          return {
             id: top.id,
             name: top.name,
             estimatedStudyMinutes: 30,
@@ -1232,29 +1268,20 @@ export class SchoolStudentService {
               completedAt: null,
             },
             lectureCount: 0,
-            lectures: {
-              total: 0,
-              completed: 0,
-            },
+            lectures: { total: 0, completed: 0 },
             resourceCounts,
             resources: materialRows,
-          });
-        }
-
-        chapters.push({
-          id: chap.id,
-          name: chap.name,
-          topics,
+          };
         });
-      }
-
-      curriculum.push({
+        return { id: chap.id, name: chap.name, topics };
+      });
+      return {
         id: sub.id,
         name: sub.name,
         teacher: sub.teacher_name ? { id: sub.teacher_user_id, name: sub.teacher_name } : null,
         chapters,
-      });
-    }
+      };
+    });
 
     return {
       success: true,

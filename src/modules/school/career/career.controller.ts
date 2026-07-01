@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { CareerService } from './career.service';
 import { SubmitQuizDto } from './dto/career.dto';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 interface SchoolUserCtx {
   id: string;
@@ -17,7 +19,8 @@ interface SchoolUserCtx {
  * Full paths: /api/v1/school/career/*
  */
 @Controller('school/career')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@SchoolFeature('ai', 'ai_career_guidance')
 export class CareerController {
   constructor(private readonly svc: CareerService) {}
 
@@ -40,6 +43,7 @@ export class CareerController {
   }
 
   @Post('report/generate')
+  @HttpCode(HttpStatus.ACCEPTED)
   @SchoolRoles('STUDENT')
   generateReport(@SchoolUser() user: SchoolUserCtx) {
     return this.svc.generateCareerReport(user.id, user.instituteId);
@@ -53,13 +57,13 @@ export class CareerController {
 
   @Get('explore')
   @SchoolRoles('STUDENT')
-  explore() {
-    return this.svc.getCareerExplore();
+  explore(@SchoolUser() user: SchoolUserCtx) {
+    return this.svc.getCareerExplore(user.instituteId);
   }
 
   @Get('explore/:careerId')
   @SchoolRoles('STUDENT')
-  exploreOne(@Param('careerId') careerId: string) {
-    return this.svc.getCareerDetail(careerId);
+  exploreOne(@SchoolUser() user: SchoolUserCtx, @Param('careerId') careerId: string) {
+    return this.svc.getCareerDetail(careerId, user.instituteId);
   }
 }

@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -94,7 +94,7 @@ export class StudyPlanService {
     const resolvedBatchId = batchId ?? preferences?.batchId ?? null;
     const student = await this.getStudentByUserId(userId, tenantId);
     const choices = await this.resolvePlanGenerationChoices(student, preferences);
-    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId, resolvedBatchId);
 
     // Fast path: return existing valid plan when not forcing
     const planWhere = resolvedBatchId
@@ -148,12 +148,14 @@ export class StudyPlanService {
 
     // Get which topics this student has already completed
     const completedTopicIds = await this.getCompletedTopicIds(student.id);
+    const pendingCount = topics.filter(t => !completedTopicIds.has(t.id)).length;
+    const syllabusComplete = pendingCount === 0;
 
-    // Build the 30-day plan
+    // Build the 30-day plan (empty when syllabus is 100% done → intensive revision mode)
     const newItems = this.buildPlan(topics, completedTopicIds, choices, today);
     this.logger.log(
       `[Plan] Built ${newItems.length} items for student=${student.id} batch=${batchId ?? 'global'} ` +
-      `(${topics.length - completedTopicIds.size} pending topics, ${completedTopicIds.size} completed)`,
+      `(${pendingCount} pending, ${completedTopicIds.size} completed, syllabusComplete=${syllabusComplete})`,
     );
 
     const planDays = 30;
@@ -169,7 +171,7 @@ export class StudyPlanService {
       let planRecord = await manager.findOne(StudyPlan, { where: planWhere as any, withDeleted: true });
 
       if (planRecord) {
-        // Preserve past items (backlog + history) â€” only wipe future pending items
+        // Preserve past items (backlog + history) — only wipe future pending items
         await manager
           .createQueryBuilder()
           .delete()
@@ -210,14 +212,18 @@ export class StudyPlanService {
       return planRecord;
     });
 
+    // Always attempt to populate spaced revision tasks from completed topics
     await this.addRevisionTasks(student.id, tenantId).catch(() => {});
 
     if (force) {
+      const body = syllabusComplete
+        ? '🎉 Syllabus complete! Head to Intensive Revision to maximise your exam score.'
+        : `📅 Your plan has been refreshed — ${pendingCount} topics remain for this month.`;
       await this.notificationService.send({
         userId,
         tenantId,
-        title: 'Your study plan has been updated!',
-        body: 'ðŸ“… Your personalised study plan has been refreshed based on your latest progress.',
+        title: syllabusComplete ? 'Syllabus Complete! 🔥' : 'Your study plan has been updated!',
+        body,
         channels: ['push', 'in_app'],
         refType: 'study_plan_regenerated',
         refId: plan.id,
@@ -227,7 +233,7 @@ export class StudyPlanService {
     return this.getPlanWithItems(plan.id, tenantId);
   }
 
-  // â”€â”€â”€ Topic Resolution (single SQL, all 4 linkage paths) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ——————————————————————————————————————————————————————————————————————————————————————————————————
 
   private async resolveTopicsForBatch(tenantId: string, batchId: string | null): Promise<Topic[]> {
     if (!batchId) {
@@ -293,7 +299,13 @@ export class StudyPlanService {
     });
   }
 
-  // â”€â”€â”€ Plan Builder (round-robin across subjects, 30 days) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ——————————————————————————————————————————————————————————————————————————————————————————————————
+  //
+  // Monthly plan lifecycle:
+  //  1. Only PENDING (incomplete) topics appear in the main 30-day plan (study + practice pairs).
+  //  2. When a topic is finished it automatically enters SPACED REVISION (addRevisionTasks).
+  //  3. When ALL topics are done (syllabus complete) this builder returns [] so the UI
+  //     naturally directs the student to INTENSIVE REVISION.
 
   private buildPlan(
     topics: Topic[],
@@ -313,6 +325,21 @@ export class StudyPlanService {
     const subjects = [...topicsBySubject.keys()];
     if (!subjects.length) return [];
 
+    // Build pending topics per subject (completed topics move to spaced revision, not main plan)
+    const pendingBySubject = new Map<string, Topic[]>();
+    for (const [subj, subjectTopics] of topicsBySubject) {
+      const pending = subjectTopics.filter(t => !completedTopicIds.has(t.id));
+      if (pending.length) pendingBySubject.set(subj, pending);
+    }
+
+    // If every topic is done, return empty — intensive revision unlocks in the UI
+    if (pendingBySubject.size === 0) {
+      return [];
+    }
+
+    // Only include subjects that still have pending topics
+    const activeSubjects = subjects.filter(s => pendingBySubject.has(s));
+
     // Compute daily pacing
     const dailyMinutes = (choices.dailyStudyHours || 4) * 60;
     const classKey = String(choices.currentClass || 'CLASS_11')
@@ -326,28 +353,11 @@ export class StudyPlanService {
     const topicsPerDay = Math.max(2, Math.floor((dailyMinutes / minutesPerTopic) * pace));
     const minutesPerSlot = Math.max(15, Math.floor(dailyMinutes / (topicsPerDay * 2)));
 
-    // Split each subject's topics into pending and completed
-    const pendingBySubject = new Map<string, Topic[]>();
-    const doneBySubject = new Map<string, Topic[]>();
-    for (const [subj, subjectTopics] of topicsBySubject) {
-      const pending = subjectTopics.filter(t => !completedTopicIds.has(t.id));
-      const done = subjectTopics.filter(t => completedTopicIds.has(t.id));
-      if (pending.length) pendingBySubject.set(subj, pending);
-      if (done.length) doneBySubject.set(subj, done);
-    }
-
-    // Active subjects = those with pending topics (or all if everything is done)
-    const hasAnyPending = pendingBySubject.size > 0;
-    const activeSubjects = hasAnyPending
-      ? subjects.filter(s => pendingBySubject.has(s))
-      : subjects;
-
     const basePerSubject = Math.floor(topicsPerDay / activeSubjects.length);
     const extra = topicsPerDay % activeSubjects.length;
 
-    // Per-subject cursors â€” advance linearly through pending, then cycle done
+    // Per-subject cursors – advance linearly through pending topics
     const pendingCursors = new Map<string, number>(activeSubjects.map(s => [s, 0]));
-    const doneCursors = new Map<string, number>(activeSubjects.map(s => [s, 0]));
 
     const items: RawPlanItem[] = [];
 
@@ -357,16 +367,16 @@ export class StudyPlanService {
       activeSubjects.forEach((subject, idx) => {
         const topicsToday = basePerSubject + (idx < extra ? 1 : 0);
         const pending = pendingBySubject.get(subject) ?? [];
-        const done = doneBySubject.get(subject) ?? [];
 
         for (let i = 0; i < topicsToday; i++) {
           const pCursor = pendingCursors.get(subject) ?? 0;
 
           if (pCursor < pending.length) {
-            // Study a new pending topic
+            // Schedule a new pending topic: study session + practice session
             const topic = pending[pCursor];
             pendingCursors.set(subject, pCursor + 1);
 
+            // 'revision' type maps to REVISION in DB → rendered as an AI study session
             items.push({
               date,
               type: 'revision',
@@ -375,6 +385,7 @@ export class StudyPlanService {
               subjectName: subject,
               estimatedMinutes: minutesPerSlot,
             });
+            // 'practice' type → rendered as a quiz/practice session
             items.push({
               date,
               type: 'practice',
@@ -383,21 +394,8 @@ export class StudyPlanService {
               subjectName: subject,
               estimatedMinutes: minutesPerSlot,
             });
-          } else if (done.length > 0) {
-            // All pending done â€” cycle through completed topics for revision
-            const dCursor = doneCursors.get(subject) ?? 0;
-            const topic = done[dCursor % done.length];
-            doneCursors.set(subject, dCursor + 1);
-
-            items.push({
-              date,
-              type: 'revision',
-              title: `Revise: ${topic.name}`,
-              refId: topic.id,
-              subjectName: subject,
-              estimatedMinutes: minutesPerSlot * 2,
-            });
           }
+          // No fallback to completed topics - finished topics live in spaced revision
         }
       });
     }
@@ -424,7 +422,7 @@ export class StudyPlanService {
 
   async getToday(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId, batchId);
     const planWhere = batchId
       ? { studentId: student.id, batchId }
       : { studentId: student.id, batchId: IsNull() };
@@ -441,7 +439,7 @@ export class StudyPlanService {
 
   async getRange(userId: string, tenantId: string, query: StudyPlanRangeQueryDto) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId, query.batchId);
     const planWhere = query.batchId
       ? { studentId: student.id, batchId: query.batchId }
       : { studentId: student.id, batchId: IsNull() };
@@ -488,15 +486,19 @@ export class StudyPlanService {
     type: PlanItemType,
   ): Promise<boolean> {
     if (!refId) return false;
-    const plan = await this.studyPlanRepo.findOne({
+    const plans = await this.studyPlanRepo.find({
       where: { studentId },
-      order: { createdAt: 'DESC' },
       withDeleted: true,
     });
-    if (!plan) return false;
+    if (!plans.length) return false;
 
     const item = await this.planItemRepo.findOne({
-      where: { studyPlanId: plan.id, refId, type, status: PlanItemStatus.PENDING },
+      where: {
+        studyPlanId: In(plans.map(p => p.id)),
+        refId,
+        type,
+        status: PlanItemStatus.PENDING,
+      },
       order: { scheduledDate: 'ASC', sortOrder: 'ASC' },
     });
     if (!item) return false;
@@ -532,11 +534,15 @@ export class StudyPlanService {
 
   async getRevisionSpaced(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId, batchId);
 
     const topics = await this.resolveTopicsForBatch(effectiveTenantId, batchId ?? null);
 
-    const debugPlan = await this.studyPlanRepo.findOne({ where: { studentId: student.id }, order: { createdAt: 'DESC' } });
+    const planWhere = batchId
+      ? { studentId: student.id, batchId }
+      : { studentId: student.id, batchId: IsNull() };
+
+    const debugPlan = await this.studyPlanRepo.findOne({ where: planWhere as any, order: { createdAt: 'DESC' } });
     const debugItems = debugPlan ? await this.planItemRepo.find({ where: { studyPlanId: debugPlan.id } }) : [];
     const debugCompleted = debugItems.filter(i => i.status === PlanItemStatus.COMPLETED && [PlanItemType.PRACTICE, PlanItemType.REVISION].includes(i.type));
     const debugAiSessions = await this.aiStudySessionRepo.find({ where: { studentId: student.id, isCompleted: true } });
@@ -574,7 +580,7 @@ export class StudyPlanService {
 
     // Signal 1: completed plan items scoped to this student's plan
     const plan = await this.studyPlanRepo.findOne({
-      where: { studentId: student.id },
+      where: planWhere as any,
       order: { createdAt: 'DESC' },
     });
     if (plan) {
@@ -670,7 +676,7 @@ export class StudyPlanService {
 
   async getRevisionIntensive(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId, batchId);
 
     const topics = await this.resolveTopicsForBatch(effectiveTenantId, batchId ?? null);
     if (!topics.length) return [];
@@ -752,7 +758,7 @@ export class StudyPlanService {
 
   async getRevisionNotes(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId, batchId);
 
     const topics = await this.resolveTopicsForBatch(effectiveTenantId, batchId ?? null);
     if (!topics.length) return [];
@@ -790,7 +796,7 @@ export class StudyPlanService {
 
   async getRevisionPractice(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId, batchId);
 
     const topics = await this.resolveTopicsForBatch(effectiveTenantId, batchId ?? null);
     if (!topics.length) return [];
@@ -869,7 +875,7 @@ export class StudyPlanService {
 
   async getNextAction(userId: string, tenantId: string, batchId?: string) {
     const student = await this.getStudentByUserId(userId, tenantId);
-    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId);
+    const effectiveTenantId = await this.resolveEffectiveTenantId(student, tenantId, batchId);
     const planWhere = batchId
       ? { studentId: student.id, batchId }
       : { studentId: student.id, batchId: IsNull() };
@@ -944,8 +950,9 @@ export class StudyPlanService {
     let drillQuestions: Array<{ question: string; options: string[]; correctAnswer: string; explanation: string; difficulty: string }> = [];
     try {
       const generated = await this.aiBridgeService.generateQuestionsFromTopic(
-        { topicId, topicName: topic.name, count: drillCount, difficulty: baseDifficulty, type: 'mcq_single', subject: topic.chapter?.subject?.name, chapter: topic.chapter?.name },
+        { topicId, topicName: topic.name, count: drillCount, difficulty: baseDifficulty, type: 'mcq_single', subject: topic.chapter?.subject?.name, chapter: topic.chapter?.name, examTarget: student.examTarget ?? undefined },
         tenantId,
+        'coaching',
       );
       if (Array.isArray(generated)) {
         drillQuestions = generated.map(q => {
@@ -1034,17 +1041,28 @@ export class StudyPlanService {
       );
     }
 
-    const studyPlan = await this.studyPlanRepo.findOne({ where: { studentId }, withDeleted: true });
-    if (!studyPlan) return;
+    const studyPlans = await this.studyPlanRepo.find({ where: { studentId }, withDeleted: true });
+    if (!studyPlans.length) return;
 
-    const alreadyIn = await this.planItemRepo.findOne({ where: { studyPlanId: studyPlan.id, refId: nextTopic.id, status: Not(PlanItemStatus.SKIPPED) } });
+    // Find which study plan owns this topic
+    let targetPlan = null;
+    for (const plan of studyPlans) {
+      const planTopics = await this.resolveTopicsForBatch(plan.tenantId ?? tenantId, plan.batchId);
+      if (planTopics.some(t => t.id === nextTopic.id)) {
+        targetPlan = plan;
+        break;
+      }
+    }
+    if (!targetPlan) return;
+
+    const alreadyIn = await this.planItemRepo.findOne({ where: { studyPlanId: targetPlan.id, refId: nextTopic.id, status: Not(PlanItemStatus.SKIPPED) } });
     if (alreadyIn) return;
 
-    const lastTask = await this.planItemRepo.findOne({ where: { studyPlanId: studyPlan.id }, order: { scheduledDate: 'DESC', sortOrder: 'DESC' } });
+    const lastTask = await this.planItemRepo.findOne({ where: { studyPlanId: targetPlan.id }, order: { scheduledDate: 'DESC', sortOrder: 'DESC' } });
     const nextDate = this.addDays(lastTask?.scheduledDate ?? this.todayIst(), 1);
 
     await this.planItemRepo.save(
-      this.planItemRepo.create({ studyPlanId: studyPlan.id, scheduledDate: nextDate, type: PlanItemType.PRACTICE, refId: nextTopic.id, title: `Practice + Notes: ${nextTopic.name}`, estimatedMinutes: nextTopic.estimatedStudyMinutes || 45, sortOrder: 0, status: PlanItemStatus.PENDING }),
+      this.planItemRepo.create({ studyPlanId: targetPlan.id, scheduledDate: nextDate, type: PlanItemType.PRACTICE, refId: nextTopic.id, title: `Practice + Notes: ${nextTopic.name}`, estimatedMinutes: nextTopic.estimatedStudyMinutes || 45, sortOrder: 0, status: PlanItemStatus.PENDING }),
     );
   }
 
@@ -1055,30 +1073,42 @@ export class StudyPlanService {
     });
     if (!passedTopics.length) return;
 
-    const studyPlan = await this.studyPlanRepo.findOne({ where: { studentId }, withDeleted: true });
-    if (!studyPlan) return;
+    const studyPlans = await this.studyPlanRepo.find({ where: { studentId }, withDeleted: true });
+    if (!studyPlans.length) return;
 
     const today = this.todayIst();
     const weekStart = this.addDays(today, -new Date(today).getDay());
     const weekEnd = this.addDays(weekStart, 6);
 
+    // Map topicId -> studyPlanId by resolving topics for each active plan
+    const topicToPlanId = new Map<string, string>();
+    for (const plan of studyPlans) {
+      const planTopics = await this.resolveTopicsForBatch(plan.tenantId ?? tenantId, plan.batchId);
+      for (const t of planTopics) {
+        topicToPlanId.set(t.id, plan.id);
+      }
+    }
+
     for (const tp of passedTopics) {
       if (!tp.completedAt || !tp.topic) continue;
+      const targetPlanId = topicToPlanId.get(tp.topicId);
+      if (!targetPlanId) continue;
+
       const daysSince = Math.floor((Date.now() - new Date(tp.completedAt).getTime()) / 86400000);
       const isDue = (daysSince >= 7 && daysSince < 8) || (daysSince >= 21 && daysSince < 22) || (daysSince >= 45 && daysSince < 46);
       if (!isDue) continue;
 
       const existingRev = await this.planItemRepo.findOne({
-        where: { studyPlanId: studyPlan.id, type: PlanItemType.REVISION, refId: tp.topicId, scheduledDate: Between(weekStart, weekEnd), status: Not(PlanItemStatus.SKIPPED) },
+        where: { studyPlanId: targetPlanId, type: PlanItemType.REVISION, refId: tp.topicId, scheduledDate: Between(weekStart, weekEnd), status: Not(PlanItemStatus.SKIPPED) },
       });
       if (existingRev) continue;
 
       for (let i = 1; i <= 3; i++) {
         const candidate = this.addDays(today, i);
-        const count = await this.planItemRepo.count({ where: { studyPlanId: studyPlan.id, scheduledDate: candidate, status: Not(PlanItemStatus.SKIPPED) } });
+        const count = await this.planItemRepo.count({ where: { studyPlanId: targetPlanId, scheduledDate: candidate, status: Not(PlanItemStatus.SKIPPED) } });
         if (count < 5) {
           await this.planItemRepo.save(
-            this.planItemRepo.create({ studyPlanId: studyPlan.id, scheduledDate: candidate, type: PlanItemType.REVISION, refId: tp.topicId, title: `Revise: ${tp.topic.name}`, estimatedMinutes: Math.max(20, Math.ceil((tp.topic.estimatedStudyMinutes || 60) / 2)), sortOrder: count, status: PlanItemStatus.PENDING }),
+            this.planItemRepo.create({ studyPlanId: targetPlanId, scheduledDate: candidate, type: PlanItemType.REVISION, refId: tp.topicId, title: `Revise: ${tp.topic.name}`, estimatedMinutes: Math.max(20, Math.ceil((tp.topic.estimatedStudyMinutes || 60) / 2)), sortOrder: count, status: PlanItemStatus.PENDING }),
           );
           break;
         }
@@ -1294,7 +1324,26 @@ export class StudyPlanService {
     return student;
   }
 
-  private async resolveEffectiveTenantId(student: Student, fallbackTenantId: string): Promise<string> {
+  private async resolveEffectiveTenantId(
+    student: Student,
+    fallbackTenantId: string,
+    batchId?: string | null,
+  ): Promise<string> {
+    if (batchId) {
+      const enrollment = await this.enrollmentRepo.findOne({
+        where: { studentId: student.id, batchId, status: EnrollmentStatus.ACTIVE },
+        relations: ['batch'],
+      }).catch(() => null);
+      if (enrollment?.batch?.tenantId) {
+        return enrollment.batch.tenantId;
+      }
+      // Fallback: if not enrolled or relations fail, fetch batch directly to resolve tenant
+      const batch = await this.batchRepo.findOne({ where: { id: batchId } }).catch(() => null);
+      if (batch?.tenantId) {
+        return batch.tenantId;
+      }
+    }
+
     const enrollment = await this.enrollmentRepo.findOne({
       where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
       relations: ['batch'],

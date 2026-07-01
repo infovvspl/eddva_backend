@@ -717,19 +717,41 @@ export class SchoolStudyPlanService implements OnModuleInit {
       }
     }
 
+    // Batch-fetch all chapters and topics to avoid N+1 queries
+    const [allChapterRows, ] = await Promise.all([
+      this.ds.query(
+        `SELECT id, name, subject_id FROM chapters WHERE subject_id = ANY($1::uuid[]) ORDER BY sort_order, name`,
+        [subjectIds]
+      ),
+    ]);
+    const allChapterIds = allChapterRows.map((c: any) => c.id);
+    const allTopicRows = allChapterIds.length
+      ? await this.ds.query(
+          `SELECT id, name, chapter_id FROM topics WHERE chapter_id = ANY($1::uuid[]) ORDER BY sort_order, name`,
+          [allChapterIds]
+        )
+      : [];
+
+    const chaptersBySubject = new Map<string, any[]>();
+    for (const chap of allChapterRows) {
+      const key = String(chap.subject_id);
+      if (!chaptersBySubject.has(key)) chaptersBySubject.set(key, []);
+      chaptersBySubject.get(key)!.push(chap);
+    }
+    const topicsByChapter = new Map<string, any[]>();
+    for (const top of allTopicRows) {
+      const key = String(top.chapter_id);
+      if (!topicsByChapter.has(key)) topicsByChapter.set(key, []);
+      topicsByChapter.get(key)!.push(top);
+    }
+
     const subjects = [];
     for (const sub of subjectRows) {
-      const chapterRows = await this.ds.query(
-        `SELECT id, name FROM chapters WHERE subject_id = $1 ORDER BY sort_order, name`,
-        [sub.id]
-      );
+      const chapterRows = chaptersBySubject.get(String(sub.id)) || [];
 
       const chapters = [];
       for (const chap of chapterRows) {
-        const topicRows = await this.ds.query(
-          `SELECT id, name FROM topics WHERE chapter_id = $1 ORDER BY sort_order, name`,
-          [chap.id]
-        );
+        const topicRows = topicsByChapter.get(String(chap.id)) || [];
 
         const topics = topicRows.map((top: any) => {
           const isCompleted = completedTopicIds.has(top.id);
@@ -912,11 +934,13 @@ export class SchoolStudyPlanService implements OnModuleInit {
     const drillCount = sessionType === 'INTENSIVE' ? 10 : sessionType === 'STANDARD' ? 7 : sessionType === 'QUICK' ? 5 : 3;
     const baseDifficulty = accuracy < 40 ? 'easy' : accuracy < 65 ? 'medium' : 'hard';
 
+    const student = await this.getStudentProfile(user.id);
     let drillQuestions = [];
     try {
       const generated = await this.aiBridgeService.generateQuestionsFromTopic(
-        { topicId, topicName: topic.topic_name, count: drillCount, difficulty: baseDifficulty, type: 'mcq_single', subject: topic.subject_name, chapter: topic.chapter_name },
+        { topicId, topicName: topic.topic_name, count: drillCount, difficulty: baseDifficulty, type: 'mcq_single', subject: topic.subject_name, chapter: topic.chapter_name, examTarget: `Class ${student.class_name || '10'}` },
         user.instituteId,
+        'school',
       );
       if (Array.isArray(generated)) {
         drillQuestions = generated.map(q => {
@@ -1036,8 +1060,10 @@ export class SchoolStudyPlanService implements OnModuleInit {
               type: 'mcq_single',
               subject: topic.subject_name || undefined,
               chapter: topic.chapter_name || undefined,
+              examTarget: `Class ${student.class_name || '10'}`,
             },
             tenantId,
+            'school',
           ) as any[];
           if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
             practiceQuestions = rawQuestions
@@ -1090,6 +1116,7 @@ export class SchoolStudyPlanService implements OnModuleInit {
       const lessonResponse = await this.aiBridgeService.startTutorSession(
         { studentId: student.student_id, topicId, context: selfStudyPrompt },
         tenantId,
+        'school',
       ) as any;
 
       lessonMarkdown = this.normalizeSolvedExamplesFormatting(this.extractAiText(lessonResponse));
@@ -1137,8 +1164,10 @@ export class SchoolStudyPlanService implements OnModuleInit {
           type: 'mcq_single',
           subject: topic.subject_name || undefined,
           chapter: topic.chapter_name || undefined,
+          examTarget: `Class ${student.class_name || '10'}`,
         },
         tenantId,
+        'school',
       ) as any[];
 
       if (Array.isArray(rawQuestions)) {
@@ -1247,8 +1276,10 @@ export class SchoolStudyPlanService implements OnModuleInit {
               count: 8,
               difficulty: 'easy_medium',
               type: 'mcq_single',
+              examTarget: `Class ${student.class_name || '10'}`,
             },
             tenantId,
+            'school',
           ) as any[];
           if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
             practiceQuestions = rawQuestions
@@ -1319,6 +1350,7 @@ export class SchoolStudyPlanService implements OnModuleInit {
       const response = await this.aiBridgeService.continueTutorSession(
         { sessionId: session.ai_session_ref ?? sessionId, studentMessage: contextualQuestion },
         tenantId,
+        'school',
       ) as any;
       aiResponse = this.extractAiText(response);
     } catch (err) {
@@ -1490,8 +1522,10 @@ export class SchoolStudyPlanService implements OnModuleInit {
           type: 'mcq_single',
           subject: topic.subject_name || undefined,
           chapter: topic.chapter_name || undefined,
+          examTarget: `Class ${student.class_name || '10'}`,
         },
         tenantId,
+        'school',
       ) as any[];
     } catch (err) {
       this.logger.warn(`AI quiz generation failed for school topic ${topicId}: ${err.message}`);

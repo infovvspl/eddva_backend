@@ -1,9 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import type { Cache } from 'cache-manager';
 
 import { MockTestType, TestSession, TestSessionStatus } from '../../database/entities/assessment.entity';
 import { Student } from '../../database/entities/student.entity';
+
+const XP_RANKED_TTL = 3 * 60 * 1000;   // 3 min — leaderboard positions shift with every XP earn
+const MOCK_RANK_TTL = 5 * 60 * 1000;   // 5 min — mock rankings change on test submission
 
 @Injectable()
 export class XpLeaderboardService {
@@ -12,6 +17,7 @@ export class XpLeaderboardService {
     private readonly studentRepo: Repository<Student>,
     @InjectRepository(TestSession, 'coaching')
     private readonly sessionRepo: Repository<TestSession>,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   async getMe(user: any, tenantId: string) {
@@ -52,6 +58,10 @@ export class XpLeaderboardService {
 
   async getMockRank(user: any, tenantId: string, examType: 'jee' | 'neet') {
     const student = await this.getStudentForUser(user.id, tenantId);
+    const mockCacheKey = `xp:mockrank:${student.id}:${examType}`;
+    const mockCached = await this.cache.get(mockCacheKey);
+    if (mockCached) return mockCached;
+
     const rows = await this.sessionRepo
       .createQueryBuilder('session')
       .innerJoin('session.mockTest', 'mockTest')
@@ -94,18 +104,22 @@ export class XpLeaderboardService {
 
     const mine = ranked.find((row) => row.studentId === student.id);
     if (!mine) {
-      return { mockXpTotal: 0, rank: null, percentile: null, accuracy: null };
+      const miss = { mockXpTotal: 0, rank: null, percentile: null, accuracy: null };
+      await this.cache.set(mockCacheKey, miss, MOCK_RANK_TTL);
+      return miss;
     }
 
     const total = ranked.length;
     const percentile = total > 1 ? ((total - mine.rank) / (total - 1)) * 100 : 100;
 
-    return {
+    const mockResult = {
       mockXpTotal: mine.mockXpTotal,
       rank: mine.rank,
       percentile: Number(percentile.toFixed(1)),
       accuracy: Number(mine.accuracy.toFixed(1)),
     };
+    await this.cache.set(mockCacheKey, mockResult, MOCK_RANK_TTL);
+    return mockResult;
   }
 
   private async getStudentForUser(userId: string, tenantId: string) {
@@ -115,19 +129,26 @@ export class XpLeaderboardService {
   }
 
   private async getRankedStudents(tenantId: string) {
+    const cacheKey = `xp:ranked:${tenantId}`;
+    const cached = await this.cache.get<Array<{ id: string; fullName: string; avatarUrl: string | null; xp: number; rank: number }>>(cacheKey);
+    if (cached) return cached;
+
     const students = await this.studentRepo.find({
       where: { tenantId },
       relations: ['user'],
       order: { xpTotal: 'DESC', createdAt: 'ASC' },
     });
 
-    return students.map((student, index) => ({
+    const ranked = students.map((student, index) => ({
       id: student.id,
       fullName: student.user?.fullName || 'Student',
       avatarUrl: student.user?.profilePictureUrl || null,
       xp: Number(student.xpTotal ?? 0),
       rank: index + 1,
     }));
+
+    await this.cache.set(cacheKey, ranked, XP_RANKED_TTL);
+    return ranked;
   }
 
   private zoneForRank(rank: number | null, groupSize: number) {

@@ -783,20 +783,35 @@ export class SchoolReportService {
 
   async assessmentReport(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
-    const rows: any[] = await this.ds.query(
-      `SELECT a.id AS assessment_id,a.title,a.assessment_type,a.total_marks,a.passing_marks,a.scheduled_at,a.status,
-              sub.name AS subject_name,
-              u.id AS student_id,u.name AS student_name,
-              r.marks_obtained,r.is_absent,r.grade,r.remarks
-       FROM assessments a
-       LEFT JOIN subjects sub ON a.subject_id=sub.id
-       LEFT JOIN results r ON r.assessment_id=a.id
-       LEFT JOIN users u ON r.student_id=u.id
-       WHERE a.institute_id=$1
-       ORDER BY a.scheduled_at DESC NULLS LAST, u.name`,
-      [instituteId],
-    );
-    return { success: true, count: rows.length, data: rows };
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.max(1, parseInt(query.limit) || 100);
+    const offset = (page - 1) * limit;
+
+    const [countResult, rows] = await Promise.all([
+      this.ds.query(
+        `SELECT COUNT(*)::int AS total
+         FROM assessments a
+         LEFT JOIN results r ON r.assessment_id=a.id
+         WHERE a.institute_id=$1`,
+        [instituteId],
+      ),
+      this.ds.query(
+        `SELECT a.id AS assessment_id,a.title,a.assessment_type,a.total_marks,a.passing_marks,a.scheduled_at,a.status,
+                sub.name AS subject_name,
+                u.id AS student_id,u.name AS student_name,
+                r.marks_obtained,r.is_absent,r.grade,r.remarks
+         FROM assessments a
+         LEFT JOIN subjects sub ON a.subject_id=sub.id
+         LEFT JOIN results r ON r.assessment_id=a.id
+         LEFT JOIN users u ON r.student_id=u.id
+         WHERE a.institute_id=$1
+         ORDER BY a.scheduled_at DESC NULLS LAST, u.name
+         LIMIT $2 OFFSET $3`,
+        [instituteId, limit, offset],
+      ),
+    ]);
+    const total = countResult[0]?.total ?? 0;
+    return { success: true, count: rows.length, data: rows, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async teacherClassReport(user: any, query: any) {

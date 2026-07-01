@@ -85,16 +85,16 @@ export class SchoolChatService implements OnModuleInit {
             cp2.user_id AS peer_id,
             COALESCE(peer.name, 'Platform Admin') AS peer_name,
             COALESCE(peer.email, '') AS peer_email,
-            COALESCE(peer.role, $2) AS peer_role,
+            COALESCE(peer.role, $1) AS peer_role,
             i.name AS peer_institute_name,
             (SELECT text FROM chat_messages WHERE room_id = cr.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id = cr.id AND receiver_id::text = ANY($3::text[]) AND is_read IS NOT TRUE) AS unread_count
+            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id = cr.id AND receiver_id::text = ANY($2::text[]) AND is_read IS NOT TRUE) AS unread_count
           FROM chat_rooms cr
-          JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id::text = ANY($3::text[])
-          JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id::text != ALL($3::text[])
+          JOIN chat_participants cp1 ON cp1.room_id = cr.id AND cp1.user_id::text = ANY($2::text[])
+          JOIN chat_participants cp2 ON cp2.room_id = cr.id AND cp2.user_id::text != ALL($2::text[])
           LEFT JOIN users peer ON peer.id = cp2.user_id
           LEFT JOIN institutes i ON i.id = peer.institute_id
-          WHERE cr.type = 'DM' AND (LOWER(COALESCE(peer.role, $2)) = LOWER($2))
+          WHERE cr.type = 'DM' AND (LOWER(COALESCE(peer.role, $1)) = LOWER($1))
           ORDER BY cr.created_at DESC`
         : `SELECT
             cr.id AS room_id,
@@ -113,7 +113,7 @@ export class SchoolChatService implements OnModuleInit {
           JOIN users peer ON peer.id = cp2.user_id
           WHERE cr.type = 'DM' AND LOWER(peer.role) = LOWER($2) AND peer.institute_id = $3
           ORDER BY cr.created_at DESC`,
-      crossInstitute ? [user.id, role, actorIds] : [user.id, role, user.instituteId],
+      crossInstitute ? [role, actorIds] : [user.id, role, user.instituteId],
     );
 
     const isTeacher = user.role === 'TEACHER';
@@ -318,16 +318,17 @@ export class SchoolChatService implements OnModuleInit {
     return { success: true, message: 'Joined room successfully' };
   }
 
-  async getMessages(roomId: string) {
+  async getMessages(roomId: string, limit = 200) {
     const rows: any[] = await this.ds.query(
-      `SELECT cm.*,u.name AS sender_name,u.profile_image AS sender_photo 
-       FROM chat_messages cm 
-       LEFT JOIN users u ON cm.sender_id=u.id 
-       WHERE cm.room_id=$1 
-       ORDER BY cm.created_at ASC`,
-      [roomId],
+      `SELECT cm.*,u.name AS sender_name,u.profile_image AS sender_photo
+       FROM chat_messages cm
+       LEFT JOIN users u ON cm.sender_id=u.id
+       WHERE cm.room_id=$1
+       ORDER BY cm.created_at DESC
+       LIMIT $2`,
+      [roomId, limit],
     );
-    return { success: true, data: rows.map((r) => ({ ...r, content: r.text })) };
+    return { success: true, data: rows.reverse().map((r) => ({ ...r, content: r.text })) };
   }
 
   async sendMessage(user: any, body: any) {

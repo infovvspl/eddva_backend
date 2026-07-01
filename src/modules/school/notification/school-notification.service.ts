@@ -46,24 +46,20 @@ export class SchoolNotificationService {
       sql += ` AND (title ILIKE $${params.length} OR message ILIKE $${params.length})`;
     }
 
-    // First get the total count for pagination metadata
-    const countSql = `SELECT COUNT(*)::int AS count FROM (${sql}) AS count_query`;
-    const countRows = await this.ds.query(countSql, params);
-    const total = countRows[0]?.count ?? 0;
-
     // Apply pagination
-    sql += ` ORDER BY created_at DESC`;
     const limit = parseInt(query.limit, 10) || 20;
     const page = parseInt(query.page, 10) || 1;
     const offset = (page - 1) * limit;
 
-    params.push(limit);
-    sql += ` LIMIT $${params.length}`;
+    const dataSql = sql + ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const countSql = `SELECT COUNT(*)::int AS count FROM (${sql}) AS count_query`;
+    const dataParams = [...params, limit, offset];
 
-    params.push(offset);
-    sql += ` OFFSET $${params.length}`;
-
-    const rows: any[] = await this.ds.query(sql, params);
+    const [countRows, rows] = await Promise.all([
+      this.ds.query(countSql, params),
+      this.ds.query(dataSql, dataParams),
+    ]);
+    const total = countRows[0]?.count ?? 0;
     
     const mapped = rows.map(r => ({
       id: r.id,
@@ -173,6 +169,46 @@ export class SchoolNotificationService {
   async remove(id: string) {
     await this.ds.query(`UPDATE notifications SET is_deleted=true, updated_at=NOW() WHERE id=$1`, [id]);
     return { success: true };
+  }
+
+  /**
+   * Inserts one notification row per active user in the institute in a single
+   * INSERT...SELECT, then fires real-time gateway events (in-memory, no extra
+   * DB round-trips). Returns the count of rows inserted.
+   */
+  async bulkCreateForInstitute(
+    instituteId: string,
+    notif: { type: string; title: string; message: string; actionUrl?: string },
+    targetRoles?: string[],
+  ): Promise<number> {
+    let sql = `
+      INSERT INTO notifications (user_id, recipient_id, type, title, message, action_url, is_read, category, priority)
+      SELECT id, id, $2, $3, $4, $5, false, 'announcement', 'medium'
+      FROM users
+      WHERE institute_id = $1 AND is_active = TRUE
+    `;
+    const params: any[] = [instituteId, notif.type, notif.title, notif.message, notif.actionUrl || null];
+    if (targetRoles?.length) {
+      params.push(targetRoles);
+      sql += ` AND role = ANY($${params.length})`;
+    }
+    sql += ` RETURNING id, recipient_id`;
+
+    const rows: any[] = await this.ds.query(sql, params);
+    for (const row of rows) {
+      if (row.recipient_id) {
+        this.gateway.emitNotification(row.recipient_id, {
+          id: row.id,
+          type: notif.type,
+          title: notif.title,
+          message: notif.message,
+          actionUrl: notif.actionUrl || null,
+          isRead: false,
+          createdAt: new Date(),
+        });
+      }
+    }
+    return rows.length;
   }
 
   async bulkRead(user: any, ids: string[]) {

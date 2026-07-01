@@ -476,13 +476,6 @@ export class SchoolTeacherService {
       FROM users u LEFT JOIN teachers t ON t.user_id=u.id
       WHERE ${filter}
     `;
-    const countResult = await this.ds.query(countQuery, params);
-    const total = parseInt(countResult[0]?.total || '0', 10);
-    const active = parseInt(countResult[0]?.active || '0', 10);
-    const newThisMonth = parseInt(countResult[0]?.new_this_month || '0', 10);
-    const inactive = total - active;
-    const totalPages = Math.ceil(total / limit);
-
     const allowedSortFields: Record<string, string> = {
       name: 'u.name',
       employeeId: 't.employee_id',
@@ -491,23 +484,32 @@ export class SchoolTeacherService {
     const sortBy = allowedSortFields[query.sortBy] || 'u.name';
     const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    const rows: any[] = await this.ds.query(
-      `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.profile_image,
-              u.institute_id,i.name AS institute_name,
-              t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
-              t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
-              t.address,t.city,t.state,t.pin_code,t.allergies,t.medical_conditions,t.documents,t.shift,t.weekdays,
-              t.office_hours_start,t.office_hours_end,t.max_hours_per_week,t.emergency_contact,t.guardian_contact,
-              t.disability,t.emergency_doctor,t.nationality,t.country,
-       COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM (SELECT DISTINCT class_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN classes c ON taa.class_id=c.id), '[]'::json) as classes,
-       COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN sections s ON taa.section_id=s.id), '[]'::json) as sections,
-       COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM (SELECT DISTINCT subject_id FROM teacher_academic_assignments WHERE teacher_id=t.id AND subject_id IS NOT NULL) taa JOIN subjects sub ON taa.subject_id=sub.id), '[]'::json) as subjects
-       FROM users u
-       LEFT JOIN teachers t ON t.user_id=u.id
-       LEFT JOIN institutes i ON i.id=u.institute_id
-       WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
-      params,
-    );
+    const dataQuery = `
+      SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.profile_image,
+             u.institute_id,i.name AS institute_name,
+             t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
+             t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
+             t.address,t.city,t.state,t.pin_code,t.allergies,t.medical_conditions,t.documents,t.shift,t.weekdays,
+             t.office_hours_start,t.office_hours_end,t.max_hours_per_week,t.emergency_contact,t.guardian_contact,
+             t.disability,t.emergency_doctor,t.nationality,t.country,
+      COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM (SELECT DISTINCT class_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN classes c ON taa.class_id=c.id), '[]'::json) as classes,
+      COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN sections s ON taa.section_id=s.id), '[]'::json) as sections,
+      COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM (SELECT DISTINCT subject_id FROM teacher_academic_assignments WHERE teacher_id=t.id AND subject_id IS NOT NULL) taa JOIN subjects sub ON taa.subject_id=sub.id), '[]'::json) as subjects
+      FROM users u
+      LEFT JOIN teachers t ON t.user_id=u.id
+      LEFT JOIN institutes i ON i.id=u.institute_id
+      WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`;
+
+    const [countResult, rows] = await Promise.all([
+      this.ds.query(countQuery, params),
+      this.ds.query(dataQuery, params),
+    ]);
+
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const active = parseInt(countResult[0]?.active || '0', 10);
+    const newThisMonth = parseInt(countResult[0]?.new_this_month || '0', 10);
+    const inactive = total - active;
+    const totalPages = Math.ceil(total / limit);
     const assignmentParams: any[] = [];
     let assignmentFilter = '';
     if (instituteId) {

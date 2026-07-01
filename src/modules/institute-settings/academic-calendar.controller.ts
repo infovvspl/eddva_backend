@@ -14,6 +14,7 @@ import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { FeatureFlagGuard, RequireFeature } from '../common/guards/feature-flag.guard';
 import { UserRole } from '../../database/entities/user.entity';
 
 import { CalendarFeedService } from './calendar-feed.service';
@@ -22,7 +23,8 @@ import { CreateCalendarEventDto } from './dto/institute-settings.dto';
 
 @ApiTags('Calendar')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireFeature('calendar')
+@UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagGuard)
 @Controller('calendar')
 export class AcademicCalendarController {
   constructor(

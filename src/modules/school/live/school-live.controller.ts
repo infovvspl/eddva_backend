@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Headers,
@@ -20,16 +21,28 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { CreateLiveLectureDto } from './dto/school-live.dto';
 import { SchoolLiveService } from './school-live.service';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 @Controller('school/live')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@SchoolFeature('module', 'live_classes')
 export class SchoolLiveController {
   constructor(private readonly svc: SchoolLiveService) {}
 
   @Post('lectures')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   create(@SchoolUser() user: any, @Body() dto: CreateLiveLectureDto) {
-    return this.svc.createLecture(user, dto.title);
+    return this.svc.createLecture(user, dto.title, {
+      scheduledFor: dto.scheduledFor,
+      classId: dto.classId,
+      sectionId: dto.sectionId,
+      subjectId: dto.subjectId,
+      description: dto.description,
+      className: dto.className,
+      sectionName: dto.sectionName,
+      subjectName: dto.subjectName,
+    });
   }
 
   @Get('lectures')
@@ -42,6 +55,12 @@ export class SchoolLiveController {
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   live(@SchoolUser() user: any) {
     return this.svc.listLive(user);
+  }
+
+  @Delete('lectures/:id')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  delete(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.deleteLecture(id, user);
   }
 
   @Post('lectures/:id/end')
@@ -58,8 +77,8 @@ export class SchoolLiveController {
 
   @Get('lectures/:id/chat')
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  chat(@Param('id') id: string) {
-    return this.svc.getChatHistory(id, 500);
+  chat(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getChatHistory(id, user, 500);
   }
 
   @Get('lectures/:id/participants/active')
@@ -89,7 +108,7 @@ export class SchoolLiveController {
     @Param('id') id: string,
     @Body() dto: { question: string; options: string[]; correctOption?: string },
   ) {
-    return this.svc.createPoll(id, dto.question, dto.options, dto.correctOption);
+    return this.svc.createPoll(id, user, dto.question, dto.options, dto.correctOption);
   }
 
   @Post('lectures/:id/polls/:pollId/end')
@@ -104,8 +123,8 @@ export class SchoolLiveController {
 
   @Get('lectures/:id/polls/active')
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  activePoll(@Param('id') id: string) {
-    return this.svc.getActivePoll(id);
+  activePoll(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getActivePoll(id, user);
   }
 
   @Post('lectures/:id/polls/:pollId/vote')
@@ -116,13 +135,13 @@ export class SchoolLiveController {
     @Param('pollId') pollId: string,
     @Body() dto: { option: string },
   ) {
-    return this.svc.votePoll(id, pollId, user.id, user.name || 'Student', dto.option);
+    return this.svc.votePoll(id, pollId, user, user.name || 'Student', dto.option);
   }
 
   @Get('lectures/:id/polls')
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  listPolls(@Param('id') id: string) {
-    return this.svc.listPolls(id);
+  listPolls(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.listPolls(id, user);
   }
 }
 

@@ -221,7 +221,23 @@ export class CreateTeacherDto {
   @IsString()
   @MinLength(8)
   password?: string;
+
+  @ApiPropertyOptional({ example: 'ACADEMIC_COORDINATOR' })
+  @IsOptional()
+  @IsString()
+  permissionGroup?: string;
+
+  @ApiPropertyOptional({ example: 'teacher' })
+  @IsOptional()
+  @IsString()
+  role?: string;
+
+  @ApiPropertyOptional({ example: 'uuid-string' })
+  @IsOptional()
+  @IsString()
+  roleId?: string;
 }
+
 
 export class BulkCreateTeacherDto {
   @ApiProperty({ type: [CreateTeacherDto] })
