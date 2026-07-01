@@ -10,6 +10,7 @@ import { redisStore } from 'cache-manager-redis-yet';
 
 import appConfig, { jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig, streamingConfig } from './config/app.config';
 import { coachingDbConfig, schoolDbConfig } from './config/database.config';
+import { TenantAiFeatureModule } from './common/services/tenant-ai-feature.module';
 
 // ── Coaching Entities ──────────────────────────────────────────────────────────
 import { Tenant } from './database/entities/tenant.entity';
@@ -49,6 +50,7 @@ import {
 import { GameSession, QuizRushScore, Quest, QuestStage, StudentQuest, QuestReward, MathSprintScore, MemoryMatchScore, WordMasterScore } from './database/entities/game.entity';
 import { GamificationHistory } from './database/entities/gamification.entity';
 import { PlatformConfig, PaymentTransaction } from './database/entities/payment.entity';
+import { LectureAssignment, AssignmentSubmission } from './database/entities/assignment.entity';
 
 
 // ── Coaching Modules ───────────────────────────────────────────────────────────
@@ -59,6 +61,7 @@ import { AiBridgeModule } from './modules/ai-bridge/ai-bridge.module';
 import { ContentModule } from './modules/content/content.module';
 import { AssessmentModule } from './modules/assessment/assessment.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { AssignmentModule } from './modules/assignment/assignment.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { DoubtModule } from './modules/doubt/doubt.module';
 import { BatchModule } from './modules/batch/batch.module';
@@ -122,6 +125,7 @@ const ALL_COACHING_ENTITIES = [
   BroadcastLecture, BroadcastSession, BroadcastChatMessage,
   BroadcastParticipant, BroadcastPoll, BroadcastPollVote, BroadcastReaction,
   PlatformConfig, PaymentTransaction,
+  LectureAssignment, AssignmentSubmission,
 ];
 
 @Module({
@@ -224,6 +228,7 @@ const ALL_COACHING_ENTITIES = [
     ContentModule,
     AssessmentModule,
     NotificationModule,
+    AssignmentModule,
     AnalyticsModule,
     DoubtModule,
     BatchModule,
@@ -244,6 +249,7 @@ const ALL_COACHING_ENTITIES = [
     GamificationModule,
     InternalModule,
     AuditLogModule,
+    TenantAiFeatureModule,
     CoachingChatModule,
 
     // ── School Module ─────────────────────────────────────────────────────────

@@ -43,7 +43,7 @@ export class AiBridgeController {
   // ── AI #1 — Doubt Clearing ────────────────────────────────────────────────
   @Post('doubt/resolve')
   @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
-  @AiFeature('ai_doubt_resolution')
+  @AiFeature('ai_doubt_solver')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(
     FileInterceptor('image', {
@@ -78,7 +78,7 @@ export class AiBridgeController {
   // ── AI #2 — AI Tutor ──────────────────────────────────────────────────────
   @Post('tutor/session')
   @Roles(UserRole.STUDENT)
-  @AiFeature('ai_study_assistant')
+  @AiFeature('ai_learning_assistant')
   @HttpCode(HttpStatus.OK)
   async startTutorSession(
     @Body() dto: StartTutorSessionDto,
@@ -95,7 +95,7 @@ export class AiBridgeController {
 
   @Post('tutor/continue')
   @Roles(UserRole.STUDENT)
-  @AiFeature('ai_study_assistant')
+  @AiFeature('ai_learning_assistant')
   @HttpCode(HttpStatus.OK)
   async continueTutorSession(
     @Body() dto: ContinueTutorSessionDto,
@@ -112,7 +112,7 @@ export class AiBridgeController {
   // ── AI #3 — Content Recommendation ───────────────────────────────────────
   @Post('content/recommend')
   @Roles(UserRole.STUDENT)
-  @AiFeature('ai_analytics')
+  @AiFeature('ai_student_insights')
   @HttpCode(HttpStatus.OK)
   async recommendContent(
     @Body() dto: RecommendContentDto,
@@ -128,7 +128,7 @@ export class AiBridgeController {
   // ── AI #4 — Speech-to-Text Notes ─────────────────────────────────────────
   @Post('stt/notes')
   @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
-  @AiFeature('ai_speech_to_text')
+  @AiFeature('ai_lecture_processing')
   @HttpCode(HttpStatus.OK)
   async generateLectureNotes(@Body() dto: GenerateLectureNotesDto, @TenantId() tenantId: string) {
     const audioUrl = this._fixAudioUrl(dto.audioUrl);
@@ -138,7 +138,7 @@ export class AiBridgeController {
   // ── AI #5 — Student Feedback ──────────────────────────────────────────────
   @Post('feedback/generate')
   @Roles(UserRole.STUDENT, UserRole.TEACHER)
-  @AiFeature('ai_analytics')
+  @AiFeature('ai_student_insights')
   @HttpCode(HttpStatus.OK)
   async generateFeedback(
     @Body() dto: GenerateFeedbackDto,
@@ -151,7 +151,7 @@ export class AiBridgeController {
   // ── AI #6 — Notes Weak Topic Identifier ──────────────────────────────────
   @Post('notes/analyze')
   @Roles(UserRole.STUDENT)
-  @AiFeature('ai_analytics')
+  @AiFeature('ai_student_insights')
   @HttpCode(HttpStatus.OK)
   async analyzeNotes(
     @Body() dto: AnalyzeNotesDto,
@@ -164,7 +164,7 @@ export class AiBridgeController {
   // ── AI #7 — Resume Analyzer ───────────────────────────────────────────────
   @Post('resume/analyze')
   @Roles(UserRole.STUDENT)
-  @AiFeature('ai_analytics')
+  @AiFeature('ai_student_insights')
   @HttpCode(HttpStatus.OK)
   async analyzeResume(@Body() dto: AnalyzeResumeDto, @TenantId() tenantId: string) {
     return this.aiBridgeService.analyzeResume({ resumeText: dto.resumeText, targetRole: dto.targetRole || 'Software Engineer' }, tenantId);
@@ -173,7 +173,7 @@ export class AiBridgeController {
   // ── AI #8 — Interview Prep ────────────────────────────────────────────────
   @Post('interview/start')
   @Roles(UserRole.STUDENT)
-  @AiFeature('ai_study_assistant')
+  @AiFeature('ai_learning_assistant')
   @HttpCode(HttpStatus.OK)
   async startInterviewPrep(
     @Body() dto: StartInterviewPrepDto,
@@ -186,7 +186,7 @@ export class AiBridgeController {
   // ── AI #9 — Personalized Study Plan ──────────────────────────────────────
   @Post('plan/generate')
   @Roles(UserRole.STUDENT)
-  @AiFeature('ai_study_plan')
+  @AiFeature('ai_learning_assistant')
   @HttpCode(HttpStatus.OK)
   async generateStudyPlan(
     @Body() dto: GenerateStudyPlanDto,

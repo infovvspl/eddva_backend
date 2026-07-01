@@ -36,6 +36,7 @@ import { StudyMaterial, StudyMaterialExam, StudyMaterialType } from '../study-ma
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 import { NotificationService } from '../notification/notification.service';
 import { StudyPlanService } from '../study-plan/study-plan.service';
+import { TenantAiFeatureService } from '../../common/services/tenant-ai-feature.service';
 import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto, UpdateAiStudyNotesDto } from './dto/ai-study.dto';
 import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subject.dto';
 import { CreateChapterDto, UpdateChapterDto } from './dto/chapter.dto';
@@ -137,13 +138,15 @@ ${notes.slice(0, 4000)}`,
         try {
             let englishTerm = searchTerm;
             if (language === 'od' && /[\u0B00-\u0B7F]/.test(searchTerm)) {
-                const translated = await this.aiBridgeService.translateText(
-                    { text: searchTerm, targetLanguage: 'en' },
-                    tenantId,
-                ) as any;
-                englishTerm = String(
-                    translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
-                ).trim() || searchTerm;
+                if (await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing')) {
+                    const translated = await this.aiBridgeService.translateText(
+                        { text: searchTerm, targetLanguage: 'en' },
+                        tenantId,
+                    ) as any;
+                    englishTerm = String(
+                        translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
+                    ).trim() || searchTerm;
+                }
             }
 
             const query = visualHints.some((hint) => englishTerm.toLowerCase().includes(hint))
@@ -290,19 +293,24 @@ ${notes.slice(0, 4000)}`,
         tenantId: string,
         language = 'en',
     ): void {
-        void this._enrichCoachingNotesWithImageSearch(notes, lectureId, tenantId, language)
-            .then(async (enriched) => {
-                if (!enriched.images.length) return;
-                await this.lectureRepo.update(lectureId, {
-                    aiNotesMarkdown: enriched.notes,
-                    aiNoteImages: enriched.images,
-                });
-                this.logger.log(`Coaching notes enriched with ${enriched.images.length} searched image(s) for lecture ${lectureId}`);
+        this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing')
+            .then(enabled => {
+                if (!enabled) return;
+                void this._enrichCoachingNotesWithImageSearch(notes, lectureId, tenantId, language)
+                    .then(async (enriched) => {
+                        if (!enriched.images.length) return;
+                        await this.lectureRepo.update(lectureId, {
+                            aiNotesMarkdown: enriched.notes,
+                            aiNoteImages: enriched.images,
+                        });
+                        this.logger.log(`Coaching notes enriched with ${enriched.images.length} searched image(s) for lecture ${lectureId}`);
+                    })
+                    .catch((error: unknown) => {
+                        const message = error instanceof Error ? error.message : String(error);
+                        this.logger.warn(`Coaching note image search failed for lecture ${lectureId}: ${message}`);
+                    });
             })
-            .catch((error: unknown) => {
-                const message = error instanceof Error ? error.message : String(error);
-                this.logger.warn(`Coaching note image search failed for lecture ${lectureId}: ${message}`);
-            });
+            .catch(e => this.logger.warn(`Failed to check ai_notes_image_enrichment flag: ${e}`));
     }
 
     constructor(
@@ -352,29 +360,11 @@ ${notes.slice(0, 4000)}`,
         private readonly cacheManager: Cache,
         @InjectDataSource('school')
         private readonly schoolDataSource: DataSource,
+        private readonly tenantAiFeatureService: TenantAiFeatureService,
     ) { }
 
-    /**
-     * Returns true if the tenant has the given AI feature enabled.
-     * Cached 5min in CACHE_MANAGER under the same key the AiFeatureGuard uses,
-     * so toggling a tenant's AI config invalidates both at once.
-     */
     private async _tenantHasAiFeature(tenantId: string, feature: string): Promise<boolean> {
-        if (!tenantId) return false;
-        const cacheKey = `tenant_ai:${tenantId}`;
-        let cfg = await this.cacheManager.get<{ aiEnabled: boolean; aiFeatures: string[] }>(cacheKey);
-        if (!cfg) {
-            const rows: any[] = await this.dataSource.query(
-                `SELECT ai_enabled, ai_features FROM tenants WHERE id = $1 LIMIT 1`,
-                [tenantId],
-            );
-            cfg = {
-                aiEnabled: rows[0]?.ai_enabled ?? false,
-                aiFeatures: rows[0]?.ai_features ?? [],
-            };
-            await this.cacheManager.set(cacheKey, cfg, 300_000);
-        }
-        return cfg.aiEnabled && cfg.aiFeatures.includes(feature);
+        return this.tenantAiFeatureService.checkFeature(tenantId, feature);
     }
 
     private normalizeSubjectExamTarget(value: string) {
@@ -392,6 +382,10 @@ ${notes.slice(0, 4000)}`,
         if (!cleaned) return notes;
 
         try {
+            if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
+                return cleaned;
+            }
+
             const result = await this.aiBridgeService.translateText(
                 { text: cleaned, targetLanguage: 'en' },
                 tenantId,
@@ -654,7 +648,7 @@ ${notes.slice(0, 4000)}`,
             for (let si = 0; si < subjects.length; si++) {
                 const sDef = subjects[si];
 
-                // Upsert subject â€” match by name + batchId
+                // Upsert subject — match by name + batchId
                 let subject = await manager.findOne(Subject, {
                     where: { tenantId, batchId, isActive: true, name: sDef.name },
                 });
@@ -683,7 +677,7 @@ ${notes.slice(0, 4000)}`,
                 for (let ci = 0; ci < sDef.chapters.length; ci++) {
                     const cDef = sDef.chapters[ci];
 
-                    // Upsert chapter â€” match by name + subjectId
+                    // Upsert chapter — match by name + subjectId
                     let chapter = await manager.findOne(Chapter, {
                         where: { tenantId, subjectId: subject.id, isActive: true, name: cDef.name },
                     });
@@ -713,7 +707,7 @@ ${notes.slice(0, 4000)}`,
                     for (let ti = 0; ti < cDef.topics.length; ti++) {
                         const tDef = cDef.topics[ti];
 
-                        // Upsert topic â€” match by name + chapterId
+                        // Upsert topic — match by name + chapterId
                         let topic = await manager.findOne(Topic, {
                             where: { tenantId, chapterId: chapter.id, isActive: true, name: tDef.name },
                         });
@@ -876,7 +870,7 @@ ${notes.slice(0, 4000)}`,
             return;
         }
 
-        // MCQ types â€” options required
+        // MCQ types — options required
         if (!options || options.length < 2) {
             throw new BadRequestException('MCQ questions require at least 2 options');
         }
@@ -895,7 +889,7 @@ ${notes.slice(0, 4000)}`,
         this.validateQuestionOptions(dto);
 
         if (dto.topicId) {
-            // Topics are platform-level content â€” do not filter by institute tenantId
+            // Topics are platform-level content — do not filter by institute tenantId
             const topic = await this.topicRepo.findOne({ where: { id: dto.topicId } });
             if (!topic) throw new NotFoundException(`Topic ${dto.topicId} not found`);
         }
@@ -1074,7 +1068,7 @@ ${notes.slice(0, 4000)}`,
             // Only run transcription / AI notes if the tenant has the STT feature
             void (async () => {
                 try {
-                    const enabled = await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text');
+                    const enabled = await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing');
                     if (enabled) {
                         await this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId);
                     } else {
@@ -1125,7 +1119,7 @@ ${notes.slice(0, 4000)}`,
                     userId,
                     tenantId: e.student?.user?.tenantId ?? tenantId,
                     title: `Live class scheduled: ${lecture.title}`,
-                    body: `${teacherName} scheduled a live class${when ? ` â€” ${when}` : ''}. Open Calendar or Lectures to join.`,
+                    body: `${teacherName} scheduled a live class${when ? ` — ${when}` : ''}. Open Calendar or Lectures to join.`,
                     channels: ['in_app', 'push'] as ('in_app' | 'push')[],
                     refType: 'live_class_scheduled',
                     refId: lecture.id,
@@ -1158,7 +1152,7 @@ ${notes.slice(0, 4000)}`,
         const cleanUrl = this._fixVideoUrl(videoUrl.trim());
         const wasPublished = lecture.status === LectureStatus.PUBLISHED;
 
-        const sttEnabled = await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text');
+        const sttEnabled = await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing');
 
         lecture.videoUrl = cleanUrl;
         lecture.type = LectureType.RECORDED;
@@ -1227,7 +1221,7 @@ ${notes.slice(0, 4000)}`,
         try {
             segments = await youtubeTranscript.fetchTranscript(videoId, { lang: 'en' });
         } catch {
-            // Retry without a lang preference â€” takes whatever YouTube makes available
+            // Retry without a lang preference — takes whatever YouTube makes available
             segments = await youtubeTranscript.fetchTranscript(videoId);
         }
         if (!segments || segments.length === 0) {
@@ -1378,7 +1372,7 @@ ${notes.slice(0, 4000)}`,
         if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
             throw new ForbiddenException('You can only retranscribe your own lectures');
         }
-        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+        if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
             throw new ForbiddenException('AI transcription is not enabled for your institution.');
         }
         if (lecture.type !== LectureType.RECORDED || !lecture.videoUrl) {
@@ -1399,7 +1393,7 @@ ${notes.slice(0, 4000)}`,
             throw new ForbiddenException('You can only regenerate notes for your own lectures');
         }
         if (!lecture.transcript || lecture.transcript.trim().length < 20) {
-            throw new BadRequestException('No transcript saved â€” run transcription first');
+            throw new BadRequestException('No transcript saved — run transcription first');
         }
         const lectureLanguage = this.normalizeLectureLanguage(lecture.lectureLanguage);
         const aiLanguage = this.getAiProcessingLanguage(lectureLanguage);
@@ -1424,7 +1418,7 @@ ${notes.slice(0, 4000)}`,
         if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
             throw new ForbiddenException('You can only regenerate notes for your own lectures');
         }
-        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+        if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
             throw new ForbiddenException('AI transcription is not enabled for your institution.');
         }
 
@@ -1503,7 +1497,7 @@ ${notes.slice(0, 4000)}`,
         if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
             throw new ForbiddenException('You can only refresh visuals for your own lectures');
         }
-        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+        if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
             throw new ForbiddenException('AI lecture notes are not enabled for your institution.');
         }
         if (!lecture.aiNotesMarkdown || lecture.aiNotesMarkdown.trim().length < 20) {
@@ -1581,6 +1575,14 @@ ${notes.slice(0, 4000)}`,
 
         if (!lecture.transcript) throw new BadRequestException('No transcript available to translate');
 
+        if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
+            throw new ForbiddenException({
+                code: 'FEATURE_NOT_ENABLED',
+                feature: 'ai_lecture_processing',
+                message: `The feature "ai_lecture_processing" is not enabled for your institution.`,
+            });
+        }
+
         // Call AI bridge to translate English â†’ Hindi
         const result = await this.aiBridgeService.translateText(
             { text: lecture.transcript, targetLanguage: 'hi' },
@@ -1606,6 +1608,14 @@ ${notes.slice(0, 4000)}`,
             await this.assertStudentEnrolledInBatch(user.id, lecture.batchId);
         }
         if (!lecture.aiNotesMarkdown) throw new BadRequestException('No AI notes available to translate');
+
+        if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
+            throw new ForbiddenException({
+                code: 'FEATURE_NOT_ENABLED',
+                feature: 'ai_lecture_processing',
+                message: `The feature "ai_lecture_processing" is not enabled for your institution.`,
+            });
+        }
 
         const result = await this.aiBridgeService.translateText(
             { text: lecture.aiNotesMarkdown, targetLanguage },
@@ -1693,7 +1703,7 @@ ${notes.slice(0, 4000)}`,
 
         // Role-based filtering
         if (userRole === UserRole.STUDENT) {
-            // Students see only lectures from their enrolled batches â€” cross-tenant safe (no tenantId filter)
+            // Students see only lectures from their enrolled batches — cross-tenant safe (no tenantId filter)
             if (student) {
                 const enrollments = await this.enrollmentRepo.find({
                     where: {
@@ -1872,7 +1882,7 @@ ${notes.slice(0, 4000)}`,
         Object.assign(lecture, dto);
 
         const sttEnabled = videoUrlChanged
-            ? await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text')
+            ? await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing')
             : false;
 
         if (videoUrlChanged && incomingVideoUrl) {
@@ -2392,14 +2402,14 @@ ${notes.slice(0, 4000)}`,
         const isNeet = examLower.includes('neet');
         const isFoundation = examLower.includes('foundation');
 
-        const tierLabel = isAdvanced ? 'JEE Advanced (IIT â€” top 0.1%)'
-            : isJee ? 'JEE Mains (NIT/IIIT â€” top 2%)'
-                : isNeet ? 'NEET (MBBS â€” top 1% medical)'
-                    : isFoundation ? 'Foundation (Class 8â€“10)'
+        const tierLabel = isAdvanced ? 'JEE Advanced (IIT — top 0.1%)'
+            : isJee ? 'JEE Mains (NIT/IIIT — top 2%)'
+                : isNeet ? 'NEET (MBBS — top 1% medical)'
+                    : isFoundation ? 'Foundation (Class 8–10)'
                         : examTarget;
 
         const targetLabel = targetCollege
-            ? `${tierLabel} â€” aiming for ${targetCollege}`
+            ? `${tierLabel} — aiming for ${targetCollege}`
             : tierLabel;
 
         const tierCalibration = isAdvanced
@@ -2411,7 +2421,7 @@ ${notes.slice(0, 4000)}`,
             : isJee
                 ? `- Depth of JEE Mains: strong formula application and numerical fluency
 - Cover standard question types (1-mark concept + 4-mark numerical)
-- Examples should be 2â€“3 step reasoning
+- Examples should be 2–3 step reasoning
 - Highlight commonly tested approximations and shortcuts`
                 : isNeet
                     ? `- Depth of NEET: thorough NCERT alignment with assertion-reason and diagram-based patterns
@@ -2424,7 +2434,7 @@ ${notes.slice(0, 4000)}`,
 
         const selfStudyPrompt = `You are a master ${subjectName || 'Science'} teacher who has helped thousands of students crack ${examTarget}. Your lessons are legendary for being crystal-clear, deeply comprehensive, and exam-focused.
 
-Generate a COMPLETE, THOROUGH self-study lesson calibrated precisely for this student's goal. Do not cut corners â€” depth and clarity are the priority.
+Generate a COMPLETE, THOROUGH self-study lesson calibrated precisely for this student's goal. Do not cut corners — depth and clarity are the priority.
 
 TARGET: ${targetLabel}
 CALIBRATION REQUIREMENTS:
@@ -2438,17 +2448,17 @@ Class: ${studentClass}
 
 ---
 
-Write the lesson using this EXACT structure. Each section must be detailed â€” not a placeholder.
+Write the lesson using this EXACT structure. Each section must be detailed — not a placeholder.
 
 # ${topicName}
 
-## ðŸŽ¯ What You'll Learn
+## 🎯 What You'll Learn
 A 2-3 sentence motivating introduction: what this topic is, why it matters for ${examTarget}, and what real-world phenomena it explains. Make it engaging.
 
-## ðŸ“– Introduction & Background
-Give the conceptual foundation. Explain the "big picture" â€” where this topic fits in ${subjectName}, what prior knowledge it builds on, and the intuition behind it. Use analogies to make abstract ideas concrete. Minimum 150 words.
+## 📖 Introduction & Background
+Give the conceptual foundation. Explain the "big picture" — where this topic fits in ${subjectName}, what prior knowledge it builds on, and the intuition behind it. Use analogies to make abstract ideas concrete. Minimum 150 words.
 
-## ðŸ”‘ Core Concepts (Explained in Depth)
+## 🔑 Core Concepts (Explained in Depth)
 For EACH major concept in this topic:
 ### Concept Name
 - Clear definition
@@ -2457,9 +2467,9 @@ For EACH major concept in this topic:
 - What happens as variables change (if applicable)
 - A short illustrative example
 
-Cover ALL concepts â€” do not skip any.
+Cover ALL concepts — do not skip any.
 
-## ðŸ“ Formulas & Equations
+## 📐 Formulas & Equations
 For EVERY formula:
 ### Formula Name
 $$formula$$
@@ -2468,7 +2478,7 @@ $$formula$$
 - Conditions: when it applies / assumptions
 - How to remember it (mnemonic or pattern)
 
-## ðŸ“Š Derivations
+## 📊 Derivations
 For the most important formula(s):
 ### Derivation of [Formula Name]
 Step-by-step derivation with:
@@ -2477,8 +2487,8 @@ Step-by-step derivation with:
 - Physical meaning of each step
 - Final result with units check
 
-## ðŸ’¡ Solved Examples
-### Example 1 â€” Basic (Concept check)
+## 💡 Solved Examples
+### Example 1 — Basic (Concept check)
 [Full problem statement]
 
 **Solution:**
@@ -2489,19 +2499,19 @@ Step 2: ...
 
 **Key takeaway:** ...
 
-### Example 2 â€” Intermediate
+### Example 2 — Intermediate
 [Full problem with 2-3 steps]
 
 **Solution:** (detailed)
 
-### Example 3 â€” ${examTarget} Level (Hard)
+### Example 3 — ${examTarget} Level (Hard)
 [A tricky exam-style question]
 
 **Solution:** (complete step-by-step)
 
 **Examiner's Trap:** explain the trick/trap they set
 
-## ðŸ§  Connections to Other Topics
+## 🧠 Connections to Other Topics
 - How this topic links to [related topic 1]
 - How it connects to [related topic 2]
 - Topics that depend on understanding this one
@@ -2514,17 +2524,17 @@ For each mistake:
 
 List at least 4-5 genuine mistakes.
 
-## ðŸ† ${examTarget} Exam Strategy
+## 🏆 ${examTarget} Exam Strategy
 - How this topic typically appears in ${examTarget} (question types, weightage)
 - Which formulas are most tested
 - Speed tricks and shortcuts for calculations
 - 2-3 previous year question patterns (describe the pattern, not actual PYQs)
 
-## ðŸ“ Quick Revision Summary
+## 📝 Quick Revision Summary
 A numbered list of the 8-10 most critical points to memorize. These should be the things a student checks 10 minutes before the exam.
 
-## ðŸ” Self-Check Questions
-5 questions the student should be able to answer after reading this lesson (no answers â€” just the questions to test themselves):
+## 🔁 Self-Check Questions
+5 questions the student should be able to answer after reading this lesson (no answers — just the questions to test themselves):
 1. ...
 2. ...
 3. ...
@@ -2558,7 +2568,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             commonMistakes = this.extractBulletSection(lessonMarkdown, 'Common Mistakes Students Make');
         } catch (err) {
             this.logger.warn(`AI lesson generation failed for topic ${topicId}: ${err.message}`);
-            // Preserve existing real content if available â€” never overwrite good data with an error string
+            // Preserve existing real content if available — never overwrite good data with an error string
             if (existing?.lessonMarkdown && !this.shouldRegenerateLesson(existing.lessonMarkdown)) {
                 lessonMarkdown = this.normalizeSolvedExamplesFormatting(existing.lessonMarkdown);
                 keyConcepts = existing.keyConcepts ?? [];
@@ -2566,7 +2576,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 commonMistakes = existing.commonMistakes ?? [];
                 aiSessionRef = existing.aiSessionRef ?? null;
             } else {
-                // No real content exists â€” return a transient error without saving to DB
+                // No real content exists — return a transient error without saving to DB
                 return {
                     id: existing?.id ?? null,
                     topicId,
@@ -2585,7 +2595,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             }
         }
 
-        // Dynamic question count: complexity (key-concept count) Ã— exam-tier
+        // Dynamic question count: complexity (key-concept count) × exam-tier
         const complexity = keyConcepts.length >= 7 ? 'high' : keyConcepts.length >= 4 ? 'medium' : 'low';
         const qTable: Record<string, Record<string, number>> = {
             advanced: { low: 12, medium: 16, high: 20 },
@@ -2755,7 +2765,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         session.inlineComments = dto.inlineComments;
         await this.aiStudyRepo.save(session);
 
-        // Upsert TopicProgress â€” unlock topic for quiz
+        // Upsert TopicProgress — unlock topic for quiz
         let progress = await this.topicProgressRepo.findOne({
             where: { studentId: student.id, topicId },
         });
@@ -2928,7 +2938,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 return v;
             }
             if (Array.isArray(v) && v.length && v.every((x) => typeof x === 'string')) {
-                // Model sometimes returns only a JSON array of "concept" chips â€” make readable
+                // Model sometimes returns only a JSON array of "concept" chips — make readable
                 return v.map((s) => String(s).trim()).filter(Boolean).join(' ');
             }
             if (typeof v === 'object' && v !== null) {
@@ -2993,7 +3003,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         if (!match) return [];
         return match[1]
             .split('\n')
-            .map((l) => l.replace(/^[-â€¢*\d.]+\s*/, '').trim())
+            .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
             .filter((l) => l.length > 3 && !l.startsWith('['));
     }
 
@@ -3026,7 +3036,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
     private extractFormulaCandidates(markdown: string): string[] {
         const lines = String(markdown || '')
             .split('\n')
-            .map((l) => l.replace(/^[-â€¢*\d.]+\s*/, '').trim())
+            .map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim())
             .filter(Boolean);
         const candidates = lines.filter((l) =>
             /[=âˆ‘âˆšÎ”Ï€]/.test(l) ||
@@ -3497,7 +3507,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
                 return this.notificationService.send({
                     userId,
                     tenantId: recipientTenantId,
-                    title: 'ðŸ“š New Study Material',
+                    title: '📚 New Study Material',
                     body: `"${title}" has been added to ${topic.name}. Check it out!`,
                     channels: ['in_app', 'push'],
                     refType: 'topic_resource',
