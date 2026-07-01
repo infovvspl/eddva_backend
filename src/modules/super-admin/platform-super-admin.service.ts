@@ -142,7 +142,64 @@ export class PlatformSuperAdminService {
     };
   }
 
-  // â”€â”€ Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async getInstitutesNeedingAttentionCount() {
+    const raw = await this.dataSource.query(`
+      WITH stats AS (
+        SELECT t.id,
+          -- Subscription check
+          (
+            (t.status = 'trial' AND t.trial_ends_at <= NOW() + INTERVAL '7 days') OR
+            (t.plan_expires_at IS NOT NULL AND t.plan_expires_at <= NOW() + INTERVAL '7 days')
+          ) AS expiring_sub,
+
+          -- Inactivity check
+          (
+            t.created_at < NOW() - INTERVAL '14 days' AND
+            COALESCE(
+              (
+                SELECT MAX(u.last_login_at)
+                FROM users u
+                WHERE u.tenant_id = t.id AND u.role IN ('institute_admin', 'teacher') AND u.deleted_at IS NULL
+              ),
+              t.created_at
+            ) < NOW() - INTERVAL '14 days'
+          ) AS inactive,
+
+          -- Open tickets check
+          (
+            (SELECT COUNT(*)::int FROM complaints c WHERE c.institute_id = t.id AND c.status = 'OPEN' AND c.deleted_at IS NULL) >= 1
+          ) AS open_tickets,
+
+          -- Stalled onboarding check
+          (
+            t.onboarding_complete = false AND t.created_at < NOW() - INTERVAL '2 days'
+          ) AS stalled_onboard
+        FROM tenants t
+        WHERE t.deleted_at IS NULL AND t.type != 'platform'
+      )
+      SELECT 
+        COUNT(DISTINCT id)::int AS count,
+        COUNT(CASE WHEN expiring_sub THEN 1 END)::int AS "expiringSubscriptions",
+        COUNT(CASE WHEN inactive THEN 1 END)::int AS inactive,
+        COUNT(CASE WHEN open_tickets THEN 1 END)::int AS "openTickets",
+        COUNT(CASE WHEN stalled_onboard THEN 1 END)::int AS "stalledOnboarding"
+      FROM stats
+      WHERE expiring_sub = true OR inactive = true OR open_tickets = true OR stalled_onboard = true
+    `);
+
+    const result = raw[0] || { count: 0, expiringSubscriptions: 0, inactive: 0, openTickets: 0, stalledOnboarding: 0 };
+    return {
+      count: Number(result.count || 0),
+      breakdown: {
+        expiringSubscriptions: Number(result.expiringSubscriptions || 0),
+        inactive: Number(result.inactive || 0),
+        openTickets: Number(result.openTickets || 0),
+        stalledOnboarding: Number(result.stalledOnboarding || 0),
+      }
+    };
+  }
+
+  // ── Health ───────────────────────────────────────────────────────────
 
   async getHealth() {
     let database: 'ok' | 'error' = 'ok';

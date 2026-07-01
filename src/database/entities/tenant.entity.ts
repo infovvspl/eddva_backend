@@ -99,6 +99,9 @@ export class Tenant extends Base {
   @Column({ name: 'trial_ends_at', type: 'timestamptz', nullable: true })
   trialEndsAt: Date;
 
+  @Column({ name: 'plan_expires_at', type: 'timestamptz', nullable: true })
+  planExpiresAt: Date;
+
   @Column({ name: 'is_suspended', default: false })
   isSuspended: boolean;
 
