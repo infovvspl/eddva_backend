@@ -68,6 +68,10 @@ import { LiveBroadcastModule } from './modules/live-broadcast/live-broadcast.mod
 import { BroadcastLecture } from './modules/live-broadcast/entities/broadcast-lecture.entity';
 import { BroadcastSession } from './modules/live-broadcast/entities/broadcast-session.entity';
 import { BroadcastChatMessage } from './modules/live-broadcast/entities/broadcast-chat-message.entity';
+import { BroadcastParticipant } from './modules/live-broadcast/entities/broadcast-participant.entity';
+import { BroadcastPoll } from './modules/live-broadcast/entities/broadcast-poll.entity';
+import { BroadcastPollVote } from './modules/live-broadcast/entities/broadcast-poll-vote.entity';
+import { BroadcastReaction } from './modules/live-broadcast/entities/broadcast-reaction.entity';
 import { MailModule } from './modules/mail/mail.module';
 import { InstituteSettingsModule } from './modules/institute-settings/institute-settings.module';
 import { PYQModule } from './modules/pyq/pyq.module';
@@ -114,6 +118,7 @@ const ALL_COACHING_ENTITIES = [
   GameSession, QuizRushScore, Quest, QuestStage, StudentQuest, QuestReward, MathSprintScore, MemoryMatchScore, WordMasterScore,
   GamificationHistory,
   BroadcastLecture, BroadcastSession, BroadcastChatMessage,
+  BroadcastParticipant, BroadcastPoll, BroadcastPollVote, BroadcastReaction,
   PlatformConfig, PaymentTransaction,
 ];
 
