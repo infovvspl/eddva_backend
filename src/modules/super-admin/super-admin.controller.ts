@@ -208,6 +208,7 @@ export class SuperAdminController {
   // ── Platform Config ───────────────────────────────────────────────────────────
 
   @Get('platform-config')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Get platform-wide config (commission rate, etc.)' })
   getPlatformConfig() {
     return this.superAdminService.getPlatformConfig();
