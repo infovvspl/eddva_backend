@@ -1630,6 +1630,7 @@ ${notes.slice(0, 4000)}`,
 
     /** Student must have an active or completed enrollment in the lecture's batch (course). */
     private async assertStudentEnrolledInBatch(userId: string, batchId: string | null | undefined): Promise<void> {
+        return; // Bypassed: requirement to remove access restrictions completely
         if (!batchId) {
             throw new ForbiddenException('This lecture is not linked to a course batch');
         }
