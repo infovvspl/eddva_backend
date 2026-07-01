@@ -280,7 +280,7 @@ export class AiUsageService implements OnModuleInit {
     const params: any[] = [];
     const where = this.filterSql(opts, params);
     return this.ds.query(
-      `SELECT day,
+      `SELECT TO_CHAR(day, 'YYYY-MM-DD') AS day,
               SUM(request_count)::int AS requests,
               SUM(total_tokens)::bigint AS tokens,
               SUM(est_cost)::numeric AS cost

@@ -1,22 +1,37 @@
 {
-  "userId": "da39566f-a10c-4168-91dd-9b119723b3c7",
+  "userId": "68c93269-426b-4c10-bc9c-b533e468a3fb",
   "tenantId": "73a505c3-23eb-4166-b019-8c9bc154a284",
-  "effectiveTenantId": "911fa646-fc0b-4421-b44b-c613cb44e10c",
-  "batchId": "148afb7f-19ba-4136-b21f-ffe9f33ee306",
-  "studentId": "8df200de-cce8-4e5a-9347-b2283a8bf7eb",
-  "topicsResolved": 1,
+  "effectiveTenantId": "73a505c3-23eb-4166-b019-8c9bc154a284",
+  "batchId": "2099f7c4-9f66-4287-8621-f6dc8905fe82",
+  "studentId": "5532d95d-5d1a-4f4b-ae18-7cc978db026f",
+  "topicsResolved": 4,
   "topicSample": [
     {
-      "id": "d8ca8c1c-d19b-4f25-a683-5598e10c37a3",
-      "name": "Concave lens"
+      "id": "4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c",
+      "name": "Photosynthesis"
+    },
+    {
+      "id": "a211af56-9fab-471f-80fb-dfd438a840ad",
+      "name": "Central Nervous System"
+    },
+    {
+      "id": "41dda54d-7a5f-4f26-8d25-c4fc777abb1d",
+      "name": "Excretion"
     }
   ],
-  "planId": null,
-  "allPlanItems": 0,
-  "completedPracticeItems": 0,
-  "completedPracticeRefIds": [],
-  "completedAiSessions": 1,
+  "planId": "df5237a9-e5ae-4047-9c83-56b263f4f0c7",
+  "allPlanItems": 21,
+  "completedPracticeItems": 2,
+  "completedPracticeRefIds": [
+    "4a47a69e-76b4-4d6e-98a4-5a1efa0ee55c",
+    "41dda54d-7a5f-4f26-8d25-c4fc777abb1d"
+  ],
+  "completedAiSessions": 9,
   "aiSessionTopicIds": [
-    "a2132d93-8017-40fb-81e7-f06b25dc1769"
+    "063c5f79-fb87-4954-8492-96eb8900f6d9",
+    "0f8f124f-fe17-48e0-95b3-4dcd9e8de88e",
+    "31b6de1b-e844-4b0c-a6d0-e8f67b83fd63",
+    "34fe89d8-1651-4d47-9e3c-a0b03b6b8ab3",
+    "41dda54d-7a5f-4f26-8d25-c4fc777abb1d"
   ]
 }
