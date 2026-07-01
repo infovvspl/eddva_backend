@@ -31,6 +31,7 @@ import { ExamSyllabusCache } from '../../database/entities/exam-syllabus.entity'
 import { GradingService, type DescriptiveGradingContext } from './grading.service';
 import { StudyPlanService } from '../study-plan/study-plan.service';
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
+import { TenantAiFeatureService } from '../../common/services/tenant-ai-feature.service';
 import { NotificationService } from '../notification/notification.service';
 import { AnswerQuestionDto } from './dto/answer.dto';
 import { CreateMockTestDto, MockTestListQueryDto, UpdateMockTestDto } from './dto/mock-test.dto';
@@ -85,6 +86,7 @@ export class AssessmentService {
     private readonly dataSource: DataSource,
     private readonly studyPlanService: StudyPlanService,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly tenantAiFeatureService: TenantAiFeatureService,
     private readonly notificationService: NotificationService,
   ) { }
 
@@ -407,7 +409,7 @@ export class AssessmentService {
     batchId: string,
     tenantId: string,
   ): Promise<void> {
-    // Batch id is globally unique â€” do not filter enrollments by institute tenantId.
+    // Batch id is globally unique — do not filter enrollments by institute tenantId.
     // Some rows may have enrollment.tenant_id out of sync with batch.tenant_id; those
     // students would otherwise never get notified or see the test under strict filters.
     const enrollments = await this.enrollmentRepo.find({
@@ -427,7 +429,7 @@ export class AssessmentService {
         return this.notificationService.send({
           userId: e.student!.user!.id,
           tenantId: recipientTenantId,
-          title: 'ðŸ“ New Mock Test Available',
+          title: '📝 New Mock Test Available',
           body: `"${testTitle}" has been published in ${batchName}. Attempt it now!`,
           channels: ['in_app', 'push'],
           refType: 'mock_test_available',
@@ -672,7 +674,7 @@ export class AssessmentService {
 
       // Mark diagnosticCompleted when:
       //   (a) the mock test is explicitly typed as DIAGNOSTIC, OR
-      //   (b) the student hasn't yet completed their diagnostic â€” meaning whatever
+      //   (b) the student hasn't yet completed their diagnostic — meaning whatever
       //       test they just submitted WAS their diagnostic (the UI falls back to
       //       the first published test when no DIAGNOSTIC-type test exists).
       if (mockTest.type === MockTestType.DIAGNOSTIC || !student.diagnosticCompleted) {
@@ -772,13 +774,16 @@ export class AssessmentService {
     attempts: QuestionAttempt[],
     tenantId: string,
   ) {
+    const isOcrEnabled = await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_assessment_grading');
+    
     const qMap = new Map(questions.map((q) => [q.id, q]));
     for (const attempt of attempts) {
       const q = qMap.get(attempt.questionId);
       if (!q || q.type !== QuestionType.DESCRIPTIVE) continue;
       const current = String(attempt.integerAnswer || '').trim();
       const imageUrls = Array.isArray((attempt as any).answerImageUrls) ? (attempt as any).answerImageUrls as string[] : [];
-      if (!imageUrls.length) continue;
+      if (!imageUrls.length || !isOcrEnabled) continue;
+      
       const extracted = await this.extractOcrTextForImages(imageUrls, tenantId);
       if (!extracted) continue;
       // Merge typed + vision transcription so handwritten work is graded together with the text box.
@@ -1029,7 +1034,7 @@ export class AssessmentService {
     });
     const sessionIds = sessions.map(s => s.id);
     if (!sessionIds.length) {
-      // No submissions yet â€” return questions with zero stats
+      // No submissions yet — return questions with zero stats
       const questions = await this.questionRepo.find({
         where: { id: In(mockTest.questionIds), tenantId },
         select: ['id', 'content', 'type', 'difficulty'],
@@ -1551,7 +1556,7 @@ export class AssessmentService {
 
   /**
    * Merges batch cohort (`examTarget`, `class`) with CBSE-style board marking. When the mock title
-   * or batch clearly indicates school-board / CBSE prep, `preferBoardMarking` keeps the full 2â€“5m
+   * or batch clearly indicates school-board / CBSE prep, `preferBoardMarking` keeps the full 2–5m
    * step-rubric and board leniency while still using cohort fields for band inference.
    */
   private buildDescriptiveGradingContext(
@@ -1626,7 +1631,7 @@ export class AssessmentService {
 
   /**
    * Strip answer key and explanations while a student is taking the test (anti-cheat).
-   * Do not spread TypeORM entities â€” column values can be missing from `{...entity}`.
+   * Do not spread TypeORM entities — column values can be missing from `{...entity}`.
    */
   private sanitizeQuestionForStudent(question: Question) {
     return {
@@ -1829,7 +1834,7 @@ export class AssessmentService {
         .getMany();
 
       if (fallback.length < 1) {
-        this.logger.log(`No questions in bank for tenant ${tenantId} â€” generating via AI for ${relevantTopics.length} topics`);
+        this.logger.log(`No questions in bank for tenant ${tenantId} — generating via AI for ${relevantTopics.length} topics`);
         const aiQuestions = await this.generateAiQuestionsForDiagnostic(relevantTopics, tenantId);
         if (aiQuestions.length < 1) {
           throw new BadRequestException(
@@ -1854,7 +1859,7 @@ export class AssessmentService {
     const mockTest = await this.mockTestRepo.save(
       this.mockTestRepo.create({
         tenantId,
-        title: `Diagnostic Test â€” ${student.examTarget.toUpperCase()}`,
+        title: `Diagnostic Test — ${student.examTarget.toUpperCase()}`,
         type: MockTestType.DIAGNOSTIC,
         totalMarks,
         durationMinutes: 45,
@@ -1877,7 +1882,7 @@ export class AssessmentService {
       schema,
     );
 
-    // --- Create the session directly (bypass published/enrollment guards â€” diagnostic is special) ---
+    // --- Create the session directly (bypass published/enrollment guards — diagnostic is special) ---
     const session = await this.sessionRepo.save(
       this.sessionRepo.create({
         tenantId,
@@ -2033,7 +2038,7 @@ export class AssessmentService {
       return { batchIds: [], batchTenantId: null };
     }
 
-    // Always load all active enrollments â€” filtering only by JWT tenant hides batches
+    // Always load all active enrollments — filtering only by JWT tenant hides batches
     // where enrollment.tenant_id differs from the token (common after payment/self-enroll).
     const enrollments = await this.enrollmentRepo.find({
       where: { studentId: student.id, status: EnrollmentStatus.ACTIVE },
@@ -2115,7 +2120,7 @@ export class AssessmentService {
       schema.showAnswersAfterSubmit ? 'mt.show_answers_after_submit AS "showAnswersAfterSubmit"' : 'true AS "showAnswersAfterSubmit"',
       schema.allowReattempt ? 'mt.allow_reattempt AS "allowReattempt"' : 'false AS "allowReattempt"',
       'mt.exam_mode AS "examMode"',
-      // Resolved names via JOIN (queries must alias sub-queries or use LEFT JOIN â€” handled at call sites)
+      // Resolved names via JOIN (queries must alias sub-queries or use LEFT JOIN — handled at call sites)
     ].join(', ');
   }
 
@@ -2202,7 +2207,7 @@ export class AssessmentService {
       };
     } catch (error: unknown) {
       this.logger.warn(`Failed to inspect mock_tests schema: ${(error as Error).message}`);
-      // Don't cache on error â€” retry next request
+      // Don't cache on error — retry next request
       return {
         batchId: false, topicId: false, passingMarks: false,
         isPublished: false, shuffleQuestions: false,
@@ -2219,7 +2224,7 @@ export class AssessmentService {
     topics: Topic[],
     tenantId: string,
   ): Promise<Question[]> {
-    // Limit to 5 topics max â€” avoid overloading local Ollama under parallel load
+    // Limit to 5 topics max — avoid overloading local Ollama under parallel load
     const MAX_TOPICS = 5;
     const QUESTIONS_PER_TOPIC = 4;
     const difficultyPattern: DifficultyLevel[] = [

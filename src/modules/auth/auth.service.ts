@@ -175,7 +175,7 @@ export class AuthService {
       throw new BadRequestException('Invalid or expired OTP');
     }
 
-    // Consume OTP â€” delete it
+    // Consume OTP — delete it
     await this.cacheManager.del(key);
 
     // Find or create user
@@ -400,7 +400,7 @@ export class AuthService {
     const resetLink = `${frontendUrl}/reset-password?token=${token}`;
     const mailDevMode = this.configService.get<boolean>('mail.devMode');
 
-    // Fire-and-forget â€” never let a mail failure block the API response
+    // Fire-and-forget — never let a mail failure block the API response
     this.mailService
       .sendPasswordResetEmail(user.email, user.fullName, resetLink)
       .catch((err: Error) => this.logger.error(`Failed to send password reset email to ${user.email}: ${err.message}`));
@@ -778,7 +778,7 @@ export class AuthService {
 
     const student = await this.studentRepo.findOne({ where: { userId } });
 
-    // Update streak on every /me call (safe â€” idempotent within same day)
+    // Update streak on every /me call (safe — idempotent within same day)
     if (student) {
       try {
         const today = new Date().toISOString().split('T')[0];

@@ -186,8 +186,8 @@ export class AnalyticsService {
       await this.notificationService.send({
         userId,
         tenantId,
-        title: "Seems like you're finding this tough. Need help? ðŸ’¡",
-        body: "Seems like you're finding this tough. Need help? ðŸ’¡",
+        title: "Seems like you're finding this tough. Need help? 💡",
+        body: "Seems like you're finding this tough. Need help? 💡",
         channels: ['push', 'in_app'],
         refType: 'engagement_confused',
         refId: dto.lectureId,

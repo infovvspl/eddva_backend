@@ -23,13 +23,13 @@ export enum TenantPlan {
 
 // All AI features available on the coaching platform
 export const AI_FEATURES = [
-  'ai_study_assistant',    // AI tutor session + study page
-  'ai_study_plan',         // AI-generated personalized study plan
-  'ai_battle_arena',       // AI adaptive battle arena
-  'ai_analytics',          // AI weak topic detection + progress
-  'ai_doubt_resolution',   // AI doubt clearing
-  'ai_content_generation', // Teacher question/quiz generation
-  'ai_speech_to_text',     // Lecture transcription (STT)
+  'ai_lecture_processing',
+  'ai_doubt_solver',
+  'ai_learning_assistant',
+  'ai_student_insights',
+  'ai_assessment_grading',
+  'ai_content_generation',
+  'ai_battle_arena',
 ] as const;
 
 export type AiFeatureKey = typeof AI_FEATURES[number];
