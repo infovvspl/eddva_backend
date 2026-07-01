@@ -72,7 +72,7 @@ export class TenantMiddleware implements NestMiddleware {
       const isIpHost = /^\d+\.\d+\.\d+\.\d+$/.test(host);
       if (!isIpHost) {
         const parts = host.split('.');
-        const reserved = new Set(['localhost', 'www', 'edva', 'apexiq', 'platform']);
+        const reserved = new Set(['localhost', 'www', 'edva', 'apexiq', 'platform', 'dev-api', 'api']);
         if (parts.length === 2 && parts[1] === 'localhost') {
           const sub = parts[0].toLowerCase();
           if (!reserved.has(sub)) {

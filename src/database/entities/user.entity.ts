@@ -91,6 +91,13 @@ export class User extends Base {
   @Column({ name: 'permission_group', nullable: true })
   permissionGroup: string;
 
+  @Column({ name: 'role_id', nullable: true })
+  roleId: string;
+
+  @ManyToOne('Role', { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'role_id' })
+  customRole: any;
+
   // ── Hooks ─────────────────────────────────────────────────────────────────
 
   @BeforeInsert()
