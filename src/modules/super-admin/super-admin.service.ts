@@ -414,7 +414,6 @@ export class SuperAdminService {
   async getPlatformStats() {
     const now = new Date();
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const [
       totalTenants,
@@ -450,15 +449,19 @@ export class SuperAdminService {
         .where('u.role = :role', { role: UserRole.TEACHER })
         .andWhere('(t.type != :platformType OR u.tenant_id IS NULL)', { platformType: TenantType.PLATFORM })
         .getCount(),
-      this.dataSource.query("SELECT COUNT(*)::int AS count FROM ai_usage_events WHERE (vertical = 'coaching' OR vertical IS NULL)"),
+      this.dataSource.query(
+        `SELECT COALESCE(SUM(request_count), 0)::int AS count
+         FROM ai_usage_daily
+         WHERE vertical = 'coaching'`,
+      ),
       this.tenantRepo.find({ where: { type: Not(TenantType.PLATFORM) } }),
       this.dataSource.query("SELECT pg_database_size(current_database())::bigint AS size"),
       this.dataSource.query("SELECT COUNT(*)::int AS count FROM audit_logs WHERE status = 'FAILED'"),
       this.dataSource.query(
-        `SELECT COUNT(*)::int AS count 
-         FROM ai_usage_events 
-         WHERE created_at >= $1 AND (vertical = 'coaching' OR vertical IS NULL)`,
-        [todayStart],
+        `SELECT COALESCE(SUM(request_count), 0)::int AS count
+         FROM ai_usage_daily
+         WHERE day = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
+           AND vertical = 'coaching'`,
       ),
       // Monthly institute registrations (last 6 months)
       this.dataSource.query(`
@@ -502,8 +505,8 @@ export class SuperAdminService {
       this.dataSource.query(`
         WITH hours AS (
           SELECT generate_series(
-            DATE_TRUNC('day', NOW()),
-            DATE_TRUNC('day', NOW()) + INTERVAL '23 hours',
+            DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Kolkata'),
+            DATE_TRUNC('hour', NOW() AT TIME ZONE 'Asia/Kolkata'),
             INTERVAL '1 hour'
           ) AS hour_start
         )
@@ -511,8 +514,9 @@ export class SuperAdminService {
                COALESCE(COUNT(e.id), 0)::int AS usage
         FROM hours h
         LEFT JOIN ai_usage_events e
-          ON DATE_TRUNC('hour', e.created_at) = h.hour_start
-         AND (e.vertical = 'coaching' OR e.vertical IS NULL)
+          ON DATE_TRUNC('hour', e.created_at AT TIME ZONE 'Asia/Kolkata') = h.hour_start
+         AND e.vertical = 'coaching'
+         AND e.institute_id IS NOT NULL
         GROUP BY h.hour_start
         ORDER BY h.hour_start
       `),
