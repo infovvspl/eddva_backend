@@ -36,6 +36,7 @@ import { StudyMaterial, StudyMaterialExam, StudyMaterialType } from '../study-ma
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 import { NotificationService } from '../notification/notification.service';
 import { StudyPlanService } from '../study-plan/study-plan.service';
+import { TenantAiFeatureService } from '../../common/services/tenant-ai-feature.service';
 import { AskAiQuestionDto, CompleteAiStudyDto, CompleteAiQuizDto, UpdateAiStudyNotesDto } from './dto/ai-study.dto';
 import { CreateSubjectDto, UpdateSubjectDto, SubjectQueryDto } from './dto/subject.dto';
 import { CreateChapterDto, UpdateChapterDto } from './dto/chapter.dto';
@@ -137,13 +138,15 @@ ${notes.slice(0, 4000)}`,
         try {
             let englishTerm = searchTerm;
             if (language === 'od' && /[\u0B00-\u0B7F]/.test(searchTerm)) {
-                const translated = await this.aiBridgeService.translateText(
-                    { text: searchTerm, targetLanguage: 'en' },
-                    tenantId,
-                ) as any;
-                englishTerm = String(
-                    translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
-                ).trim() || searchTerm;
+                if (await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing')) {
+                    const translated = await this.aiBridgeService.translateText(
+                        { text: searchTerm, targetLanguage: 'en' },
+                        tenantId,
+                    ) as any;
+                    englishTerm = String(
+                        translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
+                    ).trim() || searchTerm;
+                }
             }
 
             const baseQuery = visualHints.some((hint) => englishTerm.toLowerCase().includes(hint))
@@ -299,19 +302,24 @@ ${notes.slice(0, 4000)}`,
         tenantId: string,
         language = 'en',
     ): void {
-        void this._enrichCoachingNotesWithImageSearch(notes, lectureId, tenantId, language)
-            .then(async (enriched) => {
-                if (!enriched.images.length) return;
-                await this.lectureRepo.update(lectureId, {
-                    aiNotesMarkdown: enriched.notes,
-                    aiNoteImages: enriched.images,
-                });
-                this.logger.log(`Coaching notes enriched with ${enriched.images.length} searched image(s) for lecture ${lectureId}`);
+        this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing')
+            .then(enabled => {
+                if (!enabled) return;
+                void this._enrichCoachingNotesWithImageSearch(notes, lectureId, tenantId, language)
+                    .then(async (enriched) => {
+                        if (!enriched.images.length) return;
+                        await this.lectureRepo.update(lectureId, {
+                            aiNotesMarkdown: enriched.notes,
+                            aiNoteImages: enriched.images,
+                        });
+                        this.logger.log(`Coaching notes enriched with ${enriched.images.length} searched image(s) for lecture ${lectureId}`);
+                    })
+                    .catch((error: unknown) => {
+                        const message = error instanceof Error ? error.message : String(error);
+                        this.logger.warn(`Coaching note image search failed for lecture ${lectureId}: ${message}`);
+                    });
             })
-            .catch((error: unknown) => {
-                const message = error instanceof Error ? error.message : String(error);
-                this.logger.warn(`Coaching note image search failed for lecture ${lectureId}: ${message}`);
-            });
+            .catch(e => this.logger.warn(`Failed to check ai_notes_image_enrichment flag: ${e}`));
     }
 
     constructor(
@@ -361,29 +369,11 @@ ${notes.slice(0, 4000)}`,
         private readonly cacheManager: Cache,
         @InjectDataSource('school')
         private readonly schoolDataSource: DataSource,
+        private readonly tenantAiFeatureService: TenantAiFeatureService,
     ) { }
 
-    /**
-     * Returns true if the tenant has the given AI feature enabled.
-     * Cached 5min in CACHE_MANAGER under the same key the AiFeatureGuard uses,
-     * so toggling a tenant's AI config invalidates both at once.
-     */
     private async _tenantHasAiFeature(tenantId: string, feature: string): Promise<boolean> {
-        if (!tenantId) return false;
-        const cacheKey = `tenant_ai:${tenantId}`;
-        let cfg = await this.cacheManager.get<{ aiEnabled: boolean; aiFeatures: string[] }>(cacheKey);
-        if (!cfg) {
-            const rows: any[] = await this.dataSource.query(
-                `SELECT ai_enabled, ai_features FROM tenants WHERE id = $1 LIMIT 1`,
-                [tenantId],
-            );
-            cfg = {
-                aiEnabled: rows[0]?.ai_enabled ?? false,
-                aiFeatures: rows[0]?.ai_features ?? [],
-            };
-            await this.cacheManager.set(cacheKey, cfg, 300_000);
-        }
-        return cfg.aiEnabled && cfg.aiFeatures.includes(feature);
+        return this.tenantAiFeatureService.checkFeature(tenantId, feature);
     }
 
     private normalizeSubjectExamTarget(value: string) {
@@ -401,6 +391,10 @@ ${notes.slice(0, 4000)}`,
         if (!cleaned) return notes;
 
         try {
+            if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
+                return cleaned;
+            }
+
             const result = await this.aiBridgeService.translateText(
                 { text: cleaned, targetLanguage: 'en' },
                 tenantId,
@@ -1083,7 +1077,7 @@ ${notes.slice(0, 4000)}`,
             // Only run transcription / AI notes if the tenant has the STT feature
             void (async () => {
                 try {
-                    const enabled = await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text');
+                    const enabled = await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing');
                     if (enabled) {
                         await this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId);
                     } else {
@@ -1167,7 +1161,7 @@ ${notes.slice(0, 4000)}`,
         const cleanUrl = this._fixVideoUrl(videoUrl.trim());
         const wasPublished = lecture.status === LectureStatus.PUBLISHED;
 
-        const sttEnabled = await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text');
+        const sttEnabled = await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing');
 
         lecture.videoUrl = cleanUrl;
         lecture.type = LectureType.RECORDED;
@@ -1387,7 +1381,7 @@ ${notes.slice(0, 4000)}`,
         if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
             throw new ForbiddenException('You can only retranscribe your own lectures');
         }
-        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+        if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
             throw new ForbiddenException('AI transcription is not enabled for your institution.');
         }
         if (lecture.type !== LectureType.RECORDED || !lecture.videoUrl) {
@@ -1433,7 +1427,7 @@ ${notes.slice(0, 4000)}`,
         if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
             throw new ForbiddenException('You can only regenerate notes for your own lectures');
         }
-        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+        if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
             throw new ForbiddenException('AI transcription is not enabled for your institution.');
         }
 
@@ -1512,7 +1506,7 @@ ${notes.slice(0, 4000)}`,
         if (userRole === UserRole.TEACHER && lecture.teacherId !== userId) {
             throw new ForbiddenException('You can only refresh visuals for your own lectures');
         }
-        if (!(await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text'))) {
+        if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
             throw new ForbiddenException('AI lecture notes are not enabled for your institution.');
         }
         if (!lecture.aiNotesMarkdown || lecture.aiNotesMarkdown.trim().length < 20) {
@@ -1590,6 +1584,14 @@ ${notes.slice(0, 4000)}`,
 
         if (!lecture.transcript) throw new BadRequestException('No transcript available to translate');
 
+        if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
+            throw new ForbiddenException({
+                code: 'FEATURE_NOT_ENABLED',
+                feature: 'ai_lecture_processing',
+                message: `The feature "ai_lecture_processing" is not enabled for your institution.`,
+            });
+        }
+
         // Call AI bridge to translate English â†’ Hindi
         const result = await this.aiBridgeService.translateText(
             { text: lecture.transcript, targetLanguage: 'hi' },
@@ -1615,6 +1617,14 @@ ${notes.slice(0, 4000)}`,
             await this.assertStudentEnrolledInBatch(user.id, lecture.batchId);
         }
         if (!lecture.aiNotesMarkdown) throw new BadRequestException('No AI notes available to translate');
+
+        if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
+            throw new ForbiddenException({
+                code: 'FEATURE_NOT_ENABLED',
+                feature: 'ai_lecture_processing',
+                message: `The feature "ai_lecture_processing" is not enabled for your institution.`,
+            });
+        }
 
         const result = await this.aiBridgeService.translateText(
             { text: lecture.aiNotesMarkdown, targetLanguage },
@@ -1880,7 +1890,7 @@ ${notes.slice(0, 4000)}`,
         Object.assign(lecture, dto);
 
         const sttEnabled = videoUrlChanged
-            ? await this._tenantHasAiFeature(tenantId, 'ai_speech_to_text')
+            ? await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing')
             : false;
 
         if (videoUrlChanged && incomingVideoUrl) {

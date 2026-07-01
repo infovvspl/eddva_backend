@@ -10,6 +10,7 @@ import { redisStore } from 'cache-manager-redis-yet';
 
 import appConfig, { jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig, streamingConfig } from './config/app.config';
 import { coachingDbConfig, schoolDbConfig } from './config/database.config';
+import { TenantAiFeatureModule } from './common/services/tenant-ai-feature.module';
 
 // ── Coaching Entities ──────────────────────────────────────────────────────────
 import { Tenant } from './database/entities/tenant.entity';
@@ -236,6 +237,7 @@ const ALL_COACHING_ENTITIES = [
     GamificationModule,
     InternalModule,
     AuditLogModule,
+    TenantAiFeatureModule,
     CoachingChatModule,
 
     // ── School Module ─────────────────────────────────────────────────────────

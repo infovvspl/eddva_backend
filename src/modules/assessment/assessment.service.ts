@@ -31,6 +31,7 @@ import { ExamSyllabusCache } from '../../database/entities/exam-syllabus.entity'
 import { GradingService, type DescriptiveGradingContext } from './grading.service';
 import { StudyPlanService } from '../study-plan/study-plan.service';
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
+import { TenantAiFeatureService } from '../../common/services/tenant-ai-feature.service';
 import { NotificationService } from '../notification/notification.service';
 import { AnswerQuestionDto } from './dto/answer.dto';
 import { CreateMockTestDto, MockTestListQueryDto, UpdateMockTestDto } from './dto/mock-test.dto';
@@ -85,6 +86,7 @@ export class AssessmentService {
     private readonly dataSource: DataSource,
     private readonly studyPlanService: StudyPlanService,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly tenantAiFeatureService: TenantAiFeatureService,
     private readonly notificationService: NotificationService,
   ) { }
 
@@ -772,13 +774,16 @@ export class AssessmentService {
     attempts: QuestionAttempt[],
     tenantId: string,
   ) {
+    const isOcrEnabled = await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_assessment_grading');
+    
     const qMap = new Map(questions.map((q) => [q.id, q]));
     for (const attempt of attempts) {
       const q = qMap.get(attempt.questionId);
       if (!q || q.type !== QuestionType.DESCRIPTIVE) continue;
       const current = String(attempt.integerAnswer || '').trim();
       const imageUrls = Array.isArray((attempt as any).answerImageUrls) ? (attempt as any).answerImageUrls as string[] : [];
-      if (!imageUrls.length) continue;
+      if (!imageUrls.length || !isOcrEnabled) continue;
+      
       const extracted = await this.extractOcrTextForImages(imageUrls, tenantId);
       if (!extracted) continue;
       // Merge typed + vision transcription so handwritten work is graded together with the text box.
