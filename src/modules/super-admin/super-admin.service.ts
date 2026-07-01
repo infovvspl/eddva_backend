@@ -175,6 +175,7 @@ export class SuperAdminService {
           metadata: {
             modulesPermissions: dto.modulesPermissions ?? {
               live_lectures: true,
+              recorded_lectures: true,
               mock_tests: true,
               doubt_queue: true,
               leaderboard: true,
