@@ -888,7 +888,7 @@ export class SuperAdminService {
     };
   }
 
-  /** Active batches (courses) for an institute â€” public catalog for the marketing / courses page. */
+  /** Active batches (courses) for an institute — public catalog for the marketing / courses page. */
   async getPublicInstituteCoursesCatalog(tenantId: string) {
     const tenant = await this.tenantRepo.findOne({
       where: { id: tenantId },

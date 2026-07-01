@@ -805,7 +805,7 @@ export class StudyPlanService {
     const topicMap = new Map(topics.map(t => [t.id, t]));
 
     // Only show topics where a dedicated practice plan item was completed.
-    // AI notes sessions are excluded â€” their embedded practice questions show in Notes.
+    // AI notes sessions are excluded — their embedded practice questions show in Notes.
     const plan = await this.studyPlanRepo.findOne({
       where: { studentId: student.id },
       order: { createdAt: 'DESC' },
@@ -821,7 +821,7 @@ export class StudyPlanService {
       order: { completedAt: 'DESC' },
     });
 
-    // Deduplicate by topicId â€” keep the most recent completion
+    // Deduplicate by topicId — keep the most recent completion
     const seenTopics = new Set<string>();
     const practiceTopicIds: Array<{ topicId: string; completedAt: Date }> = [];
     for (const item of completedPracticeItems) {
@@ -899,13 +899,13 @@ export class StudyPlanService {
 
       switch (item.type) {
         case PlanItemType.LECTURE:
-          return { action: 'watch_lecture', title: item.title, description: `${content.topicName ?? ''} Â· ${content.videoDurationSeconds ? Math.ceil(content.videoDurationSeconds / 60) + ' min' : ''}`.trim(), lectureId: item.refId, planItemId: item.id, topicName: content.topicName, subjectName: content.subjectName, estimatedMinutes: item.estimatedMinutes, xpReward: 10 };
+          return { action: 'watch_lecture', title: item.title, description: `${content.topicName ?? ''} · ${content.videoDurationSeconds ? Math.ceil(content.videoDurationSeconds / 60) + ' min' : ''}`.trim(), lectureId: item.refId, planItemId: item.id, topicName: content.topicName, subjectName: content.subjectName, estimatedMinutes: item.estimatedMinutes, xpReward: 10 };
         case PlanItemType.MOCK_TEST:
-          return { action: 'take_quiz', title: item.title, description: `${content.questionCount ?? '?'} questions Â· ${content.durationMinutes ?? '?'} min`, mockTestId: item.refId, planItemId: item.id, estimatedMinutes: item.estimatedMinutes, xpReward: 20 };
+          return { action: 'take_quiz', title: item.title, description: `${content.questionCount ?? '?'} questions · ${content.durationMinutes ?? '?'} min`, mockTestId: item.refId, planItemId: item.id, estimatedMinutes: item.estimatedMinutes, xpReward: 20 };
         case PlanItemType.PRACTICE:
           return { action: 'ai_study', title: item.title, description: `Practice: ${content.topicName ?? item.title}`, topicId: item.refId, planItemId: item.id, topicName: content.topicName, subjectName: content.subjectName, estimatedMinutes: item.estimatedMinutes, xpReward: 8 };
         case PlanItemType.REVISION:
-          return { action: 'revision', title: item.title, description: `Spaced revision Â· ${content.chapterName ?? ''}`, topicId: item.refId, planItemId: item.id, topicName: content.topicName, subjectName: content.subjectName, estimatedMinutes: item.estimatedMinutes, xpReward: 6 };
+          return { action: 'revision', title: item.title, description: `Spaced revision · ${content.chapterName ?? ''}`, topicId: item.refId, planItemId: item.id, topicName: content.topicName, subjectName: content.subjectName, estimatedMinutes: item.estimatedMinutes, xpReward: 6 };
         case PlanItemType.BATTLE:
           return { action: 'battle', title: item.title, description: 'Challenge a classmate and earn XP', estimatedMinutes: 30, xpReward: 25 };
         default:
@@ -913,7 +913,7 @@ export class StudyPlanService {
       }
     }
 
-    return { action: 'all_done', title: "All tasks done today! ðŸŽ‰ Battle time?", description: "You crushed today's plan. Try a battle or review weak topics.", xpReward: 0 };
+    return { action: 'all_done', title: "All tasks done today! 🎉 Battle time?", description: "You crushed today's plan. Try a battle or review weak topics.", xpReward: 0 };
   }
 
   async startRevisionSession(
