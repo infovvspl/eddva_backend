@@ -45,7 +45,7 @@ export class StudyPlanController {
     try {
       return await this.studyPlanService.generatePlan(user.id, tenantId, false, body, body.batchId);
     } catch (e) {
-      require('fs').writeFileSync('d:/Edva/eddva_backend/error_gen.log', String(e.stack || e));
+      new (require('@nestjs/common').Logger)('StudyPlanController').error('Generation error', e.stack || e);
       throw e;
     }
   }
