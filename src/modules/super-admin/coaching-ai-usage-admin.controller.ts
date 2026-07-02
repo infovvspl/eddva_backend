@@ -47,6 +47,34 @@ export class CoachingAiUsageAdminController {
     return this.usageService.getInstituteDetail(id, product, period);
   }
 
+  @Get('reports/billing')
+  @ApiOperation({ summary: 'Billing report with feature-wise usage per school every month' })
+  getBillingReport(
+    @Query('product') product: 'school' | 'coaching' | 'all' = 'all',
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.usageService.getBillingReport(product, from, to);
+  }
+
+  @Get('logs')
+  @ApiOperation({ summary: 'Raw row-by-row AI usage logs for auditing' })
+  async getLogs(
+    @Query('instituteId') instituteId?: string,
+    @Query('product') product: 'school' | 'coaching' | 'all' = 'all',
+    @Query('feature') feature?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    const vertical = product === 'all' ? undefined : product;
+    return {
+      success: true,
+      ...(await this.usageService.getRawLogs({ instituteId, vertical, feature, from, to, limit, offset }))
+    };
+  }
+
   @Get('feature-flags')
   @ApiOperation({ summary: 'Get all global feature flag states' })
   getFeatureFlags(

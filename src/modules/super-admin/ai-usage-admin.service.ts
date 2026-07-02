@@ -62,6 +62,11 @@ export class AiUsageAdminService {
     );
   }
 
+  async getBillingReport(product: Product, fromDate?: string, toDate?: string) {
+    const vertical = product === 'all' ? undefined : product;
+    return this.usageSvc.getBillingReport({ vertical, from: fromDate, to: toDate });
+  }
+
   async getInstituteDetail(instituteId: string, product: Product, period: Period) {
     const { from } = this.dateRange(period);
     const vertical = product === 'all' ? 'school' : product;
@@ -97,6 +102,10 @@ export class AiUsageAdminService {
     const successRate = totalRequests > 0 ? Math.round((totalSuccess / totalRequests) * 100) : 100;
 
     return { instituteId, totalRequests, totalCost, successRate, features };
+  }
+
+  async getRawLogs(opts: { instituteId?: string; vertical?: string; feature?: string; from?: string; to?: string; limit?: number; offset?: number }) {
+    return this.usageSvc.getRawLogs(opts);
   }
 
   async getFeatureFlags(product: Product) {
