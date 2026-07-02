@@ -117,8 +117,10 @@ export class AiUsageService implements OnModuleInit {
         total_latency_ms BIGINT NOT NULL DEFAULT 0,
         total_tokens BIGINT NOT NULL DEFAULT 0,
         est_cost NUMERIC(16,6) NOT NULL DEFAULT 0,
+        last_call_at TIMESTAMPTZ NULL,
         PRIMARY KEY (institute_id, vertical, feature, day)
       );
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS last_call_at TIMESTAMPTZ NULL;
 
       CREATE TABLE IF NOT EXISTS ai_usage_quotas (
         institute_id UUID NOT NULL,
@@ -140,6 +142,17 @@ export class AiUsageService implements OnModuleInit {
       if ((ev.estCost === undefined || ev.estCost === null) && ev.success) {
         ev.estCost = this.estimateCost(ev.provider, ev.totalTokens, ev.promptTokens, ev.completionTokens);
       }
+
+      // Compute totalTokens from prompt+completion if not provided directly
+      if ((ev.totalTokens === undefined || ev.totalTokens === null) && ev.promptTokens != null && ev.completionTokens != null) {
+        ev.totalTokens = ev.promptTokens + ev.completionTokens;
+      }
+
+      this.logger.debug(
+        `[record] feature=${ev.feature} vertical=${ev.vertical} institute=${ev.instituteId} ` +
+        `tokens=${ev.totalTokens}(prompt=${ev.promptTokens},completion=${ev.completionTokens}) cost=${ev.estCost}`,
+      );
+
       await this.ds.query(
         `INSERT INTO ai_usage_events
            (institute_id, vertical, feature, provider, model, success, status_code,
@@ -163,19 +176,20 @@ export class AiUsageService implements OnModuleInit {
         ],
       );
 
-      // Daily rollup (only when we know the institute — quota/dashboards are per-institute).
+      // Daily rollup (only when we know the institute — quota/dashboards are per-institute).\
       if (ev.instituteId) {
         await this.ds.query(
           `INSERT INTO ai_usage_daily
-             (institute_id, vertical, feature, day, request_count, success_count, error_count, total_latency_ms, total_tokens, est_cost)
-           VALUES ($1,$2,$3,CURRENT_DATE,1,$4,$5,$6,$7,$8)
+             (institute_id, vertical, feature, day, request_count, success_count, error_count, total_latency_ms, total_tokens, est_cost, last_call_at)
+           VALUES ($1,$2,$3,CURRENT_DATE,1,$4,$5,$6,$7,$8,NOW())
            ON CONFLICT (institute_id, vertical, feature, day) DO UPDATE SET
              request_count = ai_usage_daily.request_count + 1,
              success_count = ai_usage_daily.success_count + $4,
              error_count   = ai_usage_daily.error_count + $5,
              total_latency_ms = ai_usage_daily.total_latency_ms + $6,
              total_tokens  = ai_usage_daily.total_tokens + $7,
-             est_cost      = ai_usage_daily.est_cost + $8`,
+             est_cost      = ai_usage_daily.est_cost + $8,
+             last_call_at  = NOW()`,
           [
             ev.instituteId,
             ev.vertical || 'coaching',
@@ -187,6 +201,7 @@ export class AiUsageService implements OnModuleInit {
             ev.estCost ?? 0,
           ],
         );
+        this.logger.debug(`[record] daily upsert done — tokens=${ev.totalTokens ?? 0} cost=${ev.estCost ?? 0}`);
         // Invalidate quota cache for this institute/feature so the next check is fresh.
         this.quotaCache.delete(`${ev.instituteId}:${ev.vertical || 'coaching'}:${ev.feature}`);
       }
@@ -348,7 +363,8 @@ export class AiUsageService implements OnModuleInit {
       `SELECT institute_id, vertical,
               SUM(request_count)::int AS requests,
               SUM(total_tokens)::bigint AS tokens,
-              SUM(est_cost)::numeric AS cost
+              SUM(est_cost)::numeric AS cost,
+              MAX(last_call_at) AS last_call_at
        FROM ai_usage_daily${where}
        GROUP BY institute_id, vertical ORDER BY requests DESC`,
       params,
@@ -372,7 +388,8 @@ export class AiUsageService implements OnModuleInit {
               feature,
               SUM(request_count)::int AS requests,
               SUM(total_tokens)::bigint AS tokens,
-              SUM(est_cost)::numeric AS cost
+              SUM(est_cost)::numeric AS cost,
+              MAX(last_call_at) AS last_call_at
        FROM ai_usage_daily${sql}
        GROUP BY TO_CHAR(day, 'YYYY-MM'), institute_id, vertical, feature
        ORDER BY month DESC, institute_id ASC, cost DESC`,
