@@ -192,6 +192,7 @@ export class CoachingChatService implements OnModuleInit {
   async getUsers(user: any, query: any) {
     const tenantId = user.tenantId;
     const targetRole = query.role || 'TEACHER';
+    const q = query.q || '';
 
     let sql = '';
     const params: any[] = [];
@@ -200,16 +201,28 @@ export class CoachingChatService implements OnModuleInit {
       sql = `SELECT u.id, u.full_name AS name, u.email, u.role, u.profile_picture_url AS profile_image, 'Platform' AS institute_name 
              FROM users u 
              WHERE LOWER(u.role::text) = 'super_admin' AND u.status = 'active'`;
+      if (q) {
+        sql += ` AND (u.full_name ILIKE $1 OR u.email ILIKE $1)`;
+        params.push(`%${q}%`);
+      }
     } else if (String(user.role).toUpperCase() === 'SUPER_ADMIN' && targetRole.toUpperCase() === 'INSTITUTE_ADMIN') {
       sql = `SELECT u.id, u.full_name AS name, u.email, u.role, u.profile_picture_url AS profile_image, t.name AS institute_name
              FROM users u 
              LEFT JOIN tenants t ON t.id = u.tenant_id
              WHERE LOWER(u.role::text) = 'institute_admin' AND u.status = 'active'`;
+      if (q) {
+        sql += ` AND (u.full_name ILIKE $1 OR u.email ILIKE $1 OR t.name ILIKE $1)`;
+        params.push(`%${q}%`);
+      }
     } else {
       sql = `SELECT id, full_name AS name, email, role, profile_picture_url AS profile_image 
              FROM users 
              WHERE tenant_id = $1 AND LOWER(role::text) = LOWER($2) AND status = 'active'`;
       params.push(tenantId, targetRole);
+      if (q) {
+        sql += ` AND (full_name ILIKE $3 OR email ILIKE $3)`;
+        params.push(`%${q}%`);
+      }
     }
     sql += ` ORDER BY name ASC`;
 
