@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { SchoolInstituteService } from './school-institute.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { SchoolPublic } from '../decorators/school-public.decorator';
+import { SchoolUser } from '../decorators/school-user.decorator';
 
 @Controller('school/institutes')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
@@ -31,12 +32,24 @@ export class SchoolInstituteController {
   }
 
   @Get(':id')
-  @SchoolRoles('SUPER_ADMIN')
-  findOne(@Param('id') id: string) { return this.svc.findOne(id); }
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  findOne(@Param('id') id: string, @SchoolUser() user: any) {
+    const isSuperAdmin = user.role?.toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && user.instituteId && user.instituteId !== id) {
+      throw new ForbiddenException('You are not authorized to view this institute');
+    }
+    return this.svc.findOne(id);
+  }
 
   @Put(':id')
-  @SchoolRoles('SUPER_ADMIN')
-  update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  update(@Param('id') id: string, @Body() body: any, @SchoolUser() user: any) {
+    const isSuperAdmin = user.role?.toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && user.instituteId && user.instituteId !== id) {
+      throw new ForbiddenException('You are not authorized to update this institute');
+    }
+    return this.svc.update(id, body);
+  }
 
   @Put(':id/approve')
   @SchoolRoles('SUPER_ADMIN')
