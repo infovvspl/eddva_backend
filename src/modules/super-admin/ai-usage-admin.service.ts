@@ -108,4 +108,21 @@ export class AiUsageAdminService {
       isEnabled: flagMap[f.id] ?? true,
     }));
   }
+
+  async getRawLogs(opts: {
+    instituteId?: string;
+    vertical?: string;
+    feature?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    return this.usageSvc.getRawLogs(opts);
+  }
+
+  async getBillingReport(product: Product, from?: string, to?: string) {
+    const vertical = product === 'all' ? undefined : product;
+    return this.usageSvc.getBillingReport({ vertical, from, to });
+  }
 }

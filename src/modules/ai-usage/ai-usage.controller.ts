@@ -81,4 +81,19 @@ export class AiUsageController {
     if (!b.instituteId) throw new BadRequestException('instituteId is required');
     return this.svc.deleteQuota(b.instituteId, b.vertical || 'coaching', b.feature || '*');
   }
+
+  @Get('logs')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN)
+  async getRawLogs(@CurrentUser() user: any, @Query() q: any) {
+    const scope = this.scope(user, q);
+    return this.svc.getRawLogs({
+      instituteId: scope.instituteId || undefined,
+      vertical: scope.vertical,
+      feature: q.feature || undefined,
+      from: scope.from,
+      to: scope.to,
+      limit: q.limit ? Number(q.limit) : undefined,
+      offset: q.offset ? Number(q.offset) : undefined,
+    });
+  }
 }
