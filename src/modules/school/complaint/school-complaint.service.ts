@@ -7,7 +7,7 @@ export class SchoolComplaintService implements OnModuleInit {
   constructor(
     @InjectDataSource('school') private readonly schoolDs: DataSource,
     @InjectDataSource('coaching') private readonly coachingDs: DataSource,
-  ) {}
+  ) { }
 
   private ticketNumber(id: string) {
     return `PLT-${String(id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`;
