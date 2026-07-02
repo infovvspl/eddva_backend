@@ -290,8 +290,8 @@ export class InstituteSettingsService {
   ) {
     const t = await this.getTenant(tenantId);
     let events: any[] = t.metadata?.[CALENDAR_KEY] ?? [];
-    if (year) events = events.filter((e: any) => new Date(e.date).getFullYear() === year);
-    if (month) events = events.filter((e: any) => new Date(e.date).getMonth() + 1 === month);
+    if (year) events = events.filter((e: any) => new Date(e.date).getUTCFullYear() === year);
+    if (month) events = events.filter((e: any) => new Date(e.date).getUTCMonth() + 1 === month);
 
     if (Array.isArray(visibleBatchIds)) {
       const visible = new Set(visibleBatchIds);

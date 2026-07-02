@@ -6,7 +6,7 @@ client.connect().then(() =>
     SET metadata = jsonb_set(
       COALESCE(metadata, '{}'::jsonb),
       '{modulesPermissions}',
-      '{"live_lectures": true, "mock_tests": true, "doubt_queue": true, "leaderboard": true, "calendar": true, "pyq_bank": true, "content_library": true, "notifications": true}',
+      '{"live_lectures": true, "recorded_lectures": true, "mock_tests": true, "doubt_queue": true, "leaderboard": true, "calendar": true, "pyq_bank": true, "content_library": true, "notifications": true}',
       true
     )
     WHERE metadata IS NULL 

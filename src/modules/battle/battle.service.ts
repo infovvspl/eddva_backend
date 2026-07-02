@@ -374,7 +374,7 @@ export class BattleService {
 
   async joinBattleByCode(roomCode: string, userId: string, tenantId: string) {
     const student = await this.getStudent(userId);
-    // roomCode is globally unique â€” don't filter by tenantId to avoid mismatches
+    // roomCode is globally unique — don't filter by tenantId to avoid mismatches
     const battle = await this.battleRepo.findOne({ where: { roomCode } });
     if (!battle) throw new NotFoundException('Battle room not found');
     if (battle.status === BattleStatus.FINISHED || battle.status === BattleStatus.ABANDONED) {
@@ -402,7 +402,7 @@ export class BattleService {
     return this.formatRoom(battle, tenantId);
   }
 
-  // â”€â”€â”€ Join Room (Gateway-internal â€” uses studentId directly) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€â”€ Join Room (Gateway-internal — uses studentId directly) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async joinRoomGateway(roomCode: string, studentId: string) {
     const battle = await this.battleRepo.findOne({ where: { roomCode } });
@@ -680,9 +680,9 @@ export class BattleService {
     }
     const isCorrect = correctOptionId !== null && correctOptionId === data.optionId;
 
-    // AI question IDs (e.g. "ai_1_xxx") are not real DB UUIDs â€” store null.
+    // AI question IDs (e.g. "ai_1_xxx") are not real DB UUIDs — store null.
     // Also guard against empty-string ("") which forceCompleteRound passes when
-    // there is no current question â€” Postgres rejects "" for UUID columns.
+    // there is no current question — Postgres rejects "" for UUID columns.
     const dbQuestionId = (aiQuestion || !data.questionId) ? null : data.questionId;
     const dbOptionId   = data.optionId || null;
 
@@ -1029,7 +1029,7 @@ export class BattleService {
         const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
         if (student) examTarget = await this.getStudentExamTarget(student.id);
       } catch {
-        // ignore â€” fallback to no exam filter
+        // ignore — fallback to no exam filter
       }
     }
     const examTag = examTarget ? `exam:${String(examTarget).toLowerCase()}` : null;
@@ -1072,7 +1072,7 @@ export class BattleService {
     // â”€â”€ Step 2: AI fallback if DB has no level-appropriate questions for this scope â”€â”€
     if (questions.length === 0) {
       this.logger.log(
-        `[bot-questions] DB empty for scope=${scope} scopeId=${scopeId} diff=${difficulty} exam=${examTarget ?? 'â€”'} â†’ AI generating`,
+        `[bot-questions] DB empty for scope=${scope} scopeId=${scopeId} diff=${difficulty} exam=${examTarget ?? '—'} â†’ AI generating`,
       );
       try {
         const ai = await this.buildAiBattleQuestions(
@@ -1276,7 +1276,7 @@ export class BattleService {
   }
 
   /**
-   * MCQ for battle: exactly 4 options (Aâ€“D), one correct, no duplicate stems.
+   * MCQ for battle: exactly 4 options (A–D), one correct, no duplicate stems.
    */
   private normalizeAiQuestions(raw: any[], safeCount: number): AiBattleQuestion[] {
     const seen = new Set<string>();
@@ -1333,7 +1333,7 @@ export class BattleService {
 
       if (mapped.length < 4) continue;
 
-      // Keep only Aâ€“D for battle; if >4, use first 4 only if the correct option is Aâ€“D
+      // Keep only A–D for battle; if >4, use first 4 only if the correct option is A–D
       let slice = mapped;
       if (mapped.length > 4) {
         const ci = mapped.findIndex((o) => o.isCorrect);
@@ -1554,7 +1554,7 @@ export class BattleService {
       const poolTopic = this.normalizeAiQuestions(topicAiRaw, perSource);    // Source B
 
       this.logger.log(
-        `Battle question pools â€” checkpoints: ${poolCp.length}, notes-AI: ${poolNotes.length}, topic-AI: ${poolTopic.length}`,
+        `Battle question pools — checkpoints: ${poolCp.length}, notes-AI: ${poolNotes.length}, topic-AI: ${poolTopic.length}`,
       );
 
       // â”€â”€ Hard subject-scope filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1569,7 +1569,7 @@ export class BattleService {
           s.includes('bio') || s.includes('plant') || s.includes('animal'),
         );
 
-        if (!isBioOnly) return pool; // Mixed batch â€” no filter needed
+        if (!isBioOnly) return pool; // Mixed batch — no filter needed
 
         // Physics keywords
         const physicsKw = [

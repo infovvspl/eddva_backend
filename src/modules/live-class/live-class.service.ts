@@ -66,7 +66,7 @@ export class LiveClassService {
   ) {}
 
   async getToken(lectureId: string, userId: string, tenantId: string, userRole: UserRole) {
-    // Look up by ID only â€” student tenantId may differ from lecture tenantId
+    // Look up by ID only — student tenantId may differ from lecture tenantId
     const lecture = await this.lectureRepo.findOne({
       where: { id: lectureId },
       relations: ['topic'],
@@ -187,7 +187,7 @@ export class LiveClassService {
           this.notificationService.send({
             userId: e.student.userId,
             tenantId,
-            title: 'ðŸ“¡ Class is LIVE now!',
+            title: '📡 Class is LIVE now!',
             body: `${lecture.title} has started. Join now!`,
             channels: ['push', 'in_app'],
             refType: 'lecture',
@@ -210,7 +210,7 @@ export class LiveClassService {
       };
     }
 
-    // â”€â”€ Agora mode (default) â€” start cloud recording, return RTC token â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ Agora mode (default) — start cloud recording, return RTC token â”€â”€â”€â”€â”€â”€â”€â”€
     this.startRecordingAsync(savedSession.id, savedSession.agoraChannelName, lectureId).catch(
       (err) => this.logger.error('Cloud recording start failed silently', err),
     );
@@ -341,11 +341,11 @@ export class LiveClassService {
             this.logger.warn(`Recording stop returned no URL for session ${session.id}`);
           }
         } else {
-          this.logger.warn(`No recording resource on session ${session.id} â€” recording skipped`);
+          this.logger.warn(`No recording resource on session ${session.id} — recording skipped`);
         }
       }
     } catch (err) {
-      this.logger.error(`Recording stop failed for session ${session.id} â€” notifications will still fire`, (err as Error).message);
+      this.logger.error(`Recording stop failed for session ${session.id} — notifications will still fire`, (err as Error).message);
     }
 
     // â”€â”€ Notifications always fire regardless of recording outcome â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -365,7 +365,7 @@ export class LiveClassService {
           .map((e) => ({
             userId: e.student.userId,
             tenantId,
-            title: 'ðŸ“š Class has ended',
+            title: '📚 Class has ended',
             body: notificationBody,
             channels: ['push', 'in_app'] as ('push' | 'in_app')[],
             refType: 'lecture',
@@ -429,7 +429,7 @@ export class LiveClassService {
   }
 
   async getSession(lectureId: string, _tenantId: string) {
-    // Look up by lectureId only â€” the caller's tenantId may differ from the lecture's
+    // Look up by lectureId only — the caller's tenantId may differ from the lecture's
     // (e.g. student registered on platform tenant, lecture belongs to institute tenant).
     // Authorization is enforced later in getToken via enrollment check.
     const lecture = await this.lectureRepo.findOne({
@@ -638,7 +638,7 @@ export class LiveClassService {
   }
 
   async recordStudentJoin(liveSessionId: string, studentUserId: string, tenantId: string, agoraUid: number) {
-    // Look up session by ID only â€” student tenantId may differ from lecture/session tenantId
+    // Look up session by ID only — student tenantId may differ from lecture/session tenantId
     const session = await this.getSessionByIdOnly(liveSessionId);
     const student = await this.getStudentByUserId(studentUserId, tenantId);
     const existing = await this.liveAttendanceRepo.findOne({
@@ -708,7 +708,7 @@ export class LiveClassService {
     message: string,
     _callerTenantId: string,
   ) {
-    // Look up by ID only â€” student callerTenantId may differ from session tenantId
+    // Look up by ID only — student callerTenantId may differ from session tenantId
     const session = await this.getSessionByIdOnly(liveSessionId);
     return this.liveChatMessageRepo.save(
       this.liveChatMessageRepo.create({
@@ -815,7 +815,7 @@ export class LiveClassService {
           base.bunnyLibraryId = bunny.libraryId;
           this.logger.log(`Bunny stream created for lecture ${lecture.id}: videoId=${bunny.videoId}`);
         } else {
-          this.logger.warn(`Bunny stream creation failed for lecture ${lecture.id} â€” falling back to agora`);
+          this.logger.warn(`Bunny stream creation failed for lecture ${lecture.id} — falling back to agora`);
           base.streamType = 'agora';
         }
       }

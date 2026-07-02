@@ -66,8 +66,11 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
 
   private verify(token?: string): { id: string; name: string; role: string; instituteId: string | null } | null {
     if (!token) return null;
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) return null;
+    // Keep WebSocket authentication aligned with SchoolAuthService and
+    // SchoolJwtGuard. School tokens are deliberately isolated from coaching
+    // tokens and therefore cannot be verified with JWT_SECRET directly.
+    const jwtSecret = process.env.SCHOOL_JWT_SECRET ||
+      (process.env.JWT_SECRET ? process.env.JWT_SECRET + '_school' : 'dev_school_secret_change_in_prod');
     try {
       const d: any = jwt.verify(token.replace(/^Bearer\s+/i, ''), jwtSecret);
       const id = d.id || d.sub;

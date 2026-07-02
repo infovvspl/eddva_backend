@@ -109,7 +109,7 @@ export class CalendarFeedService {
     // Filter and merge 2026 holidays
     const staticHols = HOLIDAYS_2026.filter(h => {
       const d = new Date(h.date);
-      return d.getFullYear() === y && (d.getMonth() + 1) === m;
+      return d.getUTCFullYear() === y && (d.getUTCMonth() + 1) === m;
     }).map(h => ({
       id: `static-hol-${h.id}`,
       title: h.title,
@@ -247,24 +247,26 @@ export class CalendarFeedService {
       });
     }
 
-    const mockTestEvents = mockTests
-      .filter((m) => m.deadlineAt)
-      .filter((m) => {
-        const t = new Date(m.deadlineAt!).getTime();
-        return t >= monthStart.getTime() && t <= monthEnd.getTime();
-      })
-      .map((m) => ({
-        id: m.id,
-        kind: 'mock_test_deadline' as const,
-        title: `Deadline: ${m.title}`,
-        date: new Date(m.deadlineAt!).toISOString(),
-        scheduledAt: new Date(m.deadlineAt!).toISOString(),
-        description: 'Mock Test Deadline',
-        type: 'mock_test' as const,
-        batchId: m.batchId ?? null,
-        batchName: null,
-        status: 'scheduled',
-      }));
+    const mockTestEvents: any[] = [];
+    mockTests.forEach((m) => {
+      const eventDate = m.scheduledAt || m.deadlineAt || m.createdAt;
+      if (!eventDate) return;
+      const t = new Date(eventDate).getTime();
+      if (t >= monthStart.getTime() && t <= monthEnd.getTime()) {
+        mockTestEvents.push({
+          id: m.id,
+          kind: m.scheduledAt ? ('mock_test_start' as const) : ('mock_test_deadline' as const),
+          title: m.scheduledAt ? `Start: ${m.title}` : `Deadline: ${m.title}`,
+          date: new Date(eventDate).toISOString(),
+          scheduledAt: new Date(eventDate).toISOString(),
+          description: m.scheduledAt ? 'Mock Test Starts' : 'Mock Test Deadline',
+          type: 'mock_test' as const,
+          batchId: m.batchId ?? null,
+          batchName: null,
+          status: 'scheduled',
+        });
+      }
+    });
 
     return { 
       instituteEvents, 
@@ -304,5 +306,125 @@ export class CalendarFeedService {
     }
 
     return qb.getRawMany<{ id: string; name: string }>();
+  }
+
+  async getSummaryStats(user: any, tenantId: string, year?: number, month?: number) {
+    const y = year ?? new Date().getFullYear();
+    const m = month ?? new Date().getMonth() + 1;
+
+    const monthStart = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+    const monthEnd = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+
+    const effectiveTenantId = await this.resolveTenantForCalendar(user, tenantId);
+    const batchScope = await this.resolveBatchScope(user, tenantId);
+
+    // 1. Total Lectures & Live Classes
+    const lectureWhere: any = {};
+    if (batchScope === null) {
+      lectureWhere.tenantId = effectiveTenantId;
+    } else if (batchScope.length > 0) {
+      lectureWhere.batchId = In(batchScope);
+    } else {
+      lectureWhere.id = 'none';
+    }
+
+    let lectures: Lecture[] = [];
+    if (lectureWhere.id !== 'none') {
+      lectures = await this.lectureRepo.find({
+        where: lectureWhere,
+      });
+    }
+
+    const currentLectures = lectures.filter((lec) => {
+      const date = lec.scheduledAt ? new Date(lec.scheduledAt) : new Date(lec.createdAt);
+      const t = date.getTime();
+      return t >= monthStart.getTime() && t <= monthEnd.getTime();
+    });
+
+    const totalLectures = currentLectures.length;
+    const liveClasses = currentLectures.filter(l => l.type === LectureType.LIVE).length;
+
+    // 2. Mock Tests
+    const mockTestWhere: any = {};
+    if (batchScope === null) {
+      mockTestWhere.tenantId = effectiveTenantId;
+    } else if (batchScope.length > 0) {
+      mockTestWhere.batchId = In(batchScope);
+    } else {
+      mockTestWhere.id = 'none';
+    }
+    mockTestWhere.isPublished = true;
+
+    let mockTests: MockTest[] = [];
+    if (mockTestWhere.id !== 'none') {
+      mockTests = await this.mockTestRepo.find({
+        where: mockTestWhere,
+      });
+    }
+
+    const mockTestsCount = mockTests.filter((mt) => {
+      const eventDate = mt.scheduledAt || mt.deadlineAt || mt.createdAt;
+      if (!eventDate) return false;
+      const t = new Date(eventDate).getTime();
+      return t >= monthStart.getTime() && t <= monthEnd.getTime();
+    }).length;
+
+    // 3. Pending Assignments
+    const assignmentWhere: any = {};
+    if (batchScope === null) {
+      assignmentWhere.tenantId = effectiveTenantId;
+    } else if (batchScope.length > 0) {
+      assignmentWhere.lecture = { batchId: In(batchScope) };
+    } else {
+      assignmentWhere.id = 'none';
+    }
+
+    let assignments: LectureAssignment[] = [];
+    if (assignmentWhere.id !== 'none') {
+      assignments = await this.assignmentRepo.find({
+        where: assignmentWhere,
+        relations: ['lecture'],
+      });
+    }
+
+    const assignmentsCount = assignments.filter((a) => {
+      if (!a.dueDate) return false;
+      const t = new Date(a.dueDate).getTime();
+      return t >= monthStart.getTime() && t <= monthEnd.getTime();
+    }).length;
+
+    // 4. Holidays & Meetings (from Calendar Events)
+    const instituteEvents = await this.instituteSettings.getCalendarEvents(effectiveTenantId, y, m, batchScope);
+    
+    // Static holidays & vacations matching current month
+    const staticHols = HOLIDAYS_2026.filter(h => {
+      const d = new Date(h.date);
+      return d.getUTCFullYear() === y && (d.getUTCMonth() + 1) === m;
+    });
+    const staticVacations = VACATIONS_2026.filter(v => {
+      const start = new Date(v.startDate);
+      const end = new Date(v.endDate);
+      const mStart = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+      const mEnd = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+      return start <= mEnd && end >= mStart;
+    });
+
+    const holidaysCount = instituteEvents.filter(e => e.type === 'holiday' || e.type === 'vacation').length + staticHols.length + staticVacations.length;
+    const meetingsCount = instituteEvents.filter(e => e.type === 'meeting').length;
+
+    // Sum database entities with dynamic calendar events of matching types
+    const dynamicLecturesCount = instituteEvents.filter(e => e.type === 'lecture').length;
+    const dynamicLiveClassesCount = instituteEvents.filter(e => e.type === 'live_class').length;
+    const dynamicMockTestsCount = instituteEvents.filter(e => ['mock_test', 'test', 'exam', 'pt_exam', 'half_yearly', 'annual_exam'].includes(e.type)).length;
+    const dynamicAssignmentsCount = instituteEvents.filter(e => e.type === 'assignment').length;
+
+    return {
+      totalLectures: totalLectures + dynamicLecturesCount,
+      liveClasses: liveClasses + dynamicLiveClassesCount,
+      mockTests: mockTestsCount + dynamicMockTestsCount,
+      holidays: holidaysCount,
+      meetings: meetingsCount,
+      pendingAssignments: assignmentsCount + dynamicAssignmentsCount,
+    };
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, MoreThan } from 'typeorm';
 import { LiveSession, LiveSessionStatus } from '../../database/entities/live-class.entity';
 import { Student } from '../../database/entities/student.entity';
 import { Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
@@ -46,8 +46,13 @@ export class PresenceService {
       else if (v.role === 'teacher') teachersOnline++;
     }
 
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const liveClassesRunning = await this.liveSessionRepo.count({
-      where: { tenantId, status: LiveSessionStatus.LIVE },
+      where: {
+        tenantId,
+        status: LiveSessionStatus.LIVE,
+        startedAt: MoreThan(twelveHoursAgo),
+      },
     });
 
     return { studentsOnline, teachersOnline, liveClassesRunning };

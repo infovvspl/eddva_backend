@@ -91,7 +91,7 @@ export class StudyMaterialService {
 
   /**
    * Returns first N pages of the PDF as a Buffer.
-   * This is the ONLY way an unauthenticated/non-enrolled user sees the content â€”
+   * This is the ONLY way an unauthenticated/non-enrolled user sees the content —
    * they never get the real S3 key or URL.
    */
   async getPreviewBuffer(id: string, tenantId: string): Promise<{ buffer: Buffer; pages: number }> {
@@ -100,7 +100,7 @@ export class StudyMaterialService {
   }
 
   /**
-   * Public marketplace preview â€” resolves material by id only (any institute), no tenant header.
+   * Public marketplace preview — resolves material by id only (any institute), no tenant header.
    */
   async getPublicPreviewBuffer(id: string): Promise<{ buffer: Buffer; pages: number }> {
     const mat = await this.findPublicOrFail(id);
@@ -121,7 +121,7 @@ export class StudyMaterialService {
   }
 
   /**
-   * Returns a 15-min pre-signed S3 GET URL â€” only if the student has an
+   * Returns a 15-min pre-signed S3 GET URL — only if the student has an
    * active enrollment in this tenant.
    */
   async getDownloadUrl(

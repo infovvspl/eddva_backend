@@ -142,7 +142,7 @@ export class LiveBroadcastService {
     );
 
     const serverIp = this.config.get<string>('streaming.serverIp');
-    const cdnDomain = this.r2.cdnDomain;
+    const cdnBase = (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
     const server = `rtmp://${serverIp}/live`;
 
     return {
@@ -150,7 +150,7 @@ export class LiveBroadcastService {
       streamKey,
       rtmpUrl: server,
       obsInstructions: { server, streamKey },
-      playbackUrl: `https://${cdnDomain}/live/${instituteId}/${streamKey}/master.m3u8`,
+      playbackUrl: `${cdnBase}/${streamKey}/index.m3u8`,
     };
   }
 
@@ -200,8 +200,8 @@ export class LiveBroadcastService {
   async getStreamUrl(lectureId: string, user: AuthUser) {
     const lecture = await this.getLectureWithAuth(lectureId, user);
     // Direct CDN URL — no expiry (same as school live). Signed URLs are only used for recordings.
-    const cdnDomain = this.r2.cdnDomain;
-    const url = `https://${cdnDomain}/live/${lecture.instituteId}/${lecture.streamKey}/master.m3u8`;
+    const cdnBase = (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
+    const url = `${cdnBase}/${lecture.streamKey}/index.m3u8`;
     if (String(user.role || '').toLowerCase() === 'student') {
       void this.trackJoin(lectureId, user.id, user.name || 'Student').catch(() => undefined);
     }
@@ -412,8 +412,8 @@ export class LiveBroadcastService {
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
     const lecture = await this.findByStreamKey(streamKey);
     if (!lecture) return null;
-    const cdnDomain = this.r2.cdnDomain;
-    const remoteUrl = `https://${cdnDomain}/live/${lecture.instituteId}/${streamKey}/${file}`;
+    const cdnBase = (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
+    const remoteUrl = `${cdnBase}/${streamKey}/${file}`;
     try {
       const r = await fetch(remoteUrl, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) return null;

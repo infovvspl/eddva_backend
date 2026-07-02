@@ -53,6 +53,25 @@ export class AcademicCalendarController {
     );
   }
 
+  @Get('stats')
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Get calendar monthly operations summary statistics' })
+  @ApiQuery({ name: 'year', required: false })
+  @ApiQuery({ name: 'month', required: false })
+  getStats(
+    @CurrentUser() user: any,
+    @TenantId() tenantId: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.feed.getSummaryStats(
+      user,
+      tenantId,
+      year ? +year : undefined,
+      month ? +month : undefined,
+    );
+  }
+
   @Get('batches')
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Batch/course options for calendar event targeting' })

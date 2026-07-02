@@ -164,6 +164,10 @@ export enum CalendarEventType {
   PT_EXAM = 'pt_exam',
   HALF_YEARLY = 'half_yearly',
   ANNUAL_EXAM = 'annual_exam',
+  MEETING = 'meeting',
+  ASSIGNMENT = 'assignment',
+  PERSONAL = 'personal',
+  BIRTHDAY = 'birthday',
 }
 
 export class CreateCalendarEventDto {
