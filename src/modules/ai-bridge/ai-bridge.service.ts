@@ -40,7 +40,8 @@ export class AiBridgeService {
     '/doubt/ocr-image': { feature: 'image_ocr', provider: 'groq_vision' },
     '/tutor/session': { feature: 'tutor', provider: 'groq' },
     '/tutor/continue': { feature: 'tutor', provider: 'groq' },
-    '/content/generate': { feature: 'content_generate', provider: 'groq' },
+    // NOTE: /content/generate omitted — Python logs content_{type} (e.g. content_dpp)
+    // for both success and failure, so NestJS must not double-count it here.
     '/stt/transcribe': { feature: 'stt_transcribe', provider: 'whisper_sarvam' },
     '/stt/notes': { feature: 'stt_notes', provider: 'whisper_llm' },
     '/stt/notes-from-text': { feature: 'notes_from_text', provider: 'groq_gemini' },
