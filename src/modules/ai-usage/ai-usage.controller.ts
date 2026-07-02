@@ -52,6 +52,27 @@ export class AiUsageController {
     return { success: true, data: await this.svc.getByInstitute({ vertical: q.vertical || undefined, from: q.from, to: q.to }) };
   }
 
+  @Get('logs')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN)
+  async logs(@CurrentUser() user: any, @Query() q: any) {
+    const instituteId = user?.role === UserRole.SUPER_ADMIN ? q.instituteId : user?.tenantId;
+    const vertical = user?.role === UserRole.SUPER_ADMIN ? (q.vertical || 'coaching') : 'coaching';
+    if (!instituteId && user?.role !== UserRole.SUPER_ADMIN) throw new BadRequestException('instituteId is required');
+    
+    return { 
+      success: true, 
+      ...(await this.svc.getRawLogs({ 
+        instituteId: instituteId || undefined, 
+        vertical: vertical || undefined, 
+        feature: q.feature || undefined,
+        limit: q.limit ? Number(q.limit) : 100,
+        offset: q.offset ? Number(q.offset) : 0,
+        from: q.from, 
+        to: q.to 
+      })) 
+    };
+  }
+
   @Get('me')
   @Roles(UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN)
   async me(@CurrentUser() user: any, @Query() q: any) {
@@ -80,5 +101,20 @@ export class AiUsageController {
   async deleteQuota(@Body() b: any) {
     if (!b.instituteId) throw new BadRequestException('instituteId is required');
     return this.svc.deleteQuota(b.instituteId, b.vertical || 'coaching', b.feature || '*');
+  }
+
+  @Get('logs')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN)
+  async getRawLogs(@CurrentUser() user: any, @Query() q: any) {
+    const scope = this.scope(user, q);
+    return this.svc.getRawLogs({
+      instituteId: scope.instituteId || undefined,
+      vertical: scope.vertical,
+      feature: q.feature || undefined,
+      from: scope.from,
+      to: scope.to,
+      limit: q.limit ? Number(q.limit) : undefined,
+      offset: q.offset ? Number(q.offset) : undefined,
+    });
   }
 }

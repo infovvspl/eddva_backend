@@ -107,25 +107,13 @@ export class AiBridgeService {
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
-          headers: this.headers(tenantId, vertical),
+          headers: this.headers(tenantId, v),
           timeout: timeoutMs ?? this.timeout,
         }),
       );
-      // Fire-and-forget usage record (never blocks/fails the AI response).
-      if (mapped) {
-        const data: any = res.data;
-        void this.aiUsage.record({
-          instituteId: tenantId,
-          vertical: v,
-          feature: mapped.feature,
-          provider: data?._meta?.notes_provider || mapped.provider,
-          model: data?._meta?.model || null,
-          success: true,
-          statusCode: res.status,
-          latencyMs: Number(data?._meta?.latency_ms) || (Date.now() - startedAt),
-          totalTokens: this.extractTokens(data),
-        });
-      }
+      // We do NOT call this.aiUsage.record() here for successful requests to avoid double-counting.
+      // The Python AI Microservice has a robust background webhook that sends usage data to 
+      // /internal/ai-usage/log, which serves as the single source of truth for token usage.
       return res.data;
     } catch (err: any) {
       // Don't double-count quota rejections as AI errors.
