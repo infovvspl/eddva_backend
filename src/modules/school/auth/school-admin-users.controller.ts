@@ -23,8 +23,13 @@ export class SchoolAdminUsersController {
     @Query('instituteId') instituteId: string,
   ) {
     // Never select password or sensitive tokens
-    const safeFields = `u.id, u.name, u.email, u.role, u.is_active, u.phone, u.profile_image, u.institute_id, u.created_at AS "createdAt", u.updated_at AS "updatedAt", u.last_login_at AS "lastLoginAt", i.name AS institute_name`;
-    let where = `WHERE u.role IN ('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'PARENT')`;
+    const safeFields = `u.id, u.name, u.email, u.role, u.is_active, 
+      COALESCE(
+        u.phone,
+        (SELECT s.parent_phone FROM students s WHERE (s.parent_email IS NOT NULL AND LOWER(s.parent_email) = LOWER(u.email)) OR (s.user_id = u.id) LIMIT 1)
+      ) AS phone, 
+      u.profile_image, u.institute_id, u.created_at AS "createdAt", u.updated_at AS "updatedAt", u.last_login_at AS "lastLoginAt", i.name AS institute_name`;
+    let where = `WHERE 1=1`;
     const params: any[] = [];
 
     const userRole = String(user.role || '').toUpperCase();

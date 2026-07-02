@@ -635,7 +635,7 @@ export class SchoolDashboardService {
     const studentConf = getQueryConfig(
       `SELECT u.id, u.name, u.email, u.profile_image, s.enrollment_no AS "enrollmentNo" 
        FROM users u 
-       JOIN students s ON s.user_id = u.id 
+       LEFT JOIN students s ON s.user_id = u.id 
        WHERE u.role = 'STUDENT' __FILTER__ AND (u.name ILIKE $1 OR u.email ILIKE $1 OR s.enrollment_no ILIKE $1)
        LIMIT 10`,
       true
@@ -644,7 +644,7 @@ export class SchoolDashboardService {
     const teacherConf = getQueryConfig(
       `SELECT u.id, u.name, u.email, u.profile_image, t.employee_id AS "employeeId" 
        FROM users u 
-       JOIN teachers t ON t.user_id = u.id 
+       LEFT JOIN teachers t ON t.user_id = u.id 
        WHERE u.role = 'TEACHER' __FILTER__ AND (u.name ILIKE $1 OR u.email ILIKE $1 OR t.employee_id ILIKE $1)
        LIMIT 10`,
       true

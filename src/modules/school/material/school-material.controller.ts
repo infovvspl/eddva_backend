@@ -1,14 +1,33 @@
-import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, UseGuards, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, UseGuards, Patch, Res, BadRequestException } from '@nestjs/common';
+import { Response } from 'express';
 import { SchoolMaterialService } from './school-material.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { SchoolPublic } from '../decorators/school-public.decorator';
 
 @Controller('school/materials')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolMaterialController {
   constructor(private readonly svc: SchoolMaterialService) { }
+
+  @Get('proxy-pdf')
+  @SchoolPublic()
+  async proxyPdf(@Query('url') targetUrl: string, @Res() res: Response) {
+    if (!targetUrl) throw new BadRequestException('url is required');
+    try {
+      const resp = await fetch(targetUrl);
+      if (!resp.ok) throw new BadRequestException(`S3 returned ${resp.status}`);
+      const arrayBuf = await resp.arrayBuffer();
+      const buffer = Buffer.from(arrayBuf);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.send(buffer);
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Failed to proxy PDF');
+    }
+  }
 
   @Get()
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')

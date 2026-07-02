@@ -152,7 +152,7 @@ export class AuditLogService implements OnModuleInit {
     }
 
     if (query.module) {
-      qb.andWhere('log.module = :module', { module: query.module });
+      qb.andWhere('LOWER(log.module) = LOWER(:module)', { module: query.module });
     }
 
     if (query.role) {
@@ -165,19 +165,25 @@ export class AuditLogService implements OnModuleInit {
 
     if (query.search) {
       qb.andWhere(
-        '(log.userName ILIKE :search OR log.action ILIKE :search OR log.description ILIKE :search)',
+        '(log.userName ILIKE :search OR log.action ILIKE :search OR log.description ILIKE :search OR log.role ILIKE :search OR log.module ILIKE :search OR log.ipAddress ILIKE :search)',
         { search: `%${query.search}%` },
       );
     }
 
     if (query.startDate) {
-      qb.andWhere('log.createdAt >= :startDate', { startDate: new Date(query.startDate) });
+      const startStr = query.startDate.includes('T') ? query.startDate : `${query.startDate}T00:00:00`;
+      const start = new Date(startStr);
+      if (!isNaN(start.getTime())) {
+        qb.andWhere('log.createdAt >= :startDate', { startDate: start });
+      }
     }
 
     if (query.endDate) {
-      const end = new Date(query.endDate);
-      end.setHours(23, 59, 59, 999);
-      qb.andWhere('log.createdAt <= :endDate', { endDate: end });
+      const endStr = query.endDate.includes('T') ? query.endDate : `${query.endDate}T23:59:59.999`;
+      const end = new Date(endStr);
+      if (!isNaN(end.getTime())) {
+        qb.andWhere('log.createdAt <= :endDate', { endDate: end });
+      }
     }
 
     qb.orderBy('log.createdAt', 'DESC');
