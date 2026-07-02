@@ -362,8 +362,16 @@ export class AiUsageService implements OnModuleInit {
     const rows = await this.ds.query(
       `SELECT institute_id, vertical,
               SUM(request_count)::int AS requests,
+              SUM(success_count)::int AS success,
+              SUM(error_count)::int AS errors,
               SUM(total_tokens)::bigint AS tokens,
               SUM(est_cost)::numeric AS cost,
+              CASE WHEN SUM(request_count) > 0
+                   THEN ROUND(100.0 * SUM(success_count) / SUM(request_count))
+                   ELSE 100 END AS success_rate,
+              CASE WHEN SUM(request_count) > 0
+                   THEN ROUND(SUM(total_latency_ms)::numeric / SUM(request_count))
+                   ELSE 0 END AS avg_latency_ms,
               MAX(last_call_at) AS last_call_at
        FROM ai_usage_daily${where}
        GROUP BY institute_id, vertical ORDER BY requests DESC`,

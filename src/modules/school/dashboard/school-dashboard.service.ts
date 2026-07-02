@@ -403,14 +403,24 @@ export class SchoolDashboardService {
             DATE_TRUNC('month', NOW()),
             INTERVAL '1 month'
           ) AS month_start
+        ),
+        billed_agg AS (
+          SELECT DATE_TRUNC('month', due_date) AS month_start, SUM(amount) AS billed_amount
+          FROM fees
+          GROUP BY DATE_TRUNC('month', due_date)
+        ),
+        paid_agg AS (
+          SELECT DATE_TRUNC('month', paid_date) AS month_start, SUM(amount) AS paid_amount
+          FROM fees
+          WHERE UPPER(status::text) IN ('PAID', 'COMPLETED', 'RECEIVED')
+          GROUP BY DATE_TRUNC('month', paid_date)
         )
         SELECT TO_CHAR(m.month_start, 'Mon') AS name,
-               COALESCE(SUM(f.amount), 0)::numeric AS billed,
-               COALESCE(SUM(f.amount) FILTER (WHERE UPPER(f.status::text) IN ('PAID', 'COMPLETED', 'RECEIVED')), 0)::numeric AS revenue
+               COALESCE(b.billed_amount, 0)::numeric AS billed,
+               COALESCE(p.paid_amount, 0)::numeric AS revenue
         FROM months m
-        LEFT JOIN fees f
-          ON DATE_TRUNC('month', f.created_at) = m.month_start
-        GROUP BY m.month_start
+        LEFT JOIN billed_agg b ON b.month_start = m.month_start
+        LEFT JOIN paid_agg p ON p.month_start = m.month_start
         ORDER BY m.month_start
       `),
       // School AI Sessions (school DB)
