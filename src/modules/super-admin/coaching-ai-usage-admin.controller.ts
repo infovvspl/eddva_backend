@@ -123,36 +123,4 @@ export class CoachingAiUsageAdminController {
       updatedBy: req.user?.id ?? 'super-admin',
     });
   }
-
-  @Get('logs')
-  @ApiOperation({ summary: 'Get raw AI logs' })
-  getRawLogs(
-    @Query('instituteId') instituteId?: string,
-    @Query('product') product?: 'school' | 'coaching' | 'all',
-    @Query('feature') feature?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
-  ) {
-    return this.usageService.getRawLogs({
-      instituteId,
-      vertical: product,
-      feature,
-      from,
-      to,
-      limit: limit ? Number(limit) : undefined,
-      offset: offset ? Number(offset) : undefined,
-    });
-  }
-
-  @Get('reports/billing')
-  @ApiOperation({ summary: 'Get billing report' })
-  getBillingReport(
-    @Query('product') product?: 'school' | 'coaching' | 'all',
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
-    return this.usageService.getBillingReport(product || 'all', from, to);
-  }
 }
