@@ -302,6 +302,11 @@ export class CreateAnnouncementDto {
 }
 
 export class AnnouncementListQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  category?: string;
+
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)

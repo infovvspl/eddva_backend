@@ -134,59 +134,83 @@ export class AuditLogService implements OnModuleInit {
   ) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 50;
-    const skip = (page - 1) * limit;
+    const offset = (page - 1) * limit;
+    const ds = connection === 'coaching' ? this.coachingDs : this.schoolDs;
 
-    const repo = this.getRepo(connection);
-    const qb = repo.createQueryBuilder('log');
-
-    // Always filter by vertical to guarantee data isolation between school and coaching.
-    // This prevents any historically misrouted rows from leaking across verticals.
-    qb.andWhere('log.vertical = :vertical', { vertical: connection });
-
-    if (query.userId) {
-      qb.andWhere('log.userId = :userId', { userId: query.userId });
-    }
+    const conditions: string[] = [`al.vertical = $1`];
+    const params: any[] = [connection];
+    let idx = 2;
 
     if (query.instituteId) {
-      qb.andWhere('log.instituteId = :instituteId', { instituteId: query.instituteId });
+      conditions.push(`al.institute_id = $${idx++}`);
+      params.push(query.instituteId);
     }
-
+    if (query.userId) {
+      conditions.push(`al.user_id = $${idx++}`);
+      params.push(query.userId);
+    }
     if (query.module) {
-      qb.andWhere('log.module = :module', { module: query.module });
+      conditions.push(`al.module = $${idx++}`);
+      params.push(query.module);
     }
-
     if (query.role) {
-      qb.andWhere('LOWER(log.role) = LOWER(:role)', { role: query.role });
+      conditions.push(`LOWER(al.role) = LOWER($${idx++})`);
+      params.push(query.role);
     }
-
     if (query.status) {
-      qb.andWhere('LOWER(log.status) = LOWER(:status)', { status: query.status });
+      conditions.push(`LOWER(al.status) = LOWER($${idx++})`);
+      params.push(query.status);
     }
-
     if (query.search) {
-      qb.andWhere(
-        '(log.userName ILIKE :search OR log.action ILIKE :search OR log.description ILIKE :search)',
-        { search: `%${query.search}%` },
-      );
+      conditions.push(`(al.user_name ILIKE $${idx} OR al.action ILIKE $${idx} OR al.description ILIKE $${idx})`);
+      params.push(`%${query.search}%`);
+      idx++;
     }
-
     if (query.startDate) {
-      qb.andWhere('log.createdAt >= :startDate', { startDate: new Date(query.startDate) });
+      conditions.push(`al.created_at >= $${idx++}`);
+      params.push(new Date(query.startDate));
     }
-
     if (query.endDate) {
       const end = new Date(query.endDate);
       end.setHours(23, 59, 59, 999);
-      qb.andWhere('log.createdAt <= :endDate', { endDate: end });
+      conditions.push(`al.created_at <= $${idx++}`);
+      params.push(end);
     }
 
-    qb.orderBy('log.createdAt', 'DESC');
-    qb.skip(skip).take(limit);
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const [items, total] = await qb.getManyAndCount();
+    const dataRows: any[] = await ds.query(
+      `SELECT
+         al.id,
+         al.institute_id   AS "instituteId",
+         t.name            AS "instituteName",
+         al.user_id        AS "userId",
+         al.user_name      AS "userName",
+         al.role,
+         al.module,
+         al.action,
+         al.description,
+         al.ip_address     AS "ipAddress",
+         al.status,
+         al.vertical,
+         al.created_at     AS "createdAt"
+       FROM audit_logs al
+       LEFT JOIN tenants t ON t.id::text = al.institute_id::text
+       ${where}
+       ORDER BY al.created_at DESC
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, limit, offset],
+    );
+
+    const countRows: any[] = await ds.query(
+      `SELECT COUNT(*)::int AS total FROM audit_logs al ${where}`,
+      params,
+    );
+
+    const total = Number(countRows[0]?.total || 0);
 
     return {
-      data: items,
+      data: dataRows,
       meta: {
         total,
         page,

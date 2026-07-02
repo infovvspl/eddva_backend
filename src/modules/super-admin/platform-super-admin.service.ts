@@ -229,7 +229,7 @@ export class PlatformSuperAdminService {
 
   async getTenants(query: PlatformInstituteQueryDto) {
     const page  = Math.max(1, query.page  ?? 1);
-    const limit = Math.min(100, query.limit ?? 20);
+    const limit = Math.min(200, query.limit ?? 20);
     const skip  = (page - 1) * limit;
 
     const qb = this.tenantRepo

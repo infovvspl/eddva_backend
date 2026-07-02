@@ -875,7 +875,7 @@ export class StudentService {
 
   // ─── DISCOVER BATCHES (login modal) ──────────────────────────────────────────
 
-  async discoverBatches(userId: string, _tenantId: string) {
+  async discoverBatches(userId: string, tenantId: string) {
     const student = await this.studentRepo.findOne({ where: { userId } });
     if (!student) throw new NotFoundException('Student profile not found');
 
@@ -883,10 +883,11 @@ export class StudentService {
     const enrollments = await this.enrollmentRepo.find({ where: { studentId: student.id } });
     const enrolledBatchIds = enrollments.map(e => e.batchId);
 
-    // Query ALL active batches across ALL institutes (no tenantId filter)
+    // Only expose active batches belonging to the student's institute.
     const qb = this.batchRepo.createQueryBuilder('b')
       .leftJoinAndSelect('b.teacher', 'teacher')
-      .where('b.status = :status', { status: BatchStatus.ACTIVE })
+      .where('b.tenantId = :tenantId', { tenantId })
+      .andWhere('b.status = :status', { status: BatchStatus.ACTIVE })
       .andWhere('b.deleted_at IS NULL');
 
     // Exclude already enrolled

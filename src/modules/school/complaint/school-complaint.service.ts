@@ -7,7 +7,7 @@ export class SchoolComplaintService implements OnModuleInit {
   constructor(
     @InjectDataSource('school') private readonly schoolDs: DataSource,
     @InjectDataSource('coaching') private readonly coachingDs: DataSource,
-  ) {}
+  ) { }
 
   private ticketNumber(id: string) {
     return `PLT-${String(id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`;
@@ -109,6 +109,7 @@ export class SchoolComplaintService implements OnModuleInit {
   async list(user: any, query: any, connection: 'school' | 'coaching' = 'school') {
     const ds = this.getDs(connection);
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const userNameColumn = connection === 'coaching' ? 'u.full_name' : 'u.name';
     let filter = `1=1`;
     const params: any[] = [];
 
@@ -127,7 +128,7 @@ export class SchoolComplaintService implements OnModuleInit {
       if (searchTerms.length > 0) {
         const searchConditions = searchTerms.map((term: string) => {
           params.push(term);
-          return `(LOWER(c.title) LIKE $${params.length} OR LOWER(c.description) LIKE $${params.length} OR LOWER(u.name) LIKE $${params.length} OR LOWER(u.full_name) LIKE $${params.length} OR LOWER(CONCAT('PLT-', SUBSTRING(REPLACE(c.id::text, '-', '') FROM 1 FOR 8))) LIKE $${params.length})`;
+          return `(LOWER(c.title) LIKE $${params.length} OR LOWER(c.description) LIKE $${params.length} OR LOWER(${userNameColumn}) LIKE $${params.length} OR LOWER(CONCAT('PLT-', SUBSTRING(REPLACE(c.id::text, '-', '') FROM 1 FOR 8))) LIKE $${params.length})`;
         });
         filter += ` AND (${searchConditions.join(' AND ')})`;
       }
