@@ -245,7 +245,7 @@ export class SchoolDashboardService {
         LEFT JOIN attendance_records ar ON ar.session_id = asess.id
           AND (LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')
         WHERE asess.tenant_id = $1 
-          AND asess.date >= CURRENT_DATE - INTERVAL '6 days'
+          AND asess.date::date >= (CURRENT_DATE - INTERVAL '6 days')::date
         GROUP BY asess.date
         ORDER BY asess.date ASC
       `, [instituteId]);
