@@ -92,4 +92,10 @@ export class SchoolGamificationController {
   wordMasterLeaderboard(@Req() req: Request) {
     return this.gamification.leaderboard((req as any).user, 'word_master');
   }
+
+  /** Returns the authenticated student's real-time XP, coins, level, and badges */
+  @Get('my-profile')
+  getMyProfile(@Req() req: Request) {
+    return this.gamification.getMyProfile((req as any).user);
+  }
 }

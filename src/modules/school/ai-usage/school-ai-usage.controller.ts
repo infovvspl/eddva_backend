@@ -100,4 +100,36 @@ export class SchoolAiUsageController {
   async debug() {
     return this.svc.debugState();
   }
+
+  /**
+   * Diagnostic endpoint: returns the logged-in user's identity + overview
+   * for their specific institute. Useful to verify institute_id matching.
+   * The frontend calls this automatically when analytics shows 0.
+   */
+  @Get('me-debug')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  async meDebug(@SchoolUser() user: any) {
+    const instituteId = user?.instituteId ?? null;
+    let overviewResult: any = null;
+    let queryError: string | null = null;
+    try {
+      overviewResult = await this.svc.getOverview({
+        instituteId: instituteId || undefined,
+        vertical: 'school',
+      });
+    } catch (e: any) {
+      queryError = e?.message || String(e);
+    }
+    return {
+      success: true,
+      // Flatten user fields so the frontend can read them at the top level
+      id: user?.id,
+      email: user?.email,
+      role: user?.role,
+      instituteId,
+      user: { id: user?.id, email: user?.email, role: user?.role, instituteId },
+      overview: overviewResult,
+      queryError,
+    };
+  }
 }
