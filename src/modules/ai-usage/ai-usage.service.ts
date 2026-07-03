@@ -120,6 +120,9 @@ export class AiUsageService implements OnModuleInit {
         last_call_at TIMESTAMPTZ NULL,
         PRIMARY KEY (institute_id, vertical, feature, day)
       );
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS success_count INT NOT NULL DEFAULT 0;
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS error_count INT NOT NULL DEFAULT 0;
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS total_latency_ms BIGINT NOT NULL DEFAULT 0;
       ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS last_call_at TIMESTAMPTZ NULL;
 
       CREATE TABLE IF NOT EXISTS ai_usage_quotas (
@@ -138,20 +141,12 @@ export class AiUsageService implements OnModuleInit {
   async record(ev: AiUsageEvent): Promise<void> {
     try {
       await this.ensureTables();
-      // Estimate cost when the caller didn't provide one (only for successful calls).
       if ((ev.estCost === undefined || ev.estCost === null) && ev.success) {
         ev.estCost = this.estimateCost(ev.provider, ev.totalTokens, ev.promptTokens, ev.completionTokens);
       }
-
-      // Compute totalTokens from prompt+completion if not provided directly
       if ((ev.totalTokens === undefined || ev.totalTokens === null) && ev.promptTokens != null && ev.completionTokens != null) {
         ev.totalTokens = ev.promptTokens + ev.completionTokens;
       }
-
-      this.logger.debug(
-        `[record] feature=${ev.feature} vertical=${ev.vertical} institute=${ev.instituteId} ` +
-        `tokens=${ev.totalTokens}(prompt=${ev.promptTokens},completion=${ev.completionTokens}) cost=${ev.estCost}`,
-      );
 
       await this.ds.query(
         `INSERT INTO ai_usage_events
@@ -176,37 +171,51 @@ export class AiUsageService implements OnModuleInit {
         ],
       );
 
-      // Daily rollup (only when we know the institute — quota/dashboards are per-institute).\
       if (ev.instituteId) {
-        await this.ds.query(
-          `INSERT INTO ai_usage_daily
-             (institute_id, vertical, feature, day, request_count, success_count, error_count, total_latency_ms, total_tokens, est_cost, last_call_at)
-           VALUES ($1,$2,$3,CURRENT_DATE,1,$4,$5,$6,$7,$8,NOW())
-           ON CONFLICT (institute_id, vertical, feature, day) DO UPDATE SET
-             request_count = ai_usage_daily.request_count + 1,
-             success_count = ai_usage_daily.success_count + $4,
-             error_count   = ai_usage_daily.error_count + $5,
-             total_latency_ms = ai_usage_daily.total_latency_ms + $6,
-             total_tokens  = ai_usage_daily.total_tokens + $7,
-             est_cost      = ai_usage_daily.est_cost + $8,
-             last_call_at  = NOW()`,
-          [
-            ev.instituteId,
-            ev.vertical || 'coaching',
-            ev.feature,
-            ev.success ? 1 : 0,
-            ev.success ? 0 : 1,
-            ev.latencyMs ?? 0,
-            ev.totalTokens ?? 0,
-            ev.estCost ?? 0,
-          ],
-        );
-        this.logger.debug(`[record] daily upsert done — tokens=${ev.totalTokens ?? 0} cost=${ev.estCost ?? 0}`);
-        // Invalidate quota cache for this institute/feature so the next check is fresh.
+        await this._upsertDaily(ev);
+        this.logger.log(`[record] ok feature=${ev.feature} vertical=${ev.vertical} institute=${ev.instituteId}`);
         this.quotaCache.delete(`${ev.instituteId}:${ev.vertical || 'coaching'}:${ev.feature}`);
       }
     } catch (err: any) {
-      this.logger.warn(`AI usage record failed: ${err?.message}`);
+      this.logger.error(`AI usage record failed: ${err?.message}`);
+    }
+  }
+
+  private async _upsertDaily(ev: AiUsageEvent, retry = true): Promise<void> {
+    try {
+      await this.ds.query(
+        `INSERT INTO ai_usage_daily
+           (institute_id, vertical, feature, day, request_count, success_count, error_count, total_latency_ms, total_tokens, est_cost, last_call_at)
+         VALUES ($1,$2,$3,CURRENT_DATE,1,$4,$5,$6,$7,$8,NOW())
+         ON CONFLICT (institute_id, vertical, feature, day) DO UPDATE SET
+           request_count = ai_usage_daily.request_count + 1,
+           success_count = ai_usage_daily.success_count + $4,
+           error_count   = ai_usage_daily.error_count + $5,
+           total_latency_ms = ai_usage_daily.total_latency_ms + $6,
+           total_tokens  = ai_usage_daily.total_tokens + $7,
+           est_cost      = ai_usage_daily.est_cost + $8,
+           last_call_at  = NOW()`,
+        [
+          ev.instituteId,
+          ev.vertical || 'coaching',
+          ev.feature,
+          ev.success ? 1 : 0,
+          ev.success ? 0 : 1,
+          ev.latencyMs ?? 0,
+          ev.totalTokens ?? 0,
+          ev.estCost ?? 0,
+        ],
+      );
+    } catch (err: any) {
+      // If the error is a missing column, the table schema is stale — reset and re-migrate.
+      if (retry && err?.message?.includes('column')) {
+        this.logger.warn(`[record] daily upsert schema mismatch — re-running ensureTables: ${err.message}`);
+        this.ready = false;
+        await this.ensureTables();
+        await this._upsertDaily(ev, false);
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -474,5 +483,22 @@ export class AiUsageService implements OnModuleInit {
     );
     this.quotaCache.clear();
     return { success: true };
+  }
+
+  /** Super-admin diagnostic: schema state + recent rows. */
+  async debugState() {
+    const columns = await this.ds.query(
+      `SELECT column_name, data_type FROM information_schema.columns
+       WHERE table_name = 'ai_usage_daily' ORDER BY ordinal_position`,
+    );
+    const recentDaily = await this.ds.query(
+      `SELECT institute_id, vertical, feature, day, request_count FROM ai_usage_daily
+       ORDER BY day DESC, request_count DESC LIMIT 10`,
+    );
+    const recentEvents = await this.ds.query(
+      `SELECT institute_id, vertical, feature, success, created_at FROM ai_usage_events
+       ORDER BY created_at DESC LIMIT 10`,
+    );
+    return { columns, recentDaily, recentEvents, ready: this.ready };
   }
 }
