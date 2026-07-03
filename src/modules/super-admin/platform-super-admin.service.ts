@@ -50,7 +50,12 @@ export class PlatformSuperAdminService {
       throw new UnauthorizedException('Account suspended');
     }
 
-    const payload = { sub: user.id, tenantId: user.tenantId, role: user.role };
+    const payload = { 
+      sub: user.id, 
+      tenantId: user.tenantId, 
+      role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
+    };
     const token = await this.jwtService.signAsync(payload, {
       secret: this.configService.get('jwt.secret'),
       expiresIn: this.configService.get('jwt.expiresIn'),
@@ -457,6 +462,20 @@ if (dto.isSuspended !== undefined) tenant.isSuspended = dto.isSuspended;
   }
 
   async forceLogout(sessionId: string) {
+    const log = await this.dataSource.query(`SELECT user_id FROM audit_logs WHERE id = $1 LIMIT 1`, [sessionId]);
+    if (!log.length || !log[0].user_id) {
+      throw new NotFoundException('Session or associated user not found');
+    }
+    const userId = log[0].user_id;
+    
+    // Increment tokenVersion to kill active access tokens, and nullify refreshToken to prevent bypass
+    const userToUpdate = await this.userRepo.findOne({ where: { id: userId } });
+    if (userToUpdate) {
+      userToUpdate.tokenVersion = (userToUpdate.tokenVersion ?? 0) + 1;
+      userToUpdate.refreshToken = null;
+      await this.userRepo.save(userToUpdate);
+    }
+    
     return { success: true, message: 'Session terminated successfully' };
   }
 }

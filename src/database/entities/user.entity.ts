@@ -60,6 +60,9 @@ export class User extends Base {
   @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
   lastLoginAt: Date;
 
+  @Column({ name: 'token_version', type: 'int', nullable: true, default: 0 })
+  tokenVersion: number;
+
   // ── Role & Status ─────────────────────────────────────────────────────────
   @Column({ type: 'enum', enum: UserRole, default: UserRole.STUDENT })
   role: UserRole;
