@@ -237,6 +237,37 @@ export class SchoolDashboardService {
         ? (presentTeachersToday / totalTeachers) * 100 
         : 0;
 
+      const historyRows = await this.ds.query(`
+        SELECT 
+          asess.date::text AS date,
+          COUNT(DISTINCT ar.student_id)::int AS present_count
+        FROM attendance_sessions asess
+        LEFT JOIN attendance_records ar ON ar.session_id = asess.id
+          AND (LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')
+        WHERE asess.tenant_id = $1 
+          AND asess.date::date >= (CURRENT_DATE - INTERVAL '6 days')::date
+        GROUP BY asess.date
+        ORDER BY asess.date ASC
+      `, [instituteId]);
+
+      const attendanceHistory = [];
+      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayLabel = daysOfWeek[d.getDay()];
+        
+        const row = historyRows.find((r: any) => r.date === dateStr);
+        const present = row ? parseInt(row.present_count || '0', 10) : 0;
+        const percentage = totalStudents > 0 ? Math.round((present / totalStudents) * 100) : 0;
+        
+        attendanceHistory.push({
+          name: dayLabel,
+          att: percentage
+        });
+      }
+
       const formattedComplaintStatus = complaintStats.map((c: any) => ({
         name: c.name.replace('_', ' ').charAt(0).toUpperCase() + c.name.replace('_', ' ').slice(1).toLowerCase() + ' Tickets',
         value: c.value
@@ -269,7 +300,8 @@ export class SchoolDashboardService {
         liveClassesCount: liveClassesCountRow[0]?.c || 0,
         scheduledClassesCount: scheduledClassesCountRow[0]?.c || 0,
         presentStudentsToday,
-        presentTeachersToday
+        presentTeachersToday,
+        attendanceHistory
       };
       await this.cache.set(cacheKey, adminResult, ADMIN_TTL);
       return adminResult;
@@ -522,12 +554,11 @@ export class SchoolDashboardService {
       dailyInstitutes,
       weeklyInstitutes,
       monthlyInstitutes,
-      totalUsers,
       admins,
       teachers,
       students,
+      parents,
       instituteActivity,
-      totalTickets,
       resolvedTickets,
       openTickets,
       complaintTexts
@@ -536,10 +567,10 @@ export class SchoolDashboardService {
       this.ds.query(`SELECT COUNT(*)::int AS c FROM institutes WHERE created_at >= NOW() - INTERVAL '1 day'`),
       this.ds.query(`SELECT COUNT(*)::int AS c FROM institutes WHERE created_at >= NOW() - INTERVAL '7 days'`),
       this.ds.query(`SELECT COUNT(*)::int AS c FROM institutes WHERE created_at >= NOW() - INTERVAL '30 days'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM users`),
       this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'INSTITUTE_ADMIN'`),
       this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'TEACHER'`),
       this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'STUDENT'`),
+      this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'PARENT'`),
       this.ds.query(`
         SELECT i.name, COUNT(u.id)::int AS "userCount"
         FROM institutes i
@@ -548,9 +579,8 @@ export class SchoolDashboardService {
         ORDER BY "userCount" DESC
         LIMIT 5
       `),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status = 'RESOLVED'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('OPEN', 'IN_PROGRESS')`),
+      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('RESOLVED', 'CLOSED')`),
+      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('OPEN', 'IN_PROGRESS', 'REOPENED')`),
       this.ds.query(`SELECT title, description FROM complaints`),
     ]);
 
@@ -578,6 +608,9 @@ export class SchoolDashboardService {
       { name: 'Account', count: accountCount },
     ];
 
+    const totalUsersCount = (admins[0]?.c || 0) + (teachers[0]?.c || 0) + (students[0]?.c || 0) + (parents[0]?.c || 0);
+    const totalTicketsCount = (resolvedTickets[0]?.c || 0) + (openTickets[0]?.c || 0);
+
     return {
       institutes: {
         total: totalInstitutes[0].c,
@@ -586,14 +619,15 @@ export class SchoolDashboardService {
         monthly: monthlyInstitutes[0].c,
       },
       users: {
-        total: totalUsers[0].c,
+        total: totalUsersCount,
         admins: admins[0].c,
         teachers: teachers[0].c,
         students: students[0].c,
+        parents: parents[0].c,
         instituteActivity: instituteActivity,
       },
       tickets: {
-        total: totalTickets[0].c,
+        total: totalTicketsCount,
         resolved: resolvedTickets[0].c,
         open: openTickets[0].c,
         categories: categories,
@@ -645,7 +679,7 @@ export class SchoolDashboardService {
     const studentConf = getQueryConfig(
       `SELECT u.id, u.name, u.email, u.profile_image, s.enrollment_no AS "enrollmentNo" 
        FROM users u 
-       JOIN students s ON s.user_id = u.id 
+       LEFT JOIN students s ON s.user_id = u.id 
        WHERE u.role = 'STUDENT' __FILTER__ AND (u.name ILIKE $1 OR u.email ILIKE $1 OR s.enrollment_no ILIKE $1)
        LIMIT 10`,
       true
@@ -654,7 +688,7 @@ export class SchoolDashboardService {
     const teacherConf = getQueryConfig(
       `SELECT u.id, u.name, u.email, u.profile_image, t.employee_id AS "employeeId" 
        FROM users u 
-       JOIN teachers t ON t.user_id = u.id 
+       LEFT JOIN teachers t ON t.user_id = u.id 
        WHERE u.role = 'TEACHER' __FILTER__ AND (u.name ILIKE $1 OR u.email ILIKE $1 OR t.employee_id ILIKE $1)
        LIMIT 10`,
       true

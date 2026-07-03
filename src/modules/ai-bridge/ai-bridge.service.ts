@@ -35,27 +35,30 @@ export class AiBridgeService {
 
   // Maps an AI endpoint path to a stable usage feature key + provider.
   // Health checks and anything unmapped are skipped from tracking.
+  // Maps AI endpoint → canonical feature ID that MATCHES Python's log_usage() feature_id
+  // AND the AI_FEATURES constant. Keeps both Python success logs + NestJS failure logs
+  // in the same ai_usage_daily row (same primary key = correct success rate).
+  // /content/generate is intentionally omitted — Python logs content_{type} per content
+  // type (content_dpp, content_flashcard, etc.) for both success and failure.
   private static readonly FEATURE_MAP: Record<string, { feature: string; provider: string }> = {
-    '/doubt/resolve': { feature: 'doubt_resolve', provider: 'groq' },
-    '/doubt/ocr-image': { feature: 'image_ocr', provider: 'groq_vision' },
-    '/tutor/session': { feature: 'tutor', provider: 'groq' },
-    '/tutor/continue': { feature: 'tutor', provider: 'groq' },
-    '/content/generate': { feature: 'content_generate', provider: 'groq' },
-    '/stt/transcribe': { feature: 'stt_transcribe', provider: 'whisper_sarvam' },
-    '/stt/notes': { feature: 'stt_notes', provider: 'whisper_llm' },
-    '/stt/notes-from-text': { feature: 'notes_from_text', provider: 'groq_gemini' },
-    '/stt/notes-from-youtube': { feature: 'notes_from_youtube', provider: 'groq' },
-    '/quiz/generate': { feature: 'quiz_generate', provider: 'groq' },
-    '/translate': { feature: 'translate', provider: 'sarvam' },
-    '/plan/generate': { feature: 'plan_generate', provider: 'groq' },
-    '/syllabus/generate': { feature: 'syllabus_generate', provider: 'groq' },
-    '/test/generate/': { feature: 'test_generate', provider: 'groq' },
-    '/recommend/content': { feature: 'recommend', provider: 'groq' },
-    '/career/guidance': { feature: 'career_guidance', provider: 'groq' },
-    '/feedback/generate': { feature: 'feedback', provider: 'groq' },
-    '/notes/analyze': { feature: 'notes_analyze', provider: 'groq' },
-    '/resume/analyze': { feature: 'resume_analyze', provider: 'groq' },
-    '/interview/start': { feature: 'interview', provider: 'groq' },
+    '/doubt/resolve':       { feature: 'doubt_resolver',         provider: 'groq' },
+    '/doubt/ocr-image':     { feature: 'image_ocr_handwriting',  provider: 'groq_vision' },
+    '/tutor/session':       { feature: 'tutor',                  provider: 'groq' },
+    '/tutor/continue':      { feature: 'tutor',                  provider: 'groq' },
+    '/stt/transcribe':      { feature: 'lecture_transcription',  provider: 'whisper_sarvam' },
+    '/stt/notes':           { feature: 'ai_lecture_notes',       provider: 'whisper_llm' },
+    '/stt/notes-from-text': { feature: 'ai_lecture_notes',       provider: 'groq_gemini' },
+    '/stt/notes-from-youtube': { feature: 'ai_lecture_notes',   provider: 'groq' },
+    '/quiz/generate':       { feature: 'in_video_quiz_generator',provider: 'groq' },
+    '/translate':           { feature: 'multilingual_translation',provider: 'sarvam' },
+    '/plan/generate':       { feature: 'personalised_study_plan',provider: 'groq' },
+    '/test/generate/':      { feature: 'test_generate',          provider: 'groq' },
+    '/recommend/content':   { feature: 'recommend',              provider: 'groq' },
+    '/career/guidance':     { feature: 'career_guidance_report', provider: 'groq' },
+    '/feedback/generate':   { feature: 'feedback',               provider: 'groq' },
+    '/notes/analyze':       { feature: 'notes_analyze',          provider: 'groq' },
+    '/resume/analyze':      { feature: 'resume_analyser',        provider: 'groq' },
+    '/interview/start':     { feature: 'interview_prep',         provider: 'groq' },
   };
 
   private extractTokens(data: any): number | null {

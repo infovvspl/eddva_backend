@@ -123,12 +123,17 @@ export class SchoolComplaintService implements OnModuleInit {
       filter += ` AND c.status=$${params.length}`;
     }
 
+    const instituteJoin = connection === 'coaching'
+      ? `LEFT JOIN tenants t ON c.institute_id = t.id`
+      : `LEFT JOIN institutes i ON c.institute_id = i.id`;
+    const instituteNameColumn = connection === 'coaching' ? 't.name' : 'i.name';
+
     if (query.search) {
       const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.replace(/^#/, '').toLowerCase()}%`);
       if (searchTerms.length > 0) {
         const searchConditions = searchTerms.map((term: string) => {
           params.push(term);
-          return `(LOWER(c.title) LIKE $${params.length} OR LOWER(c.description) LIKE $${params.length} OR LOWER(${userNameColumn}) LIKE $${params.length} OR LOWER(CONCAT('PLT-', SUBSTRING(REPLACE(c.id::text, '-', '') FROM 1 FOR 8))) LIKE $${params.length})`;
+          return `(LOWER(c.title) LIKE $${params.length} OR LOWER(c.description) LIKE $${params.length} OR LOWER(${userNameColumn}) LIKE $${params.length} OR LOWER(${instituteNameColumn}) LIKE $${params.length} OR LOWER(CONCAT('PLT-', SUBSTRING(REPLACE(c.id::text, '-', '') FROM 1 FOR 8))) LIKE $${params.length})`;
         });
         filter += ` AND (${searchConditions.join(' AND ')})`;
       }
@@ -140,7 +145,9 @@ export class SchoolComplaintService implements OnModuleInit {
 
     const countQuery = `
       SELECT COUNT(*)::int AS total
-      FROM complaints c LEFT JOIN users u ON c.user_id=u.id 
+      FROM complaints c 
+      LEFT JOIN users u ON c.user_id=u.id 
+      ${instituteJoin}
       WHERE ${filter}
     `;
     const countResult = await ds.query(countQuery, params);
