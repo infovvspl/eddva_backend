@@ -206,7 +206,7 @@ export class InstituteSettingsService {
     const [studentCount, teacherCount] = await Promise.all([
       this.studentRepo
         .createQueryBuilder('s')
-        .innerJoin('u', 'u', 's.user_id = u.id')
+        .innerJoin(User, 'u', 's.user_id = u.id')
         .where('u.tenant_id = :tid', { tid: tenantId })
         .getCount(),
       this.userRepo.count({ where: { tenantId, role: 'teacher' as any } }),
