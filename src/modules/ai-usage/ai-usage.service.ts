@@ -120,6 +120,9 @@ export class AiUsageService implements OnModuleInit {
         last_call_at TIMESTAMPTZ NULL,
         PRIMARY KEY (institute_id, vertical, feature, day)
       );
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS success_count INT NOT NULL DEFAULT 0;
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS error_count INT NOT NULL DEFAULT 0;
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS total_latency_ms BIGINT NOT NULL DEFAULT 0;
       ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS last_call_at TIMESTAMPTZ NULL;
 
       CREATE TABLE IF NOT EXISTS ai_usage_quotas (
