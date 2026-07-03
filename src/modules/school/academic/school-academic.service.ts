@@ -120,6 +120,7 @@ export class SchoolAcademicService {
                  JOIN sections sec_count
                    ON st.section_id::text = sec_count.id::text
                  WHERE sec_count.class_id::text = c.id::text
+                   AND sec_count.academic_year = c.academic_year
                ) AS "totalStudents",
                (
                  SELECT u.name
@@ -129,6 +130,7 @@ export class SchoolAcademicService {
                  JOIN users u
                    ON u.id::text = t.user_id::text
                  WHERE sec_teacher.class_id::text = c.id::text
+                   AND sec_teacher.academic_year = c.academic_year
                    AND sec_teacher.class_teacher_id IS NOT NULL
                  ORDER BY sec_teacher.name
                  LIMIT 1
@@ -153,6 +155,7 @@ export class SchoolAcademicService {
                  LEFT JOIN users u
                    ON u.id::text = t.user_id::text
                  WHERE s.class_id::text = c.id::text
+                   AND s.academic_year = c.academic_year
                ), '[]'::json) AS sections
         FROM classes c
         WHERE c.institute_id = $1
@@ -201,6 +204,7 @@ export class SchoolAcademicService {
                JOIN sections sec_count
                  ON st.section_id::text = sec_count.id::text
                WHERE sec_count.class_id::text = c.id::text
+                 AND sec_count.academic_year = c.academic_year
              ) AS "totalStudents",
              (
                SELECT u.name
@@ -210,6 +214,7 @@ export class SchoolAcademicService {
                JOIN users u
                  ON u.id::text = t.user_id::text
                WHERE sec_teacher.class_id::text = c.id::text
+                 AND sec_teacher.academic_year = c.academic_year
                  AND sec_teacher.class_teacher_id IS NOT NULL
                ORDER BY sec_teacher.name
                LIMIT 1
@@ -234,6 +239,7 @@ export class SchoolAcademicService {
                LEFT JOIN users u
                  ON u.id::text = t.user_id::text
                WHERE s.class_id::text = c.id::text
+                 AND s.academic_year = c.academic_year
              ), '[]'::json) AS sections
       FROM classes c
       WHERE c.id = $1
