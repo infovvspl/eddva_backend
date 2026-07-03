@@ -6,6 +6,7 @@ import { Tenant } from '../../database/entities/tenant.entity';
 import { User } from '../../database/entities/user.entity';
 import { Student } from '../../database/entities/student.entity';
 import { Batch, Enrollment, EnrollmentStatus } from '../../database/entities/batch.entity';
+import { Announcement } from '../../database/entities/announcement.entity';
 import { NotificationService } from '../notification/notification.service';
 import { S3Service } from '../upload/s3.service';
 import {
@@ -15,6 +16,8 @@ import {
   CreateCalendarEventDto,
   InstituteOnboardingDto,
   UpdateInstituteProfileDto,
+  CreateInstituteAnnouncementDto,
+  InstituteAnnouncementListQueryDto,
 } from './dto/institute-settings.dto';
 
 const PLAN_LIMITS = {
@@ -37,6 +40,7 @@ export class InstituteSettingsService {
     @InjectRepository(Student, 'coaching') private readonly studentRepo: Repository<Student>,
     @InjectRepository(Batch, 'coaching') private readonly batchRepo: Repository<Batch>,
     @InjectRepository(Enrollment, 'coaching') private readonly enrollmentRepo: Repository<Enrollment>,
+    @InjectRepository(Announcement, 'coaching') private readonly announcementRepo: Repository<Announcement>,
     private readonly notificationService: NotificationService,
     private readonly s3Service: S3Service,
   ) {}
@@ -384,4 +388,69 @@ export class InstituteSettingsService {
     await this.tenantRepo.save(t);
     return { deleted: true };
   }
-}
+
+  // ── Communication/Broadcasts ─────────────────────────────────────────────────
+
+  async getAnnouncements(tenantId: string, query: InstituteAnnouncementListQueryDto) {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const skip = (page - 1) * limit;
+
+    const [announcements, total] = await this.announcementRepo.findAndCount({
+      where: { tenantId, deletedAt: undefined },
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    return { announcements, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 0 } };
+  }
+
+  async createAnnouncement(tenantId: string, userId: string, dto: CreateInstituteAnnouncementDto) {
+    // Force the announcement to be scoped to the authenticated tenant
+    const announcement = await this.announcementRepo.save(
+      this.announcementRepo.create({
+        title: dto.title,
+        body: dto.body,
+        targetRole: dto.targetRole || 'all',
+        tenantId: tenantId, // Strict enforcement
+        createdBy: userId,
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+      }),
+    );
+
+    let targetRoles: string[];
+    if (dto.targetRole === 'all' || !dto.targetRole) {
+      targetRoles = ['student', 'teacher'];
+    } else if (dto.targetRole === 'student') {
+      targetRoles = ['student'];
+    } else {
+      targetRoles = ['teacher'];
+    }
+
+    // Fetch only users belonging to this tenant, and in the targeted roles
+    const users = await this.userRepo.find({
+      where: targetRoles.map((role) => ({
+        role: role as any,
+        tenantId, // Strict enforcement
+      })),
+      select: ['id', 'tenantId'],
+    });
+
+    for (const user of users) {
+      await this.notificationService.send({
+        userId: user.id,
+        tenantId: user.tenantId,
+        title: dto.title,
+        body: dto.body,
+        channels: ['in_app', 'push'],
+        refType: 'institute_announcement',
+      });
+    }
+
+    announcement.sentCount = users.length;
+    await this.announcementRepo.save(announcement);
+
+    return announcement;
+  }
+}

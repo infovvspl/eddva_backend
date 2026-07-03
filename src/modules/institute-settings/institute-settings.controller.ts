@@ -21,6 +21,8 @@ import {
   UpdateNotificationPrefsDto,
   CreateCalendarEventDto,
   InstituteOnboardingDto,
+  CreateInstituteAnnouncementDto,
+  InstituteAnnouncementListQueryDto,
 } from './dto/institute-settings.dto';
 
 @ApiTags('Institute Settings')
@@ -168,4 +170,23 @@ export class InstituteSettingsController {
   deleteCalendarEvent(@TenantId() tenantId: string, @Param('eventId') eventId: string) {
     return this.svc.deleteCalendarEvent(tenantId, eventId);
   }
+
+  // ── Communication/Broadcasts ─────────────────────────────────────────────────
+
+  @Get('announcements')
+  @ApiOperation({ summary: 'List all announcements for this institute' })
+  getAnnouncements(@TenantId() tenantId: string, @Query() query: InstituteAnnouncementListQueryDto) {
+    return this.svc.getAnnouncements(tenantId, query);
+  }
+
+  @Post('announcements')
+  @ApiOperation({ summary: 'Create and send institute announcement' })
+  createAnnouncement(
+    @TenantId() tenantId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateInstituteAnnouncementDto,
+  ) {
+    return this.svc.createAnnouncement(tenantId, userId, dto);
+  }
+
 }
