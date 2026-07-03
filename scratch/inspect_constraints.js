@@ -9,35 +9,35 @@ const client = new Client({
 async function run() {
   await client.connect();
 
-  console.log('--- FOREIGN KEYS ON attendance_sessions ---');
-  const fks = await client.query(`
-    SELECT
-      tc.table_schema, 
-      tc.constraint_name, 
-      tc.table_name, 
-      kcu.column_name, 
-      ccu.table_schema AS foreign_table_schema,
-      ccu.table_name AS foreign_table_name,
-      ccu.column_name AS foreign_column_name 
-    FROM 
-      information_schema.table_constraints AS tc 
-      JOIN information_schema.key_column_usage AS kcu
-        ON tc.constraint_name = kcu.constraint_name
-        AND tc.table_schema = kcu.table_schema
-      JOIN information_schema.constraint_column_usage AS ccu
-        ON ccu.constraint_name = tc.constraint_name
-        AND ccu.table_schema = tc.table_schema
-    WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = 'attendance_sessions';
+  console.log('--- attendance_records indexes & constraints ---');
+  const res1 = await client.query(`
+    SELECT indexname, indexdef 
+    FROM pg_indexes 
+    WHERE tablename = 'attendance_records'
   `);
-  console.log(fks.rows);
+  console.log(res1.rows);
 
-  console.log('\n--- TENANTS IN DATABASE ---');
-  const tenants = await client.query('SELECT * FROM tenants LIMIT 5');
-  console.log(tenants.rows);
+  const res1_con = await client.query(`
+    SELECT conname, pg_get_constraintdef(oid) 
+    FROM pg_constraint 
+    WHERE conrelid = 'attendance_records'::regclass
+  `);
+  console.log(res1_con.rows);
 
-  console.log('\n--- INSTITUTES IN DATABASE ---');
-  const institutes = await client.query('SELECT * FROM institutes LIMIT 5');
-  console.log(institutes.rows);
+  console.log('\n--- attendances indexes & constraints ---');
+  const res2 = await client.query(`
+    SELECT indexname, indexdef 
+    FROM pg_indexes 
+    WHERE tablename = 'attendances'
+  `);
+  console.log(res2.rows);
+
+  const res2_con = await client.query(`
+    SELECT conname, pg_get_constraintdef(oid) 
+    FROM pg_constraint 
+    WHERE conrelid = 'attendances'::regclass
+  `);
+  console.log(res2_con.rows);
 
   await client.end();
 }
