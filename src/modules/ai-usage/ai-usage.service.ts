@@ -485,20 +485,58 @@ export class AiUsageService implements OnModuleInit {
     return { success: true };
   }
 
-  /** Super-admin diagnostic: schema state + recent rows. */
+  /** Super-admin diagnostic: schema state + recent rows + write-test. */
   async debugState() {
-    const columns = await this.ds.query(
-      `SELECT column_name, data_type FROM information_schema.columns
-       WHERE table_name = 'ai_usage_daily' ORDER BY ordinal_position`,
-    );
-    const recentDaily = await this.ds.query(
-      `SELECT institute_id, vertical, feature, day, request_count FROM ai_usage_daily
-       ORDER BY day DESC, request_count DESC LIMIT 10`,
-    );
-    const recentEvents = await this.ds.query(
-      `SELECT institute_id, vertical, feature, success, created_at FROM ai_usage_events
-       ORDER BY created_at DESC LIMIT 10`,
-    );
-    return { columns, recentDaily, recentEvents, ready: this.ready };
+    const result: Record<string, any> = { ready: this.ready };
+
+    // 1. Check coaching DB connectivity
+    try {
+      await this.ds.query(`SELECT 1`);
+      result.dbConnected = true;
+    } catch (e: any) {
+      result.dbConnected = false;
+      result.dbError = e?.message;
+      return result;
+    }
+
+    // 2. Schema columns
+    try {
+      result.columns = await this.ds.query(
+        `SELECT column_name, data_type FROM information_schema.columns
+         WHERE table_name = 'ai_usage_daily' ORDER BY ordinal_position`,
+      );
+    } catch (e: any) { result.columnsError = e?.message; }
+
+    // 3. Recent daily rows
+    try {
+      result.recentDaily = await this.ds.query(
+        `SELECT institute_id, vertical, feature, day, request_count FROM ai_usage_daily
+         ORDER BY day DESC, request_count DESC LIMIT 10`,
+      );
+    } catch (e: any) { result.recentDailyError = e?.message; }
+
+    // 4. Recent raw events
+    try {
+      result.recentEvents = await this.ds.query(
+        `SELECT institute_id, vertical, feature, success, created_at FROM ai_usage_events
+         ORDER BY created_at DESC LIMIT 10`,
+      );
+    } catch (e: any) { result.recentEventsError = e?.message; }
+
+    // 5. Write-test: insert a test event and immediately delete it
+    try {
+      await this.ds.query(
+        `INSERT INTO ai_usage_events (feature, success) VALUES ('__debug_test__', true)`,
+      );
+      await this.ds.query(
+        `DELETE FROM ai_usage_events WHERE feature = '__debug_test__'`,
+      );
+      result.writeTest = 'ok';
+    } catch (e: any) {
+      result.writeTest = 'FAILED';
+      result.writeTestError = e?.message;
+    }
+
+    return result;
   }
 }

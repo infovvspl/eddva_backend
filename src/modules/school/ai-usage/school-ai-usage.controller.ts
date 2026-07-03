@@ -96,7 +96,7 @@ export class SchoolAiUsageController {
   }
 
   @Get('debug')
-  @SchoolRoles('SUPER_ADMIN')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
   async debug() {
     return this.svc.debugState();
   }
