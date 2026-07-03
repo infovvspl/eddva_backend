@@ -451,14 +451,23 @@ if (dto.isSuspended !== undefined) tenant.isSuspended = dto.isSuspended;
         t.name AS "schoolName",
         l.ip_address AS "ipAddress",
         'Chrome' AS "browser",
-        l.created_at AS "loginAt"
+        l.created_at AS "loginAt",
+        CASE 
+          WHEN u.token_version_updated_at IS NOT NULL AND l.created_at < u.token_version_updated_at THEN true
+          ELSE false
+        END AS "isTerminated"
       FROM audit_logs l
       LEFT JOIN tenants t ON t.id::varchar = l.institute_id
+      LEFT JOIN users u ON u.id::varchar = l.user_id
       WHERE l.action = 'Login'
       ORDER BY l.created_at DESC
       LIMIT 100
     `);
-    return rows;
+    
+    return rows.map(row => ({
+      ...row,
+      isTerminated: row.isTerminated === true || row.isTerminated === 'true' // ensure boolean
+    }));
   }
 
   async forceLogout(sessionId: string) {
@@ -472,6 +481,7 @@ if (dto.isSuspended !== undefined) tenant.isSuspended = dto.isSuspended;
     const userToUpdate = await this.userRepo.findOne({ where: { id: userId } });
     if (userToUpdate) {
       userToUpdate.tokenVersion = (userToUpdate.tokenVersion ?? 0) + 1;
+      userToUpdate.tokenVersionUpdatedAt = new Date();
       userToUpdate.refreshToken = null;
       await this.userRepo.save(userToUpdate);
     }
