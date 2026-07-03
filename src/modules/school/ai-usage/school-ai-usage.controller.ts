@@ -104,7 +104,7 @@ export class SchoolAiUsageController {
   /**
    * Diagnostic endpoint: returns the logged-in user's identity + overview
    * for their specific institute. Useful to verify institute_id matching.
-   * Hit GET /school/ai-usage/me-debug while logged in to see your instituteId.
+   * The frontend calls this automatically when analytics shows 0.
    */
   @Get('me-debug')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
@@ -122,12 +122,12 @@ export class SchoolAiUsageController {
     }
     return {
       success: true,
-      user: {
-        id: user?.id,
-        email: user?.email,
-        role: user?.role,
-        instituteId,
-      },
+      // Flatten user fields so the frontend can read them at the top level
+      id: user?.id,
+      email: user?.email,
+      role: user?.role,
+      instituteId,
+      user: { id: user?.id, email: user?.email, role: user?.role, instituteId },
       overview: overviewResult,
       queryError,
     };
