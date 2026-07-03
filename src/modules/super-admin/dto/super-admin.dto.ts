@@ -285,10 +285,10 @@ export class CreateAnnouncementDto {
   @IsString()
   body: string;
 
-  @ApiPropertyOptional({ enum: ['student', 'teacher', 'all'] })
+  @ApiPropertyOptional({ enum: ['student', 'teacher', 'institute_admin', 'all'] })
   @IsOptional()
   @IsString()
-  targetRole?: 'student' | 'teacher' | 'all';
+  targetRole?: 'student' | 'teacher' | 'institute_admin' | 'all';
 
   @ApiPropertyOptional()
   @IsOptional()

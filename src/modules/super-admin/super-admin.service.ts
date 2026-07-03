@@ -668,10 +668,16 @@ export class SuperAdminService {
     );
 
     // Also send notifications
-    const targetRoles =
-      dto.targetRole === 'all' || !dto.targetRole
-        ? [UserRole.STUDENT, UserRole.TEACHER]
-        : [dto.targetRole === 'student' ? UserRole.STUDENT : UserRole.TEACHER];
+    let targetRoles: UserRole[];
+    if (dto.targetRole === 'all' || !dto.targetRole) {
+      targetRoles = [UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN];
+    } else if (dto.targetRole === 'student') {
+      targetRoles = [UserRole.STUDENT];
+    } else if (dto.targetRole === 'institute_admin') {
+      targetRoles = [UserRole.INSTITUTE_ADMIN];
+    } else {
+      targetRoles = [UserRole.TEACHER];
+    }
 
     const users = await this.userRepo.find({
       where: targetRoles.flatMap((role) => ({

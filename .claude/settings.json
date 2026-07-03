@@ -55,7 +55,12 @@
       "Bash(PGPASSWORD=\"Subham@123@\" psql \"host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require\" -c \"SELECT t.id, t.name, c.name as chapter, s.name as subject FROM topics t LEFT JOIN chapters c ON c.id = t.chapter_id LEFT JOIN subjects s ON s.id = c.subject_id WHERE t.id IN \\('a2132d93-8017-40fb-81e7-f06b25dc1769', 'be90365d-0674-4124-8548-cdf75f9ecfe7'\\);\")",
       "Bash(PGPASSWORD=\"Subham@123@\" psql \"host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require\" -c \"SELECT id, title, status, topic_id FROM lectures WHERE topic_id IN \\('a2132d93-8017-40fb-81e7-f06b25dc1769', 'be90365d-0674-4124-8548-cdf75f9ecfe7'\\);\")",
       "Bash(PGPASSWORD=\"Subham@123@\" psql \"host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require\" -c \"SELECT id, title, status, batch_id, topic_id FROM lectures WHERE topic_id = 'a2132d93-8017-40fb-81e7-f06b25dc1769';\")",
-      "Bash(psql 'host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require' -c ' *)"
+      "Bash(psql 'host=aws-1-ap-south-1.pooler.supabase.com port=5432 dbname=postgres user=postgres.utiqzdnyrrprcdghqkgv sslmode=require' -c ' *)",
+      "Bash(git commit -m ' *)",
+      "Bash(awk 'NR>=280 && NR<=320 || \\($0 ~ /^\\(4[6-9][0-9][0-9]|50[0-2][0-9]\\):/\\)')",
+      "Bash(awk 'NR >= 400 && NR <= 500 {print}')",
+      "Bash(git commit -m 'fix: always use X-Tenant-ID for usage attribution regardless of is_service_account *)",
+      "Bash(git commit -m 'ci: rm -rf node_modules before npm ci to fix ENOTEMPTY on stale dirs *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\lib\\api",
