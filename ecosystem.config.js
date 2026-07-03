@@ -11,6 +11,7 @@ module.exports = {
       env_production: {
         NODE_ENV: 'production',
         PORT: 3000,
+        INTERNAL_API_KEY: 'edva_internal_ai_log_2026',
       },
       max_memory_restart: '500M',
       restart_delay: 3000,
