@@ -63,6 +63,33 @@ export class GamificationService implements OnModuleInit {
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_metadata ON school_game_sessions USING GIN (metadata)`);
   }
 
+  /** Returns the student's real-time gamification stats from gamification_profiles */
+  async getMyProfile(user: any) {
+    const userId = String(user?.id || '');
+    try {
+      const rows = await this.ds.query(
+        `SELECT xp, coins, level, badges, current_streak, longest_streak
+         FROM gamification_profiles
+         WHERE user_id = $1`,
+        [userId],
+      );
+      if (rows.length === 0) {
+        return { xp: 0, coins: 0, level: 1, badges: [], currentStreak: 0, longestStreak: 0 };
+      }
+      const r = rows[0];
+      return {
+        xp: Number(r.xp || 0),
+        coins: Number(r.coins || 0),
+        level: Number(r.level || 1),
+        badges: Array.isArray(r.badges) ? r.badges : [],
+        currentStreak: Number(r.current_streak || 0),
+        longestStreak: Number(r.longest_streak || 0),
+      };
+    } catch {
+      return { xp: 0, coins: 0, level: 1, badges: [], currentStreak: 0, longestStreak: 0 };
+    }
+  }
+
   async startQuizRush(user: any, query: any) {
     const ctx = await this.resolveContext(user, query.subjectId, query.chapterId);
     const questions = await this.generateMcqs(ctx, 5, query.difficulty || 'medium', 'Quiz Rush');
@@ -590,7 +617,52 @@ export class GamificationService implements OnModuleInit {
         session.metadata?.difficulty || 'medium', session.metadata?.deckName || session.game_type, JSON.stringify(result),
       ],
     );
+
+    // ── Update gamification_profiles so the student dashboard shows real XP/coins ──
+    try {
+      const userId = String(session.student_user_id);
+      const xpInt = Math.round(xp);
+      const coinsInt = Math.round(coins);
+
+      // Compute new level from total XP after this game
+      const profileRows = await this.ds.query(
+        `SELECT xp, level FROM gamification_profiles WHERE user_id = $1`,
+        [userId],
+      );
+
+      if (profileRows.length === 0) {
+        const newXp = xpInt;
+        const newLevel = this.computeLevel(newXp);
+        await this.ds.query(
+          `INSERT INTO gamification_profiles (user_id, xp, coins, level, badges, current_streak, longest_streak)
+           VALUES ($1, $2, $3, $4, '[]', 0, 0)`,
+          [userId, newXp, coinsInt, newLevel],
+        );
+      } else {
+        const newXp = Number(profileRows[0].xp || 0) + xpInt;
+        const newLevel = this.computeLevel(newXp);
+        await this.ds.query(
+          `UPDATE gamification_profiles
+           SET xp = xp + $1, coins = coins + $2, level = $3, updated_at = NOW()
+           WHERE user_id = $4`,
+          [xpInt, coinsInt, newLevel, userId],
+        );
+      }
+    } catch (err: any) {
+      this.logger.warn(`[saveScore] Could not update gamification_profiles: ${err?.message}`);
+    }
   }
+
+  /** Compute level from total XP (mirrors the frontend getLevelThresholds logic) */
+  private computeLevel(xp: number): number {
+    if (xp >= 1000) return 5;
+    if (xp >= 500) return 4;
+    if (xp >= 250) return 3;
+    if (xp >= 100) return 2;
+    return 1;
+  }
+
+
 
   private resultPayload(result: any) {
     const xp = Math.round(result.xpEarned || result.score || 0);

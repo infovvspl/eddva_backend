@@ -1,10 +1,12 @@
-import { Injectable, OnModuleInit, Inject, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, OnModuleInit, Inject, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolChatGateway } from './school-chat.gateway';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { SchoolNotificationGateway } from '../notification/school-notification.gateway';
+import { S3Service } from '../../upload/s3.service';
+import { randomUUID } from 'crypto';
 
 const LEGACY_VIRTUAL_SUPER_ADMIN_ID = 'demo-super-admin';
 const VIRTUAL_SUPER_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
@@ -24,7 +26,24 @@ export class SchoolChatService implements OnModuleInit {
     private readonly gateway: SchoolChatGateway,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly notificationGateway: SchoolNotificationGateway,
+    private readonly s3Service: S3Service,
   ) {}
+
+  async presignUpload(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }, req: any) {
+    const instituteId = user.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
+    if (!body.contentType) throw new BadRequestException('contentType is required');
+    const MAX = 20 * 1024 * 1024; // 20 MB max for chat attachments
+    if (body.fileSize && body.fileSize > MAX) throw new BadRequestException('File must be ≤ 20 MB');
+    const safeName = (body.fileName || 'file').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'file';
+    const key = `tenants/${instituteId}/chat/attachments/${Date.now()}-${randomUUID()}-${safeName}`;
+    const { uploadUrl, fileUrl } = await this.s3Service.presign(key, body.contentType);
+
+    const host = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const proxyUrl = `${host}/api/v1/upload/proxy?url=${encodeURIComponent(uploadUrl)}&contentType=${encodeURIComponent(body.contentType)}`;
+
+    return { uploadUrl: proxyUrl, fileUrl, key };
+  }
 
   private chatActorIds(user: any): string[] {
     const ids = new Set<string>();

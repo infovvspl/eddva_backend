@@ -85,9 +85,7 @@ export class SchoolDashboardService {
           : [{ c: 0 }],
 
         // Teacher-scoped assignment count
-        teacherId
-          ? this.ds.query(`SELECT COUNT(*)::int AS c FROM assignments WHERE teacher_id = $1`, [teacherId])
-          : [{ c: 0 }],
+        this.ds.query(`SELECT COUNT(*)::int AS c FROM assignments WHERE teacher_id = $1`, [user.id]),
 
         // Teacher-scoped assessment count (uses new teacher_id column)
         teacherId
