@@ -94,4 +94,10 @@ export class SchoolAiUsageController {
       offset: q.offset ? Number(q.offset) : undefined,
     });
   }
+
+  @Get('debug')
+  @SchoolRoles('SUPER_ADMIN')
+  async debug() {
+    return this.svc.debugState();
+  }
 }
