@@ -50,7 +50,12 @@ export class PlatformSuperAdminService {
       throw new UnauthorizedException('Account suspended');
     }
 
-    const payload = { sub: user.id, tenantId: user.tenantId, role: user.role };
+    const payload = { 
+      sub: user.id, 
+      tenantId: user.tenantId, 
+      role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
+    };
     const token = await this.jwtService.signAsync(payload, {
       secret: this.configService.get('jwt.secret'),
       expiresIn: this.configService.get('jwt.expiresIn'),
@@ -446,17 +451,41 @@ if (dto.isSuspended !== undefined) tenant.isSuspended = dto.isSuspended;
         t.name AS "schoolName",
         l.ip_address AS "ipAddress",
         'Chrome' AS "browser",
-        l.created_at AS "loginAt"
+        l.created_at AS "loginAt",
+        CASE 
+          WHEN u.token_version_updated_at IS NOT NULL AND l.created_at < u.token_version_updated_at THEN true
+          ELSE false
+        END AS "isTerminated"
       FROM audit_logs l
       LEFT JOIN tenants t ON t.id::varchar = l.institute_id
+      LEFT JOIN users u ON u.id::varchar = l.user_id
       WHERE l.action = 'Login'
       ORDER BY l.created_at DESC
       LIMIT 100
     `);
-    return rows;
+    
+    return rows.map(row => ({
+      ...row,
+      isTerminated: row.isTerminated === true || row.isTerminated === 'true' // ensure boolean
+    }));
   }
 
   async forceLogout(sessionId: string) {
+    const log = await this.dataSource.query(`SELECT user_id FROM audit_logs WHERE id = $1 LIMIT 1`, [sessionId]);
+    if (!log.length || !log[0].user_id) {
+      throw new NotFoundException('Session or associated user not found');
+    }
+    const userId = log[0].user_id;
+    
+    // Increment tokenVersion to kill active access tokens, and nullify refreshToken to prevent bypass
+    const userToUpdate = await this.userRepo.findOne({ where: { id: userId } });
+    if (userToUpdate) {
+      userToUpdate.tokenVersion = (userToUpdate.tokenVersion ?? 0) + 1;
+      userToUpdate.tokenVersionUpdatedAt = new Date();
+      userToUpdate.refreshToken = null;
+      await this.userRepo.save(userToUpdate);
+    }
+    
     return { success: true, message: 'Session terminated successfully' };
   }
 }

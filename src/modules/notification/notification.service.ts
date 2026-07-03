@@ -120,6 +120,7 @@ export class NotificationService {
       where: {
         userId,
         tenantId,
+        channel: NotificationChannel.IN_APP,
         status: In([
           NotificationStatus.PENDING,
           NotificationStatus.SENT,

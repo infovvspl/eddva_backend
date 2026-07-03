@@ -204,3 +204,31 @@ export class CreateCalendarEventDto {
   @IsString({ each: true })
   batchIds?: string[];
 }
+
+export class CreateInstituteAnnouncementDto {
+  @IsString()
+  title: string;
+
+  @IsString()
+  body: string;
+
+  @IsOptional()
+  @IsEnum(['student', 'teacher', 'institute_admin', 'all'])
+  targetRole?: string;
+
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
+}
+
+export class InstituteAnnouncementListQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  limit?: number;
+}

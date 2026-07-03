@@ -858,6 +858,7 @@ export class AuthService {
       sub: user.id,
       tenantId: user.tenantId,
       role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
