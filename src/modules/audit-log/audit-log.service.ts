@@ -162,7 +162,7 @@ export class AuditLogService implements OnModuleInit {
       params.push(query.status);
     }
     if (query.search) {
-      conditions.push(`(al.user_name ILIKE $${idx} OR al.action ILIKE $${idx} OR al.description ILIKE $${idx})`);
+      conditions.push(`(al.user_name ILIKE $${idx} OR al.action ILIKE $${idx} OR al.description ILIKE $${idx} OR t.name ILIKE $${idx} OR al.institute_id ILIKE $${idx} OR al.user_id ILIKE $${idx})`);
       params.push(`%${query.search}%`);
       idx++;
     }
@@ -177,6 +177,8 @@ export class AuditLogService implements OnModuleInit {
       params.push(end);
     }
 
+    const isCoaching = connection === 'coaching';
+    const tenantTable = isCoaching ? 'tenants' : 'institutes';
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const dataRows: any[] = await ds.query(
@@ -195,7 +197,7 @@ export class AuditLogService implements OnModuleInit {
          al.vertical,
          al.created_at     AS "createdAt"
        FROM audit_logs al
-       LEFT JOIN tenants t ON t.id::text = al.institute_id::text
+       LEFT JOIN ${tenantTable} t ON t.id::text = al.institute_id::text
        ${where}
        ORDER BY al.created_at DESC
        LIMIT $${idx++} OFFSET $${idx++}`,
@@ -203,7 +205,7 @@ export class AuditLogService implements OnModuleInit {
     );
 
     const countRows: any[] = await ds.query(
-      `SELECT COUNT(*)::int AS total FROM audit_logs al ${where}`,
+      `SELECT COUNT(*)::int AS total FROM audit_logs al LEFT JOIN ${tenantTable} t ON t.id::text = al.institute_id::text ${where}`,
       params,
     );
 

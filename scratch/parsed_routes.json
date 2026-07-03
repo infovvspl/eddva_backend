@@ -1,0 +1,3089 @@
+[
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/academic/classes",
+    "functionName": "listClasses",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/academic/classes",
+    "functionName": "createClass",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/academic/classes/:id",
+    "functionName": "updateClass",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/academic/classes/:id",
+    "functionName": "deleteClass",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/academic/sections/:sectionId/teaching-map",
+    "functionName": "getSectionTeachingMap",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/academic/sections",
+    "functionName": "listSections",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/academic/sections",
+    "functionName": "createSection",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/academic/sections/:id",
+    "functionName": "updateSection",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/academic/sections/:id",
+    "functionName": "deleteSection",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/academic/periods",
+    "functionName": "listPeriods",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/academic/periods",
+    "functionName": "createPeriod",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/academic/periods/:id",
+    "functionName": "updatePeriod",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-academic.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/academic/periods/:id",
+    "functionName": "deletePeriod",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-activity-log.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/admin/audit-logs/actors",
+    "functionName": "getActors",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-activity-log.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/admin/audit-logs",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-activity-log.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/admin/audit-logs",
+    "functionName": "createLog",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-usage.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/ai-usage/overview",
+    "functionName": "overview",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-usage.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/ai-usage/by-feature",
+    "functionName": "byFeature",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-usage.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/ai-usage/trend",
+    "functionName": "trend",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-usage.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/ai-usage/by-institute",
+    "functionName": "byInstitute",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-usage.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/ai-usage/me",
+    "functionName": "me",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-usage.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/ai-usage/quotas",
+    "functionName": "getQuotas",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-usage.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/ai-usage/quotas",
+    "functionName": "setQuota",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-usage.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/ai-usage/quotas",
+    "functionName": "deleteQuota",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-usage.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/ai-usage/logs",
+    "functionName": "getRawLogs",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-usage.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/ai-usage/debug",
+    "functionName": "debug",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assessments",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assessments/mock-tests",
+    "functionName": "legacyMockTests",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assessments/sessions",
+    "functionName": "listSessions",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assessments/ai-generate",
+    "functionName": "aiGenerate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assessments/translate",
+    "functionName": "translate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assessments",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assessments/:id/my-submission",
+    "functionName": "mySubmission",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assessments/:id/start",
+    "functionName": "startAttempt",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assessments/:id/answer",
+    "functionName": "saveAnswer",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assessments/:id/submit",
+    "functionName": "submit",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assessments/:id/submissions",
+    "functionName": "listSubmissions",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assessments/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/assessments/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/assessments/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assessments/:id/results",
+    "functionName": "listResults",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assessment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assessments/results",
+    "functionName": "saveResult",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assignments",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assignments/submissions/inbox",
+    "functionName": "listInbox",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assignments/upload-url",
+    "functionName": "presignUpload",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assignments/ai-generate",
+    "functionName": "aiGenerate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assignments/from-image",
+    "functionName": "fromImage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assignments",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assignments/:id/submit",
+    "functionName": "submit",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assignments/:id/submissions",
+    "functionName": "getSubmissions",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/assignments/:id/submissions/:submissionId/grade",
+    "functionName": "gradeSubmission",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assignments/submissions/:submissionId/file",
+    "functionName": "getSubmissionFile",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/assignments/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/assignments/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-assignment.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/assignments/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-attendance.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/attendance",
+    "functionName": "mark",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-attendance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/attendance",
+    "functionName": "get",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-attendance.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/attendance/session",
+    "functionName": "markSession",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-attendance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/attendance/report",
+    "functionName": "getReport",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-attendance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/attendance/class/:classId/students",
+    "functionName": "getStudentsByClass",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-attendance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/attendance/students",
+    "functionName": "getStudentsByClassAndSection",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-attendance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/attendance/dashboard-stats",
+    "functionName": "getDashboardStats",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-attendance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/attendance/history",
+    "functionName": "getHistory",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-attendance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/attendance/session/check",
+    "functionName": "checkSession",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-attendance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/attendance/session/:sessionId",
+    "functionName": "getSessionDetails",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-admin-users.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/admin/users",
+    "functionName": "listUsers",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-auth.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/auth/login",
+    "functionName": "login",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-auth.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/auth/register",
+    "functionName": "register",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-auth.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/auth/register-user",
+    "functionName": "registerUser",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-auth.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/auth/me",
+    "functionName": "getMe",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-auth.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/auth/logout",
+    "functionName": "logout",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-calendar.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/calendar/events",
+    "functionName": "getEvents",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "career.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/career/quiz/questions",
+    "functionName": "quizQuestions",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "career.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/career/quiz/status",
+    "functionName": "quizStatus",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "career.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/career/quiz/submit",
+    "functionName": "submitQuiz",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "career.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/career/report/generate",
+    "functionName": "generateReport",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "career.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/career/report",
+    "functionName": "report",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "career.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/career/explore",
+    "functionName": "explore",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "career.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/career/explore/:careerId",
+    "functionName": "exploreOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/chat/conversations",
+    "functionName": "getConversations",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/chat/users",
+    "functionName": "getUsers",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/chat/messages/:peerId",
+    "functionName": "getMessagesByPeer",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/chat/messages/:peerId/read",
+    "functionName": "markRead",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/chat/rooms",
+    "functionName": "listRooms",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/chat/rooms",
+    "functionName": "createRoom",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/chat/rooms/:id/join",
+    "functionName": "joinRoom",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/chat/rooms/:id/messages",
+    "functionName": "getMessages",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/chat/directory",
+    "functionName": "getParentDirectory",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/chat/messages",
+    "functionName": "sendMessage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/chat/messages/:messageId/edit",
+    "functionName": "editMessage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-chat.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/chat/messages/:messageId",
+    "functionName": "deleteMessage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/classes/recordings",
+    "functionName": "listRecordings",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/classes/recordings/:id/play-url",
+    "functionName": "getRecordingPlayUrl",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/classes/recordings/upload-url",
+    "functionName": "presignRecording",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/classes/recordings",
+    "functionName": "createRecording",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/classes/recordings/:id/retranscribe",
+    "functionName": "retranscribe",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/classes/recordings/:id/regenerate-notes",
+    "functionName": "regenerateNotes",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/classes/recordings/:id/regenerate-notes-images",
+    "functionName": "regenerateNotesImages",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/classes/recordings/:id/generate-quiz",
+    "functionName": "generateQuiz",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/classes/recordings/:id/quiz-analytics",
+    "functionName": "getQuizAnalytics",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/classes/recordings/:id/progress",
+    "functionName": "getRecordingProgress",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/classes/recordings/:id/progress",
+    "functionName": "upsertRecordingProgress",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/classes/recordings/:id/quiz-response",
+    "functionName": "submitQuizResponse",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/classes/recordings/:id",
+    "functionName": "removeRecording",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/classes/recordings/:id/thumbnail",
+    "functionName": "updateThumbnail",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-class.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/classes/recordings/:id/regenerate-thumbnail",
+    "functionName": "regenerateThumbnail",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-complaint.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/complaints",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-complaint.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/complaints",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-complaint.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/complaints/:id/messages",
+    "functionName": "listMessages",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-complaint.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/complaints/:id/messages",
+    "functionName": "createMessage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-complaint.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/complaints/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-complaint.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/complaints/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-complaint.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/complaints/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-dashboard.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/dashboard/stats",
+    "functionName": "stats",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-dashboard.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/admin/stats",
+    "functionName": "adminStats",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-dashboard.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/search",
+    "functionName": "search",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-doubt.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/doubts/context",
+    "functionName": "getContext",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-doubt.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/doubts",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-doubt.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/doubts",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-doubt.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/doubts/upload-url",
+    "functionName": "presignUpload",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-doubt.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/doubts/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-doubt.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/doubts/:id/escalate",
+    "functionName": "escalate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-doubt.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/doubts/:id/helpful",
+    "functionName": "markHelpful",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-doubt.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/doubts/:id/ai-suggest",
+    "functionName": "aiSuggest",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-doubt.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/doubts/:id/respond",
+    "functionName": "respond",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-event.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/events",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-event.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/events",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-event.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/events/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-event.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/events/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-event.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/events/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-fee.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/fees",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-fee.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/fees",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-fee.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/fees/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-fee.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/fees/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-fee.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/fees/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/quiz-rush/start",
+    "functionName": "startQuizRush",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/gamification/quiz-rush/submit",
+    "functionName": "submitQuizRush",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/quiz-rush/leaderboard",
+    "functionName": "quizRushLeaderboard",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/treasure/maps",
+    "functionName": "getTreasureMaps",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/treasure/challenge",
+    "functionName": "getTreasureChallenge",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/gamification/treasure/complete",
+    "functionName": "completeTreasureStage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/math-sprint/start",
+    "functionName": "startMathSprint",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/gamification/math-sprint/submit",
+    "functionName": "submitMathSprint",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/math-sprint/leaderboard",
+    "functionName": "mathSprintLeaderboard",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/memory-match/decks",
+    "functionName": "getMemoryMatchDecks",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/memory-match/start",
+    "functionName": "startMemoryMatch",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/gamification/memory-match/submit",
+    "functionName": "submitMemoryMatch",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/memory-match/leaderboard",
+    "functionName": "memoryMatchLeaderboard",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/word-master/decks",
+    "functionName": "getWordMasterDecks",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/word-master/start",
+    "functionName": "startWordMaster",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/gamification/word-master/submit",
+    "functionName": "submitWordMaster",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "gamification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/gamification/word-master/leaderboard",
+    "functionName": "wordMasterLeaderboard",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-grievance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/grievances",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-grievance.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/grievances",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-grievance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/grievances/:id/messages",
+    "functionName": "listMessages",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-grievance.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/grievances/:id/messages",
+    "functionName": "createMessage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-grievance.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/grievances/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-grievance.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/grievances/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-grievance.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/grievances/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-institute.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/institutes/tenant/current",
+    "functionName": "getCurrentTenant",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-institute.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/institutes/tenant/:tenantDomain",
+    "functionName": "getByTenant",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-institute.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/institutes",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-institute.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/institutes",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-institute.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/institutes/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-institute.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/institutes/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-institute.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/institutes/:id/approve",
+    "functionName": "approve",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-institute.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/institutes/:id/reject",
+    "functionName": "reject",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-institute.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/institutes/:id",
+    "functionName": "delete",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/live/lectures",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/live/lectures",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/live/lectures/live",
+    "functionName": "live",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/live/lectures/:id",
+    "functionName": "delete",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/live/lectures/:id/end",
+    "functionName": "end",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/live/lectures/:id/stream-url",
+    "functionName": "streamUrl",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/live/lectures/:id/chat",
+    "functionName": "chat",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/live/lectures/:id/participants/active",
+    "functionName": "activeParticipants",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/live/lectures/:id/hand",
+    "functionName": "hand",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/live/lectures/:id/stats",
+    "functionName": "stats",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/live/lectures/:id/polls",
+    "functionName": "createPoll",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/live/lectures/:id/polls/:pollId/end",
+    "functionName": "endPoll",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/live/lectures/:id/polls/active",
+    "functionName": "activePoll",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/live/lectures/:id/polls/:pollId/vote",
+    "functionName": "votePoll",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/live/lectures/:id/polls",
+    "functionName": "listPolls",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/live/validate",
+    "functionName": "validate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/live/ended",
+    "functionName": "ended",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-live.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/live/hls/:streamKey/:file",
+    "functionName": "hls",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/materials/proxy-pdf",
+    "functionName": "proxyPdf",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/materials",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/materials/upload-url",
+    "functionName": "presignUpload",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/materials/ai-generate",
+    "functionName": "aiGenerate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/materials/ai-save",
+    "functionName": "aiSave",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/materials/audit-data",
+    "functionName": "auditMaterialData",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/materials/dump",
+    "functionName": "dumpData",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/materials/migrations/ai-tags",
+    "functionName": "aiSlideImage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/materials",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/materials/:id/highlights",
+    "functionName": "getHighlights",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/materials/:id/highlights",
+    "functionName": "saveHighlight",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/materials/:id/highlights/:highlightId",
+    "functionName": "updateHighlight",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/materials/:id/highlights/:highlightId",
+    "functionName": "deleteHighlight",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/materials/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/materials/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-material.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/materials/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-meeting.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/meetings",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-meeting.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/meetings/options",
+    "functionName": "getOptions",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-meeting.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/meetings",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-meeting.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/meetings/:id/status",
+    "functionName": "updateStatus",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notice.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/notices/platform",
+    "functionName": "listPlatform",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notice.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/notices/broadcast",
+    "functionName": "broadcast",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notice.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/notices",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notice.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/notices",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notice.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/notices/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notice.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/notices/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notice.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/notices/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/notifications",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/notifications/unread-count",
+    "functionName": "getUnreadCount",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/notifications",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/notifications/read-all",
+    "functionName": "markAllAsReadPut",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/notifications/read-all",
+    "functionName": "markAllAsReadPatch",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/notifications/bulk-read",
+    "functionName": "bulkRead",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/notifications/bulk-delete",
+    "functionName": "bulkDelete",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/notifications/preferences",
+    "functionName": "getPreferences",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/notifications/preferences",
+    "functionName": "updatePreferences",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/notifications/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/notifications/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/notifications/:id/read",
+    "functionName": "markReadPut",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/notifications/:id/read",
+    "functionName": "markReadPatch",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-notification.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/notifications/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/profile",
+    "functionName": "getProfile",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/parent/profile",
+    "functionName": "updateProfile",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/students",
+    "functionName": "getChildren",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/students/:id/summary",
+    "functionName": "getSummary",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/students/:id/attendance",
+    "functionName": "getAttendance",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/parent/students/:id/leave-request",
+    "functionName": "submitLeaveRequest",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/students/:id/marks",
+    "functionName": "getMarks",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/students/:id/homework",
+    "functionName": "getHomework",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/students/:id/tests",
+    "functionName": "getTests",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/teachers",
+    "functionName": "getTeachers",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/chat/:teacherId",
+    "functionName": "getChat",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/parent/chat/:teacherId",
+    "functionName": "sendMessage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/meeting-requests",
+    "functionName": "getMeetingRequests",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/parent/meeting-requests",
+    "functionName": "createMeetingRequest",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/parent/meeting-requests/:id",
+    "functionName": "cancelMeetingRequest",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/grievances",
+    "functionName": "getGrievances",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/parent/grievances",
+    "functionName": "submitGrievance",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/parent/grievances/:id/reopen",
+    "functionName": "reopenGrievance",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/parent/notifications",
+    "functionName": "getNotifications",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-parent.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/parent/notifications/read",
+    "functionName": "markRead",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ppt.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/ppt/generate",
+    "functionName": "generate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ppt.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/ppt/regenerate-slide",
+    "functionName": "regenerate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ppt.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/ppt/search-image",
+    "functionName": "searchImage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ppt.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/ppt/proxy-image",
+    "functionName": "proxyImage",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "recording-highlight.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/recordings/:recordingId/highlights",
+    "functionName": "getHighlights",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "recording-highlight.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/recordings/:recordingId/highlights",
+    "functionName": "createHighlight",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "recording-highlight.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/recordings/:recordingId/highlights/:highlightId",
+    "functionName": "deleteHighlight",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-report.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/reports/class",
+    "functionName": "classReport",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-report.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/reports/my-analytics",
+    "functionName": "myAnalytics",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-report.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/reports/student",
+    "functionName": "studentReport",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-report.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/reports/assessment",
+    "functionName": "assessmentReport",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-report.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/reports/teacher/class",
+    "functionName": "teacherClassReport",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-security.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/admin/security/summary",
+    "functionName": "getSummary",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-security.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/admin/security/sessions",
+    "functionName": "getActiveSessions",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-security.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/admin/security/sessions/:sessionId",
+    "functionName": "forceLogout",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/students/bulk-import",
+    "functionName": "bulkImport",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/students",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/students/profile/me",
+    "functionName": "getMyProfile",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/students/stats",
+    "functionName": "stats",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/students",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/students/courses/my",
+    "functionName": "myCourses",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/students/dashboard",
+    "functionName": "dashboard",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/students/courses/:classId",
+    "functionName": "courseCurriculum",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/students/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/students/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/students/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/students/:id/send-credentials",
+    "functionName": "sendParentCredentials",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student-promotion.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/student-promotions/overview",
+    "functionName": "overview",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student-promotion.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/student-promotions/sections/:sectionId/students",
+    "functionName": "sectionStudents",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-student-promotion.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/student-promotions/promote",
+    "functionName": "promote",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-study.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/topics/:topicId/study-status",
+    "functionName": "getStudyStatus",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-study.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/ai-study/history",
+    "functionName": "getAiStudyHistory",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-study.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/topics/:topicId/ai-study/session",
+    "functionName": "getAiStudySession",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-study.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/topics/:topicId/ai-study/start",
+    "functionName": "startAiStudy",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-study.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/topics/:topicId/ai-study/:sessionId/ask",
+    "functionName": "askAiQuestion",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-study.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/topics/:topicId/ai-study/:sessionId/complete",
+    "functionName": "completeAiStudy",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-study.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/topics/:topicId/ai-study/:sessionId/save-notes",
+    "functionName": "saveAiStudyNotes",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-study.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/topics/:topicId/ai-quiz/generate",
+    "functionName": "generateAiQuiz",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-ai-study.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/topics/:topicId/ai-quiz/complete",
+    "functionName": "completeAiQuiz",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/study-plans/courses",
+    "functionName": "getCourses",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/study-plans/generate",
+    "functionName": "generate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/study-plans/regenerate",
+    "functionName": "regenerate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/study-plans/clear",
+    "functionName": "clear",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/study-plans/today",
+    "functionName": "getToday",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/study-plans",
+    "functionName": "getRange",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/study-plans/items/:itemId/complete",
+    "functionName": "completeItem",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Patch",
+    "route": "/school/study-plans/items/:itemId/skip",
+    "functionName": "skipItem",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/study-plans/next-action",
+    "functionName": "getNextAction",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/study-plans/revision/spaced",
+    "functionName": "getRevisionSpaced",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/study-plans/revision/intensive",
+    "functionName": "getRevisionIntensive",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/study-plans/revision/notes",
+    "functionName": "getRevisionNotes",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/study-plans/revision/practice",
+    "functionName": "getRevisionPractice",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/study-plans/revision-session",
+    "functionName": "startRevisionSession",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-study-plan.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/study-plans/revision-session/complete",
+    "functionName": "completeRevisionSession",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/subjects",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/subjects",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/subjects/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/subjects/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/subjects/class/:classId",
+    "functionName": "listClassSubjects",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/subjects/class",
+    "functionName": "addClassSubject",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/subjects/teacher/:teacherId",
+    "functionName": "listTeacherSubjects",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/subjects/teacher",
+    "functionName": "assignTeacherSubject",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/subjects",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/subjects",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/subjects/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-subject.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/subjects/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-teacher.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/teachers/bulk-import",
+    "functionName": "bulkImport",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-teacher.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/teachers",
+    "functionName": "create",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-teacher.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/teachers/stats",
+    "functionName": "stats",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-teacher.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/teachers",
+    "functionName": "list",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-teacher.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/teachers/:teacherId/recordings/summary",
+    "functionName": "recordingsSummary",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-teacher.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/teachers/:teacherId/recordings",
+    "functionName": "recordings",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-teacher.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/teachers/:teacherId/recordings/:recordingId/analyze",
+    "functionName": "analyzeRecording",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-teacher.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/teachers/:id",
+    "functionName": "findOne",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-teacher.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/teachers/:id",
+    "functionName": "update",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-teacher.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/teachers/:id",
+    "functionName": "remove",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-schedule.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/schedules",
+    "functionName": "listSchedules",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-schedule.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/schedules",
+    "functionName": "createSchedule",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-schedule.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/schedules/:id",
+    "functionName": "updateSchedule",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-schedule.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/schedules/:id",
+    "functionName": "removeSchedule",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-timetable.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/timetables",
+    "functionName": "listTimetables",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-timetable.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/timetables/student/me",
+    "functionName": "getStudentTimetable",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-timetable.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/timetables",
+    "functionName": "createTimetable",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-timetable.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/timetables/bulk/update",
+    "functionName": "bulkUpdate",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-timetable.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/timetables/:id",
+    "functionName": "findOneTimetable",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-timetable.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/timetables/:id",
+    "functionName": "updateTimetable",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-timetable.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/timetables/:id",
+    "functionName": "removeTimetable",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-topic.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/topics",
+    "functionName": "listTopics",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-topic.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/topics",
+    "functionName": "createTopic",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-topic.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/topics/:id",
+    "functionName": "updateTopic",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-topic.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/topics/:id",
+    "functionName": "deleteTopic",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-topic.controller.ts",
+    "httpMethod": "Get",
+    "route": "/school/topics/chapters",
+    "functionName": "listChapters",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-topic.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/topics/bulk-import",
+    "functionName": "bulkImport",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-topic.controller.ts",
+    "httpMethod": "Post",
+    "route": "/school/topics/chapters",
+    "functionName": "createChapter",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-topic.controller.ts",
+    "httpMethod": "Put",
+    "route": "/school/topics/chapters/:id",
+    "functionName": "updateChapter",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  },
+  {
+    "file": "school-topic.controller.ts",
+    "httpMethod": "Delete",
+    "route": "/school/topics/chapters/:id",
+    "functionName": "deleteChapter",
+    "bodyDto": null,
+    "queryDto": null,
+    "params": []
+  }
+]
