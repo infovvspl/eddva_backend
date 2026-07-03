@@ -84,7 +84,7 @@ export class SuperAdminService {
         this.platformConfigRepo.create({ commissionPercent: 5, isSingleton: true }),
       );
     }
-    return { commissionPercent: Number(cfg.commissionPercent) };
+    return { commissionPercent: Number(cfg.commissionPercent), logoUrl: cfg.logoUrl };
   }
 
   async updateCommission(commissionPercent: number) {
@@ -98,6 +98,16 @@ export class SuperAdminService {
     cfg.commissionPercent = commissionPercent;
     await this.platformConfigRepo.save(cfg);
     return { commissionPercent };
+  }
+
+  async updatePlatformLogo(logoUrl: string) {
+    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
+    if (!cfg) {
+      cfg = this.platformConfigRepo.create({ isSingleton: true });
+    }
+    cfg.logoUrl = logoUrl;
+    await this.platformConfigRepo.save(cfg);
+    return { logoUrl };
   }
 
   // ── Payment Transactions ─────────────────────────────────────────────────────
