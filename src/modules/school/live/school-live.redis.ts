@@ -74,11 +74,12 @@ export class SchoolLiveRedis implements OnModuleInit, OnModuleDestroy {
   private dispatchLocal(channel: string, payload: unknown) {
     const handler = this.handlers.get(channel);
     if (handler) {
-      try {
-        setTimeout(() => handler(payload), 0);
-      } catch (e) {
-        this.logger.warn(`Failed local dispatch on channel ${channel}: ${e}`);
-      }
+      // Error catch must be INSIDE the callback — setTimeout fires after this
+      // call-stack returns, so a try/catch around setTimeout() can never catch
+      // exceptions thrown by the handler (BUG-35).
+      setTimeout(() => {
+        try { handler(payload); } catch (e) { this.logger.warn(`Failed local dispatch on channel ${channel}: ${e}`); }
+      }, 0);
     }
   }
 
@@ -119,12 +120,24 @@ export class SchoolLiveRedis implements OnModuleInit, OnModuleDestroy {
     try { return await this.pub.sCard(this.viewersKey(lectureId)); } catch { return 0; }
   }
 
+  async clearViewers(lectureId: string): Promise<void> {
+    if (!this.pub?.isReady) return;
+    try { await this.pub.del(this.viewersKey(lectureId)); } catch { /* non-fatal */ }
+  }
+
   // ── chat rate limit: max `limit` actions per `windowSec` per user ─────────
   async allowAction(key: string, limit: number, windowSec: number): Promise<boolean> {
     if (!this.pub?.isReady) return true; // fail-open when Redis is down
     try {
-      const count = await this.pub.incr(key);
-      if (count === 1) await this.pub.expire(key, windowSec);
+      // Lua script is atomic: INCR and EXPIRE(NX) run in one round-trip.
+      // Two separate commands risk a crash after INCR but before EXPIRE, which
+      // would leave the key with no TTL — permanently rate-limiting the user (BUG-25).
+      const count = await this.pub.eval(
+        `local c = redis.call('INCR', KEYS[1])
+         if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+         return c`,
+        { keys: [key], arguments: [String(windowSec)] },
+      ) as number;
       return count <= limit;
     } catch {
       return true;
