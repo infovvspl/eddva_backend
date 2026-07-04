@@ -46,6 +46,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
+  app.set('trust proxy', true);
 
   // ── Static file serving for uploads ───────────────────────────────────────
   mkdirSync(join(__dirname, '..', 'uploads'), { recursive: true });
