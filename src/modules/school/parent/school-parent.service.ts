@@ -380,7 +380,7 @@ export class SchoolParentService {
        LEFT JOIN assignment_submissions subm ON subm.assignment_id::text = a.id::text AND subm.student_id::text = $3::text
        WHERE a.tenant_id = $1 AND a.class_id::text = $2::text
        ORDER BY a.due_date DESC NULLS LAST`,
-      [parent.institute_id, child.class_id, child.id],
+      [parent.institute_id, child.class_id, child.profile_id],
     );
 
     const now = new Date().getTime();
