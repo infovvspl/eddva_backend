@@ -55,6 +55,20 @@ export class TenantMiddleware implements NestMiddleware {
       return next();
     }
 
+    // Super-admin API routes are global and must NOT be scoped to any tenant.
+    // Accessing /admin/* from a subdomain host (e.g. cds.localhost) would otherwise
+    // inject a tenant context and cause 401s on JWTs that carry no tenantId.
+    const normalizedPath = rawPath.replace('/api/v1', '').replace(/^\//, '');
+    if (normalizedPath.startsWith('admin/') || normalizedPath === 'admin') {
+      return next();
+    }
+
+    // Public tenant config endpoints (e.g. maintenance mode polling) are truly global
+    // and should bypass tenant scoping so they work from any subdomain host.
+    if (normalizedPath.startsWith('tenants/public/')) {
+      return next();
+    }
+
     let tenant: Tenant | null = null;
     /** Subdomain explicitly requested via host/header but not yet resolved in DB */
     let requestedSubdomain: string | null = null;
