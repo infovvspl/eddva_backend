@@ -33,6 +33,7 @@ import {
   TenantListQueryDto,
   UpdateTenantDto,
   UpdateUserStatusDto,
+  UpdatePlatformConfigDto,
 } from './dto/super-admin.dto';
 
 import { Audit } from '../audit-log/audit.decorator';
@@ -215,9 +216,9 @@ export class SuperAdminController {
   }
 
   @Patch('platform-config')
-  @ApiOperation({ summary: 'Update platform commission percentage' })
-  updateCommission(@Body('commissionPercent') commissionPercent: number) {
-    return this.superAdminService.updateCommission(Number(commissionPercent));
+  @ApiOperation({ summary: 'Update platform configuration' })
+  updatePlatformConfig(@Body() dto: UpdatePlatformConfigDto) {
+    return this.superAdminService.updatePlatformConfig(dto);
   }
 
   @Patch('platform-config/logo')

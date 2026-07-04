@@ -1,5 +1,6 @@
 import { InjectQueue } from '@nestjs/bull';
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -39,6 +40,9 @@ const ALLOWED_REACTIONS = ['👍', '❤️', '😮', '😂', '🔥', '👏'];
 @Injectable()
 export class LiveBroadcastService {
   private readonly logger = new Logger(LiveBroadcastService.name);
+  // Short-lived cache of validated stream keys to avoid a DB hit on every HLS
+  // segment request (10-20 req/s per viewer × many viewers = significant load).
+  private readonly streamKeyCache = new Map<string, number>(); // key → expiresAt
 
   constructor(
     @InjectRepository(BroadcastLecture, 'coaching')
@@ -338,6 +342,7 @@ export class LiveBroadcastService {
       currentViewers,
       totalParticipants,
       totalMessages,
+      totalReactions: (reactionBreakdown as Array<{ count: number }>).reduce((s, r) => s + r.count, 0),
       reactionBreakdown,
       participants: participants.map((p) => ({
         userId: p.userId,
@@ -408,10 +413,17 @@ export class LiveBroadcastService {
    */
   async proxyHls(streamKey: string, file: string): Promise<{ contentType: string; body: Buffer } | null> {
     if (!streamKey || !file) return null;
+    // Reject non-hex keys (our stream keys are always hex from randomBytes)
+    if (!/^[a-f0-9]{16,64}$/i.test(streamKey)) return null;
     if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
-    const lecture = await this.findByStreamKey(streamKey);
-    if (!lecture) return null;
+    // Only hit the DB if the cache entry is missing or stale (BUG-11)
+    const cachedUntil = this.streamKeyCache.get(streamKey);
+    if (!cachedUntil || cachedUntil < Date.now()) {
+      const lecture = await this.findByStreamKey(streamKey);
+      if (!lecture) { this.streamKeyCache.delete(streamKey); return null; }
+      this.streamKeyCache.set(streamKey, Date.now() + 60_000);
+    }
     const cdnBase = (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
     const remoteUrl = `${cdnBase}/${streamKey}/${file}`;
     try {
@@ -466,12 +478,16 @@ export class LiveBroadcastService {
 
   async votePoll(lectureId: string, pollId: string, user: AuthUser, userName: string, option: string) {
     await this.getLectureWithAuth(lectureId, user);
+    // Verify the poll belongs to this lecture, is still active, and the option is valid (BUG-19,20,21)
+    const poll = await this.pollRepo.findOne({ where: { id: pollId, lectureId } });
+    if (!poll) throw new NotFoundException('Poll not found');
+    if (poll.status !== 'ACTIVE') throw new BadRequestException('Poll is no longer active');
+    if (!poll.options.includes(option)) throw new BadRequestException('Invalid poll option');
     await this.pollVoteRepo.upsert(
       { pollId, userId: user.id, userName, option },
       { conflictPaths: ['pollId', 'userId'], skipUpdateIfNoValuesChanged: false },
     );
-    const poll = await this.pollRepo.findOne({ where: { id: pollId } });
-    const results = poll ? await this.getPollResults(pollId, poll.options) : {};
+    const results = await this.getPollResults(pollId, poll.options);
     void this.redis.publish(LIVE_CHANNELS.POLL_VOTED, { lectureId, pollId, results }).catch(() => undefined);
     return { success: true, results };
   }

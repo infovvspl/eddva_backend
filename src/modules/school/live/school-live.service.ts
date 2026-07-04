@@ -1,8 +1,11 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { randomBytes } from 'crypto';
+import { Queue } from 'bull';
 import { DataSource } from 'typeorm';
+import { RECORDING_JOB, RECORDINGS_QUEUE } from '../../live-broadcast/live-broadcast.constants';
 
 import { SCHOOL_LIVE_CHANNELS, SchoolLiveRedis } from './school-live.redis';
 
@@ -20,6 +23,8 @@ export class SchoolLiveService implements OnModuleInit {
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
+    @InjectDataSource('coaching') private readonly coachingDs: DataSource,
+    @InjectQueue(RECORDINGS_QUEUE) private readonly recordingsQueue: Queue,
     private readonly redis: SchoolLiveRedis,
     private readonly config: ConfigService,
   ) {}
@@ -63,7 +68,7 @@ export class SchoolLiveService implements OnModuleInit {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
-      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_chat_lecture ON school_live_chat_messages (lecture_id)`);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_chat_lecture ON school_live_chat_messages (lecture_id, created_at)`);
       await this.ds.query(`
         CREATE TABLE IF NOT EXISTS school_live_participants (
           lecture_id UUID NOT NULL,
@@ -262,8 +267,16 @@ export class SchoolLiveService implements OnModuleInit {
   async proxyHls(streamKey: string, file: string): Promise<{ contentType: string; body: Buffer } | null> {
     const base = this.config.get<string>('streaming.cdnBaseUrl');
     if (!base || !streamKey || !file) return null;
+    // Reject path traversal in streamKey — it must be a hex slug from randomBytes
+    if (!/^[a-f0-9]{16,64}$/i.test(streamKey)) return null;
     if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
+    // Verify stream key exists before proxying — prevents CDN path enumeration
+    const rows = await this.ds.query(
+      `SELECT id FROM school_live_lectures WHERE stream_key = $1 LIMIT 1`,
+      [streamKey],
+    ).catch(() => []);
+    if (!rows.length) return null;
     try {
       const r = await fetch(`${base}/${streamKey}/${file}`, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) return null;
@@ -280,20 +293,48 @@ export class SchoolLiveService implements OnModuleInit {
   async validateStream(streamKey: string): Promise<boolean> {
     this.logger.log(`[RTMP] on_publish — validate streamKey=${streamKey || '(empty)'}`);
     if (!streamKey) { this.logger.warn('[RTMP] denied — empty stream key'); return false; }
-    const rows = await this.ds.query(`SELECT id, status FROM school_live_lectures WHERE stream_key = $1`, [streamKey]);
-    if (!rows.length) {
-      this.logger.warn(`[RTMP] denied — no lecture found for streamKey=${streamKey}`);
-      return false;
-    }
-    const lectureId = rows[0].id;
-    await this.ds.query(
-      // Re-streaming an ended lecture is allowed: reset to LIVE and clear the end time.
-      `UPDATE school_live_lectures SET status = 'LIVE', started_at = now(), ended_at = NULL WHERE id = $1`,
-      [lectureId],
+
+    // Atomic UPDATE: only transitions lectures that are not in a terminal state.
+    // Using UPDATE...RETURNING avoids a separate SELECT+UPDATE race condition when
+    // OBS disconnects and reconnects quickly, which would cause duplicate LIVE events.
+    const rows = await this.ds.query(
+      `UPDATE school_live_lectures
+         SET status = 'LIVE', started_at = now(), ended_at = NULL
+       WHERE stream_key = $1
+         AND status NOT IN ('ENDED', 'PROCESSED', 'PROCESSING_FAILED')
+       RETURNING id`,
+      [streamKey],
     );
-    await this.redis.publish(SCHOOL_LIVE_CHANNELS.LIVE, { lectureId });
-    this.logger.log(`[RTMP] allowed — lecture ${lectureId} is now LIVE`);
-    return true;
+    if (rows.length) {
+      const lectureId = rows[0].id;
+      await this.redis.publish(SCHOOL_LIVE_CHANNELS.LIVE, { lectureId });
+      this.logger.log(`[RTMP] allowed — school lecture ${lectureId} is now LIVE`);
+      return true;
+    }
+
+    // Both school and coaching share rtmp://server/live — nginx calls this single endpoint.
+    // If the key isn't a school lecture, check coaching broadcast_lectures.
+    try {
+      const coachingRows = await this.coachingDs.query(
+        `UPDATE broadcast_lectures
+           SET status = 'LIVE', started_at = now(), ended_at = NULL
+         WHERE stream_key = $1
+           AND status NOT IN ('ENDED', 'PROCESSED', 'PROCESSING_FAILED')
+         RETURNING id`,
+        [streamKey],
+      );
+      if (coachingRows.length) {
+        const lectureId = coachingRows[0].id;
+        await this.redis.publish('lecture:live', { lectureId });
+        this.logger.log(`[RTMP] allowed — coaching lecture ${lectureId} is now LIVE`);
+        return true;
+      }
+    } catch (e) {
+      this.logger.warn(`[RTMP] coaching DB fallback failed: ${(e as Error).message}`);
+    }
+
+    this.logger.warn(`[RTMP] denied — no lecture found for streamKey=${streamKey}`);
+    return false;
   }
 
   /** Teacher/admin ends the class from the app (independent of OBS stopping). */
@@ -325,13 +366,44 @@ export class SchoolLiveService implements OnModuleInit {
 
   async streamEnded(streamKey: string): Promise<void> {
     const rows = await this.ds.query(`SELECT id FROM school_live_lectures WHERE stream_key = $1`, [streamKey]);
-    if (!rows.length) return;
-    const lectureId = rows[0].id;
-    await this.ds.query(
-      `UPDATE school_live_lectures SET status = 'ENDED', ended_at = now() WHERE id = $1`,
-      [lectureId],
-    );
-    await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId });
+    if (rows.length) {
+      const lectureId = rows[0].id;
+      await this.ds.query(
+        `UPDATE school_live_lectures SET status = 'ENDED', ended_at = now() WHERE id = $1`,
+        [lectureId],
+      );
+      await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId });
+      return;
+    }
+
+    // Fall through to coaching (same nginx application)
+    try {
+      const coachingRows = await this.coachingDs.query(
+        `SELECT id, inst_id AS "instId" FROM broadcast_lectures WHERE stream_key = $1`,
+        [streamKey],
+      );
+      if (coachingRows.length) {
+        const lectureId = coachingRows[0].id;
+        const instId: string = coachingRows[0].instId || '';
+        await this.coachingDs.query(
+          `UPDATE broadcast_lectures SET status = 'ENDED', ended_at = now() WHERE id = $1`,
+          [lectureId],
+        );
+        await this.redis.publish('lecture:ended', { lectureId });
+        // Queue recording processing with delay to allow R2/CDN segments to finalize
+        await this.recordingsQueue
+          .add(RECORDING_JOB, { lectureId, streamKey, instId }, {
+            delay: 5000,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 30_000 },
+            removeOnComplete: true,
+            removeOnFail: false,
+          })
+          .catch(e => this.logger.warn(`[coaching] recording queue failed: ${(e as Error).message}`));
+      }
+    } catch (e) {
+      this.logger.warn(`[RTMP] coaching streamEnded fallback failed: ${(e as Error).message}`);
+    }
   }
 
   // ── chat (gateway) ─────────────────────────────────────────────────────
@@ -372,7 +444,7 @@ export class SchoolLiveService implements OnModuleInit {
 
   async getUserDisplayName(userId: string, fallback = 'User') {
     const rows = await this.ds.query(
-      `SELECT name FROM users WHERE id::text = $1::text LIMIT 1`,
+      `SELECT name FROM users WHERE id = $1::uuid LIMIT 1`,
       [userId],
     ).catch(() => []);
     return rows[0]?.name || fallback;
@@ -389,7 +461,14 @@ export class SchoolLiveService implements OnModuleInit {
     );
   }
 
-  async setHandRaised(lectureId: string, userId: string, raised: boolean, userName = 'Student') {
+  async setHandRaised(lectureId: string, userId: string, raised: boolean, userName = 'Student', user?: SchoolUser) {
+    if (user) {
+      const lecture = await this.getLecture(lectureId);
+      if (!lecture) throw new NotFoundException('Lecture not found');
+      if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+        throw new NotFoundException('Lecture not found');
+      }
+    }
     await this.ensureStatsTables();
     await this.ds.query(
       `INSERT INTO school_live_participants (lecture_id, user_id, user_name, joined_at, left_at, hand_raised)
@@ -497,24 +576,32 @@ export class SchoolLiveService implements OnModuleInit {
      if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
        throw new NotFoundException('Lecture not found');
      }
-     // End any currently active polls for this lecture
-     await this.ds.query(
-       `UPDATE school_live_polls SET status = 'ENDED' WHERE lecture_id = $1 AND status = 'ACTIVE'`,
-       [lectureId],
-     );
- 
-     const [poll] = await this.ds.query(
-       `INSERT INTO school_live_polls (lecture_id, question, options, correct_option, status)
-        VALUES ($1, $2, $3, $4, 'ACTIVE')
-        RETURNING id, question, options, correct_option AS "correctOption", status, created_at AS "createdAt"`,
-       [lectureId, question, JSON.stringify(options), correctOption || null],
-     );
- 
+     // Wrap UPDATE+INSERT in a transaction to prevent a race where two polls
+     // get created simultaneously and both end up ACTIVE (BUG-24)
+     const poll = await this.ds.transaction(async (em) => {
+       await em.query(
+         `UPDATE school_live_polls SET status = 'ENDED' WHERE lecture_id = $1 AND status = 'ACTIVE'`,
+         [lectureId],
+       );
+       const [inserted] = await em.query(
+         `INSERT INTO school_live_polls (lecture_id, question, options, correct_option, status)
+          VALUES ($1, $2, $3, $4, 'ACTIVE')
+          RETURNING id, question, options, correct_option AS "correctOption", status, created_at AS "createdAt"`,
+         [lectureId, question, JSON.stringify(options), correctOption || null],
+       );
+       return inserted;
+     });
+
      void this.redis.publish(SCHOOL_LIVE_CHANNELS.POLL_CREATED, { lectureId, poll }).catch(() => undefined);
      return poll;
    }
- 
-   async endPoll(lectureId: string, pollId: string) {
+
+   async endPoll(lectureId: string, pollId: string, user: SchoolUser) {
+     const lecture = await this.getLecture(lectureId);
+     if (!lecture) throw new NotFoundException('Lecture not found');
+     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+       throw new NotFoundException('Lecture not found');
+     }
      await this.ds.query(
        `UPDATE school_live_polls SET status = 'ENDED' WHERE id = $1 AND lecture_id = $2`,
        [pollId, lectureId],
@@ -560,6 +647,16 @@ export class SchoolLiveService implements OnModuleInit {
      if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
        throw new NotFoundException('Lecture not found');
      }
+     // Verify the poll belongs to this lecture and is still accepting votes (BUG-19,20,21)
+     const [activePoll] = await this.ds.query(
+       `SELECT id, options, status FROM school_live_polls WHERE id = $1 AND lecture_id = $2 LIMIT 1`,
+       [pollId, lectureId],
+     );
+     if (!activePoll) throw new NotFoundException('Poll not found');
+     if (activePoll.status !== 'ACTIVE') throw new BadRequestException('Poll is no longer active');
+     const validOptions: string[] = Array.isArray(activePoll.options) ? activePoll.options : [];
+     if (!validOptions.includes(option)) throw new BadRequestException('Invalid poll option');
+
      await this.ds.query(
        `INSERT INTO school_live_poll_votes (poll_id, user_id, user_name, option)
         VALUES ($1, $2, $3, $4)

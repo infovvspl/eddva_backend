@@ -321,3 +321,40 @@ export class AnnouncementListQueryDto {
   @Min(1)
   limit = 20;
 }
+
+export class UpdatePlatformConfigDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  commissionPercent?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  maintenanceMode?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  battleArenaEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  aiDoubtResolutionEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  platformName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  supportEmail?: string;
+}

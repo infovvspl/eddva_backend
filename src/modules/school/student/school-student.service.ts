@@ -221,9 +221,10 @@ export class SchoolStudentService {
       }
     }
 
+    const isAll = String(query.limit).toLowerCase() === 'all';
     const page = Math.max(1, parseInt(query.page) || 1);
-    const limit = Math.max(1, parseInt(query.limit) || 10);
-    const offset = (page - 1) * limit;
+    const limit = isAll ? null : Math.max(1, parseInt(query.limit) || 10);
+    const offset = limit ? (page - 1) * limit : 0;
 
     const countQuery = `
       SELECT COUNT(*)::int AS total
@@ -234,7 +235,7 @@ export class SchoolStudentService {
     `;
     const countResult = await this.ds.query(countQuery, params);
     const total = parseInt(countResult[0]?.total || '0', 10);
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = limit ? Math.ceil(total / limit) : 1;
 
     const allowedSortFields: Record<string, string> = {
       name: 'u.name',
@@ -244,6 +245,7 @@ export class SchoolStudentService {
     const sortBy = allowedSortFields[query.sortBy] || 'u.name';
     const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
+    const limitOffsetClause = limit !== null ? `LIMIT ${limit} OFFSET ${offset}` : '';
     const rows: any[] = await this.ds.query(
       `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.profile_image,u.created_at,
               u.institute_id,i.name AS institute_name,
@@ -256,7 +258,7 @@ export class SchoolStudentService {
        LEFT JOIN institutes i ON i.id=u.institute_id
        LEFT JOIN sections sec ON s.section_id=sec.id
        LEFT JOIN classes c ON sec.class_id=c.id
-       WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
+       WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} ${limitOffsetClause}`,
       params,
     );
     const mapped = rows.map(r => {
@@ -307,7 +309,7 @@ export class SchoolStudentService {
         }
       });
     });
-    return { success: true, data: mapped, total, page, limit, totalPages };
+    return { success: true, data: mapped, total, page, limit: limit ?? total, totalPages };
   }
 
   async getStats(user: any, query: any = {}) {
