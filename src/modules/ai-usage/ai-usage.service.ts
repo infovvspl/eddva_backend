@@ -137,6 +137,8 @@ export class AiUsageService implements OnModuleInit {
     this.ready = true;
   }
 
+  private static readonly UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   /** Persist a usage event + upsert the daily rollup. Best-effort; never throws. */
   async record(ev: AiUsageEvent): Promise<void> {
     try {
@@ -148,13 +150,20 @@ export class AiUsageService implements OnModuleInit {
         ev.totalTokens = ev.promptTokens + ev.completionTokens;
       }
 
+      // Only pass a valid UUID to the events table; invalid strings cause a PostgreSQL cast error.
+      const validUuid = ev.instituteId && AiUsageService.UUID_RE.test(ev.instituteId)
+        ? ev.instituteId : null;
+      if (ev.instituteId && !validUuid) {
+        this.logger.warn(`[record] non-UUID instituteId="${ev.instituteId}" feature=${ev.feature} — event stored with null institute_id, daily upsert skipped`);
+      }
+
       await this.ds.query(
         `INSERT INTO ai_usage_events
            (institute_id, vertical, feature, provider, model, success, status_code,
             latency_ms, prompt_tokens, completion_tokens, total_tokens, units, unit_type, est_cost)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [
-          ev.instituteId || null,
+          validUuid,
           ev.vertical || null,
           ev.feature,
           ev.provider || null,
@@ -171,10 +180,10 @@ export class AiUsageService implements OnModuleInit {
         ],
       );
 
-      if (ev.instituteId) {
-        await this._upsertDaily(ev);
-        this.logger.log(`[record] ok feature=${ev.feature} vertical=${ev.vertical} institute=${ev.instituteId}`);
-        this.quotaCache.delete(`${ev.instituteId}:${ev.vertical || 'coaching'}:${ev.feature}`);
+      if (validUuid) {
+        await this._upsertDaily({ ...ev, instituteId: validUuid });
+        this.logger.log(`[record] ok feature=${ev.feature} vertical=${ev.vertical} institute=${validUuid}`);
+        this.quotaCache.delete(`${validUuid}:${ev.vertical || 'coaching'}:${ev.feature}`);
       }
     } catch (err: any) {
       this.logger.error(`AI usage record failed: ${err?.message}`);
