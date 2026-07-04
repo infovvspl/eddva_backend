@@ -90,7 +90,7 @@ export class SchoolLiveController {
   @Post('lectures/:id/hand')
   @SchoolRoles('STUDENT')
   hand(@SchoolUser() user: any, @Param('id') id: string, @Body() body: { raised?: boolean }) {
-    return this.svc.setHandRaised(id, user.id, !!body?.raised, user.name || 'Student').then(() => ({
+    return this.svc.setHandRaised(id, user.id, !!body?.raised, user.name || 'Student', user).then(() => ({
       raised: !!body?.raised,
     }));
   }
@@ -118,7 +118,7 @@ export class SchoolLiveController {
     @Param('id') id: string,
     @Param('pollId') pollId: string,
   ) {
-    return this.svc.endPoll(id, pollId);
+    return this.svc.endPoll(id, pollId, user);
   }
 
   @Get('lectures/:id/polls/active')
@@ -171,7 +171,8 @@ export class SchoolLiveStreamHookController {
     @Query() query: any,
     @Body() body: any,
   ) {
-    this.assertSecret(headerSecret || query?.secret || body?.secret);
+    // Do NOT accept the secret from the query string — it would appear in nginx access logs.
+    this.assertSecret(headerSecret || body?.secret);
     const name = body?.name || query?.name;
     const allowed = await this.svc.validateStream(name);
     if (!allowed) throw new ForbiddenException('Stream not allowed');
@@ -185,7 +186,7 @@ export class SchoolLiveStreamHookController {
     @Query() query: any,
     @Body() body: any,
   ) {
-    this.assertSecret(headerSecret || query?.secret || body?.secret);
+    this.assertSecret(headerSecret || body?.secret);
     await this.svc.streamEnded(body?.name || query?.name);
     return { ok: true };
   }
