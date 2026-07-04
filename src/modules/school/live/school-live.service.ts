@@ -20,6 +20,7 @@ export class SchoolLiveService implements OnModuleInit {
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
+    @InjectDataSource('coaching') private readonly coachingDs: DataSource,
     private readonly redis: SchoolLiveRedis,
     private readonly config: ConfigService,
   ) {}
@@ -280,20 +281,45 @@ export class SchoolLiveService implements OnModuleInit {
   async validateStream(streamKey: string): Promise<boolean> {
     this.logger.log(`[RTMP] on_publish — validate streamKey=${streamKey || '(empty)'}`);
     if (!streamKey) { this.logger.warn('[RTMP] denied — empty stream key'); return false; }
+
+    // Check school lectures first
     const rows = await this.ds.query(`SELECT id, status FROM school_live_lectures WHERE stream_key = $1`, [streamKey]);
-    if (!rows.length) {
-      this.logger.warn(`[RTMP] denied — no lecture found for streamKey=${streamKey}`);
-      return false;
+    if (rows.length) {
+      const lectureId = rows[0].id;
+      await this.ds.query(
+        // Re-streaming an ended lecture is allowed: reset to LIVE and clear the end time.
+        `UPDATE school_live_lectures SET status = 'LIVE', started_at = now(), ended_at = NULL WHERE id = $1`,
+        [lectureId],
+      );
+      await this.redis.publish(SCHOOL_LIVE_CHANNELS.LIVE, { lectureId });
+      this.logger.log(`[RTMP] allowed — school lecture ${lectureId} is now LIVE`);
+      return true;
     }
-    const lectureId = rows[0].id;
-    await this.ds.query(
-      // Re-streaming an ended lecture is allowed: reset to LIVE and clear the end time.
-      `UPDATE school_live_lectures SET status = 'LIVE', started_at = now(), ended_at = NULL WHERE id = $1`,
-      [lectureId],
-    );
-    await this.redis.publish(SCHOOL_LIVE_CHANNELS.LIVE, { lectureId });
-    this.logger.log(`[RTMP] allowed — lecture ${lectureId} is now LIVE`);
-    return true;
+
+    // Both school and coaching use rtmp://server/live so nginx calls this single endpoint.
+    // If the stream key isn't a school lecture, check coaching broadcast_lectures.
+    try {
+      const coachingRows = await this.coachingDs.query(
+        `SELECT id FROM broadcast_lectures WHERE stream_key = $1 AND status NOT IN ('PROCESSED', 'PROCESSING_FAILED')`,
+        [streamKey],
+      );
+      if (coachingRows.length) {
+        const lectureId = coachingRows[0].id;
+        await this.coachingDs.query(
+          `UPDATE broadcast_lectures SET status = 'LIVE', started_at = now(), ended_at = NULL WHERE id = $1`,
+          [lectureId],
+        );
+        // Publish to the coaching Redis channel so the coaching Socket.io gateway picks it up
+        await this.redis.publish('lecture:live', { lectureId });
+        this.logger.log(`[RTMP] allowed — coaching lecture ${lectureId} is now LIVE`);
+        return true;
+      }
+    } catch (e) {
+      this.logger.warn(`[RTMP] coaching DB fallback failed: ${(e as Error).message}`);
+    }
+
+    this.logger.warn(`[RTMP] denied — no lecture found for streamKey=${streamKey}`);
+    return false;
   }
 
   /** Teacher/admin ends the class from the app (independent of OBS stopping). */
@@ -325,13 +351,33 @@ export class SchoolLiveService implements OnModuleInit {
 
   async streamEnded(streamKey: string): Promise<void> {
     const rows = await this.ds.query(`SELECT id FROM school_live_lectures WHERE stream_key = $1`, [streamKey]);
-    if (!rows.length) return;
-    const lectureId = rows[0].id;
-    await this.ds.query(
-      `UPDATE school_live_lectures SET status = 'ENDED', ended_at = now() WHERE id = $1`,
-      [lectureId],
-    );
-    await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId });
+    if (rows.length) {
+      const lectureId = rows[0].id;
+      await this.ds.query(
+        `UPDATE school_live_lectures SET status = 'ENDED', ended_at = now() WHERE id = $1`,
+        [lectureId],
+      );
+      await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId });
+      return;
+    }
+
+    // Fall through to coaching (same nginx application)
+    try {
+      const coachingRows = await this.coachingDs.query(
+        `SELECT id FROM broadcast_lectures WHERE stream_key = $1`,
+        [streamKey],
+      );
+      if (coachingRows.length) {
+        const lectureId = coachingRows[0].id;
+        await this.coachingDs.query(
+          `UPDATE broadcast_lectures SET status = 'ENDED', ended_at = now() WHERE id = $1`,
+          [lectureId],
+        );
+        await this.redis.publish('lecture:ended', { lectureId });
+      }
+    } catch (e) {
+      this.logger.warn(`[RTMP] coaching streamEnded fallback failed: ${(e as Error).message}`);
+    }
   }
 
   // ── chat (gateway) ─────────────────────────────────────────────────────
