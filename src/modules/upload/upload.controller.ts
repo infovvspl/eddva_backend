@@ -98,6 +98,35 @@ export class UploadController {
     }
   }
 
+  @Post('upload/platform-logo')
+  @Roles(UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Upload platform logo' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!['image/svg+xml', 'image/png', 'image/webp'].includes(file?.mimetype)) {
+          return cb(new BadRequestException('Only SVG, PNG, and WEBP files are allowed'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadPlatformLogo(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    const ext = extname(file.originalname).toLowerCase() || '.png';
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `logo${ext}`;
+    const key = `platform/branding/${Date.now()}-${uuidv4()}-${safeName}`;
+    try {
+      const url = await this.s3Service.upload(key, file.buffer, file.mimetype || 'image/png');
+      return { url, key };
+    } catch (err: any) {
+      throw new HttpException(err?.message || 'Upload failed', HttpStatus.BAD_REQUEST);
+    }
+  }
+
   @Post('upload-url')
   @ApiOperation({ summary: 'Generate a tenant-scoped pre-signed S3 PUT URL' })
   async getUploadUrl(

@@ -17,6 +17,9 @@ export class PlatformConfig extends Base {
   /** Ensures only one row exists. */
   @Column({ name: 'is_singleton', default: true, unique: true })
   isSingleton: boolean;
+
+  @Column({ name: 'logo_url', nullable: true })
+  logoUrl: string;
 }
 
 /** One row per successful Razorpay payment for a coaching course. */

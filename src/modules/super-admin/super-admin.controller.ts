@@ -220,6 +220,12 @@ export class SuperAdminController {
     return this.superAdminService.updateCommission(Number(commissionPercent));
   }
 
+  @Patch('platform-config/logo')
+  @ApiOperation({ summary: 'Update platform logo URL' })
+  updateLogo(@Body('logoUrl') logoUrl: string) {
+    return this.superAdminService.updatePlatformLogo(logoUrl);
+  }
+
   // ── Payment Transactions ──────────────────────────────────────────────────────
 
   @Get('payments')
