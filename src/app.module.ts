@@ -90,6 +90,7 @@ import { GamificationModule } from './modules/gamification/gamification.module';
 import { InternalModule } from './modules/internal/internal.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { CoachingChatModule } from './modules/chat/chat.module';
+import { CoachingSupportTicketModule } from './modules/coaching-support-ticket/coaching-support-ticket.module';
 
 // ── School Module (all school sub-modules bundled) ────────────────────────────
 
@@ -251,6 +252,7 @@ const ALL_COACHING_ENTITIES = [
     AuditLogModule,
     TenantAiFeatureModule,
     CoachingChatModule,
+    CoachingSupportTicketModule,
 
     // ── School Module ─────────────────────────────────────────────────────────
     SchoolModule,

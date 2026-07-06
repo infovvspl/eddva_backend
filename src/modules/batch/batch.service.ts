@@ -509,7 +509,10 @@ export class BatchService {
     const totalStudentsRaw = batchIds.length
       ? await this.enrollmentRepo
           .createQueryBuilder('e')
+          .innerJoin('e.student', 'student', 'student.deletedAt IS NULL AND student.tenantId = :tenantId', { tenantId })
+          .innerJoin('student.user', 'studentUser', 'studentUser.deletedAt IS NULL AND studentUser.tenantId = :tenantId', { tenantId })
           .where('e.tenantId = :tenantId', { tenantId })
+          .andWhere('e.batchId IN (:...batchIds)', { batchIds })
           .andWhere('e.status = :status', { status: EnrollmentStatus.ACTIVE })
           .select('COUNT(DISTINCT e.studentId)', 'count')
           .getRawOne()
@@ -697,6 +700,33 @@ export class BatchService {
       })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 0 },
     };
+  }
+
+  async getInstituteStudents(tenantId: string) {
+    return this.enrollmentRepo.query(`
+      SELECT
+        s.id AS "studentId",
+        u.full_name AS name,
+        u.full_name AS "fullName",
+        u.phone_number AS phone,
+        u.phone_number AS "phoneNumber",
+        u.email,
+        u.phone_verified AS "phoneVerified",
+        u.last_login_at AS "lastLoginAt",
+        MIN(e.enrolled_at) AS "enrolledAt",
+        ARRAY_AGG(DISTINCT b.name ORDER BY b.name) FILTER (WHERE b.name IS NOT NULL) AS "batchNames"
+      FROM enrollments e
+      JOIN students s ON s.id = e.student_id AND s.deleted_at IS NULL
+      JOIN users u ON u.id = s.user_id AND u.deleted_at IS NULL
+      JOIN batches b ON b.id = e.batch_id AND b.deleted_at IS NULL
+      WHERE e.tenant_id = $1
+        AND s.tenant_id = $1
+        AND u.tenant_id = $1
+        AND e.status = 'active'
+        AND e.deleted_at IS NULL
+      GROUP BY s.id, u.id
+      ORDER BY MIN(e.enrolled_at) ASC
+    `, [tenantId]);
   }
 
   async getLiveAttendance(batchId: string, user: any, tenantId: string) {
