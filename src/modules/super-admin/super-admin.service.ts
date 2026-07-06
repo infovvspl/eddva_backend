@@ -89,7 +89,9 @@ export class SuperAdminService {
     return {
       commissionPercent: Number(cfg.commissionPercent),
       logoUrl: cfg.logoUrl,
-      maintenanceMode: cfg.maintenanceMode,
+      maintenanceMode: cfg.coachingMaintenanceMode ?? false,
+      coachingMaintenanceMode: cfg.coachingMaintenanceMode ?? false,
+      schoolMaintenanceMode: cfg.schoolMaintenanceMode ?? false,
       battleArenaEnabled: cfg.battleArenaEnabled,
       aiDoubtResolutionEnabled: cfg.aiDoubtResolutionEnabled,
       platformName: cfg.platformName,
@@ -110,7 +112,7 @@ export class SuperAdminService {
       cfg.commissionPercent = dto.commissionPercent;
     }
     if (dto.logoUrl !== undefined) cfg.logoUrl = dto.logoUrl;
-    if (dto.maintenanceMode !== undefined) cfg.maintenanceMode = dto.maintenanceMode;
+    if (dto.maintenanceMode !== undefined) cfg.coachingMaintenanceMode = dto.maintenanceMode;
     if (dto.battleArenaEnabled !== undefined) cfg.battleArenaEnabled = dto.battleArenaEnabled;
     if (dto.aiDoubtResolutionEnabled !== undefined) cfg.aiDoubtResolutionEnabled = dto.aiDoubtResolutionEnabled;
     if (dto.platformName !== undefined) cfg.platformName = dto.platformName;
@@ -470,7 +472,8 @@ export class SuperAdminService {
         `SELECT COUNT(DISTINCT s.id)::int AS count
          FROM students s
          LEFT JOIN tenants t ON t.id = s.tenant_id
-         WHERE s.deleted_at IS NULL AND (t.type != 'platform' OR t.id IS NULL)`
+         JOIN users u ON u.id = s.user_id
+         WHERE s.deleted_at IS NULL AND u.deleted_at IS NULL AND (t.type != 'platform' OR t.id IS NULL)`
       ).then(res => res[0]?.count || 0),
       this.userRepo
         .createQueryBuilder('u')
@@ -785,12 +788,6 @@ export class SuperAdminService {
 
     const rows = await this.dataSource.query(`
       SELECT
-        e.id              AS enrollment_id,
-        e.status          AS enrollment_status,
-        e.enrolled_at,
-        e.fee_paid,
-        e.fee_paid_at,
-
         s.id              AS student_id,
         u.full_name       AS student_name,
         u.email           AS student_email,
@@ -799,35 +796,38 @@ export class SuperAdminService {
         s.city            AS city,
         s.state           AS state,
         s.pin_code        AS pin_code,
-
-        b.id              AS batch_id,
-        b.name            AS batch_name,
-        b.exam_target     AS exam_target,
-        b.fee_amount      AS batch_fee,
-        b.start_date      AS batch_start_date,
-        b.end_date        AS batch_end_date,
-
         t.id              AS tenant_id,
         t.name            AS institute_name,
-        t.subdomain       AS institute_subdomain
-      FROM enrollments e
-      JOIN students   s ON s.id       = e.student_id
-      JOIN users      u ON u.id       = s.user_id
-      JOIN batches    b ON b.id       = e.batch_id
-      JOIN tenants    t ON t.id       = e.tenant_id
-      WHERE ${where}
-      ORDER BY e.enrolled_at DESC
+        t.subdomain       AS institute_subdomain,
+        MAX(e.enrolled_at) AS enrolled_at,
+        JSON_AGG(JSON_BUILD_OBJECT(
+          'id', e.id,
+          'status', e.status,
+          'enrolled_at', e.enrolled_at,
+          'fee_paid', e.fee_paid,
+          'batch_id', b.id,
+          'batch_name', b.name,
+          'exam_target', b.exam_target
+        ))                AS enrollments
+      FROM students s
+      JOIN users      u ON u.id       = s.user_id AND u.deleted_at IS NULL
+      JOIN enrollments e ON e.student_id = s.id AND e.deleted_at IS NULL
+      JOIN batches    b ON b.id       = e.batch_id AND b.deleted_at IS NULL
+      JOIN tenants    t ON t.id       = e.tenant_id AND t.deleted_at IS NULL
+      WHERE s.deleted_at IS NULL AND ${where}
+      GROUP BY s.id, u.id, t.id
+      ORDER BY enrolled_at DESC
       LIMIT $${idx++} OFFSET $${idx++}
     `, [...params, limit, offset]);
 
     const countResult = await this.dataSource.query(
-      `SELECT COUNT(*)::int AS total
-       FROM enrollments e
-       JOIN students s ON s.id = e.student_id
-       JOIN users    u ON u.id = s.user_id
-       JOIN batches  b ON b.id = e.batch_id
-       JOIN tenants  t ON t.id = e.tenant_id
-       WHERE ${where}`,
+      `SELECT COUNT(DISTINCT s.id)::int AS total
+       FROM students s
+       JOIN users    u ON u.id = s.user_id AND u.deleted_at IS NULL
+       JOIN enrollments e ON e.student_id = s.id AND e.deleted_at IS NULL
+       JOIN batches  b ON b.id = e.batch_id AND b.deleted_at IS NULL
+       JOIN tenants  t ON t.id = e.tenant_id AND t.deleted_at IS NULL
+       WHERE s.deleted_at IS NULL AND ${where}`,
       params,
     );
 
@@ -852,8 +852,26 @@ export class SuperAdminService {
       ORDER BY total_revenue DESC NULLS LAST
     `);
 
+    const mappedRows = rows.map(r => ({
+      id: `${r.student_id}-${r.tenant_id}`,
+      studentId: r.student_id,
+      studentName: r.student_name,
+      studentEmail: r.student_email,
+      studentPhone: r.student_phone,
+      careOf: r.care_of,
+      city: r.city,
+      state: r.state,
+      pinCode: r.pin_code,
+      tenantId: r.tenant_id,
+      tenantName: r.institute_name,
+      instituteSubdomain: r.institute_subdomain,
+      enrolledAt: r.enrolled_at,
+      status: (r.enrollments || []).some((en: any) => en.status === 'active') ? 'active' : 'dropped',
+      enrollments: r.enrollments || [],
+    }));
+
     return {
-      data: rows,
+      items: mappedRows,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
       revenueSummary,
     };

@@ -38,11 +38,19 @@ export class PlatformSuperAdminService {
   // â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async login(dto: PlatformLoginDto) {
+    const normalizedEmail = (dto.email || '').toLowerCase().trim();
     const user = await this.userRepo.findOne({
-      where: { email: dto.email, role: UserRole.SUPER_ADMIN },
+      where: { email: normalizedEmail, role: UserRole.SUPER_ADMIN },
     });
 
-    if (!user || !(await user.validatePassword(dto.password))) {
+    if (!user) {
+      this.logger.warn(`Super admin login failed: user not found for ${normalizedEmail}`);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const isValid = await user.validatePassword(dto.password);
+    if (!isValid) {
+      this.logger.warn(`Super admin login failed: password mismatch for ${normalizedEmail}`);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -426,43 +434,82 @@ if (dto.isSuspended !== undefined) tenant.isSuspended = dto.isSuspended;
   }
 
   async getSecuritySummary() {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const year = parts.find(p => p.type === 'year').value;
+    const month = parts.find(p => p.type === 'month').value;
+    const day = parts.find(p => p.type === 'day').value;
+    const todayStart = new Date(`${year}-${month}-${day}T00:00:00+05:30`);
 
-    const rows = await this.dataSource.query(
-      `SELECT COUNT(DISTINCT user_id)::int AS count 
-       FROM audit_logs 
-       WHERE action = 'Login' AND created_at >= $1`,
-      [todayStart],
-    );
+    const [activeRes, failedRes] = await Promise.all([
+      this.dataSource.query(
+        `SELECT COUNT(DISTINCT user_id)::int AS count 
+         FROM audit_logs 
+         WHERE action = 'Login' AND status = 'Success' AND created_at >= $1`,
+        [todayStart],
+      ),
+      this.dataSource.query(
+        `SELECT COUNT(*)::int AS count 
+         FROM audit_logs 
+         WHERE action = 'Login' AND status = 'Failure' AND created_at >= $1`,
+        [todayStart],
+      ),
+    ]);
+
+    const failedCount = failedRes[0]?.count || 0;
+    const securityScore = Math.max(50, 100 - (failedCount * 2));
 
     return {
-      activeSessions: rows[0]?.count || 0,
+      activeSessions: activeRes[0]?.count || 0,
+      failedLogins: failedCount,
+      securityScore,
     };
   }
 
   async getSecuritySessions() {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const year = parts.find(p => p.type === 'year').value;
+    const month = parts.find(p => p.type === 'month').value;
+    const day = parts.find(p => p.type === 'day').value;
+    const todayStart = new Date(`${year}-${month}-${day}T00:00:00+05:30`);
+
     const rows = await this.dataSource.query(`
       SELECT 
         l.id AS "sessionId",
         l.user_id AS "userId",
         l.user_name AS "userName",
         l.role AS "role",
-        t.name AS "schoolName",
+        CASE 
+          WHEN l.role = 'super_admin' THEN 'EDDVA'
+          ELSE COALESCE(t.name, 'EDDVA')
+        END AS "schoolName",
         l.ip_address AS "ipAddress",
         'Chrome' AS "browser",
-        l.created_at AS "loginAt",
+        l.created_at::timestamptz AS "loginAt",
         CASE 
           WHEN u.token_version_updated_at IS NOT NULL AND l.created_at < u.token_version_updated_at THEN true
           ELSE false
-        END AS "isTerminated"
+        END AS "isTerminated",
+        l.status AS "status",
+        l.description AS "description"
       FROM audit_logs l
       LEFT JOIN tenants t ON t.id::varchar = l.institute_id
       LEFT JOIN users u ON u.id::varchar = l.user_id
-      WHERE l.action = 'Login'
+      WHERE l.action = 'Login' AND (l.status = 'Success' OR (l.status = 'Failure' AND l.created_at >= $1))
       ORDER BY l.created_at DESC
       LIMIT 100
-    `);
+    `, [todayStart]);
     
     return rows.map(row => ({
       ...row,
