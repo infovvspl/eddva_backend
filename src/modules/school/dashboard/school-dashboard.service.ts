@@ -259,9 +259,9 @@ export class SchoolDashboardService {
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND DATE(scheduled_for) = DATE($2)`, [instituteId, todayStr], [{ c: 0 }]),
         this.safeQuery(`
           SELECT 
-            COUNT(*) FILTER (WHERE UPPER(COALESCE(status, '')) IN ('IN_PROGRESS', 'IN PROGRESS', 'PENDING'))::int AS in_progress,
-            COUNT(*) FILTER (WHERE UPPER(COALESCE(status, '')) IN ('OPEN', 'REOPENED', 'NEW'))::int AS open_tickets,
-            COUNT(*) FILTER (WHERE UPPER(COALESCE(status, '')) IN ('RESOLVED', 'CLOSED', 'COMPLETED'))::int AS closed_tickets
+            COUNT(*) FILTER (WHERE UPPER(COALESCE(status::text, '')) IN ('IN_PROGRESS', 'IN PROGRESS', 'PENDING'))::int AS in_progress,
+            COUNT(*) FILTER (WHERE UPPER(COALESCE(status::text, '')) IN ('OPEN', 'REOPENED', 'NEW'))::int AS open_tickets,
+            COUNT(*) FILTER (WHERE UPPER(COALESCE(status::text, '')) IN ('RESOLVED', 'CLOSED', 'COMPLETED'))::int AS closed_tickets
           FROM complaints 
           WHERE institute_id = $1
         `, [instituteId], [{ in_progress: 0, open_tickets: 0, closed_tickets: 0 }]),

@@ -111,6 +111,8 @@ export class LiveBroadcastService {
   }
 
   async getUserDisplayName(userId: string, fallback = 'User'): Promise<string> {
+    // If the JWT already provided a real name, skip the DB round-trip.
+    if (fallback && fallback !== 'User') return fallback;
     try {
       const rows = await this.ds.query(
         `SELECT full_name FROM users WHERE id::text = $1::text LIMIT 1`,
@@ -382,12 +384,13 @@ export class LiveBroadcastService {
   }
 
   async trackLeave(lectureId: string, userId: string): Promise<void> {
-    const participant = await this.participantRepo.findOne({ where: { lectureId, userId } });
-    if (!participant || participant.leftAt) return;
-    const durationSeconds = Math.floor((Date.now() - participant.joinedAt.getTime()) / 1000);
-    await this.participantRepo.update(
-      { lectureId, userId },
-      { leftAt: new Date(), handRaised: false, durationSeconds },
+    await this.ds.query(
+      `UPDATE broadcast_participants
+         SET left_at = now(),
+             hand_raised = FALSE,
+             duration_seconds = EXTRACT(EPOCH FROM (now() - joined_at))::int
+       WHERE lecture_id = $1 AND user_id = $2 AND left_at IS NULL`,
+      [lectureId, userId],
     );
   }
 
@@ -494,17 +497,17 @@ export class LiveBroadcastService {
 
   async listPolls(lectureId: string, user: AuthUser) {
     await this.getLectureWithAuth(lectureId, user);
-    const polls = await this.pollRepo.find({ where: { lectureId }, order: { createdAt: 'ASC' } });
-    return Promise.all(
-      polls.map(async (p) => ({
-        id: p.id,
-        question: p.question,
-        options: p.options,
-        correctOption: p.correctOption,
-        status: p.status,
-        createdAt: p.createdAt,
-        results: await this.getPollResults(p.id, p.options),
-      })),
+    return this.ds.query(
+      `SELECT p.id, p.question, p.options, p.correct_option AS "correctOption", p.status, p.created_at AS "createdAt",
+              COALESCE(
+                (SELECT json_object_agg(option, cnt::int)
+                 FROM (SELECT option, COUNT(*)::int AS cnt FROM broadcast_poll_votes WHERE poll_id = p.id GROUP BY option) v),
+                '{}'::json
+              ) AS results
+       FROM broadcast_polls p
+       WHERE p.lecture_id = $1
+       ORDER BY p.created_at ASC`,
+      [lectureId],
     );
   }
 

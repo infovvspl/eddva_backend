@@ -79,7 +79,9 @@
       "PowerShell(scp -i \"C:\\\\Users\\\\HP\\\\Downloads\\\\eddva-key.pem\" -r \"c:\\\\Users\\\\HP\\\\Desktop\\\\apexiq-backend\\\\apexiq\\\\dist\\\\modules\\\\school\" ubuntu@43.204.136.13:/home/ubuntu/eddva_backend_dev/dist/modules/ 2>&1)",
       "PowerShell(scp -i \"C:\\\\Users\\\\HP\\\\Downloads\\\\eddva-key.pem\" -r \"c:\\\\Users\\\\HP\\\\Desktop\\\\apexiq-backend\\\\apexiq\\\\dist\\\\modules\\\\live-broadcast\" ubuntu@43.204.136.13:/home/ubuntu/eddva_backend_dev/dist/modules/ 2>&1)",
       "PowerShell(ssh -i \"C:\\\\Users\\\\HP\\\\Downloads\\\\eddva-key.pem\" ubuntu@43.204.136.13 \"pm2 restart eddva-backend-dev && echo 'restarted'\" 2>&1)",
-      "PowerShell(ssh -i \"C:\\\\Users\\\\HP\\\\Downloads\\\\eddva-key.pem\" ubuntu@43.204.136.13 \"pm2 logs eddva-backend-dev --lines 15 --nostream\" 2>&1)"
+      "PowerShell(ssh -i \"C:\\\\Users\\\\HP\\\\Downloads\\\\eddva-key.pem\" ubuntu@43.204.136.13 \"pm2 logs eddva-backend-dev --lines 15 --nostream\" 2>&1)",
+      "PowerShell(scp -i \"C:\\\\Users\\\\HP\\\\Downloads\\\\eddva-key.pem\" -r \"c:\\\\Users\\\\HP\\\\Desktop\\\\apexiq-backend\\\\apexiq\\\\dist\\\\modules\\\\school\" \"c:\\\\Users\\\\HP\\\\Desktop\\\\apexiq-backend\\\\apexiq\\\\dist\\\\modules\\\\live-broadcast\" ubuntu@43.204.136.13:/home/ubuntu/eddva_backend_dev/dist/modules/ 2>&1)",
+      "PowerShell(ssh -i \"C:\\\\Users\\\\HP\\\\Downloads\\\\eddva-key.pem\" ubuntu@43.204.136.13 \"pm2 restart eddva-backend-dev && echo restarted\" 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\lib\\api",

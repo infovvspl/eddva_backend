@@ -32,6 +32,7 @@ import {
   UpdateTenantDto,
   UpdatePlatformConfigDto,
 } from './dto/super-admin.dto';
+import { AnnouncementPriority } from './dto/announcement.enums';
 
 const PLAN_PRICES: Record<TenantPlan, number> = {
   [TenantPlan.STARTER]: 4999,
@@ -682,7 +683,11 @@ export class SuperAdminService {
       take: limit,
     });
 
-    return { announcements, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 0 } };
+    const urgentTotal = await this.announcementRepo.count({
+      where: { priority: AnnouncementPriority.URGENT, },
+    });
+
+    return { announcements, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 0, urgentTotal } };
   }
 
   async createAnnouncement(dto: CreateAnnouncementDto) {
@@ -694,6 +699,8 @@ export class SuperAdminService {
         targetRole: dto.targetRole || 'all',
         tenantId: dto.tenantId || null,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        category: dto.category,
+        priority: dto.priority,
       }),
     );
 
