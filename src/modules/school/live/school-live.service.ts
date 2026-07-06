@@ -294,20 +294,27 @@ export class SchoolLiveService implements OnModuleInit {
     this.logger.log(`[RTMP] on_publish — validate streamKey=${streamKey || '(empty)'}`);
     if (!streamKey) { this.logger.warn('[RTMP] denied — empty stream key'); return false; }
 
-    // Atomic UPDATE: only transitions lectures that are not in a terminal state.
-    // Using UPDATE...RETURNING avoids a separate SELECT+UPDATE race condition when
-    // OBS disconnects and reconnects quickly, which would cause duplicate LIVE events.
-    const rows = await this.ds.query(
-      `UPDATE school_live_lectures
-         SET status = 'LIVE', started_at = now(), ended_at = NULL
+    // SELECT first to get the id reliably, then UPDATE.
+    // UPDATE...RETURNING can return undefined id in some connection pool configs.
+    const schoolRows = await this.ds.query(
+      `SELECT id FROM school_live_lectures
        WHERE stream_key = $1
          AND status NOT IN ('ENDED', 'PROCESSED', 'PROCESSING_FAILED')
-       RETURNING id`,
+       LIMIT 1`,
       [streamKey],
     );
-    if (rows.length) {
-      const lectureId = rows[0].id;
+    if (schoolRows.length) {
+      const lectureId: string = schoolRows[0].id;
+      await this.ds.query(
+        `UPDATE school_live_lectures
+           SET status = 'LIVE', started_at = now(), ended_at = NULL
+         WHERE id = $1`,
+        [lectureId],
+      );
+      // Publish to both school AND coaching channels so the correct teacher
+      // dashboard updates regardless of which socket namespace the teacher is on.
       await this.redis.publish(SCHOOL_LIVE_CHANNELS.LIVE, { lectureId });
+      await this.redis.publish('lecture:live', { lectureId });
       this.logger.log(`[RTMP] allowed — school lecture ${lectureId} is now LIVE`);
       return true;
     }
@@ -316,15 +323,20 @@ export class SchoolLiveService implements OnModuleInit {
     // If the key isn't a school lecture, check coaching broadcast_lectures.
     try {
       const coachingRows = await this.coachingDs.query(
-        `UPDATE broadcast_lectures
-           SET status = 'LIVE', started_at = now(), ended_at = NULL
+        `SELECT id FROM broadcast_lectures
          WHERE stream_key = $1
            AND status NOT IN ('ENDED', 'PROCESSED', 'PROCESSING_FAILED')
-         RETURNING id`,
+         LIMIT 1`,
         [streamKey],
       );
       if (coachingRows.length) {
-        const lectureId = coachingRows[0].id;
+        const lectureId: string = coachingRows[0].id;
+        await this.coachingDs.query(
+          `UPDATE broadcast_lectures
+             SET status = 'LIVE', started_at = now(), ended_at = NULL
+           WHERE id = $1`,
+          [lectureId],
+        );
         await this.redis.publish('lecture:live', { lectureId });
         this.logger.log(`[RTMP] allowed — coaching lecture ${lectureId} is now LIVE`);
         return true;
@@ -373,6 +385,7 @@ export class SchoolLiveService implements OnModuleInit {
         [lectureId],
       );
       await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId });
+      await this.redis.publish('lecture:ended', { lectureId });
       return;
     }
 

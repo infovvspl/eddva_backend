@@ -172,8 +172,9 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
     }
     const { lectureId } = payload;
     // Verify the lecture belongs to this teacher's institute (BUG-03)
+    let lecture: any;
     try {
-      await this.svc.getLectureWithAuth(lectureId, { id: user.id, role: user.role, tenantId: user.tenantId });
+      lecture = await this.svc.getLectureWithAuth(lectureId, { id: user.id, role: user.role, tenantId: user.tenantId });
     } catch {
       client.emit('stream-error', { message: 'Lecture not found or unauthorized' });
       client.disconnect();
@@ -188,9 +189,8 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
     const students = this.getActiveStudents(lectureId);
     client.emit('teacher-joined', { viewerCount: viewerCount || students.length, students });
 
-    // If the lecture is already LIVE (OBS started before the teacher opened the page),
-    // emit stream-started so the dashboard transitions out of "Waiting for stream..."
-    const lecture = await this.svc.getLectureWithAuth(lectureId, { id: user.id, role: user.role, tenantId: user.tenantId }).catch(() => null);
+    // If OBS started before the teacher opened the page, they missed the stream-started
+    // Redis event — send it directly so the dashboard transitions out of "Waiting for stream..."
     if (lecture?.status === 'LIVE') {
       client.emit('stream-started', { lectureId });
     }
