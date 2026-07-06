@@ -776,8 +776,8 @@ export class SchoolLiveService implements OnModuleInit {
               thumbnail_url AS "thumbnailKey",
               created_at AS "createdAt"
        FROM school_live_lectures
-       WHERE institute_id = $1 AND status = 'PROCESSED'
-       ORDER BY ended_at DESC`,
+       WHERE institute_id = $1 AND status IN ('PROCESSED', 'ENDED')
+       ORDER BY ended_at DESC NULLS LAST`,
       [user.instituteId],
     );
   }
