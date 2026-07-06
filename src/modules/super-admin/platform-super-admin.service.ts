@@ -38,11 +38,19 @@ export class PlatformSuperAdminService {
   // â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async login(dto: PlatformLoginDto) {
+    const normalizedEmail = (dto.email || '').toLowerCase().trim();
     const user = await this.userRepo.findOne({
-      where: { email: dto.email, role: UserRole.SUPER_ADMIN },
+      where: { email: normalizedEmail, role: UserRole.SUPER_ADMIN },
     });
 
-    if (!user || !(await user.validatePassword(dto.password))) {
+    if (!user) {
+      this.logger.warn(`Super admin login failed: user not found for ${normalizedEmail}`);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const isValid = await user.validatePassword(dto.password);
+    if (!isValid) {
+      this.logger.warn(`Super admin login failed: password mismatch for ${normalizedEmail}`);
       throw new UnauthorizedException('Invalid credentials');
     }
 
