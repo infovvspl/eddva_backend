@@ -73,6 +73,23 @@ export class CoachingChatService implements OnModuleInit {
     return normalized;
   }
 
+  private async getCanonicalDmRoom(actorIds: string[], targetPeerIds: string[]): Promise<string | null> {
+    const rooms = await this.ds.query(
+      `SELECT cr.id AS room_id,
+              (SELECT MAX(created_at) FROM chat_messages WHERE room_id::text = cr.id::text) as last_activity
+       FROM chat_rooms cr
+       JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text
+       JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text
+       WHERE cr.room_type = 'DM'
+         AND cp1.user_id::text = ANY($1::text[])
+         AND cp2.user_id::text = ANY($2::text[])
+       ORDER BY last_activity DESC NULLS LAST, cr.created_at DESC
+       LIMIT 1`,
+      [actorIds, targetPeerIds]
+    );
+    return rooms.length ? rooms[0].room_id : null;
+  }
+
   async onModuleInit() {
     console.log('--- RUNNING COACHING CHAT MIGRATION ---');
     try {
@@ -139,41 +156,51 @@ export class CoachingChatService implements OnModuleInit {
 
     const rows: any[] = await this.ds.query(
       crossInstitute
-        ? `SELECT
-            cr.id AS room_id,
-            cr.room_type AS room_type,
-            cr.created_at,
-            cp2.user_id AS peer_id,
-            COALESCE(peer.full_name, 'Platform Admin') AS peer_name,
-            COALESCE(peer.email, '') AS peer_email,
-            COALESCE(peer.role::text, $1) AS peer_role,
-            t.name AS peer_institute_name,
-            (SELECT text FROM chat_messages WHERE room_id::text = cr.id::text ORDER BY created_at DESC LIMIT 1) AS last_message,
-            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id::text = cr.id::text AND receiver_id::text = ANY($2::text[]) AND is_read IS NOT TRUE) AS unread_count
-          FROM chat_rooms cr
-          JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text AND cp1.user_id::text = ANY($2::text[])
-          JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text AND cp2.user_id::text != ALL($2::text[])
-          LEFT JOIN users peer ON peer.id::text = cp2.user_id::text
-          LEFT JOIN tenants t ON t.id = peer.tenant_id
-          WHERE cr.room_type = 'DM' AND (LOWER(COALESCE(peer.role::text, $1)) = LOWER($1))
-          ORDER BY cr.created_at DESC`
-        : `SELECT
-            cr.id AS room_id,
-            cr.room_type AS room_type,
-            cr.created_at,
-            peer.id AS peer_id,
-            peer.full_name AS peer_name,
-            peer.email AS peer_email,
-            peer.role AS peer_role,
-            NULL AS peer_institute_name,
-            (SELECT text FROM chat_messages WHERE room_id::text = cr.id::text ORDER BY created_at DESC LIMIT 1) AS last_message,
-            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id::text = cr.id::text AND receiver_id::text = $1::text AND is_read IS NOT TRUE) AS unread_count
-          FROM chat_rooms cr
-          JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text AND cp1.user_id::text = $1::text
-          JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text AND cp2.user_id::text != $1::text
-          JOIN users peer ON peer.id::text = cp2.user_id::text
-          WHERE cr.room_type = 'DM' AND LOWER(peer.role::text) = LOWER($2) AND peer.tenant_id = $3
-          ORDER BY cr.created_at DESC`,
+        ? `WITH CanonicalRooms AS (
+            SELECT DISTINCT ON (cp2.user_id)
+              cr.id AS room_id,
+              cr.room_type AS room_type,
+              cr.created_at,
+              cp2.user_id AS peer_id,
+              COALESCE(peer.full_name, 'Platform Admin') AS peer_name,
+              COALESCE(peer.email, '') AS peer_email,
+              COALESCE(peer.role::text, $1) AS peer_role,
+              t.name AS peer_institute_name,
+              (SELECT text FROM chat_messages WHERE room_id::text = cr.id::text ORDER BY created_at DESC LIMIT 1) AS last_message,
+              (SELECT MAX(created_at) FROM chat_messages WHERE room_id::text = cr.id::text) as last_activity,
+              (SELECT COUNT(*)::int FROM chat_messages WHERE room_id::text = cr.id::text AND receiver_id::text = ANY($2::text[]) AND is_read IS NOT TRUE) AS unread_count
+            FROM chat_rooms cr
+            JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text AND cp1.user_id::text = ANY($2::text[])
+            JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text AND cp2.user_id::text != ALL($2::text[])
+            LEFT JOIN users peer ON peer.id::text = cp2.user_id::text
+            LEFT JOIN tenants t ON t.id = peer.tenant_id
+            WHERE cr.room_type = 'DM' AND (LOWER(COALESCE(peer.role::text, $1)) = LOWER($1))
+            ORDER BY cp2.user_id, last_activity DESC NULLS LAST, cr.created_at DESC
+          )
+          SELECT * FROM CanonicalRooms
+          ORDER BY COALESCE(last_activity, created_at) DESC`
+        : `WITH CanonicalRooms AS (
+            SELECT DISTINCT ON (peer.id)
+              cr.id AS room_id,
+              cr.room_type AS room_type,
+              cr.created_at,
+              peer.id AS peer_id,
+              peer.full_name AS peer_name,
+              peer.email AS peer_email,
+              peer.role AS peer_role,
+              NULL AS peer_institute_name,
+              (SELECT text FROM chat_messages WHERE room_id::text = cr.id::text ORDER BY created_at DESC LIMIT 1) AS last_message,
+              (SELECT MAX(created_at) FROM chat_messages WHERE room_id::text = cr.id::text) as last_activity,
+              (SELECT COUNT(*)::int FROM chat_messages WHERE room_id::text = cr.id::text AND receiver_id::text = $1::text AND is_read IS NOT TRUE) AS unread_count
+            FROM chat_rooms cr
+            JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text AND cp1.user_id::text = $1::text
+            JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text AND cp2.user_id::text != $1::text
+            JOIN users peer ON peer.id::text = cp2.user_id::text
+            WHERE cr.room_type = 'DM' AND LOWER(peer.role::text) = LOWER($2) AND peer.tenant_id = $3
+            ORDER BY peer.id, last_activity DESC NULLS LAST, cr.created_at DESC
+          )
+          SELECT * FROM CanonicalRooms
+          ORDER BY COALESCE(last_activity, created_at) DESC`,
       crossInstitute ? [role, actorIds] : [user.id, role, user.tenantId],
     );
 
@@ -300,19 +327,9 @@ export class CoachingChatService implements OnModuleInit {
     if (rawPeerId !== normalizedPeerId) targetPeerIds.push(rawPeerId);
 
     // ---- Safety check: ensure both participants exist in the DM room ----
-    const existing = await this.ds.query(
-      `SELECT cp1.room_id FROM chat_participants cp1
-       JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
-       JOIN chat_rooms cr ON cr.id::text = cp1.room_id::text
-       WHERE cr.room_type = 'DM'
-         AND cp1.user_id::text = ANY($1::text[])
-         AND cp2.user_id::text = ANY($2::text[])
-       ORDER BY cr.created_at DESC LIMIT 1`,
-      [actorIds, targetPeerIds]
-    );
+    const roomId = await this.getCanonicalDmRoom(actorIds, targetPeerIds);
 
-    if (existing.length) {
-      const roomId = existing[0].room_id;
+    if (roomId) {
 
       // Ensure both canonical participants are present
       const participants = await this.ds.query(
@@ -340,16 +357,8 @@ export class CoachingChatService implements OnModuleInit {
     const targetPeerIds = [normalizedPeerId];
     if (rawPeerId !== normalizedPeerId) targetPeerIds.push(rawPeerId);
 
-    const rooms = await this.ds.query(
-      `SELECT cp1.room_id FROM chat_participants cp1
-       JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
-       JOIN chat_rooms cr ON cr.id::text = cp1.room_id::text
-       WHERE cr.room_type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = ANY($2::text[])
-       ORDER BY cr.created_at DESC LIMIT 1`,
-      [actorIds, targetPeerIds]
-    );
-    if (rooms.length) {
-      const roomId = rooms[0].room_id;
+    const roomId = await this.getCanonicalDmRoom(actorIds, targetPeerIds);
+    if (roomId) {
       await this.ds.query(
         `UPDATE chat_messages SET is_read = true, is_delivered = true WHERE room_id = $1 AND receiver_id::text = ANY($2::text[]) AND is_read IS NOT TRUE`,
         [roomId, actorIds]
@@ -476,9 +485,9 @@ export class CoachingChatService implements OnModuleInit {
       }
     }
 
+    let rTenantId = null;
     if (receiverId) {
       let rRole = 'SUPER_ADMIN';
-      let rTenantId = null;
       if (![VIRTUAL_SUPER_ADMIN_ID, LEGACY_VIRTUAL_SUPER_ADMIN_ID].includes(String(receiverId))) {
         const receivers = await this.ds.query(`SELECT role, tenant_id FROM users WHERE id = $1`, [receiverId]);
         if (!receivers.length) throw new ForbiddenException('Receiver not found');
@@ -494,16 +503,9 @@ export class CoachingChatService implements OnModuleInit {
          targetReceiverIds.push(this.normalizeChatUserId(body.receiverId));
       }
 
-      const rooms = await this.ds.query(
-        `SELECT cp1.room_id FROM chat_participants cp1
-         JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
-         JOIN chat_rooms cr ON cr.id::text = cp1.room_id::text
-         WHERE cr.room_type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = ANY($2::text[])
-         ORDER BY cr.created_at DESC LIMIT 1`,
-        [actorIds, targetReceiverIds]
-      );
-      if (rooms.length) {
-          roomId = rooms[0].room_id;
+      const roomIdExisting = await this.getCanonicalDmRoom(actorIds, targetReceiverIds);
+      if (roomIdExisting) {
+          roomId = roomIdExisting;
 
           // ---- Safety check: ensure BOTH canonical participants are present ----
           // Fetch any existing participant rows for the identified room.
@@ -578,7 +580,7 @@ export class CoachingChatService implements OnModuleInit {
     this.newGateway.emitDirectMessage({
       senderId: message.sender_id,
       receiverId: message.receiver_id,
-      tenantId: message.tenant_id,
+      tenantId: rTenantId || message.tenant_id,
       ...message
     });
 
