@@ -29,8 +29,9 @@ export class AuditLogInterceptor implements NestInterceptor {
 
     const request = context.switchToHttp().getRequest();
     const ipAddress =
-      request.ip ||
       request.headers['x-forwarded-for'] ||
+      request.headers['x-real-ip'] ||
+      request.ip ||
       request.connection?.remoteAddress ||
       null;
 

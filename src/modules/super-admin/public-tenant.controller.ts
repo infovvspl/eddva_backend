@@ -181,7 +181,13 @@ export class PublicTenantController {
   @Public()
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   @ApiOperation({ summary: 'Get public platform-wide config (maintenance mode, platform name, support email etc.)' })
-  async getPublicPlatformConfig() {
-    return this.superAdminService.getPlatformConfig();
+  async getPublicPlatformConfig(@Query('vertical') vertical?: string) {
+    const config = await this.superAdminService.getPlatformConfig();
+    const isSchool = String(vertical || '').toLowerCase() === 'school';
+    return {
+      ...config,
+      maintenanceMode: isSchool ? config.schoolMaintenanceMode : config.coachingMaintenanceMode,
+      vertical: isSchool ? 'school' : 'coaching',
+    };
   }
 }

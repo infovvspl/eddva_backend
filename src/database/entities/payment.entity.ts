@@ -24,6 +24,12 @@ export class PlatformConfig extends Base {
   @Column({ name: 'maintenance_mode', default: false })
   maintenanceMode: boolean;
 
+  @Column({ name: 'coaching_maintenance_mode', default: false })
+  coachingMaintenanceMode: boolean;
+
+  @Column({ name: 'school_maintenance_mode', default: false })
+  schoolMaintenanceMode: boolean;
+
   @Column({ name: 'battle_arena_enabled', default: true })
   battleArenaEnabled: boolean;
 

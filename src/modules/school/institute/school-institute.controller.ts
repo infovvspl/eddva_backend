@@ -1,15 +1,22 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { SchoolInstituteService } from './school-institute.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { SchoolPublic } from '../decorators/school-public.decorator';
 import { SchoolUser } from '../decorators/school-user.decorator';
+import { PlatformConfig } from '../../../database/entities/payment.entity';
 
 @Controller('school/institutes')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolInstituteController {
-  constructor(private readonly svc: SchoolInstituteService) {}
+  constructor(
+    private readonly svc: SchoolInstituteService,
+    @InjectRepository(PlatformConfig, 'coaching')
+    private readonly platformConfigRepo: Repository<PlatformConfig>,
+  ) {}
 
   @Get('tenant/current')
   @SchoolPublic()
@@ -62,4 +69,28 @@ export class SchoolInstituteController {
   @Delete(':id')
   @SchoolRoles('SUPER_ADMIN')
   delete(@Param('id') id: string) { return this.svc.delete(id); }
+
+  // ── Platform Config ─────────────────────────────────────────────────────────
+
+  @Get('/platform-config')
+  @SchoolRoles('SUPER_ADMIN')
+  async getPlatformConfig() {
+    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
+    if (!cfg) {
+      cfg = await this.platformConfigRepo.save(
+        this.platformConfigRepo.create({ isSingleton: true }),
+      );
+    }
+    return { maintenanceMode: cfg.schoolMaintenanceMode ?? false };
+  }
+
+  @Patch('/platform-config')
+  @SchoolRoles('SUPER_ADMIN')
+  async updatePlatformConfig(@Body() body: { maintenanceMode?: boolean }) {
+    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
+    if (!cfg) cfg = this.platformConfigRepo.create({ isSingleton: true });
+    if (body.maintenanceMode !== undefined) cfg.schoolMaintenanceMode = body.maintenanceMode;
+    await this.platformConfigRepo.save(cfg);
+    return { maintenanceMode: cfg.schoolMaintenanceMode };
+  }
 }

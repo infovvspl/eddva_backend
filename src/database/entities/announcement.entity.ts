@@ -1,4 +1,5 @@
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { AnnouncementCategory, AnnouncementPriority } from '../../modules/super-admin/dto/announcement.enums';
 import { Base } from './base.entity';
 import { Tenant } from './tenant.entity';
 import { User } from './user.entity';
@@ -13,6 +14,12 @@ export class Announcement extends Base {
 
   @Column({ name: 'target_role', nullable: true })
   targetRole: string; // 'student' | 'teacher' | 'all' | null
+
+  @Column({ type: 'enum', enum: AnnouncementCategory, default: AnnouncementCategory.GENERAL })
+  category: AnnouncementCategory;
+
+  @Column({ type: 'enum', enum: AnnouncementPriority, default: AnnouncementPriority.NORMAL })
+  priority: AnnouncementPriority;
 
   @Column({ name: 'tenant_id', nullable: true })
   tenantId: string;
