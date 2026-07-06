@@ -187,6 +187,13 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
     const viewerCount = await this.redis.viewerCount(lectureId);
     const students = this.getActiveStudents(lectureId);
     client.emit('teacher-joined', { viewerCount: viewerCount || students.length, students });
+
+    // If the lecture is already LIVE (OBS started before the teacher opened the page),
+    // emit stream-started so the dashboard transitions out of "Waiting for stream..."
+    const lecture = await this.svc.getLectureWithAuth(lectureId, { id: user.id, role: user.role, tenantId: user.tenantId }).catch(() => null);
+    if (lecture?.status === 'LIVE') {
+      client.emit('stream-started', { lectureId });
+    }
   }
 
   // ── chat ──────────────────────────────────────────────────────────────────
