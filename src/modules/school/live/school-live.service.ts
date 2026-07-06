@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -6,6 +6,7 @@ import { randomBytes } from 'crypto';
 import { Queue } from 'bull';
 import { DataSource } from 'typeorm';
 import { RECORDING_JOB, RECORDINGS_QUEUE } from '../../live-broadcast/live-broadcast.constants';
+import { R2Service } from '../../storage/r2.service';
 
 import { SCHOOL_LIVE_CHANNELS, SchoolLiveRedis } from './school-live.redis';
 
@@ -27,6 +28,7 @@ export class SchoolLiveService implements OnModuleInit {
     @InjectQueue(RECORDINGS_QUEUE) private readonly recordingsQueue: Queue,
     private readonly redis: SchoolLiveRedis,
     private readonly config: ConfigService,
+    private readonly r2: R2Service,
   ) {}
 
   /** School DB has synchronize:false — self-create our tables. */
@@ -121,6 +123,13 @@ export class SchoolLiveService implements OnModuleInit {
         )
       `);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_poll_votes_poll ON school_live_poll_votes (poll_id)`);
+
+      // Recording columns (added after initial schema — safe no-ops if already present)
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS recording_url VARCHAR`);
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS thumbnail_url VARCHAR`);
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS recording_duration_seconds INT`);
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS recording_size_gb NUMERIC(10,3)`);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_school_live_lectures_processed ON school_live_lectures (institute_id, status) WHERE status = 'PROCESSED'`);
 
       this.statsTablesReady = true;
     } catch (err) {
@@ -377,15 +386,29 @@ export class SchoolLiveService implements OnModuleInit {
   }
 
   async streamEnded(streamKey: string): Promise<void> {
-    const rows = await this.ds.query(`SELECT id FROM school_live_lectures WHERE stream_key = $1`, [streamKey]);
+    const rows = await this.ds.query(
+      `SELECT id, institute_id AS "instId" FROM school_live_lectures WHERE stream_key = $1`,
+      [streamKey],
+    );
     if (rows.length) {
-      const lectureId = rows[0].id;
+      const lectureId: string = rows[0].id;
+      const instId: string = rows[0].instId || '';
       await this.ds.query(
         `UPDATE school_live_lectures SET status = 'ENDED', ended_at = now() WHERE id = $1`,
         [lectureId],
       );
       await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId });
       await this.redis.publish('lecture:ended', { lectureId });
+      // Queue recording processing; processor polls streaming server for the MP4 file
+      await this.recordingsQueue
+        .add(RECORDING_JOB, { lectureId, streamKey, instId, vertical: 'school' }, {
+          delay: 10_000,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 30_000 },
+          removeOnComplete: true,
+          removeOnFail: false,
+        })
+        .catch(e => this.logger.warn(`[school] recording queue failed: ${(e as Error).message}`));
       return;
     }
 
@@ -723,4 +746,64 @@ export class SchoolLiveService implements OnModuleInit {
      );
      return polls || [];
    }
+
+  // ── recordings ──────────────────────────────────────────────────────────────
+
+  async markProcessed(
+    lectureId: string,
+    data: { recordingUrl: string; thumbnailUrl: string; durationSeconds: number; recordingSizeGb: number },
+  ): Promise<void> {
+    await this.ds.query(
+      `UPDATE school_live_lectures
+         SET status = 'PROCESSED',
+             recording_url = $2,
+             thumbnail_url = $3,
+             recording_duration_seconds = $4,
+             recording_size_gb = $5
+       WHERE id = $1`,
+      [lectureId, data.recordingUrl, data.thumbnailUrl, data.durationSeconds, data.recordingSizeGb],
+    );
+  }
+
+  async listRecordings(user: SchoolUser) {
+    return this.ds.query(
+      `SELECT id, title, status,
+              teacher_id AS "teacherId",
+              class_name AS "className", section_name AS "sectionName", subject_name AS "subjectName",
+              started_at AS "startedAt", ended_at AS "endedAt",
+              recording_duration_seconds AS "durationSeconds",
+              recording_size_gb AS "recordingSizeGb",
+              thumbnail_url AS "thumbnailKey",
+              created_at AS "createdAt"
+       FROM school_live_lectures
+       WHERE institute_id = $1 AND status = 'PROCESSED'
+       ORDER BY ended_at DESC`,
+      [user.instituteId],
+    );
+  }
+
+  async getRecordingUrl(lectureId: string, user: SchoolUser): Promise<{ url: string; thumbnailUrl: string; durationSeconds: number; expiresIn: number }> {
+    const rows = await this.ds.query(
+      `SELECT id, status, institute_id AS "instituteId",
+              recording_url AS "recordingUrl", thumbnail_url AS "thumbnailUrl",
+              recording_duration_seconds AS "durationSeconds"
+       FROM school_live_lectures WHERE id = $1`,
+      [lectureId],
+    );
+    if (!rows.length) throw new NotFoundException('Lecture not found');
+    const lecture = rows[0];
+    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      throw new NotFoundException('Lecture not found');
+    }
+    if (lecture.status !== 'PROCESSED') throw new ForbiddenException('Recording is not ready yet');
+
+    const expiresIn = 14400; // 4 hours
+    const recKey  = lecture.recordingUrl  || `school-recordings/${lecture.instituteId}/${lectureId}/lecture.mp4`;
+    const thumbKey = lecture.thumbnailUrl || `school-recordings/${lecture.instituteId}/${lectureId}/thumbnail.jpg`;
+    const [url, thumbnailUrl] = await Promise.all([
+      this.r2.getSignedUrl(this.r2.recordingsBucket, recKey, expiresIn),
+      this.r2.getSignedUrl(this.r2.recordingsBucket, thumbKey, expiresIn),
+    ]);
+    return { url, thumbnailUrl, durationSeconds: lecture.durationSeconds ?? 0, expiresIn };
+  }
 }
