@@ -30,7 +30,9 @@ import {
   CreateTenantDto,
   TenantListQueryDto,
   UpdateTenantDto,
+  UpdatePlatformConfigDto,
 } from './dto/super-admin.dto';
+import { AnnouncementPriority } from './dto/announcement.enums';
 
 const PLAN_PRICES: Record<TenantPlan, number> = {
   [TenantPlan.STARTER]: 4999,
@@ -84,30 +86,46 @@ export class SuperAdminService {
         this.platformConfigRepo.create({ commissionPercent: 5, isSingleton: true }),
       );
     }
-    return { commissionPercent: Number(cfg.commissionPercent), logoUrl: cfg.logoUrl };
+    return {
+      commissionPercent: Number(cfg.commissionPercent),
+      logoUrl: cfg.logoUrl,
+      maintenanceMode: cfg.maintenanceMode,
+      battleArenaEnabled: cfg.battleArenaEnabled,
+      aiDoubtResolutionEnabled: cfg.aiDoubtResolutionEnabled,
+      platformName: cfg.platformName,
+      supportEmail: cfg.supportEmail,
+    };
+  }
+
+  async updatePlatformConfig(dto: UpdatePlatformConfigDto) {
+    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
+    if (!cfg) {
+      cfg = this.platformConfigRepo.create({ isSingleton: true });
+    }
+
+    if (dto.commissionPercent !== undefined) {
+      if (dto.commissionPercent < 0 || dto.commissionPercent > 100) {
+        throw new BadRequestException('Commission must be between 0 and 100');
+      }
+      cfg.commissionPercent = dto.commissionPercent;
+    }
+    if (dto.logoUrl !== undefined) cfg.logoUrl = dto.logoUrl;
+    if (dto.maintenanceMode !== undefined) cfg.maintenanceMode = dto.maintenanceMode;
+    if (dto.battleArenaEnabled !== undefined) cfg.battleArenaEnabled = dto.battleArenaEnabled;
+    if (dto.aiDoubtResolutionEnabled !== undefined) cfg.aiDoubtResolutionEnabled = dto.aiDoubtResolutionEnabled;
+    if (dto.platformName !== undefined) cfg.platformName = dto.platformName;
+    if (dto.supportEmail !== undefined) cfg.supportEmail = dto.supportEmail;
+
+    await this.platformConfigRepo.save(cfg);
+    return this.getPlatformConfig();
   }
 
   async updateCommission(commissionPercent: number) {
-    if (commissionPercent < 0 || commissionPercent > 100) {
-      throw new BadRequestException('Commission must be between 0 and 100');
-    }
-    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
-    if (!cfg) {
-      cfg = this.platformConfigRepo.create({ isSingleton: true });
-    }
-    cfg.commissionPercent = commissionPercent;
-    await this.platformConfigRepo.save(cfg);
-    return { commissionPercent };
+    return this.updatePlatformConfig({ commissionPercent });
   }
 
   async updatePlatformLogo(logoUrl: string) {
-    let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
-    if (!cfg) {
-      cfg = this.platformConfigRepo.create({ isSingleton: true });
-    }
-    cfg.logoUrl = logoUrl;
-    await this.platformConfigRepo.save(cfg);
-    return { logoUrl };
+    return this.updatePlatformConfig({ logoUrl });
   }
 
   // ── Payment Transactions ─────────────────────────────────────────────────────
@@ -662,7 +680,11 @@ export class SuperAdminService {
       take: limit,
     });
 
-    return { announcements, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 0 } };
+    const urgentTotal = await this.announcementRepo.count({
+      where: { priority: AnnouncementPriority.URGENT, },
+    });
+
+    return { announcements, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 0, urgentTotal } };
   }
 
   async createAnnouncement(dto: CreateAnnouncementDto) {
@@ -674,6 +696,8 @@ export class SuperAdminService {
         targetRole: dto.targetRole || 'all',
         tenantId: dto.tenantId || null,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        category: dto.category,
+        priority: dto.priority,
       }),
     );
 

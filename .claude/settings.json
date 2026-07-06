@@ -60,7 +60,9 @@
       "Bash(awk 'NR>=280 && NR<=320 || \\($0 ~ /^\\(4[6-9][0-9][0-9]|50[0-2][0-9]\\):/\\)')",
       "Bash(awk 'NR >= 400 && NR <= 500 {print}')",
       "Bash(git commit -m 'fix: always use X-Tenant-ID for usage attribution regardless of is_service_account *)",
-      "Bash(git commit -m 'ci: rm -rf node_modules before npm ci to fix ENOTEMPTY on stale dirs *)"
+      "Bash(git commit -m 'ci: rm -rf node_modules before npm ci to fix ENOTEMPTY on stale dirs *)",
+      "Bash(git rebase *)",
+      "PowerShell(cd \"c:\\\\Users\\\\HP\\\\Desktop\\\\apexiq-backend\\\\apexiq\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match 'error TS' } | Select-Object -First 20)"
     ],
     "additionalDirectories": [
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\lib\\api",

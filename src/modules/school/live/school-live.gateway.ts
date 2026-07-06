@@ -33,10 +33,20 @@ interface LiveParticipant {
  * Realtime layer for school live classes. Namespace `/school-live` (the
  * `/live`, `/chat`, `/stream` namespaces are owned by other modules).
  */
-@WebSocketGateway({ namespace: '/school-live', cors: { origin: '*' } })
+@WebSocketGateway({
+  namespace: '/school-live',
+  cors: { origin: '*' },
+  // Explicit heartbeat so clients detect a dead connection within ~45 s
+  // instead of waiting for the OS TCP timeout (BUG-26).
+  pingInterval: 25000,
+  pingTimeout: 20000,
+})
 export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
   private readonly logger = new Logger(SchoolLiveGateway.name);
-  private readonly activeStudents = new Map<string, Map<string, { userName: string; handRaised: boolean }>>();
+  // socketId stored alongside user data to guard the quick-reconnect race (BUG-09):
+  // if a new join fires before the old socket's disconnect, we won't evict the
+  // freshly re-joined user when the stale disconnect event finally fires.
+  private readonly activeStudents = new Map<string, Map<string, { userName: string; handRaised: boolean; socketId: string }>>();
 
   @WebSocketServer()
   server: Server;
@@ -52,6 +62,11 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     });
     void this.redis.subscribe<{ lectureId: string }>(SCHOOL_LIVE_CHANNELS.ENDED, ({ lectureId }) => {
       this.server.to(`lecture:${lectureId}`).emit('stream-ended', { lectureId });
+      // Purge the Redis viewer set so stale entries don't linger after the stream
+      // ends. Clients disconnect shortly after, but if the server restarts between
+      // stream-ended and their disconnects the set would never be cleaned (BUG-08).
+      void this.redis.clearViewers(lectureId).catch(() => undefined);
+      this.activeStudents.delete(lectureId);
     });
     void this.redis.subscribe<{ lectureId: string; poll: any }>(SCHOOL_LIVE_CHANNELS.POLL_CREATED, ({ lectureId, poll }) => {
       this.server.to(`lecture:${lectureId}`).emit('poll-created', { poll });
@@ -127,8 +142,8 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role };
 
     const count = await this.redis.addViewer(lectureId, user.id);
-    const students = this.activeStudents.get(lectureId) || new Map<string, { userName: string; handRaised: boolean }>();
-    students.set(user.id, { userName: user.name, handRaised: false });
+    const students = this.activeStudents.get(lectureId) || new Map<string, { userName: string; handRaised: boolean; socketId: string }>();
+    students.set(user.id, { userName: user.name, handRaised: false, socketId: client.id });
     this.activeStudents.set(lectureId, students);
     await this.svc.trackJoin(lectureId, user.id, user.name).catch(() => undefined);
     const finalCount = count || students.size;
@@ -150,6 +165,14 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       return;
     }
     const { lectureId } = payload;
+    // Verify the lecture belongs to this teacher's institute — without this any
+    // authenticated teacher could join any other school's live room (BUG-02).
+    const lecture = await this.svc.getLecture(lectureId);
+    if (!lecture || (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId)) {
+      client.emit('live-error', { message: 'Lecture not found' });
+      client.disconnect();
+      return;
+    }
     user.name = await this.svc.getUserDisplayName(user.id, user.name);
     client.join(`teacher:${lectureId}`);
     client.join(`lecture:${lectureId}`);
@@ -220,14 +243,23 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
   async handleDisconnect(client: Socket) {
     const data = client.data as SocketData;
     if (!data?.userId || !data?.lectureId) return;
-    const count = await this.redis.removeViewer(data.lectureId, data.userId);
+
     if (!this.isTeacher(data.role)) {
       const students = this.activeStudents.get(data.lectureId);
-      students?.delete(data.userId);
-      if (students?.size) this.activeStudents.set(data.lectureId, students);
-      else this.activeStudents.delete(data.lectureId);
-      this.emitParticipants(data.lectureId);
+      const entry = students?.get(data.userId);
+      // Guard reconnect race: if another socket for this user joined before this
+      // disconnect fires, the map already has the new socketId — don't evict them
+      // (BUG-09).
+      if (entry?.socketId === client.id) {
+        students!.delete(data.userId);
+        if (students!.size) this.activeStudents.set(data.lectureId, students!);
+        else this.activeStudents.delete(data.lectureId);
+        await this.redis.removeViewer(data.lectureId, data.userId);
+        this.emitParticipants(data.lectureId);
+      }
     }
+
+    const count = await this.redis.viewerCount(data.lectureId);
     const finalCount = count || this.getActiveStudents(data.lectureId).length;
     this.server.to(`teacher:${data.lectureId}`).emit('viewerCount', { count: finalCount });
     this.server.to(`lecture:${data.lectureId}`).emit('viewerCount', { count: finalCount });

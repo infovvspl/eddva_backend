@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Query,
   Res,
+  Header,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
@@ -174,5 +175,13 @@ export class PublicTenantController {
   })
   async listInstituteCourses(@Param('tenantId', ParseUUIDPipe) tenantId: string) {
     return this.superAdminService.getPublicInstituteCoursesCatalog(tenantId);
+  }
+
+  @Get('public/platform-config')
+  @Public()
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
+  @ApiOperation({ summary: 'Get public platform-wide config (maintenance mode, platform name, support email etc.)' })
+  async getPublicPlatformConfig() {
+    return this.superAdminService.getPlatformConfig();
   }
 }

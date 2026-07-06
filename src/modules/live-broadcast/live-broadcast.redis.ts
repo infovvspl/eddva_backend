@@ -71,11 +71,26 @@ export class LiveBroadcastRedis implements OnModuleInit, OnModuleDestroy {
 
   // ── pub/sub ─────────────────────────────────────────────────────────────
   async publish(channel: string, payload: unknown): Promise<number> {
-    if (!this.pub?.isReady) return 0;
+    if (!this.pub?.isReady) {
+      // Fall back to same-process dispatch so a Redis outage doesn't silently
+      // drop events on a single-instance deployment (BUG-32).
+      this.dispatchLocal(channel, payload);
+      return 0;
+    }
     try {
       return await this.pub.publish(channel, JSON.stringify(payload));
     } catch {
+      this.dispatchLocal(channel, payload);
       return 0;
+    }
+  }
+
+  private dispatchLocal(channel: string, payload: unknown) {
+    const handler = this.handlers.get(channel);
+    if (handler) {
+      setTimeout(() => {
+        try { handler(payload); } catch (e) { this.logger.warn(`Failed local dispatch on channel ${channel}: ${e}`); }
+      }, 0);
     }
   }
 
@@ -145,12 +160,22 @@ export class LiveBroadcastRedis implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async clearViewers(lectureId: string): Promise<void> {
+    if (!this.pub?.isReady) return;
+    try { await this.pub.del(this.viewersKey(lectureId)); } catch { /* non-fatal */ }
+  }
+
   // ── chat rate limit: max `limit` actions per `windowSec` per user ─────────
   async allowAction(key: string, limit: number, windowSec: number): Promise<boolean> {
     if (!this.pub?.isReady) return true;
     try {
-      const count = await this.pub.incr(key);
-      if (count === 1) await this.pub.expire(key, windowSec);
+      // Atomic Lua script: INCR + set TTL on first call only (BUG-25).
+      const count = await this.pub.eval(
+        `local c = redis.call('INCR', KEYS[1])
+         if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+         return c`,
+        { keys: [key], arguments: [String(windowSec)] },
+      ) as number;
       return count <= limit;
     } catch {
       return true;

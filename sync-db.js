@@ -2,9 +2,11 @@ const { NestFactory } = require('@nestjs/core');
 const { AppModule } = require('./dist/app.module');
 const { DataSource } = require('typeorm');
 
+const { getDataSourceToken } = require('@nestjs/typeorm');
+
 async function run() {
   const app = await NestFactory.createApplicationContext(AppModule);
-  const dataSource = app.get(DataSource);
+  const dataSource = app.get(getDataSourceToken('coaching'));
 
   try {
     console.log("Synchronizing database...");

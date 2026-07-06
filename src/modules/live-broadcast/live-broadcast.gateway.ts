@@ -41,12 +41,17 @@ const ALLOWED_REACTIONS = ['👍', '❤️', '😮', '😂', '🔥', '👏'];
  *                         hand-raised, hand-ack, reaction, poll-created,
  *                         poll-results, poll-ended, chat-rate-limited, stream-error
  */
-@WebSocketGateway({ namespace: '/stream', cors: { origin: '*' } })
+@WebSocketGateway({
+  namespace: '/stream',
+  cors: { origin: '*' },
+  pingInterval: 25000,
+  pingTimeout: 20000,
+})
 export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
   private readonly logger = new Logger(LiveBroadcastGateway.name);
 
-  // in-memory: lectureId → Map<userId, { userName, handRaised }>
-  private readonly activeStudents = new Map<string, Map<string, { userName: string; handRaised: boolean }>>();
+  // socketId stored to guard the quick-reconnect race (BUG-09).
+  private readonly activeStudents = new Map<string, Map<string, { userName: string; handRaised: boolean; socketId: string }>>();
 
   @WebSocketServer()
   server: Server;
@@ -63,6 +68,8 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
     });
     void this.redis.subscribe<{ lectureId: string }>(LIVE_CHANNELS.ENDED, ({ lectureId }) => {
       this.server.to(`lecture:${lectureId}`).emit('stream-ended', { lectureId });
+      void this.redis.clearViewers(lectureId).catch(() => undefined);
+      this.activeStudents.delete(lectureId);
     });
     void this.redis.subscribe<{ lectureId: string }>(LIVE_CHANNELS.PROCESSED, ({ lectureId }) => {
       this.server.to(`lecture:${lectureId}`).emit('recording-ready', { lectureId });
@@ -137,8 +144,8 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
     client.join(`lecture:${lectureId}`);
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role, tenantId: user.tenantId };
 
-    const students = this.activeStudents.get(lectureId) || new Map<string, { userName: string; handRaised: boolean }>();
-    students.set(user.id, { userName: user.name, handRaised: false });
+    const students = this.activeStudents.get(lectureId) || new Map<string, { userName: string; handRaised: boolean; socketId: string }>();
+    students.set(user.id, { userName: user.name, handRaised: false, socketId: client.id });
     this.activeStudents.set(lectureId, students);
 
     const count = await this.redis.addViewer(lectureId, user.id);
@@ -164,6 +171,14 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
       return;
     }
     const { lectureId } = payload;
+    // Verify the lecture belongs to this teacher's institute (BUG-03)
+    try {
+      await this.svc.getLectureWithAuth(lectureId, { id: user.id, role: user.role, tenantId: user.tenantId });
+    } catch {
+      client.emit('stream-error', { message: 'Lecture not found or unauthorized' });
+      client.disconnect();
+      return;
+    }
     user.name = await this.svc.getUserDisplayName(user.id, user.name);
     client.join(`teacher:${lectureId}`);
     client.join(`lecture:${lectureId}`);
@@ -245,16 +260,19 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
     const data = client.data as SocketData;
     if (!data?.userId || !data?.lectureId) return;
 
-    const count = await this.redis.removeViewer(data.lectureId, data.userId);
-
     if (!this.isTeacher(data.role)) {
       const students = this.activeStudents.get(data.lectureId);
-      students?.delete(data.userId);
-      if (students?.size) this.activeStudents.set(data.lectureId, students);
-      else this.activeStudents.delete(data.lectureId);
-      this.emitParticipants(data.lectureId);
+      const entry = students?.get(data.userId);
+      if (entry?.socketId === client.id) {
+        students!.delete(data.userId);
+        if (students!.size) this.activeStudents.set(data.lectureId, students!);
+        else this.activeStudents.delete(data.lectureId);
+        await this.redis.removeViewer(data.lectureId, data.userId);
+        this.emitParticipants(data.lectureId);
+      }
     }
 
+    const count = await this.redis.viewerCount(data.lectureId);
     const finalCount = count || this.getActiveStudents(data.lectureId).length;
     this.server.to(`teacher:${data.lectureId}`).emit('viewerCount', { lectureId: data.lectureId, count: finalCount });
     this.server.to(`lecture:${data.lectureId}`).emit('viewerCount', { lectureId: data.lectureId, count: finalCount });
