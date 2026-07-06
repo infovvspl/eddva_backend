@@ -60,6 +60,13 @@ export class BatchController {
     return this.batchService.getDashboardStats(tenantId);
   }
 
+  @Get('students')
+  @Roles(UserRole.INSTITUTE_ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'List all actively enrolled students for the institute' })
+  getStudents(@TenantId() tenantId: string) {
+    return this.batchService.getInstituteStudents(tenantId);
+  }
+
   @Get(':id/roster')
   @Roles(UserRole.INSTITUTE_ADMIN, UserRole.TEACHER, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Get enrolled student roster for a batch' })

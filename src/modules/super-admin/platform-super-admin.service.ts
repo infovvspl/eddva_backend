@@ -104,8 +104,14 @@ export class PlatformSuperAdminService {
       this.dataSource.query(
         `SELECT COUNT(DISTINCT s.id)::int AS count
          FROM students s
-         LEFT JOIN tenants t ON t.id = s.tenant_id
-         WHERE s.deleted_at IS NULL AND (t.type != 'platform' OR t.id IS NULL)`
+         JOIN users u ON u.id = s.user_id AND u.deleted_at IS NULL
+         JOIN enrollments e ON e.student_id = s.id AND e.deleted_at IS NULL
+         JOIN batches b ON b.id = e.batch_id AND b.deleted_at IS NULL
+         JOIN tenants t ON t.id = e.tenant_id AND t.deleted_at IS NULL
+         WHERE s.deleted_at IS NULL
+           AND s.tenant_id = e.tenant_id
+           AND u.tenant_id = e.tenant_id
+           AND t.type != 'platform'`
       ).then(res => res[0]?.count || 0),
       this.userRepo
         .createQueryBuilder('u')

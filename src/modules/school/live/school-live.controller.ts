@@ -143,6 +143,20 @@ export class SchoolLiveController {
   listPolls(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.listPolls(id, user);
   }
+
+  // ── recordings ────────────────────────────────────────────────────────────
+
+  @Get('recordings')
+  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  listRecordings(@SchoolUser() user: any) {
+    return this.svc.listRecordings(user);
+  }
+
+  @Get('lectures/:id/recording-url')
+  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  recordingUrl(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getRecordingUrl(id, user);
+  }
 }
 
 /**
