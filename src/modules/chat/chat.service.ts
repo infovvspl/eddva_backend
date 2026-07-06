@@ -59,6 +59,20 @@ export class CoachingChatService implements OnModuleInit {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
 
+  private async resolveToVirtualIfSuperAdmin(userId: string): Promise<string> {
+    const normalized = this.normalizeChatUserId(userId);
+    if ([VIRTUAL_SUPER_ADMIN_ID, LEGACY_VIRTUAL_SUPER_ADMIN_ID].includes(normalized)) {
+      return normalized;
+    }
+    if (this.isUuid(normalized)) {
+      const users = await this.ds.query(`SELECT role FROM users WHERE id = $1`, [normalized]);
+      if (users.length && String(users[0].role).toUpperCase() === 'SUPER_ADMIN') {
+        return VIRTUAL_SUPER_ADMIN_ID;
+      }
+    }
+    return normalized;
+  }
+
   async onModuleInit() {
     console.log('--- RUNNING COACHING CHAT MIGRATION ---');
     try {
@@ -203,13 +217,27 @@ export class CoachingChatService implements OnModuleInit {
     const params: any[] = [];
 
     if (targetRole.toUpperCase() === 'SUPER_ADMIN') {
-      sql = `SELECT u.id, u.full_name AS name, u.email, u.role, u.profile_picture_url AS profile_image, 'Platform' AS institute_name 
-             FROM users u 
-             WHERE LOWER(u.role::text) = 'super_admin' AND u.status = 'active'`;
+      let match = true;
       if (q) {
-        sql += ` AND (u.full_name ILIKE $1 OR u.email ILIKE $1)`;
-        params.push(`%${q}%`);
+        const searchStr = q.toLowerCase();
+        match = VIRTUAL_SUPER_ADMIN_CONTACT.name.toLowerCase().includes(searchStr) || 
+                VIRTUAL_SUPER_ADMIN_CONTACT.email.toLowerCase().includes(searchStr);
       }
+      const rows = match ? [{ ...VIRTUAL_SUPER_ADMIN_CONTACT }] : [];
+      
+      const rowsWithPresence = await Promise.all(rows.map(async (r) => {
+        const pRaw = await this.cacheManager.get(`presence:${r.id}`);
+        let presence = { status: 'offline', lastSeen: null };
+        if (pRaw) {
+          try { presence = JSON.parse(pRaw as string); } catch { }
+        }
+        return {
+          ...r,
+          online: presence.status === 'online',
+          lastSeen: presence.lastSeen,
+        };
+      }));
+      return { success: true, data: rowsWithPresence };
     } else if (String(user.role).toUpperCase() === 'SUPER_ADMIN' && targetRole.toUpperCase() === 'INSTITUTE_ADMIN') {
       sql = `SELECT u.id, u.full_name AS name, u.email, u.role, u.profile_picture_url AS profile_image, t.name AS institute_name
              FROM users u 
@@ -246,9 +274,6 @@ export class CoachingChatService implements OnModuleInit {
     sql += ` ORDER BY name ASC`;
 
     const rows = await this.ds.query(sql, params);
-    if (targetRole.toUpperCase() === 'SUPER_ADMIN' && rows.length === 0) {
-      rows.push(VIRTUAL_SUPER_ADMIN_CONTACT);
-    }
 
     const rowsWithPresence = await Promise.all(rows.map(async (r) => {
       const pRaw = await this.cacheManager.get(`presence:${r.id}`);
@@ -268,8 +293,11 @@ export class CoachingChatService implements OnModuleInit {
 
   async getMessagesByPeer(user: any, peerId: string) {
     const actorIds = this.chatActorIds(user);
-    const normalizedPeerId = this.normalizeChatUserId(peerId);
+    const rawPeerId = this.normalizeChatUserId(peerId);
+    const normalizedPeerId = await this.resolveToVirtualIfSuperAdmin(peerId);
     const canonicalSenderId = this.chatUserId(user); // canonical ID for Super Admin or regular user
+    const targetPeerIds = [normalizedPeerId];
+    if (rawPeerId !== normalizedPeerId) targetPeerIds.push(rawPeerId);
 
     // ---- Safety check: ensure both participants exist in the DM room ----
     const existing = await this.ds.query(
@@ -278,8 +306,9 @@ export class CoachingChatService implements OnModuleInit {
        JOIN chat_rooms cr ON cr.id::text = cp1.room_id::text
        WHERE cr.room_type = 'DM'
          AND cp1.user_id::text = ANY($1::text[])
-         AND cp2.user_id::text = $2::text`,
-      [actorIds, normalizedPeerId]
+         AND cp2.user_id::text = ANY($2::text[])
+       ORDER BY cr.created_at DESC LIMIT 1`,
+      [actorIds, targetPeerIds]
     );
 
     if (existing.length) {
@@ -306,13 +335,18 @@ export class CoachingChatService implements OnModuleInit {
 
   async markRead(user: any, peerId: string) {
     const actorIds = this.chatActorIds(user);
-    const normalizedPeerId = this.normalizeChatUserId(peerId);
+    const rawPeerId = this.normalizeChatUserId(peerId);
+    const normalizedPeerId = await this.resolveToVirtualIfSuperAdmin(peerId);
+    const targetPeerIds = [normalizedPeerId];
+    if (rawPeerId !== normalizedPeerId) targetPeerIds.push(rawPeerId);
+
     const rooms = await this.ds.query(
       `SELECT cp1.room_id FROM chat_participants cp1
        JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
        JOIN chat_rooms cr ON cr.id::text = cp1.room_id::text
-       WHERE cr.room_type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = $2::text`,
-      [actorIds, normalizedPeerId]
+       WHERE cr.room_type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = ANY($2::text[])
+       ORDER BY cr.created_at DESC LIMIT 1`,
+      [actorIds, targetPeerIds]
     );
     if (rooms.length) {
       const roomId = rooms[0].room_id;
@@ -422,7 +456,7 @@ export class CoachingChatService implements OnModuleInit {
 
   async sendMessage(user: any, body: any) {
     let roomId = body.roomId;
-    let receiverId = this.normalizeChatUserId(body.receiverId);
+    let receiverId = body.receiverId ? await this.resolveToVirtualIfSuperAdmin(body.receiverId) : null;
     const text = body.content || body.text;
     const senderId = this.chatUserId(user);
     const actorIds = this.chatActorIds(user);
@@ -438,7 +472,7 @@ export class CoachingChatService implements OnModuleInit {
         [roomId, senderId]
       );
       if (participants.length) {
-        receiverId = participants[0].user_id;
+        receiverId = await this.resolveToVirtualIfSuperAdmin(participants[0].user_id);
       }
     }
 
@@ -455,12 +489,18 @@ export class CoachingChatService implements OnModuleInit {
     }
 
     if (!roomId && receiverId) {
+      const targetReceiverIds = [receiverId];
+      if (body.receiverId && receiverId !== body.receiverId) {
+         targetReceiverIds.push(this.normalizeChatUserId(body.receiverId));
+      }
+
       const rooms = await this.ds.query(
         `SELECT cp1.room_id FROM chat_participants cp1
          JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
          JOIN chat_rooms cr ON cr.id::text = cp1.room_id::text
-         WHERE cr.room_type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = $2::text`,
-        [actorIds, receiverId]
+         WHERE cr.room_type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = ANY($2::text[])
+         ORDER BY cr.created_at DESC LIMIT 1`,
+        [actorIds, targetReceiverIds]
       );
       if (rooms.length) {
           roomId = rooms[0].room_id;
