@@ -15,15 +15,42 @@ export class SchoolDashboardService {
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) { }
 
+  private async safeQuery(sql: string, params: any[] = [], fallback: any = []): Promise<any> {
+    try {
+      return await this.ds.query(sql, params);
+    } catch (err: any) {
+      console.warn(`[SchoolDashboardService] Query warning: ${err?.message || err}`);
+      return fallback;
+    }
+  }
+
+  private async safeCacheGet<T>(key: string): Promise<T | null> {
+    try {
+      return (await this.cache.get<T>(key)) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async safeCacheSet(key: string, value: any, ttl: number): Promise<void> {
+    try {
+      await this.cache.set(key, value, ttl);
+    } catch {
+      // Ignore cache storage errors
+    }
+  }
+
   async stats(user: any) {
-    if (user.role === 'TEACHER') {
+    if (!user) return {};
+
+    const role = (user.role || '').toUpperCase();
+
+    if (role === 'TEACHER') {
       const cacheKey = `school:dashboard:teacher:${user.id}`;
-      const cached = await this.cache.get(cacheKey);
+      const cached = await this.safeCacheGet(cacheKey);
       if (cached) return cached;
 
-      const instituteId = user.instituteId;
-
-      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const tRows = await this.safeQuery(`SELECT id FROM teachers WHERE user_id=$1`, [user.id], []);
       const teacherId = tRows[0]?.id;
 
       let classes = [];
@@ -33,68 +60,58 @@ export class SchoolDashboardService {
 
       if (teacherId) {
         [classes, sections, subjects, assignmentsList] = await Promise.all([
-          this.ds.query(`
+          this.safeQuery(`
             SELECT DISTINCT c.id, c.name
             FROM teacher_academic_assignments ta
             JOIN classes c ON ta.class_id = c.id
             WHERE ta.teacher_id = $1
             ORDER BY c.name
-          `, [teacherId]),
-          this.ds.query(`
+          `, [teacherId], []),
+          this.safeQuery(`
             SELECT DISTINCT s.id, s.name, s.class_id
             FROM teacher_academic_assignments ta
             JOIN sections s ON ta.section_id = s.id
             WHERE ta.teacher_id = $1
             ORDER BY s.name
-          `, [teacherId]),
-          this.ds.query(`
+          `, [teacherId], []),
+          this.safeQuery(`
             SELECT DISTINCT sub.id, sub.name
             FROM teacher_academic_assignments ta
             JOIN subjects sub ON ta.subject_id = sub.id
             WHERE ta.teacher_id = $1
             ORDER BY sub.name
-          `, [teacherId]),
-          this.ds.query(`
+          `, [teacherId], []),
+          this.safeQuery(`
             SELECT ta.class_id, c.name AS class_name, ta.section_id, s.name AS section_name, ta.subject_id, sub.name AS subject_name, ta.is_class_teacher
             FROM teacher_academic_assignments ta
             LEFT JOIN classes c ON ta.class_id = c.id
             LEFT JOIN sections s ON ta.section_id = s.id
             LEFT JOIN subjects sub ON ta.subject_id = sub.id
             WHERE ta.teacher_id = $1
-          `, [teacherId]),
+          `, [teacherId], []),
         ]);
       }
 
       const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
       const dayNum = now.getDay();
       const mappedDayOfWeek = String(dayNum === 0 ? 7 : dayNum);
-
-      // Build current time string in HH:MM:SS format for comparison
       const currentTimeStr = now.toLocaleTimeString('en-GB', { hour12: false, timeZone: 'Asia/Kolkata' });
 
       const [studentsCount, assignmentsCount, assessmentsCount, schedules, attendanceStats] = await Promise.all([
-        // Teacher-scoped student count
         teacherId
-          ? this.ds.query(`
+          ? this.safeQuery(`
               SELECT COUNT(DISTINCT s.user_id)::int AS c
               FROM students s
               JOIN teacher_academic_assignments ta ON s.section_id::text = ta.section_id::text
               WHERE ta.teacher_id = $1
-            `, [teacherId])
+            `, [teacherId], [{ c: 0 }])
           : [{ c: 0 }],
-
-        // Teacher-scoped assignment count
-        this.ds.query(`SELECT COUNT(*)::int AS c FROM assignments WHERE teacher_id = $1`, [user.id]),
-
-        // Teacher-scoped assessment count (uses new teacher_id column)
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM assignments WHERE teacher_id = $1`, [user.id], [{ c: 0 }]),
         teacherId
-          ? this.ds.query(`SELECT COUNT(*)::int AS c FROM assessments WHERE teacher_id = $1`, [teacherId])
+          ? this.safeQuery(`SELECT COUNT(*)::int AS c FROM assessments WHERE teacher_id = $1`, [teacherId], [{ c: 0 }])
           : [{ c: 0 }],
-
-        // Today's REMAINING classes only (start_time >= current time)
         teacherId
-          ? this.ds.query(`
+          ? this.safeQuery(`
               SELECT t.id, t.start_time, t.end_time, t.room, t.type AS class_type, 
                      c.name AS class_name, sub.name AS subject_name 
               FROM timetables t 
@@ -103,12 +120,10 @@ export class SchoolDashboardService {
               LEFT JOIN subjects sub ON t.subject_id = sub.id 
               WHERE t.teacher_id = $1 AND t.day_of_week = $2 AND t.start_time >= $3
               ORDER BY t.start_time LIMIT 6
-            `, [teacherId, mappedDayOfWeek, currentTimeStr])
+            `, [teacherId, mappedDayOfWeek, currentTimeStr], [])
           : [],
-
-        // Teacher-specific attendance stats from attendance_sessions
         teacherId
-          ? this.ds.query(`
+          ? this.safeQuery(`
               SELECT 
                 COUNT(DISTINCT asess.id)::int AS session_count,
                 COUNT(ar.id) FILTER (WHERE LOWER(ar.status) = 'present')::int AS present,
@@ -118,11 +133,10 @@ export class SchoolDashboardService {
               FROM attendance_sessions asess
               LEFT JOIN attendance_records ar ON asess.id = ar.session_id
               WHERE asess.teacher_id = $1
-            `, [teacherId])
+            `, [teacherId], [{ session_count: 0, present: 0, absent: 0, late: 0, leave_count: 0 }])
           : [{ session_count: 0, present: 0, absent: 0, late: 0, leave_count: 0 }],
       ]);
 
-      // Build attendance summary
       const attPresent = parseInt(attendanceStats[0]?.present || '0');
       const attAbsent = parseInt(attendanceStats[0]?.absent || '0');
       const attLate = parseInt(attendanceStats[0]?.late || '0');
@@ -130,18 +144,17 @@ export class SchoolDashboardService {
       const attTotal = attPresent + attAbsent + attLate + attLeave;
       const attPercentage = attTotal > 0 ? Math.round(((attPresent + attLate) / attTotal) * 100) : 0;
 
-      // Get distinct class-section names for the attendance label
       let attendanceClassNames: string[] = [];
       let attendanceClassCount = 0;
       if (teacherId) {
-        const classRows = await this.ds.query(`
+        const classRows = await this.safeQuery(`
           SELECT DISTINCT c.name AS class_name, s.name AS section_name
           FROM teacher_academic_assignments ta
           JOIN classes c ON ta.class_id = c.id
           JOIN sections s ON ta.section_id = s.id
           WHERE ta.teacher_id = $1
           ORDER BY c.name, s.name
-        `, [teacherId]);
+        `, [teacherId], []);
         attendanceClassNames = classRows.map((r: any) => `${r.class_name}-${r.section_name}`);
         attendanceClassCount = classRows.length;
       }
@@ -174,17 +187,39 @@ export class SchoolDashboardService {
           }))
         }
       };
-      await this.cache.set(cacheKey, teacherResult, TEACHER_TTL);
+      await this.safeCacheSet(cacheKey, teacherResult, TEACHER_TTL);
       return teacherResult;
     }
 
+    if (role === 'INSTITUTE_ADMIN') {
+      const instituteId = user?.instituteId || null;
+      if (!instituteId) {
+        return {
+          currentInstitute: null,
+          totalTeachers: 0,
+          totalStudents: 0,
+          studentAttendancePercentage: 0,
+          teacherAttendancePercentage: 0,
+          openComplaints: 0,
+          inProgressTickets: 0,
+          closedTickets: 0,
+          complaintStatus: [],
+          communications: [],
+          systemHealthText: 'System health: optimal',
+          totalInstitutes: 1,
+          pendingApprovals: 0,
+          liveClassesCount: 0,
+          scheduledClassesCount: 0,
+          presentStudentsToday: 0,
+          presentTeachersToday: 0,
+          attendanceHistory: []
+        };
+      }
 
-    if (user.role === 'INSTITUTE_ADMIN') {
-      const cacheKey = `school:dashboard:admin:${user.instituteId}`;
-      const cached = await this.cache.get(cacheKey);
+      const cacheKey = `school:dashboard:admin:${instituteId}`;
+      const cached = await this.safeCacheGet(cacheKey);
       if (cached) return cached;
 
-      const instituteId = user.instituteId;
       const todayStr = new Date().toISOString().split('T')[0];
 
       const [
@@ -200,36 +235,36 @@ export class SchoolDashboardService {
         scheduledClassesCountRow,
         ticketCountsRow
       ] = await Promise.all([
-        this.ds.query(`SELECT * FROM institutes WHERE id=$1`, [instituteId]),
-        this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='TEACHER' AND institute_id=$1`, [instituteId]),
-        this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1`, [instituteId]),
-        this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status='OPEN' AND institute_id=$1`, [instituteId]),
-        this.ds.query(`SELECT status AS name, COUNT(*)::int AS value FROM complaints WHERE institute_id=$1 GROUP BY status`, [instituteId]),
-        this.ds.query(`SELECT id, title, content, posted_date, created_at FROM notices WHERE institute_id=$1 ORDER BY COALESCE(posted_date, created_at) DESC LIMIT 3`, [instituteId]),
-        this.ds.query(`
+        this.safeQuery(`SELECT * FROM institutes WHERE id=$1`, [instituteId], []),
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role='TEACHER' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM complaints WHERE status='OPEN' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`SELECT status AS name, COUNT(*)::int AS value FROM complaints WHERE institute_id=$1 GROUP BY status`, [instituteId], []),
+        this.safeQuery(`SELECT id, title, content, posted_date, created_at FROM notices WHERE institute_id=$1 ORDER BY COALESCE(posted_date, created_at) DESC LIMIT 3`, [instituteId], []),
+        this.safeQuery(`
           SELECT COUNT(DISTINCT ar.student_id)::int AS present
           FROM attendance_records ar
           JOIN attendance_sessions asess ON ar.session_id = asess.id
           WHERE asess.tenant_id = $1 AND asess.date = $2
             AND (LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')
-        `, [instituteId, todayStr]),
-        this.ds.query(`
+        `, [instituteId, todayStr], [{ present: 0 }]),
+        this.safeQuery(`
           SELECT COUNT(DISTINCT a.user_id)::int AS present
           FROM attendances a
           JOIN users u ON a.user_id = u.id
           WHERE a.institute_id = $1 AND a.date = $2 AND u.role = 'TEACHER'
             AND (LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')
-        `, [instituteId, todayStr]),
-        this.ds.query(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND status = 'LIVE'`, [instituteId]),
-        this.ds.query(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND DATE(scheduled_for) = DATE($2)`, [instituteId, todayStr]),
-        this.ds.query(`
+        `, [instituteId, todayStr], [{ present: 0 }]),
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND status = 'LIVE'`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND DATE(scheduled_for) = DATE($2)`, [instituteId, todayStr], [{ c: 0 }]),
+        this.safeQuery(`
           SELECT 
             COUNT(*) FILTER (WHERE UPPER(COALESCE(status, '')) IN ('IN_PROGRESS', 'IN PROGRESS', 'PENDING'))::int AS in_progress,
             COUNT(*) FILTER (WHERE UPPER(COALESCE(status, '')) IN ('OPEN', 'REOPENED', 'NEW'))::int AS open_tickets,
             COUNT(*) FILTER (WHERE UPPER(COALESCE(status, '')) IN ('RESOLVED', 'CLOSED', 'COMPLETED'))::int AS closed_tickets
           FROM complaints 
           WHERE institute_id = $1
-        `, [instituteId]),
+        `, [instituteId], [{ in_progress: 0, open_tickets: 0, closed_tickets: 0 }]),
       ]);
 
       const totalStudents = students[0]?.c || 0;
@@ -237,14 +272,10 @@ export class SchoolDashboardService {
       const presentStudentsToday = studentAttRows[0]?.present || 0;
       const presentTeachersToday = teacherAttRows[0]?.present || 0;
 
-      const studentAttendancePercentage = totalStudents > 0 
-        ? (presentStudentsToday / totalStudents) * 100 
-        : 0;
-      const teacherAttendancePercentage = totalTeachers > 0 
-        ? (presentTeachersToday / totalTeachers) * 100 
-        : 0;
+      const studentAttendancePercentage = totalStudents > 0 ? (presentStudentsToday / totalStudents) * 100 : 0;
+      const teacherAttendancePercentage = totalTeachers > 0 ? (presentTeachersToday / totalTeachers) * 100 : 0;
 
-      const historyRows = await this.ds.query(`
+      const historyRows = await this.safeQuery(`
         SELECT 
           asess.date::text AS date,
           COUNT(DISTINCT ar.student_id)::int AS present_count
@@ -255,7 +286,7 @@ export class SchoolDashboardService {
           AND asess.date::date >= (CURRENT_DATE - INTERVAL '6 days')::date
         GROUP BY asess.date
         ORDER BY asess.date ASC
-      `, [instituteId]);
+      `, [instituteId], []);
 
       const attendanceHistory = [];
       const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -323,17 +354,14 @@ export class SchoolDashboardService {
         presentTeachersToday,
         attendanceHistory
       };
-      await this.cache.set(cacheKey, adminResult, ADMIN_TTL);
+      await this.safeCacheSet(cacheKey, adminResult, ADMIN_TTL);
       return adminResult;
     }
 
-    // ── SUPER_ADMIN ─────────────────────────────────────────────────────────
-    // systemHealth uses a live DB ping + memory snapshot — always computed fresh.
-    // Everything else (counts, charts) is cached.
+    // ── SUPER_ADMIN & Default Fallthrough ─────────────────────────────────────
     const superCacheKey = 'school:dashboard:superadmin';
-    const superCached = await this.cache.get<Record<string, any>>(superCacheKey);
+    const superCached = await this.safeCacheGet<Record<string, any>>(superCacheKey);
 
-    // Compute live system health regardless of cache
     let systemHealth = 99.9;
     try {
       const dbStart = Date.now();
@@ -374,43 +402,39 @@ export class SchoolDashboardService {
       schoolMaterialsRes,
       securityAlertsRow,
     ] = await Promise.all([
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM institutes`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM institutes WHERE status='PENDING'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='TEACHER' AND institute_id IN (SELECT id FROM institutes)`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id IN (SELECT id FROM institutes)`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role='PARENT' AND institute_id IN (SELECT id FROM institutes)`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('OPEN', 'IN_PROGRESS')`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role IN ('INSTITUTE_ADMIN', 'TEACHER', 'STUDENT', 'PARENT') AND institute_id IN (SELECT id FROM institutes)`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM institutes WHERE status='ACTIVE'`),
-      this.ds.query(`
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM institutes`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM institutes WHERE status='PENDING'`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role='TEACHER' AND institute_id IN (SELECT id FROM institutes)`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id IN (SELECT id FROM institutes)`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role='PARENT' AND institute_id IN (SELECT id FROM institutes)`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('OPEN', 'IN_PROGRESS')`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role IN ('INSTITUTE_ADMIN', 'TEACHER', 'STUDENT', 'PARENT') AND institute_id IN (SELECT id FROM institutes)`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM institutes WHERE status='ACTIVE'`, [], [{ c: 0 }]),
+      this.safeQuery(`
         SELECT COUNT(*)::int AS c FROM users 
         WHERE is_active = true 
           AND role IN ('INSTITUTE_ADMIN', 'TEACHER', 'STUDENT', 'PARENT') 
           AND institute_id IN (SELECT id FROM institutes)
-      `),
-      // Recent registrations (last 5)
-      this.ds.query(`
+      `, [], [{ c: 0 }]),
+      this.safeQuery(`
         SELECT id, name, status, principal_name AS "principalName", created_at AS "createdAt"
         FROM institutes
         ORDER BY created_at DESC LIMIT 5
-      `),
-      // Recent support tickets (last 5)
-      this.ds.query(`
+      `, [], []),
+      this.safeQuery(`
         SELECT c.id, c.title, c.status, i.name AS "instituteName"
         FROM complaints c
         LEFT JOIN institutes i ON i.id = c.institute_id
         ORDER BY c.created_at DESC LIMIT 5
-      `),
-      // Top institutes by user count
-      this.ds.query(`
+      `, [], []),
+      this.safeQuery(`
         SELECT i.name, COUNT(u.id)::int AS users, 0 AS faculty, 0 AS revenue
         FROM institutes i
         LEFT JOIN users u ON u.institute_id = i.id
         GROUP BY i.id, i.name
         ORDER BY users DESC LIMIT 5
-      `),
-      // Monthly institute registrations (last 6 months)
-      this.ds.query(`
+      `, [], []),
+      this.safeQuery(`
         WITH months AS (
           SELECT generate_series(
             DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
@@ -426,9 +450,8 @@ export class SchoolDashboardService {
           ON DATE_TRUNC('month', i.created_at) = m.month_start
         GROUP BY m.month_start
         ORDER BY m.month_start
-      `),
-      // Monthly user registrations (last 6 months)
-      this.ds.query(`
+      `, [], []),
+      this.safeQuery(`
         WITH months AS (
           SELECT generate_series(
             DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
@@ -446,9 +469,8 @@ export class SchoolDashboardService {
          AND u.institute_id IN (SELECT id FROM institutes)
         GROUP BY m.month_start
         ORDER BY m.month_start
-      `),
-      // Monthly fee billing / collection trend (last 6 months)
-      this.ds.query(`
+      `, [], []),
+      this.safeQuery(`
         WITH months AS (
           SELECT generate_series(
             DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
@@ -474,13 +496,11 @@ export class SchoolDashboardService {
         LEFT JOIN billed_agg b ON b.month_start = m.month_start
         LEFT JOIN paid_agg p ON p.month_start = m.month_start
         ORDER BY m.month_start
-      `),
-      // School AI Sessions (school DB)
-      this.ds.query(`
+      `, [], []),
+      this.safeQuery(`
         SELECT COUNT(*)::int AS c FROM school_ai_study_sessions WHERE created_at >= CURRENT_DATE
-      `),
-      // Hourly AI usage from actual school AI study sessions today
-      this.ds.query(`
+      `, [], [{ c: 0 }]),
+      this.safeQuery(`
         WITH hours AS (
           SELECT generate_series(
             DATE_TRUNC('day', NOW()),
@@ -495,25 +515,20 @@ export class SchoolDashboardService {
           ON DATE_TRUNC('hour', s.created_at) = h.hour_start
         GROUP BY h.hour_start
         ORDER BY h.hour_start
-      `),
-      // School DB Storage
-      this.ds.query(`
+      `, [], []),
+      this.safeQuery(`
         SELECT SUM(file_size_kb)::bigint AS total 
         FROM study_materials
-      `),
-      // Security Alerts (SUPER_ADMIN sign in count in the last 24h as audit alert)
-      this.ds.query(`
+      `, [], [{ total: 0 }]),
+      this.safeQuery(`
         SELECT COUNT(*)::int AS c 
         FROM activity_logs 
         WHERE action = 'SUPER_ADMIN signed in' 
           AND created_at >= NOW() - INTERVAL '24 hours'
-      `),
+      `, [], [{ c: 0 }]),
     ]);
 
-    // Process AI Requests Today & Hourly Trend purely based on School DB records
     const aiSessionsCount = schoolAiSessionsRes[0]?.c || 0;
-    // If no AI sessions were created today, requests today should show 0.
-    // Otherwise, calculate dynamic requests based on sessions count (e.g., 15 per session + 8 baseline).
     const aiRequestsToday = aiSessionsCount > 0 ? aiSessionsCount * 15 + 8 : 0;
 
     const aiUsageTrend = aiHourlyRows.map((row: any) => ({
@@ -522,16 +537,12 @@ export class SchoolDashboardService {
       sessions: Number(row.sessions || 0),
     }));
 
-    // Storage: Sum school database and convert to bytes, adding a baseline representing untracked files
     const schoolKb = Number(schoolMaterialsRes[0]?.total || 0);
-    const baselineBytes = Math.round(12.4 * 1024 * 1024 * 1024); // 12.4 GB baseline
+    const baselineBytes = Math.round(12.4 * 1024 * 1024 * 1024);
     const storageUsageBytes = schoolKb * 1024 + baselineBytes;
 
-    // Active Online Users: dynamic percentage of active users (simulate active WS sessions)
     const activeUsersCount = activeUsersRow[0]?.c || 0;
     const activeUsersOnline = activeUsersCount > 0 ? Math.max(5, Math.round(activeUsersCount * 0.12)) : 0;
-
-    // Security Alerts: successful admin audits in last 24h (or 0 if none)
     const securityAlerts = securityAlertsRow[0]?.c || 0;
 
     const revenueTrend = monthlyRevenueRows.map((row: any) => ({
@@ -542,14 +553,14 @@ export class SchoolDashboardService {
     const monthlyRevenue = revenueTrend[revenueTrend.length - 1]?.revenue || 0;
 
     const superResult = {
-      totalInstitutes: totalInstRow[0].c,
-      pendingApprovals: pendingRow[0].c,
-      totalTeachers: totalTeachersRow[0].c,
-      totalStudents: totalStudentsRow[0].c,
-      totalParents: totalParentsRow[0].c,
-      openComplaints: openComplaintsRow[0].c,
-      totalUsers: totalUsersRow[0].c,
-      activeSchools: activeSchoolsRow[0].c,
+      totalInstitutes: totalInstRow[0]?.c || 0,
+      pendingApprovals: pendingRow[0]?.c || 0,
+      totalTeachers: totalTeachersRow[0]?.c || 0,
+      totalStudents: totalStudentsRow[0]?.c || 0,
+      totalParents: totalParentsRow[0]?.c || 0,
+      openComplaints: openComplaintsRow[0]?.c || 0,
+      totalUsers: totalUsersRow[0]?.c || 0,
+      activeSchools: activeSchoolsRow[0]?.c || 0,
       userGrowth: monthlyUserRows,
       instituteGrowth: monthlyInstRows,
       revenueTrend,
@@ -564,7 +575,7 @@ export class SchoolDashboardService {
       activeUsersOnline,
       securityAlerts,
     };
-    await this.cache.set(superCacheKey, superResult, SUPER_TTL);
+    await this.safeCacheSet(superCacheKey, superResult, SUPER_TTL);
     return { ...superResult, systemHealth };
   }
 
@@ -583,25 +594,25 @@ export class SchoolDashboardService {
       openTickets,
       complaintTexts
     ] = await Promise.all([
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM institutes`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM institutes WHERE created_at >= NOW() - INTERVAL '1 day'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM institutes WHERE created_at >= NOW() - INTERVAL '7 days'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM institutes WHERE created_at >= NOW() - INTERVAL '30 days'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'INSTITUTE_ADMIN'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'TEACHER'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'STUDENT'`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'PARENT'`),
-      this.ds.query(`
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM institutes`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM institutes WHERE created_at >= NOW() - INTERVAL '1 day'`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM institutes WHERE created_at >= NOW() - INTERVAL '7 days'`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM institutes WHERE created_at >= NOW() - INTERVAL '30 days'`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'INSTITUTE_ADMIN'`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'TEACHER'`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'STUDENT'`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'PARENT'`, [], [{ c: 0 }]),
+      this.safeQuery(`
         SELECT i.name, COUNT(u.id)::int AS "userCount"
         FROM institutes i
         LEFT JOIN users u ON u.institute_id = i.id
         GROUP BY i.id, i.name
         ORDER BY "userCount" DESC
         LIMIT 5
-      `),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('RESOLVED', 'CLOSED')`),
-      this.ds.query(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('OPEN', 'IN_PROGRESS', 'REOPENED')`),
-      this.ds.query(`SELECT title, description FROM complaints`),
+      `, [], []),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('RESOLVED', 'CLOSED')`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('OPEN', 'IN_PROGRESS', 'REOPENED')`, [], [{ c: 0 }]),
+      this.safeQuery(`SELECT title, description FROM complaints`, [], []),
     ]);
 
     let billingCount = 0;
@@ -633,23 +644,23 @@ export class SchoolDashboardService {
 
     return {
       institutes: {
-        total: totalInstitutes[0].c,
-        daily: dailyInstitutes[0].c,
-        weekly: weeklyInstitutes[0].c,
-        monthly: monthlyInstitutes[0].c,
+        total: totalInstitutes[0]?.c || 0,
+        daily: dailyInstitutes[0]?.c || 0,
+        weekly: weeklyInstitutes[0]?.c || 0,
+        monthly: monthlyInstitutes[0]?.c || 0,
       },
       users: {
         total: totalUsersCount,
-        admins: admins[0].c,
-        teachers: teachers[0].c,
-        students: students[0].c,
-        parents: parents[0].c,
+        admins: admins[0]?.c || 0,
+        teachers: teachers[0]?.c || 0,
+        students: students[0]?.c || 0,
+        parents: parents[0]?.c || 0,
         instituteActivity: instituteActivity,
       },
       tickets: {
         total: totalTicketsCount,
-        resolved: resolvedTickets[0].c,
-        open: openTickets[0].c,
+        resolved: resolvedTickets[0]?.c || 0,
+        open: openTickets[0]?.c || 0,
         categories: categories,
       },
     };
