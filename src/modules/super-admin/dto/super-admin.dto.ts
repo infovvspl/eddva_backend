@@ -14,11 +14,11 @@ import {
   Min,
   IsObject,
 } from 'class-validator';
+import { AnnouncementCategory, AnnouncementPriority } from './announcement.enums';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import { AI_FEATURES, AiFeatureKey, TenantPlan, TenantStatus } from '../../../database/entities/tenant.entity';
 import { UserRole, UserStatus } from '../../../database/entities/user.entity';
-
 export class CreateTenantDto {
   @ApiProperty()
   @IsString()
@@ -299,6 +299,16 @@ export class CreateAnnouncementDto {
   @IsOptional()
   @IsString()
   expiresAt?: string;
+
+  @ApiPropertyOptional({ enum: AnnouncementCategory })
+  @IsOptional()
+  @IsEnum(AnnouncementCategory)
+  category?: AnnouncementCategory;
+
+  @ApiPropertyOptional({ enum: AnnouncementPriority })
+  @IsOptional()
+  @IsEnum(AnnouncementPriority)
+  priority?: AnnouncementPriority;
 }
 
 export class AnnouncementListQueryDto {
