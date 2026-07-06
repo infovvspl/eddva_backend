@@ -2,6 +2,35 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
+function getClassRank(className: string): number {
+  if (!className) return 0;
+  const name = String(className).trim().toUpperCase();
+
+  const match = name.match(/(\d+)/);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+
+  if (/\bXII\b/.test(name)) return 12;
+  if (/\bXI\b/.test(name)) return 11;
+  if (/\bX\b/.test(name)) return 10;
+  if (/\bIX\b/.test(name)) return 9;
+  if (/\bVIII\b/.test(name)) return 8;
+  if (/\bVII\b/.test(name)) return 7;
+  if (/\bVI\b/.test(name)) return 6;
+  if (/\bV\b/.test(name)) return 5;
+  if (/\bIV\b/.test(name)) return 4;
+  if (/\bIII\b/.test(name)) return 3;
+  if (/\bII\b/.test(name)) return 2;
+  if (/\bI\b/.test(name)) return 1;
+
+  if (name.includes('NURSERY') || name.includes('PLAY')) return -2;
+  if (name.includes('LKG') || name.includes('L.K.G')) return -1;
+  if (name.includes('UKG') || name.includes('U.K.G')) return 0;
+
+  return 0;
+}
+
 @Injectable()
 export class SchoolStudentPromotionService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
@@ -148,6 +177,15 @@ export class SchoolStudentPromotionService {
       this.ensureSectionBelongsToInstitute(fromSectionId, instituteId),
       this.ensureSectionBelongsToInstitute(toSectionId, instituteId),
     ]);
+
+    const sourceRank = getClassRank(source.className);
+    const destinationRank = getClassRank(destination.className);
+
+    if (destinationRank < sourceRank) {
+      throw new BadRequestException(
+        `Cannot promote students from a higher class (${source.className}) to a lower class (${destination.className}). Destination class must be equal or higher.`,
+      );
+    }
 
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();

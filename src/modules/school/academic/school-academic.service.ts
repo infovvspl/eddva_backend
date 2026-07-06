@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -22,12 +22,12 @@ export class SchoolAcademicService {
   }
 
   private async invalidateClassCaches(instituteId: string) {
-    // Bust the main no-year key and the current academic-year key (covers most callers)
     await Promise.all([
       this.cache.del(this.classListKey(instituteId)),
       this.cache.del(this.classListKey(instituteId, new Date().getFullYear().toString())),
       this.cache.del(this.classListKey(instituteId, '2025-2026')),
       this.cache.del(this.classListKey(instituteId, '2024-2025')),
+      this.cache.del(this.classListKey(instituteId, '2026-2027')),
     ]).catch(() => undefined);
   }
 
@@ -35,7 +35,7 @@ export class SchoolAcademicService {
     await Promise.all([
       this.cache.del(this.sectionListKey(instituteId)),
       this.cache.del(this.sectionListKey(instituteId, classId)),
-      this.classListKey(instituteId), // class list embeds section counts
+      this.cache.del(this.classListKey(instituteId)),
     ]).catch(() => undefined);
     await this.invalidateClassCaches(instituteId);
   }
@@ -50,13 +50,14 @@ export class SchoolAcademicService {
 
   async listClasses(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
-    const cacheKey = this.classListKey(instituteId, query.academicYear);
+    const academicYear = query.academicYear ? String(query.academicYear).trim() : undefined;
+    const cacheKey = this.classListKey(instituteId, academicYear);
     const cached = await this.cache.get(cacheKey);
     if (cached) return cached;
 
     let rows: any[];
 
-    if (query.academicYear) {
+    if (academicYear) {
       rows = await this.ds.query(
         `
         SELECT c.*,
@@ -108,7 +109,7 @@ export class SchoolAcademicService {
           AND c.academic_year = $2
         ORDER BY c.name
         `,
-        [instituteId, query.academicYear],
+        [instituteId, academicYear],
       );
     } else {
       rows = await this.ds.query(
@@ -172,28 +173,75 @@ export class SchoolAcademicService {
 
   async createClass(user: any, body: any) {
     const instituteId = await this.resolveInstituteId(user, body.instituteId);
+    const name = String(body.name || '').trim();
+    if (!name) {
+      throw new BadRequestException('Class name is required');
+    }
+    const academicYear = String(body.academicYear || body.academicYearId || '2025-2026').trim();
 
-    const rows: any[] = await this.ds.query(
-      `INSERT INTO classes (institute_id, name, academic_year) VALUES ($1, $2, $3) RETURNING *`,
-      [instituteId, body.name, body.academicYear || '2025-2026'],
+    // Case-insensitive duplicate check for institute + academicYear + name
+    const existing = await this.ds.query(
+      `SELECT id FROM classes WHERE institute_id = $1 AND academic_year = $2 AND LOWER(TRIM(name)) = LOWER(TRIM($3))`,
+      [instituteId, academicYear, name],
     );
 
-    await this.invalidateClassCaches(instituteId);
-    return { success: true, data: rows[0] };
+    if (existing.length > 0) {
+      throw new ConflictException(`Class '${name}' already exists for academic year ${academicYear}.`);
+    }
+
+    try {
+      const rows: any[] = await this.ds.query(
+        `INSERT INTO classes (institute_id, name, academic_year) VALUES ($1, $2, $3) RETURNING *`,
+        [instituteId, name, academicYear],
+      );
+
+      await this.invalidateClassCaches(instituteId);
+      return { success: true, data: rows[0] };
+    } catch (err: any) {
+      if (err.code === '23505') {
+        throw new ConflictException(`Class '${name}' already exists for academic year ${academicYear}.`);
+      }
+      throw err;
+    }
   }
 
   async updateClass(id: string, body: any) {
-    await this.ds.query(
-      `
-      UPDATE classes
-      SET
-        name = COALESCE($2, name),
-        academic_year = COALESCE($3, academic_year),
-        updated_at = NOW()
-      WHERE id = $1
-      `,
-      [id, body.name, body.academicYear],
-    );
+    const classRows: any[] = await this.ds.query(`SELECT * FROM classes WHERE id=$1`, [id]);
+    if (!classRows.length) {
+      throw new NotFoundException('Class not found');
+    }
+    const current = classRows[0];
+    const newName = body.name !== undefined ? String(body.name).trim() : current.name;
+    const newYear = body.academicYear !== undefined ? String(body.academicYear).trim() : current.academic_year;
+
+    if (newName.toLowerCase() !== current.name.toLowerCase() || newYear !== current.academic_year) {
+      const existing = await this.ds.query(
+        `SELECT id FROM classes WHERE institute_id = $1 AND academic_year = $2 AND LOWER(TRIM(name)) = LOWER(TRIM($3)) AND id != $4`,
+        [current.institute_id, newYear, newName, id],
+      );
+      if (existing.length > 0) {
+        throw new ConflictException(`Class '${newName}' already exists for academic year ${newYear}.`);
+      }
+    }
+
+    try {
+      await this.ds.query(
+        `
+        UPDATE classes
+        SET
+          name = COALESCE($2, name),
+          academic_year = COALESCE($3, academic_year),
+          updated_at = NOW()
+        WHERE id = $1
+        `,
+        [id, newName, newYear],
+      );
+    } catch (err: any) {
+      if (err.code === '23505') {
+        throw new ConflictException(`Class '${newName}' already exists for academic year ${newYear}.`);
+      }
+      throw err;
+    }
 
     const rows = await this.ds.query(
       `
@@ -292,50 +340,88 @@ export class SchoolAcademicService {
   }
 
   async createSection(user: any, body: any) {
-    const academicYear = body.academicYear || '2025-2026';
-
-    const rows: any[] = await this.ds.query(
-      `
-      INSERT INTO sections (
-        class_id,
-        name,
-        academic_year
-      )
-      VALUES ($1, $2, $3)
-      RETURNING *
-      `,
-      [
-        body.classId,
-        body.name,
-        academicYear,
-      ],
-    );
-
-    // Invalidate caches — a new section changes class/section lists
-    if (rows[0]?.class_id) {
-      const classRows: any[] = await this.ds.query(
-        `SELECT institute_id FROM classes WHERE id=$1`, [rows[0].class_id],
-      );
-      if (classRows[0]?.institute_id) {
-        await this.invalidateSectionCaches(classRows[0].institute_id, rows[0].class_id);
-      }
+    const classId = body.classId;
+    const name = String(body.name || '').trim();
+    if (!classId || !name) {
+      throw new BadRequestException('Class ID and Section name are required');
     }
-    return { success: true, data: rows[0] };
+
+    const classRows: any[] = await this.ds.query(`SELECT institute_id, academic_year FROM classes WHERE id=$1`, [classId]);
+    if (!classRows.length) {
+      throw new NotFoundException('Parent class not found');
+    }
+    const parentClass = classRows[0];
+    const academicYear = String(body.academicYear || parentClass.academic_year || '2025-2026').trim();
+
+    const existing = await this.ds.query(
+      `SELECT id FROM sections WHERE class_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))`,
+      [classId, name],
+    );
+    if (existing.length > 0) {
+      throw new ConflictException(`Section '${name}' already exists in this class.`);
+    }
+
+    try {
+      const rows: any[] = await this.ds.query(
+        `
+        INSERT INTO sections (
+          class_id,
+          name,
+          academic_year
+        )
+        VALUES ($1, $2, $3)
+        RETURNING *
+        `,
+        [classId, name, academicYear],
+      );
+
+      if (parentClass.institute_id) {
+        await this.invalidateSectionCaches(parentClass.institute_id, classId);
+      }
+      return { success: true, data: rows[0] };
+    } catch (err: any) {
+      if (err.code === '23505') {
+        throw new ConflictException(`Section '${name}' already exists in this class.`);
+      }
+      throw err;
+    }
   }
 
   async updateSection(id: string, body: any) {
     const secRows: any[] = await this.ds.query(
-      `SELECT sec.class_id, c.institute_id FROM sections sec JOIN classes c ON c.id::text=sec.class_id::text WHERE sec.id=$1`,
+      `SELECT sec.class_id, sec.name, sec.academic_year, c.institute_id FROM sections sec JOIN classes c ON c.id::text=sec.class_id::text WHERE sec.id=$1`,
       [id],
     );
-    await this.ds.query(
-      `UPDATE sections SET name=COALESCE($2,name), academic_year=COALESCE($3,academic_year), updated_at=NOW() WHERE id=$1`,
-      [id, body.name, body.academicYear],
-    );
-    if (secRows[0]?.institute_id) {
-      await this.invalidateSectionCaches(secRows[0].institute_id, secRows[0].class_id);
+    if (!secRows.length) throw new NotFoundException('Section not found');
+    const current = secRows[0];
+    const newName = body.name !== undefined ? String(body.name).trim() : current.name;
+    const newYear = body.academicYear !== undefined ? String(body.academicYear).trim() : current.academic_year;
+
+    if (newName.toLowerCase() !== current.name.toLowerCase()) {
+      const existing = await this.ds.query(
+        `SELECT id FROM sections WHERE class_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2)) AND id != $3`,
+        [current.class_id, newName, id],
+      );
+      if (existing.length > 0) {
+        throw new ConflictException(`Section '${newName}' already exists in this class.`);
+      }
     }
-    return { success: true };
+
+    try {
+      await this.ds.query(
+        `UPDATE sections SET name=COALESCE($2,name), academic_year=COALESCE($3,academic_year), updated_at=NOW() WHERE id=$1`,
+        [id, newName, newYear],
+      );
+      if (current.institute_id) {
+        await this.invalidateSectionCaches(current.institute_id, current.class_id);
+      }
+      return { success: true };
+    } catch (err: any) {
+      if (err.code === '23505') {
+        throw new ConflictException(`Section '${newName}' already exists in this class.`);
+      }
+      throw err;
+    }
   }
 
   async deleteSection(id: string) {
