@@ -456,6 +456,8 @@ export class SchoolLiveService implements OnModuleInit {
   }
 
   async getUserDisplayName(userId: string, fallback = 'User') {
+    // If the JWT already provided a real name, skip the DB round-trip.
+    if (fallback && fallback !== 'User') return fallback;
     const rows = await this.ds.query(
       `SELECT name FROM users WHERE id = $1::uuid LIMIT 1`,
       [userId],

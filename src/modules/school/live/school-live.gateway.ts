@@ -180,6 +180,11 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     const viewerCount = await this.redis.viewerCount(lectureId);
     const students = this.getActiveStudents(lectureId);
     client.emit('teacher-joined', { viewerCount: viewerCount || students.length, students });
+    // If OBS started before the teacher opened/refreshed the page they missed
+    // the stream-started Redis event — emit it directly so the dashboard transitions.
+    if (lecture?.status === 'LIVE') {
+      client.emit('stream-started', { lectureId });
+    }
   }
 
   @SubscribeMessage('chat')
