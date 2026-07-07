@@ -74,20 +74,68 @@ export class CoachingChatService implements OnModuleInit {
   }
 
   private async getCanonicalDmRoom(actorIds: string[], targetPeerIds: string[]): Promise<string | null> {
+    // ----------------------------------------------------------------------
+    // 1️⃣ Primary lookup – both participants already exist in chat_participants
+    // ----------------------------------------------------------------------
     const rooms = await this.ds.query(
-      `SELECT cr.id AS room_id,
-              (SELECT MAX(created_at) FROM chat_messages WHERE room_id::text = cr.id::text) as last_activity
-       FROM chat_rooms cr
-       JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text
-       JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text
-       WHERE cr.room_type = 'DM'
-         AND cp1.user_id::text = ANY($1::text[])
-         AND cp2.user_id::text = ANY($2::text[])
-       ORDER BY last_activity DESC NULLS LAST, cr.created_at DESC
-       LIMIT 1`,
-      [actorIds, targetPeerIds]
+      `
+        SELECT cr.id AS room_id,
+               (SELECT MAX(created_at) FROM chat_messages WHERE room_id::text = cr.id::text) as last_activity
+        FROM chat_rooms cr
+        JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text
+        JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text
+        WHERE cr.room_type = 'DM'
+          AND cp1.user_id::text = ANY($1::text[])
+          AND cp2.user_id::text = ANY($2::text[])
+        ORDER BY last_activity DESC NULLS LAST, cr.created_at DESC
+        LIMIT 1`
+      ,
+      [actorIds, targetPeerIds],
     );
-    return rooms.length ? rooms[0].room_id : null;
+    if (rooms.length) {
+      return rooms[0].room_id;
+    }
+
+    // ----------------------------------------------------------------------
+    // 2️⃣ Fallback lookup – a DM room exists (messages exchanged) but one
+    //    or both participants are missing from chat_participants.
+    // ----------------------------------------------------------------------
+    const fallback = await this.ds.query(
+      `
+        SELECT cr.id AS room_id
+        FROM chat_rooms cr
+        JOIN chat_messages cm ON cm.room_id::text = cr.id::text
+        WHERE cr.room_type = 'DM'
+          AND (
+            (cm.sender_id::text = ANY($1::text[]) AND cm.receiver_id::text = ANY($2::text[]))
+            OR
+            (cm.sender_id::text = ANY($2::text[]) AND cm.receiver_id::text = ANY($1::text[]))
+          )
+        LIMIT 1`,
+      [actorIds, targetPeerIds],
+    );
+    if (!fallback.length) {
+      return null;
+    }
+    const roomId = fallback[0].room_id;
+
+    // ----------------------------------------------------------------------
+    // 3️⃣ Insert missing participant rows – **only** the canonical IDs.
+    // ----------------------------------------------------------------------
+    const canonicalSenderId = actorIds.includes(VIRTUAL_SUPER_ADMIN_ID) ? VIRTUAL_SUPER_ADMIN_ID : actorIds[0];
+    const canonicalPeerId = targetPeerIds.includes(VIRTUAL_SUPER_ADMIN_ID) ? VIRTUAL_SUPER_ADMIN_ID : targetPeerIds[0];
+    const existing = await this.ds.query(
+      `SELECT user_id FROM chat_participants WHERE room_id = $1 AND user_id = ANY($2::text[])`,
+      [roomId, [canonicalSenderId, canonicalPeerId]],
+    );
+    const present = existing.map((r: any) => r.user_id);
+    const missing: string[] = [];
+    if (!present.includes(canonicalSenderId)) missing.push(canonicalSenderId);
+    if (!present.includes(canonicalPeerId)) missing.push(canonicalPeerId);
+    for (const missId of missing) {
+      await this.ds.query(`INSERT INTO chat_participants (room_id, user_id) VALUES ($1, $2)`, [roomId, missId]);
+    }
+    return roomId;
   }
 
   async onModuleInit() {
@@ -204,9 +252,8 @@ export class CoachingChatService implements OnModuleInit {
       crossInstitute ? [role, actorIds] : [user.id, role, user.tenantId],
     );
 
-    const isTeacher = user.role === 'TEACHER';
     const mapped = rows.map(r => ({
-      id: isTeacher ? r.room_id : r.peer_id,
+      id: r.peer_id,
       room_id: r.room_id,
       peer_id: r.peer_id,
       name: r.peer_name,
