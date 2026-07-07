@@ -774,12 +774,17 @@ export class SchoolLiveService implements OnModuleInit {
               recording_duration_seconds AS "durationSeconds",
               recording_size_gb AS "recordingSizeGb",
               thumbnail_url AS "thumbnailKey",
+              recording_url AS "recordingKey",
               created_at AS "createdAt"
        FROM school_live_lectures
-       WHERE institute_id = $1 AND status IN ('PROCESSED', 'ENDED')
+       WHERE institute_id = $1 AND status = 'PROCESSED'
        ORDER BY ended_at DESC NULLS LAST`,
       [user.instituteId],
     );
+  }
+
+  async notifyProcessed(lectureId: string): Promise<void> {
+    await this.redis.publish(SCHOOL_LIVE_CHANNELS.PROCESSED, { lectureId }).catch(() => undefined);
   }
 
   async getRecordingUrl(lectureId: string, user: SchoolUser): Promise<{ url: string; thumbnailUrl: string; durationSeconds: number; expiresIn: number }> {
