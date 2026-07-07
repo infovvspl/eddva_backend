@@ -8,6 +8,7 @@ export const SCHOOL_LIVE_CHANNELS = {
   POLL_CREATED: 'school:lecture:poll_created',
   POLL_VOTED: 'school:lecture:poll_voted',
   POLL_ENDED: 'school:lecture:poll_ended',
+  PROCESSED: 'school:lecture:processed',
 } as const;
 
 /**
