@@ -60,7 +60,7 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
     private readonly jwt: JwtService,
     private readonly svc: LiveBroadcastService,
     private readonly redis: LiveBroadcastRedis,
-  ) {}
+  ) { }
 
   onModuleInit() {
     void this.redis.subscribe<{ lectureId: string }>(LIVE_CHANNELS.LIVE, ({ lectureId }) => {
