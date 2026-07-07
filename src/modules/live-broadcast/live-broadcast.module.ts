@@ -1,10 +1,11 @@
 import { BullModule } from '@nestjs/bull';
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { R2Module } from '../storage/r2.module';
+import { SchoolLiveModule } from '../school/live/school-live.module';
 import { BroadcastChatMessage } from './entities/broadcast-chat-message.entity';
 import { BroadcastLecture } from './entities/broadcast-lecture.entity';
 import { BroadcastParticipant } from './entities/broadcast-participant.entity';
@@ -23,6 +24,7 @@ import { LiveBroadcastService } from './live-broadcast.service';
   imports: [
     ConfigModule,
     R2Module,
+    forwardRef(() => SchoolLiveModule),
     TypeOrmModule.forFeature(
       [
         BroadcastLecture,
