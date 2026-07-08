@@ -371,11 +371,29 @@ export class LiveBroadcastService {
 
   async getChatHistory(lectureId: string, user: AuthUser, limit = 500) {
     await this.getLectureWithAuth(lectureId, user);
-    return this.chatRepo.find({
+    const messages = await this.chatRepo.find({
       where: { lectureId },
       order: { createdAt: 'ASC' },
       take: limit,
     });
+    if (!messages.length) return [];
+    const userIds = Array.from(new Set(messages.map((m) => m.userId)));
+    const users = await this.ds.query(
+      `SELECT id::text, full_name FROM users WHERE id::text = ANY($1::text[])`,
+      [userIds],
+    );
+    const userMap = new Map<string, string>();
+    for (const u of users) {
+      userMap.set(u.id, u.full_name || 'User');
+    }
+    return messages.map((m) => ({
+      id: m.id,
+      lectureId: m.lectureId,
+      userId: m.userId,
+      userName: userMap.get(m.userId) || 'User',
+      text: m.text,
+      createdAt: m.createdAt,
+    }));
   }
 
   // ── participant tracking ──────────────────────────────────────────────────
