@@ -113,9 +113,9 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
   }
 
   private emitParticipants(lectureId: string) {
-    this.server.to(`teacher:${lectureId}`).emit('participants', {
-      students: this.getActiveStudents(lectureId),
-    });
+    const students = this.getActiveStudents(lectureId);
+    this.server.to(`teacher:${lectureId}`).emit('participants', { students });
+    this.server.to(`lecture:${lectureId}`).emit('participants', { students });
   }
 
   // ── student joins ─────────────────────────────────────────────────────────
