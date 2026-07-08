@@ -208,16 +208,22 @@ export class LiveBroadcastService {
 
   async getStreamUrl(lectureId: string, user: AuthUser) {
     const lecture = await this.getLectureWithAuth(lectureId, user);
-    // Direct CDN URL — no expiry (same as school live). Signed URLs are only used for recordings.
-    const cdnBase = (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
-    const url = `${cdnBase}/${lecture.streamKey}/index.m3u8`;
+    const cdnBase    = (this.config.get<string>('streaming.cdnBaseUrl')    || '').replace(/\/$/, '');
+    const cdnBase480 = (this.config.get<string>('streaming.cdnBaseUrl480') || '').replace(/\/$/, '');
+    const cdnBase360 = (this.config.get<string>('streaming.cdnBaseUrl360') || '').replace(/\/$/, '');
+    const key = lecture.streamKey;
     if (String(user.role || '').toLowerCase() === 'student') {
       void this.trackJoin(lectureId, user.id, user.name || 'Student').catch(() => undefined);
     }
     return {
-      url,
+      url: `${cdnBase}/${key}/index.m3u8`,
+      qualities: [
+        { label: 'Auto',  url: `${cdnBase}/${key}/index.m3u8` },
+        ...(cdnBase480 ? [{ label: '480p', url: `${cdnBase480}/${key}/index.m3u8` }] : []),
+        ...(cdnBase360 ? [{ label: '360p', url: `${cdnBase360}/${key}/index.m3u8` }] : []),
+      ],
       status: lecture.status,
-      streamKey: lecture.streamKey,
+      streamKey: key,
       title: lecture.title,
       startedAt: lecture.startedAt,
       createdAt: lecture.createdAt,

@@ -387,10 +387,7 @@ export class NotificationService {
   async sendStreakDangerAlerts() {
     const today = new Date().toISOString().slice(0, 10);
     const students = await this.studentRepo.find({
-      where: {
-        currentStreak: LessThan(Number.MAX_SAFE_INTEGER),
-        lastActiveDate: LessThan(today),
-      },
+      where: { lastActiveDate: LessThan(today) },
       relations: ['user'],
     });
 

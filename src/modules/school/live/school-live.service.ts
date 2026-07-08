@@ -22,6 +22,8 @@ export class SchoolLiveService implements OnModuleInit {
   private readonly logger = new Logger(SchoolLiveService.name);
   private statsTablesReady = false;
   
+  /** Cache of validated HLS stream keys → expiry timestamp (ms). Avoids a DB hit on every .ts segment request. */
+  private readonly hlsKeyCache = new Map<string, number>();
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
@@ -159,7 +161,13 @@ export class SchoolLiveService implements OnModuleInit {
   }
 
   private get cdnBase(): string {
-    return this.config.get<string>('streaming.cdnBaseUrl') || '';
+    return (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
+  }
+  private get cdnBase480(): string {
+    return (this.config.get<string>('streaming.cdnBaseUrl480') || '').replace(/\/$/, '');
+  }
+  private get cdnBase360(): string {
+    return (this.config.get<string>('streaming.cdnBaseUrl360') || '').replace(/\/$/, '');
   }
 
   private playbackUrlFor(streamKey: string): string {
@@ -268,10 +276,16 @@ export class SchoolLiveService implements OnModuleInit {
     if (String(user.role || '').toUpperCase() === 'STUDENT') {
       void this.trackJoin(id, user.id, user.name || 'Student').catch(() => undefined);
     }
+    const key = lecture.streamKey;
     return {
       url: lecture.playbackUrl,
+      qualities: [
+        { label: 'Auto',  url: `${this.cdnBase}/${key}/index.m3u8` },
+        ...(this.cdnBase480 ? [{ label: '480p', url: `${this.cdnBase480}/${key}/index.m3u8` }] : []),
+        ...(this.cdnBase360 ? [{ label: '360p', url: `${this.cdnBase360}/${key}/index.m3u8` }] : []),
+      ],
       status: lecture.status,
-      streamKey: lecture.streamKey,
+      streamKey: key,
       createdAt: lecture.createdAt,
       title: lecture.title,
       startedAt: lecture.startedAt,
@@ -291,12 +305,16 @@ export class SchoolLiveService implements OnModuleInit {
     if (!/^[a-f0-9]{16,64}$/i.test(streamKey)) return null;
     if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
-    // Verify stream key exists before proxying — prevents CDN path enumeration
-    const rows = await this.ds.query(
-      `SELECT id FROM school_live_lectures WHERE stream_key = $1 LIMIT 1`,
-      [streamKey],
-    ).catch(() => []);
-    if (!rows.length) return null;
+    // Verify stream key exists — cache the result for 60s to avoid a DB hit on every .ts segment
+    const cachedUntil = this.hlsKeyCache.get(streamKey);
+    if (!cachedUntil || cachedUntil < Date.now()) {
+      const rows = await this.ds.query(
+        `SELECT id FROM school_live_lectures WHERE stream_key = $1 LIMIT 1`,
+        [streamKey],
+      ).catch(() => []);
+      if (!rows.length) { this.hlsKeyCache.delete(streamKey); return null; }
+      this.hlsKeyCache.set(streamKey, Date.now() + 60_000);
+    }
     try {
       const r = await fetch(`${base}/${streamKey}/${file}`, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) return null;
@@ -429,7 +447,7 @@ export class SchoolLiveService implements OnModuleInit {
     // Fall through to coaching (same nginx application)
     try {
       const coachingRows = await this.coachingDs.query(
-        `SELECT id, inst_id AS "instId" FROM broadcast_lectures WHERE stream_key = $1`,
+        `SELECT id, institute_id AS "instId" FROM broadcast_lectures WHERE stream_key = $1`,
         [streamKey],
       );
       if (coachingRows.length) {

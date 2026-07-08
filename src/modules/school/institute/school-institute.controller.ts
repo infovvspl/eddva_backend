@@ -39,7 +39,7 @@ export class SchoolInstituteController {
   }
 
   @Get(':id')
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   findOne(@Param('id') id: string, @SchoolUser() user: any) {
     const isSuperAdmin = user.role?.toUpperCase() === 'SUPER_ADMIN';
     if (!isSuperAdmin && user.instituteId && user.instituteId !== id) {

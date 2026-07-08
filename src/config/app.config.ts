@@ -101,6 +101,8 @@ export const streamingConfig = registerAs('streaming', () => {
     rtmpSecret,
     serverIp:        process.env.STREAMING_SERVER_IP         || '13.127.31.213',
     serverPrivateIp: process.env.STREAMING_SERVER_PRIVATE_IP || process.env.STREAMING_SERVER_IP || '13.127.31.213',
-    cdnBaseUrl: (process.env.LIVE_CDN_BASE_URL || '').replace(/\/$/, ''),
+    cdnBaseUrl:    (process.env.LIVE_CDN_BASE_URL     || '').replace(/\/$/, ''),
+    cdnBaseUrl480: (process.env.LIVE_CDN_BASE_URL_480 || '').replace(/\/$/, ''),
+    cdnBaseUrl360: (process.env.LIVE_CDN_BASE_URL_360 || '').replace(/\/$/, ''),
   };
 });
