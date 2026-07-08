@@ -6,10 +6,12 @@ dotenv.config();
 const isProd = process.env.NODE_ENV === 'production';
 const defaultDbPoolMax = isProd ? '20' : '5';
 
+if (!process.env.COACHING_DB_URL) throw new Error('COACHING_DB_URL is required');
+if (!process.env.SCHOOL_DB_URL)   throw new Error('SCHOOL_DB_URL is required');
+
 if (isProd && process.env.DB_SYNC === 'true') {
   throw new Error(
-    'DB_SYNC=true is forbidden in production — use migrations instead. ' +
-    'Remove DB_SYNC or set it to false.',
+    'DB_SYNC=true is forbidden in production — use migrations instead.',
   );
 }
 
@@ -18,19 +20,12 @@ export const coachingDbConfig: DataSourceOptions = {
   name: 'coaching',
   type: 'postgres',
   url: process.env.COACHING_DB_URL,
-  host: !process.env.COACHING_DB_URL ? (process.env.DB_HOST || 'localhost') : undefined,
-  port: !process.env.COACHING_DB_URL ? (parseInt(process.env.DB_PORT) || 5432) : undefined,
-  username: !process.env.COACHING_DB_URL ? (process.env.DB_USERNAME || 'postgres') : undefined,
-  password: !process.env.COACHING_DB_URL ? (process.env.DB_PASSWORD || 'postgres') : undefined,
-  database: !process.env.COACHING_DB_URL ? (process.env.DB_NAME || 'apexiq') : undefined,
   synchronize: false,
   logging: process.env.DB_LOGGING === 'true',
   ssl: { rejectUnauthorized: false },
   extra: {
     max: parseInt(process.env.DB_POOL_MAX || defaultDbPoolMax),
-    // Keep connections warm: avoid the ~1.2s TLS reconnect on every short idle gap
-    // (the dominant latency cost when running locally against RDS in Mumbai).
-    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '300000'), // 5 min
+    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '300000'),
     connectionTimeoutMillis: 15_000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
@@ -51,8 +46,7 @@ export const schoolDbConfig: DataSourceOptions = {
   ssl: { rejectUnauthorized: false },
   extra: {
     max: parseInt(process.env.SCHOOL_DB_POOL_MAX || defaultDbPoolMax),
-    // Keep connections warm to avoid the ~1.2s TLS reconnect on short idle gaps.
-    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '300000'), // 5 min
+    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '300000'),
     connectionTimeoutMillis: 30_000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,

@@ -26,7 +26,9 @@ export class StorageService {
       this.s3 = new S3Client({
         region: 'auto',
         endpoint: `https://${r2.accountId}.r2.cloudflarestorage.com`,
-        credentials: { accessKeyId: r2.accessKeyId, secretAccessKey: r2.secretAccessKey },
+        ...(r2.accessKeyId && r2.secretAccessKey ? {
+          credentials: { accessKeyId: r2.accessKeyId, secretAccessKey: r2.secretAccessKey }
+        } : {}),
       });
     } else {
       // Default: AWS S3
@@ -39,7 +41,9 @@ export class StorageService {
       this.publicUrl = (s3.publicUrl || `https://${s3.bucketName}.s3.${s3.region}.amazonaws.com`).replace(/\/$/, '');
       this.s3 = new S3Client({
         region: s3.region,
-        credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey },
+        ...(s3.accessKeyId && s3.secretAccessKey ? {
+          credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey }
+        } : {}),
       });
     }
   }
@@ -104,6 +108,12 @@ export class StorageService {
 
   /** Generate a time-limited signed GET URL for a private object. */
   async getPresignedUrl(key: string, expiresInSeconds: number): Promise<string> {
+    const provider = (this.config.get<string>('storage.provider') || 's3').toLowerCase();
+    const cfg = this.config.get(`storage.${provider}`) as any;
+    if (!cfg?.accessKeyId || !cfg?.secretAccessKey) {
+      this.logger.warn(`Skipping presign for ${key} because credentials are not configured.`);
+      return `${this.publicUrl}/${key}`;
+    }
     const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
     return getSignedUrl(this.s3 as any, command as any, { expiresIn: expiresInSeconds });
   }

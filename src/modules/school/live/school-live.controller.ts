@@ -1,3 +1,4 @@
+import { SkipThrottle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -212,6 +213,7 @@ export class SchoolLiveStreamHookController {
  * and the underlying R2 content is already public — we only add the CORS
  * headers R2's pub domain omits.
  */
+@SkipThrottle()
 @Controller('school/live')
 export class SchoolLiveHlsController {
   constructor(private readonly svc: SchoolLiveService) {}
