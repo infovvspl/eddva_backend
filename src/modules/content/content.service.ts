@@ -1385,14 +1385,44 @@ ${notes.slice(0, 4000)}`,
         if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
             throw new ForbiddenException('AI transcription is not enabled for your institution.');
         }
-        if (lecture.type !== LectureType.RECORDED || !lecture.videoUrl) {
+
+        let videoUrl = lecture.videoUrl;
+        if (lecture.type === LectureType.LIVE) {
+            const rows = await this.dataSource.query(
+                `SELECT * FROM broadcast_lectures WHERE title = $1 AND batch_id = $2 AND institute_id = $3 AND status = 'PROCESSED' LIMIT 1`,
+                [lecture.title, lecture.batchId, tenantId]
+            );
+            const broadcast = rows[0];
+            if (!broadcast || !broadcast.recording_r2_path) {
+                throw new BadRequestException('Recording is not processed yet for this live stream');
+            }
+            // Sign the R2 path
+            const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
+            const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+            const client = new S3Client({
+                endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+                region: 'auto',
+                credentials: {
+                    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+                    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+                },
+                requestChecksumCalculation: 'WHEN_REQUIRED' as any,
+                responseChecksumValidation: 'WHEN_REQUIRED' as any,
+            });
+            const command = new GetObjectCommand({
+                Bucket: process.env.R2_RECORDINGS_BUCKET || 'edva-recordings',
+                Key: broadcast.recording_r2_path,
+            });
+            videoUrl = await getSignedUrl(client as any, command as any, { expiresIn: 14400 });
+        } else if (lecture.type !== LectureType.RECORDED || !videoUrl) {
             throw new BadRequestException('Only recorded lectures with a video URL can be transcribed');
         }
+
         if (lecture.transcriptStatus === TranscriptStatus.PROCESSING) {
             return { message: 'Transcription already in progress' };
         }
         await this.lectureRepo.update(id, { transcriptStatus: TranscriptStatus.PROCESSING });
-        this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => { });
+        this._processLectureAI(id, videoUrl, lecture.topicId, tenantId).catch(() => { });
         return { message: 'Transcription started' };
     }
 
