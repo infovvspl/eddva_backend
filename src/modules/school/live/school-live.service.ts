@@ -415,7 +415,7 @@ export class SchoolLiveService implements OnModuleInit {
     // Fall through to coaching (same nginx application)
     try {
       const coachingRows = await this.coachingDs.query(
-        `SELECT id, inst_id AS "instId" FROM broadcast_lectures WHERE stream_key = $1`,
+        `SELECT id, institute_id AS "instId" FROM broadcast_lectures WHERE stream_key = $1`,
         [streamKey],
       );
       if (coachingRows.length) {
