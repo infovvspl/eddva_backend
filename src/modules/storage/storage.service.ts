@@ -1,8 +1,10 @@
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomBytes } from 'crypto';
 import { extname } from 'path';
+import type { Readable } from 'stream';
 
 @Injectable()
 export class StorageService {
@@ -70,6 +72,40 @@ export class StorageService {
     const url = `${this.publicUrl}/${key}`;
     this.logger.log(`Uploaded ${key} → ${url}`);
     return { url, key };
+  }
+
+  /** Stream-upload a large file (video/audio) without buffering in RAM. */
+  async putStream(
+    key: string,
+    body: Readable,
+    contentType: string,
+    contentLength: number,
+  ): Promise<string> {
+    try {
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: body as any,
+          ContentType: contentType,
+          ContentLength: contentLength,
+          CacheControl: 'public, max-age=31536000',
+        }),
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Storage stream-upload failed [${key}]: ${msg}`);
+      throw new InternalServerErrorException('File upload failed');
+    }
+    const url = `${this.publicUrl}/${key}`;
+    this.logger.log(`Uploaded ${key} → ${url}`);
+    return url;
+  }
+
+  /** Generate a time-limited signed GET URL for a private object. */
+  async getPresignedUrl(key: string, expiresInSeconds: number): Promise<string> {
+    const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
+    return getSignedUrl(this.s3 as any, command as any, { expiresIn: expiresInSeconds });
   }
 
   async deleteFile(key: string): Promise<void> {

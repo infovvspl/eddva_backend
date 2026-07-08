@@ -180,6 +180,9 @@ export class LiveBroadcastService {
       subjectId: l.subjectId,
       subjectName: l.subjectName,
       description: l.description,
+      hasRecording: l.status === BroadcastStatus.PROCESSED,
+      durationSeconds: l.durationSeconds ?? null,
+      recordingSizeGb: l.recordingSizeGb ?? null,
       ...(l.teacherId === user.id || user.role === UserRole.INSTITUTE_ADMIN || user.role === UserRole.SUPER_ADMIN
         ? { streamKey: l.streamKey, rtmpUrl: `rtmp://${serverIp}/live` }
         : {}),
