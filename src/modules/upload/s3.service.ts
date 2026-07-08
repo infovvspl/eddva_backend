@@ -38,7 +38,9 @@ export class S3Service implements OnModuleInit {
       this.client = new S3Client({
         endpoint: `https://${r2.accountId}.r2.cloudflarestorage.com`,
         region: 'auto',
-        credentials: { accessKeyId: r2.accessKeyId, secretAccessKey: r2.secretAccessKey },
+        ...(r2.accessKeyId && r2.secretAccessKey ? {
+          credentials: { accessKeyId: r2.accessKeyId, secretAccessKey: r2.secretAccessKey }
+        } : {}),
         requestChecksumCalculation: 'WHEN_REQUIRED' as any,
         responseChecksumValidation: 'WHEN_REQUIRED' as any,
       });
@@ -48,7 +50,9 @@ export class S3Service implements OnModuleInit {
       this.publicUrl = s3.publicUrl;
       this.client = new S3Client({
         region: s3.region,
-        credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey },
+        ...(s3.accessKeyId && s3.secretAccessKey ? {
+          credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey }
+        } : {}),
         // SDK v3.729+ adds x-amz-checksum-crc32 to presigned URLs by default.
         // Browsers can't compute/send that header, so S3 rejects the PUT.
         requestChecksumCalculation: 'WHEN_REQUIRED' as any,
@@ -62,6 +66,17 @@ export class S3Service implements OnModuleInit {
   }
 
   async presign(key: string, contentType: string): Promise<PresignResult> {
+    const provider = (this.config.get<string>('storage.provider') || 's3').toLowerCase();
+    const cfg = this.config.get(`storage.${provider}`) as any;
+    
+    if (!cfg?.accessKeyId || !cfg?.secretAccessKey) {
+      this.logger.warn(`Skipping presign for ${key} because credentials are not configured.`);
+      return {
+        uploadUrl: this.toPublicUrl(key),
+        fileUrl: this.toPublicUrl(key),
+      };
+    }
+
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -112,6 +127,13 @@ export class S3Service implements OnModuleInit {
 
   /** Generate a presigned GET URL so private S3 objects can be downloaded by the browser. */
   async presignDownload(key: string, filename?: string): Promise<string> {
+    const provider = (this.config.get<string>('storage.provider') || 's3').toLowerCase();
+    const cfg = this.config.get(`storage.${provider}`) as any;
+    if (!cfg?.accessKeyId || !cfg?.secretAccessKey) {
+      this.logger.warn(`Skipping presignDownload for ${key} because credentials are not configured.`);
+      return this.toPublicUrl(key);
+    }
+    
     const disposition = filename
       ? `attachment; filename="${filename.replace(/"/g, '')}"`
       : 'attachment';
@@ -125,6 +147,13 @@ export class S3Service implements OnModuleInit {
 
   /** Presigned GET URL with configurable TTL (e.g. study material full PDF download). */
   async presignGet(key: string, expiresIn = 900): Promise<string> {
+    const provider = (this.config.get<string>('storage.provider') || 's3').toLowerCase();
+    const cfg = this.config.get(`storage.${provider}`) as any;
+    if (!cfg?.accessKeyId || !cfg?.secretAccessKey) {
+      this.logger.warn(`Skipping presignGet for ${key} because credentials are not configured.`);
+      return this.toPublicUrl(key);
+    }
+    
     const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
     return getSignedUrl(this.client as any, command, { expiresIn });
   }
