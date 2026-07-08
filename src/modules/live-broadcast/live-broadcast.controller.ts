@@ -1,3 +1,4 @@
+import { SkipThrottle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -178,6 +179,7 @@ export class LectureController {
  * segments via plain media requests with no auth header. The underlying CDN
  * content is public; we only add the CORS headers it omits.
  */
+@SkipThrottle()
 @ApiTags('live-broadcast')
 @Controller('lectures')
 export class LectureHlsController {
