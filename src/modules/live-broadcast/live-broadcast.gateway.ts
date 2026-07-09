@@ -60,7 +60,7 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
     private readonly jwt: JwtService,
     private readonly svc: LiveBroadcastService,
     private readonly redis: LiveBroadcastRedis,
-  ) {}
+  ) { }
 
   onModuleInit() {
     void this.redis.subscribe<{ lectureId: string }>(LIVE_CHANNELS.LIVE, ({ lectureId }) => {
@@ -72,6 +72,7 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
       this.activeStudents.delete(lectureId);
     });
     void this.redis.subscribe<{ lectureId: string }>(LIVE_CHANNELS.PROCESSED, ({ lectureId }) => {
+      this.server.to(`teacher:${lectureId}`).emit('recording-ready', { lectureId });
       this.server.to(`lecture:${lectureId}`).emit('recording-ready', { lectureId });
     });
     void this.redis.subscribe<{ lectureId: string; poll: any }>(LIVE_CHANNELS.POLL_CREATED, ({ lectureId, poll }) => {
@@ -113,9 +114,9 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
   }
 
   private emitParticipants(lectureId: string) {
-    this.server.to(`teacher:${lectureId}`).emit('participants', {
-      students: this.getActiveStudents(lectureId),
-    });
+    const students = this.getActiveStudents(lectureId);
+    this.server.to(`teacher:${lectureId}`).emit('participants', { students });
+    this.server.to(`lecture:${lectureId}`).emit('participants', { students });
   }
 
   // ── student joins ─────────────────────────────────────────────────────────

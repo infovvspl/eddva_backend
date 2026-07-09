@@ -14,7 +14,7 @@
 
 STREAM_KEY="$1"
 FLV_PATH="$2"
-RECORDINGS_DIR="/tmp/recordings"
+RECORDINGS_DIR="/var/recordings"
 MP4_TMP="${RECORDINGS_DIR}/${STREAM_KEY}.mp4.tmp"
 MP4_FINAL="${RECORDINGS_DIR}/${STREAM_KEY}.mp4"
 
@@ -36,7 +36,7 @@ echo "[rtmp_record_done] converting $FLV_PATH → $MP4_FINAL"
 # -c copy = no re-encode (fast), -movflags faststart = HTTP streaming friendly.
 # Write to .tmp first so the app server only sees a complete file.
 ffmpeg -y -i "$FLV_PATH" \
-  -c:v copy -c:a copy \
+  -f mp4 -c:v copy -c:a copy \
   -movflags +faststart \
   "$MP4_TMP" 2>>/var/log/rtmp_record_done.log
 

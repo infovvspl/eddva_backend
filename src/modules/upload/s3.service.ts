@@ -29,29 +29,54 @@ export class S3Service implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}
 
   async onModuleInit() {
-    const cfg = this.config.get('storage.s3');
-    this.bucket = cfg.bucketName;
-    this.publicUrl = cfg.publicUrl;
+    const provider = (this.config.get<string>('storage.provider') || 's3').toLowerCase();
 
-    this.client = new S3Client({
-      region: cfg.region,
-      credentials: {
-        accessKeyId: cfg.accessKeyId,
-        secretAccessKey: cfg.secretAccessKey,
-      },
-      // SDK v3.729+ adds x-amz-checksum-crc32 to presigned URLs by default.
-      // Browsers can't compute/send that header, so S3 rejects the PUT.
-      // Setting WHEN_REQUIRED disables the automatic checksum injection.
-      requestChecksumCalculation: 'WHEN_REQUIRED' as any,
-      responseChecksumValidation: 'WHEN_REQUIRED' as any,
-    });
+    if (provider === 'r2') {
+      const r2 = this.config.get('storage.r2');
+      this.bucket    = r2.bucketName;
+      this.publicUrl = (r2.publicUrl || '').replace(/\/$/, '');
+      this.client = new S3Client({
+        endpoint: `https://${r2.accountId}.r2.cloudflarestorage.com`,
+        region: 'auto',
+        ...(r2.accessKeyId && r2.secretAccessKey ? {
+          credentials: { accessKeyId: r2.accessKeyId, secretAccessKey: r2.secretAccessKey }
+        } : {}),
+        requestChecksumCalculation: 'WHEN_REQUIRED' as any,
+        responseChecksumValidation: 'WHEN_REQUIRED' as any,
+      });
+    } else {
+      const s3 = this.config.get('storage.s3');
+      this.bucket    = s3.bucketName;
+      this.publicUrl = s3.publicUrl;
+      this.client = new S3Client({
+        region: s3.region,
+        ...(s3.accessKeyId && s3.secretAccessKey ? {
+          credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey }
+        } : {}),
+        // SDK v3.729+ adds x-amz-checksum-crc32 to presigned URLs by default.
+        // Browsers can't compute/send that header, so S3 rejects the PUT.
+        requestChecksumCalculation: 'WHEN_REQUIRED' as any,
+        responseChecksumValidation: 'WHEN_REQUIRED' as any,
+      });
+    }
 
     void this.validateBucket().catch((err) => {
-      this.logger.warn(`S3 bucket validation skipped: ${(err as Error).message}`);
+      this.logger.warn(`Bucket validation skipped: ${(err as Error).message}`);
     });
   }
 
   async presign(key: string, contentType: string): Promise<PresignResult> {
+    const provider = (this.config.get<string>('storage.provider') || 's3').toLowerCase();
+    const cfg = this.config.get(`storage.${provider}`) as any;
+    
+    if (!cfg?.accessKeyId || !cfg?.secretAccessKey) {
+      this.logger.warn(`Skipping presign for ${key} because credentials are not configured.`);
+      return {
+        uploadUrl: this.toPublicUrl(key),
+        fileUrl: this.toPublicUrl(key),
+      };
+    }
+
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -102,6 +127,13 @@ export class S3Service implements OnModuleInit {
 
   /** Generate a presigned GET URL so private S3 objects can be downloaded by the browser. */
   async presignDownload(key: string, filename?: string): Promise<string> {
+    const provider = (this.config.get<string>('storage.provider') || 's3').toLowerCase();
+    const cfg = this.config.get(`storage.${provider}`) as any;
+    if (!cfg?.accessKeyId || !cfg?.secretAccessKey) {
+      this.logger.warn(`Skipping presignDownload for ${key} because credentials are not configured.`);
+      return this.toPublicUrl(key);
+    }
+    
     const disposition = filename
       ? `attachment; filename="${filename.replace(/"/g, '')}"`
       : 'attachment';
@@ -115,6 +147,13 @@ export class S3Service implements OnModuleInit {
 
   /** Presigned GET URL with configurable TTL (e.g. study material full PDF download). */
   async presignGet(key: string, expiresIn = 900): Promise<string> {
+    const provider = (this.config.get<string>('storage.provider') || 's3').toLowerCase();
+    const cfg = this.config.get(`storage.${provider}`) as any;
+    if (!cfg?.accessKeyId || !cfg?.secretAccessKey) {
+      this.logger.warn(`Skipping presignGet for ${key} because credentials are not configured.`);
+      return this.toPublicUrl(key);
+    }
+    
     const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
     return getSignedUrl(this.client as any, command, { expiresIn });
   }
@@ -169,14 +208,12 @@ export class S3Service implements OnModuleInit {
   }
 
   private async validateBucket() {
+    const provider = (this.config.get<string>('storage.provider') || 's3').toUpperCase();
     try {
       await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
-      this.logger.log(`S3 bucket "${this.bucket}" (${this.config.get('storage.s3.region')}) connected`);
+      this.logger.log(`${provider} bucket "${this.bucket}" connected`);
     } catch (err) {
-      this.logger.error(
-        `S3 bucket "${this.bucket}" not reachable: ${err.name}: ${err.message}. ` +
-        'Check AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, and S3_BUCKET_NAME.',
-      );
+      this.logger.error(`${provider} bucket "${this.bucket}" not reachable: ${err.name}: ${err.message}`);
     }
   }
 }

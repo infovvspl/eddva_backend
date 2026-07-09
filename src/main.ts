@@ -241,11 +241,12 @@ async function bootstrap() {
 
     await coachingDs.query(`
       CREATE TABLE IF NOT EXISTS "broadcast_poll_votes" (
-        "id"       UUID        NOT NULL DEFAULT gen_random_uuid(),
-        "poll_id"  UUID        NOT NULL,
-        "user_id"  UUID        NOT NULL,
-        "user_name" VARCHAR(200) NOT NULL,
-        "option"   VARCHAR(200) NOT NULL,
+        "id"         UUID        NOT NULL DEFAULT gen_random_uuid(),
+        "poll_id"    UUID        NOT NULL,
+        "user_id"    UUID        NOT NULL,
+        "user_name"  VARCHAR(200) NOT NULL,
+        "option"     VARCHAR(200) NOT NULL,
+        "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
         CONSTRAINT "PK_broadcast_poll_votes" PRIMARY KEY ("id"),
         CONSTRAINT "UQ_broadcast_poll_votes_user" UNIQUE ("poll_id", "user_id")
       )

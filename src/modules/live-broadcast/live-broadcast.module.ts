@@ -4,8 +4,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { NotificationModule } from '../notification/notification.module';
 import { R2Module } from '../storage/r2.module';
 import { SchoolLiveModule } from '../school/live/school-live.module';
+import { LiveClassReminderScheduler } from './live-class-reminder.scheduler';
 import { BroadcastChatMessage } from './entities/broadcast-chat-message.entity';
 import { BroadcastLecture } from './entities/broadcast-lecture.entity';
 import { BroadcastParticipant } from './entities/broadcast-participant.entity';
@@ -24,6 +26,7 @@ import { LiveBroadcastService } from './live-broadcast.service';
   imports: [
     ConfigModule,
     R2Module,
+    NotificationModule,
     forwardRef(() => SchoolLiveModule),
     TypeOrmModule.forFeature(
       [
@@ -45,7 +48,7 @@ import { LiveBroadcastService } from './live-broadcast.service';
     }),
   ],
   controllers: [LectureController, LectureHlsController, StreamHookController],
-  providers: [LiveBroadcastService, LiveBroadcastRedis, LiveBroadcastGateway, RecordingProcessor],
+  providers: [LiveBroadcastService, LiveBroadcastRedis, LiveBroadcastGateway, RecordingProcessor, LiveClassReminderScheduler],
   exports: [LiveBroadcastService],
 })
 export class LiveBroadcastModule {}

@@ -93,6 +93,7 @@ export class RecordingProcessor {
           durationSeconds: Math.floor(meta.duration),
           recordingSizeGb: recSize / 1e9,
         });
+        await this.schoolSvc.notifyProcessed(lectureId);
       } else {
         await this.svc.markProcessed(lectureId, {
           recordingR2Path: recKey,

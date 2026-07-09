@@ -7,8 +7,8 @@ import { Queue } from 'bull';
 import { DataSource } from 'typeorm';
 import { RECORDING_JOB, RECORDINGS_QUEUE } from '../../live-broadcast/live-broadcast.constants';
 import { R2Service } from '../../storage/r2.service';
-
 import { SCHOOL_LIVE_CHANNELS, SchoolLiveRedis } from './school-live.redis';
+import { SchoolClassService } from '../class/school-class.service';
 
 interface SchoolUser {
   id: string;
@@ -21,6 +21,9 @@ interface SchoolUser {
 export class SchoolLiveService implements OnModuleInit {
   private readonly logger = new Logger(SchoolLiveService.name);
   private statsTablesReady = false;
+  
+  /** Cache of validated HLS stream keys → expiry timestamp (ms). Avoids a DB hit on every .ts segment request. */
+  private readonly hlsKeyCache = new Map<string, number>();
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
@@ -29,6 +32,7 @@ export class SchoolLiveService implements OnModuleInit {
     private readonly redis: SchoolLiveRedis,
     private readonly config: ConfigService,
     private readonly r2: R2Service,
+    private readonly classSvc: SchoolClassService,
   ) {}
 
   /** School DB has synchronize:false — self-create our tables. */
@@ -157,7 +161,13 @@ export class SchoolLiveService implements OnModuleInit {
   }
 
   private get cdnBase(): string {
-    return this.config.get<string>('streaming.cdnBaseUrl') || '';
+    return (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
+  }
+  private get cdnBase480(): string {
+    return (this.config.get<string>('streaming.cdnBaseUrl480') || '').replace(/\/$/, '');
+  }
+  private get cdnBase360(): string {
+    return (this.config.get<string>('streaming.cdnBaseUrl360') || '').replace(/\/$/, '');
   }
 
   private playbackUrlFor(streamKey: string): string {
@@ -214,12 +224,21 @@ export class SchoolLiveService implements OnModuleInit {
 
   async listLectures(user: SchoolUser) {
     const rows = await this.ds.query(
-      `SELECT id, title, status, stream_key AS "streamKey", playback_url AS "playbackUrl",
-              teacher_id AS "teacherId", started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt",
-              scheduled_for AS "scheduledFor", class_id AS "classId", section_id AS "sectionId",
-              subject_id AS "subjectId", description,
-              class_name AS "className", section_name AS "sectionName", subject_name AS "subjectName"
-       FROM school_live_lectures WHERE institute_id = $1 ORDER BY created_at DESC`,
+      `SELECT l.id, l.title, l.status, l.stream_key AS "streamKey", l.playback_url AS "playbackUrl",
+              l.teacher_id AS "teacherId", l.started_at AS "startedAt", l.ended_at AS "endedAt", l.created_at AS "createdAt",
+              l.scheduled_for AS "scheduledFor", l.class_id AS "classId", l.section_id AS "sectionId",
+              l.subject_id AS "subjectId", l.description,
+              l.class_name AS "className", l.section_name AS "sectionName", l.subject_name AS "subjectName",
+              l.recording_url AS "recordingUrl",
+              r.id AS "classRecordingId",
+              r.notes AS "notes",
+              r.notes_status AS "notesStatus",
+              r.transcript_status AS "transcriptStatus",
+              r.quiz_status AS "quizStatus",
+              r.language AS "language"
+       FROM school_live_lectures l
+       LEFT JOIN class_recordings r ON r.video_url = l.recording_url
+       WHERE l.institute_id = $1 ORDER BY l.created_at DESC`,
       [user.instituteId],
     );
     const rtmpUrl = `rtmp://${this.config.get<string>('streaming.serverIp')}/live`;
@@ -257,10 +276,16 @@ export class SchoolLiveService implements OnModuleInit {
     if (String(user.role || '').toUpperCase() === 'STUDENT') {
       void this.trackJoin(id, user.id, user.name || 'Student').catch(() => undefined);
     }
+    const key = lecture.streamKey;
     return {
       url: lecture.playbackUrl,
+      qualities: [
+        { label: 'Auto',  url: `${this.cdnBase}/${key}/index.m3u8` },
+        ...(this.cdnBase480 ? [{ label: '480p', url: `${this.cdnBase480}/${key}/index.m3u8` }] : []),
+        ...(this.cdnBase360 ? [{ label: '360p', url: `${this.cdnBase360}/${key}/index.m3u8` }] : []),
+      ],
       status: lecture.status,
-      streamKey: lecture.streamKey,
+      streamKey: key,
       createdAt: lecture.createdAt,
       title: lecture.title,
       startedAt: lecture.startedAt,
@@ -280,12 +305,16 @@ export class SchoolLiveService implements OnModuleInit {
     if (!/^[a-f0-9]{16,64}$/i.test(streamKey)) return null;
     if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
-    // Verify stream key exists before proxying — prevents CDN path enumeration
-    const rows = await this.ds.query(
-      `SELECT id FROM school_live_lectures WHERE stream_key = $1 LIMIT 1`,
-      [streamKey],
-    ).catch(() => []);
-    if (!rows.length) return null;
+    // Verify stream key exists — cache the result for 60s to avoid a DB hit on every .ts segment
+    const cachedUntil = this.hlsKeyCache.get(streamKey);
+    if (!cachedUntil || cachedUntil < Date.now()) {
+      const rows = await this.ds.query(
+        `SELECT id FROM school_live_lectures WHERE stream_key = $1 LIMIT 1`,
+        [streamKey],
+      ).catch(() => []);
+      if (!rows.length) { this.hlsKeyCache.delete(streamKey); return null; }
+      this.hlsKeyCache.set(streamKey, Date.now() + 60_000);
+    }
     try {
       const r = await fetch(`${base}/${streamKey}/${file}`, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) return null;
@@ -394,7 +423,10 @@ export class SchoolLiveService implements OnModuleInit {
       const lectureId: string = rows[0].id;
       const instId: string = rows[0].instId || '';
       await this.ds.query(
-        `UPDATE school_live_lectures SET status = 'ENDED', ended_at = now() WHERE id = $1`,
+        `UPDATE school_live_lectures
+         SET status = CASE WHEN status = 'PROCESSED' THEN status ELSE 'ENDED' END,
+             ended_at = COALESCE(ended_at, now())
+         WHERE id = $1`,
         [lectureId],
       );
       await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId });
@@ -415,7 +447,7 @@ export class SchoolLiveService implements OnModuleInit {
     // Fall through to coaching (same nginx application)
     try {
       const coachingRows = await this.coachingDs.query(
-        `SELECT id, inst_id AS "instId" FROM broadcast_lectures WHERE stream_key = $1`,
+        `SELECT id, institute_id AS "instId" FROM broadcast_lectures WHERE stream_key = $1`,
         [streamKey],
       );
       if (coachingRows.length) {
@@ -766,23 +798,46 @@ export class SchoolLiveService implements OnModuleInit {
        WHERE id = $1`,
       [lectureId, data.recordingUrl, data.thumbnailUrl, data.durationSeconds, data.recordingSizeGb],
     );
+
+    try {
+      const lectureRows = await this.ds.query(`SELECT * FROM school_live_lectures WHERE id = $1`, [lectureId]);
+      if (lectureRows.length > 0) {
+        await this.classSvc.createFromLiveBroadcast(lectureRows[0], data);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Failed to delegate processed stream ${lectureId} to class recordings: ${err.message}`);
+    }
   }
 
   async listRecordings(user: SchoolUser) {
-    return this.ds.query(
-      `SELECT id, title, status,
-              teacher_id AS "teacherId",
-              class_name AS "className", section_name AS "sectionName", subject_name AS "subjectName",
-              started_at AS "startedAt", ended_at AS "endedAt",
-              recording_duration_seconds AS "durationSeconds",
-              recording_size_gb AS "recordingSizeGb",
-              thumbnail_url AS "thumbnailKey",
-              created_at AS "createdAt"
-       FROM school_live_lectures
-       WHERE institute_id = $1 AND status IN ('PROCESSED', 'ENDED')
-       ORDER BY ended_at DESC NULLS LAST`,
+    const rows = await this.ds.query(
+      `SELECT l.id, l.title,
+              CASE WHEN l.recording_url IS NOT NULL THEN 'PROCESSED' ELSE l.status END AS status,
+              l.teacher_id AS "teacherId", r.id AS "classRecordingId",
+              l.class_name AS "className", l.section_name AS "sectionName", l.subject_name AS "subjectName",
+              l.started_at AS "startedAt", l.ended_at AS "endedAt",
+              l.recording_duration_seconds AS "durationSeconds",
+              l.recording_size_gb AS "recordingSizeGb",
+              l.thumbnail_url AS "thumbnailKey",
+              l.recording_url AS "recordingKey",
+              l.created_at AS "createdAt"
+       FROM school_live_lectures l
+       LEFT JOIN class_recordings r ON r.video_url = l.recording_url
+       WHERE l.institute_id = $1
+         AND l.recording_url IS NOT NULL
+       ORDER BY l.ended_at DESC NULLS LAST`,
       [user.instituteId],
     );
+    return Promise.all(rows.map(async (row: any) => ({
+      ...row,
+      thumbnailKey: row.thumbnailKey
+        ? await this.r2.getSignedUrl(this.r2.recordingsBucket, row.thumbnailKey, 14400)
+        : null,
+    })));
+  }
+
+  async notifyProcessed(lectureId: string): Promise<void> {
+    await this.redis.publish(SCHOOL_LIVE_CHANNELS.PROCESSED, { lectureId }).catch(() => undefined);
   }
 
   async getRecordingUrl(lectureId: string, user: SchoolUser): Promise<{ url: string; thumbnailUrl: string; durationSeconds: number; expiresIn: number }> {
@@ -798,7 +853,7 @@ export class SchoolLiveService implements OnModuleInit {
     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
       throw new NotFoundException('Lecture not found');
     }
-    if (lecture.status !== 'PROCESSED') throw new ForbiddenException('Recording is not ready yet');
+    if (!lecture.recordingUrl) throw new ForbiddenException('Recording is not ready yet');
 
     const expiresIn = 14400; // 4 hours
     const recKey  = lecture.recordingUrl  || `school-recordings/${lecture.instituteId}/${lectureId}/lecture.mp4`;

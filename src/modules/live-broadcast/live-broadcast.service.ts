@@ -180,6 +180,9 @@ export class LiveBroadcastService {
       subjectId: l.subjectId,
       subjectName: l.subjectName,
       description: l.description,
+      hasRecording: l.status === BroadcastStatus.PROCESSED,
+      durationSeconds: l.durationSeconds ?? null,
+      recordingSizeGb: l.recordingSizeGb ?? null,
       ...(l.teacherId === user.id || user.role === UserRole.INSTITUTE_ADMIN || user.role === UserRole.SUPER_ADMIN
         ? { streamKey: l.streamKey, rtmpUrl: `rtmp://${serverIp}/live` }
         : {}),
@@ -205,16 +208,22 @@ export class LiveBroadcastService {
 
   async getStreamUrl(lectureId: string, user: AuthUser) {
     const lecture = await this.getLectureWithAuth(lectureId, user);
-    // Direct CDN URL — no expiry (same as school live). Signed URLs are only used for recordings.
-    const cdnBase = (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
-    const url = `${cdnBase}/${lecture.streamKey}/index.m3u8`;
+    const cdnBase    = (this.config.get<string>('streaming.cdnBaseUrl')    || '').replace(/\/$/, '');
+    const cdnBase480 = (this.config.get<string>('streaming.cdnBaseUrl480') || '').replace(/\/$/, '');
+    const cdnBase360 = (this.config.get<string>('streaming.cdnBaseUrl360') || '').replace(/\/$/, '');
+    const key = lecture.streamKey;
     if (String(user.role || '').toLowerCase() === 'student') {
       void this.trackJoin(lectureId, user.id, user.name || 'Student').catch(() => undefined);
     }
     return {
-      url,
+      url: `${cdnBase}/${key}/index.m3u8`,
+      qualities: [
+        { label: 'Auto',  url: `${cdnBase}/${key}/index.m3u8` },
+        ...(cdnBase480 ? [{ label: '480p', url: `${cdnBase480}/${key}/index.m3u8` }] : []),
+        ...(cdnBase360 ? [{ label: '360p', url: `${cdnBase360}/${key}/index.m3u8` }] : []),
+      ],
       status: lecture.status,
-      streamKey: lecture.streamKey,
+      streamKey: key,
       title: lecture.title,
       startedAt: lecture.startedAt,
       createdAt: lecture.createdAt,
@@ -368,11 +377,29 @@ export class LiveBroadcastService {
 
   async getChatHistory(lectureId: string, user: AuthUser, limit = 500) {
     await this.getLectureWithAuth(lectureId, user);
-    return this.chatRepo.find({
+    const messages = await this.chatRepo.find({
       where: { lectureId },
       order: { createdAt: 'ASC' },
       take: limit,
     });
+    if (!messages.length) return [];
+    const userIds = Array.from(new Set(messages.map((m) => m.userId)));
+    const users = await this.ds.query(
+      `SELECT id::text, full_name FROM users WHERE id::text = ANY($1::text[])`,
+      [userIds],
+    );
+    const userMap = new Map<string, string>();
+    for (const u of users) {
+      userMap.set(u.id, u.full_name || 'User');
+    }
+    return messages.map((m) => ({
+      id: m.id,
+      lectureId: m.lectureId,
+      userId: m.userId,
+      userName: userMap.get(m.userId) || 'User',
+      text: m.text,
+      createdAt: m.createdAt,
+    }));
   }
 
   // ── participant tracking ──────────────────────────────────────────────────
