@@ -47,6 +47,8 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
   // if a new join fires before the old socket's disconnect, we won't evict the
   // freshly re-joined user when the stale disconnect event finally fires.
   private readonly activeStudents = new Map<string, Map<string, { userName: string; handRaised: boolean; socketId: string }>>();
+  private readonly questionsActive = new Map<string, boolean>();
+  private readonly lectureQuestions = new Map<string, Array<{ id: string; userId: string; userName: string; text: string; answer: string | null; createdAt: string }>>();
 
   @WebSocketServer()
   server: Server;
@@ -154,7 +156,12 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     this.server.to(`teacher:${lectureId}`).emit('viewerCount', { count: finalCount });
     this.server.to(`lecture:${lectureId}`).emit('viewerCount', { count: finalCount });
     this.emitParticipants(lectureId);
-    client.emit('joined', { lectureId, viewerCount: finalCount });
+    client.emit('joined', {
+      lectureId,
+      viewerCount: finalCount,
+      questionsActive: this.questionsActive.get(lectureId) || false,
+      questions: this.lectureQuestions.get(lectureId) || [],
+    });
   }
 
   @SubscribeMessage('teacher-join')
@@ -183,7 +190,12 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role };
     const viewerCount = await this.redis.viewerCount(lectureId);
     const students = this.getActiveStudents(lectureId);
-    client.emit('teacher-joined', { viewerCount: viewerCount || students.length, students });
+    client.emit('teacher-joined', {
+      viewerCount: viewerCount || students.length,
+      students,
+      questionsActive: this.questionsActive.get(lectureId) || false,
+      questions: this.lectureQuestions.get(lectureId) || [],
+    });
     // If OBS started before the teacher opened/refreshed the page they missed
     // the stream-started Redis event — emit it directly so the dashboard transitions.
     if (lecture?.status === 'LIVE') {
@@ -247,6 +259,55 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       emoji: payload.emoji,
     });
     void this.svc.saveReaction(data.lectureId, data.userId, data.userName, payload.emoji).catch(() => undefined);
+  }
+
+  @SubscribeMessage('toggle-questions')
+  handleToggleQuestions(@ConnectedSocket() client: Socket, @MessageBody() payload: { active: boolean }) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    const active = !!payload?.active;
+    this.questionsActive.set(data.lectureId, active);
+    this.server.to(`lecture:${data.lectureId}`).emit('questions-toggled', { active });
+  }
+
+  @SubscribeMessage('submit-question')
+  handleSubmitQuestion(@ConnectedSocket() client: Socket, @MessageBody() payload: { text: string }) {
+    const data = client.data as SocketData;
+    if (!data?.userId || !data?.lectureId) return;
+    if (!this.questionsActive.get(data.lectureId)) return; // Only allow when active
+    const text = (payload?.text || '').trim();
+    if (!text) return;
+    
+    const newQuestion = {
+      id: Math.random().toString(36).substring(2, 9),
+      userId: data.userId,
+      userName: data.userName,
+      text,
+      answer: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    const questions = this.lectureQuestions.get(data.lectureId) || [];
+    questions.push(newQuestion);
+    this.lectureQuestions.set(data.lectureId, questions);
+    this.server.to(`lecture:${data.lectureId}`).emit('question-added', newQuestion);
+  }
+
+  @SubscribeMessage('answer-question')
+  handleAnswerQuestion(@ConnectedSocket() client: Socket, @MessageBody() payload: { questionId: string; answer: string }) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    const answer = (payload?.answer || '').trim();
+    
+    const questions = this.lectureQuestions.get(data.lectureId) || [];
+    const q = questions.find(item => item.id === payload?.questionId);
+    if (q) {
+      q.answer = answer || null;
+      this.server.to(`lecture:${data.lectureId}`).emit('question-answered', {
+        questionId: payload.questionId,
+        answer: q.answer,
+      });
+    }
   }
 
   async handleDisconnect(client: Socket) {
