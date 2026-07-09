@@ -298,14 +298,11 @@ export class SchoolLiveService implements OnModuleInit {
    * server-side and re-serve it with permissive CORS. `file` is a single flat
    * HLS file (index.m3u8 / indexN.ts) — no path traversal allowed.
    */
-  async proxyHls(streamKey: string, file: string): Promise<{ contentType: string; body: Buffer } | null> {
-    const base = this.config.get<string>('streaming.cdnBaseUrl');
-    if (!base || !streamKey || !file) return null;
-    // Reject path traversal in streamKey — it must be a hex slug from randomBytes
+  async proxyHls(streamKey: string, file: string, quality?: '480' | '360'): Promise<{ contentType: string; body: Buffer } | null> {
+    if (!streamKey || !file) return null;
     if (!/^[a-f0-9]{16,64}$/i.test(streamKey)) return null;
     if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
-    // Verify stream key exists — cache the result for 60s to avoid a DB hit on every .ts segment
     const cachedUntil = this.hlsKeyCache.get(streamKey);
     if (!cachedUntil || cachedUntil < Date.now()) {
       const rows = await this.ds.query(
@@ -315,6 +312,11 @@ export class SchoolLiveService implements OnModuleInit {
       if (!rows.length) { this.hlsKeyCache.delete(streamKey); return null; }
       this.hlsKeyCache.set(streamKey, Date.now() + 60_000);
     }
+    const configKey = quality === '480' ? 'streaming.cdnBaseUrl480'
+      : quality === '360' ? 'streaming.cdnBaseUrl360'
+      : 'streaming.cdnBaseUrl';
+    const base = (this.config.get<string>(configKey) || '').replace(/\/$/, '');
+    if (!base) return null;
     try {
       const r = await fetch(`${base}/${streamKey}/${file}`, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) return null;
