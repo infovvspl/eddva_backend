@@ -60,6 +60,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, TenantId } from '../../common/decorators/auth.decorator';
 import { UserRole } from '../../database/entities/user.entity';
 
+import { SkipThrottle } from '@nestjs/throttler';
+
 @ApiTags('Content')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -787,6 +789,7 @@ export class ContentController {
         return { url: resource.fileUrl, type: 'file' };
     }
 
+    @SkipThrottle()
     @Get('topics/:topicId/resources')
     @ApiOperation({ summary: 'List all resources for a topic (PDF, DPP, quiz, notes)' })
     @ApiParam({ name: 'topicId', type: 'string' })
