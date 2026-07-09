@@ -121,6 +121,12 @@ export class SuperAdminController {
     return this.superAdminService.getPlatformStats();
   }
 
+  @Get('live-usage')
+  @ApiOperation({ summary: 'Get live class usage analytics (coaching)' })
+  getLiveUsage() {
+    return this.superAdminService.getLiveUsage();
+  }
+
   @Get('announcements')
   @ApiOperation({ summary: 'List all announcements' })
   getAnnouncements(@Query() query: AnnouncementListQueryDto) {

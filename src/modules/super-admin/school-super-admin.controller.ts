@@ -21,6 +21,11 @@ export class SchoolSuperAdminController {
     return this.svc.getDashboardStats();
   }
 
+  @Get('live-usage')
+  getLiveUsage() {
+    return this.svc.getLiveUsage();
+  }
+
   @Get('institutes')
   listInstitutes(
     @Query('page') page: string,

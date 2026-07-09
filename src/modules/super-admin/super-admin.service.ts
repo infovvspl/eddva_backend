@@ -676,6 +676,107 @@ export class SuperAdminService {
     };
   }
 
+  async getLiveUsage() {
+    const [summary, perTenant, recentLectures, dailyTrend] = await Promise.all([
+      this.dataSource.query(`
+        SELECT
+          COUNT(*)::int                                                            AS total_lectures,
+          COUNT(*) FILTER (WHERE status = 'LIVE')::int                            AS live_now,
+          COUNT(*) FILTER (WHERE status IN ('ENDED','PROCESSED'))::int            AS completed,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int  AS last_30_days,
+          COALESCE(SUM(duration_seconds), 0)::bigint                             AS total_duration_seconds,
+          COALESCE(AVG(duration_seconds) FILTER (WHERE duration_seconds > 0), 0)::int AS avg_duration_seconds,
+          COALESCE(SUM(recording_size_gb), 0)::numeric(10,3)                     AS total_recording_gb
+        FROM broadcast_lectures
+      `),
+
+      this.dataSource.query(`
+        SELECT
+          t.id                                                                                    AS institute_id,
+          t.name                                                                                  AS institute_name,
+          COUNT(l.id)::int                                                                        AS total_lectures,
+          COUNT(l.id) FILTER (WHERE l.status = 'LIVE')::int                                      AS live_now,
+          COUNT(l.id) FILTER (WHERE l.status IN ('ENDED','PROCESSED'))::int                       AS completed,
+          COALESCE(SUM(l.duration_seconds), 0)::bigint                                            AS total_duration_seconds,
+          COALESCE(SUM(l.recording_size_gb), 0)::numeric(10,3)                                   AS total_recording_gb,
+          (
+            SELECT COUNT(DISTINCT p.user_id)::int
+            FROM broadcast_participants p
+            WHERE p.lecture_id IN (
+              SELECT ll.id FROM broadcast_lectures ll WHERE ll.institute_id = t.id
+            )
+          )                                                                                       AS unique_viewers,
+          MAX(l.started_at)                                                                       AS last_lecture_at
+        FROM tenants t
+        LEFT JOIN broadcast_lectures l ON l.institute_id = t.id
+        GROUP BY t.id, t.name
+        HAVING COUNT(l.id) > 0
+        ORDER BY COUNT(l.id) DESC
+        LIMIT 100
+      `),
+
+      this.dataSource.query(`
+        SELECT
+          l.id, l.title, l.status, l.institute_id,
+          t.name                                                                                  AS institute_name,
+          l.started_at, l.ended_at, l.duration_seconds,
+          (SELECT u.full_name FROM "users" u WHERE u.id = l.teacher_id LIMIT 1)                   AS teacher_name,
+          (SELECT COUNT(DISTINCT p.user_id)::int FROM broadcast_participants p WHERE p.lecture_id = l.id) AS participant_count
+        FROM broadcast_lectures l
+        JOIN tenants t ON t.id = l.institute_id
+        ORDER BY COALESCE(l.started_at, l.created_at) DESC
+        LIMIT 20
+      `),
+
+      this.dataSource.query(`
+        SELECT
+          DATE_TRUNC('day', created_at)::date::text AS day,
+          COUNT(*)::int                              AS count
+        FROM broadcast_lectures
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY 1
+        ORDER BY 1
+      `),
+    ]);
+
+    const s = summary[0] || {};
+    return {
+      summary: {
+        totalLectures:        Number(s.total_lectures)        || 0,
+        liveNow:              Number(s.live_now)              || 0,
+        completed:            Number(s.completed)             || 0,
+        last30Days:           Number(s.last_30_days)          || 0,
+        totalDurationSeconds: Number(s.total_duration_seconds) || 0,
+        avgDurationSeconds:   Number(s.avg_duration_seconds)  || 0,
+        totalRecordingGb:     Number(s.total_recording_gb)    || 0,
+      },
+      perInstitute: (perTenant as any[]).map((r) => ({
+        instituteId:          r.institute_id,
+        instituteName:        r.institute_name,
+        totalLectures:        Number(r.total_lectures)        || 0,
+        liveNow:              Number(r.live_now)              || 0,
+        completed:            Number(r.completed)             || 0,
+        totalDurationSeconds: Number(r.total_duration_seconds) || 0,
+        totalRecordingGb:     Number(r.total_recording_gb)   || 0,
+        uniqueViewers:        Number(r.unique_viewers)        || 0,
+        lastLectureAt:        r.last_lecture_at ?? null,
+      })),
+      recentLectures: (recentLectures as any[]).map((r) => ({
+        id:               r.id,
+        title:            r.title,
+        status:           r.status,
+        instituteId:      r.institute_id,
+        instituteName:    r.institute_name,
+        teacherName:      r.teacher_name ?? null,
+        startedAt:        r.started_at ?? null,
+        endedAt:          r.ended_at ?? null,
+        durationSeconds:  Number(r.duration_seconds) || null,
+        participantCount: Number(r.participant_count) || 0,
+      })),
+      dailyTrend: (dailyTrend as any[]).map((r) => ({ day: r.day, count: Number(r.count) })),
+    };
+  }
+
   async getAnnouncements(query: AnnouncementListQueryDto) {
     const page = query.page || 1;
     const limit = query.limit || 20;
