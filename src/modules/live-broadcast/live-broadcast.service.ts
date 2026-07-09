@@ -441,20 +441,22 @@ export class LiveBroadcastService {
    * and re-serves it with CORS headers so hls.js (XHR) isn't blocked.
    * `file` must be a flat filename — no path traversal allowed.
    */
-  async proxyHls(streamKey: string, file: string): Promise<{ contentType: string; body: Buffer } | null> {
+  async proxyHls(streamKey: string, file: string, quality?: '480' | '360'): Promise<{ contentType: string; body: Buffer } | null> {
     if (!streamKey || !file) return null;
-    // Reject non-hex keys (our stream keys are always hex from randomBytes)
     if (!/^[a-f0-9]{16,64}$/i.test(streamKey)) return null;
     if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
-    // Only hit the DB if the cache entry is missing or stale (BUG-11)
     const cachedUntil = this.streamKeyCache.get(streamKey);
     if (!cachedUntil || cachedUntil < Date.now()) {
       const lecture = await this.findByStreamKey(streamKey);
       if (!lecture) { this.streamKeyCache.delete(streamKey); return null; }
       this.streamKeyCache.set(streamKey, Date.now() + 60_000);
     }
-    const cdnBase = (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
+    const configKey = quality === '480' ? 'streaming.cdnBaseUrl480'
+      : quality === '360' ? 'streaming.cdnBaseUrl360'
+      : 'streaming.cdnBaseUrl';
+    const cdnBase = (this.config.get<string>(configKey) || '').replace(/\/$/, '');
+    if (!cdnBase) return null;
     const remoteUrl = `${cdnBase}/${streamKey}/${file}`;
     try {
       const r = await fetch(remoteUrl, { signal: AbortSignal.timeout(8000) });

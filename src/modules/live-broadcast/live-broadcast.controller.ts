@@ -198,6 +198,34 @@ export class LectureHlsController {
     res.setHeader('Cache-Control', file.endsWith('.m3u8') ? 'no-cache' : 'public, max-age=10');
     res.send(out.body);
   }
+
+  @Get('hls480/:streamKey/:file')
+  async hls480(
+    @Param('streamKey') streamKey: string,
+    @Param('file') file: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.proxyHls(streamKey, file, '480');
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', file.endsWith('.m3u8') ? 'no-cache' : 'public, max-age=10');
+    res.send(out.body);
+  }
+
+  @Get('hls360/:streamKey/:file')
+  async hls360(
+    @Param('streamKey') streamKey: string,
+    @Param('file') file: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.proxyHls(streamKey, file, '360');
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', file.endsWith('.m3u8') ? 'no-cache' : 'public, max-age=10');
+    res.send(out.body);
+  }
 }
 
 /**
