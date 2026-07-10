@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bull';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { DataSource, IsNull, Repository } from 'typeorm';
 
 import { UserRole } from '../../database/entities/user.entity';
@@ -40,6 +40,7 @@ const ALLOWED_REACTIONS = ['👍', '❤️', '😮', '😂', '🔥', '👏'];
 @Injectable()
 export class LiveBroadcastService {
   private readonly logger = new Logger(LiveBroadcastService.name);
+  private questionsTableReady = false;
   // Short-lived cache of validated stream keys to avoid a DB hit on every HLS
   // segment request (10-20 req/s per viewer × many viewers = significant load).
   private readonly streamKeyCache = new Map<string, number>(); // key → expiresAt
@@ -71,6 +72,23 @@ export class LiveBroadcastService {
 
   findByStreamKey(streamKey: string): Promise<BroadcastLecture | null> {
     return this.lectureRepo.findOne({ where: { streamKey } });
+  }
+
+  private async ensureQuestionsTable() {
+    if (this.questionsTableReady) return;
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS broadcast_questions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        lecture_id UUID NOT NULL REFERENCES broadcast_lectures(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL,
+        user_name VARCHAR NOT NULL,
+        text TEXT NOT NULL,
+        answer TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_broadcast_questions_lecture ON broadcast_questions (lecture_id, created_at)`);
+    this.questionsTableReady = true;
   }
 
   async markLive(lectureId: string): Promise<void> {
@@ -478,6 +496,46 @@ export class LiveBroadcastService {
   }
 
   // ── polls ─────────────────────────────────────────────────────────────────
+  async saveQuestion(lectureId: string, questionId: string | null, userId: string, userName: string, text: string) {
+    await this.ensureQuestionsTable();
+    const id = questionId || randomUUID();
+    const rows = await this.ds.query(
+      `INSERT INTO broadcast_questions (id, lecture_id, user_id, user_name, text)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO NOTHING
+       RETURNING id, user_id AS "userId", user_name AS "userName", text, answer, created_at AS "createdAt"`,
+      [id, lectureId, userId, userName, text],
+    );
+    return rows[0] || { id, userId, userName, text, answer: null, createdAt: new Date().toISOString() };
+  }
+
+  async saveAnswer(lectureId: string, questionId: string, answer: string, user?: AuthUser) {
+    if (user) {
+      const lecture = await this.getLectureWithAuth(lectureId, user);
+      if (lecture.teacherId !== user.id && user.role !== UserRole.INSTITUTE_ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+        throw new ForbiddenException('Only the lecture owner or an admin can answer questions');
+      }
+    }
+    const trimmed = (answer || '').trim();
+    if (!trimmed) throw new BadRequestException('Answer cannot be empty');
+    await this.ensureQuestionsTable();
+    await this.ds.query(
+      `UPDATE broadcast_questions SET answer = $1 WHERE id = $2 AND lecture_id = $3`,
+      [trimmed, questionId, lectureId],
+    );
+    return { success: true, answer: trimmed };
+  }
+
+  async getQuestions(lectureId: string, user: AuthUser) {
+    await this.getLectureWithAuth(lectureId, user);
+    await this.ensureQuestionsTable();
+    return this.ds.query(
+      `SELECT id, user_id AS "userId", user_name AS "userName", text, answer, created_at AS "createdAt"
+       FROM broadcast_questions WHERE lecture_id = $1 ORDER BY created_at ASC`,
+      [lectureId],
+    );
+  }
+
   async createPoll(lectureId: string, user: AuthUser, dto: CreatePollDto) {
     await this.getLectureWithAuth(lectureId, user);
     await this.pollRepo.update({ lectureId, status: 'ACTIVE' }, { status: 'ENDED' });
