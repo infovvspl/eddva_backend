@@ -60,9 +60,17 @@ jobs:
             echo "Running migrations..."
             npm run migration:run || echo "No pending migrations"
 
-            echo "Reloading PM2 (zero-downtime)..."
+            echo "Restarting PM2 with updated env..."
             mkdir -p /home/ubuntu/logs
-            pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
+            pm2 restart ecosystem.config.js --env production --update-env || pm2 start ecosystem.config.js --env production
+
+            echo "Waiting for app to boot..."
+            sleep 12
+
+            echo "Health check..."
+            curl -sf http://localhost:3000/api/v1/tenants/public/platform-config?vertical=coaching \
+              -o /dev/null && echo "✅ Health check passed" \
+              || (pm2 logs eddva-backend --lines 20 --nostream && exit 1)
 
             echo "Backend deployed successfully at $(date)"
             pm2 status
