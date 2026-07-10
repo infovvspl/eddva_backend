@@ -1,17 +1,16 @@
 import { Controller, Delete, Get, HttpCode, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-import { Roles } from '../../common/decorators/roles.decorator';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { UserRole } from '../../database/entities/user.entity';
+import { SchoolJwtGuard } from '../school/guards/school-jwt.guard';
+import { SchoolRolesGuard } from '../school/guards/school-roles.guard';
+import { SchoolRoles } from '../school/decorators/school-roles.decorator';
 import { SchoolSuperAdminService } from './school-super-admin.service';
 import { Audit } from '../audit-log/audit.decorator';
 
 @ApiTags('Super Admin — School')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@SchoolRoles('SUPER_ADMIN')
 @Controller('super-admin/school')
 export class SchoolSuperAdminController {
   constructor(private readonly svc: SchoolSuperAdminService) {}
