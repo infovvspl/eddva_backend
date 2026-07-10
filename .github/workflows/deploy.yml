@@ -43,6 +43,12 @@ jobs:
             git stash || true
             git pull origin main
 
+            echo "Ensuring .env is present..."
+            if [ ! -f .env ] || [ ! -s .env ]; then
+              cp ~/eddva_backend_dev/.env .env
+              echo ".env restored from dev"
+            fi
+
             echo "Installing dependencies..."
             npm ci --production=false
 
