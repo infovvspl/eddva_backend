@@ -48,6 +48,8 @@ jobs:
               cp ~/eddva_backend_dev/.env .env
               echo ".env restored from dev"
             fi
+            sed -i 's/^PORT=.*/PORT=3000/' .env
+            grep -q '^PORT=' .env || echo 'PORT=3000' >> .env
 
             echo "Installing dependencies..."
             npm ci --production=false
