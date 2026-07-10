@@ -40,7 +40,7 @@ jobs:
             cd /home/ubuntu/eddva_backend
 
             echo "Pulling latest code..."
-            git stash --include-untracked || true
+            git stash || true
             git pull origin main
 
             echo "Installing dependencies..."
