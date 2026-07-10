@@ -51,6 +51,9 @@ jobs:
             sed -i 's/^PORT=.*/PORT=3000/' .env
             grep -q '^PORT=' .env || echo 'PORT=3000' >> .env
 
+            echo "Checking production env vars..."
+            bash scripts/check-prod-env.sh
+
             echo "Installing dependencies..."
             npm ci --production=false
 
