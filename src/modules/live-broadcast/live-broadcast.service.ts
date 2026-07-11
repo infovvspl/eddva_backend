@@ -41,6 +41,7 @@ const ALLOWED_REACTIONS = ['👍', '❤️', '😮', '😂', '🔥', '👏'];
 export class LiveBroadcastService {
   private readonly logger = new Logger(LiveBroadcastService.name);
   private questionsTableReady = false;
+  private studentNotesTableReady = false;
   // Short-lived cache of validated stream keys to avoid a DB hit on every HLS
   // segment request (10-20 req/s per viewer × many viewers = significant load).
   private readonly streamKeyCache = new Map<string, number>(); // key → expiresAt
@@ -89,6 +90,23 @@ export class LiveBroadcastService {
     `);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_broadcast_questions_lecture ON broadcast_questions (lecture_id, created_at)`);
     this.questionsTableReady = true;
+  }
+
+  private async ensureStudentNotesTable() {
+    if (this.studentNotesTableReady) return;
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS broadcast_student_notes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        lecture_id UUID NOT NULL REFERENCES broadcast_lectures(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL,
+        notes TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(lecture_id, user_id)
+      )
+    `);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_broadcast_student_notes_lecture ON broadcast_student_notes (lecture_id)`);
+    this.studentNotesTableReady = true;
   }
 
   async markLive(lectureId: string): Promise<void> {
@@ -537,6 +555,30 @@ export class LiveBroadcastService {
        FROM broadcast_questions WHERE lecture_id = $1 ORDER BY created_at ASC`,
       [lectureId],
     );
+  }
+
+  async getStudentNotes(lectureId: string, user: AuthUser) {
+    await this.getLectureWithAuth(lectureId, user);
+    await this.ensureStudentNotesTable();
+    const rows = await this.ds.query(
+      `SELECT notes FROM broadcast_student_notes WHERE lecture_id = $1 AND user_id = $2 LIMIT 1`,
+      [lectureId, user.id],
+    );
+    return { success: true, notes: rows[0]?.notes || '' };
+  }
+
+  async saveStudentNotes(lectureId: string, user: AuthUser, notes: string) {
+    await this.getLectureWithAuth(lectureId, user);
+    await this.ensureStudentNotesTable();
+    const value = String(notes || '');
+    await this.ds.query(
+      `INSERT INTO broadcast_student_notes (lecture_id, user_id, notes)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (lecture_id, user_id)
+       DO UPDATE SET notes = EXCLUDED.notes, updated_at = now()`,
+      [lectureId, user.id, value],
+    );
+    return { success: true, notes: value };
   }
 
   async createPoll(lectureId: string, user: AuthUser, dto: CreatePollDto) {
