@@ -81,4 +81,16 @@ export class SchoolClassController {
   regenerateThumbnail(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.regenerateThumbnail(user, id);
   }
+
+  @Get('student-notes')
+  @SchoolRoles('STUDENT')
+  getStudentNotes(@SchoolUser() user: any, @Query() query: { lectureId?: string; recordingId?: string }) {
+    return this.svc.getStudentNotes(user, query);
+  }
+
+  @Post('student-notes')
+  @SchoolRoles('STUDENT')
+  saveStudentNotes(@SchoolUser() user: any, @Body() body: { lectureId?: string; recordingId?: string; notes: string }) {
+    return this.svc.saveStudentNotes(user, body);
+  }
 }
