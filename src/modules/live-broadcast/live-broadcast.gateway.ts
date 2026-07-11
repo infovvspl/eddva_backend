@@ -1,4 +1,5 @@
 import { Logger, OnModuleInit } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
@@ -28,6 +29,15 @@ interface LiveParticipant {
   handRaised?: boolean;
 }
 
+interface LiveQuestion {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  answer: string | null;
+  createdAt: string;
+}
+
 const ALLOWED_REACTIONS = ['👍', '❤️', '😮', '😂', '🔥', '👏'];
 
 /**
@@ -52,6 +62,8 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
 
   // socketId stored to guard the quick-reconnect race (BUG-09).
   private readonly activeStudents = new Map<string, Map<string, { userName: string; handRaised: boolean; socketId: string }>>();
+  private readonly questionsActive = new Map<string, boolean>();
+  private readonly lectureQuestions = new Map<string, LiveQuestion[]>();
 
   @WebSocketServer()
   server: Server;
@@ -156,7 +168,12 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
     this.server.to(`teacher:${lectureId}`).emit('viewerCount', { lectureId, count: finalCount });
     this.server.to(`lecture:${lectureId}`).emit('viewerCount', { lectureId, count: finalCount });
     this.emitParticipants(lectureId);
-    client.emit('joined', { lectureId, viewerCount: finalCount });
+    client.emit('joined', {
+      lectureId,
+      viewerCount: finalCount,
+      questionsActive: this.questionsActive.get(lectureId) || false,
+      questions: this.lectureQuestions.get(lectureId) || [],
+    });
   }
 
   // ── teacher joins their own dashboard room ────────────────────────────────
@@ -188,7 +205,12 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
 
     const viewerCount = await this.redis.viewerCount(lectureId);
     const students = this.getActiveStudents(lectureId);
-    client.emit('teacher-joined', { viewerCount: viewerCount || students.length, students });
+    client.emit('teacher-joined', {
+      viewerCount: viewerCount || students.length,
+      students,
+      questionsActive: this.questionsActive.get(lectureId) || false,
+      questions: this.lectureQuestions.get(lectureId) || [],
+    });
 
     // If OBS started before the teacher opened the page, they missed the stream-started
     // Redis event — send it directly so the dashboard transitions out of "Waiting for stream..."
@@ -247,6 +269,68 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
   }
 
   // ── emoji reactions ───────────────────────────────────────────────────────
+  @SubscribeMessage('toggle-questions')
+  handleToggleQuestions(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { active?: boolean },
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    const active = !!payload?.active;
+    this.questionsActive.set(data.lectureId, active);
+    this.server.to(`lecture:${data.lectureId}`).emit('questions-toggled', { active });
+  }
+
+  @SubscribeMessage('submit-question')
+  async handleSubmitQuestion(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { text?: string },
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.userId || !data?.lectureId) return;
+    if (!this.questionsActive.get(data.lectureId)) return;
+    const text = (payload?.text || '').trim();
+    if (!text) return;
+
+    const question: LiveQuestion = {
+      id: randomUUID(),
+      userId: data.userId,
+      userName: data.userName,
+      text: text.slice(0, 1000),
+      answer: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    const questions = this.lectureQuestions.get(data.lectureId) || [];
+    questions.push(question);
+    this.lectureQuestions.set(data.lectureId, questions);
+    this.server.to(`lecture:${data.lectureId}`).emit('question-added', question);
+    void this.svc.saveQuestion(data.lectureId, question.id, data.userId, data.userName, question.text).catch(() => undefined);
+  }
+
+  @SubscribeMessage('answer-question')
+  handleAnswerQuestion(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { questionId?: string; answer?: string },
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    const answer = (payload?.answer || '').trim();
+    if (!payload?.questionId || !answer) return;
+
+    const questions = this.lectureQuestions.get(data.lectureId) || [];
+    const question = questions.find((item) => item.id === payload.questionId);
+    if (question) {
+      question.answer = answer;
+      this.lectureQuestions.set(data.lectureId, questions);
+    }
+    this.server.to(`lecture:${data.lectureId}`).emit('question-answered', {
+      questionId: payload.questionId,
+      answer,
+    });
+    void this.svc.saveAnswer(data.lectureId, payload.questionId, answer).catch(() => undefined);
+  }
+
   @SubscribeMessage('reaction')
   handleReaction(
     @ConnectedSocket() client: Socket,
@@ -261,6 +345,25 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
       emoji: payload.emoji,
     });
     void this.svc.saveReaction(data.lectureId, data.userId, data.userName, payload.emoji).catch(() => undefined);
+  }
+
+  @SubscribeMessage('pin-announcement')
+  handlePinAnnouncement(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { text: string },
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    this.server.to(`lecture:${data.lectureId}`).emit('announcement-pinned', { text: payload.text });
+  }
+
+  @SubscribeMessage('unpin-announcement')
+  handleUnpinAnnouncement(
+    @ConnectedSocket() client: Socket,
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    this.server.to(`lecture:${data.lectureId}`).emit('announcement-unpinned');
   }
 
   // ── disconnect ────────────────────────────────────────────────────────────

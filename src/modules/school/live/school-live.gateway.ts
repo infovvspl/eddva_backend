@@ -49,6 +49,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
   private readonly activeStudents = new Map<string, Map<string, { userName: string; handRaised: boolean; socketId: string }>>();
   private readonly questionsActive = new Map<string, boolean>();
   private readonly lectureQuestions = new Map<string, Array<{ id: string; userId: string; userName: string; text: string; answer: string | null; createdAt: string }>>();
+  private readonly pinnedAnnouncements = new Map<string, string | null>();
 
   @WebSocketServer()
   server: Server;
@@ -161,6 +162,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       viewerCount: finalCount,
       questionsActive: this.questionsActive.get(lectureId) || false,
       questions: this.lectureQuestions.get(lectureId) || [],
+      pinnedAnnouncement: this.pinnedAnnouncements.get(lectureId) || null,
     });
   }
 
@@ -195,6 +197,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       students,
       questionsActive: this.questionsActive.get(lectureId) || false,
       questions: this.lectureQuestions.get(lectureId) || [],
+      pinnedAnnouncement: this.pinnedAnnouncements.get(lectureId) || null,
     });
     // If OBS started before the teacher opened/refreshed the page they missed
     // the stream-started Redis event — emit it directly so the dashboard transitions.
@@ -248,6 +251,63 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     client.emit('hand-ack', { raised: data.handRaised });
   }
 
+  @SubscribeMessage('lower-hand')
+  async handleLowerHand(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload?: { userId?: string },
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role) || !payload?.userId) return;
+    const targetUserId = payload.userId;
+
+    await this.svc.lowerHand(data.lectureId, targetUserId).catch(() => undefined);
+
+    const students = this.activeStudents.get(data.lectureId);
+    const student = students?.get(targetUserId);
+    if (student) {
+      student.handRaised = false;
+      students.set(targetUserId, student);
+      this.emitParticipants(data.lectureId);
+      this.server.to(student.socketId).emit('hand-ack', { raised: false });
+    }
+
+    this.server.to(`lecture:${data.lectureId}`).emit('hand-lowered', { userId: targetUserId });
+
+    this.server.to(`teacher:${data.lectureId}`).emit('hand-raised', {
+      userId: targetUserId,
+      userName: student?.userName || '',
+      raised: false,
+    });
+  }
+
+  @SubscribeMessage('lower-all-hands')
+  async handleLowerAllHands(
+    @ConnectedSocket() client: Socket,
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+
+    await this.svc.lowerAllHands(data.lectureId).catch(() => undefined);
+
+    const students = this.activeStudents.get(data.lectureId);
+    if (students) {
+      for (const [userId, student] of students.entries()) {
+        if (student.handRaised) {
+          student.handRaised = false;
+          students.set(userId, student);
+          this.server.to(student.socketId).emit('hand-ack', { raised: false });
+          this.server.to(`teacher:${data.lectureId}`).emit('hand-raised', {
+            userId,
+            userName: student.userName,
+            raised: false,
+          });
+        }
+      }
+      this.emitParticipants(data.lectureId);
+    }
+    this.server.to(`lecture:${data.lectureId}`).emit('hand-lowered-all');
+  }
+
   @SubscribeMessage('reaction')
   handleReaction(@ConnectedSocket() client: Socket, @MessageBody() payload: { emoji: string }) {
     const data = client.data as SocketData;
@@ -270,6 +330,24 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     this.server.to(`lecture:${data.lectureId}`).emit('questions-toggled', { active });
   }
 
+  @SubscribeMessage('pin-announcement')
+  handlePinAnnouncement(@ConnectedSocket() client: Socket, @MessageBody() payload: { text: string }) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    const text = (payload?.text || '').trim();
+    if (!text) return;
+    this.pinnedAnnouncements.set(data.lectureId, text);
+    this.server.to(`lecture:${data.lectureId}`).emit('announcement-pinned', { text });
+  }
+
+  @SubscribeMessage('unpin-announcement')
+  handleUnpinAnnouncement(@ConnectedSocket() client: Socket) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    this.pinnedAnnouncements.set(data.lectureId, null);
+    this.server.to(`lecture:${data.lectureId}`).emit('announcement-unpinned');
+  }
+
   @SubscribeMessage('submit-question')
   handleSubmitQuestion(@ConnectedSocket() client: Socket, @MessageBody() payload: { text: string }) {
     const data = client.data as SocketData;
@@ -279,7 +357,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     if (!text) return;
     
     const newQuestion = {
-      id: Math.random().toString(36).substring(2, 9),
+      id: crypto.randomUUID(),
       userId: data.userId,
       userName: data.userName,
       text,
@@ -291,6 +369,8 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     questions.push(newQuestion);
     this.lectureQuestions.set(data.lectureId, questions);
     this.server.to(`lecture:${data.lectureId}`).emit('question-added', newQuestion);
+    // Persist to DB so it survives a server restart and appears in post-class summary
+    void this.svc.saveQuestion(data.lectureId, newQuestion.id, data.userId, data.userName, text).catch(() => undefined);
   }
 
   @SubscribeMessage('answer-question')
@@ -307,6 +387,10 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
         questionId: payload.questionId,
         answer: q.answer,
       });
+      // Persist answer to DB
+      if (q.answer) {
+        void this.svc.saveAnswer(data.lectureId, payload.questionId, q.answer).catch(() => undefined);
+      }
     }
   }
 

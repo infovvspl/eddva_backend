@@ -113,6 +113,25 @@ export class LectureController {
   }
 
   // ── hand raise ────────────────────────────────────────────────────────────
+  @Get(':id/questions')
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Questions asked during a lecture' })
+  questions(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    return this.svc.getQuestions(id, user);
+  }
+
+  @Post(':id/questions/:questionId/answer')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Answer a live class question' })
+  answerQuestion(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+    @CurrentUser() user: any,
+    @Body() body: { answer?: string },
+  ) {
+    return this.svc.saveAnswer(id, questionId, body?.answer || '', user);
+  }
+
   @Post(':id/hand')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Raise or lower hand (student only)' })
@@ -127,6 +146,24 @@ export class LectureController {
   }
 
   // ── polls ─────────────────────────────────────────────────────────────────
+  @Get(':id/student-notes')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: "Get the current student's notes for a live broadcast" })
+  studentNotes(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    return this.svc.getStudentNotes(id, user);
+  }
+
+  @Post(':id/student-notes')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: "Save the current student's notes for a live broadcast" })
+  saveStudentNotes(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+    @Body() body: { notes?: string },
+  ) {
+    return this.svc.saveStudentNotes(id, user, body?.notes || '');
+  }
+
   @Post(':id/polls')
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Create a poll for the live lecture (ends any active poll first)' })

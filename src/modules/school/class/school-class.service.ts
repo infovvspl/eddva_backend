@@ -90,6 +90,9 @@ export class SchoolClassService implements OnModuleInit {
       );
       CREATE INDEX IF NOT EXISTS idx_class_rec_progress_student ON class_recording_progress(student_user_id);
       CREATE INDEX IF NOT EXISTS idx_class_rec_progress_recording ON class_recording_progress(recording_id);
+
+      DROP TABLE IF EXISTS school_student_lecture_notes;
+      ALTER TABLE class_recording_progress ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
     `);
     this.tableReady = true;
   }
@@ -228,6 +231,7 @@ export class SchoolClassService implements OnModuleInit {
              r.transcript, r.transcript_status, r.language, r.notes, r.notes_status,
              r.notes_images, r.quiz, r.quiz_status,
              r.video_size, r.resolution, r.thumbnail_source,
+             (SELECT id FROM school_live_lectures WHERE recording_url = r.video_url LIMIT 1) AS "lectureId",
              c.name AS class_name, sec.name AS section_name, s.name AS subject_name, u.name AS teacher_name,
              ch.name AS chapter_name, t.name AS topic_name,
              COALESCE(ch.sort_order, 0) AS chapter_sort_order,
@@ -1207,5 +1211,88 @@ export class SchoolClassService implements OnModuleInit {
         explanation: question.explanation || ''
       }
     };
+  }
+
+  async getStudentNotes(user: any, query: { lectureId?: string; recordingId?: string }) {
+    await this.ensureTable();
+    const studentUserId = user.id;
+    let lectureId = query.lectureId;
+
+    if (query.recordingId && !lectureId) {
+      const recs = await this.ds.query(
+        `SELECT (SELECT id FROM school_live_lectures WHERE recording_url = class_recordings.video_url LIMIT 1) AS "lectureId"
+         FROM class_recordings WHERE id = $1`,
+        [query.recordingId],
+      );
+      lectureId = recs[0]?.lectureId;
+    }
+
+    if (!lectureId) {
+      if (query.recordingId) {
+        const rows = await this.ds.query(
+          `SELECT notes FROM class_recording_progress WHERE student_user_id = $1 AND recording_id = $2 LIMIT 1`,
+          [studentUserId, query.recordingId],
+        );
+        return { success: true, notes: rows[0]?.notes || '' };
+      }
+      return { success: true, notes: '' };
+    }
+
+    const rows = await this.ds.query(
+      `SELECT notes FROM school_live_participants WHERE lecture_id = $1 AND user_id = $2 LIMIT 1`,
+      [lectureId, studentUserId],
+    );
+    return { success: true, notes: rows[0]?.notes || '' };
+  }
+
+  async saveStudentNotes(user: any, body: { lectureId?: string; recordingId?: string; notes: string }) {
+    await this.ensureTable();
+    const studentUserId = user.id;
+    const notes = body.notes || '';
+    let lectureId = body.lectureId;
+
+    if (body.recordingId && !lectureId) {
+      const recs = await this.ds.query(
+        `SELECT (SELECT id FROM school_live_lectures WHERE recording_url = class_recordings.video_url LIMIT 1) AS "lectureId"
+         FROM class_recordings WHERE id = $1`,
+        [body.recordingId],
+      );
+      lectureId = recs[0]?.lectureId;
+    }
+
+    if (!lectureId) {
+      if (body.recordingId) {
+        const progress = await this.ds.query(
+          `SELECT id FROM class_recording_progress WHERE student_user_id = $1 AND recording_id = $2 LIMIT 1`,
+          [studentUserId, body.recordingId],
+        );
+        if (progress.length) {
+          await this.ds.query(
+            `UPDATE class_recording_progress SET notes = $1, updated_at = NOW() WHERE student_user_id = $2 AND recording_id = $3`,
+            [notes, studentUserId, body.recordingId],
+          );
+        } else {
+          await this.ds.query(
+            `INSERT INTO class_recording_progress (student_user_id, recording_id, notes, watch_percentage, last_position_seconds)
+             VALUES ($1, $2, $3, 0, 0)`,
+            [studentUserId, body.recordingId, notes],
+          );
+        }
+      }
+      return { success: true, notes };
+    }
+
+    const nameResult = await this.ds.query(`SELECT name FROM users WHERE id = $1 LIMIT 1`, [studentUserId]);
+    const userName = nameResult[0]?.name || 'Student';
+
+    await this.ds.query(
+      `INSERT INTO school_live_participants (lecture_id, user_id, user_name, notes)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (lecture_id, user_id)
+       DO UPDATE SET notes = EXCLUDED.notes`,
+      [lectureId, studentUserId, userName, notes],
+    );
+
+    return { success: true, notes };
   }
 }

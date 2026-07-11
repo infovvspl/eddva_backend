@@ -88,6 +88,7 @@ export class SchoolLiveService implements OnModuleInit {
         )
       `);
       await this.ds.query(`ALTER TABLE school_live_participants ADD COLUMN IF NOT EXISTS hand_raised BOOLEAN NOT NULL DEFAULT FALSE`);
+      await this.ds.query(`ALTER TABLE school_live_participants ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_participants_lecture ON school_live_participants (lecture_id)`);
       await this.ds.query(`
         CREATE TABLE IF NOT EXISTS school_live_reactions (
@@ -127,6 +128,19 @@ export class SchoolLiveService implements OnModuleInit {
         )
       `);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_poll_votes_poll ON school_live_poll_votes (poll_id)`);
+
+      await this.ds.query(`
+        CREATE TABLE IF NOT EXISTS school_live_questions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          lecture_id UUID NOT NULL REFERENCES school_live_lectures(id) ON DELETE CASCADE,
+          user_id UUID NOT NULL,
+          user_name VARCHAR NOT NULL,
+          text TEXT NOT NULL,
+          answer TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_questions_lecture ON school_live_questions (lecture_id, created_at)`);
 
       // Recording columns (added after initial schema — safe no-ops if already present)
       await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS recording_url VARCHAR`);
@@ -553,6 +567,26 @@ export class SchoolLiveService implements OnModuleInit {
     );
   }
 
+  async lowerHand(lectureId: string, userId: string) {
+    await this.ensureStatsTables();
+    await this.ds.query(
+      `UPDATE school_live_participants
+       SET hand_raised = false
+       WHERE lecture_id = $1 AND user_id = $2`,
+      [lectureId, userId],
+    );
+  }
+
+  async lowerAllHands(lectureId: string) {
+    await this.ensureStatsTables();
+    await this.ds.query(
+      `UPDATE school_live_participants
+       SET hand_raised = false
+       WHERE lecture_id = $1`,
+      [lectureId],
+    );
+  }
+
   async getActiveParticipants(lectureId: string, user: SchoolUser) {
     await this.ensureStatsTables();
     const lecture = await this.getLecture(lectureId);
@@ -780,6 +814,47 @@ export class SchoolLiveService implements OnModuleInit {
      );
      return polls || [];
    }
+
+  // ── Q&A ─────────────────────────────────────────────────────────────────────
+
+  async saveQuestion(lectureId: string, questionId: string, userId: string, userName: string, text: string) {
+    await this.ds.query(
+      `INSERT INTO school_live_questions (id, lecture_id, user_id, user_name, text)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO NOTHING`,
+      [questionId, lectureId, userId, userName, text],
+    ).catch(() => undefined);
+  }
+
+  async saveAnswer(lectureId: string, questionId: string, answer: string, user?: SchoolUser) {
+    if (user) {
+      const lecture = await this.getLecture(lectureId);
+      if (!lecture) throw new NotFoundException('Lecture not found');
+      if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+        throw new NotFoundException('Lecture not found');
+      }
+    }
+    const trimmed = (answer || '').trim();
+    if (!trimmed) throw new Error('Answer cannot be empty');
+    await this.ds.query(
+      `UPDATE school_live_questions SET answer = $1 WHERE id = $2 AND lecture_id = $3`,
+      [trimmed, questionId, lectureId],
+    );
+    return { success: true, answer: trimmed };
+  }
+
+  async getQuestions(lectureId: string, user: SchoolUser) {
+    const lecture = await this.getLecture(lectureId);
+    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      throw new NotFoundException('Lecture not found');
+    }
+    return this.ds.query(
+      `SELECT id, user_id AS "userId", user_name AS "userName", text, answer, created_at AS "createdAt"
+       FROM school_live_questions WHERE lecture_id = $1 ORDER BY created_at ASC`,
+      [lectureId],
+    );
+  }
 
   // ── recordings ──────────────────────────────────────────────────────────────
 
