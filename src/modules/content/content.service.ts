@@ -2019,7 +2019,7 @@ ${notes.slice(0, 4000)}`,
     ): Promise<any> {
         this.logger.log(`Upserting progress for lecture ${lectureId}, user ${userId}`);
 
-        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId } });
+        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
         if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
 
         const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
@@ -2243,7 +2243,7 @@ ${notes.slice(0, 4000)}`,
         userId: string,
         tenantId: string,
     ) {
-        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId } });
+        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
         if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
 
         const question = (lecture.quizCheckpoints ?? []).find((q) => q.id === dto.questionId);
