@@ -452,6 +452,14 @@ export class AuthService {
   }
 
   async createTeacher(dto: CreateTeacherDto, tenantId: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (tenant?.maxTeachers) {
+      const currentCount = await this.userRepo.count({ where: { tenantId, role: UserRole.TEACHER } });
+      if (currentCount >= tenant.maxTeachers) {
+        throw new BadRequestException(`Teacher limit reached (${tenant.maxTeachers}). Upgrade your plan to add more teachers.`);
+      }
+    }
+
     // Check duplicate phone or email in this tenant
     const existingPhone = await this.userRepo.findOne({
       where: { phoneNumber: dto.phoneNumber, tenantId },

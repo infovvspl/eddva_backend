@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Base } from './base.entity';
 import { Tenant } from './tenant.entity';
 import { Student } from './student.entity';
@@ -117,6 +117,8 @@ export enum TestSessionStatus {
   ABANDONED = 'abandoned',
 }
 
+@Index('IDX_test_sessions_student_mock', ['studentId', 'mockTestId'])
+@Index('IDX_test_sessions_tenant_student', ['tenantId', 'studentId'])
 @Entity('test_sessions')
 export class TestSession extends Base {
   @Column({ name: 'tenant_id' })
@@ -126,6 +128,7 @@ export class TestSession extends Base {
   @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
 
+  @Index()
   @Column({ name: 'student_id' })
   studentId: string;
 
@@ -133,6 +136,7 @@ export class TestSession extends Base {
   @JoinColumn({ name: 'student_id' })
   student: Student;
 
+  @Index()
   @Column({ name: 'mock_test_id' })
   mockTestId: string;
 
@@ -202,11 +206,14 @@ export enum ErrorType {
   SKIPPED = 'skip',
 }
 
+@Index('IDX_question_attempts_session', ['testSessionId', 'studentId'])
+@Index('IDX_question_attempts_tenant_student', ['tenantId', 'studentId'])
 @Entity('question_attempts')
 export class QuestionAttempt extends Base {
   @Column({ name: 'tenant_id' })
   tenantId: string;
 
+  @Index()
   @Column({ name: 'test_session_id' })
   testSessionId: string;
 
@@ -214,6 +221,7 @@ export class QuestionAttempt extends Base {
   @JoinColumn({ name: 'test_session_id' })
   testSession: TestSession;
 
+  @Index()
   @Column({ name: 'student_id' })
   studentId: string;
 

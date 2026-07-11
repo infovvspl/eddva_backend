@@ -154,7 +154,7 @@ export class UploadController {
   }
 
   @Put('upload/proxy')
-  @Public()
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Proxy PUT upload requests to S3 to bypass browser CORS' })
   async proxyUpload(
@@ -162,6 +162,11 @@ export class UploadController {
     @Query('contentType') contentType: string,
     @Req() req: any,
   ) {
+    const MAX_PROXY_BYTES = 100 * 1024 * 1024; // 100 MB
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+    if (contentLength > MAX_PROXY_BYTES) {
+      throw new BadRequestException('File too large. Maximum upload size is 100 MB.');
+    }
     if (!s3Url) {
       throw new BadRequestException('url query parameter is required');
     }
@@ -199,8 +204,8 @@ export class UploadController {
           'Content-Type': contentType || req.headers['content-type'] || 'application/octet-stream',
           'Content-Length': req.headers['content-length'],
         },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
+        maxContentLength: MAX_PROXY_BYTES,
+        maxBodyLength: MAX_PROXY_BYTES,
       });
 
       return { success: true };
