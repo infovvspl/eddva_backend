@@ -208,6 +208,7 @@ export class LiveBroadcastService {
 
   async getStreamUrl(lectureId: string, user: AuthUser) {
     const lecture = await this.getLectureWithAuth(lectureId, user);
+    const teacherName = await this.getUserDisplayName(lecture.teacherId);
     const cdnBase    = (this.config.get<string>('streaming.cdnBaseUrl')    || '').replace(/\/$/, '');
     const cdnBase480 = (this.config.get<string>('streaming.cdnBaseUrl480') || '').replace(/\/$/, '');
     const cdnBase360 = (this.config.get<string>('streaming.cdnBaseUrl360') || '').replace(/\/$/, '');
@@ -225,6 +226,8 @@ export class LiveBroadcastService {
       status: lecture.status,
       streamKey: key,
       title: lecture.title,
+      teacherId: lecture.teacherId,
+      teacherName,
       startedAt: lecture.startedAt,
       createdAt: lecture.createdAt,
     };
