@@ -691,25 +691,25 @@ export class AssessmentService {
       //   (b) the student hasn't yet completed their diagnostic — meaning whatever
       //       test they just submitted WAS their diagnostic (the UI falls back to
       //       the first published test when no DIAGNOSTIC-type test exists).
+      // Pre-load all WeakTopic and TopicProgress rows for this student in one query each
+      // to avoid N+1 (one DB hit per topic in the loops below).
+      const topicIds = [...topicStats.keys()].filter(Boolean);
+      const [existingWeakTopics, existingTopicProgress] = await Promise.all([
+        topicIds.length
+          ? manager.find(WeakTopic, { where: { studentId: student.id, topicId: In(topicIds) } })
+          : Promise.resolve([]),
+        topicIds.length
+          ? manager.find(TopicProgress, { where: { studentId: student.id, topicId: In(topicIds) } })
+          : Promise.resolve([]),
+      ]);
+      const weakTopicMap = new Map(existingWeakTopics.map((w) => [w.topicId, w]));
+      const topicProgressMap = new Map(existingTopicProgress.map((p) => [p.topicId, p]));
+
       if (mockTest.type === MockTestType.DIAGNOSTIC || !student.diagnosticCompleted) {
         if (!student.diagnosticCompleted) {
           student.diagnosticCompleted = true;
           await manager.save(Student, student);
         }
-
-        // Pre-load all WeakTopic and TopicProgress rows for this student in one query each
-        // to avoid N+1 (one DB hit per topic in the loops below).
-        const topicIds = [...topicStats.keys()].filter(Boolean);
-        const [existingWeakTopics, existingTopicProgress] = await Promise.all([
-          topicIds.length
-            ? manager.find(WeakTopic, { where: { studentId: student.id, topicId: In(topicIds) } })
-            : Promise.resolve([]),
-          topicIds.length
-            ? manager.find(TopicProgress, { where: { studentId: student.id, topicId: In(topicIds) } })
-            : Promise.resolve([]),
-        ]);
-        const weakTopicMap = new Map(existingWeakTopics.map((w) => [w.topicId, w]));
-        const topicProgressMap = new Map(existingTopicProgress.map((p) => [p.topicId, p]));
 
         // Upsert WeakTopic records based on diagnostic accuracy
         for (const [topicId, stats] of topicStats.entries()) {

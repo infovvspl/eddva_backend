@@ -1335,7 +1335,7 @@ export class BatchService {
 
     const tempPassword = this.generateTempPassword();
 
-    return this.dataSource.transaction(async (manager) => {
+    return this.userRepo.manager.transaction(async (manager) => {
       const user = manager.create(User, {
         phoneNumber: dto.phoneNumber,
         fullName: dto.fullName,

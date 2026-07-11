@@ -477,7 +477,6 @@ export class AuthService {
       }
     }
 
-    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
     const isStaffBased = tenant?.operationalModel === 'STAFF_BASED';
     const roleToAssign = isStaffBased ? UserRole.INSTITUTE_ADMIN : UserRole.TEACHER;
     const permissionGroup = isStaffBased ? dto.permissionGroup : null;
