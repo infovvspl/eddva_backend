@@ -124,6 +124,10 @@ export class TenantMiddleware implements NestMiddleware {
       throw new UnauthorizedException('This institute account has been suspended.');
     }
 
+    if (tenant.status === TenantStatus.TRIAL && tenant.trialEndsAt && new Date(tenant.trialEndsAt) < new Date()) {
+      throw new UnauthorizedException('Your trial period has expired. Please contact support to upgrade your plan.');
+    }
+
     req.tenantId = tenant.id;
     req.tenant = tenant;
     next();
