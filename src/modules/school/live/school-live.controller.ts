@@ -82,6 +82,23 @@ export class SchoolLiveController {
     return this.svc.getChatHistory(id, user, 500);
   }
 
+  @Get('lectures/:id/questions')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  questions(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getQuestions(id, user);
+  }
+
+  @Post('lectures/:id/questions/:questionId/answer')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  answerQuestion(
+    @SchoolUser() user: any,
+    @Param('id') id: string,
+    @Param('questionId') questionId: string,
+    @Body() dto: { answer: string },
+  ) {
+    return this.svc.saveAnswer(id, questionId, dto.answer, user);
+  }
+
   @Get('lectures/:id/participants/active')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   activeParticipants(@SchoolUser() user: any, @Param('id') id: string) {
@@ -225,6 +242,34 @@ export class SchoolLiveHlsController {
     @Res() res: Response,
   ) {
     const out = await this.svc.proxyHls(streamKey, file);
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', file.endsWith('.m3u8') ? 'no-cache' : 'public, max-age=10');
+    res.send(out.body);
+  }
+
+  @Get('hls480/:streamKey/:file')
+  async hls480(
+    @Param('streamKey') streamKey: string,
+    @Param('file') file: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.proxyHls(streamKey, file, '480');
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', file.endsWith('.m3u8') ? 'no-cache' : 'public, max-age=10');
+    res.send(out.body);
+  }
+
+  @Get('hls360/:streamKey/:file')
+  async hls360(
+    @Param('streamKey') streamKey: string,
+    @Param('file') file: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.proxyHls(streamKey, file, '360');
     if (!out) { res.status(404).end(); return; }
     res.setHeader('Content-Type', out.contentType);
     res.setHeader('Access-Control-Allow-Origin', '*');

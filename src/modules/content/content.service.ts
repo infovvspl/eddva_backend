@@ -1049,8 +1049,10 @@ ${notes.slice(0, 4000)}`,
 
         await this.validateBatchAccess(dto.batchId, userId, tenantId, isAdmin);
 
+        const normalizedVideoUrl = dto.videoUrl ? this._fixVideoUrl(dto.videoUrl.trim()) : dto.videoUrl;
+
         // Validate type-specific fields
-        if (dto.type === LectureType.RECORDED && !dto.videoUrl) {
+        if (dto.type === LectureType.RECORDED && !normalizedVideoUrl) {
             throw new BadRequestException('videoUrl is required for recorded lectures');
         }
         if (dto.type === LectureType.LIVE) {
@@ -1064,6 +1066,7 @@ ${notes.slice(0, 4000)}`,
 
         const lecture = this.lectureRepo.create({
             ...dto,
+            videoUrl: normalizedVideoUrl,
             lectureLanguage,
             transcriptLanguage: lectureLanguage,
             tenantId,
@@ -1073,13 +1076,13 @@ ${notes.slice(0, 4000)}`,
         const saved = await this.lectureRepo.save(lecture);
         await this.bustContentCache(lecture.tenantId);
 
-        if (dto.type === LectureType.RECORDED && dto.videoUrl) {
+        if (dto.type === LectureType.RECORDED && normalizedVideoUrl) {
             // Only run transcription / AI notes if the tenant has the STT feature
             void (async () => {
                 try {
                     const enabled = await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing');
                     if (enabled) {
-                        await this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId);
+                        await this._processLectureAI(saved.id, normalizedVideoUrl, dto.topicId, tenantId);
                     } else {
                         // No AI: clear transcript status so the UI never shows a perpetual "pending"
                         await this.lectureRepo.update(saved.id, { transcriptStatus: null as any });
@@ -1385,14 +1388,44 @@ ${notes.slice(0, 4000)}`,
         if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
             throw new ForbiddenException('AI transcription is not enabled for your institution.');
         }
-        if (lecture.type !== LectureType.RECORDED || !lecture.videoUrl) {
+
+        let videoUrl = lecture.videoUrl;
+        if (lecture.type === LectureType.LIVE) {
+            const rows = await this.dataSource.query(
+                `SELECT * FROM broadcast_lectures WHERE title = $1 AND batch_id = $2 AND institute_id = $3 AND status = 'PROCESSED' LIMIT 1`,
+                [lecture.title, lecture.batchId, tenantId]
+            );
+            const broadcast = rows[0];
+            if (!broadcast || !broadcast.recording_r2_path) {
+                throw new BadRequestException('Recording is not processed yet for this live stream');
+            }
+            // Sign the R2 path
+            const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
+            const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+            const client = new S3Client({
+                endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+                region: 'auto',
+                credentials: {
+                    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+                    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+                },
+                requestChecksumCalculation: 'WHEN_REQUIRED' as any,
+                responseChecksumValidation: 'WHEN_REQUIRED' as any,
+            });
+            const command = new GetObjectCommand({
+                Bucket: process.env.R2_RECORDINGS_BUCKET || 'edva-recordings',
+                Key: broadcast.recording_r2_path,
+            });
+            videoUrl = await getSignedUrl(client as any, command as any, { expiresIn: 14400 });
+        } else if (lecture.type !== LectureType.RECORDED || !videoUrl) {
             throw new BadRequestException('Only recorded lectures with a video URL can be transcribed');
         }
+
         if (lecture.transcriptStatus === TranscriptStatus.PROCESSING) {
             return { message: 'Transcription already in progress' };
         }
         await this.lectureRepo.update(id, { transcriptStatus: TranscriptStatus.PROCESSING });
-        this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => { });
+        this._processLectureAI(id, videoUrl, lecture.topicId, tenantId).catch(() => { });
         return { message: 'Transcription started' };
     }
 

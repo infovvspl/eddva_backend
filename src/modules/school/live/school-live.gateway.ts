@@ -47,6 +47,9 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
   // if a new join fires before the old socket's disconnect, we won't evict the
   // freshly re-joined user when the stale disconnect event finally fires.
   private readonly activeStudents = new Map<string, Map<string, { userName: string; handRaised: boolean; socketId: string }>>();
+  private readonly questionsActive = new Map<string, boolean>();
+  private readonly lectureQuestions = new Map<string, Array<{ id: string; userId: string; userName: string; text: string; answer: string | null; createdAt: string }>>();
+  private readonly pinnedAnnouncements = new Map<string, string | null>();
 
   @WebSocketServer()
   server: Server;
@@ -154,7 +157,13 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     this.server.to(`teacher:${lectureId}`).emit('viewerCount', { count: finalCount });
     this.server.to(`lecture:${lectureId}`).emit('viewerCount', { count: finalCount });
     this.emitParticipants(lectureId);
-    client.emit('joined', { lectureId, viewerCount: finalCount });
+    client.emit('joined', {
+      lectureId,
+      viewerCount: finalCount,
+      questionsActive: this.questionsActive.get(lectureId) || false,
+      questions: this.lectureQuestions.get(lectureId) || [],
+      pinnedAnnouncement: this.pinnedAnnouncements.get(lectureId) || null,
+    });
   }
 
   @SubscribeMessage('teacher-join')
@@ -183,7 +192,13 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role };
     const viewerCount = await this.redis.viewerCount(lectureId);
     const students = this.getActiveStudents(lectureId);
-    client.emit('teacher-joined', { viewerCount: viewerCount || students.length, students });
+    client.emit('teacher-joined', {
+      viewerCount: viewerCount || students.length,
+      students,
+      questionsActive: this.questionsActive.get(lectureId) || false,
+      questions: this.lectureQuestions.get(lectureId) || [],
+      pinnedAnnouncement: this.pinnedAnnouncements.get(lectureId) || null,
+    });
     // If OBS started before the teacher opened/refreshed the page they missed
     // the stream-started Redis event — emit it directly so the dashboard transitions.
     if (lecture?.status === 'LIVE') {
@@ -236,6 +251,63 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     client.emit('hand-ack', { raised: data.handRaised });
   }
 
+  @SubscribeMessage('lower-hand')
+  async handleLowerHand(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload?: { userId?: string },
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role) || !payload?.userId) return;
+    const targetUserId = payload.userId;
+
+    await this.svc.lowerHand(data.lectureId, targetUserId).catch(() => undefined);
+
+    const students = this.activeStudents.get(data.lectureId);
+    const student = students?.get(targetUserId);
+    if (student) {
+      student.handRaised = false;
+      students.set(targetUserId, student);
+      this.emitParticipants(data.lectureId);
+      this.server.to(student.socketId).emit('hand-ack', { raised: false });
+    }
+
+    this.server.to(`lecture:${data.lectureId}`).emit('hand-lowered', { userId: targetUserId });
+
+    this.server.to(`teacher:${data.lectureId}`).emit('hand-raised', {
+      userId: targetUserId,
+      userName: student?.userName || '',
+      raised: false,
+    });
+  }
+
+  @SubscribeMessage('lower-all-hands')
+  async handleLowerAllHands(
+    @ConnectedSocket() client: Socket,
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+
+    await this.svc.lowerAllHands(data.lectureId).catch(() => undefined);
+
+    const students = this.activeStudents.get(data.lectureId);
+    if (students) {
+      for (const [userId, student] of students.entries()) {
+        if (student.handRaised) {
+          student.handRaised = false;
+          students.set(userId, student);
+          this.server.to(student.socketId).emit('hand-ack', { raised: false });
+          this.server.to(`teacher:${data.lectureId}`).emit('hand-raised', {
+            userId,
+            userName: student.userName,
+            raised: false,
+          });
+        }
+      }
+      this.emitParticipants(data.lectureId);
+    }
+    this.server.to(`lecture:${data.lectureId}`).emit('hand-lowered-all');
+  }
+
   @SubscribeMessage('reaction')
   handleReaction(@ConnectedSocket() client: Socket, @MessageBody() payload: { emoji: string }) {
     const data = client.data as SocketData;
@@ -247,6 +319,79 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       emoji: payload.emoji,
     });
     void this.svc.saveReaction(data.lectureId, data.userId, data.userName, payload.emoji).catch(() => undefined);
+  }
+
+  @SubscribeMessage('toggle-questions')
+  handleToggleQuestions(@ConnectedSocket() client: Socket, @MessageBody() payload: { active: boolean }) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    const active = !!payload?.active;
+    this.questionsActive.set(data.lectureId, active);
+    this.server.to(`lecture:${data.lectureId}`).emit('questions-toggled', { active });
+  }
+
+  @SubscribeMessage('pin-announcement')
+  handlePinAnnouncement(@ConnectedSocket() client: Socket, @MessageBody() payload: { text: string }) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    const text = (payload?.text || '').trim();
+    if (!text) return;
+    this.pinnedAnnouncements.set(data.lectureId, text);
+    this.server.to(`lecture:${data.lectureId}`).emit('announcement-pinned', { text });
+  }
+
+  @SubscribeMessage('unpin-announcement')
+  handleUnpinAnnouncement(@ConnectedSocket() client: Socket) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    this.pinnedAnnouncements.set(data.lectureId, null);
+    this.server.to(`lecture:${data.lectureId}`).emit('announcement-unpinned');
+  }
+
+  @SubscribeMessage('submit-question')
+  handleSubmitQuestion(@ConnectedSocket() client: Socket, @MessageBody() payload: { text: string }) {
+    const data = client.data as SocketData;
+    if (!data?.userId || !data?.lectureId) return;
+    if (!this.questionsActive.get(data.lectureId)) return; // Only allow when active
+    const text = (payload?.text || '').trim();
+    if (!text) return;
+    
+    const newQuestion = {
+      id: crypto.randomUUID(),
+      userId: data.userId,
+      userName: data.userName,
+      text,
+      answer: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    const questions = this.lectureQuestions.get(data.lectureId) || [];
+    questions.push(newQuestion);
+    this.lectureQuestions.set(data.lectureId, questions);
+    this.server.to(`lecture:${data.lectureId}`).emit('question-added', newQuestion);
+    // Persist to DB so it survives a server restart and appears in post-class summary
+    void this.svc.saveQuestion(data.lectureId, newQuestion.id, data.userId, data.userName, text).catch(() => undefined);
+  }
+
+  @SubscribeMessage('answer-question')
+  handleAnswerQuestion(@ConnectedSocket() client: Socket, @MessageBody() payload: { questionId: string; answer: string }) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    const answer = (payload?.answer || '').trim();
+    
+    const questions = this.lectureQuestions.get(data.lectureId) || [];
+    const q = questions.find(item => item.id === payload?.questionId);
+    if (q) {
+      q.answer = answer || null;
+      this.server.to(`lecture:${data.lectureId}`).emit('question-answered', {
+        questionId: payload.questionId,
+        answer: q.answer,
+      });
+      // Persist answer to DB
+      if (q.answer) {
+        void this.svc.saveAnswer(data.lectureId, payload.questionId, q.answer).catch(() => undefined);
+      }
+    }
   }
 
   async handleDisconnect(client: Socket) {
