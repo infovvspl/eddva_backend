@@ -40,8 +40,8 @@ jobs:
             cd /home/ubuntu/eddva_backend
 
             echo "Pulling latest code..."
-            git stash || true
-            git pull origin main
+            git fetch --prune origin
+            git reset --hard origin/main
 
             echo "Ensuring .env is present..."
             if [ ! -f .env ] || [ ! -s .env ]; then
