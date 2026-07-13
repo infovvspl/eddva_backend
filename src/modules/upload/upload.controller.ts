@@ -154,6 +154,7 @@ export class UploadController {
   }
 
   @Put('upload/proxy')
+  @Public()
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Proxy PUT upload requests to S3 to bypass browser CORS' })

@@ -734,6 +734,18 @@ export class AuthService {
     });
     if (!user) throw new NotFoundException('User not found');
 
+    if (user.role === UserRole.INSTITUTE_ADMIN) {
+      try {
+        await this.dataSource.query(`
+          INSERT INTO attendances (institute_id, user_id, date, status, remarks, created_at, updated_at)
+          VALUES ($1, $2, CURRENT_DATE, 'present', 'Me api marked attendance', NOW(), NOW())
+          ON CONFLICT (date, user_id) DO UPDATE SET status = 'present', updated_at = NOW()
+        `, [user.tenantId, user.id]);
+      } catch (e) {
+        this.logger.warn(`getMe attendance insert failed: ${(e as Error).message}`);
+      }
+    }
+
     const student = await this.studentRepo.findOne({ where: { userId } });
 
     // Update streak on every /me call (safe — idempotent within same day)
