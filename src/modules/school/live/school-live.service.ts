@@ -590,8 +590,11 @@ export class SchoolLiveService implements OnModuleInit {
   async getActiveParticipants(lectureId: string, user: SchoolUser) {
     await this.ensureStatsTables();
     const lecture = await this.getLecture(lectureId);
-    if (!lecture) throw new NotFoundException('Lecture not found');
+    // Return empty array (not 404) when lecture doesn't exist — this method
+    // is called by a polling interval every 5 s and a 404 would spam the logs.
+    if (!lecture) return [];
     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      // Wrong tenant — do throw for security reasons
       throw new NotFoundException('Lecture not found');
     }
 
