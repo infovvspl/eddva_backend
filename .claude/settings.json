@@ -82,7 +82,11 @@
       "PowerShell(ssh -i \"C:\\\\Users\\\\HP\\\\Downloads\\\\eddva-key.pem\" ubuntu@43.204.136.13 \"pm2 logs eddva-backend-dev --lines 15 --nostream\" 2>&1)",
       "PowerShell(scp -i \"C:\\\\Users\\\\HP\\\\Downloads\\\\eddva-key.pem\" -r \"c:\\\\Users\\\\HP\\\\Desktop\\\\apexiq-backend\\\\apexiq\\\\dist\\\\modules\\\\school\" \"c:\\\\Users\\\\HP\\\\Desktop\\\\apexiq-backend\\\\apexiq\\\\dist\\\\modules\\\\live-broadcast\" ubuntu@43.204.136.13:/home/ubuntu/eddva_backend_dev/dist/modules/ 2>&1)",
       "PowerShell(ssh -i \"C:\\\\Users\\\\HP\\\\Downloads\\\\eddva-key.pem\" ubuntu@43.204.136.13 \"pm2 restart eddva-backend-dev && echo restarted\" 2>&1)",
-      "Read(//mnt/c/Users/HP/**)"
+      "Read(//mnt/c/Users/HP/**)",
+      "Bash(ssh ubuntu@13.127.31.213 \"sudo grep -n 'hls480\\\\|hls360\\\\|hls/' /etc/nginx/nginx.conf | grep 'location'\")",
+      "Bash(ssh ubuntu@13.127.31.213 \"cat /usr/local/bin/rtmp_record_done.sh 2>/dev/null || cat /etc/nginx/rtmp_record_done.sh 2>/dev/null || find / -name 'rtmp_record_done.sh' 2>/dev/null | head -3 | xargs cat\")",
+      "Bash(ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@43.204.136.13 \"cat /etc/nginx/sites-enabled/default 2>/dev/null || cat /etc/nginx/sites-enabled/*.conf 2>/dev/null || cat /etc/nginx/nginx.conf 2>/dev/null | head -100\")",
+      "PowerShell(cd \"C:\\\\Users\\\\HP\\\\Desktop\\\\VVSPL\\\\eddva_frontend\"; $env:NODE_OPTIONS=\"--max-old-space-size=3072\"; npm run build 2>&1 | Select-Object -Last 30)"
     ],
     "additionalDirectories": [
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\lib\\api",

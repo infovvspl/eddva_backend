@@ -305,37 +305,11 @@ export class AuthService {
 
   private async findUserForPasswordLogin(
     dto: LoginWithPasswordDto,
-    tenantId?: string,
+    tenantId: string,
   ): Promise<User | null> {
     const email = dto.email?.trim();
     if (email) {
-      const matches = await this.userRepo.find({
-        where: { email: ILike(email) },
-        relations: ['customRole'],
-      });
-      if (matches.length === 0) return null;
-
-      const scoped =
-        tenantId && matches.length > 1
-          ? matches.filter((u) => u.tenantId === tenantId)
-          : matches;
-      const candidates = scoped.length > 0 ? scoped : matches;
-
-      if (candidates.length === 1) {
-        return candidates[0];
-      }
-
-      // Same email on multiple tenants — pick the account whose password matches
-      for (const user of candidates) {
-        try {
-          if (user.password && (await user.validatePassword(dto.password))) {
-            return user;
-          }
-        } catch {
-          /* ignore invalid bcrypt hashes */
-        }
-      }
-      return candidates[0];
+      return this.userRepo.findOne({ where: { email: ILike(email), tenantId } });
     }
 
     const raw = dto.phoneNumber?.trim();
@@ -347,31 +321,8 @@ export class AuthService {
     }
 
     for (const variant of phoneVariants) {
-      const matches = await this.userRepo.find({
-        where: { phoneNumber: variant },
-        relations: ['customRole'],
-      });
-      if (matches.length === 0) continue;
-
-      const scoped =
-        tenantId && matches.length > 1
-          ? matches.filter((u) => u.tenantId === tenantId)
-          : matches;
-      const candidates = scoped.length > 0 ? scoped : matches;
-
-      if (candidates.length === 1) {
-        return candidates[0];
-      }
-      for (const user of candidates) {
-        try {
-          if (user.password && (await user.validatePassword(dto.password))) {
-            return user;
-          }
-        } catch {
-          /* ignore invalid bcrypt hashes */
-        }
-      }
-      return candidates[0];
+      const user = await this.userRepo.findOne({ where: { phoneNumber: variant, tenantId } });
+      if (user) return user;
     }
     return null;
   }
@@ -501,6 +452,14 @@ export class AuthService {
   }
 
   async createTeacher(dto: CreateTeacherDto, tenantId: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (tenant?.maxTeachers) {
+      const currentCount = await this.userRepo.count({ where: { tenantId, role: UserRole.TEACHER } });
+      if (currentCount >= tenant.maxTeachers) {
+        throw new BadRequestException(`Teacher limit reached (${tenant.maxTeachers}). Upgrade your plan to add more teachers.`);
+      }
+    }
+
     // Check duplicate phone or email in this tenant
     const existingPhone = await this.userRepo.findOne({
       where: { phoneNumber: dto.phoneNumber, tenantId },
@@ -518,7 +477,6 @@ export class AuthService {
       }
     }
 
-    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
     const isStaffBased = tenant?.operationalModel === 'STAFF_BASED';
     const roleToAssign = isStaffBased ? UserRole.INSTITUTE_ADMIN : UserRole.TEACHER;
     const permissionGroup = isStaffBased ? dto.permissionGroup : null;
@@ -775,6 +733,18 @@ export class AuthService {
       relations: ['tenant', 'customRole'],
     });
     if (!user) throw new NotFoundException('User not found');
+
+    if (user.role === UserRole.INSTITUTE_ADMIN) {
+      try {
+        await this.dataSource.query(`
+          INSERT INTO attendances (institute_id, user_id, date, status, remarks, created_at, updated_at)
+          VALUES ($1, $2, CURRENT_DATE, 'present', 'Me api marked attendance', NOW(), NOW())
+          ON CONFLICT (date, user_id) DO UPDATE SET status = 'present', updated_at = NOW()
+        `, [user.tenantId, user.id]);
+      } catch (e) {
+        this.logger.warn(`getMe attendance insert failed: ${(e as Error).message}`);
+      }
+    }
 
     const student = await this.studentRepo.findOne({ where: { userId } });
 

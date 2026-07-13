@@ -66,12 +66,12 @@ export class LiveClassService {
   ) {}
 
   async getToken(lectureId: string, userId: string, tenantId: string, userRole: UserRole) {
-    // Look up by ID only — student tenantId may differ from lecture tenantId
     const lecture = await this.lectureRepo.findOne({
       where: { id: lectureId },
       relations: ['topic'],
     });
     if (!lecture) throw new NotFoundException('Lecture not found');
+    if (lecture.tenantId !== tenantId) throw new ForbiddenException('Access denied');
 
     if (lecture.type !== LectureType.LIVE) {
       throw new BadRequestException('Not a live lecture');

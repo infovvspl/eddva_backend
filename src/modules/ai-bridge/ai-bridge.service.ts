@@ -1402,10 +1402,13 @@ export class AiBridgeService {
     const languageInstruction = isOdia
       ? 'Generate all question text, option text, segment titles, and explanations in natural Odia (ଓଡ଼ିଆ) only. Keep JSON keys and option labels A/B/C/D unchanged.'
       : 'Generate questions and explanations in English only.';
+    const mathFormattingInstruction =
+      'For every formula, equation, variable expression, option, and explanation math, use valid KaTeX markdown delimiters: inline math as $...$ and display math as $$...$$. Use \\frac{a}{b} for fractions, \\cdot for multiplication, and never split one formula across lines or use a lone backslash as division.';
     const payload = {
       ...dto,
-      lectureTitle: `${dto.lectureTitle} (${languageInstruction})`,
+      lectureTitle: `${dto.lectureTitle} (${languageInstruction} ${mathFormattingInstruction})`,
       languageInstruction,
+      mathFormattingInstruction,
     };
     const raw = await this.post<any>('/quiz/generate', payload, tenantId);
     this.logger.log(`[AI #14] Received raw response from Django: ${JSON.stringify(raw)}`);

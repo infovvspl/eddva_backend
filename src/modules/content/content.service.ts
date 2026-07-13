@@ -1049,8 +1049,10 @@ ${notes.slice(0, 4000)}`,
 
         await this.validateBatchAccess(dto.batchId, userId, tenantId, isAdmin);
 
+        const normalizedVideoUrl = dto.videoUrl ? this._fixVideoUrl(dto.videoUrl.trim()) : dto.videoUrl;
+
         // Validate type-specific fields
-        if (dto.type === LectureType.RECORDED && !dto.videoUrl) {
+        if (dto.type === LectureType.RECORDED && !normalizedVideoUrl) {
             throw new BadRequestException('videoUrl is required for recorded lectures');
         }
         if (dto.type === LectureType.LIVE) {
@@ -1064,6 +1066,7 @@ ${notes.slice(0, 4000)}`,
 
         const lecture = this.lectureRepo.create({
             ...dto,
+            videoUrl: normalizedVideoUrl,
             lectureLanguage,
             transcriptLanguage: lectureLanguage,
             tenantId,
@@ -1073,13 +1076,13 @@ ${notes.slice(0, 4000)}`,
         const saved = await this.lectureRepo.save(lecture);
         await this.bustContentCache(lecture.tenantId);
 
-        if (dto.type === LectureType.RECORDED && dto.videoUrl) {
+        if (dto.type === LectureType.RECORDED && normalizedVideoUrl) {
             // Only run transcription / AI notes if the tenant has the STT feature
             void (async () => {
                 try {
                     const enabled = await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing');
                     if (enabled) {
-                        await this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId);
+                        await this._processLectureAI(saved.id, normalizedVideoUrl, dto.topicId, tenantId);
                     } else {
                         // No AI: clear transcript status so the UI never shows a perpetual "pending"
                         await this.lectureRepo.update(saved.id, { transcriptStatus: null as any });
@@ -2016,7 +2019,7 @@ ${notes.slice(0, 4000)}`,
     ): Promise<any> {
         this.logger.log(`Upserting progress for lecture ${lectureId}, user ${userId}`);
 
-        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId } });
+        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
         if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
 
         const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
@@ -2240,7 +2243,7 @@ ${notes.slice(0, 4000)}`,
         userId: string,
         tenantId: string,
     ) {
-        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId } });
+        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
         if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
 
         const question = (lecture.quizCheckpoints ?? []).find((q) => q.id === dto.questionId);

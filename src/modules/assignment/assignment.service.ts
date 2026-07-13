@@ -181,9 +181,7 @@ export class AssignmentService {
     userId: string,
     submissionUrl: string
   ) {
-    // assignmentId is a unique UUID, so we can find it without strict tenant filtering
-    // (useful for cross-tenant access in dev environment)
-    const assignment = await this.assignmentRepo.findOne({ where: { id: assignmentId } });
+    const assignment = await this.assignmentRepo.findOne({ where: { id: assignmentId, tenantId } });
     if (!assignment) throw new NotFoundException('Assignment not found');
 
     // Look up student by userId
@@ -212,9 +210,8 @@ export class AssignmentService {
   }
 
   async getSubmissions(tenantId: string, assignmentId: string) {
-    // Relax tenantId check for dev cross-tenant testing; assignmentId is globally unique
     return this.submissionRepo.find({
-      where: { assignmentId },
+      where: { assignmentId, tenantId },
       relations: ['student', 'student.user'],
       order: { submittedAt: 'DESC' },
     });
@@ -226,8 +223,7 @@ export class AssignmentService {
     grade: number,
     feedback?: string
   ) {
-    // Relax tenantId check for dev cross-tenant testing; submissionId is globally unique
-    const submission = await this.submissionRepo.findOne({ where: { id: submissionId } });
+    const submission = await this.submissionRepo.findOne({ where: { id: submissionId, tenantId } });
     if (!submission) throw new NotFoundException('Submission not found');
 
     submission.grade = grade;

@@ -88,6 +88,7 @@ export class SchoolLiveService implements OnModuleInit {
         )
       `);
       await this.ds.query(`ALTER TABLE school_live_participants ADD COLUMN IF NOT EXISTS hand_raised BOOLEAN NOT NULL DEFAULT FALSE`);
+      await this.ds.query(`ALTER TABLE school_live_participants ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_participants_lecture ON school_live_participants (lecture_id)`);
       await this.ds.query(`
         CREATE TABLE IF NOT EXISTS school_live_reactions (
@@ -127,6 +128,19 @@ export class SchoolLiveService implements OnModuleInit {
         )
       `);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_poll_votes_poll ON school_live_poll_votes (poll_id)`);
+
+      await this.ds.query(`
+        CREATE TABLE IF NOT EXISTS school_live_questions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          lecture_id UUID NOT NULL REFERENCES school_live_lectures(id) ON DELETE CASCADE,
+          user_id UUID NOT NULL,
+          user_name VARCHAR NOT NULL,
+          text TEXT NOT NULL,
+          answer TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_live_questions_lecture ON school_live_questions (lecture_id, created_at)`);
 
       // Recording columns (added after initial schema — safe no-ops if already present)
       await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS recording_url VARCHAR`);
@@ -298,14 +312,11 @@ export class SchoolLiveService implements OnModuleInit {
    * server-side and re-serve it with permissive CORS. `file` is a single flat
    * HLS file (index.m3u8 / indexN.ts) — no path traversal allowed.
    */
-  async proxyHls(streamKey: string, file: string): Promise<{ contentType: string; body: Buffer } | null> {
-    const base = this.config.get<string>('streaming.cdnBaseUrl');
-    if (!base || !streamKey || !file) return null;
-    // Reject path traversal in streamKey — it must be a hex slug from randomBytes
+  async proxyHls(streamKey: string, file: string, quality?: '480' | '360'): Promise<{ contentType: string; body: Buffer } | null> {
+    if (!streamKey || !file) return null;
     if (!/^[a-f0-9]{16,64}$/i.test(streamKey)) return null;
     if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
-    // Verify stream key exists — cache the result for 60s to avoid a DB hit on every .ts segment
     const cachedUntil = this.hlsKeyCache.get(streamKey);
     if (!cachedUntil || cachedUntil < Date.now()) {
       const rows = await this.ds.query(
@@ -315,6 +326,11 @@ export class SchoolLiveService implements OnModuleInit {
       if (!rows.length) { this.hlsKeyCache.delete(streamKey); return null; }
       this.hlsKeyCache.set(streamKey, Date.now() + 60_000);
     }
+    const configKey = quality === '480' ? 'streaming.cdnBaseUrl480'
+      : quality === '360' ? 'streaming.cdnBaseUrl360'
+      : 'streaming.cdnBaseUrl';
+    const base = (this.config.get<string>(configKey) || '').replace(/\/$/, '');
+    if (!base) return null;
     try {
       const r = await fetch(`${base}/${streamKey}/${file}`, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) return null;
@@ -551,6 +567,26 @@ export class SchoolLiveService implements OnModuleInit {
     );
   }
 
+  async lowerHand(lectureId: string, userId: string) {
+    await this.ensureStatsTables();
+    await this.ds.query(
+      `UPDATE school_live_participants
+       SET hand_raised = false
+       WHERE lecture_id = $1 AND user_id = $2`,
+      [lectureId, userId],
+    );
+  }
+
+  async lowerAllHands(lectureId: string) {
+    await this.ensureStatsTables();
+    await this.ds.query(
+      `UPDATE school_live_participants
+       SET hand_raised = false
+       WHERE lecture_id = $1`,
+      [lectureId],
+    );
+  }
+
   async getActiveParticipants(lectureId: string, user: SchoolUser) {
     await this.ensureStatsTables();
     const lecture = await this.getLecture(lectureId);
@@ -781,6 +817,47 @@ export class SchoolLiveService implements OnModuleInit {
      );
      return polls || [];
    }
+
+  // ── Q&A ─────────────────────────────────────────────────────────────────────
+
+  async saveQuestion(lectureId: string, questionId: string, userId: string, userName: string, text: string) {
+    await this.ds.query(
+      `INSERT INTO school_live_questions (id, lecture_id, user_id, user_name, text)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO NOTHING`,
+      [questionId, lectureId, userId, userName, text],
+    ).catch(() => undefined);
+  }
+
+  async saveAnswer(lectureId: string, questionId: string, answer: string, user?: SchoolUser) {
+    if (user) {
+      const lecture = await this.getLecture(lectureId);
+      if (!lecture) throw new NotFoundException('Lecture not found');
+      if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+        throw new NotFoundException('Lecture not found');
+      }
+    }
+    const trimmed = (answer || '').trim();
+    if (!trimmed) throw new Error('Answer cannot be empty');
+    await this.ds.query(
+      `UPDATE school_live_questions SET answer = $1 WHERE id = $2 AND lecture_id = $3`,
+      [trimmed, questionId, lectureId],
+    );
+    return { success: true, answer: trimmed };
+  }
+
+  async getQuestions(lectureId: string, user: SchoolUser) {
+    const lecture = await this.getLecture(lectureId);
+    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      throw new NotFoundException('Lecture not found');
+    }
+    return this.ds.query(
+      `SELECT id, user_id AS "userId", user_name AS "userName", text, answer, created_at AS "createdAt"
+       FROM school_live_questions WHERE lecture_id = $1 ORDER BY created_at ASC`,
+      [lectureId],
+    );
+  }
 
   // ── recordings ──────────────────────────────────────────────────────────────
 

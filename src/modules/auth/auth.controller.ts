@@ -13,6 +13,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Audit } from '../audit-log/audit.decorator';
 import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -93,6 +94,7 @@ export class AuthController {
   // ── Password Flow (for institute-created accounts) ─────────────────────
 
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Audit({ module: 'Security', action: 'Login', description: 'User logged in: {body.email}' })
   @Public()
   @HttpCode(HttpStatus.OK)
@@ -141,6 +143,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request password reset link via email' })

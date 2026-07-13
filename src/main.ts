@@ -53,12 +53,16 @@ async function bootstrap() {
   mkdirSync(join(__dirname, '..', 'uploads', 'avatars'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'videos'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'thumbnails'), { recursive: true });
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
+  const uploadsPath = join(__dirname, '..', 'uploads');
+  app.useStaticAssets(uploadsPath, { prefix: '/uploads' });
+  app.useStaticAssets(uploadsPath, { prefix: '/api/v1/uploads' });
 
   const cfg = app.get(ConfigService);
 
   // ── Security headers ──────────────────────────────────────────────────────
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
 
   // ── Gzip compression ─────────────────────────────────────────────────────
   app.use(compression());

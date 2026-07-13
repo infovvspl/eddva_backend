@@ -121,6 +121,48 @@ export class SuperAdminController {
     return this.superAdminService.getPlatformStats();
   }
 
+  @Get('live-usage')
+  @ApiOperation({ summary: 'Get live class usage analytics (coaching)' })
+  getLiveUsage() {
+    return this.superAdminService.getLiveUsage();
+  }
+
+  @Get('revenue-dashboard')
+  @ApiOperation({ summary: 'Revenue dashboard: MRR, ARR, plan breakdown, monthly trend, expiring plans' })
+  getRevenueDashboard() {
+    return this.superAdminService.getRevenueDashboard();
+  }
+
+  @Patch('tenants/:id/subscription')
+  @ApiOperation({ summary: 'Update tenant plan, status, trial/expiry dates, seat limits' })
+  updateTenantSubscription(@Param('id', ParseUUIDPipe) id: string, @Body() body: any) {
+    return this.superAdminService.updateTenantSubscription(id, body);
+  }
+
+  @Post('tenants/:id/impersonate')
+  @ApiOperation({ summary: 'Generate a short-lived token to log in as this tenant admin (30 min)' })
+  impersonateTenant(@Param('id', ParseUUIDPipe) id: string) {
+    return this.superAdminService.impersonateTenant(id);
+  }
+
+  @Get('tenant-health')
+  @ApiOperation({ summary: 'Health scores, activity, and risk levels for all tenants' })
+  getTenantHealth() {
+    return this.superAdminService.getTenantHealthOverview();
+  }
+
+  @Get('system-health')
+  @ApiOperation({ summary: 'System health: DB latency, uptime, memory, error counts' })
+  getSystemHealth() {
+    return this.superAdminService.getSystemHealth();
+  }
+
+  @Get('tenants/:id/usage')
+  @ApiOperation({ summary: 'Usage stats for a single tenant: seats, AI tokens, live classes, storage' })
+  getTenantUsage(@Param('id', ParseUUIDPipe) id: string) {
+    return this.superAdminService.getTenantUsageStats(id);
+  }
+
   @Get('announcements')
   @ApiOperation({ summary: 'List all announcements' })
   getAnnouncements(@Query() query: AnnouncementListQueryDto) {

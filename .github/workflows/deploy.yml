@@ -40,7 +40,19 @@ jobs:
             cd /home/ubuntu/eddva_backend
 
             echo "Pulling latest code..."
-            git pull origin main
+            git fetch --prune origin
+            git reset --hard origin/main
+
+            echo "Ensuring .env is present..."
+            if [ ! -f .env ] || [ ! -s .env ]; then
+              cp ~/eddva_backend_dev/.env .env
+              echo ".env restored from dev"
+            fi
+            sed -i 's/^PORT=.*/PORT=3000/' .env
+            grep -q '^PORT=' .env || echo 'PORT=3000' >> .env
+
+            echo "Checking production env vars..."
+            bash scripts/check-prod-env.sh
 
             echo "Installing dependencies..."
             npm ci --production=false
@@ -51,9 +63,17 @@ jobs:
             echo "Running migrations..."
             npm run migration:run || echo "No pending migrations"
 
-            echo "Reloading PM2 (zero-downtime)..."
+            echo "Restarting PM2 with updated env..."
             mkdir -p /home/ubuntu/logs
-            pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
+            pm2 restart ecosystem.config.js --env production --update-env || pm2 start ecosystem.config.js --env production
+
+            echo "Waiting for app to boot..."
+            sleep 12
+
+            echo "Health check..."
+            curl -sf http://localhost:3000/api/v1/tenants/public/platform-config?vertical=coaching \
+              -o /dev/null && echo "✅ Health check passed" \
+              || (pm2 logs eddva-backend --lines 20 --nostream && exit 1)
 
             echo "Backend deployed successfully at $(date)"
             pm2 status
