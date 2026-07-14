@@ -392,16 +392,22 @@ export class GamificationService implements OnModuleInit {
         ? 'Question text should be a short scenario, clue, or application riddle suitable for a treasure checkpoint.'
         : '',
     ].filter(Boolean).join(' - ');
-    const questions = await this.aiBridge.generateQuestionsFromTopic({
-      topicId: ctx.chapterId || ctx.subjectId,
-      topicName,
-      count,
-      difficulty: difficulty === 'any' ? 'medium' : difficulty,
-      type: 'mcq_single',
-      examTarget: 'cbse',
-      subject: ctx.subjectName,
-      chapter: ctx.chapterName || undefined,
-    }, ctx.instituteId, 'school');
+    let questions: any[];
+    try {
+      questions = await this.aiBridge.generateQuestionsFromTopic({
+        topicId: ctx.chapterId || ctx.subjectId,
+        topicName,
+        count,
+        difficulty: difficulty === 'any' ? 'medium' : difficulty,
+        type: 'mcq_single',
+        examTarget: 'cbse',
+        subject: ctx.subjectName,
+        chapter: ctx.chapterName || undefined,
+      }, ctx.instituteId, 'school');
+    } catch (err: any) {
+      this.logger.error(`Gamification AI error [${mode}]: ${err?.message || err}`);
+      throw new BadRequestException('Could not generate quiz questions. The AI service is temporarily unavailable. Please try again in a moment.');
+    }
     const mapped = (questions || []).slice(0, count).map((q: any) => this.toGameQuestion(q));
     if (mapped.length < Math.min(3, count)) {
       throw new BadRequestException('AI could not generate enough school questions. Please try again.');
@@ -440,25 +446,31 @@ export class GamificationService implements OnModuleInit {
   }
 
   private async generateConceptPairs(ctx: any, count: number, mode: string, difficulty = 'medium') {
-    const raw = await this.aiBridge.generateQuestionsFromTopic({
-      topicId: ctx.chapterId || ctx.subjectId,
-      topicName: [
-        `Class ${ctx.className}`,
-        ctx.subjectName,
-        ctx.chapterName || 'mixed school syllabus',
-        mode,
-        'Generate key school syllabus terminology only.',
-        'For each item, the question/content field must be ONLY the term or phrase, max 4 words.',
-        'The answer/model answer field must be a one-sentence student-friendly definition or clue.',
-        'Do not include coaching, JEE, NEET, competitive-exam framing, or MCQ options.',
-      ].join(' - '),
-      count,
-      difficulty,
-      type: 'short_answer',
-      examTarget: 'cbse',
-      subject: ctx.subjectName,
-      chapter: ctx.chapterName || undefined,
-    }, ctx.instituteId, 'school');
+    let raw: any[];
+    try {
+      raw = await this.aiBridge.generateQuestionsFromTopic({
+        topicId: ctx.chapterId || ctx.subjectId,
+        topicName: [
+          `Class ${ctx.className}`,
+          ctx.subjectName,
+          ctx.chapterName || 'mixed school syllabus',
+          mode,
+          'Generate key school syllabus terminology only.',
+          'For each item, the question/content field must be ONLY the term or phrase, max 4 words.',
+          'The answer/model answer field must be a one-sentence student-friendly definition or clue.',
+          'Do not include coaching, JEE, NEET, competitive-exam framing, or MCQ options.',
+        ].join(' - '),
+        count,
+        difficulty,
+        type: 'short_answer',
+        examTarget: 'cbse',
+        subject: ctx.subjectName,
+        chapter: ctx.chapterName || undefined,
+      }, ctx.instituteId, 'school');
+    } catch (err: any) {
+      this.logger.warn(`${mode} AI error: ${err?.message || err}; falling back to subject terms`);
+      return this.fallbackConceptPairs(ctx).slice(0, count);
+    }
 
     const pairs = (raw || [])
       .map((q: any) => ({
