@@ -218,7 +218,7 @@ export class AuthService {
     };
   }
 
-  async loginWithPassword(dto: LoginWithPasswordDto, tenantId: string) {
+  async loginWithPassword(dto: LoginWithPasswordDto, tenantId: string | null) {
     if (!dto.email && !dto.phoneNumber) {
       throw new BadRequestException('Either email or phone number is required');
     }
@@ -305,11 +305,13 @@ export class AuthService {
 
   private async findUserForPasswordLogin(
     dto: LoginWithPasswordDto,
-    tenantId: string,
+    tenantId: string | null,
   ): Promise<User | null> {
     const email = dto.email?.trim();
     if (email) {
-      return this.userRepo.findOne({ where: { email: ILike(email), tenantId } });
+      const where: any = { email: ILike(email) };
+      if (tenantId) where.tenantId = tenantId;
+      return this.userRepo.findOne({ where });
     }
 
     const raw = dto.phoneNumber?.trim();
@@ -321,7 +323,9 @@ export class AuthService {
     }
 
     for (const variant of phoneVariants) {
-      const user = await this.userRepo.findOne({ where: { phoneNumber: variant, tenantId } });
+      const where: any = { phoneNumber: variant };
+      if (tenantId) where.tenantId = tenantId;
+      const user = await this.userRepo.findOne({ where });
       if (user) return user;
     }
     return null;
