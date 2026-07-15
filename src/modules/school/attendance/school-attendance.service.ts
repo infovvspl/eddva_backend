@@ -2,12 +2,19 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+import {
+  SchoolFcmNotificationType,
+  SCHOOL_NOTIFICATION_TEMPLATES,
+  fillTemplate,
+} from '../notification-fcm/school-notification-templates';
 
 @Injectable()
 export class SchoolAttendanceService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
+    private readonly fcm: FcmService,
   ) {}
 
   async mark(user: any, body: any) {
@@ -29,6 +36,104 @@ export class SchoolAttendanceService {
           message: `You have been marked absent on ${body.date}.`,
           actionUrl: '/school/student/dashboard',
         });
+      }
+
+      // Notify parent if student is absent or late
+      const normalizedStatus = body.status?.toLowerCase();
+      if (normalizedStatus === 'absent' || normalizedStatus === 'late') {
+        const studentRows = await this.ds.query(
+          `SELECT s.id AS student_id, s.parent_email, s.parent_phone, u.name AS student_name
+           FROM students s
+           JOIN users u ON s.user_id = u.id
+           WHERE s.user_id = $1`,
+          [body.userId],
+        );
+
+        if (studentRows.length > 0) {
+          const { student_id, parent_email, parent_phone, student_name } = studentRows[0];
+          const parents = await this.ds.query(
+            `SELECT id FROM users
+             WHERE role = 'PARENT' AND is_active = true AND institute_id = $1
+               AND (
+                 (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+                 OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+               )`,
+            [instituteId, parent_email, parent_phone],
+          );
+
+          const notificationType = normalizedStatus === 'late'
+            ? SchoolFcmNotificationType.CHILD_LATE
+            : SchoolFcmNotificationType.CHILD_ABSENT;
+
+          for (const parent of parents) {
+            const prefAllowed = await this.fcm.checkUserPreference(parent.id, 'attendance_alerts');
+            if (!prefAllowed) continue;
+
+            const todayStr = new Date(body.date).toISOString().split('T')[0];
+            const dupRows = await this.ds.query(
+              `SELECT 1 FROM school_notification_log
+               WHERE user_id = $1
+                 AND notification_type = $2
+                 AND reference_id = $3
+                 AND sent_at::date = $4::date
+                 AND status = 'SUCCESS'
+               LIMIT 1`,
+              [parent.id, notificationType, student_id, todayStr],
+            );
+            if (dupRows.length > 0) continue;
+
+            const { title: pTitle, body: pushBody } = fillTemplate(
+              SCHOOL_NOTIFICATION_TEMPLATES[notificationType],
+              { studentName: student_name, date: todayStr },
+            );
+
+            // Send push
+            const pushResults = await this.fcm.sendPushToUser(
+              parent.id,
+              pTitle,
+              pushBody,
+              { type: notificationType, studentId: student_id },
+            );
+
+            const anySuccess = pushResults.some((r) => r.success);
+            const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+            const failureReasons = pushResults
+              .filter((r) => !r.success)
+              .map((r) => r.error)
+              .join('; ');
+
+            if (pushResults.length > 0) {
+              await this.ds.query(
+                `INSERT INTO school_notification_log
+                   (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+                 VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+                [
+                  parent.id,
+                  notificationType,
+                  student_id,
+                  anySuccess ? 'SUCCESS' : 'FAILED',
+                  firstMessageId,
+                  failureReasons || null,
+                ],
+              );
+            }
+
+            // In-app notification
+            await this.notificationService.create({
+              userId: parent.id,
+              recipientId: parent.id,
+              role: 'PARENT',
+              recipientRole: 'PARENT',
+              type: normalizedStatus,
+              category: 'attendance',
+              priority: 'high',
+              title: pTitle,
+              message: pushBody,
+              referenceId: student_id,
+              referenceType: 'student',
+            });
+          }
+        }
       }
 
       // Check overall attendance percentage for student in attendances table

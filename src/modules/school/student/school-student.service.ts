@@ -1658,5 +1658,19 @@ export class SchoolStudentService {
 
     return { success: true };
   }
+
+  // ── FCM Device Token Registration ──────────────────────────────────────────
+  async registerDeviceToken(user: any, body: { fcmToken: string; platform?: string }) {
+    if (!body.fcmToken) {
+      throw new BadRequestException('fcmToken is required');
+    }
+    await this.ds.query(
+      `INSERT INTO school_device_tokens (user_id, fcm_token, platform, last_active_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id, fcm_token) DO UPDATE SET last_active_at = NOW(), platform = EXCLUDED.platform`,
+      [user.id, body.fcmToken, body.platform || 'web'],
+    );
+    return { success: true, message: 'Device token registered' };
+  }
 }
 

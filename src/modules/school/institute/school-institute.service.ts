@@ -1,12 +1,25 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolNotificationService } from '../notification/school-notification.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+import {
+  SchoolFcmNotificationType,
+  SCHOOL_NOTIFICATION_TEMPLATES,
+  fillTemplate,
+} from '../notification-fcm/school-notification-templates';
 
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class SchoolInstituteService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  private readonly logger = new Logger(SchoolInstituteService.name);
+
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly notificationService: SchoolNotificationService,
+    private readonly fcm: FcmService,
+  ) {}
 
   private normalizeTenantDomain(value: unknown): string | null {
     if (value === undefined || value === null) return null;
@@ -90,6 +103,84 @@ export class SchoolInstituteService {
          VALUES ($1,$2,$3,$4,'INSTITUTE_ADMIN',$5,TRUE)`,
         [institute.id, adminName, body.email, hashed, body.phone || null]
       );
+    }
+
+    // Notify all super admins
+    try {
+      const superAdmins = await this.ds.query(
+        `SELECT id FROM users WHERE role = 'SUPER_ADMIN' AND is_active = true`,
+      );
+
+      for (const sa of superAdmins) {
+        // Check preference
+        const prefAllowed = await this.fcm.checkUserPreference(sa.id, 'announcement_alerts');
+        if (!prefAllowed) continue;
+
+        // Check duplicate
+        const dupRows = await this.ds.query(
+          `SELECT 1 FROM school_notification_log
+           WHERE user_id = $1
+             AND notification_type = $2
+             AND reference_id = $3
+             AND status = 'SUCCESS'
+           LIMIT 1`,
+          [sa.id, SchoolFcmNotificationType.NEW_INSTITUTE_SIGNUP, institute.id],
+        );
+        if (dupRows.length > 0) continue;
+
+        const { title, body: pushBody } = fillTemplate(
+          SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NEW_INSTITUTE_SIGNUP],
+          { name: institute.name, plan: body.plan || 'Standard' },
+        );
+
+        // Send push
+        const pushResults = await this.fcm.sendPushToUser(
+          sa.id,
+          title,
+          pushBody,
+          { type: 'NEW_INSTITUTE_SIGNUP', instituteId: institute.id },
+        );
+
+        const anySuccess = pushResults.some((r) => r.success);
+        const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+        const failureReasons = pushResults
+          .filter((r) => !r.success)
+          .map((r) => r.error)
+          .join('; ');
+
+        if (pushResults.length > 0) {
+          await this.ds.query(
+            `INSERT INTO school_notification_log
+               (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+             VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+            [
+              sa.id,
+              SchoolFcmNotificationType.NEW_INSTITUTE_SIGNUP,
+              institute.id,
+              anySuccess ? 'SUCCESS' : 'FAILED',
+              firstMessageId,
+              failureReasons || null,
+            ],
+          );
+        }
+
+        // In-app notification
+        await this.notificationService.create({
+          userId: sa.id,
+          recipientId: sa.id,
+          role: 'SUPER_ADMIN',
+          recipientRole: 'SUPER_ADMIN',
+          type: 'institute_signup',
+          category: 'general',
+          priority: 'high',
+          title,
+          message: pushBody,
+          referenceId: institute.id,
+          referenceType: 'institute',
+        });
+      }
+    } catch (notifErr: any) {
+      this.logger.error(`Failed to notify super admins of new institute: ${notifErr.message}`);
     }
 
     return institute;

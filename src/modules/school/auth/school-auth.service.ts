@@ -32,7 +32,7 @@ export class SchoolAuthService {
     );
   }
 
-  async login(identifier: string, password: string, ip?: string, userAgent?: string) {
+  async login(identifier: string, password: string, ip?: string, userAgent?: string, fcmToken?: string, platform?: string) {
     if (!identifier?.trim() || !password) {
       throw new BadRequestException('Email or phone and password are required');
     }
@@ -111,6 +111,20 @@ export class SchoolAuthService {
       } catch (error) {
         console.error(`Auto-attendance failed for teacher ${user.id}:`, error);
         // Do not throw; allow login to succeed even if attendance insert fails
+      }
+    }
+
+    // Upsert FCM device token for all roles (multi-device registry)
+    if (fcmToken) {
+      try {
+        await this.ds.query(
+          `INSERT INTO school_device_tokens (user_id, fcm_token, platform, device_info, last_active_at)
+           VALUES ($1, $2, $3, $4, NOW())
+           ON CONFLICT (user_id, fcm_token) DO UPDATE SET last_active_at = NOW(), platform = EXCLUDED.platform, device_info = EXCLUDED.device_info`,
+          [user.id, fcmToken, platform || 'web', userAgent || null],
+        );
+      } catch (err) {
+        console.error(`FCM token upsert failed for user ${user.id}:`, err);
       }
     }
 
