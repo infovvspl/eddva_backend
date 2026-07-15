@@ -132,7 +132,7 @@ export class SchoolStudentService {
     }
 
     const enrollmentNo = body.enrollmentNo || await this.generateEnrollmentNo(instituteId);
-    const hashed = await bcrypt.hash(body.password, 10);
+    const hashed = await bcrypt.hash(body.password, 12);
     const sectionId = body.sectionId || null;
 
     const queryRunner = this.ds.createQueryRunner();
@@ -874,7 +874,7 @@ export class SchoolStudentService {
         }
 
         const enrollmentNo = rec.enrollmentNo || await this.generateEnrollmentNo(instituteId);
-        const hashed = await bcrypt.hash(rec.password, 10);
+        const hashed = await bcrypt.hash(rec.password, 12);
 
         const uRows: any[] = await this.ds.query(
           `INSERT INTO users (institute_id,name,email,password,role,phone,is_active) VALUES ($1,$2,$3,$4,'STUDENT',$5,TRUE) RETURNING id`,
@@ -1047,7 +1047,7 @@ export class SchoolStudentService {
     const loginUrl = body.loginUrl || 'https://odm.eddva.in/login';
     const instituteName = student.institute_name || 'EDDVA School';
 
-    const hashed = await bcrypt.hash(tempPassword, 10);
+    const hashed = await bcrypt.hash(tempPassword, 12);
     const existingParent: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email) = LOWER($1)`, [parentEmail]);
 
     if (existingParent.length > 0) {

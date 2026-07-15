@@ -90,7 +90,7 @@ export class SchoolAdminUsersController {
       throw new BadRequestException('You can only reset passwords for users in your institute.');
     }
 
-    const hashed = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 12);
     await this.ds.query(`UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2`, [hashed, id]);
 
     return { success: true, message: 'Password reset successfully.' };

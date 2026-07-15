@@ -249,7 +249,7 @@ export class SchoolAuthService {
     );
     const institute = instRows[0];
 
-    const hashed = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 12);
     const userRows: any[] = await this.ds.query(
       `INSERT INTO users (institute_id, name, email, password, role, phone, is_active)
        VALUES ($1,$2,$3,$4,'INSTITUTE_ADMIN',$5,TRUE) RETURNING *`,
@@ -269,7 +269,7 @@ export class SchoolAuthService {
     const existing: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email) = LOWER($1)`, [email]);
     if (existing.length) throw new BadRequestException('Email already exists');
 
-    const hashed = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 12);
     let rows: any[];
     try {
       rows = await this.ds.query(

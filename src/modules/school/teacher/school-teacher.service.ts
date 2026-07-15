@@ -356,7 +356,7 @@ export class SchoolTeacherService {
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
     const employeeId = body.employeeId || await this.generateEmployeeId(instituteId);
-    const hashed = await bcrypt.hash(body.password, 10);
+    const hashed = await bcrypt.hash(body.password, 12);
 
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();
@@ -1043,7 +1043,7 @@ export class SchoolTeacherService {
         if (existing.length) throw new Error('Email already exists');
 
         const employeeId = rec.employeeId || await this.generateEmployeeId(instituteId);
-        const hashed = await bcrypt.hash(rec.password, 10);
+        const hashed = await bcrypt.hash(rec.password, 12);
 
         const uRows: any[] = await this.ds.query(
           `INSERT INTO users (institute_id,name,email,password,role,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,TRUE) RETURNING id`,
