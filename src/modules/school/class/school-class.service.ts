@@ -19,7 +19,6 @@ export class SchoolClassService implements OnModuleInit {
   private tableReady = false;
 
   private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly SERPER_URL = 'https://google.serper.dev/images';
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
