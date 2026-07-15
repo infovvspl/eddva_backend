@@ -583,6 +583,17 @@ export class SchoolAssessmentService {
       filters.push(`a.subject_id::text=$${params.length}::text`);
     }
 
+    const typeParam = query.type || query.assessmentType || query.assessment_type;
+    if (typeParam) {
+      const typeVal = String(typeParam).trim().toLowerCase();
+      params.push(typeVal);
+      if (typeVal === 'chapter') {
+        filters.push(`(a.type::text=$${params.length}::text OR a.type::text='unit')`);
+      } else {
+        filters.push(`a.type::text=$${params.length}::text`);
+      }
+    }
+
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const sql = `
       SELECT a.*, c.name AS class_name, sub.name AS subject_name,

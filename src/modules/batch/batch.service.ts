@@ -1325,42 +1325,52 @@ export class BatchService {
     const existingEmail = await this.userRepo.findOne({ where: { email: dto.email, tenantId } });
     if (existingEmail) throw new ConflictException('A user with this email already exists in this tenant');
 
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (tenant?.maxStudents) {
+      const currentCount = await this.studentRepo.count({ where: { tenantId } });
+      if (currentCount >= tenant.maxStudents) {
+        throw new BadRequestException(`Student limit reached (${tenant.maxStudents}). Upgrade your plan to add more students.`);
+      }
+    }
+
     const tempPassword = this.generateTempPassword();
 
-    const user = this.userRepo.create({
-      phoneNumber: dto.phoneNumber,
-      fullName: dto.fullName,
-      email: dto.email,
-      password: tempPassword,
-      tenantId,
-      role: UserRole.STUDENT,
-      status: UserStatus.ACTIVE,
-      isFirstLogin: true,
-      phoneVerified: true,
-      emailVerified: true,
+    return this.userRepo.manager.transaction(async (manager) => {
+      const user = manager.create(User, {
+        phoneNumber: dto.phoneNumber,
+        fullName: dto.fullName,
+        email: dto.email,
+        password: tempPassword,
+        tenantId,
+        role: UserRole.STUDENT,
+        status: UserStatus.ACTIVE,
+        isFirstLogin: true,
+        phoneVerified: true,
+        emailVerified: true,
+      });
+      await manager.save(user);
+
+      const student = manager.create(Student, {
+        userId: user.id,
+        tenantId,
+        examTarget: ExamTarget.BOTH,
+        class: StudentClass.CLASS_11,
+        examYear: ExamYear.Y2026,
+        subscriptionPlan: SubscriptionPlan.INSTITUTE,
+      });
+      await manager.save(student);
+
+      await manager.save(
+        manager.create(Enrollment, { tenantId, batchId, studentId: student.id, status: EnrollmentStatus.ACTIVE }),
+      );
+
+      const instituteName = tenant?.name || 'EDVA';
+      this.mailService.sendCredentials(dto.email, dto.fullName, dto.email, tempPassword, instituteName)
+        .catch(err => this.logger.error(`Failed sending student credentials: ${err.message}`));
+
+      const { password: _pw, ...safeUser } = user as any;
+      return { student: { ...safeUser }, tempPassword, message: 'Student created and enrolled.' };
     });
-    await this.userRepo.save(user);
-
-    const student = this.studentRepo.create({
-      userId: user.id,
-      tenantId,
-      examTarget: ExamTarget.BOTH,
-      class: StudentClass.CLASS_11,
-      examYear: ExamYear.Y2026,
-      subscriptionPlan: SubscriptionPlan.INSTITUTE,
-    });
-    await this.studentRepo.save(student);
-
-    await this.enrollmentRepo.save(
-      this.enrollmentRepo.create({ tenantId, batchId, studentId: student.id, status: EnrollmentStatus.ACTIVE }),
-    );
-
-    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
-    const instituteName = tenant?.name || 'EDVA';
-    this.mailService.sendCredentials(dto.email, dto.fullName, dto.email, tempPassword, instituteName)
-      .catch(err => this.logger.error(`Failed sending student credentials: ${err.message}`));
-
-    return { student: { ...user, tempPassword }, tempPassword, message: 'Student created and enrolled.' };
   }
 
   async bulkCreateAndEnrollStudents(batchId: string, dto: BulkCreateBatchStudentsDto, tenantId: string) {

@@ -146,6 +146,24 @@ export class LectureController {
   }
 
   // ── polls ─────────────────────────────────────────────────────────────────
+  @Get(':id/student-notes')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: "Get the current student's notes for a live broadcast" })
+  studentNotes(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    return this.svc.getStudentNotes(id, user);
+  }
+
+  @Post(':id/student-notes')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: "Save the current student's notes for a live broadcast" })
+  saveStudentNotes(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+    @Body() body: { notes?: string },
+  ) {
+    return this.svc.saveStudentNotes(id, user, body?.notes || '');
+  }
+
   @Post(':id/polls')
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Create a poll for the live lecture (ends any active poll first)' })

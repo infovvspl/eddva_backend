@@ -57,8 +57,11 @@ export class AiBridgeService {
     '/career/guidance':     { feature: 'career_guidance_report', provider: 'groq' },
     '/feedback/generate':   { feature: 'feedback',               provider: 'groq' },
     '/notes/analyze':       { feature: 'notes_analyze',          provider: 'groq' },
-    '/resume/analyze':      { feature: 'resume_analyser',        provider: 'groq' },
-    '/interview/start':     { feature: 'interview_prep',         provider: 'groq' },
+    '/resume/analyze':       { feature: 'resume_analyser',        provider: 'groq' },
+    '/interview/start':      { feature: 'interview_prep',         provider: 'groq' },
+    '/ppt/generate':         { feature: 'ppt_generate',           provider: 'groq' },
+    '/ppt/regenerate-slide': { feature: 'ppt_generate',           provider: 'groq' },
+    '/ppt/search-image':     { feature: 'ppt_image_search',       provider: 'serper' },
   };
 
   private extractTokens(data: any): number | null {
@@ -1445,6 +1448,28 @@ export class AiBridgeService {
     });
 
     return { questions: checkpoints };
+  }
+
+  // ── PPT Generator ─────────────────────────────────────────────────────────
+  async generatePpt(
+    dto: { topic: string; slideCount?: number; language?: string },
+    tenantId?: string,
+  ): Promise<{ success: boolean; data: { title: string; slides: any[] } }> {
+    return this.post('/ppt/generate', dto, tenantId, 240_000, 'school');
+  }
+
+  async regeneratePptSlide(
+    dto: { slideIndex: number; topic: string; currentSlide?: any; totalSlides?: number },
+    tenantId?: string,
+  ): Promise<{ success: boolean; data: any }> {
+    return this.post('/ppt/regenerate-slide', dto, tenantId, 120_000, 'school');
+  }
+
+  async searchPptImage(
+    dto: { searchTerm: string },
+    tenantId?: string,
+  ): Promise<{ success: boolean; imageUrl: string | null; imageBase64: string | null }> {
+    return this.post('/ppt/search-image', dto, tenantId, 30_000, 'school');
   }
 
   // ── AI #16 — Topic Content Generator (DPP, notes, PYQ, etc.) ─────────────

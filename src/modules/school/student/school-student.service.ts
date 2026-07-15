@@ -597,7 +597,7 @@ export class SchoolStudentService {
     }
     const rows: any[] = await this.ds.query(
       `SELECT u.id AS user_id, u.name, u.email, u.phone, u.profile_image, u.role, u.is_active, u.created_at,
-              u.institute_id,
+              u.institute_id, i.name AS institute_name, i.logo AS institute_logo,
               s.id AS profile_id, s.enrollment_no, s.roll_no, s.section_id, s.dob, s.gender, s.blood_group,
               s.father_name, s.mother_name, s.parent_phone, s.admission_date,
               s.parent_email, s.parent_occupation, s.address, s.city, s.state, s.pin_code,
@@ -607,6 +607,7 @@ export class SchoolStudentService {
        LEFT JOIN students s ON s.user_id=u.id
        LEFT JOIN sections sec ON s.section_id=sec.id
        LEFT JOIN classes c ON sec.class_id=c.id
+       LEFT JOIN institutes i ON u.institute_id=i.id
        WHERE (u.id=$1 OR s.id=$1) AND u.role='STUDENT'`,
       [id],
     );
@@ -653,6 +654,28 @@ export class SchoolStudentService {
     const attTotal = attendanceStats[0]?.total || 0;
     const attendancePercentage = attTotal > 0 ? Math.round((attPresent / attTotal) * 100) : null;
 
+    const previousResults = r.user_id ? await this.ds.query(`
+      SELECT 
+        r.marks_obtained AS "marksObtained",
+        r.total_marks AS "totalMarks",
+        r.percentage AS "percentage",
+        r.grade AS "grade",
+        r.remarks AS "remarks",
+        r.is_absent AS "isAbsent",
+        r.updated_at AS "updatedAt",
+        a.title AS "assessmentTitle",
+        sub.name AS "subjectName",
+        c.id AS "classId",
+        c.name AS "className",
+        c.academic_year AS "academicYear"
+      FROM results r
+      INNER JOIN assessments a ON r.assessment_id = a.id
+      LEFT JOIN subjects sub ON a.subject_id = sub.id
+      LEFT JOIN classes c ON a.class_id = c.id
+      WHERE r.student_id = $1
+      ORDER BY c.academic_year DESC, c.name, a.title
+    `, [r.user_id]) : [];
+
     const documents = this.parseJsonObject(r.documents);
     const parentDetails = {
       fatherName: r.father_name,
@@ -680,9 +703,12 @@ export class SchoolStudentService {
       role: r.role,
       isActive: r.is_active,
       createdAt: r.created_at,
+      instituteName: r.institute_name,
+      instituteLogo: r.institute_logo,
       performance: testSessions,
       parentDetails,
       attendancePercentage,
+      previousResults,
       studentProfile: {
         id: r.profile_id,
         enrollmentNo: r.enrollment_no,
@@ -1385,6 +1411,252 @@ export class SchoolStudentService {
         })),
       },
     };
+  }
+
+  async addPreviousResult(studentId: string, body: any) {
+    const { className, academicYear, assessmentTitle, subjects, activeAssessmentTitlesBySubject } = body;
+    if (!className || !academicYear || !assessmentTitle || !Array.isArray(subjects) || !subjects.length) {
+      throw new BadRequestException('Invalid input. className, academicYear, assessmentTitle and subjects are required.');
+    }
+
+    const normalizeTitle = (value: any) => String(value || '').trim().toLowerCase();
+    const managedAssessmentTitles = [
+      'T1 Internal',
+      'Half-Yearly',
+      'T2 Internal',
+      'Annual',
+      'Half-Yearly Theory',
+      'Half-Yearly Practical',
+      'Annual Theory',
+      'Annual Practical',
+      'Final Result',
+      'Reading & Phonics',
+      'Writing & Motor Skills',
+      'Numeracy & Shapes',
+      'Communication & Speech',
+      'Creativity & Arts',
+      'Social development & Behaviour'
+    ].map(normalizeTitle);
+
+    const studentRows = await this.ds.query(
+      `SELECT u.id AS student_user_id, s.id AS student_profile_id, u.institute_id 
+       FROM users u 
+       JOIN students s ON s.user_id = u.id 
+       WHERE u.id = $1 OR s.id = $1`,
+      [studentId]
+    );
+    if (!studentRows.length) throw new NotFoundException('Student not found');
+    const instituteId = studentRows[0].institute_id;
+    const studentUserId = studentRows[0].student_user_id;
+
+    await this.ds.transaction(async (manager) => {
+      let classRows = await manager.query(
+        `SELECT id FROM classes WHERE LOWER(name) = LOWER($1) AND academic_year = $2 AND institute_id = $3 LIMIT 1`,
+        [className.trim(), academicYear.trim(), instituteId]
+      );
+      let classId: string;
+      if (classRows.length > 0) {
+        classId = classRows[0].id;
+      } else {
+        const insertClass = await manager.query(
+          `INSERT INTO classes (name, academic_year, institute_id) VALUES ($1, $2, $3) RETURNING id`,
+          [className.trim(), academicYear.trim(), instituteId]
+        );
+        classId = insertClass[0].id;
+      }
+
+      const overallComponents: Record<string, { enabled: boolean; obtained: number; max: number }> = {
+        theory: { enabled: true, obtained: 0, max: 0 },
+        practical: { enabled: true, obtained: 0, max: 0 },
+        project: { enabled: true, obtained: 0, max: 0 },
+        internal: { enabled: true, obtained: 0, max: 0 },
+        viva: { enabled: true, obtained: 0, max: 0 }
+      };
+
+      for (const sub of subjects) {
+        const subjectName = sub.subjectName?.trim() || 'General';
+
+        let marksObtained = 0;
+        let totalMarks = 0;
+        const savedComponents: Record<string, { enabled: boolean; obtained: number; max: number }> = {};
+
+        if (sub.components) {
+          for (const [key, comp] of Object.entries(sub.components) as [string, any][]) {
+            if (comp && comp.enabled) {
+              const obtVal = Number(comp.obtained || 0);
+              const maxVal = Number(comp.max || 0);
+              marksObtained += obtVal;
+              totalMarks += maxVal;
+              savedComponents[key] = { enabled: true, obtained: obtVal, max: maxVal };
+              if (overallComponents[key]) {
+                overallComponents[key].obtained += obtVal;
+                overallComponents[key].max += maxVal;
+              }
+            }
+          }
+        } else {
+          marksObtained = Number(sub.marksObtained || 0);
+          totalMarks = Number(sub.totalMarks || 100);
+          savedComponents.theory = { enabled: true, obtained: marksObtained, max: totalMarks };
+          overallComponents.theory.obtained += marksObtained;
+          overallComponents.theory.max += totalMarks;
+        }
+
+        const percentage = totalMarks > 0 ? Math.round((marksObtained / totalMarks) * 10000) / 100 : 0;
+        const grade = sub.grade || (percentage >= 90 ? 'A+' : percentage >= 75 ? 'A' : percentage >= 60 ? 'B' : percentage >= 40 ? 'C' : 'F');
+
+        let subjectRows = await manager.query(
+          `SELECT id FROM subjects WHERE LOWER(name) = LOWER($1) AND class_id = $2 LIMIT 1`,
+          [subjectName, classId]
+        );
+        let subjectId: string;
+        if (subjectRows.length > 0) {
+          subjectId = subjectRows[0].id;
+        } else {
+          const insertSubject = await manager.query(
+            `INSERT INTO subjects (name, class_id, institute_id) VALUES ($1, $2, $3) RETURNING id`,
+            [subjectName, classId, instituteId]
+          );
+          subjectId = insertSubject[0].id;
+        }
+
+        const activeTitlesForSubjectRaw = activeAssessmentTitlesBySubject?.[normalizeTitle(subjectName)];
+        const activeTitlesForSubject = Array.isArray(activeTitlesForSubjectRaw)
+          ? activeTitlesForSubjectRaw.map(normalizeTitle).filter(Boolean)
+          : [];
+        if (activeTitlesForSubject.length) {
+          await manager.query(
+            `DELETE FROM results r
+             USING assessments a
+             WHERE r.assessment_id = a.id
+               AND r.student_id = $1
+               AND a.subject_id = $2
+               AND a.class_id = $3
+               AND LOWER(a.title) = ANY($4::text[])
+               AND NOT (LOWER(a.title) = ANY($5::text[]))`,
+            [studentUserId, subjectId, classId, managedAssessmentTitles, activeTitlesForSubject]
+          );
+        }
+
+        const existingAssessment = await manager.query(
+          `SELECT id FROM assessments 
+           WHERE LOWER(title) = LOWER($1) AND subject_id = $2 AND class_id = $3 
+           LIMIT 1`,
+          [assessmentTitle.trim(), subjectId, classId]
+        );
+        let assessmentId: string;
+        if (existingAssessment.length > 0) {
+          assessmentId = existingAssessment[0].id;
+          await manager.query(
+            `UPDATE assessments SET total_marks = $2, status = 'completed' WHERE id = $1`,
+            [assessmentId, totalMarks]
+          );
+        } else {
+          const insertAssessment = await manager.query(
+            `INSERT INTO assessments (title, type, subject_id, class_id, total_marks, status)
+             VALUES ($1, 'exam', $2, $3, $4, 'completed') RETURNING id`,
+            [assessmentTitle.trim(), subjectId, classId, totalMarks]
+          );
+          assessmentId = insertAssessment[0].id;
+        }
+
+        const breakdownRemarks = JSON.stringify({
+          type: 'breakdown',
+          components: savedComponents,
+          userRemarks: sub.remarks || ''
+        });
+
+        const existingResult = await manager.query(
+          `SELECT id FROM results WHERE assessment_id = $1 AND student_id = $2 LIMIT 1`,
+          [assessmentId, studentUserId]
+        );
+        if (existingResult.length > 0) {
+          await manager.query(
+            `UPDATE results
+             SET total_marks = $3, marks_obtained = $4, percentage = $5, grade = $6, status = 'published', remarks = $7, updated_at = NOW()
+             WHERE id = $1 AND student_id = $2`,
+            [existingResult[0].id, studentUserId, totalMarks, marksObtained, percentage, grade, breakdownRemarks]
+          );
+        } else {
+          await manager.query(
+            `INSERT INTO results (assessment_id, student_id, total_marks, marks_obtained, percentage, grade, status, remarks)
+             VALUES ($1, $2, $3, $4, $5, $6, 'published', $7)`,
+            [assessmentId, studentUserId, totalMarks, marksObtained, percentage, grade, breakdownRemarks]
+          );
+        }
+
+        await manager.query(
+          `INSERT INTO assessment_submissions (assessment_id, student_user_id, status)
+           VALUES ($1, $2, 'evaluated')
+           ON CONFLICT (assessment_id, student_user_id)
+           DO UPDATE SET status = 'evaluated', updated_at = NOW()`,
+          [assessmentId, studentUserId]
+        ).catch(() => {});
+      }
+
+      const totalMarks = Object.values(overallComponents).reduce((sum, c) => sum + c.max, 0);
+      const totalObtained = Object.values(overallComponents).reduce((sum, c) => sum + c.obtained, 0);
+      const overallPercentage = totalMarks > 0 ? Math.round((totalObtained / totalMarks) * 10000) / 100 : 0;
+      const overallGrade = overallPercentage >= 90 ? 'A+' : overallPercentage >= 75 ? 'A' : overallPercentage >= 60 ? 'B' : overallPercentage >= 40 ? 'C' : 'F';
+
+      const totalAssessmentTitle = `${assessmentTitle.trim()} (Total)`;
+      const existingTotalAssessment = await manager.query(
+        `SELECT id FROM assessments
+         WHERE LOWER(title) = LOWER($1) AND class_id = $2 AND subject_id IS NULL
+         LIMIT 1`,
+        [totalAssessmentTitle, classId]
+      );
+      let totalAssessmentId: string;
+      if (existingTotalAssessment.length > 0) {
+        totalAssessmentId = existingTotalAssessment[0].id;
+        await manager.query(
+          `UPDATE assessments SET total_marks = $2, status = 'completed' WHERE id = $1`,
+          [totalAssessmentId, totalMarks]
+        );
+      } else {
+        const insertTotalAssessment = await manager.query(
+          `INSERT INTO assessments (title, type, subject_id, class_id, total_marks, status)
+           VALUES ($1, 'exam', NULL, $2, $3, 'completed') RETURNING id`,
+          [totalAssessmentTitle, classId, totalMarks]
+        );
+        totalAssessmentId = insertTotalAssessment[0].id;
+      }
+
+      const overallBreakdownRemarks = JSON.stringify({
+        type: 'breakdown',
+        components: overallComponents,
+        userRemarks: 'Overall calculated total'
+      });
+
+      const existingTotalResult = await manager.query(
+        `SELECT id FROM results WHERE assessment_id = $1 AND student_id = $2 LIMIT 1`,
+        [totalAssessmentId, studentUserId]
+      );
+      if (existingTotalResult.length > 0) {
+        await manager.query(
+          `UPDATE results
+           SET total_marks = $3, marks_obtained = $4, percentage = $5, grade = $6, status = 'published', remarks = $7, updated_at = NOW()
+           WHERE id = $1 AND student_id = $2`,
+          [existingTotalResult[0].id, studentUserId, totalMarks, totalObtained, overallPercentage, overallGrade, overallBreakdownRemarks]
+        );
+      } else {
+        await manager.query(
+          `INSERT INTO results (assessment_id, student_id, total_marks, marks_obtained, percentage, grade, status, remarks)
+           VALUES ($1, $2, $3, $4, $5, $6, 'published', $7)`,
+          [totalAssessmentId, studentUserId, totalMarks, totalObtained, overallPercentage, overallGrade, overallBreakdownRemarks]
+        );
+      }
+
+      await manager.query(
+        `INSERT INTO assessment_submissions (assessment_id, student_user_id, status)
+         VALUES ($1, $2, 'evaluated')
+         ON CONFLICT (assessment_id, student_user_id)
+         DO UPDATE SET status = 'evaluated', updated_at = NOW()`,
+        [totalAssessmentId, studentUserId]
+      ).catch(() => {});
+    });
+
+    return { success: true };
   }
 }
 

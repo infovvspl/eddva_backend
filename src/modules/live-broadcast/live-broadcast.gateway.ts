@@ -347,6 +347,25 @@ export class LiveBroadcastGateway implements OnModuleInit, OnGatewayDisconnect {
     void this.svc.saveReaction(data.lectureId, data.userId, data.userName, payload.emoji).catch(() => undefined);
   }
 
+  @SubscribeMessage('pin-announcement')
+  handlePinAnnouncement(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { text: string },
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    this.server.to(`lecture:${data.lectureId}`).emit('announcement-pinned', { text: payload.text });
+  }
+
+  @SubscribeMessage('unpin-announcement')
+  handleUnpinAnnouncement(
+    @ConnectedSocket() client: Socket,
+  ) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role)) return;
+    this.server.to(`lecture:${data.lectureId}`).emit('announcement-unpinned');
+  }
+
   // ── disconnect ────────────────────────────────────────────────────────────
   async handleDisconnect(client: Socket) {
     const data = client.data as SocketData;
