@@ -31,8 +31,13 @@ export class SchoolAssessmentController {
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
   @Get('mock-tests') legacyMockTests(@SchoolUser() user: any, @Query() query: any) { return this.svc.legacyMockTests(user, query); }
   @Get('sessions') listSessions(@SchoolUser() user: any, @Query() query: any) { return this.svc.listSessions(user, query); }
-  @Post('ai-generate') aiGenerate(@SchoolUser() user: any, @Body() body: any) { return this.svc.aiGenerateDraft(user, body); }
-  @Post('translate') translate(@SchoolUser() user: any, @Body() body: { text: string; language: string }) { return this.svc.translateText(user, body.text, body.language); }
+  @Post('ai-generate')
+  @SchoolFeature('ai', 'ai_content_generator_assessments')
+  aiGenerate(@SchoolUser() user: any, @Body() body: any) { return this.svc.aiGenerateDraft(user, body); }
+
+  @Post('translate')
+  @SchoolFeature('ai', 'ai_translation')
+  translate(@SchoolUser() user: any, @Body() body: { text: string; language: string }) { return this.svc.translateText(user, body.text, body.language); }
   @Post()
   @Audit({ module: 'Assessment', action: 'Assessment Create', description: 'Created assessment {body.title}' })
   @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
