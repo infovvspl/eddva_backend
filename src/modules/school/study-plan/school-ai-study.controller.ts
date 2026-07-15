@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolStudyPlanService } from './school-study-plan.service';
 import {
@@ -20,9 +22,10 @@ import {
 } from './school-ai-study.dto';
 
 @Controller('school')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@SchoolFeature('ai', 'ai_study_planner')
 export class SchoolAiStudyController {
-  constructor(private readonly service: SchoolStudyPlanService) {}
+  constructor(private readonly service: SchoolStudyPlanService) { }
 
   @Get('topics/:topicId/study-status')
   getStudyStatus(
