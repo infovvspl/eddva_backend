@@ -235,7 +235,9 @@ export class SchoolTeacherService {
     const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
 
     const params: any[] = [];
-    let filter = `u.role = 'TEACHER'`;
+    const targetRole = query.role || 'TEACHER';
+    params.push(targetRole);
+    let filter = `u.role = $1`;
     if (instituteId) {
       params.push(instituteId);
       filter += ` AND u.institute_id = $${params.length}`;
@@ -255,35 +257,66 @@ export class SchoolTeacherService {
     const totalTeachers = rows[0]?.totalTeachers || 0;
     const newThisMonth = rows[0]?.newThisMonth || 0;
 
-    // Get today's attendance from attendances table (source of truth for teacher attendance)
-    const todayStr = new Date().toISOString().split('T')[0];
-    const attParams: any[] = [todayStr];
-    let attFilter = `a.date = $1 AND u.role = 'TEACHER'`;
-    if (instituteId) {
-      attParams.push(instituteId);
-      attFilter += ` AND a.institute_id = $${attParams.length}`;
-    }
+    // Get today's attendance (source of truth for teacher/admin attendance)
+    let presentCount = 0;
+    let lateCount = 0;
+    let halfDayCount = 0;
+    let explicitAbsentCount = 0;
+    let presentToday = 0;
 
-    const attQuery = `
-      SELECT
-        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'present')::int AS "presentCount",
-        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'late')::int AS "lateCount",
-        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) IN ('half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')::int AS "halfDayCount",
-        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'absent')::int AS "explicitAbsentCount",
-        COUNT(DISTINCT a.user_id) FILTER (
-          WHERE LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
-             OR LOWER(a.status) LIKE 'half%'
-        )::int AS "presentToday"
-      FROM attendances a
-      JOIN users u ON a.user_id = u.id
-      WHERE ${attFilter}
-    `;
-    const attRows = await this.ds.query(attQuery, attParams);
-    const presentCount = attRows[0]?.presentCount || 0;
-    const lateCount = attRows[0]?.lateCount || 0;
-    const halfDayCount = attRows[0]?.halfDayCount || 0;
-    const explicitAbsentCount = attRows[0]?.explicitAbsentCount || 0;
-    const presentToday = attRows[0]?.presentToday || 0;
+    if (targetRole === 'INSTITUTE_ADMIN') {
+      const attParams: any[] = [];
+      let attFilter = `u.role = 'INSTITUTE_ADMIN'`;
+      if (instituteId) {
+        attParams.push(instituteId);
+        attFilter += ` AND u.institute_id = $1`;
+      }
+      const attQuery = `
+        SELECT
+          COUNT(DISTINCT u.id) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM attendances 
+              WHERE user_id::text = u.id::text AND date = CURRENT_DATE AND status = 'present'
+            ) OR EXISTS (
+              SELECT 1 FROM audit_logs 
+              WHERE user_id::text = u.id::text AND created_at::date = CURRENT_DATE
+            )
+          )::int AS "presentToday"
+        FROM users u
+        WHERE ${attFilter}
+      `;
+      const attRows = await this.ds.query(attQuery, attParams);
+      presentToday = attRows[0]?.presentToday || 0;
+    } else {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const attParams: any[] = [todayStr, targetRole];
+      let attFilter = `a.date = $1 AND u.role = $2`;
+      if (instituteId) {
+        attParams.push(instituteId);
+        attFilter += ` AND a.institute_id = $${attParams.length}`;
+      }
+
+      const attQuery = `
+        SELECT
+          COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'present')::int AS "presentCount",
+          COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'late')::int AS "lateCount",
+          COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) IN ('half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')::int AS "halfDayCount",
+          COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'absent')::int AS "explicitAbsentCount",
+          COUNT(DISTINCT a.user_id) FILTER (
+            WHERE LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
+               OR LOWER(a.status) LIKE 'half%'
+          )::int AS "presentToday"
+        FROM attendances a
+        JOIN users u ON a.user_id = u.id
+        WHERE ${attFilter}
+      `;
+      const attRows = await this.ds.query(attQuery, attParams);
+      presentCount = attRows[0]?.presentCount || 0;
+      lateCount = attRows[0]?.lateCount || 0;
+      halfDayCount = attRows[0]?.halfDayCount || 0;
+      explicitAbsentCount = attRows[0]?.explicitAbsentCount || 0;
+      presentToday = attRows[0]?.presentToday || 0;
+    }
 
     // Calculate absent count as: Total - Present Today
     const absentToday = totalTeachers - presentToday;
@@ -323,7 +356,7 @@ export class SchoolTeacherService {
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
     const employeeId = body.employeeId || await this.generateEmployeeId(instituteId);
-    const hashed = await bcrypt.hash(body.password, 10);
+    const hashed = await bcrypt.hash(body.password, 12);
 
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();
@@ -426,7 +459,9 @@ export class SchoolTeacherService {
   async list(user: any, query: any) {
     const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
     const params: any[] = [];
-    let filter = `u.role='TEACHER'`;
+    const targetRole = query.role || 'TEACHER';
+    params.push(targetRole);
+    let filter = `u.role=$1`;
     if (instituteId) {
       params.push(instituteId);
       filter += ` AND u.institute_id=$${params.length}`;
@@ -618,7 +653,7 @@ export class SchoolTeacherService {
        COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM (SELECT DISTINCT class_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN classes c ON taa.class_id=c.id), '[]'::json) as classes,
        COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN sections s ON taa.section_id=s.id), '[]'::json) as sections,
        COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM (SELECT DISTINCT subject_id FROM teacher_academic_assignments WHERE teacher_id=t.id AND subject_id IS NOT NULL) taa JOIN subjects sub ON taa.subject_id=sub.id), '[]'::json) as subjects
-       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND u.role='TEACHER'`;
+       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND u.role IN ('TEACHER', 'INSTITUTE_ADMIN')`;
     
     const params: any[] = [id];
     if (instituteId) {
@@ -699,6 +734,25 @@ export class SchoolTeacherService {
       totalStudents = studentsRow[0]?.c || 0;
       assignmentsCreated = assignsRow[0]?.c || 0;
       assessmentsConducted = assessRow[0]?.c || 0;
+    } else if (r.role === 'INSTITUTE_ADMIN') {
+      const joinDate = new Date(r.created_at);
+      const today = new Date();
+      const diffTime = Math.abs(today.getTime() - joinDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+
+      const attRow = await this.ds.query(`
+        SELECT COUNT(DISTINCT d.date)::int AS present
+        FROM generate_series($2::date, CURRENT_DATE::date, '1 day'::interval) d(date)
+        WHERE EXISTS (
+          SELECT 1 FROM attendances 
+          WHERE user_id::text = $1::text AND date = d.date::date AND status = 'present'
+        ) OR EXISTS (
+          SELECT 1 FROM audit_logs 
+          WHERE user_id::text = $1::text AND created_at::date = d.date::date
+        )
+      `, [r.id, joinDate]);
+      const presentCount = attRow[0]?.present || 0;
+      attendancePercentage = `${Math.min(100, Math.round((presentCount / diffDays) * 100))}%`;
     }
     const mappedData = {
       ...r,
@@ -989,7 +1043,7 @@ export class SchoolTeacherService {
         if (existing.length) throw new Error('Email already exists');
 
         const employeeId = rec.employeeId || await this.generateEmployeeId(instituteId);
-        const hashed = await bcrypt.hash(rec.password, 10);
+        const hashed = await bcrypt.hash(rec.password, 12);
 
         const uRows: any[] = await this.ds.query(
           `INSERT INTO users (institute_id,name,email,password,role,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,TRUE) RETURNING id`,

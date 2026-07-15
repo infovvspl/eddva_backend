@@ -34,13 +34,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         if (errors) message = 'Validation failed';
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
-      // Stack traces contain internal file paths — only log in development
-      if (process.env.NODE_ENV !== 'production') {
-        this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
-      } else {
-        this.logger.error(`Unhandled error: ${exception.message}`);
-      }
+      // Never expose raw error messages to clients — they may contain table names,
+      // column constraints, or internal service details from TypeORM/Postgres.
+      this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
+      message = 'An unexpected error occurred. Please try again or contact support.';
     }
 
     try {

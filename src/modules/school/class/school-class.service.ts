@@ -19,7 +19,6 @@ export class SchoolClassService implements OnModuleInit {
   private tableReady = false;
 
   private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly SERPER_URL = 'https://google.serper.dev/images';
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
@@ -742,6 +741,36 @@ export class SchoolClassService implements OnModuleInit {
       })
       .catch((err) => this.logger.warn(`Re-generate notes images failed for ${id}: ${err?.message}`));
     return { success: true, message: 'Image enrichment started — refresh the page in 30 seconds' };
+  }
+
+  /**
+   * Notes images as base64 data URLs, keyed by their public S3 URL.
+   * The browser can't read S3 image pixels onto a canvas (no CORS on the
+   * bucket), so the PDF export fetches bytes through the server instead.
+   */
+  async getNotesImagesAsDataUrls(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT notes_images FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const imgs: Array<{ s3Url?: string }> = Array.isArray(rows[0].notes_images) ? rows[0].notes_images : [];
+    const images: Record<string, string> = {};
+    for (const img of imgs) {
+      if (!img?.s3Url) continue;
+      try {
+        const key = this.s3Service.keyFromUrl(img.s3Url);
+        const buffer = await this.s3Service.getBuffer(key);
+        const ext = key.split('.').pop()?.toLowerCase() ?? 'jpg';
+        const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        images[img.s3Url] = `data:${mime};base64,${buffer.toString('base64')}`;
+      } catch (err: any) {
+        this.logger.warn(`Notes image fetch failed for PDF export (${img.s3Url}): ${err?.message}`);
+      }
+    }
+    return { success: true, data: { images } };
   }
 
   // ── Image enrichment helpers ──────────────────────────────────────────────

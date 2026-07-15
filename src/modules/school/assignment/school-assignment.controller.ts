@@ -57,6 +57,7 @@ export class SchoolAssignmentController {
 
   @Post('from-image')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  @SchoolFeature('ai', 'ai_ocr_handwriting')
   fromImage(@SchoolUser() user: any, @Body() body: any) {
     return this.svc.generateFromImage(user, body);
   }

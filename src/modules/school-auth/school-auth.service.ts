@@ -78,6 +78,19 @@ export class SchoolAuthService {
       [user.id],
     );
 
+    if (user.role === 'INSTITUTE_ADMIN') {
+      try {
+        await this.schoolDb.query(
+          `INSERT INTO attendances (institute_id, user_id, date, status, remarks, created_at, updated_at)
+           VALUES ($1, $2, CURRENT_DATE, 'present', 'Login marked attendance', NOW(), NOW())
+           ON CONFLICT (date, user_id) DO UPDATE SET status = 'present', updated_at = NOW()`,
+          [user.institute_id, user.id],
+        );
+      } catch (err) {
+        console.warn('Failed to insert automatic institute admin attendance on login:', err.message);
+      }
+    }
+
     const token = await this.signSchoolToken(user);
     return this.toSchoolLoginPayload(token, user, userInstitute);
   }
@@ -136,6 +149,17 @@ export class SchoolAuthService {
       [institute.id, email, phone, dto.name.trim(), passwordHash, !!phone],
     );
     const user = userResult.rows[0];
+
+    try {
+      await this.schoolDb.query(
+        `INSERT INTO attendances (institute_id, user_id, date, status, remarks, created_at, updated_at)
+         VALUES ($1, $2, CURRENT_DATE, 'present', 'Registration login marked attendance', NOW(), NOW())
+         ON CONFLICT (date, user_id) DO UPDATE SET status = 'present', updated_at = NOW()`,
+        [user.institute_id, user.id],
+      );
+    } catch (err) {
+      console.warn('Failed to insert automatic institute admin attendance on register:', err.message);
+    }
 
     const token = await this.signSchoolToken(user);
     return {

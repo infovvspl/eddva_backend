@@ -83,7 +83,7 @@ export class SchoolInstituteService {
     }
 
     if (body.adminPassword) {
-      const hashed = await bcrypt.hash(body.adminPassword, 10);
+      const hashed = await bcrypt.hash(body.adminPassword, 12);
       const adminName = body.principalName || body.adminName || 'Admin';
       await this.ds.query(
         `INSERT INTO users (institute_id, name, email, password, role, phone, is_active)
@@ -361,7 +361,7 @@ export class SchoolInstituteService {
     }
 
     const hashedPassword =
-      adminPassword !== undefined ? await bcrypt.hash(String(adminPassword), 10) : undefined;
+      adminPassword !== undefined ? await bcrypt.hash(String(adminPassword), 12) : undefined;
 
     if (existingAdmin) {
       await this.ds.query(

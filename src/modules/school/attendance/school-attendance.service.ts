@@ -91,6 +91,51 @@ export class SchoolAttendanceService {
   async get(user: any, query: any) {
     const instituteId = user.instituteId;
 
+    if (query.userId) {
+      const userRoleResult = await this.ds.query(`SELECT role, name, email FROM users WHERE id = $1`, [query.userId]);
+      const userRole = userRoleResult[0]?.role;
+      if (userRole === 'INSTITUTE_ADMIN') {
+        const startDate = query.startDate ? new Date(query.startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
+        const endDate = query.endDate ? new Date(query.endDate) : new Date();
+
+        const sql = `
+          SELECT 
+            d.date::date AS date,
+            CASE 
+              WHEN d.date::date > CURRENT_DATE THEN NULL
+              WHEN EXISTS (
+                SELECT 1 FROM attendances 
+                WHERE user_id::text = $3::text AND date = d.date::date AND status = 'present'
+              ) OR EXISTS (
+                SELECT 1 FROM audit_logs 
+                WHERE user_id::text = $3::text AND created_at::date = d.date::date
+              ) THEN 'PRESENT'
+              ELSE 'ABSENT'
+            END AS status,
+            NULL AS remarks,
+            NULL AS id
+          FROM generate_series($1::date, $2::date, '1 day'::interval) d(date)
+          ORDER BY d.date DESC
+        `;
+        const rows = await this.ds.query(sql, [startDate, endDate, query.userId]);
+        const mapped = rows.map(r => ({
+          id: r.id || `virtual-${r.date.toISOString().split('T')[0]}`,
+          date: r.date,
+          status: r.status ? r.status.toUpperCase() : '—',
+          remarks: r.remarks,
+          user: {
+            id: query.userId,
+            name: userRoleResult[0].name,
+            email: userRoleResult[0].email,
+            role: userRole,
+            studentProfile: null
+          }
+        })).filter(r => r.status !== '—');
+
+        return { success: true, data: mapped, total: mapped.length, page: 1, limit: mapped.length, totalPages: 1 };
+      }
+    }
+
     if (query.role === 'TEACHER') {
       let filter = `u.institute_id = $1 AND u.role = 'TEACHER'`;
       const params: any[] = [instituteId];

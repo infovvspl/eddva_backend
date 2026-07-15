@@ -484,6 +484,20 @@ export class AssessmentService {
       throw new BadRequestException('An active session already exists for this test');
     }
 
+    if (!mockTest.allowReattempt) {
+      const submitted = await this.sessionRepo.findOne({
+        where: {
+          tenantId: effectiveTenantId,
+          studentId: student.id,
+          mockTestId: dto.mockTestId,
+          status: In([TestSessionStatus.SUBMITTED, TestSessionStatus.AUTO_SUBMITTED]),
+        },
+      });
+      if (submitted) {
+        throw new BadRequestException('You have already submitted this test and re-attempts are not allowed.');
+      }
+    }
+
     const session = await this.sessionRepo.save(
       this.sessionRepo.create({
         tenantId: effectiveTenantId,
@@ -677,6 +691,20 @@ export class AssessmentService {
       //   (b) the student hasn't yet completed their diagnostic — meaning whatever
       //       test they just submitted WAS their diagnostic (the UI falls back to
       //       the first published test when no DIAGNOSTIC-type test exists).
+      // Pre-load all WeakTopic and TopicProgress rows for this student in one query each
+      // to avoid N+1 (one DB hit per topic in the loops below).
+      const topicIds = [...topicStats.keys()].filter(Boolean);
+      const [existingWeakTopics, existingTopicProgress] = await Promise.all([
+        topicIds.length
+          ? manager.find(WeakTopic, { where: { studentId: student.id, topicId: In(topicIds) } })
+          : Promise.resolve([]),
+        topicIds.length
+          ? manager.find(TopicProgress, { where: { studentId: student.id, topicId: In(topicIds) } })
+          : Promise.resolve([]),
+      ]);
+      const weakTopicMap = new Map(existingWeakTopics.map((w) => [w.topicId, w]));
+      const topicProgressMap = new Map(existingTopicProgress.map((p) => [p.topicId, p]));
+
       if (mockTest.type === MockTestType.DIAGNOSTIC || !student.diagnosticCompleted) {
         if (!student.diagnosticCompleted) {
           student.diagnosticCompleted = true;
@@ -693,9 +721,7 @@ export class AssessmentService {
                 : accuracy < 50 ? WeakTopicSeverity.HIGH
                   : WeakTopicSeverity.MEDIUM;
 
-            const existing = await manager.findOne(WeakTopic, {
-              where: { studentId: student.id, topicId },
-            });
+            const existing = weakTopicMap.get(topicId);
             if (existing) {
               existing.accuracy = accuracy;
               existing.severity = severity;
@@ -725,9 +751,7 @@ export class AssessmentService {
         if (!topic) continue;
 
         const scorePercentage = stats.totalMarks > 0 ? (stats.marksAwarded / stats.totalMarks) * 100 : 0;
-        const current = await manager.findOne(TopicProgress, {
-          where: { studentId: student.id, topicId },
-        });
+        const current = topicProgressMap.get(topicId) ?? null;
         const next = this.gradingService.computeTopicProgressUpdate(current, topic, scorePercentage, now);
         next.studentId = student.id;
         next.tenantId = current?.tenantId || sessionTenant;

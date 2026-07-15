@@ -2,13 +2,16 @@ import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/comm
 import { Request } from 'express';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { GamificationService } from './gamification.service';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
-@UseGuards(SchoolJwtGuard)
+@UseGuards(SchoolJwtGuard, SchoolFeatureGuard)
 @Controller('school/gamification')
 export class SchoolGamificationController {
   constructor(private readonly gamification: GamificationService) {}
 
   @Get('quiz-rush/start')
+  @SchoolFeature('ai', 'ai_game_quizzes')
   startQuizRush(@Req() req: Request, @Query() query: any) {
     return this.gamification.startQuizRush((req as any).user, query);
   }
@@ -29,6 +32,7 @@ export class SchoolGamificationController {
   }
 
   @Get('treasure/challenge')
+  @SchoolFeature('ai', 'ai_game_quizzes')
   getTreasureChallenge(@Req() req: Request, @Query('questId') questId: string, @Query('stageOrder') stageOrder?: string) {
     return this.gamification.getTreasureChallenge((req as any).user, questId, Number(stageOrder || 1));
   }
@@ -39,6 +43,7 @@ export class SchoolGamificationController {
   }
 
   @Get('math-sprint/start')
+  @SchoolFeature('ai', 'ai_game_quizzes')
   startMathSprint(@Req() req: Request, @Query('difficulty') difficulty: string) {
     return this.gamification.startMathSprint((req as any).user, difficulty || 'medium');
   }
@@ -59,6 +64,7 @@ export class SchoolGamificationController {
   }
 
   @Get('memory-match/start')
+  @SchoolFeature('ai', 'ai_game_quizzes')
   startMemoryMatch(@Req() req: Request, @Query('deckId') deckId: string, @Query('difficulty') difficulty?: string) {
     return this.gamification.startMemoryMatch((req as any).user, deckId, difficulty);
   }
@@ -79,6 +85,7 @@ export class SchoolGamificationController {
   }
 
   @Get('word-master/start')
+  @SchoolFeature('ai', 'ai_game_quizzes')
   startWordMaster(@Req() req: Request, @Query('deckId') deckId: string, @Query('difficulty') difficulty?: string) {
     return this.gamification.startWordMaster((req as any).user, deckId, difficulty);
   }
