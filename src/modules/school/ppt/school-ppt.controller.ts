@@ -4,28 +4,33 @@ import { SchoolPptService } from './school-ppt.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 @Controller('school/ppt')
 export class SchoolPptController {
   constructor(private readonly svc: SchoolPptService) {}
 
   @Post('generate')
-  @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_ppt_generator')
   generate(@Body() body: any, @Req() req: Request & { user?: any }) {
     return this.svc.generate(body, req.user?.instituteId);
   }
 
   @Post('regenerate-slide')
-  @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_ppt_generator')
   regenerate(@Body() body: any, @Req() req: Request & { user?: any }) {
     return this.svc.regenerateSlide(body, req.user?.instituteId);
   }
 
   @Post('search-image')
-  @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_ppt_generator')
   searchImage(@Body() body: any, @Req() req: Request & { user?: any }) {
     return this.svc.searchImage(body, req.user?.instituteId);
   }
