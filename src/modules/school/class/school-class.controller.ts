@@ -4,9 +4,11 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 @Controller('school/classes')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
 export class SchoolClassController {
   constructor(private readonly svc: SchoolClassService) {}
 
@@ -28,14 +30,17 @@ export class SchoolClassController {
 
   @Post('recordings/:id/retranscribe')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_notes_generator')
   retranscribe(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.retranscribe(user, id); }
 
   @Post('recordings/:id/regenerate-notes')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_notes_generator')
   regenerateNotes(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.regenerateNotes(user, id); }
 
   @Post('recordings/:id/regenerate-notes-images')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_notes_generator')
   regenerateNotesImages(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.regenerateNotesImages(user, id); }
 
   @Get('recordings/:id/notes-images-data')
@@ -44,6 +49,7 @@ export class SchoolClassController {
 
   @Post('recordings/:id/generate-quiz')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_quiz_generator')
   generateQuiz(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.generateQuiz(user, id); }
 
   @Get('recordings/:id/quiz-analytics')

@@ -6,9 +6,11 @@ import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { SchoolPublic } from '../decorators/school-public.decorator';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 @Controller('school/materials')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
 export class SchoolMaterialController {
   constructor(private readonly svc: SchoolMaterialService) { }
 
@@ -42,10 +44,12 @@ export class SchoolMaterialController {
 
   @Post('ai-generate')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_content_generator_materials')
   aiGenerate(@SchoolUser() user: any, @Body() body: any) { return this.svc.generateAiContent(user, body); }
 
   @Post('ai-save')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_content_generator_materials')
   aiSave(@SchoolUser() user: any, @Body() body: any) { return this.svc.saveAiMaterial(user, body); }
 
   // @Get('audit-data')
