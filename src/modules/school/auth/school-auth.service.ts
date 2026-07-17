@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { querySectionSubjects } from '../common/section-subjects';
@@ -217,6 +217,44 @@ export class SchoolAuthService {
         profileImage: user.profile_image,
         studentProfile,
       },
+    };
+  }
+
+  async recordAdminPortalEntry(user: any) {
+    const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
+    const isInstituteAdmin = role
+      .split(',')
+      .map((r) => r.trim())
+      .some((r) => r === 'INSTITUTE_ADMIN' || r === 'ADMIN');
+
+    if (!isInstituteAdmin || role.includes('SUPER_ADMIN')) {
+      throw new ForbiddenException('Only institute admins can record admin portal entry');
+    }
+
+    const instituteId = user?.instituteId || user?.institute_id || null;
+    if (!user?.id || !instituteId) {
+      throw new BadRequestException('Institute admin context is missing');
+    }
+
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO attendances (institute_id, user_id, date, status, remarks, created_at, updated_at)
+       VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Admin portal access', NOW(), NOW())
+       ON CONFLICT (date, user_id) DO UPDATE SET
+         status = EXCLUDED.status,
+         remarks = CASE
+           WHEN attendances.remarks ILIKE '%Admin portal access%' THEN attendances.remarks
+           WHEN attendances.remarks IS NULL OR attendances.remarks = '' THEN EXCLUDED.remarks
+           ELSE attendances.remarks || ' | ' || EXCLUDED.remarks
+         END,
+         updated_at = NOW()
+       RETURNING *`,
+      [instituteId, user.id],
+    );
+
+    return {
+      success: true,
+      message: 'Admin portal attendance recorded',
+      data: rows[0] || null,
     };
   }
 

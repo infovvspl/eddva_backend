@@ -154,8 +154,8 @@ export class AuditLogService implements OnModuleInit {
       params.push(query.module);
     }
     if (query.role) {
-      conditions.push(`LOWER(al.role) = LOWER($${idx++})`);
-      params.push(query.role);
+      conditions.push(`UPPER(REPLACE(al.role, ' ', '_')) LIKE $${idx++}`);
+      params.push(`%${String(query.role).toUpperCase().replace(/\s+/g, '_')}%`);
     }
     if (query.status) {
       conditions.push(`LOWER(al.status) = LOWER($${idx++})`);
