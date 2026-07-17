@@ -1,12 +1,19 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { recordStudentActivity } from '../common/gamification-helper';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+import {
+  SchoolFcmNotificationType,
+  SCHOOL_NOTIFICATION_TEMPLATES,
+  fillTemplate,
+} from '../notification-fcm/school-notification-templates';
 
 @Injectable()
 export class SchoolAssessmentService {
+  private readonly logger = new Logger(SchoolAssessmentService.name);
   private schemaReady = false;
   private submissionSchemaReady = false;
   private resultSchemaReady = false;
@@ -15,6 +22,7 @@ export class SchoolAssessmentService {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
     private readonly aiBridge: AiBridgeService,
+    private readonly fcm: FcmService,
   ) { }
 
   private storedUploadPath(file?: Express.Multer.File | null) {
@@ -721,6 +729,9 @@ export class SchoolAssessmentService {
           assessment.id
         ]
       );
+      // NOTE: EXAM category events generated via assessment creation are explicitly
+      // excluded from CALENDAR_EVENT_CREATED notifications to avoid double-alerting
+      // student users (who already receive 'New Assessment Available' creation notifications).
     }
   }
 
@@ -951,29 +962,85 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       await this.syncCalendarEvent(manager, assessment, user.id, user.instituteId);
 
       // Notify students
-      try {
-        if (classId) {
-          const studentUsers = await manager.query(
-            `SELECT s.user_id FROM students s
-             JOIN sections sec ON s.section_id::text = sec.id::text
-             WHERE sec.class_id::text = $1`,
-            [classId]
-          );
+      if (assessment.status !== 'draft') {
+        try {
+          if (classId) {
+            const studentUsers = await manager.query(
+              `SELECT s.user_id FROM students s
+               JOIN sections sec ON s.section_id::text = sec.id::text
+               WHERE sec.class_id::text = $1`,
+              [classId]
+            );
 
-          await Promise.allSettled(
-            studentUsers.map((stu: any) =>
-              this.notificationService.create({
-                recipientId: stu.user_id,
-                type: 'assessment',
-                title: 'New Assessment Available',
-                message: `${body.title} is now available.`,
-                actionUrl: '/school/student/assessments',
-              }),
-            ),
-          );
+            await Promise.allSettled(
+              studentUsers.map((stu: any) =>
+                this.notificationService.create({
+                  recipientId: stu.user_id,
+                  type: 'assessment',
+                  title: 'New Assessment Available',
+                  message: `${body.title} is now available.`,
+                  actionUrl: '/school/student/assessments',
+                }),
+              ),
+            );
+
+            // Send FCM push to all target students
+            if (studentUsers.length > 0 && this.fcm.isReady) {
+              const { title: pushTitle, body: pushBody } = fillTemplate(
+                SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NEW_ASSESSMENT],
+                { title: assessment.title },
+              );
+
+              for (const stu of studentUsers) {
+                const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'announcement_alerts');
+                if (!prefAllowed) continue;
+
+                const dupRows = await manager.query(
+                  `SELECT 1 FROM school_notification_log
+                   WHERE user_id = $1
+                     AND notification_type = $2
+                     AND reference_id = $3
+                     AND status = 'SUCCESS'
+                   LIMIT 1`,
+                  [stu.user_id, SchoolFcmNotificationType.NEW_ASSESSMENT, assessment.id],
+                );
+                if (dupRows.length > 0) continue;
+
+                const pushResults = await this.fcm.sendPushToUser(
+                  stu.user_id,
+                  pushTitle,
+                  pushBody,
+                  { type: 'NEW_ASSESSMENT', assessmentId: assessment.id },
+                );
+
+                const anySuccess = pushResults.some((r) => r.success);
+                const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+                const failureReasons = pushResults
+                  .filter((r) => !r.success)
+                  .map((r) => r.error)
+                  .join('; ');
+
+                if (pushResults.length > 0) {
+                  await manager.query(
+                    `INSERT INTO school_notification_log
+                       (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+                     VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+                    [
+                      stu.user_id,
+                      SchoolFcmNotificationType.NEW_ASSESSMENT,
+                      assessment.id,
+                      anySuccess ? 'SUCCESS' : 'FAILED',
+                      firstMessageId,
+                      failureReasons || null,
+                    ],
+                  );
+                }
+              }
+            }
+          }
+        } catch (notifErr: any) {
+          this.logger.error(`Failed to send assessment notifications: ${notifErr.message}`);
         }
-      } catch (notifErr) {
-        console.error('Failed to send assessment notifications:', notifErr);
       }
 
       return { success: true, data: assessment };
@@ -1320,8 +1387,326 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         message: `Your result for ${assessmentTitle} is available. Marks: ${body.marksObtained || 0}`,
         actionUrl: '/school/student/assessments',
       });
-    } catch (notifErr) {
-      console.error('Failed to send result notification:', notifErr);
+
+      // Send FCM push to student if allowed
+      const prefAllowed = await this.fcm.checkUserPreference(body.studentId, 'assessment_alerts');
+      if (prefAllowed && this.fcm.isReady) {
+        const dupRows = await this.ds.query(
+          `SELECT 1 FROM school_notification_log
+           WHERE user_id = $1
+             AND notification_type = $2
+             AND reference_id = $3
+             AND status = 'SUCCESS'
+           LIMIT 1`,
+          [body.studentId, SchoolFcmNotificationType.RESULT_PUBLISHED, result.id],
+        );
+
+        if (dupRows.length === 0) {
+          const pushTitle = 'Result Published 📊';
+          const pushBody = `Your result for ${assessmentTitle} is available. Marks: ${body.marksObtained || 0}`;
+
+          const pushResults = await this.fcm.sendPushToUser(
+            body.studentId,
+            pushTitle,
+            pushBody,
+            { type: 'RESULT_PUBLISHED', resultId: result.id },
+          );
+
+          const anySuccess = pushResults.some((r) => r.success);
+          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          const failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          if (pushResults.length > 0) {
+            await this.ds.query(
+              `INSERT INTO school_notification_log
+                 (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+               VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+              [
+                body.studentId,
+                SchoolFcmNotificationType.RESULT_PUBLISHED,
+                result.id,
+                anySuccess ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              ],
+            );
+          }
+        }
+      }
+    } catch (notifErr: any) {
+      this.logger.error(`Failed to send student result notification: ${notifErr.message}`);
+    }
+
+    // Notify parents
+    try {
+      const assessmentTitle = assessmentRows[0]?.title || 'Assessment';
+      const studentRows = await this.ds.query(
+        `SELECT s.id AS student_id, s.parent_email, s.parent_phone, u.name AS student_name, u.institute_id
+         FROM students s
+         JOIN users u ON s.user_id = u.id
+         WHERE s.user_id = $1`,
+        [body.studentId],
+      );
+
+      if (studentRows.length > 0) {
+        const { student_id, parent_email, parent_phone, student_name, institute_id: tenantId } = studentRows[0];
+        if (tenantId) {
+          const parents = await this.ds.query(
+            `SELECT id FROM users
+             WHERE role = 'PARENT' AND is_active = true AND institute_id = $1
+               AND (
+                 (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+                 OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+               )`,
+            [tenantId, parent_email, parent_phone],
+          );
+
+          for (const parent of parents) {
+            // 1. Result Published Alert
+            const prefAllowed = await this.fcm.checkUserPreference(parent.id, 'assessment_alerts');
+            if (prefAllowed) {
+              const dupResult = await this.ds.query(
+                `SELECT 1 FROM school_notification_log
+                 WHERE user_id = $1
+                   AND notification_type = $2
+                   AND reference_id = $3
+                   AND status = 'SUCCESS'
+                 LIMIT 1`,
+                [parent.id, SchoolFcmNotificationType.RESULT_PUBLISHED, result.id],
+              );
+
+              if (dupResult.length === 0) {
+                const { title: pTitle, body: pushBody } = fillTemplate(
+                  SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.RESULT_PUBLISHED],
+                  { studentName: student_name, examName: assessmentTitle },
+                );
+
+                const pushResults = await this.fcm.sendPushToUser(
+                  parent.id,
+                  pTitle,
+                  pushBody,
+                  { type: 'RESULT_PUBLISHED', resultId: result.id },
+                );
+
+                const anySuccess = pushResults.some((r) => r.success);
+                const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+                const failureReasons = pushResults
+                  .filter((r) => !r.success)
+                  .map((r) => r.error)
+                  .join('; ');
+
+                if (pushResults.length > 0) {
+                  await this.ds.query(
+                    `INSERT INTO school_notification_log
+                       (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+                     VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+                    [
+                      parent.id,
+                      SchoolFcmNotificationType.RESULT_PUBLISHED,
+                      result.id,
+                      anySuccess ? 'SUCCESS' : 'FAILED',
+                      firstMessageId,
+                      failureReasons || null,
+                    ],
+                  );
+                }
+
+                // In-app notification
+                await this.notificationService.create({
+                  userId: parent.id,
+                  recipientId: parent.id,
+                  role: 'PARENT',
+                  recipientRole: 'PARENT',
+                  type: 'result',
+                  category: 'assessment',
+                  priority: 'medium',
+                  title: pTitle,
+                  message: pushBody,
+                  referenceId: result.id,
+                  referenceType: 'result',
+                });
+              }
+            }
+
+            // 2. Low Performance Alert
+            if (prefAllowed) {
+              const avgStats = await this.ds.query(
+                `SELECT AVG(r.percentage) AS avg_score
+                 FROM results r
+                 WHERE r.student_id = $1 AND r.status = 'published'`,
+                [body.studentId]
+              );
+              const overallAverage = avgStats[0]?.avg_score ? Number(avgStats[0].avg_score) : null;
+
+              if (overallAverage !== null && overallAverage < 40) {
+                const weekResult = await this.ds.query(
+                  `SELECT EXTRACT(WEEK FROM NOW())::int AS week_num, EXTRACT(YEAR FROM NOW())::int AS year_num`
+                );
+                const weekNum = weekResult[0].week_num;
+                const yearNum = weekResult[0].year_num;
+                const dedupKey = `low_perf_${body.studentId}_${yearNum}_W${weekNum}`;
+
+                const dupLowPerf = await this.ds.query(
+                  `SELECT 1 FROM school_notification_log
+                   WHERE user_id = $1
+                     AND notification_type = $2
+                     AND reference_id = $3
+                     AND status = 'SUCCESS'
+                   LIMIT 1`,
+                  [parent.id, SchoolFcmNotificationType.LOW_PERFORMANCE_ALERT, dedupKey],
+                );
+
+                if (dupLowPerf.length === 0) {
+                  const { title: pTitle, body: pushBody } = fillTemplate(
+                    SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.LOW_PERFORMANCE_ALERT],
+                    { studentName: student_name, average: overallAverage.toFixed(1) },
+                  );
+
+                  const pushResults = await this.fcm.sendPushToUser(
+                    parent.id,
+                    pTitle,
+                    pushBody,
+                    { type: 'LOW_PERFORMANCE_ALERT', dedupKey },
+                  );
+
+                  const anySuccess = pushResults.some((r) => r.success);
+                  const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+                  const failureReasons = pushResults
+                    .filter((r) => !r.success)
+                    .map((r) => r.error)
+                    .join('; ');
+
+                  if (pushResults.length > 0) {
+                    await this.ds.query(
+                      `INSERT INTO school_notification_log
+                         (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+                       VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+                      [
+                        parent.id,
+                        SchoolFcmNotificationType.LOW_PERFORMANCE_ALERT,
+                        dedupKey,
+                        anySuccess ? 'SUCCESS' : 'FAILED',
+                        firstMessageId,
+                        failureReasons || null,
+                      ],
+                    );
+                  }
+
+                  // In-app notification
+                  await this.notificationService.create({
+                    userId: parent.id,
+                    recipientId: parent.id,
+                    role: 'PARENT',
+                    recipientRole: 'PARENT',
+                    type: 'performance_alert',
+                    category: 'assessment',
+                    priority: 'high',
+                    title: pTitle,
+                    message: pushBody,
+                    referenceId: student_id,
+                    referenceType: 'student',
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (notifErr: any) {
+      console.error('Failed to trigger parent result notification:', notifErr.message);
+    }
+
+    // Notify institute admins
+    try {
+      const assessmentTitle = assessmentRows[0]?.title || 'Assessment';
+      // Resolve institute_id from the student (reuse tenantId if parent block ran, otherwise fetch)
+      let adminInstituteId: string | null = null;
+      const stuRows = await this.ds.query(
+        `SELECT u.institute_id FROM students s JOIN users u ON s.user_id = u.id WHERE s.user_id = $1`,
+        [body.studentId],
+      );
+      if (stuRows.length > 0) {
+        adminInstituteId = stuRows[0].institute_id;
+      }
+
+      if (adminInstituteId) {
+        const admins = await this.ds.query(
+          `SELECT id FROM users WHERE role = 'INSTITUTE_ADMIN' AND is_active = true AND institute_id = $1`,
+          [adminInstituteId],
+        );
+
+        for (const admin of admins) {
+          const prefAllowed = await this.fcm.checkUserPreference(admin.id, 'announcement_alerts');
+          if (!prefAllowed) continue;
+
+          // Dedup on assessment_id (one admin notification per assessment, not per student)
+          const dupRows = await this.ds.query(
+            `SELECT 1 FROM school_notification_log
+             WHERE user_id = $1
+               AND notification_type = $2
+               AND reference_id = $3
+               AND status = 'SUCCESS'
+             LIMIT 1`,
+            [admin.id, SchoolFcmNotificationType.RESULT_PUBLISHED_ADMIN_SUMMARY, body.assessmentId],
+          );
+          if (dupRows.length > 0) continue;
+
+          const { title: adminTitle, body: adminBody } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.RESULT_PUBLISHED_ADMIN_SUMMARY],
+            { assessmentTitle },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(
+            admin.id,
+            adminTitle,
+            adminBody,
+            { type: 'RESULT_PUBLISHED_ADMIN_SUMMARY', assessmentId: body.assessmentId },
+          );
+
+          const anySuccess = pushResults.some((r) => r.success);
+          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          const failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          if (pushResults.length > 0) {
+            await this.ds.query(
+              `INSERT INTO school_notification_log
+                 (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+               VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+              [
+                admin.id,
+                SchoolFcmNotificationType.RESULT_PUBLISHED_ADMIN_SUMMARY,
+                body.assessmentId,
+                anySuccess ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              ],
+            );
+          }
+
+          // In-app notification
+          await this.notificationService.create({
+            userId: admin.id,
+            recipientId: admin.id,
+            role: 'INSTITUTE_ADMIN',
+            recipientRole: 'INSTITUTE_ADMIN',
+            type: 'result',
+            category: 'assessment',
+            priority: 'medium',
+            title: adminTitle,
+            message: adminBody,
+            referenceId: body.assessmentId,
+            referenceType: 'assessment',
+          });
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to notify admins of published results: ${err.message}`);
     }
 
     return { success: true, data: result };
