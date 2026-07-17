@@ -101,7 +101,7 @@ export class SchoolAuthService {
 
     const token = this.signSchoolToken(user);
 
-    if (user.role === 'TEACHER') {
+    if (String(user.role).toUpperCase().includes('TEACHER')) {
       try {
         await this.ds.query(
           `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
@@ -111,6 +111,16 @@ export class SchoolAuthService {
       } catch (error) {
         console.error(`Auto-attendance failed for teacher ${user.id}:`, error);
         // Do not throw; allow login to succeed even if attendance insert fails
+      }
+    } else if (String(user.role).toUpperCase().includes('INSTITUTE_ADMIN')) {
+      try {
+        await this.ds.query(
+          `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
+           ON CONFLICT (date, user_id) DO UPDATE SET status=EXCLUDED.status, remarks=EXCLUDED.remarks, updated_at=NOW()`,
+          [user.inst_id, user.id]
+        );
+      } catch (error) {
+        console.error(`Auto-attendance failed for admin ${user.id}:`, error);
       }
     }
 

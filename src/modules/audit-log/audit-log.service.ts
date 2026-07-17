@@ -195,7 +195,7 @@ export class AuditLogService implements OnModuleInit {
          al.ip_address     AS "ipAddress",
          al.status,
          al.vertical,
-         al.created_at     AS "createdAt"
+         al.created_at::timestamptz AS "createdAt"
        FROM audit_logs al
        LEFT JOIN ${tenantTable} t ON t.id::text = al.institute_id::text
        ${where}

@@ -1,24 +1,22 @@
 const { Client } = require('pg');
+require('dotenv').config();
 
 async function run() {
-  const client = new Client({
-    connectionString: "postgresql://postgres.mrirhbcfxpcmcnvrzfld:itEVbOANeXg71Gcw@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres",
-    ssl: { rejectUnauthorized: false }
-  });
+  const c = new Client({ connectionString: process.env.SCHOOL_DB_URL, ssl: { rejectUnauthorized: false } });
+  await c.connect();
 
-  try {
-    await client.connect();
-    console.log("Connected to DB");
+  const res = await c.query(`
+    SELECT a.id, a.date, a.status, a.created_at, u.name, u.role
+    FROM attendances a
+    JOIN users u ON u.id = a.user_id
+    WHERE a.date = CURRENT_DATE
+    ORDER BY a.created_at DESC
+  `);
+  console.log("Today's Attendances in DB:");
+  console.log(JSON.stringify(res.rows, null, 2));
 
-    const usersRes = await client.query(`SELECT id, name, email, role, institute_id FROM users WHERE role IN ('TEACHER', 'INSTITUTE_ADMIN') LIMIT 30`);
-    console.log("Users and Roles:");
-    console.log(JSON.stringify(usersRes.rows, null, 2));
-
-  } catch (err) {
-    console.error("Database query failed:", err);
-  } finally {
-    await client.end();
-  }
+  await c.end();
 }
-
 run();
+
+

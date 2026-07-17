@@ -8,10 +8,10 @@ async function run() {
   const res = await c.query(`
     SELECT table_name 
     FROM information_schema.tables 
-    WHERE table_schema = 'public'
+    WHERE table_schema = 'public' AND (table_name LIKE '%teacher%' OR table_name LIKE '%profile%')
     ORDER BY table_name
   `);
-  console.log("Tables in DB:", res.rows.map(r => r.table_name));
+  console.log("Teacher/Profile Tables in DB:", res.rows.map(r => r.table_name));
 
   await c.end();
 }
