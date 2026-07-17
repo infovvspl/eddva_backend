@@ -1,6 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolNotificationService } from '../notification/school-notification.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+import {
+  SchoolFcmNotificationType,
+  SCHOOL_NOTIFICATION_TEMPLATES,
+  fillTemplate,
+} from '../notification-fcm/school-notification-templates';
 
 const HOLIDAYS_2026 = [
   { id: 1, title: 'Makar Sankranti', date: '2026-01-14', type: 'STATE' },
@@ -36,7 +43,11 @@ const VACATIONS_2026 = [
 
 @Injectable()
 export class SchoolEventService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly notificationService: SchoolNotificationService,
+    private readonly fcm: FcmService,
+  ) {}
 
   async list(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
@@ -148,7 +159,109 @@ export class SchoolEventService {
                  created_by AS "createdBy", linked_id AS "linkedId"`,
       [instituteId, body.title, body.description || null, body.category || 'ACADEMIC', startTime, endTime, isAllDay, body.location || null, body.priority || 'NORMAL', createdBy, linkedId],
     );
-    return { success: true, data: rows[0] };
+    const event = rows[0];
+
+    // Calendar Event Created notification hook (excluding ASSIGNMENT, LIVE_CLASS, EXAM)
+    const category = event.category;
+    if (category !== 'ASSIGNMENT' && category !== 'LIVE_CLASS' && category !== 'EXAM') {
+      try {
+        // Resolve roles that should see this event based on visibility rules
+        const targetRoles: string[] = [];
+        if (['HOLIDAY', 'VACATION', 'EMERGENCY_NOTICE', 'ACADEMIC'].includes(category)) {
+          targetRoles.push('STUDENT', 'TEACHER', 'PARENT');
+        } else if (category === 'TEACHER_MEETING') {
+          targetRoles.push('TEACHER');
+        } else if (category === 'PARENT_MEETING') {
+          targetRoles.push('PARENT');
+        }
+
+        if (targetRoles.length > 0) {
+          const targetUsers = await this.ds.query(
+            `SELECT id, role FROM users 
+             WHERE institute_id = $1 AND role = ANY($2::varchar[]) AND is_active = true`,
+            [event.instituteId, targetRoles],
+          );
+
+          if (targetUsers.length > 0 && this.fcm.isReady) {
+            const formattedDate = new Date(event.startTime).toLocaleDateString('en-IN', {
+              timeZone: 'Asia/Kolkata',
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            });
+
+            const { title: pushTitle, body: pushBody } = fillTemplate(
+              SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.CALENDAR_EVENT_CREATED],
+              {
+                title: event.title,
+                eventDate: formattedDate,
+              },
+            );
+
+            for (const user of targetUsers) {
+              const prefAllowed = await this.fcm.checkUserPreference(user.id, 'announcement_alerts');
+              if (!prefAllowed) continue;
+
+              const dupRows = await this.ds.query(
+                `SELECT 1 FROM school_notification_log
+                 WHERE user_id = $1
+                   AND notification_type = $2
+                   AND reference_id = $3
+                   AND status = 'SUCCESS'
+                 LIMIT 1`,
+                [user.id, SchoolFcmNotificationType.CALENDAR_EVENT_CREATED, event.id],
+              );
+              if (dupRows.length > 0) continue;
+
+              const pushResults = await this.fcm.sendPushToUser(
+                user.id,
+                pushTitle,
+                pushBody,
+                { type: 'CALENDAR_EVENT_CREATED', eventId: event.id },
+              );
+
+              const anySuccess = pushResults.some((r) => r.success);
+              const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+              const failureReasons = pushResults
+                .filter((r) => !r.success)
+                .map((r) => r.error)
+                .join('; ');
+
+              if (pushResults.length > 0) {
+                await this.ds.query(
+                  `INSERT INTO school_notification_log
+                     (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+                   VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+                  [
+                    user.id,
+                    SchoolFcmNotificationType.CALENDAR_EVENT_CREATED,
+                    event.id,
+                    anySuccess ? 'SUCCESS' : 'FAILED',
+                    firstMessageId,
+                    failureReasons || null,
+                  ],
+                );
+              }
+
+              // In-app notification
+              await this.notificationService.create({
+                recipientId: user.id,
+                type: 'calendar',
+                title: pushTitle,
+                message: pushBody,
+                actionUrl: '/school/calendar',
+                role: user.role,
+                recipientRole: user.role,
+              });
+            }
+          }
+        }
+      } catch (notifErr: any) {
+        console.error('Failed to dispatch calendar creation notifications:', notifErr);
+      }
+    }
+
+    return { success: true, data: event };
   }
 
   async findOne(id: string) {

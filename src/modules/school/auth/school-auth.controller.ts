@@ -18,7 +18,7 @@ export class SchoolAuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() body: any, @Ip() ip: string, @Headers('user-agent') userAgent: string) {
     const identifier = body.email || body.phone || body.phoneNumber;
-    const data = await this.authService.login(identifier, body.password, ip, userAgent);
+    const data = await this.authService.login(identifier, body.password, ip, userAgent, body.fcmToken, body.platform);
     return { success: true, message: 'Login successful', ...data };
   }
 

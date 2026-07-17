@@ -13,6 +13,12 @@ import { recordStudentActivity } from '../common/gamification-helper';
 import { randomUUID } from 'crypto';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+import {
+  SchoolFcmNotificationType,
+  SCHOOL_NOTIFICATION_TEMPLATES,
+  fillTemplate,
+} from '../notification-fcm/school-notification-templates';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -25,6 +31,7 @@ export class SchoolAssignmentService {
     private readonly notificationService: SchoolNotificationService,
     private readonly aiBridge: AiBridgeService,
     private readonly s3Service: S3Service,
+    private readonly fcm: FcmService,
   ) {}
 
   /** assignments.tenant_id stores the school institute id (not coaching tenants.id). */
@@ -598,8 +605,63 @@ export class SchoolAssignmentService {
           }),
         ),
       );
-    } catch (notifErr) {
-      console.error('Failed to send assignment upload notifications:', notifErr);
+
+      // Send FCM push to all target students
+      if (studentUsers.length > 0 && this.fcm.isReady) {
+        for (const stu of studentUsers) {
+          const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'announcement_alerts');
+          if (!prefAllowed) continue;
+
+          // Dedup with assignment.id
+          const dupRows = await this.ds.query(
+            `SELECT 1 FROM school_notification_log
+             WHERE user_id = $1
+               AND notification_type = $2
+               AND reference_id = $3
+               AND status = 'SUCCESS'
+             LIMIT 1`,
+            [stu.user_id, SchoolFcmNotificationType.NEW_ASSIGNMENT, assignment.id],
+          );
+          if (dupRows.length > 0) continue;
+
+          const { title: pushTitle, body: pushBody } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NEW_ASSIGNMENT],
+            { title: body.title || 'Assignment' },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(
+            stu.user_id,
+            pushTitle,
+            pushBody,
+            { type: 'NEW_ASSIGNMENT', assignmentId: assignment.id },
+          );
+
+          const anySuccess = pushResults.some((r) => r.success);
+          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          const failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          if (pushResults.length > 0) {
+            await this.ds.query(
+              `INSERT INTO school_notification_log
+                 (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+               VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+              [
+                stu.user_id,
+                SchoolFcmNotificationType.NEW_ASSIGNMENT,
+                assignment.id,
+                anySuccess ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              ],
+            );
+          }
+        }
+      }
+    } catch (notifErr: any) {
+      this.logger.error(`Failed to send assignment upload notifications: ${notifErr.message}`);
     }
 
     return { success: true, data: assignment };
@@ -684,17 +746,76 @@ export class SchoolAssignmentService {
 
     // Notify the teacher
     try {
-      if (assignRows[0].teacher_id) {
+      const teacherUserId = assignRows[0].teacher_id;
+      if (teacherUserId) {
+        // Enforce teacher assignment_alerts preference
+        const prefAllowed = await this.fcm.checkUserPreference(teacherUserId, 'assignment_alerts');
+        
+        let pushSent = false;
+        let firstMessageId = null;
+        let failureReasons = null;
+
+        if (prefAllowed && this.fcm.isReady) {
+          const teacherRows = await this.ds.query(`SELECT name FROM users WHERE id = $1`, [teacherUserId]);
+          const teacherName = teacherRows[0]?.name || 'Teacher';
+          const firstName = teacherName.split(' ')[0] || 'Teacher';
+          const studentName = user.name || 'A student';
+          const assignmentTitle = assignRows[0].title || 'Assignment';
+
+          const { title, body } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.ASSIGNMENT_SUBMISSION],
+            { name: firstName, studentName, title: assignmentTitle },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(
+            teacherUserId,
+            title,
+            body,
+            { type: 'ASSIGNMENT_SUBMISSION', assignmentId },
+          );
+
+          pushSent = pushResults.some((r) => r.success);
+          firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          if (pushResults.length > 0) {
+            await this.ds.query(
+              `INSERT INTO school_notification_log
+                 (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+               VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+              [
+                teacherUserId,
+                SchoolFcmNotificationType.ASSIGNMENT_SUBMISSION,
+                assignmentId,
+                pushSent ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              ],
+            );
+          }
+        }
+
+        // In-app notification (with explicit role)
         await this.notificationService.create({
-          recipientId: assignRows[0].teacher_id,
+          userId: teacherUserId,
+          recipientId: teacherUserId,
+          role: 'TEACHER',
+          recipientRole: 'TEACHER',
           type: 'submission',
+          category: 'assignment',
+          priority: 'medium',
           title: 'Assignment Submitted',
           message: `${user.name || 'A student'} submitted ${assignRows[0].title}.`,
           actionUrl: '/school/teacher/assignments',
+          referenceId: assignmentId,
+          referenceType: 'assignment',
         });
       }
-    } catch (notifErr) {
-      console.error('Failed to send assignment submission notification:', notifErr);
+    } catch (notifErr: any) {
+      this.logger.error(`Failed to send assignment submission notification: ${notifErr.message}`);
     }
 
     // Log student activity and update streak
