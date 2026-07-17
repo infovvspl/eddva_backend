@@ -78,7 +78,7 @@ export class SchoolAuthService {
       [user.id],
     );
 
-    if (user.role === 'INSTITUTE_ADMIN') {
+    if (String(user.role).toUpperCase().includes('INSTITUTE_ADMIN') && !String(user.role).toUpperCase().includes('TEACHER')) {
       try {
         await this.schoolDb.query(
           `INSERT INTO attendances (institute_id, user_id, date, status, remarks, created_at, updated_at)

@@ -33,13 +33,8 @@ export class GamificationApiController {
         token,
         process.env.JWT_SECRET || 'change_me_in_production',
       );
-      return decoded.id || decoded.sub || 'demo-super-admin';
+      return decoded.id || decoded.sub;
     } catch {
-      // Dev fallback: decode without verification if verify fails (useful for local testing/mock tokens)
-      const decoded: any = jwt.decode(token);
-      if (decoded && (decoded.id || decoded.sub)) {
-        return decoded.id || decoded.sub;
-      }
       throw new UnauthorizedException('Invalid or expired token');
     }
   }

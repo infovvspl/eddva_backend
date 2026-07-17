@@ -73,7 +73,7 @@ export class OtpService {
       throw new BadRequestException('Phone number is already registered.');
     }
 
-    const hashed = await bcrypt.hash(dto.password, 10);
+    const hashed = await bcrypt.hash(dto.password, 12);
     const user   = this.userRepo.create({
       fullName:    dto.fullName,
       email:       dto.email,
@@ -228,7 +228,7 @@ export class OtpService {
     if (!stored)
       throw new BadRequestException('OTP expired or not found. Please request a new one.');
 
-    if (stored !== dto.otp && dto.otp !== '654321') {
+    if (stored !== dto.otp) {
       await this.cache.set(attKey, attempts + 1, OTP_TTL_SECONDS * 1000);
       throw new BadRequestException(`Invalid OTP. ${MAX_ATTEMPTS - attempts - 1} attempt(s) left.`);
     }

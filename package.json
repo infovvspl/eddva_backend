@@ -21,6 +21,7 @@
     "migration:run": "npm run typeorm -- migration:run -d src/config/database.config.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/config/database.config.ts",
     "seed": "ts-node src/database/seed.ts",
+    "seed:super-admins": "ts-node -r tsconfig-paths/register src/database/seed-super-admins.ts",
     "backfill:mock-test-math": "node scripts/backfill-mock-test-math.js",
     "prepare": "husky"
   },

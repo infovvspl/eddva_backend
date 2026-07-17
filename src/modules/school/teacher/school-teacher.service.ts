@@ -237,7 +237,7 @@ export class SchoolTeacherService {
     const params: any[] = [];
     const targetRole = query.role || 'TEACHER';
     params.push(targetRole);
-    let filter = `u.role = $1`;
+    let filter = `u.role LIKE '%' || $1 || '%'`;
     if (instituteId) {
       params.push(instituteId);
       filter += ` AND u.institute_id = $${params.length}`;
@@ -265,8 +265,9 @@ export class SchoolTeacherService {
     let presentToday = 0;
 
     if (targetRole === 'INSTITUTE_ADMIN') {
+      console.log('[getStats] INSTITUTE_ADMIN branch - using attendances only (no audit_logs)');
       const attParams: any[] = [];
-      let attFilter = `u.role = 'INSTITUTE_ADMIN'`;
+      let attFilter = `u.role LIKE '%INSTITUTE_ADMIN%'`;
       if (instituteId) {
         attParams.push(instituteId);
         attFilter += ` AND u.institute_id = $1`;
@@ -276,10 +277,7 @@ export class SchoolTeacherService {
           COUNT(DISTINCT u.id) FILTER (
             WHERE EXISTS (
               SELECT 1 FROM attendances 
-              WHERE user_id::text = u.id::text AND date = CURRENT_DATE AND status = 'present'
-            ) OR EXISTS (
-              SELECT 1 FROM audit_logs 
-              WHERE user_id::text = u.id::text AND created_at::date = CURRENT_DATE
+              WHERE user_id::text = u.id::text AND date = CURRENT_DATE AND LOWER(status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
             )
           )::int AS "presentToday"
         FROM users u
@@ -290,7 +288,7 @@ export class SchoolTeacherService {
     } else {
       const todayStr = new Date().toISOString().split('T')[0];
       const attParams: any[] = [todayStr, targetRole];
-      let attFilter = `a.date = $1 AND u.role = $2`;
+      let attFilter = `a.date = $1 AND u.role LIKE '%' || $2 || '%'`;
       if (instituteId) {
         attParams.push(instituteId);
         attFilter += ` AND a.institute_id = $${attParams.length}`;
@@ -356,7 +354,7 @@ export class SchoolTeacherService {
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
     const employeeId = body.employeeId || await this.generateEmployeeId(instituteId);
-    const hashed = await bcrypt.hash(body.password, 10);
+    const hashed = await bcrypt.hash(body.password, 12);
 
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();
@@ -461,7 +459,7 @@ export class SchoolTeacherService {
     const params: any[] = [];
     const targetRole = query.role || 'TEACHER';
     params.push(targetRole);
-    let filter = `u.role=$1`;
+    let filter = `u.role LIKE '%' || $1 || '%'`;
     if (instituteId) {
       params.push(instituteId);
       filter += ` AND u.institute_id=$${params.length}`;
@@ -520,7 +518,7 @@ export class SchoolTeacherService {
     const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const dataQuery = `
-      SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.profile_image,
+      SELECT u.id,u.name,u.email,u.phone,u.role,u.is_active,u.created_at,u.profile_image,
              u.institute_id,i.name AS institute_name,
              t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
              t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
@@ -570,6 +568,7 @@ export class SchoolTeacherService {
         name: r.name,
         email: r.email,
         phone: r.phone,
+        role: r.role,
         profileImage: r.profile_image,
         isActive: r.is_active,
         createdAt: r.created_at,
@@ -653,7 +652,7 @@ export class SchoolTeacherService {
        COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM (SELECT DISTINCT class_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN classes c ON taa.class_id=c.id), '[]'::json) as classes,
        COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN sections s ON taa.section_id=s.id), '[]'::json) as sections,
        COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM (SELECT DISTINCT subject_id FROM teacher_academic_assignments WHERE teacher_id=t.id AND subject_id IS NOT NULL) taa JOIN subjects sub ON taa.subject_id=sub.id), '[]'::json) as subjects
-       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND u.role IN ('TEACHER', 'INSTITUTE_ADMIN')`;
+       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND (u.role LIKE '%TEACHER%' OR u.role LIKE '%INSTITUTE_ADMIN%')`;
     
     const params: any[] = [id];
     if (instituteId) {
@@ -745,10 +744,7 @@ export class SchoolTeacherService {
         FROM generate_series($2::date, CURRENT_DATE::date, '1 day'::interval) d(date)
         WHERE EXISTS (
           SELECT 1 FROM attendances 
-          WHERE user_id::text = $1::text AND date = d.date::date AND status = 'present'
-        ) OR EXISTS (
-          SELECT 1 FROM audit_logs 
-          WHERE user_id::text = $1::text AND created_at::date = d.date::date
+          WHERE user_id::text = $1::text AND date = d.date::date AND LOWER(status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
         )
       `, [r.id, joinDate]);
       const presentCount = attRow[0]?.present || 0;
@@ -836,84 +832,86 @@ export class SchoolTeacherService {
       const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=(SELECT institute_id FROM users WHERE id=$1) AND phone=$2 AND id<>$1`, [id, body.phone]);
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
-    await this.ds.query(
-      `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),profile_image=COALESCE($4,profile_image),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
-      [id, body.name, body.isActive, body.profileImage, body.phone],
-    );
+
+    const userUpdates: string[] = [];
+    const userParams: any[] = [id];
+    if (body.name !== undefined) {
+      userParams.push(body.name);
+      userUpdates.push(`name=$${userParams.length}`);
+    }
+    if (body.isActive !== undefined) {
+      userParams.push(body.isActive);
+      userUpdates.push(`is_active=$${userParams.length}`);
+    }
+    if (body.profileImage !== undefined) {
+      userParams.push(body.profileImage);
+      userUpdates.push(`profile_image=$${userParams.length}`);
+    }
+    if (body.phone !== undefined) {
+      userParams.push(body.phone);
+      userUpdates.push(`phone=$${userParams.length}`);
+    }
+    if (body.role !== undefined) {
+      userParams.push(body.role);
+      userUpdates.push(`role=$${userParams.length}`);
+    }
+    if (userUpdates.length > 0) {
+      await this.ds.query(
+        `UPDATE users SET ${userUpdates.join(', ')}, updated_at=NOW() WHERE id=$1`,
+        userParams
+      );
+    }
+
     const existingTeacherRows: any[] = await this.ds.query(`SELECT documents FROM teachers WHERE user_id=$1`, [id]);
     const documents = this.buildTeacherDocuments(body, this.parseJsonObject(existingTeacherRows[0]?.documents));
-    await this.ds.query(
-      `UPDATE teachers SET
-        employee_id = COALESCE($2, employee_id),
-        blood_group = $3,
-        marital_status = $4,
-        department = $5,
-        joining_date = $6,
-        qualifications = $7,
-        education_details = COALESCE($8, education_details),
-        experience_details = COALESCE($9, experience_details),
-        dob = $10,
-        gender = $11,
-        national_id = $12,
-        designation = $13,
-        salary = $14,
-        experience = $15,
-        address = $16,
-        city = $17,
-        state = $18,
-        pin_code = $19,
-        allergies = $20,
-        medical_conditions = $21,
-        documents = COALESCE($22, documents),
-        shift = $23,
-        weekdays = COALESCE($24, weekdays),
-        office_hours_start = $25,
-        office_hours_end = $26,
-        max_hours_per_week = $27,
-        emergency_contact = $28,
-        guardian_contact = $29,
-        disability = $30,
-        emergency_doctor = $31,
-        nationality = $32,
-        country = $33,
-        updated_at = NOW()
-       WHERE user_id = $1`,
-      [
-        id,
-        body.employeeId || body.employeeCode || null,
-        body.bloodGroup || null,
-        body.maritalStatus || null,
-        body.department || null,
-        body.joiningDate ? new Date(body.joiningDate) : null,
-        body.qualifications || null,
-        body.educationDetails ? JSON.stringify(body.educationDetails) : null,
-        body.experienceDetails ? JSON.stringify(body.experienceDetails) : null,
-        body.dob ? new Date(body.dob) : null,
-        body.gender || null,
-        body.nationalId || null,
-        body.role || null,
-        body.salary || null,
-        body.experience || null,
-        body.currentAddress || body.address || null,
-        body.city || null,
-        body.state || null,
-        body.pinCode || body.pin_code || null,
-        body.allergies || null,
-        body.medicalConditions || null,
-        JSON.stringify(documents),
-        body.shift || null,
-        body.weekdays ? JSON.stringify(body.weekdays) : null,
-        body.officeHoursStart || null,
-        body.officeHoursEnd || null,
-        body.maxHoursPerWeek || null,
-        body.emergencyContact || null,
-        body.guardianContact || null,
-        body.disability || null,
-        body.emergencyDoctor || null,
-        body.nationality || null,
-        body.country || null
-      ]
-    );
+
+    const teacherUpdates: string[] = [];
+    const teacherParams: any[] = [id];
+    const addTeacherUpdate = (field: string, val: any) => {
+      teacherParams.push(val);
+      teacherUpdates.push(`${field}=$${teacherParams.length}`);
+    };
+
+    if (body.employeeId !== undefined || body.employeeCode !== undefined) addTeacherUpdate('employee_id', body.employeeId || body.employeeCode || null);
+    if (body.bloodGroup !== undefined) addTeacherUpdate('blood_group', body.bloodGroup || null);
+    if (body.maritalStatus !== undefined) addTeacherUpdate('marital_status', body.maritalStatus || null);
+    if (body.department !== undefined) addTeacherUpdate('department', body.department || null);
+    if (body.joiningDate !== undefined) addTeacherUpdate('joining_date', body.joiningDate ? new Date(body.joiningDate) : null);
+    if (body.qualifications !== undefined) addTeacherUpdate('qualifications', body.qualifications || null);
+    if (body.educationDetails !== undefined) addTeacherUpdate('education_details', body.educationDetails ? JSON.stringify(body.educationDetails) : null);
+    if (body.experienceDetails !== undefined) addTeacherUpdate('experience_details', body.experienceDetails ? JSON.stringify(body.experienceDetails) : null);
+    if (body.dob !== undefined) addTeacherUpdate('dob', body.dob ? new Date(body.dob) : null);
+    if (body.gender !== undefined) addTeacherUpdate('gender', body.gender || null);
+    if (body.nationalId !== undefined) addTeacherUpdate('national_id', body.nationalId || null);
+    if (body.role !== undefined) addTeacherUpdate('designation', body.role || null);
+    if (body.salary !== undefined) addTeacherUpdate('salary', body.salary || null);
+    if (body.experience !== undefined) addTeacherUpdate('experience', body.experience || null);
+    if (body.currentAddress !== undefined || body.address !== undefined) addTeacherUpdate('address', body.currentAddress || body.address || null);
+    if (body.city !== undefined) addTeacherUpdate('city', body.city || null);
+    if (body.state !== undefined) addTeacherUpdate('state', body.state || null);
+    if (body.pinCode !== undefined || body.pin_code !== undefined) addTeacherUpdate('pin_code', body.pinCode || body.pin_code || null);
+    if (body.allergies !== undefined) addTeacherUpdate('allergies', body.allergies || null);
+    if (body.medicalConditions !== undefined) addTeacherUpdate('medical_conditions', body.medicalConditions || null);
+    if (body.shift !== undefined) addTeacherUpdate('shift', body.shift || null);
+    if (body.weekdays !== undefined) addTeacherUpdate('weekdays', body.weekdays ? JSON.stringify(body.weekdays) : null);
+    if (body.officeHoursStart !== undefined) addTeacherUpdate('office_hours_start', body.officeHoursStart || null);
+    if (body.officeHoursEnd !== undefined) addTeacherUpdate('office_hours_end', body.officeHoursEnd || null);
+    if (body.maxHoursPerWeek !== undefined) addTeacherUpdate('max_hours_per_week', body.maxHoursPerWeek || null);
+    if (body.emergencyContact !== undefined) addTeacherUpdate('emergency_contact', body.emergencyContact || null);
+    if (body.guardianContact !== undefined) addTeacherUpdate('guardian_contact', body.guardianContact || null);
+    if (body.disability !== undefined) addTeacherUpdate('disability', body.disability || null);
+    if (body.emergencyDoctor !== undefined) addTeacherUpdate('emergency_doctor', body.emergencyDoctor || null);
+    if (body.nationality !== undefined) addTeacherUpdate('nationality', body.nationality || null);
+    if (body.country !== undefined) addTeacherUpdate('country', body.country || null);
+
+    addTeacherUpdate('documents', JSON.stringify(documents));
+
+    if (teacherUpdates.length > 0) {
+      await this.ds.query(
+        `UPDATE teachers SET ${teacherUpdates.join(', ')}, updated_at=NOW() WHERE user_id=$1`,
+        teacherParams
+      );
+    }
 
     let tRows = await this.ds.query(`SELECT id, institute_id FROM teachers WHERE user_id=$1`, [id]);
     if (tRows.length === 0) {
@@ -1043,7 +1041,7 @@ export class SchoolTeacherService {
         if (existing.length) throw new Error('Email already exists');
 
         const employeeId = rec.employeeId || await this.generateEmployeeId(instituteId);
-        const hashed = await bcrypt.hash(rec.password, 10);
+        const hashed = await bcrypt.hash(rec.password, 12);
 
         const uRows: any[] = await this.ds.query(
           `INSERT INTO users (institute_id,name,email,password,role,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,TRUE) RETURNING id`,
