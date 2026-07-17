@@ -94,7 +94,12 @@ export class SchoolAttendanceService {
     if (query.userId) {
       const userRoleResult = await this.ds.query(`SELECT role, name, email FROM users WHERE id = $1`, [query.userId]);
       const userRole = userRoleResult[0]?.role;
-      if (userRole === 'INSTITUTE_ADMIN') {
+      const userRoles = String(userRole || '')
+        .toUpperCase()
+        .replace(/\s+/g, '_')
+        .split(',')
+        .map((role) => role.trim());
+      if (userRoles.includes('INSTITUTE_ADMIN')) {
         const startDate = query.startDate ? new Date(query.startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
         const endDate = query.endDate ? new Date(query.endDate) : new Date();
 
@@ -137,7 +142,7 @@ export class SchoolAttendanceService {
     }
 
     if (query.role === 'TEACHER') {
-      let filter = `u.institute_id = $1 AND u.role = 'TEACHER'`;
+      let filter = `u.institute_id = $1 AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'`;
       const params: any[] = [instituteId];
 
       let joinDate = `CURRENT_DATE`;
@@ -227,7 +232,11 @@ export class SchoolAttendanceService {
     if (query.date) { params.push(new Date(query.date)); filter += ` AND a.date=$${params.length}`; }
     if (query.startDate) { params.push(new Date(query.startDate)); filter += ` AND a.date>=$${params.length}`; }
     if (query.endDate) { params.push(new Date(query.endDate)); filter += ` AND a.date<=$${params.length}`; }
-    if (query.role) { params.push(query.role); filter += ` AND u.role=$${params.length}`; }
+    if (query.role) {
+      const normalizedRole = String(query.role).toUpperCase().replace(/\s+/g, '_');
+      params.push(`%${normalizedRole}%`);
+      filter += ` AND UPPER(REPLACE(u.role, ' ', '_')) LIKE $${params.length}`;
+    }
     
     // Add support for class and section filtering which was requested
     if (query.classId) { params.push(query.classId); filter += ` AND c.id=$${params.length}`; }
