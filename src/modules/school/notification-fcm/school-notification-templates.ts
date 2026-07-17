@@ -11,6 +11,11 @@ export enum SchoolFcmNotificationType {
   // Student/Teacher
   CLASS_REMINDER = 'CLASS_REMINDER',
   TEACHER_CLASS_REMINDER = 'TEACHER_CLASS_REMINDER',
+  LIVE_CLASS_STARTING = 'LIVE_CLASS_STARTING',
+  ASSIGNMENT_DUE_SOON = 'ASSIGNMENT_DUE_SOON',
+  NEW_ASSIGNMENT = 'NEW_ASSIGNMENT',
+  NEW_ASSESSMENT = 'NEW_ASSESSMENT',
+  ASSESSMENT_REMINDER = 'ASSESSMENT_REMINDER',
   
   // Teacher
   ASSIGNMENT_SUBMISSION = 'ASSIGNMENT_SUBMISSION',
@@ -29,9 +34,15 @@ export enum SchoolFcmNotificationType {
   NEW_COMPLAINT = 'NEW_COMPLAINT',
   STAFF_ATTENDANCE_DIGEST = 'STAFF_ATTENDANCE_DIGEST',
   FEE_COLLECTION_SUMMARY = 'FEE_COLLECTION_SUMMARY',
+  RESULT_PUBLISHED_ADMIN_SUMMARY = 'RESULT_PUBLISHED_ADMIN_SUMMARY',
+  LOW_ATTENDANCE_ALERT = 'LOW_ATTENDANCE_ALERT',
   
   // Super Admin
-  NEW_INSTITUTE_SIGNUP = 'NEW_INSTITUTE_SIGNUP'
+  NEW_INSTITUTE_SIGNUP = 'NEW_INSTITUTE_SIGNUP',
+  SECURITY_LOGIN_ANOMALY = 'SECURITY_LOGIN_ANOMALY',
+  CALENDAR_EVENT_CREATED = 'CALENDAR_EVENT_CREATED',
+  CALENDAR_EVENT_TOMORROW = 'CALENDAR_EVENT_TOMORROW',
+  CALENDAR_EVENT_TODAY = 'CALENDAR_EVENT_TODAY'
 }
 
 export interface NotificationTemplate {
@@ -108,9 +119,53 @@ export const SCHOOL_NOTIFICATION_TEMPLATES: Record<SchoolFcmNotificationType, No
     title: 'Weekly fee collection summary 📈',
     body: 'Total collected this week: {totalAmount}. Pending: {pendingAmount}.',
   },
+  [SchoolFcmNotificationType.RESULT_PUBLISHED_ADMIN_SUMMARY]: {
+    title: 'Results published 📊',
+    body: 'Results for "{assessmentTitle}" have been published by a teacher.',
+  },
+  [SchoolFcmNotificationType.LOW_ATTENDANCE_ALERT]: {
+    title: 'Low attendance alert ⚠️',
+    body: '{sectionName} ({className}) had {attendancePct}% attendance this week — below the 75% threshold.',
+  },
   [SchoolFcmNotificationType.NEW_INSTITUTE_SIGNUP]: {
     title: 'New school signup registered 🚀',
     body: 'School "{name}" has signed up under plan "{plan}".',
+  },
+  [SchoolFcmNotificationType.SECURITY_LOGIN_ANOMALY]: {
+    title: 'Security alert 🔒',
+    body: '{userName} ({userRole}) had {failedCount} failed login attempts in the last 15 minutes.',
+  },
+  [SchoolFcmNotificationType.LIVE_CLASS_STARTING]: {
+    title: 'Live class starting soon 🔴',
+    body: '{subjectName} live class starts in a few minutes. Don\'t miss it!',
+  },
+  [SchoolFcmNotificationType.ASSIGNMENT_DUE_SOON]: {
+    title: 'Assignment due soon ⏰',
+    body: 'Your assignment "{title}" is due soon on {dueDate}. Don\'t forget to submit!',
+  },
+  [SchoolFcmNotificationType.NEW_ASSIGNMENT]: {
+    title: 'New Assignment 📝',
+    body: 'A new assignment "{title}" has been uploaded.',
+  },
+  [SchoolFcmNotificationType.CALENDAR_EVENT_CREATED]: {
+    title: 'New event added 📅',
+    body: '"{title}" has been added to the calendar for {eventDate}.',
+  },
+  [SchoolFcmNotificationType.CALENDAR_EVENT_TOMORROW]: {
+    title: 'Event tomorrow 📅',
+    body: 'Reminder: "{title}" is scheduled for tomorrow.',
+  },
+  [SchoolFcmNotificationType.CALENDAR_EVENT_TODAY]: {
+    title: 'Event today 📅',
+    body: '"{title}" is happening today.',
+  },
+  [SchoolFcmNotificationType.NEW_ASSESSMENT]: {
+    title: 'New Test Scheduled 📚',
+    body: 'A new test "{title}" has been scheduled.',
+  },
+  [SchoolFcmNotificationType.ASSESSMENT_REMINDER]: {
+    title: 'Test tomorrow 📖',
+    body: 'Reminder: "{title}" is scheduled for {scheduledDate}. Get ready!',
   },
 };
 

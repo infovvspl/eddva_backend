@@ -344,6 +344,708 @@ export class SchoolNotificationScheduler {
   }
 
   // ────────────────────────────────────────────────────────────────────────────
+  // Weekly Low Student Attendance Alert (Admin Alert)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  @Cron('0 10 * * 1', { timeZone: 'Asia/Kolkata' })
+  async handleLowAttendanceAlert() {
+    if (!this.fcm.isReady) return;
+
+    try {
+      const weekResult = await this.ds.query(
+        `SELECT EXTRACT(WEEK FROM NOW())::int AS week_num, EXTRACT(YEAR FROM NOW())::int AS year_num`
+      );
+      const weekStr = `${weekResult[0].year_num}_W${weekResult[0].week_num}`;
+
+      const institutes = await this.ds.query(`SELECT id FROM institutes WHERE status = 'ACTIVE'`);
+
+      for (const inst of institutes) {
+        const lowSections: any[] = await this.ds.query(
+          `SELECT
+             sec.id AS section_id,
+             sec.name AS section_name,
+             c.name AS class_name,
+             ROUND(
+               100.0 * COUNT(*) FILTER (WHERE LOWER(a.status) IN ('present', 'late'))
+               / NULLIF(COUNT(*), 0),
+               1
+             ) AS attendance_pct
+           FROM attendances a
+           INNER JOIN students s ON s.user_id = a.user_id
+           INNER JOIN sections sec ON s.section_id = sec.id
+           INNER JOIN classes c ON sec.class_id = c.id
+           WHERE sec.institute_id = $1
+             AND a.date >= (CURRENT_DATE - INTERVAL '7 days')
+             AND a.date <= CURRENT_DATE
+           GROUP BY sec.id, sec.name, c.name
+           HAVING COUNT(*) >= 10
+             AND ROUND(
+               100.0 * COUNT(*) FILTER (WHERE LOWER(a.status) IN ('present', 'late'))
+               / NULLIF(COUNT(*), 0),
+               1
+             ) < 75
+           ORDER BY attendance_pct ASC`,
+          [inst.id],
+        );
+
+        if (!lowSections.length) continue;
+
+        const admins = await this.ds.query(
+          `SELECT id FROM users WHERE role = 'INSTITUTE_ADMIN' AND is_active = true AND institute_id = $1`,
+          [inst.id],
+        );
+
+        for (const admin of admins) {
+          const prefAllowed = await this.fcm.checkUserPreference(admin.id, 'attendance_alerts');
+          if (!prefAllowed) continue;
+
+          for (const sec of lowSections) {
+            const dedupKey = `${weekStr}_${sec.section_id}`;
+
+            const dupRows = await this.ds.query(
+              `SELECT 1 FROM school_notification_log
+               WHERE user_id = $1
+                 AND notification_type = $2
+                 AND reference_id = $3
+                 AND status = 'SUCCESS'
+               LIMIT 1`,
+              [admin.id, SchoolFcmNotificationType.LOW_ATTENDANCE_ALERT, dedupKey],
+            );
+            if (dupRows.length > 0) continue;
+
+            const { title, body } = fillTemplate(
+              SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.LOW_ATTENDANCE_ALERT],
+              {
+                sectionName: sec.section_name || 'Section',
+                className: sec.class_name || 'Class',
+                attendancePct: String(sec.attendance_pct),
+              },
+            );
+
+            const pushResults = await this.fcm.sendPushToUser(
+              admin.id,
+              title,
+              body,
+              { type: 'LOW_ATTENDANCE_ALERT', sectionId: sec.section_id },
+            );
+
+            const anySuccess = pushResults.some((r) => r.success);
+            const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+            const failureReasons = pushResults
+              .filter((r) => !r.success)
+              .map((r) => r.error)
+              .join('; ');
+
+            if (pushResults.length > 0) {
+              await this.logNotification(
+                admin.id,
+                SchoolFcmNotificationType.LOW_ATTENDANCE_ALERT,
+                dedupKey,
+                anySuccess ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              );
+            }
+
+            // In-app notification
+            await this.createInAppNotification(admin.id, title, body, {
+              type: 'attendance',
+              category: 'attendance',
+              priority: 'high',
+              referenceId: sec.section_id,
+              referenceType: 'section',
+              role: 'INSTITUTE_ADMIN',
+            });
+          }
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to process low attendance alert: ${err.message}`);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Security Login Anomaly Alert (Platform Super Admin Alert)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  @Cron('*/5 * * * *', { timeZone: 'Asia/Kolkata' })
+  async handleSecurityLoginAnomaly() {
+    if (!this.fcm.isReady) return;
+
+    try {
+      const anomalies: any[] = await this.ds.query(`
+        SELECT
+          al.user_id,
+          al.user_name,
+          al.role AS user_role,
+          COUNT(*) AS failed_count
+        FROM audit_logs al
+        WHERE al.action = 'Login'
+          AND al.status = 'Failure'
+          AND al.created_at >= NOW() - INTERVAL '15 minutes'
+          AND al.user_id IS NOT NULL
+        GROUP BY al.user_id, al.user_name, al.role
+        HAVING COUNT(*) >= 5
+      `);
+
+      if (!anomalies.length) return;
+
+      const superAdmins = await this.ds.query(
+        `SELECT id FROM users WHERE role = 'SUPER_ADMIN' AND is_active = true`
+      );
+
+      if (!superAdmins.length) return;
+
+      // Format time-bucketed hour key (YYYY-MM-DD-HH) in Asia/Kolkata
+      const timeResult = await this.ds.query(
+        `SELECT TO_CHAR(NOW() AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD-HH') AS hour_key`
+      );
+      const hourKey = timeResult[0]?.hour_key || new Date().toISOString().slice(0, 13).replace('T', '-');
+
+      for (const anomaly of anomalies) {
+        const dedupKey = `${anomaly.user_id}_${hourKey}`;
+
+        for (const sa of superAdmins) {
+          const prefAllowed = await this.fcm.checkUserPreference(sa.id, 'announcement_alerts');
+          if (!prefAllowed) continue;
+
+          const dupRows = await this.ds.query(
+            `SELECT 1 FROM school_notification_log
+             WHERE user_id = $1
+               AND notification_type = $2
+               AND reference_id = $3
+               AND status = 'SUCCESS'
+             LIMIT 1`,
+            [sa.id, SchoolFcmNotificationType.SECURITY_LOGIN_ANOMALY, dedupKey],
+          );
+          if (dupRows.length > 0) continue;
+
+          const { title, body } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.SECURITY_LOGIN_ANOMALY],
+            {
+              userName: anomaly.user_name || 'Unknown User',
+              userRole: anomaly.user_role || 'User',
+              failedCount: String(anomaly.failed_count),
+            },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(
+            sa.id,
+            title,
+            body,
+            { type: 'SECURITY_LOGIN_ANOMALY', userId: anomaly.user_id },
+          );
+
+          const anySuccess = pushResults.some((r) => r.success);
+          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          const failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          if (pushResults.length > 0) {
+            await this.logNotification(
+              sa.id,
+              SchoolFcmNotificationType.SECURITY_LOGIN_ANOMALY,
+              dedupKey,
+              anySuccess ? 'SUCCESS' : 'FAILED',
+              firstMessageId,
+              failureReasons || null,
+            );
+          }
+
+          // In-app notification
+          await this.createInAppNotification(sa.id, title, body, {
+            type: 'security',
+            category: 'security',
+            priority: 'high',
+            referenceId: anomaly.user_id,
+            referenceType: 'user',
+            role: 'SUPER_ADMIN',
+          });
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to process security login anomaly alerts: ${err.message}`);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Live Class Starting Reminder — window-based (~14-16 min before start)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  @Cron('* * * * *', { timeZone: 'Asia/Kolkata' })
+  async handleLiveClassStarting() {
+    if (!this.fcm.isReady) return;
+
+    try {
+      const liveLectures: any[] = await this.ds.query(`
+        SELECT
+          id AS lecture_id,
+          title,
+          class_id,
+          section_id,
+          subject_name,
+          scheduled_for
+        FROM school_live_lectures
+        WHERE status = 'SCHEDULED'
+          AND scheduled_for BETWEEN
+                (NOW() AT TIME ZONE 'Asia/Kolkata') + INTERVAL '14 minutes'
+            AND (NOW() AT TIME ZONE 'Asia/Kolkata') + INTERVAL '16 minutes'
+      `);
+
+      if (!liveLectures.length) return;
+
+      const todayStr = await this.getTodayIST();
+
+      for (const lecture of liveLectures) {
+        if (!lecture.class_id) continue;
+
+        // Resolve students belonging to the target class and optional section
+        const students: any[] = await this.ds.query(
+          `SELECT s.user_id
+           FROM students s
+           JOIN sections sec ON s.section_id = sec.id
+           WHERE sec.class_id = $1
+             AND ($2::uuid IS NULL OR s.section_id = $2)`,
+          [lecture.class_id, lecture.section_id || null],
+        );
+
+        for (const stu of students) {
+          const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'live_class_alerts');
+          if (!prefAllowed) continue;
+
+          // Deduplicate by student user_id + notification type + lecture_id (reference_id)
+          const alreadySent = await this.isDuplicate(
+            stu.user_id,
+            SchoolFcmNotificationType.LIVE_CLASS_STARTING,
+            lecture.lecture_id,
+            todayStr,
+          );
+          if (alreadySent) continue;
+
+          const subjectName = lecture.subject_name || lecture.title || 'Live';
+          const { title: pTitle, body: pBody } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.LIVE_CLASS_STARTING],
+            { subjectName },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(
+            stu.user_id,
+            pTitle,
+            pBody,
+            { type: 'LIVE_CLASS_STARTING', lectureId: lecture.lecture_id },
+          );
+
+          const anySuccess = pushResults.some((r) => r.success);
+          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          const failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          await this.logNotification(
+            stu.user_id,
+            SchoolFcmNotificationType.LIVE_CLASS_STARTING,
+            lecture.lecture_id,
+            anySuccess ? 'SUCCESS' : 'FAILED',
+            firstMessageId,
+            failureReasons || null,
+          );
+
+          // In-app notification
+          await this.createInAppNotification(stu.user_id, pTitle, pBody, {
+            type: 'live_class',
+            category: 'live_class',
+            priority: 'high',
+            referenceId: lecture.lecture_id,
+            referenceType: 'live_lecture',
+            role: 'STUDENT',
+          });
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to process live class starting reminders: ${err.message}`);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Assignment Due Soon Reminder (Daily at 08:00 AM IST)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  @Cron('0 8 * * *', { timeZone: 'Asia/Kolkata' })
+  async handleAssignmentDueSoonReminder() {
+    if (!this.fcm.isReady) return;
+
+    try {
+      // Find assignments due in the next 24 hours
+      const assignments: any[] = await this.ds.query(`
+        SELECT
+          id AS assignment_id,
+          title,
+          class_id,
+          section_id,
+          due_date
+        FROM assignments
+        WHERE due_date BETWEEN
+              (NOW() AT TIME ZONE 'Asia/Kolkata')
+          AND (NOW() AT TIME ZONE 'Asia/Kolkata') + INTERVAL '24 hours'
+      `);
+
+      if (!assignments.length) return;
+
+      const todayStr = await this.getTodayIST();
+
+      for (const assignment of assignments) {
+        if (!assignment.class_id) continue;
+
+        // Resolve students in class/section who have NOT submitted this assignment
+        const pendingStudents: any[] = await this.ds.query(
+          `SELECT s.user_id, s.id AS student_id
+           FROM students s
+           JOIN sections sec ON s.section_id = sec.id
+           WHERE sec.class_id = $1
+             AND ($2::uuid IS NULL OR s.section_id = $2)
+             AND s.id NOT IN (
+               SELECT student_id FROM assignment_submissions
+               WHERE assignment_id = $3
+             )`,
+          [assignment.class_id, assignment.section_id || null, assignment.assignment_id],
+        );
+
+        for (const stu of pendingStudents) {
+          const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'announcement_alerts');
+          if (!prefAllowed) continue;
+
+          // Deduplicate by student user_id + notification type + assignment_id (reference_id)
+          const alreadySent = await this.isDuplicate(
+            stu.user_id,
+            SchoolFcmNotificationType.ASSIGNMENT_DUE_SOON,
+            assignment.assignment_id,
+            todayStr,
+          );
+          if (alreadySent) continue;
+
+          const formattedDueDate = new Date(assignment.due_date).toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          const { title: pTitle, body: pBody } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.ASSIGNMENT_DUE_SOON],
+            {
+              title: assignment.title,
+              dueDate: formattedDueDate,
+            },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(
+            stu.user_id,
+            pTitle,
+            pBody,
+            { type: 'ASSIGNMENT_DUE_SOON', assignmentId: assignment.assignment_id },
+          );
+
+          const anySuccess = pushResults.some((r) => r.success);
+          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          const failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          await this.logNotification(
+            stu.user_id,
+            SchoolFcmNotificationType.ASSIGNMENT_DUE_SOON,
+            assignment.assignment_id,
+            anySuccess ? 'SUCCESS' : 'FAILED',
+            firstMessageId,
+            failureReasons || null,
+          );
+
+          // In-app notification
+          await this.createInAppNotification(stu.user_id, pTitle, pBody, {
+            type: 'assignment',
+            category: 'assignment',
+            priority: 'high',
+            referenceId: assignment.assignment_id,
+            referenceType: 'assignment',
+            role: 'STUDENT',
+          });
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to process assignment due soon reminders: ${err.message}`);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Calendar Event Reminders (Daily at 07:00 AM IST)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  @Cron('0 7 * * *', { timeZone: 'Asia/Kolkata' })
+  async handleCalendarEventReminders() {
+    if (!this.fcm.isReady) return;
+
+    try {
+      // 1. Fetch events starting today or tomorrow (Asia/Kolkata time)
+      const events: any[] = await this.ds.query(`
+        SELECT
+          id,
+          institute_id,
+          title,
+          category,
+          start_time AT TIME ZONE 'Asia/Kolkata' AS local_start_time,
+          (start_time AT TIME ZONE 'Asia/Kolkata')::date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date AS is_today,
+          (start_time AT TIME ZONE 'Asia/Kolkata')::date = ((NOW() AT TIME ZONE 'Asia/Kolkata') + INTERVAL '1 day')::date AS is_tomorrow
+        FROM events
+        WHERE (start_time AT TIME ZONE 'Asia/Kolkata')::date BETWEEN
+              (NOW() AT TIME ZONE 'Asia/Kolkata')::date
+          AND ((NOW() AT TIME ZONE 'Asia/Kolkata') + INTERVAL '1 day')::date
+      `);
+
+      if (!events.length) return;
+
+      const todayStr = await this.getTodayIST();
+
+      for (const event of events) {
+        // Resolve target roles based on the category visibility rules
+        const targetRoles: string[] = [];
+        const cat = event.category;
+        if (['EXAM', 'HOLIDAY', 'VACATION', 'ASSIGNMENT', 'LIVE_CLASS', 'EMERGENCY_NOTICE', 'ACADEMIC'].includes(cat)) {
+          targetRoles.push('STUDENT');
+        }
+        if (['EXAM', 'HOLIDAY', 'VACATION', 'TEACHER_MEETING', 'LIVE_CLASS', 'EMERGENCY_NOTICE', 'ACADEMIC'].includes(cat)) {
+          targetRoles.push('TEACHER');
+        }
+        if (['EXAM', 'HOLIDAY', 'VACATION', 'PARENT_MEETING', 'EMERGENCY_NOTICE', 'ACADEMIC'].includes(cat)) {
+          targetRoles.push('PARENT');
+        }
+
+        if (targetRoles.length === 0) continue;
+
+        // Fetch users matching target roles
+        const users = await this.ds.query(
+          `SELECT id, role FROM users 
+           WHERE institute_id = $1 AND role = ANY($2::varchar[]) AND is_active = true`,
+          [event.institute_id, targetRoles],
+        );
+
+        for (const user of users) {
+          const prefAllowed = await this.fcm.checkUserPreference(user.id, 'announcement_alerts');
+          if (!prefAllowed) continue;
+
+          // Process same-day or day-before reminders
+          if (event.is_today) {
+            const dedupKey = `${event.id}_sameday`;
+            const alreadySent = await this.isDuplicate(
+              user.id,
+              SchoolFcmNotificationType.CALENDAR_EVENT_TODAY,
+              dedupKey,
+              todayStr,
+            );
+            if (!alreadySent) {
+              const { title: pTitle, body: pBody } = fillTemplate(
+                SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.CALENDAR_EVENT_TODAY],
+                { title: event.title },
+              );
+
+              const pushResults = await this.fcm.sendPushToUser(
+                user.id,
+                pTitle,
+                pBody,
+                { type: 'CALENDAR_EVENT_TODAY', eventId: event.id },
+              );
+
+              const anySuccess = pushResults.some((r) => r.success);
+              const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+              const failureReasons = pushResults
+                .filter((r) => !r.success)
+                .map((r) => r.error)
+                .join('; ');
+
+              await this.logNotification(
+                user.id,
+                SchoolFcmNotificationType.CALENDAR_EVENT_TODAY,
+                dedupKey,
+                anySuccess ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              );
+
+              await this.createInAppNotification(user.id, pTitle, pBody, {
+                type: 'calendar',
+                category: 'calendar',
+                priority: 'normal',
+                referenceId: event.id,
+                referenceType: 'calendar_event',
+                role: user.role,
+              });
+            }
+          }
+
+          if (event.is_tomorrow) {
+            const dedupKey = `${event.id}_daybefore`;
+            const alreadySent = await this.isDuplicate(
+              user.id,
+              SchoolFcmNotificationType.CALENDAR_EVENT_TOMORROW,
+              dedupKey,
+              todayStr,
+            );
+            if (!alreadySent) {
+              const { title: pTitle, body: pBody } = fillTemplate(
+                SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.CALENDAR_EVENT_TOMORROW],
+                { title: event.title },
+              );
+
+              const pushResults = await this.fcm.sendPushToUser(
+                user.id,
+                pTitle,
+                pBody,
+                { type: 'CALENDAR_EVENT_TOMORROW', eventId: event.id },
+              );
+
+              const anySuccess = pushResults.some((r) => r.success);
+              const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+              const failureReasons = pushResults
+                .filter((r) => !r.success)
+                .map((r) => r.error)
+                .join('; ');
+
+              await this.logNotification(
+                user.id,
+                SchoolFcmNotificationType.CALENDAR_EVENT_TOMORROW,
+                dedupKey,
+                anySuccess ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              );
+
+              await this.createInAppNotification(user.id, pTitle, pBody, {
+                type: 'calendar',
+                category: 'calendar',
+                priority: 'normal',
+                referenceId: event.id,
+                referenceType: 'calendar_event',
+                role: user.role,
+              });
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to process calendar event reminders: ${err.message}`);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Assessment Reminder (Daily at 08:05 AM IST)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  @Cron('5 8 * * *', { timeZone: 'Asia/Kolkata' })
+  async handleAssessmentReminder() {
+    if (!this.fcm.isReady) return;
+
+    try {
+      // Find assessments scheduled for tomorrow (Asia/Kolkata date) and not in draft
+      const assessments: any[] = await this.ds.query(`
+        SELECT
+          id AS assessment_id,
+          title,
+          class_id,
+          scheduled_date
+        FROM assessments
+        WHERE status != 'draft'
+          AND (scheduled_date AT TIME ZONE 'Asia/Kolkata')::date = ((NOW() AT TIME ZONE 'Asia/Kolkata') + INTERVAL '1 day')::date
+      `);
+
+      if (!assessments.length) return;
+
+      const todayStr = await this.getTodayIST();
+
+      for (const assessment of assessments) {
+        if (!assessment.class_id) continue;
+
+        // Resolve students belonging to the target class
+        const students: any[] = await this.ds.query(
+          `SELECT s.user_id
+           FROM students s
+           JOIN sections sec ON s.section_id = sec.id
+           WHERE sec.class_id = $1`,
+          [assessment.class_id],
+        );
+
+        for (const stu of students) {
+          const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'announcement_alerts');
+          if (!prefAllowed) continue;
+
+          // Deduplicate by student user_id + notification type + assessment_id (reference_id)
+          const alreadySent = await this.isDuplicate(
+            stu.user_id,
+            SchoolFcmNotificationType.ASSESSMENT_REMINDER,
+            assessment.assessment_id,
+            todayStr,
+          );
+          if (alreadySent) continue;
+
+          const formattedScheduledDate = new Date(assessment.scheduled_date).toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          const { title: pTitle, body: pBody } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.ASSESSMENT_REMINDER],
+            {
+              title: assessment.title,
+              scheduledDate: formattedScheduledDate,
+            },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(
+            stu.user_id,
+            pTitle,
+            pBody,
+            { type: 'ASSESSMENT_REMINDER', assessmentId: assessment.assessment_id },
+          );
+
+          const anySuccess = pushResults.some((r) => r.success);
+          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          const failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          await this.logNotification(
+            stu.user_id,
+            SchoolFcmNotificationType.ASSESSMENT_REMINDER,
+            assessment.assessment_id,
+            anySuccess ? 'SUCCESS' : 'FAILED',
+            firstMessageId,
+            failureReasons || null,
+          );
+
+          // In-app notification
+          await this.createInAppNotification(stu.user_id, pTitle, pBody, {
+            type: 'assessment',
+            category: 'assessment',
+            priority: 'high',
+            referenceId: assessment.assessment_id,
+            referenceType: 'assessment',
+            role: 'STUDENT',
+          });
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to process assessment reminders: ${err.message}`);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
   // Class reminder — window-based (~14-16 min before start)
   // ────────────────────────────────────────────────────────────────────────────
 

@@ -605,8 +605,63 @@ export class SchoolAssignmentService {
           }),
         ),
       );
-    } catch (notifErr) {
-      console.error('Failed to send assignment upload notifications:', notifErr);
+
+      // Send FCM push to all target students
+      if (studentUsers.length > 0 && this.fcm.isReady) {
+        for (const stu of studentUsers) {
+          const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'announcement_alerts');
+          if (!prefAllowed) continue;
+
+          // Dedup with assignment.id
+          const dupRows = await this.ds.query(
+            `SELECT 1 FROM school_notification_log
+             WHERE user_id = $1
+               AND notification_type = $2
+               AND reference_id = $3
+               AND status = 'SUCCESS'
+             LIMIT 1`,
+            [stu.user_id, SchoolFcmNotificationType.NEW_ASSIGNMENT, assignment.id],
+          );
+          if (dupRows.length > 0) continue;
+
+          const { title: pushTitle, body: pushBody } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NEW_ASSIGNMENT],
+            { title: body.title || 'Assignment' },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(
+            stu.user_id,
+            pushTitle,
+            pushBody,
+            { type: 'NEW_ASSIGNMENT', assignmentId: assignment.id },
+          );
+
+          const anySuccess = pushResults.some((r) => r.success);
+          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          const failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          if (pushResults.length > 0) {
+            await this.ds.query(
+              `INSERT INTO school_notification_log
+                 (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+               VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+              [
+                stu.user_id,
+                SchoolFcmNotificationType.NEW_ASSIGNMENT,
+                assignment.id,
+                anySuccess ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              ],
+            );
+          }
+        }
+      }
+    } catch (notifErr: any) {
+      this.logger.error(`Failed to send assignment upload notifications: ${notifErr.message}`);
     }
 
     return { success: true, data: assignment };
