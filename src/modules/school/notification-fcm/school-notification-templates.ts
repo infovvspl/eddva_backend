@@ -42,7 +42,8 @@ export enum SchoolFcmNotificationType {
   SECURITY_LOGIN_ANOMALY = 'SECURITY_LOGIN_ANOMALY',
   CALENDAR_EVENT_CREATED = 'CALENDAR_EVENT_CREATED',
   CALENDAR_EVENT_TOMORROW = 'CALENDAR_EVENT_TOMORROW',
-  CALENDAR_EVENT_TODAY = 'CALENDAR_EVENT_TODAY'
+  CALENDAR_EVENT_TODAY = 'CALENDAR_EVENT_TODAY',
+  LIVE_CLASS_STARTED = 'LIVE_CLASS_STARTED'
 }
 
 export interface NotificationTemplate {
@@ -166,6 +167,10 @@ export const SCHOOL_NOTIFICATION_TEMPLATES: Record<SchoolFcmNotificationType, No
   [SchoolFcmNotificationType.ASSESSMENT_REMINDER]: {
     title: 'Test tomorrow 📖',
     body: 'Reminder: "{title}" is scheduled for {scheduledDate}. Get ready!',
+  },
+  [SchoolFcmNotificationType.LIVE_CLASS_STARTED]: {
+    title: '{subjectName} class started 🔴',
+    body: 'Hey, your {subjectName} class has started. Join now!',
   },
 };
 

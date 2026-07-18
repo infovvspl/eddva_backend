@@ -78,9 +78,12 @@ export class AuthService {
 
   async registerStudent(dto: StudentRegisterDto, _tenantId: string) {
     // Self-registration uses the resolved tenant (from subdomain or header) if present, otherwise platform tenant
-    const platformTenant = await this.tenantRepo.findOne({ where: { subdomain: 'platform' } });
-    if (!platformTenant) throw new Error('Platform tenant not configured');
-    const tenantId = _tenantId || platformTenant.id;
+    let tenantId = _tenantId;
+    if (!tenantId) {
+      const platformTenant = await this.tenantRepo.findOne({ where: { subdomain: 'platform' } });
+      if (!platformTenant) throw new Error('Platform tenant not configured');
+      tenantId = platformTenant.id;
+    }
 
     // Normalize phone number
     const normalizedPhone = this.normalizeLoginPhone(dto.phoneNumber);
