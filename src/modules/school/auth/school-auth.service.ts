@@ -222,12 +222,10 @@ export class SchoolAuthService {
 
   async recordAdminPortalEntry(user: any) {
     const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
-    const isInstituteAdmin = role
-      .split(',')
-      .map((r) => r.trim())
-      .some((r) => r === 'INSTITUTE_ADMIN' || r === 'ADMIN');
+    const rolesList = role.split(',').map((r) => r.trim());
+    const isInstituteAdmin = rolesList.some((r) => r === 'INSTITUTE_ADMIN' || r === 'ADMIN');
 
-    if (!isInstituteAdmin || role.includes('SUPER_ADMIN')) {
+    if (!isInstituteAdmin || rolesList.includes('SUPER_ADMIN')) {
       throw new ForbiddenException('Only institute admins can record admin portal entry');
     }
 

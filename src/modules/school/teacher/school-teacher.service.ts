@@ -263,6 +263,7 @@ export class SchoolTeacherService {
     let halfDayCount = 0;
     let explicitAbsentCount = 0;
     let presentToday = 0;
+    let usedToday = 0;
 
     if (targetRole === 'INSTITUTE_ADMIN') {
       console.log('[getStats] INSTITUTE_ADMIN branch - using attendances only (no audit_logs)');
@@ -279,12 +280,32 @@ export class SchoolTeacherService {
               SELECT 1 FROM attendances 
               WHERE user_id::text = u.id::text AND date = CURRENT_DATE AND LOWER(status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
             )
-          )::int AS "presentToday"
+          )::int AS "presentToday",
+          COUNT(DISTINCT u.id) FILTER (
+            WHERE (
+              -- Pure INSTITUTE_ADMIN (no TEACHER in role): count on any attendance today
+              u.role NOT ILIKE '%TEACHER%'
+              AND EXISTS (
+                SELECT 1 FROM attendances
+                WHERE user_id::text = u.id::text AND date = CURRENT_DATE
+                  AND LOWER(status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
+              )
+            ) OR (
+              -- Dual-role TEACHER+INSTITUTE_ADMIN: only count when admin portal was explicitly accessed
+              u.role ILIKE '%TEACHER%'
+              AND EXISTS (
+                SELECT 1 FROM attendances
+                WHERE user_id::text = u.id::text AND date = CURRENT_DATE
+                  AND LOWER(remarks) ILIKE '%admin portal access%'
+              )
+            )
+          )::int AS "usedToday"
         FROM users u
         WHERE ${attFilter}
       `;
       const attRows = await this.ds.query(attQuery, attParams);
       presentToday = attRows[0]?.presentToday || 0;
+      usedToday = attRows[0]?.usedToday || 0;
     } else {
       const todayStr = new Date().toISOString().split('T')[0];
       const attParams: any[] = [todayStr, targetRole];
@@ -339,6 +360,7 @@ export class SchoolTeacherService {
         presentToday,
         absentToday,
         newThisMonth,
+        usedToday,
       }
     };
   }
