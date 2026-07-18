@@ -36,7 +36,7 @@ export class SchoolAdminUsersController {
     const userRole = String(user.role || '').toUpperCase();
     const userInstituteId = user.instituteId || user.institute_id || null;
 
-    if (userRole === 'INSTITUTE_ADMIN' || (userRole === 'SUPER_ADMIN' && userInstituteId)) {
+    if (userRole === 'INSTITUTE_ADMIN') {
       params.push(userInstituteId);
       where += ` AND u.institute_id = $${params.length}`;
     } else if (instituteId && instituteId !== 'ALL') {
@@ -55,14 +55,24 @@ export class SchoolAdminUsersController {
     const cnt: any[] = await this.ds.query(`SELECT COUNT(*)::int AS c ${base}`, params);
     const total = cnt[0]?.c || 0;
 
-    const offset = (Number(page) - 1) * Number(limit);
-    params.push(Number(limit), offset);
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const limitNumber = Math.max(1, Number(limit) || 50);
+    const offset = (pageNumber - 1) * limitNumber;
+    params.push(limitNumber, offset);
     const rows: any[] = await this.ds.query(
       `SELECT ${safeFields} ${base} ORDER BY u.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
 
-    return { data: rows, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) };
+    const totalPages = Math.ceil(total / limitNumber) || 1;
+    return {
+      data: rows,
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages,
+      meta: { total, totalItems: total, page: pageNumber, limit: limitNumber, totalPages },
+    };
   }
 
   @Patch(':id/reset-password')
