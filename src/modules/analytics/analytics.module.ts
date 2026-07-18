@@ -23,10 +23,12 @@ import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/
 import { AiStudySession, Doubt, Lecture, LectureProgress, PlanItem } from '../../database/entities/learning.entity';
 import { Chapter, Subject, Topic } from '../../database/entities/subject.entity';
 import { NotificationModule } from '../notification/notification.module';
+import { BatchModule } from '../batch/batch.module';
 
 @Module({
   imports: [
     NotificationModule,
+    BatchModule,
     TypeOrmModule.forFeature([
       PerformanceProfile,
       WeakTopic,

@@ -6,6 +6,7 @@ import { Cache } from 'cache-manager';
 import { SchoolChatGateway } from '../school/chat/school-chat.gateway';
 import { NotificationService } from '../notification/notification.service';
 import { CoachingChatGateway } from '../coaching-chat/coaching-chat.gateway';
+import { EnrollmentStatusService } from '../batch/enrollment-status.service';
 
 const LEGACY_VIRTUAL_SUPER_ADMIN_ID = 'demo-super-admin';
 const VIRTUAL_SUPER_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
@@ -25,6 +26,7 @@ export class CoachingChatService implements OnModuleInit {
     private readonly gateway: SchoolChatGateway,
     private readonly newGateway: CoachingChatGateway,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly enrollmentStatusService: EnrollmentStatusService,
     private readonly notificationService: NotificationService,
   ) { }
 
@@ -196,7 +198,22 @@ export class CoachingChatService implements OnModuleInit {
     }
   }
 
+  private async isStudentGated(user: any): Promise<boolean> {
+    if (String(user?.role || '').toLowerCase() === 'student') {
+      const row = await this.ds.query(`SELECT id FROM students WHERE user_id = $1 LIMIT 1`, [user?.id]);
+      if (row.length > 0) {
+        const hasEnrollment = await this.enrollmentStatusService.hasActiveEnrollment(row[0].id);
+        return !hasEnrollment;
+      }
+      return true;
+    }
+    return false;
+  }
+
   async getConversations(user: any, query: any) {
+    if (await this.isStudentGated(user)) {
+      return [];
+    }
     const role = query.role || 'TEACHER';
     const crossInstitute =
       String(user.role).toUpperCase() === 'SUPER_ADMIN' || role.toUpperCase() === 'SUPER_ADMIN';
@@ -283,6 +300,9 @@ export class CoachingChatService implements OnModuleInit {
   }
 
   async getUsers(user: any, query: any) {
+    if (await this.isStudentGated(user)) {
+      return { success: true, data: [] };
+    }
     const tenantId = user.tenantId;
     const targetRole = query.role || 'TEACHER';
     const q = query.q || '';
@@ -366,6 +386,9 @@ export class CoachingChatService implements OnModuleInit {
   }
 
   async getMessagesByPeer(user: any, peerId: string) {
+    if (await this.isStudentGated(user)) {
+      return { success: true, data: [] };
+    }
     const actorIds = this.chatActorIds(user);
     const rawPeerId = this.normalizeChatUserId(peerId);
     const normalizedPeerId = await this.resolveToVirtualIfSuperAdmin(peerId);
@@ -419,7 +442,11 @@ export class CoachingChatService implements OnModuleInit {
     return { success: true };
   }
 
-  async listRooms(tenantId: string) {
+  async listRooms(userOrTenantId: any) {
+    if (typeof userOrTenantId === 'object' && await this.isStudentGated(userOrTenantId)) {
+      return { success: true, data: [] };
+    }
+    const tenantId = typeof userOrTenantId === 'object' ? userOrTenantId.tenantId : userOrTenantId;
     const rows: any[] = await this.ds.query(
       `SELECT cr.*,COUNT(cp.user_id)::int AS participant_count FROM chat_rooms cr LEFT JOIN chat_participants cp ON cp.room_id::text=cr.id::text WHERE cr.institute_id=$1 GROUP BY cr.id ORDER BY cr.created_at DESC`,
       [tenantId],
