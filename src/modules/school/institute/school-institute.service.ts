@@ -495,4 +495,46 @@ export class SchoolInstituteService {
   async delete(id: string) {
     await this.ds.query(`DELETE FROM institutes WHERE id=$1`, [id]);
   }
+
+  async storageUsage() {
+    const rows: any[] = await this.ds.query(`
+      SELECT
+        i.id,
+        i.name,
+        i.status,
+        COALESCE(SUM(sm.file_size_kb), 0)::bigint                                                   AS total_kb,
+        COUNT(sm.id)::int                                                                            AS file_count,
+        COALESCE(SUM(CASE WHEN sm.type = 'ppt'   THEN sm.file_size_kb ELSE 0 END), 0)::bigint      AS ppt_kb,
+        COALESCE(SUM(CASE WHEN sm.type = 'video' THEN sm.file_size_kb ELSE 0 END), 0)::bigint      AS video_kb,
+        COALESCE(SUM(CASE WHEN sm.type NOT IN ('ppt','video') THEN sm.file_size_kb ELSE 0 END), 0)::bigint AS doc_kb,
+        COUNT(CASE WHEN sm.type = 'ppt'   THEN 1 END)::int                                         AS ppt_count,
+        COUNT(CASE WHEN sm.type = 'video' THEN 1 END)::int                                         AS video_count,
+        COUNT(CASE WHEN sm.type NOT IN ('ppt','video') THEN 1 END)::int                            AS doc_count
+      FROM institutes i
+      LEFT JOIN study_materials sm ON sm.tenant_id::text = i.id::text
+      GROUP BY i.id, i.name, i.status
+      ORDER BY total_kb DESC
+    `);
+
+    const platformTotalKb = rows.reduce((acc, r) => acc + Number(r.total_kb), 0);
+
+    return {
+      platformTotalKb,
+      platformTotalMb: Math.round(platformTotalKb / 1024 * 10) / 10,
+      platformTotalGb: Math.round(platformTotalKb / 1024 / 1024 * 100) / 100,
+      institutes: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        status: r.status,
+        totalKb: Number(r.total_kb),
+        totalMb: Math.round(Number(r.total_kb) / 1024 * 10) / 10,
+        fileCount: Number(r.file_count),
+        breakdown: {
+          documents: { storageKb: Number(r.doc_kb), count: Number(r.doc_count) },
+          presentations: { storageKb: Number(r.ppt_kb), count: Number(r.ppt_count) },
+          videos: { storageKb: Number(r.video_kb), count: Number(r.video_count) },
+        },
+      })),
+    };
+  }
 }
