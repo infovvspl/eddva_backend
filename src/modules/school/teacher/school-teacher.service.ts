@@ -892,6 +892,12 @@ export class SchoolTeacherService {
       }
     }
 
+    const userRow = await this.ds.query(`SELECT email FROM users WHERE id=$1`, [id]);
+    if (userRow.length === 0) {
+      throw new BadRequestException('Teacher user record not found');
+    }
+    const oldEmail = userRow[0]?.email;
+
     if (body.phone) {
       const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=(SELECT institute_id FROM users WHERE id=$1) AND phone=$2 AND id<>$1`, [id, body.phone]);
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
@@ -915,13 +921,33 @@ export class SchoolTeacherService {
       userParams.push(body.phone);
       userUpdates.push(`phone=$${userParams.length}`);
     }
+    if (body.email !== undefined) {
+      const existingEmail: any[] = await this.ds.query(`SELECT id FROM users WHERE email=$1 AND id<>$2`, [body.email, id]);
+      if (existingEmail.length) throw new BadRequestException('Email is already registered');
+      userParams.push(body.email);
+      userUpdates.push(`email=$${userParams.length}`);
+    }
+
     // `body.role` is used for teacher designation, so we do not update `users.role` here.
+    let rowsAffected = 0;
     if (userUpdates.length > 0) {
-      await this.ds.query(
+      const updateResult = await this.ds.query(
         `UPDATE users SET ${userUpdates.join(', ')}, updated_at=NOW() WHERE id=$1`,
         userParams
       );
+      if (Array.isArray(updateResult)) {
+        rowsAffected = updateResult[1] || 0;
+      } else if (updateResult && typeof updateResult === 'object') {
+        rowsAffected = updateResult.rowCount || 0;
+      } else {
+        rowsAffected = 1;
+      }
     }
+
+    console.log(`[SchoolTeacherService.update] Teacher ID:`, id);
+    console.log(`[SchoolTeacherService.update] Old email:`, oldEmail);
+    console.log(`[SchoolTeacherService.update] New email:`, body.email);
+    console.log(`[SchoolTeacherService.update] Rows affected:`, rowsAffected);
 
     const existingTeacherRows: any[] = await this.ds.query(`SELECT documents FROM teachers WHERE user_id=$1`, [id]);
     const documents = this.buildTeacherDocuments(body, this.parseJsonObject(existingTeacherRows[0]?.documents));
