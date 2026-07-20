@@ -37,21 +37,22 @@ export class SchoolDoubtService implements OnModuleInit {
     questionImageUrl: string | null | undefined,
     subjectName: string | null | undefined,
     instituteId: string,
-  ): Promise<{ answer: string; steps: string[] }> {
+    mode: 'short' | 'detailed' = 'detailed',
+  ): Promise<{ answer: string; steps: string[]; raw: any }> {
     const aiResult: any = await this.aiBridgeService.resolveDoubt(
       {
         questionText:
           (questionText || '').trim() ||
           (questionImageUrl ? 'Explain and solve the question shown in the attached image.' : ''),
         questionImageUrl: questionImageUrl || undefined,
-        mode: 'detailed',
+        mode,
         studentContext: { subject: subjectName || undefined, level: 'school' },
       },
       instituteId,
       'school',
     );
     const answer = this.aiAnswerText(aiResult);
-    return { answer, steps: this.extractSteps(answer) };
+    return { answer, steps: this.extractSteps(answer), raw: aiResult };
   }
 
   /** Flatten the AI bridge doubt response into a single markdown answer string. */
@@ -394,9 +395,20 @@ export class SchoolDoubtService implements OnModuleInit {
           body.questionImageUrl,
           subjectName,
           instituteId,
+          (body.explanationMode as 'short' | 'detailed') || 'detailed',
         );
         if (!ai.answer) throw new Error('Empty AI response');
-        aiExplanation = ai.answer;
+        
+        const hasStructure = ai.raw?.brief || ai.raw?.detailed;
+        aiExplanation = hasStructure
+          ? JSON.stringify({
+              brief: ai.raw.brief,
+              detailed: ai.raw.detailed,
+              subject: ai.raw.subject,
+              type: ai.raw.type,
+            })
+          : ai.answer;
+          
         aiSteps = ai.steps;
         status = 'ai_answered';
         channel = 'ai';
