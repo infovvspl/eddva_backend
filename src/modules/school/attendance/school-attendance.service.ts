@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
@@ -196,6 +196,46 @@ export class SchoolAttendanceService {
   async get(user: any, query: any) {
     const instituteId = user.instituteId;
 
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+
+    if (!isSuperAdmin && !isInstituteAdmin && user) {
+      if (user.role === 'STUDENT') {
+        query.userId = user.id;
+      } else if (user.role === 'PARENT') {
+        const children = await this.ds.query(`
+          SELECT u.id FROM students s JOIN users u ON u.id = s.user_id WHERE s.institute_id = $1 AND (
+            (s.parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($2))
+            OR (s.parent_phone IS NOT NULL AND $3::text IS NOT NULL AND s.parent_phone = $3)
+          )
+        `, [user.instituteId, user.email, user.phone]);
+        const childUserIds = children.map((c: any) => c.id);
+        if (query.userId) {
+          if (!childUserIds.includes(query.userId)) {
+            throw new ForbiddenException('You do not have access to this student attendance');
+          }
+        } else {
+          query.userIds = childUserIds;
+        }
+      } else if (user.role === 'TEACHER') {
+        if (query.userId && query.userId !== user.id) {
+          const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+          const teacherId = tRows[0]?.id;
+          if (!teacherId) {
+            throw new ForbiddenException('You do not have access to this attendance');
+          }
+          const hasAssignment = await this.ds.query(`
+            SELECT 1 FROM students s
+            JOIN teacher_academic_assignments ta ON s.section_id::text = ta.section_id::text
+            WHERE s.user_id = $1 AND ta.teacher_id = $2 LIMIT 1
+          `, [query.userId, teacherId]);
+          if (!hasAssignment.length) {
+            throw new ForbiddenException('You do not have access to this student attendance');
+          }
+        }
+      }
+    }
+
     if (query.userId) {
       const userRoleResult = await this.ds.query(`SELECT role, name, email FROM users WHERE id = $1`, [query.userId]);
       const userRole = userRoleResult[0]?.role;
@@ -332,6 +372,29 @@ export class SchoolAttendanceService {
     }
     let filter = `a.institute_id = $1`;
     const params: any[] = [instituteId];
+
+    if (query.userIds) {
+      params.push(query.userIds);
+      filter += ` AND a.user_id = ANY($${params.length}::uuid[])`;
+    }
+
+    if (user.role === 'TEACHER' && !isSuperAdmin && !isInstituteAdmin) {
+      if (query.role === 'STUDENT' || !query.role) {
+        const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+        const teacherId = tRows[0]?.id;
+        if (teacherId) {
+          params.push(teacherId);
+          params.push(user.id);
+          filter += ` AND (a.user_id = $${params.length} OR EXISTS (
+            SELECT 1 FROM students s
+            JOIN teacher_academic_assignments ta ON s.section_id::text = ta.section_id::text
+            WHERE s.user_id = a.user_id AND ta.teacher_id = $${params.length - 1}
+          ))`;
+        } else {
+          filter += ` AND 1=0`;
+        }
+      }
+    }
 
     if (query.userId) { params.push(query.userId); filter += ` AND a.user_id=$${params.length}`; }
     if (query.date) { params.push(new Date(query.date)); filter += ` AND a.date=$${params.length}`; }

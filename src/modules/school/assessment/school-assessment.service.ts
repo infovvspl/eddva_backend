@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
@@ -570,6 +570,14 @@ export class SchoolAssessmentService {
     const params: any[] = [];
     const filters: string[] = [];
 
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+
+    if (!isSuperAdmin) {
+      params.push(user.instituteId);
+      filters.push(`c.institute_id=$${params.length}`);
+    }
+
     if (user.role === 'STUDENT') {
       const profileRows: any[] = await this.ds.query(
         `SELECT sec.class_id
@@ -582,6 +590,38 @@ export class SchoolAssessmentService {
       if (!classId) return { success: true, data: [] };
       params.push(classId);
       filters.push(`a.class_id::text=$${params.length}::text`);
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (sectionIds.length > 0) {
+        const classRows = await this.ds.query(
+          `SELECT DISTINCT class_id FROM sections WHERE id = ANY($1::uuid[])`,
+          [sectionIds]
+        );
+        const classIds = classRows.map((cr: any) => cr.class_id);
+        if (classIds.length > 0) {
+          params.push(classIds);
+          filters.push(`a.class_id = ANY($${params.length}::uuid[])`);
+        } else {
+          filters.push(`1=0`);
+        }
+      } else {
+        filters.push(`1=0`);
+      }
+    } else if (user.role === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        params.push(teacherId);
+        filters.push(`(a.teacher_id = $${params.length} OR a.class_id IN (SELECT class_id FROM teacher_academic_assignments WHERE teacher_id = $${params.length}))`);
+      } else {
+        filters.push(`1=0`);
+      }
     } else if (query.classId) {
       params.push(query.classId);
       filters.push(`a.class_id::text=$${params.length}::text`);
@@ -1047,7 +1087,68 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     });
   }
 
+  private async checkAssessmentAccess(user: any, assessmentId: string) {
+    const rows: any[] = await this.ds.query(
+      `SELECT a.*, c.institute_id FROM assessments a LEFT JOIN classes c ON a.class_id::text = c.id::text WHERE a.id::text=$1::text`,
+      [assessmentId],
+    );
+    if (!rows.length) throw new NotFoundException('Assessment not found');
+    const assessment = rows[0];
+
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (isSuperAdmin) return assessment;
+
+    if (String(assessment.institute_id) !== String(user.instituteId)) {
+      throw new ForbiddenException('You do not have access to this assessment');
+    }
+
+    if (user.role === 'STUDENT') {
+      const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
+      const classId = studentProfile?.class_id || (await this.ds.query(`SELECT class_id FROM sections WHERE id::text = $1::text`, [studentProfile?.section_id]))[0]?.class_id;
+      if (assessment.class_id !== classId) {
+        throw new ForbiddenException('You do not have access to this assessment');
+      }
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (sectionIds.length > 0) {
+        const classRows = await this.ds.query(
+          `SELECT DISTINCT class_id FROM sections WHERE id = ANY($1::uuid[])`,
+          [sectionIds]
+        );
+        const classIds = classRows.map((cr: any) => cr.class_id);
+        if (!classIds.includes(assessment.class_id)) {
+          throw new ForbiddenException('You do not have access to this assessment');
+        }
+      } else {
+        throw new ForbiddenException('You do not have access to this assessment');
+      }
+    } else if (user.role === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        const hasAssignment = await this.ds.query(
+          `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id = $1 AND class_id::text = $2::text LIMIT 1`,
+          [teacherId, assessment.class_id]
+        );
+        if (assessment.teacher_id !== teacherId && !hasAssignment.length) {
+          throw new ForbiddenException('You do not have access to this assessment');
+        }
+      } else {
+        throw new ForbiddenException('You do not have access to this assessment');
+      }
+    }
+
+    return assessment;
+  }
+
   async findOne(user: any, id: string) {
+    await this.checkAssessmentAccess(user, id);
     await this.ensureAssessmentContentColumns();
     const rows: any[] = await this.ds.query(`SELECT * FROM assessments WHERE id=$1`, [id]);
     if (!rows.length) throw new NotFoundException('Assessment not found');
@@ -1056,7 +1157,18 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     return { success: true, data: this.stripAnswerKeyForStudent(user, row) };
   }
 
-  async update(id: string, body: any) {
+  async update(user: any, id?: string, body?: any) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !body) {
+      reqUser = null;
+      targetId = user;
+      body = id;
+    }
+    if (reqUser) {
+      await this.checkAssessmentAccess(reqUser, targetId);
+    }
+
     await this.ensureAssessmentContentColumns();
     const rawContentText = body.contentText || body.content_text || body.instructions || null;
     const rawAnswerKey = body.answerKey || body.answer_key || null;
@@ -1073,7 +1185,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
          FROM assessments a
          LEFT JOIN users u ON a.teacher_id = u.id
          WHERE a.id::text = $1::text`,
-        [id]
+        [targetId]
       );
       const teacherId = assessmentInfo[0]?.teacher_id || null;
       const instituteId = assessmentInfo[0]?.institute_id || null;
@@ -1094,7 +1206,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
              questions_json=COALESCE($13::jsonb,questions_json)
          WHERE id=$1 RETURNING *`,
         [
-          id,
+          targetId,
           body.title || null,
           body.assessmentType || body.type || null,
           body.totalMarks || body.total_marks || null,
@@ -1117,7 +1229,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       updated.questions_json = refreshedQuestions;
       await manager.query(
         `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text`,
-        [id, refreshedQuestions.length ? JSON.stringify(refreshedQuestions) : null],
+        [targetId, refreshedQuestions.length ? JSON.stringify(refreshedQuestions) : null],
       );
 
       // Sync calendar event
@@ -1127,25 +1239,45 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     });
   }
 
-  async remove(id: string) {
+  async remove(user: any, id?: string) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+    if (reqUser) {
+      await this.checkAssessmentAccess(reqUser, targetId);
+    }
+
     return await this.ds.transaction(async (manager) => {
-      await manager.query(`DELETE FROM assessment_submissions WHERE assessment_id::text=$1::text`, [id]);
-      await manager.query(`DELETE FROM results WHERE assessment_id::text=$1::text`, [id]);
-      await manager.query(`DELETE FROM events WHERE linked_id::text=$1::text`, [id]);
-      await manager.query(`DELETE FROM assessments WHERE id::text=$1::text`, [id]);
+      await manager.query(`DELETE FROM assessment_submissions WHERE assessment_id::text=$1::text`, [targetId]);
+      await manager.query(`DELETE FROM results WHERE assessment_id::text=$1::text`, [targetId]);
+      await manager.query(`DELETE FROM events WHERE linked_id::text=$1::text`, [targetId]);
+      await manager.query(`DELETE FROM assessments WHERE id::text=$1::text`, [targetId]);
       return { success: true };
     });
   }
 
+  async listResults(user: any, assessmentId?: string) {
+    let reqUser = user;
+    let targetId = assessmentId;
+    if (typeof user === 'string' && !assessmentId) {
+      reqUser = null;
+      targetId = user;
+    }
+    if (reqUser) {
+      await this.checkAssessmentAccess(reqUser, targetId);
+    }
 
-  async listResults(assessmentId: string) {
     await this.ensureAssessmentContentColumns();
     await this.ensureResultSchema();
-    const rows: any[] = await this.ds.query(`SELECT r.*,u.name AS student_name FROM results r LEFT JOIN users u ON r.student_id=u.id WHERE r.assessment_id=$1`, [assessmentId]);
+    const rows: any[] = await this.ds.query(`SELECT r.*,u.name AS student_name FROM results r LEFT JOIN users u ON r.student_id=u.id WHERE r.assessment_id=$1`, [targetId]);
     return { success: true, data: rows };
   }
 
   async mySubmission(user: any, assessmentId: string) {
+    await this.checkAssessmentAccess(user, assessmentId);
     await this.ensureAssessmentSubmissionSchema();
     const rows: any[] = await this.ds.query(
       `SELECT * FROM assessment_submissions
@@ -1157,6 +1289,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
   }
 
   async startAttempt(user: any, assessmentId: string) {
+    await this.checkAssessmentAccess(user, assessmentId);
     await this.ensureAssessmentContentColumns();
     await this.ensureAssessmentSubmissionSchema();
 
@@ -1226,6 +1359,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
   }
 
   async submitAssessment(user: any, assessmentId: string, body: any, file?: Express.Multer.File) {
+    await this.checkAssessmentAccess(user, assessmentId);
     await this.ensureAssessmentContentColumns();
     await this.ensureAssessmentSubmissionSchema();
 
@@ -1322,7 +1456,17 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     return { success: true, data: rows[0] };
   }
 
-  async listSubmissions(assessmentId: string) {
+  async listSubmissions(user: any, assessmentId?: string) {
+    let reqUser = user;
+    let targetId = assessmentId;
+    if (typeof user === 'string' && !assessmentId) {
+      reqUser = null;
+      targetId = user;
+    }
+    if (reqUser) {
+      await this.checkAssessmentAccess(reqUser, targetId);
+    }
+
     await this.ensureAssessmentSubmissionSchema();
     const rows: any[] = await this.ds.query(
       `SELECT
@@ -1336,12 +1480,23 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
        LEFT JOIN sections sec ON s.section_id::text = sec.id::text
        WHERE sub.assessment_id::text=$1::text
        ORDER BY sub.submitted_at DESC`,
-      [assessmentId],
+      [targetId],
     );
     return { success: true, data: rows };
   }
 
-  async saveResult(body: any) {
+  async saveResult(user: any, body?: any) {
+    let reqUser = user;
+    let targetBody = body;
+    if (user && !body && user.assessmentId) {
+      reqUser = null;
+      targetBody = user;
+    }
+    if (reqUser && targetBody?.assessmentId) {
+      await this.checkAssessmentAccess(reqUser, targetBody.assessmentId);
+    }
+    body = targetBody;
+
     await this.ensureResultSchema();
     const assessmentRows: any[] = await this.ds.query(
       `SELECT title,total_marks FROM assessments WHERE id::text = $1::text`,
