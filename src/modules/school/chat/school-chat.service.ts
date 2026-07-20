@@ -259,7 +259,11 @@ export class SchoolChatService implements OnModuleInit {
       let searchCond = '';
       if (q) {
         params.push(`%${q}%`);
-        searchCond = ` AND (u.name ILIKE $1 OR u.email ILIKE $1 OR i.name ILIKE $1)`;
+        searchCond += ` AND (u.name ILIKE $${params.length} OR u.email ILIKE $${params.length} OR i.name ILIKE $${params.length})`;
+      }
+      if (query.instituteId && query.instituteId !== 'ALL') {
+        params.push(query.instituteId);
+        searchCond += ` AND u.institute_id = $${params.length}`;
       }
       sql = `SELECT u.id, u.name, u.email, u.role, u.profile_image, i.name AS institute_name
              FROM users u LEFT JOIN institutes i ON i.id = u.institute_id
