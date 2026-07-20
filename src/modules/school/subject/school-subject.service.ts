@@ -71,20 +71,20 @@ export class SchoolSubjectService {
           keysDeleted = true;
         }
       }
-      
+
       // Direct pattern invalidation fallback (essential for all environments)
       const limits = [10, 20, 50, 100, 500];
       const fallbackKeys: string[] = [];
-      
+
       // Delete general prefix keys
       fallbackKeys.push(`school:subjects:list:${instituteId}`);
       fallbackKeys.push(`school:subjects:list:${instituteId}:_:_`);
-      
+
       // Delete page / limit variations
       for (const l of limits) {
         fallbackKeys.push(this.subjectListKey(instituteId, undefined, undefined, 1, l));
       }
-      
+
       // Clean up common classId specific keys by iterating through typical page/limits
       // This solves classId specific caching issues when store.keys is missing or bypassed
       await Promise.all(fallbackKeys.map(k => this.cache.del(k).catch(() => undefined)));
