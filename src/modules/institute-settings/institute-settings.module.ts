@@ -12,6 +12,7 @@ import { InstituteSettingsController } from './institute-settings.controller';
 import { AcademicCalendarController } from './academic-calendar.controller';
 import { InstituteSettingsService } from './institute-settings.service';
 import { CalendarFeedService } from './calendar-feed.service';
+import { BatchModule } from '../batch/batch.module';
 import { UploadModule } from '../upload/upload.module';
 import { NotificationModule } from '../notification/notification.module';
 
@@ -31,6 +32,7 @@ import { NotificationModule } from '../notification/notification.module';
     ], 'coaching'),
     UploadModule,
     NotificationModule,
+    BatchModule,
   ],
   controllers: [InstituteSettingsController, AcademicCalendarController],
   providers: [InstituteSettingsService, CalendarFeedService],

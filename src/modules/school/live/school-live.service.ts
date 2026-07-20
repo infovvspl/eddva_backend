@@ -17,6 +17,9 @@ interface SchoolUser {
   instituteId: string | null;
 }
 
+import { SchoolNotificationService } from '../notification/school-notification.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+
 @Injectable()
 export class SchoolLiveService implements OnModuleInit {
   private readonly logger = new Logger(SchoolLiveService.name);
@@ -33,6 +36,8 @@ export class SchoolLiveService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly r2: R2Service,
     private readonly classSvc: SchoolClassService,
+    private readonly notificationSvc: SchoolNotificationService,
+    private readonly fcm: FcmService,
   ) {}
 
   /** School DB has synchronize:false — self-create our tables. */
@@ -351,14 +356,15 @@ export class SchoolLiveService implements OnModuleInit {
     // SELECT first to get the id reliably, then UPDATE.
     // UPDATE...RETURNING can return undefined id in some connection pool configs.
     const schoolRows = await this.ds.query(
-      `SELECT id FROM school_live_lectures
+      `SELECT id, title, class_id, section_id, subject_name FROM school_live_lectures
        WHERE stream_key = $1
          AND status NOT IN ('ENDED', 'PROCESSED', 'PROCESSING_FAILED')
        LIMIT 1`,
       [streamKey],
     );
     if (schoolRows.length) {
-      const lectureId: string = schoolRows[0].id;
+      const lecture = schoolRows[0];
+      const lectureId: string = lecture.id;
       await this.ds.query(
         `UPDATE school_live_lectures
            SET status = 'LIVE', started_at = now(), ended_at = NULL
@@ -370,6 +376,65 @@ export class SchoolLiveService implements OnModuleInit {
       await this.redis.publish(SCHOOL_LIVE_CHANNELS.LIVE, { lectureId });
       await this.redis.publish('lecture:live', { lectureId });
       this.logger.log(`[RTMP] allowed — school lecture ${lectureId} is now LIVE`);
+
+      // Trigger student notifications on start
+      if (lecture.class_id) {
+        try {
+          const students: any[] = await this.ds.query(
+            `SELECT s.user_id
+             FROM students s
+             JOIN sections sec ON s.section_id = sec.id
+             WHERE sec.class_id = $1
+               AND ($2::uuid IS NULL OR s.section_id = $2)`,
+            [lecture.class_id, lecture.section_id || null],
+          );
+
+          const subjectName = lecture.subject_name || lecture.title || 'Live Class';
+          const { SchoolFcmNotificationType, SCHOOL_NOTIFICATION_TEMPLATES, fillTemplate } = require('../notification-fcm/school-notification-templates');
+          const { title, body: message } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.LIVE_CLASS_STARTED],
+            { subjectName },
+          );
+
+          for (const stu of students) {
+            // Send In-App notification
+            await this.notificationSvc.create({
+              userId: stu.user_id,
+              recipientId: stu.user_id,
+              role: 'STUDENT',
+              recipientRole: 'STUDENT',
+              type: 'live_class',
+              category: 'live_class',
+              priority: 'high',
+              title,
+              message,
+              referenceId: lectureId,
+              referenceType: 'live_lecture',
+              isRead: false,
+            }).catch((err) => {
+              this.logger.warn(`Failed to create class started notification for user ${stu.user_id}: ${err.message}`);
+            });
+
+            // Send FCM Mobile Push Notification if configured and preference matches
+            if (this.fcm.isReady) {
+              const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'live_class_alerts').catch(() => true);
+              if (prefAllowed) {
+                await this.fcm.sendPushToUser(
+                  stu.user_id,
+                  title,
+                  message,
+                  { type: 'LIVE_CLASS_STARTED', lectureId },
+                ).catch((err) => {
+                  this.logger.warn(`Failed to send FCM push to user ${stu.user_id}: ${err.message}`);
+                });
+              }
+            }
+          }
+        } catch (err: any) {
+          this.logger.error(`Failed to broadcast live class started notification: ${err.message}`);
+        }
+      }
+
       return true;
     }
 

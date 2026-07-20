@@ -26,11 +26,23 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, ApiResponse<T>
         // If handler already returned a shaped response, pass through
         if (data && typeof data === 'object' && 'success' in data) return data;
 
+        if (data && typeof data === 'object' && data?.data !== undefined) {
+          const { data: payload, message, ...meta } = data as Record<string, unknown>;
+          return {
+            success: true,
+            statusCode,
+            message: (message as string) || 'Success',
+            data: payload as T,
+            ...meta,
+            timestamp: new Date().toISOString(),
+          };
+        }
+
         return {
           success: true,
           statusCode,
           message: data?.message || 'Success',
-          data: data?.data !== undefined ? data.data : data,
+          data,
           timestamp: new Date().toISOString(),
         };
       }),

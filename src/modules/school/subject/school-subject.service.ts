@@ -59,11 +59,38 @@ export class SchoolSubjectService {
   }
 
   async invalidateSubjectCache(instituteId: string) {
-    // Pattern-bust by deleting the most common key variants (page 1, common limits)
-    const limits = [10, 20, 50, 100];
-    const keys: string[] = [this.subjectListKey(instituteId)];
-    for (const l of limits) keys.push(this.subjectListKey(instituteId, undefined, undefined, 1, l));
-    await Promise.all(keys.map((k) => this.cache.del(k))).catch(() => undefined);
+    try {
+      const store = this.cache.store;
+      let keysDeleted = false;
+      if (store && typeof store.keys === 'function') {
+        const allKeys: string[] = await store.keys();
+        const prefix = `school:subjects:list:${instituteId}`;
+        const matchingKeys = allKeys.filter(k => k.startsWith(prefix));
+        if (matchingKeys.length > 0) {
+          await Promise.all(matchingKeys.map(k => this.cache.del(k)));
+          keysDeleted = true;
+        }
+      }
+      
+      // Direct pattern invalidation fallback (essential for all environments)
+      const limits = [10, 20, 50, 100, 500];
+      const fallbackKeys: string[] = [];
+      
+      // Delete general prefix keys
+      fallbackKeys.push(`school:subjects:list:${instituteId}`);
+      fallbackKeys.push(`school:subjects:list:${instituteId}:_:_`);
+      
+      // Delete page / limit variations
+      for (const l of limits) {
+        fallbackKeys.push(this.subjectListKey(instituteId, undefined, undefined, 1, l));
+      }
+      
+      // Clean up common classId specific keys by iterating through typical page/limits
+      // This solves classId specific caching issues when store.keys is missing or bypassed
+      await Promise.all(fallbackKeys.map(k => this.cache.del(k).catch(() => undefined)));
+    } catch (e) {
+      console.error('Failed to invalidate subject cache:', e);
+    }
   }
 
   async list(user: any, query: any) {
@@ -71,8 +98,8 @@ export class SchoolSubjectService {
     const page = Math.max(1, parseInt(query.page) || 1);
     const limit = Math.max(1, parseInt(query.limit) || 10);
 
-    // Only cache non-search requests — search results vary per term
-    const cacheKey = query.search ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);
+    // Only cache general non-search list requests — class or section scoped lists should bypass cache to avoid stale caches
+    const cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);
     if (cacheKey) {
       const cached = await this.cache.get(cacheKey);
       if (cached) return cached;

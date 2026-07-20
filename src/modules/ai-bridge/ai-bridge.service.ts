@@ -571,7 +571,7 @@ export class AiBridgeService {
     if (t === 'descriptive' || t === 'long_answer' || t === 'subjective') {
       return (
         ' Output short- or long-answer (constructed response) only — no A/B/C/D options. ' +
-        'Include a model answer in the "answer" field using CBSE markwise structure: ' +
+        'Include a model answer in the "answer" field using board-exam markwise structure: ' +
         '2m => definition + one point/example, ' +
         '3m => definition/principle + two explanation points, ' +
         '4m => statement/formula + 2-3 explanation steps + support (diagram/example/conclusion), ' +
@@ -605,6 +605,7 @@ export class AiBridgeService {
       /** For subject tests: exact chapter names from the DB — AI must ONLY generate from these */
       chapters?: string[];
       language?: string;
+      board?: string;
     },
     tenantId?: string,
     vertical?: string,
@@ -1494,6 +1495,9 @@ export class AiBridgeService {
       courseName?: string;
       extraContext?: string;
       questionCount?: number;
+      /** Output language: 'hindi' → Devanagari (Groq), 'odia' → Odia script (Gemini). Default: English. */
+      language?: string;
+      board?: string;
     },
     tenantId?: string,
     vertical?: string,

@@ -1,13 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+import {
+  SchoolFcmNotificationType,
+  SCHOOL_NOTIFICATION_TEMPLATES,
+  fillTemplate,
+} from '../notification-fcm/school-notification-templates';
 
 @Injectable()
 export class SchoolNoticeService {
+  private readonly logger = new Logger(SchoolNoticeService.name);
+
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
+    private readonly fcm: FcmService,
   ) {}
 
   private hasAttachments(attachments: any) {
@@ -86,6 +95,53 @@ export class SchoolNoticeService {
           : undefined,
       )
       .catch((notifErr: Error) => console.error('Failed to dispatch notifications for notice:', notifErr));
+
+    // Dispatch push notifications to targeted users who have announcement_alerts enabled
+    try {
+      const targetRoles = body.targetRoles?.length
+        ? (Array.isArray(body.targetRoles) ? body.targetRoles : [body.targetRoles])
+        : null;
+
+      let tokenQuery = `
+        SELECT DISTINCT dt.token
+        FROM school_device_tokens dt
+        INNER JOIN users u ON dt.user_id = u.id
+        LEFT JOIN notification_preferences p ON p.user_id = u.id
+        WHERE u.institute_id = $1
+          AND u.is_active = true
+          AND (p.enable_push IS NOT FALSE)
+          AND (p.announcement_alerts IS NOT FALSE)
+      `;
+      const params = [instituteId];
+      if (targetRoles) {
+        params.push(targetRoles);
+        tokenQuery += ` AND u.role = ANY($2::varchar[])`;
+      }
+
+      const tokenRows = await this.ds.query(tokenQuery, params);
+      const tokens = tokenRows.map((tr: any) => tr.token).filter(Boolean);
+
+      if (tokens.length > 0 && this.fcm.isReady) {
+        const { title: pTitle, body: pBody } = fillTemplate(
+          SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NOTICE_PUBLISHED],
+          { title: r.title, body: r.content || 'A new notice has been posted.' },
+        );
+
+        // Async sending in background
+        this.fcm.sendMulticastPush(
+          tokens,
+          pTitle,
+          pBody,
+          { type: 'NOTICE_PUBLISHED', noticeId: r.id }
+        ).then(res => {
+          this.logger.log(`Multicast push sent successfully to ${res.sentCount} devices, failed for ${res.failedCount}.`);
+        }).catch(err => {
+          this.logger.error(`Multicast push failed: ${err.message}`);
+        });
+      }
+    } catch (pushErr: any) {
+      this.logger.error(`Failed to execute large notice push: ${pushErr.message}`);
+    }
 
     return {
       success: true,

@@ -43,4 +43,9 @@ export class SchoolStudentController {
   addPreviousResult(@Param('id', ParseUUIDPipe) id: string, @Body() body: any) {
     return this.svc.addPreviousResult(id, body);
   }
+
+  @Post('device-token')
+  registerDeviceToken(@SchoolUser() user: any, @Body() body: any) {
+    return this.svc.registerDeviceToken(user, body);
+  }
 }

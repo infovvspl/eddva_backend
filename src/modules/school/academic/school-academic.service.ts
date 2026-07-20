@@ -195,8 +195,26 @@ export class SchoolAcademicService {
         [instituteId, name, academicYear],
       );
 
+      const newClass = rows[0];
+
+      if (body.section) {
+        const sectionNames = String(body.section).split(',').map(s => s.trim()).filter(Boolean);
+        for (const secName of sectionNames) {
+          const secExists = await this.ds.query(
+            `SELECT id FROM sections WHERE class_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))`,
+            [newClass.id, secName]
+          );
+          if (secExists.length === 0) {
+            await this.ds.query(
+              `INSERT INTO sections (class_id, name, academic_year) VALUES ($1, $2, $3)`,
+              [newClass.id, secName, academicYear]
+            );
+          }
+        }
+      }
+
       await this.invalidateClassCaches(instituteId);
-      return { success: true, data: rows[0] };
+      return { success: true, data: newClass };
     } catch (err: any) {
       if (err.code === '23505') {
         throw new ConflictException(`Class '${name}' already exists for academic year ${academicYear}.`);
@@ -236,6 +254,23 @@ export class SchoolAcademicService {
         `,
         [id, newName, newYear],
       );
+
+      if (body.section) {
+        const sectionNames = String(body.section).split(',').map(s => s.trim()).filter(Boolean);
+        for (const secName of sectionNames) {
+          const secExists = await this.ds.query(
+            `SELECT id FROM sections WHERE class_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))`,
+            [id, secName]
+          );
+          if (secExists.length === 0) {
+            await this.ds.query(
+              `INSERT INTO sections (class_id, name, academic_year) VALUES ($1, $2, $3)`,
+              [id, secName, newYear]
+            );
+          }
+        }
+      }
+
     } catch (err: any) {
       if (err.code === '23505') {
         throw new ConflictException(`Class '${newName}' already exists for academic year ${newYear}.`);

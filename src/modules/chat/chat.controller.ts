@@ -32,7 +32,7 @@ export class CoachingChatController {
 
   @Get('rooms')
   listRooms(@CurrentUser() user: any) {
-    return this.svc.listRooms(user.tenantId);
+    return this.svc.listRooms(user);
   }
 
   @Post('rooms')

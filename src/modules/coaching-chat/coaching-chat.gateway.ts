@@ -7,12 +7,14 @@ import {
   WebSocketGateway,
   WebSocketServer,
   OnGatewayConnection,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 
 @WebSocketGateway({ namespace: '/coaching-chat', cors: { origin: '*' } })
-export class CoachingChatGateway implements OnGatewayConnection {
+export class CoachingChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(CoachingChatGateway.name);
+  private readonly socketToUser = new Map<string, string>();
 
   @WebSocketServer()
   server: Server;
@@ -53,9 +55,48 @@ export class CoachingChatGateway implements OnGatewayConnection {
     }
 
     client.data.user = user;
+    this.socketToUser.set(client.id, user.id);
     const room = this.getRoomName(user.tenantId, user.id, user.role);
     client.join(room);
     this.logger.log(`Client ${client.id} joined room: ${room}`);
+
+    this.server.emit('presence_change', {
+      userId: user.id,
+      status: 'online',
+      lastSeen: Date.now(),
+    });
+  }
+
+  async handleDisconnect(client: Socket) {
+    const userId = this.socketToUser.get(client.id);
+    if (userId) {
+      this.socketToUser.delete(client.id);
+
+      const userSockets = Array.from(this.socketToUser.entries())
+        .filter(([_, id]) => id === userId);
+
+      if (userSockets.length === 0) {
+        this.server.emit('presence_change', {
+          userId,
+          status: 'offline',
+          lastSeen: Date.now(),
+        });
+      }
+    }
+  }
+
+  @SubscribeMessage('typing')
+  handleTyping(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { roomId: string; isTyping: boolean; receiverId?: string },
+  ) {
+    const user = client.data.user;
+    if (user && payload.receiverId) {
+      this.server.to(`tenant:${user.tenantId}:user:${payload.receiverId}`).emit('typing', {
+        senderId: user.id,
+        isTyping: payload.isTyping,
+      });
+    }
   }
 
   @SubscribeMessage('auth_refresh')
