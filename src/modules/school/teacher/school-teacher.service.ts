@@ -851,10 +851,7 @@ export class SchoolTeacherService {
       userParams.push(body.phone);
       userUpdates.push(`phone=$${userParams.length}`);
     }
-    if (body.role !== undefined) {
-      userParams.push(body.role);
-      userUpdates.push(`role=$${userParams.length}`);
-    }
+    // `body.role` is used for teacher designation, so we do not update `users.role` here.
     if (userUpdates.length > 0) {
       await this.ds.query(
         `UPDATE users SET ${userUpdates.join(', ')}, updated_at=NOW() WHERE id=$1`,
