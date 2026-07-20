@@ -10,7 +10,7 @@ function normalizeSubjectName(name: string): string {
   if (!name) return '';
   const cleaned = name.trim().replace(/\s+/g, ' ');
   const lowerCleaned = cleaned.toLowerCase();
-  
+
   if (lowerCleaned === 'math' || lowerCleaned === 'maths' || lowerCleaned === 'mathematics') {
     return 'Mathematics';
   }
@@ -35,7 +35,7 @@ function normalizeSubjectName(name: string): string {
   if (lowerCleaned === 'history') {
     return 'History';
   }
-  
+
   // Title case general words
   return cleaned
     .split(' ')
@@ -48,10 +48,10 @@ export class SchoolSubjectService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
-  ) {}
+  ) { }
 
   private async resolveInstituteId(user: any, id?: string) {
-    return user.role === 'SUPER_ADMIN' ? (id||user.instituteId) : user.instituteId;
+    return user.role === 'SUPER_ADMIN' ? (id || user.instituteId) : user.instituteId;
   }
 
   private subjectListKey(instituteId: string, classId?: string, sectionId?: string, page = 1, limit = 10) {
@@ -97,9 +97,13 @@ export class SchoolSubjectService {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const page = Math.max(1, parseInt(query.page) || 1);
     const limit = Math.max(1, parseInt(query.limit) || 10);
+    const isTeacher = user.role === 'TEACHER';
 
     // Only cache general non-search list requests — class or section scoped lists should bypass cache to avoid stale caches
-    const cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);
+    let cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);
+    if (cacheKey && isTeacher) {
+      cacheKey += `:teacher:${user.id}`;
+    }
     if (cacheKey) {
       const cached = await this.cache.get(cacheKey);
       if (cached) return cached;
@@ -107,6 +111,11 @@ export class SchoolSubjectService {
 
     let filter = `s.institute_id=$1`;
     const params: any[] = [instituteId];
+
+    if (isTeacher) {
+      params.push(user.id);
+      filter += ` AND s.id IN (SELECT DISTINCT subject_id FROM teacher_academic_assignments ta JOIN teachers t ON ta.teacher_id = t.id WHERE t.user_id = $${params.length} AND ta.subject_id IS NOT NULL)`;
+    }
 
     if (query.classId) {
       params.push(query.classId);
@@ -170,7 +179,7 @@ export class SchoolSubjectService {
       ORDER BY ${sortBy} ${sortOrder}
       LIMIT ${limit} OFFSET ${offset}
     `;
-    
+
     const rows: any[] = await this.ds.query(sql, params);
     const result = { success: true, data: rows, total, page, limit, totalPages };
     if (cacheKey) await this.cache.set(cacheKey, result, SUBJECT_TTL);
@@ -211,7 +220,7 @@ export class SchoolSubjectService {
 
     const rows: any[] = await this.ds.query(
       `INSERT INTO subjects (institute_id,name,class_id,section_id,code,type,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [instituteId,normalizedName,body.classId||null,body.sectionId||null,body.code||null,body.type||'Theory',body.description||null]
+      [instituteId, normalizedName, body.classId || null, body.sectionId || null, body.code || null, body.type || 'Theory', body.description || null]
     );
     await this.invalidateSubjectCache(instituteId);
     return { success: true, data: rows[0] };
@@ -255,7 +264,7 @@ export class SchoolSubjectService {
         throw new BadRequestException('Subject already exists.');
       }
     }
-    
+
     await this.ds.query(
       `UPDATE subjects SET name=COALESCE($2,name),class_id=$3,section_id=$4,code=COALESCE($5,code),type=COALESCE($6,type),description=COALESCE($7,description),updated_at=NOW() WHERE id=$1`,
       [id, body.name ? normalizedName : current.name, classId, sectionId, body.code, body.type, body.description]
@@ -277,8 +286,8 @@ export class SchoolSubjectService {
   }
 
   async addClassSubject(body: any) {
-    const rows: any[] = await this.ds.query(`INSERT INTO class_subjects (class_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING *`, [body.classId,body.subjectId]);
-    return { success: true, data: rows[0]||null };
+    const rows: any[] = await this.ds.query(`INSERT INTO class_subjects (class_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING *`, [body.classId, body.subjectId]);
+    return { success: true, data: rows[0] || null };
   }
 
   async listTeacherSubjects(teacherId: string) {
@@ -287,7 +296,7 @@ export class SchoolSubjectService {
   }
 
   async assignTeacherSubject(body: any) {
-    const rows: any[] = await this.ds.query(`INSERT INTO teacher_subjects (teacher_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING *`, [body.teacherId,body.subjectId]);
-    return { success: true, data: rows[0]||null };
+    const rows: any[] = await this.ds.query(`INSERT INTO teacher_subjects (teacher_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING *`, [body.teacherId, body.subjectId]);
+    return { success: true, data: rows[0] || null };
   }
 }
