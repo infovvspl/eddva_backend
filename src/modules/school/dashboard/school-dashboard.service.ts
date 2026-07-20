@@ -40,12 +40,19 @@ export class SchoolDashboardService {
     }
   }
 
-  async stats(user: any) {
+  async stats(user: any, portal?: string) {
     if (!user) return {};
 
-    const role = (user.role || '').toUpperCase();
+    const role = (user.role || '').toUpperCase().replace(/\s+/g, '_');
+    const roles = role.split(',').map((r) => r.trim()).filter(Boolean);
+    const hasTeacherRole = roles.includes('TEACHER');
+    const hasInstituteAdminRole = roles.includes('INSTITUTE_ADMIN') || roles.includes('ADMIN');
+    const hasSuperAdminRole = roles.includes('SUPER_ADMIN');
+    const requestedPortal = String(portal || '').toLowerCase();
+    const wantsAdminPortal = ['admin', 'institute-admin', 'institute_admin'].includes(requestedPortal);
+    const wantsTeacherPortal = requestedPortal === 'teacher';
 
-    if (role === 'TEACHER') {
+    if (hasTeacherRole && (wantsTeacherPortal || !wantsAdminPortal)) {
       const cacheKey = `school:dashboard:teacher:${user.id}`;
       const cached = await this.safeCacheGet(cacheKey);
       if (cached) return cached;
@@ -191,7 +198,7 @@ export class SchoolDashboardService {
       return teacherResult;
     }
 
-    if (role === 'INSTITUTE_ADMIN') {
+    if (hasInstituteAdminRole && !hasSuperAdminRole) {
       const instituteId = user?.instituteId || null;
       if (!instituteId) {
         return {
@@ -236,7 +243,7 @@ export class SchoolDashboardService {
         ticketCountsRow
       ] = await Promise.all([
         this.safeQuery(`SELECT * FROM institutes WHERE id=$1`, [instituteId], []),
-        this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role='TEACHER' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE UPPER(REPLACE(role, ' ', '_')) LIKE '%TEACHER%' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM complaints WHERE status='OPEN' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
         this.safeQuery(`SELECT status AS name, COUNT(*)::int AS value FROM complaints WHERE institute_id=$1 GROUP BY status`, [instituteId], []),
@@ -252,7 +259,7 @@ export class SchoolDashboardService {
           SELECT COUNT(DISTINCT a.user_id)::int AS present
           FROM attendances a
           JOIN users u ON a.user_id = u.id
-          WHERE a.institute_id = $1 AND a.date = $2 AND u.role = 'TEACHER'
+          WHERE a.institute_id = $1 AND a.date = $2 AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'
             AND (LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')
         `, [instituteId, todayStr], [{ present: 0 }]),
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND status = 'LIVE'`, [instituteId], [{ c: 0 }]),

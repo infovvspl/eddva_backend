@@ -4,6 +4,7 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolPublic } from '../decorators/school-public.decorator';
 import { SchoolUser } from '../decorators/school-user.decorator';
+import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { Audit } from '../../audit-log/audit.decorator';
 
 @Controller('school/auth')
@@ -17,7 +18,7 @@ export class SchoolAuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() body: any, @Ip() ip: string, @Headers('user-agent') userAgent: string) {
     const identifier = body.email || body.phone || body.phoneNumber;
-    const data = await this.authService.login(identifier, body.password, ip, userAgent);
+    const data = await this.authService.login(identifier, body.password, ip, userAgent, body.fcmToken, body.platform);
     return { success: true, message: 'Login successful', ...data };
   }
 
@@ -38,6 +39,14 @@ export class SchoolAuthController {
   @Get('me')
   getMe(@SchoolUser() user: any) {
     return this.authService.getMe(user);
+  }
+
+  @Post('admin-portal-entry')
+  @SchoolRoles('INSTITUTE_ADMIN', 'TEACHER')
+  @Audit({ module: 'Security', action: 'Admin Portal Entry', description: 'School user entered institute admin portal ({user.role})' })
+  @HttpCode(HttpStatus.OK)
+  recordAdminPortalEntry(@SchoolUser() user: any) {
+    return this.authService.recordAdminPortalEntry(user);
   }
 
   @Get('logout')

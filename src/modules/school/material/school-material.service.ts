@@ -269,6 +269,7 @@ export class SchoolMaterialService implements OnModuleInit {
         examTarget: className || 'School',
         courseName: className ? `${className} ${ctx.subject_name ?? ''}`.trim() : 'School',
         extraContext,
+        language: body.language || undefined,
       },
       user.instituteId ?? undefined,
       'school',

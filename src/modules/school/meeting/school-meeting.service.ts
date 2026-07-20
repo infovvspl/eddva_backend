@@ -4,10 +4,17 @@ import {
   Injectable,
   NotFoundException,
   OnModuleInit,
+  Logger,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+import {
+  SchoolFcmNotificationType,
+  SCHOOL_NOTIFICATION_TEMPLATES,
+  fillTemplate,
+} from '../notification-fcm/school-notification-templates';
 
 type MeetingRow = {
   id: string;
@@ -40,11 +47,13 @@ type MeetingRow = {
 
 @Injectable()
 export class SchoolMeetingService implements OnModuleInit {
+  private readonly logger = new Logger(SchoolMeetingService.name);
   private tableReady = false;
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
+    private readonly fcm: FcmService,
   ) { }
 
   async onModuleInit() {
@@ -320,6 +329,59 @@ export class SchoolMeetingService implements OnModuleInit {
           ? '/school/parent/communication'
           : '/school/parent/communication';
 
+    const message =
+      `${sender.name} scheduled a ${meeting.meeting_mode} meeting` +
+      (meeting.meeting_date ? ` on ${meeting.meeting_date}` : '') +
+      (meeting.start_time ? ` at ${meeting.start_time}` : '') +
+      (recipientName ? ` for ${recipientName}` : '');
+
+    // Send FCM push if allowed
+    try {
+      const prefAllowed = await this.fcm.checkUserPreference(recipientId, 'announcement_alerts');
+      if (prefAllowed && this.fcm.isReady) {
+        const recipientRows = await this.ds.query(`SELECT name FROM users WHERE id = $1`, [recipientId]);
+        const rName = recipientRows[0]?.name || 'User';
+        const firstName = rName.split(' ')[0] || 'User';
+
+        const { title, body } = fillTemplate(
+          SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.MEETING_SCHEDULED],
+          { name: firstName, title: meeting.title, time: `${meeting.meeting_date} ${meeting.start_time}` },
+        );
+
+        const pushResults = await this.fcm.sendPushToUser(
+          recipientId,
+          title,
+          body,
+          { type: 'MEETING_SCHEDULED', meetingId: meeting.id },
+        );
+
+        const anySuccess = pushResults.some((r) => r.success);
+        const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+        const failureReasons = pushResults
+          .filter((r) => !r.success)
+          .map((r) => r.error)
+          .join('; ');
+
+        if (pushResults.length > 0) {
+          await this.ds.query(
+            `INSERT INTO school_notification_log
+               (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+             VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+            [
+              recipientId,
+              SchoolFcmNotificationType.MEETING_SCHEDULED,
+              meeting.id,
+              anySuccess ? 'SUCCESS' : 'FAILED',
+              firstMessageId,
+              failureReasons || null,
+            ],
+          );
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to send FCM push for meeting: ${err.message}`);
+    }
+
     await this.notificationService.create({
       userId: recipientId,
       recipientId,
@@ -330,11 +392,7 @@ export class SchoolMeetingService implements OnModuleInit {
       category: 'meeting',
       priority: 'high',
       title: meeting.title,
-      message:
-        `${sender.name} scheduled a ${meeting.meeting_mode} meeting` +
-        (meeting.meeting_date ? ` on ${meeting.meeting_date}` : '') +
-        (meeting.start_time ? ` at ${meeting.start_time}` : '') +
-        (recipientName ? ` for ${recipientName}` : ''),
+      message,
       referenceId: meeting.id,
       referenceType: 'meeting',
       actionUrl,
@@ -752,6 +810,47 @@ export class SchoolMeetingService implements OnModuleInit {
 
     const notifyUserId = isCreator ? meeting.recipient_user_id : meeting.created_by;
     const actor = await this.getUserBasics(user.id);
+    const title = updated.title || meeting.title || 'Meeting Update';
+    const message = `${actor.name} marked the meeting as ${nextStatus}.`;
+
+    // Send FCM push if allowed
+    try {
+      const prefAllowed = await this.fcm.checkUserPreference(notifyUserId, 'announcement_alerts');
+      if (prefAllowed && this.fcm.isReady) {
+        const pushResults = await this.fcm.sendPushToUser(
+          notifyUserId,
+          title,
+          message,
+          { type: 'MEETING_UPDATE', meetingId: updated.id },
+        );
+
+        const anySuccess = pushResults.some((r) => r.success);
+        const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+        const failureReasons = pushResults
+          .filter((r) => !r.success)
+          .map((r) => r.error)
+          .join('; ');
+
+        if (pushResults.length > 0) {
+          await this.ds.query(
+            `INSERT INTO school_notification_log
+               (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+             VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+            [
+              notifyUserId,
+              'MEETING_UPDATE',
+              updated.id,
+              anySuccess ? 'SUCCESS' : 'FAILED',
+              firstMessageId,
+              failureReasons || null,
+            ],
+          );
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to send FCM push for meeting update: ${err.message}`);
+    }
+
     await this.notificationService.create({
       userId: notifyUserId,
       recipientId: notifyUserId,
@@ -760,8 +859,8 @@ export class SchoolMeetingService implements OnModuleInit {
       type: 'meeting',
       category: 'meeting',
       priority: 'medium',
-      title: updated.title || meeting.title || 'Meeting Update',
-      message: `${actor.name} marked the meeting as ${nextStatus}.`,
+      title,
+      message,
       referenceId: updated.id,
       referenceType: 'meeting',
       actionUrl: user.role === 'PARENT' ? '/school/teacher/meetings' : '/school/parent/communication',

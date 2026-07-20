@@ -73,6 +73,10 @@ export class SchoolClassService implements OnModuleInit {
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS video_size BIGINT`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS resolution VARCHAR(32)`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_source VARCHAR(16) DEFAULT 'auto'`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_status VARCHAR(16)`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_error TEXT`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_started_at TIMESTAMPTZ`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_completed_at TIMESTAMPTZ`);
 
     // Progress and In-Video Quiz Segment Responses tracking
     await this.ds.query(`
@@ -230,6 +234,7 @@ export class SchoolClassService implements OnModuleInit {
              r.transcript, r.transcript_status, r.language, r.notes, r.notes_status,
              r.notes_images, r.quiz, r.quiz_status,
              r.video_size, r.resolution, r.thumbnail_source,
+             r.thumbnail_status, r.thumbnail_error, r.thumbnail_started_at, r.thumbnail_completed_at,
              (SELECT id FROM school_live_lectures WHERE recording_url = r.video_url LIMIT 1) AS "lectureId",
              c.name AS class_name, sec.name AS section_name, s.name AS subject_name, u.name AS teacher_name,
              ch.name AS chapter_name, t.name AS topic_name,
@@ -541,6 +546,15 @@ export class SchoolClassService implements OnModuleInit {
     videoKey: string | null,
     instituteId: string,
   ): Promise<void> {
+    await this.ds.query(
+      `UPDATE class_recordings
+       SET thumbnail_status = 'processing',
+           thumbnail_error = NULL,
+           thumbnail_started_at = NOW(),
+           thumbnail_completed_at = NULL
+       WHERE id = $1`,
+      [recordingId],
+    );
     try {
       // Use the S3 key for download if available (more reliable than presigned URL)
       const downloadUrl = videoKey
@@ -555,6 +569,14 @@ export class SchoolClassService implements OnModuleInit {
 
       if (!result) {
         this.logger.warn(`Thumbnail generation returned null for recording ${recordingId}`);
+        await this.ds.query(
+          `UPDATE class_recordings
+           SET thumbnail_status = 'failed',
+               thumbnail_error = 'Thumbnail generation did not return an image',
+               thumbnail_completed_at = NOW()
+           WHERE id = $1`,
+          [recordingId],
+        );
         return;
       }
 
@@ -586,14 +608,22 @@ export class SchoolClassService implements OnModuleInit {
       }
 
       if (sets.length > 0) {
-        await this.ds.query(
-          `UPDATE class_recordings SET ${sets.join(', ')} WHERE id = $1`,
-          params,
-        );
+        sets.push(`thumbnail_status = 'done'`);
+        sets.push(`thumbnail_error = NULL`);
+        sets.push(`thumbnail_completed_at = NOW()`);
+        await this.ds.query(`UPDATE class_recordings SET ${sets.join(', ')} WHERE id = $1`, params);
         this.logger.log(`Thumbnail + metadata saved for recording ${recordingId}`);
       }
     } catch (err: any) {
       this.logger.warn(`processThumbnail failed for ${recordingId}: ${err?.message}`);
+      await this.ds.query(
+        `UPDATE class_recordings
+         SET thumbnail_status = 'failed',
+             thumbnail_error = $2,
+             thumbnail_completed_at = NOW()
+         WHERE id = $1`,
+        [recordingId, String(err?.message || 'Thumbnail generation failed').slice(0, 1000)],
+      );
     }
   }
 
@@ -609,7 +639,13 @@ export class SchoolClassService implements OnModuleInit {
     if (!rows.length) throw new NotFoundException('Recording not found');
 
     await this.ds.query(
-      `UPDATE class_recordings SET thumbnail_url = $2, thumbnail_source = 'manual' WHERE id = $1`,
+      `UPDATE class_recordings
+       SET thumbnail_url = $2,
+           thumbnail_source = 'manual',
+           thumbnail_status = 'done',
+           thumbnail_error = NULL,
+           thumbnail_completed_at = NOW()
+       WHERE id = $1`,
       [id, body.thumbnailUrl.trim()],
     );
     return { success: true, message: 'Thumbnail updated' };

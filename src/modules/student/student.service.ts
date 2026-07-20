@@ -103,18 +103,31 @@ export class StudentService {
 
     const pendingLectures = Number(pendingRow?.[0]?.cnt ?? 0);
     const testsAttempted = Number(testsRow?.[0]?.cnt ?? 0);
-    const recommendations = this.buildRecommendations(weakTopics, effectiveExamTarget);
+    const hasEnrollment = !!enrollment;
+    const recommendations = hasEnrollment ? this.buildRecommendations(weakTopics, effectiveExamTarget) : [];
+
+    const plan = await this.planRepo.findOne({ where: { studentId: student.id } });
+    const totalPlanCount = plan ? await this.planItemRepo.count({ where: { studyPlanId: plan.id } }) : 0;
+
+    const resolvedTodayPlan = hasEnrollment
+      ? todayPlan
+      : {
+          locked: true,
+          isPreview: true,
+          totalItems: totalPlanCount,
+          items: [],
+        };
 
     const dashboardData = {
       student,
-      predictedRank: profile?.predictedRank,
-      overallAccuracy: profile?.overallAccuracy ?? 0,
-      currentStreak: student.currentStreak,
-      xpTotal: student.xpTotal,
-      weakTopics,
-      todayPlan,
-      globalRank: globalRank?.rank,
-      globalPercentile: globalRank?.percentile,
+      predictedRank: hasEnrollment ? profile?.predictedRank : null,
+      overallAccuracy: hasEnrollment ? (profile?.overallAccuracy ?? 0) : 0,
+      currentStreak: hasEnrollment ? student.currentStreak : 0,
+      xpTotal: hasEnrollment ? student.xpTotal : 0,
+      weakTopics: hasEnrollment ? weakTopics : [],
+      todayPlan: resolvedTodayPlan,
+      globalRank: hasEnrollment ? globalRank?.rank : null,
+      globalPercentile: hasEnrollment ? globalRank?.percentile : null,
       pendingLectures,
       testsAttempted,
       recommendations,

@@ -10,8 +10,11 @@ import { SchoolLiveGateway } from './school-live.gateway';
 import { SchoolLiveRedis } from './school-live.redis';
 import { SchoolLiveService } from './school-live.service';
 
+import { SchoolNotificationModule } from '../notification/school-notification.module';
+import { SchoolNotificationFcmModule } from '../notification-fcm/school-notification-fcm.module';
+
 @Module({
-  imports: [ConfigModule, R2Module, BullModule.registerQueue({ name: RECORDINGS_QUEUE }), SchoolClassModule],
+  imports: [ConfigModule, R2Module, BullModule.registerQueue({ name: RECORDINGS_QUEUE }), SchoolClassModule, SchoolNotificationModule, SchoolNotificationFcmModule],
   controllers: [SchoolLiveController, SchoolLiveStreamHookController, SchoolLiveHlsController],
   providers: [SchoolLiveService, SchoolLiveRedis, SchoolLiveGateway],
   exports: [SchoolLiveService],

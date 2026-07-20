@@ -24,6 +24,7 @@ import { QuestionAttempt, TestSession, TestSessionStatus } from '../../database/
 import { Student } from '../../database/entities/student.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { NotificationService } from '../notification/notification.service';
+import { EnrollmentStatusService } from '../batch/enrollment-status.service';
 
 import { LogEngagementDto } from './dto/analytics.dto';
 
@@ -53,6 +54,7 @@ export class AnalyticsService {
     private readonly notificationService: NotificationService,
     @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
+    private readonly enrollmentStatusService: EnrollmentStatusService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
@@ -72,6 +74,14 @@ export class AnalyticsService {
 
   async getPerformance(user: any, tenantId: string, studentIdOverride?: string) {
     const student = await this.resolveStudent(user, tenantId, studentIdOverride);
+
+    if (user.role === UserRole.STUDENT && !(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+      return {
+        performanceProfile: this.serializeProfile(null, student.id),
+        weakTopics: [],
+      };
+    }
+
     const cacheKey = `coaching:perf:${student.id}`;
     const cached = await this.cache.get(cacheKey);
     if (cached) return cached as any;
@@ -375,6 +385,20 @@ export class AnalyticsService {
   }
   async getStudentAdvancedPerformance(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+
+    if (user.role === UserRole.STUDENT && !(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+      return {
+        scoreTrend: [],
+        subjectAccuracy: {},
+        topicPerformance: [],
+        mistakePatterns: [],
+        speedMetrics: {
+          avgTimePerQuestion: 0,
+          trend: 'stable',
+        },
+      };
+    }
+
     const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
     const cacheKey = `coaching:adv-perf:${student.id}`;
     const cached = await this.cache.get(cacheKey);
@@ -495,6 +519,21 @@ export class AnalyticsService {
 
   async getStudentAdvancedEngagement(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+
+    if (user.role === UserRole.STUDENT && !(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+      return {
+        dailyActiveMinutes: [],
+        contentPreference: [],
+        lectureActivity: {
+          totalWatched: 0,
+          completed: 0,
+          avgWatchPct: 0,
+        },
+        notesGenerated: 0,
+        aiTutorSessions: 0,
+      };
+    }
+
     const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
  
     const cacheKey = `coaching:adv-eng:${student.id}`;
@@ -592,6 +631,20 @@ export class AnalyticsService {
 
   async getStudentAdvancedStudyPlan(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+
+    if (user.role === UserRole.STUDENT && !(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+      return {
+        adherence: {
+          completed: 0,
+          skipped: 0,
+          pending: 0,
+        },
+        completionRateTrend: [],
+        currentStreak: 0,
+        overdueItemsCount: 0,
+      };
+    }
+
     const cacheKey = `coaching:adv-plan:${student.id}`;
     const cached = await this.cache.get(cacheKey);
     if (cached) return cached as any;
@@ -641,6 +694,18 @@ export class AnalyticsService {
 
   async getStudentInsights(user: any, tenantId: string, batchId?: string) {
     const student = await this.resolveStudent(user, tenantId);
+
+    if (user.role === UserRole.STUDENT && !(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+      return {
+        status: 'warning',
+        performanceTrend: 'stable',
+        consistencyScore: 0,
+        readinessScore: 0,
+        weakTopicCount: 0,
+        strongTopicCount: 0,
+      };
+    }
+
     const effectiveTenantId = await this.resolveEffectiveTenantId(student.id, tenantId);
     const cacheKey = `coaching:insights:${student.id}`;
     const cached = await this.cache.get(cacheKey);

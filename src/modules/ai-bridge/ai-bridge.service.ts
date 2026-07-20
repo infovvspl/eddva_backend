@@ -1494,6 +1494,8 @@ export class AiBridgeService {
       courseName?: string;
       extraContext?: string;
       questionCount?: number;
+      /** Output language: 'hindi' → Devanagari (Groq), 'odia' → Odia script (Gemini). Default: English. */
+      language?: string;
     },
     tenantId?: string,
     vertical?: string,
