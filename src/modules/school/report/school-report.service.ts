@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
@@ -725,6 +725,34 @@ export class SchoolReportService {
     let filter = `u.institute_id=$1 AND u.role='STUDENT'`;
     const params: any[] = [instituteId];
 
+    if (user.role === 'STUDENT') {
+      params.push(user.id);
+      filter += ` AND u.id = $${params.length}`;
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT u.id FROM students s JOIN users u ON u.id = s.user_id WHERE s.institute_id = $1 AND (
+          (s.parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($2))
+          OR (s.parent_phone IS NOT NULL AND $3::text IS NOT NULL AND s.parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const childUserIds = children.map((c: any) => c.id);
+      if (childUserIds.length > 0) {
+        params.push(childUserIds);
+        filter += ` AND u.id = ANY($${params.length}::uuid[])`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    } else if (user.role === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        params.push(teacherId);
+        filter += ` AND s.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $${params.length})`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    }
+
     if (query.search) {
       const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
       if (searchTerms.length > 0) {
@@ -783,38 +811,80 @@ export class SchoolReportService {
 
   async assessmentReport(user: any, query: any) {
     const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const params: any[] = [instituteId];
+    let filter = `c.institute_id = $1`;
+
+    if (user.role === 'STUDENT') {
+      params.push(user.id);
+      filter += ` AND u.id = $${params.length}`;
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT u.id FROM students s JOIN users u ON u.id = s.user_id WHERE s.institute_id = $1 AND (
+          (s.parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($2))
+          OR (s.parent_phone IS NOT NULL AND $3::text IS NOT NULL AND s.parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const childUserIds = children.map((c: any) => c.id);
+      if (childUserIds.length > 0) {
+        params.push(childUserIds);
+        filter += ` AND u.id = ANY($${params.length}::uuid[])`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    } else if (user.role === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        params.push(teacherId);
+        filter += ` AND (a.teacher_id = $${params.length} OR a.class_id IN (SELECT class_id FROM teacher_academic_assignments WHERE teacher_id = $${params.length}))`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    }
+
     const page = Math.max(1, parseInt(query.page) || 1);
     const limit = Math.max(1, parseInt(query.limit) || 100);
     const offset = (page - 1) * limit;
 
-    const [countResult, rows] = await Promise.all([
-      this.ds.query(
-        `SELECT COUNT(*)::int AS total
-         FROM assessments a
-         LEFT JOIN results r ON r.assessment_id=a.id
-         WHERE a.institute_id=$1`,
-        [instituteId],
-      ),
-      this.ds.query(
-        `SELECT a.id AS assessment_id,a.title,a.assessment_type,a.total_marks,a.passing_marks,a.scheduled_at,a.status,
-                sub.name AS subject_name,
-                u.id AS student_id,u.name AS student_name,
-                r.marks_obtained,r.is_absent,r.grade,r.remarks
-         FROM assessments a
-         LEFT JOIN subjects sub ON a.subject_id=sub.id
-         LEFT JOIN results r ON r.assessment_id=a.id
-         LEFT JOIN users u ON r.student_id=u.id
-         WHERE a.institute_id=$1
-         ORDER BY a.scheduled_at DESC NULLS LAST, u.name
-         LIMIT $2 OFFSET $3`,
-        [instituteId, limit, offset],
-      ),
-    ]);
+    const countQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM assessments a
+      LEFT JOIN classes c ON a.class_id=c.id
+      LEFT JOIN results r ON r.assessment_id=a.id
+      LEFT JOIN users u ON r.student_id=u.id
+      WHERE ${filter}
+    `;
+    const countResult = await this.ds.query(countQuery, params);
     const total = countResult[0]?.total ?? 0;
+
+    const sql = `
+      SELECT a.id AS assessment_id,a.title,a.type AS assessment_type,a.total_marks,a.passing_marks,a.scheduled_date AS scheduled_at,a.status,
+             sub.name AS subject_name,
+             u.id AS student_id,u.name AS student_name,
+             r.marks_obtained,r.is_absent,r.grade,r.remarks
+      FROM assessments a
+      LEFT JOIN classes c ON a.class_id=c.id
+      LEFT JOIN subjects sub ON a.subject_id=sub.id
+      LEFT JOIN results r ON r.assessment_id=a.id
+      LEFT JOIN users u ON r.student_id=u.id
+      WHERE ${filter}
+      ORDER BY a.scheduled_date DESC NULLS LAST, u.name
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+    const rows = await this.ds.query(sql, [...params, limit, offset]);
+
     return { success: true, count: rows.length, data: rows, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async teacherClassReport(user: any, query: any) {
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+    const isTeacher = String(user?.role || '').toUpperCase() === 'TEACHER';
+
+    if (!isSuperAdmin && !isInstituteAdmin && !isTeacher) {
+      throw new ForbiddenException('You do not have access to this report');
+    }
+
     const instituteId = user.instituteId;
     const classId = query.classId || null;
     const page = Math.max(1, parseInt(query.page) || 1);
@@ -823,6 +893,17 @@ export class SchoolReportService {
 
     let filter = `u.institute_id=$1 AND u.role='STUDENT'`;
     const params: any[] = [instituteId];
+
+    if (isTeacher) {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        params.push(teacherId);
+        filter += ` AND s.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $${params.length})`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    }
 
     if (classId) {
       params.push(classId);

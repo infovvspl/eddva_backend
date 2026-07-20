@@ -100,7 +100,16 @@ export class SchoolComplaintService implements OnModuleInit {
     const rows: any[] = await ds.query(`SELECT * FROM complaints WHERE id=$1`, [id]);
     if (!rows.length) throw new NotFoundException('Complaint not found');
     const complaint = rows[0];
-    if (user.role !== 'SUPER_ADMIN' && String(complaint.institute_id) !== String(user.instituteId)) {
+
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (isSuperAdmin) return complaint;
+
+    if (String(complaint.institute_id) !== String(user.instituteId)) {
+      throw new ForbiddenException('You do not have access to this ticket');
+    }
+
+    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+    if (!isInstituteAdmin && String(complaint.user_id) !== String(user.id)) {
       throw new ForbiddenException('You do not have access to this ticket');
     }
     return complaint;
@@ -116,6 +125,14 @@ export class SchoolComplaintService implements OnModuleInit {
     if (instituteId) {
       params.push(instituteId);
       filter = `c.institute_id=$1`;
+    }
+
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+
+    if (!isSuperAdmin && !isInstituteAdmin) {
+      params.push(user.id);
+      filter += ` AND c.user_id=$${params.length}`;
     }
 
     if (query.status) {
@@ -229,9 +246,19 @@ export class SchoolComplaintService implements OnModuleInit {
     };
   }
 
-  async findOne(id: string, connection: 'school' | 'coaching' = 'school') {
+  async findOne(user: any, id?: string, connection: 'school' | 'coaching' = 'school') {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+    if (reqUser) {
+      await this.findComplaintForUser(targetId, reqUser, connection);
+    }
+
     const ds = this.getDs(connection);
-    const rows: any[] = await ds.query(`SELECT * FROM complaints WHERE id=$1`, [id]);
+    const rows: any[] = await ds.query(`SELECT * FROM complaints WHERE id=$1`, [targetId]);
     if (!rows.length) throw new NotFoundException('Complaint not found');
     const r = rows[0];
     return {
@@ -250,18 +277,39 @@ export class SchoolComplaintService implements OnModuleInit {
     };
   }
 
-  async update(id: string, body: any, connection: 'school' | 'coaching' = 'school') {
+  async update(user: any, id?: string, body?: any, connection: 'school' | 'coaching' = 'school') {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !body) {
+      reqUser = null;
+      targetId = user;
+      body = id;
+    }
+    if (reqUser) {
+      await this.findComplaintForUser(targetId, reqUser, connection);
+    }
+
     const ds = this.getDs(connection);
     await ds.query(
       `UPDATE complaints SET title=COALESCE($2,title),description=COALESCE($3,description),status=COALESCE($4,status),updated_at=NOW() WHERE id=$1`,
-      [id, body.title, body.description, body.status],
+      [targetId, body.title, body.description, body.status],
     );
     return { success: true };
   }
 
-  async remove(id: string, connection: 'school' | 'coaching' = 'school') {
+  async remove(user: any, id?: string, connection: 'school' | 'coaching' = 'school') {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+    if (reqUser) {
+      await this.findComplaintForUser(targetId, reqUser, connection);
+    }
+
     const ds = this.getDs(connection);
-    await ds.query(`DELETE FROM complaints WHERE id=$1`, [id]);
+    await ds.query(`DELETE FROM complaints WHERE id=$1`, [targetId]);
     return { success: true };
   }
 

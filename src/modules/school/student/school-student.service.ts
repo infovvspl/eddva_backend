@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -186,7 +186,17 @@ export class SchoolStudentService {
       filter += ` AND u.institute_id=$${params.length}`;
     }
 
-    if (user.role === 'TEACHER') {
+    if (user.role === 'STUDENT') {
+      params.push(user.id);
+      filter += ` AND u.id=$${params.length}`;
+    } else if (user.role === 'PARENT') {
+      params.push(user.email);
+      params.push(user.phone);
+      filter += ` AND (
+        (s.parent_email IS NOT NULL AND $${params.length - 1}::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($${params.length - 1}))
+        OR (s.parent_phone IS NOT NULL AND $${params.length}::text IS NOT NULL AND s.parent_phone = $${params.length})
+      )`;
+    } else if (user.role === 'TEACHER') {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
@@ -589,10 +599,17 @@ export class SchoolStudentService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(user: any, id?: string) {
+    let targetId = id;
+    let reqUser = user;
+    if (typeof user === 'string' && !id) {
+      targetId = user;
+      reqUser = null;
+    }
+
     // Guard against non-UUID ids (e.g. a stray '/students/<word>') so we return a
     // clean 404 instead of a Postgres "invalid input syntax for type uuid" 500.
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(targetId || ''))) {
       throw new NotFoundException('Student not found');
     }
     const rows: any[] = await this.ds.query(
@@ -609,10 +626,43 @@ export class SchoolStudentService {
        LEFT JOIN classes c ON sec.class_id=c.id
        LEFT JOIN institutes i ON u.institute_id=i.id
        WHERE (u.id=$1 OR s.id=$1) AND u.role='STUDENT'`,
-      [id],
+      [targetId],
     );
     if (!rows.length) throw new NotFoundException('Student not found');
     const r = rows[0];
+
+    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && reqUser) {
+      if (String(r.institute_id) !== String(reqUser.instituteId)) {
+        throw new ForbiddenException('You do not have access to this student profile');
+      }
+      if (reqUser.role === 'STUDENT' && String(r.user_id) !== String(reqUser.id)) {
+        throw new ForbiddenException('You do not have access to this student profile');
+      }
+      if (reqUser.role === 'PARENT') {
+        const parentEmail = r.parent_email;
+        const parentPhone = r.parent_phone;
+        const isMatched = (parentEmail && reqUser.email && parentEmail.toLowerCase() === reqUser.email.toLowerCase()) ||
+                          (parentPhone && reqUser.phone && parentPhone === reqUser.phone);
+        if (!isMatched) {
+          throw new ForbiddenException('You do not have access to this student profile');
+        }
+      }
+      if (reqUser.role === 'TEACHER') {
+        const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [reqUser.id]);
+        const teacherId = tRows[0]?.id;
+        if (!teacherId) {
+          throw new ForbiddenException('You do not have access to this student profile');
+        }
+        const assignedSecs = await this.ds.query(
+          `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id = $1 AND section_id::text = $2::text LIMIT 1`,
+          [teacherId, r.section_id]
+        );
+        if (!assignedSecs.length) {
+          throw new ForbiddenException('You do not have access to this student profile');
+        }
+      }
+    }
 
     const testSessions = r.user_id ? await this.ds.query(`
       SELECT 
@@ -749,10 +799,31 @@ export class SchoolStudentService {
     return { success: true, data: mappedData };
   }
 
-  async update(id: string, body: any) {
-    let userRows: any[] = await this.ds.query(`SELECT id, name, email, phone, role, is_active FROM users WHERE id=$1`, [id]);
+  async update(user: any, id?: string, body?: any) {
+    let reqUser = user;
+    let targetId = id;
+    let targetBody = body;
+    if (typeof user === 'string' && !body) {
+      reqUser = null;
+      targetId = user;
+      targetBody = id;
+    }
+    body = targetBody;
+
+    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && reqUser) {
+      const targetInstRow = await this.ds.query(
+        `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM students WHERE id = $1 LIMIT 1`,
+        [targetId]
+      );
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(reqUser.instituteId)) {
+        throw new ForbiddenException('You do not have permission to update this student');
+      }
+    }
+
+    let userRows: any[] = await this.ds.query(`SELECT id, name, email, phone, role, is_active FROM users WHERE id=$1`, [targetId]);
     if (!userRows.length) {
-      userRows = await this.ds.query(`SELECT u.id, u.name, u.email, u.phone, u.role, u.is_active FROM users u JOIN students s ON s.user_id=u.id WHERE s.id=$1`, [id]);
+      userRows = await this.ds.query(`SELECT u.id, u.name, u.email, u.phone, u.role, u.is_active FROM users u JOIN students s ON s.user_id=u.id WHERE s.id=$1`, [targetId]);
     }
     if (!userRows.length) throw new NotFoundException('Student not found');
     const userId = userRows[0].id;
@@ -919,14 +990,32 @@ export class SchoolStudentService {
     };
   }
 
-  async remove(id: string) {
+  async remove(user: any, id?: string) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+
+    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && reqUser) {
+      const targetInstRow = await this.ds.query(
+        `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM students WHERE id = $1 LIMIT 1`,
+        [targetId]
+      );
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(reqUser.instituteId)) {
+        throw new ForbiddenException('You do not have permission to delete this student');
+      }
+    }
+
     // 1. Fetch user & student profile to check protections
     const rows: any[] = await this.ds.query(
       `SELECT u.id AS user_id, s.id AS student_id, s.enrollment_no 
        FROM users u 
        LEFT JOIN students s ON u.id = s.user_id 
        WHERE u.id=$1 OR s.id=$1`,
-      [id]
+      [targetId]
     );
 
     if (!rows.length) {
@@ -1413,7 +1502,28 @@ export class SchoolStudentService {
     };
   }
 
-  async addPreviousResult(studentId: string, body: any) {
+  async addPreviousResult(user: any, studentId?: string, body?: any) {
+    let reqUser = user;
+    let targetId = studentId;
+    let targetBody = body;
+    if (typeof user === 'string' && !body) {
+      reqUser = null;
+      targetId = user;
+      targetBody = studentId;
+    }
+    body = targetBody;
+
+    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && reqUser) {
+      const targetInstRow = await this.ds.query(
+        `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM students WHERE id = $1 LIMIT 1`,
+        [targetId]
+      );
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(reqUser.instituteId)) {
+        throw new ForbiddenException('You do not have permission to add results for this student');
+      }
+    }
+
     const { className, academicYear, assessmentTitle, subjects, activeAssessmentTitlesBySubject } = body;
     if (!className || !academicYear || !assessmentTitle || !Array.isArray(subjects) || !subjects.length) {
       throw new BadRequestException('Invalid input. className, academicYear, assessmentTitle and subjects are required.');
@@ -1443,7 +1553,7 @@ export class SchoolStudentService {
        FROM users u 
        JOIN students s ON s.user_id = u.id 
        WHERE u.id = $1 OR s.id = $1`,
-      [studentId]
+      [targetId]
     );
     if (!studentRows.length) throw new NotFoundException('Student not found');
     const instituteId = studentRows[0].institute_id;

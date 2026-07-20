@@ -298,6 +298,20 @@ export class SchoolAssignmentService {
       } else {
         filter += ` AND a.section_id IS NULL`;
       }
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (sectionIds.length > 0) {
+        params.push(sectionIds);
+        filter += ` AND a.section_id = ANY($${params.length}::uuid[])`;
+      } else {
+        filter += ` AND 1=0`;
+      }
     } else {
       if (user.role === 'TEACHER') {
         params.push(user.id);
@@ -874,6 +888,7 @@ export class SchoolAssignmentService {
   }
 
   async getSubmissions(user: any, assignmentId: string) {
+    await this.checkAssignmentAccess(user, assignmentId);
     const rows: any[] = await this.ds.query(
       `SELECT
          subm.id, subm.student_id, subm.status,
@@ -900,11 +915,12 @@ export class SchoolAssignmentService {
   }
 
   async gradeSubmission(
-    _user: any,
+    user: any,
     assignmentId: string,
     submissionId: string,
     body: { marks?: number; feedback?: string },
   ) {
+    await this.checkAssignmentAccess(user, assignmentId);
     const rows: any[] = await this.ds.query(
       `UPDATE assignment_submissions
          SET marks = $2,
@@ -920,19 +936,90 @@ export class SchoolAssignmentService {
     return { success: true, data: rows[0] };
   }
 
-  async findOne(id: string) {
+  private async checkAssignmentAccess(user: any, assignmentId: string) {
     const rows: any[] = await this.ds.query(
       `SELECT * FROM assignments WHERE id::text=$1::text`,
-      [id],
+      [assignmentId],
+    );
+    if (!rows.length) throw new NotFoundException('Assignment not found');
+    const assignment = rows[0];
+
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (isSuperAdmin) return assignment;
+
+    if (String(assignment.tenant_id) !== String(user.instituteId)) {
+      throw new ForbiddenException('You do not have access to this assignment');
+    }
+
+    if (user.role === 'STUDENT') {
+      const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
+      if (assignment.section_id !== studentProfile?.section_id) {
+        throw new ForbiddenException('You do not have access to this assignment');
+      }
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (!sectionIds.includes(assignment.section_id)) {
+        throw new ForbiddenException('You do not have access to this assignment');
+      }
+    } else if (user.role === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        const hasAssignment = await this.ds.query(
+          `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id = $1 AND section_id::text = $2::text LIMIT 1`,
+          [teacherId, assignment.section_id]
+        );
+        if (assignment.teacher_id !== teacherId && !hasAssignment.length) {
+          throw new ForbiddenException('You do not have access to this assignment');
+        }
+      } else {
+        throw new ForbiddenException('You do not have access to this assignment');
+      }
+    }
+
+    return assignment;
+  }
+
+  async findOne(user: any, id?: string) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+    if (reqUser) {
+      await this.checkAssignmentAccess(reqUser, targetId);
+    }
+
+    const rows: any[] = await this.ds.query(
+      `SELECT * FROM assignments WHERE id::text=$1::text`,
+      [targetId],
     );
     if (!rows.length) throw new NotFoundException('Assignment not found');
     return { success: true, data: rows[0] };
   }
 
-  async update(id: string, body: any) {
+  async update(user: any, id?: string, body?: any) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !body) {
+      reqUser = null;
+      targetId = user;
+      body = id;
+    }
+    if (reqUser) {
+      await this.checkAssignmentAccess(reqUser, targetId);
+    }
+
     const sql = `UPDATE assignments SET title=COALESCE($2,title),instructions=COALESCE($3,instructions),due_date=COALESCE($4,due_date),updated_at=NOW() WHERE id::text=$1::text`;
     const params = [
-      id,
+      targetId,
       body.title,
       body.description,
       body.dueDate ? new Date(body.dueDate) : null,
@@ -941,9 +1028,19 @@ export class SchoolAssignmentService {
     return { success: true };
   }
 
-  async remove(id: string) {
-    await this.ds.query(`DELETE FROM assignment_submissions WHERE assignment_id::text=$1::text`, [id]);
-    await this.ds.query(`DELETE FROM assignments WHERE id::text=$1::text`, [id]);
+  async remove(user: any, id?: string) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+    if (reqUser) {
+      await this.checkAssignmentAccess(reqUser, targetId);
+    }
+
+    await this.ds.query(`DELETE FROM assignment_submissions WHERE assignment_id::text=$1::text`, [targetId]);
+    await this.ds.query(`DELETE FROM assignments WHERE id::text=$1::text`, [targetId]);
     return { success: true };
   }
 }
