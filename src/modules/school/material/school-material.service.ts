@@ -193,6 +193,40 @@ export class SchoolMaterialService implements OnModuleInit {
     throw new BadRequestException('topicId or chapterId is required');
   }
 
+
+  /**
+   * Education board (cbse | icse | state) for an institute, from institutes.board.
+   *
+   * The AI service uses this to pick the right syllabus, textbooks and paper
+   * pattern — without it an ICSE school is served CBSE/NCERT-framed content.
+   * Cached in-process for 5 minutes: the board effectively never changes, and
+   * this would otherwise add a DB round-trip to every AI request.
+   */
+  private static readonly _boardCache = new Map<string, { value: string; expiresAt: number }>();
+
+  private async resolveBoard(instituteId?: string): Promise<string | undefined> {
+    if (!instituteId) return undefined;
+    const cached = SchoolMaterialService._boardCache.get(instituteId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value || undefined;
+    try {
+      const rows = await this.ds.query(
+        `SELECT board FROM institutes WHERE id = $1 LIMIT 1`,
+        [instituteId],
+      );
+      const value = String(rows?.[0]?.board ?? '').trim().toLowerCase();
+      SchoolMaterialService._boardCache.set(instituteId, {
+        value,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
+      return value || undefined;
+    } catch (err) {
+      // Never block AI generation on this lookup — the AI service falls back to
+      // its own default board when the header is absent.
+      this.logger.warn(`Could not resolve board for institute ${instituteId}: ${(err as Error).message}`);
+      return undefined;
+    }
+  }
+
   /** Generate AI study content for a topic or chapter (does NOT persist). */
   async generateAiContent(user: any, body: any) {
     const ctx = await this.resolveContentContext(body);
@@ -238,6 +272,7 @@ export class SchoolMaterialService implements OnModuleInit {
       },
       user.instituteId ?? undefined,
       'school',
+      await this.resolveBoard(user.instituteId),
     );
     return { content: result.content, contentType: result.contentType, topicName: ctx.topic_name };
   }
