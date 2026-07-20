@@ -42,8 +42,8 @@ export class SchoolAuthController {
   }
 
   @Post('admin-portal-entry')
-  @SchoolRoles('INSTITUTE_ADMIN')
-  @Audit({ module: 'Security', action: 'Admin Portal Entry', description: 'School user entered institute admin portal' })
+  @SchoolRoles('INSTITUTE_ADMIN', 'TEACHER')
+  @Audit({ module: 'Security', action: 'Admin Portal Entry', description: 'School user entered institute admin portal ({user.role})' })
   @HttpCode(HttpStatus.OK)
   recordAdminPortalEntry(@SchoolUser() user: any) {
     return this.authService.recordAdminPortalEntry(user);

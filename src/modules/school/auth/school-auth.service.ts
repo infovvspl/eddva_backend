@@ -66,7 +66,7 @@ export class SchoolAuthService {
     const rows: any[] = await this.ds.query(
       `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo,
               i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features,
-              i.modules_permissions AS inst_modules_permissions
+              i.modules_permissions AS inst_modules_permissions, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE ${whereClause}`,
@@ -161,6 +161,9 @@ export class SchoolAuthService {
         name: user.inst_name,
         tenantDomain: user.tenant_domain,
         logo: user.logo,
+        state: user.inst_state,
+        city: user.inst_city,
+        location: user.inst_address,
         aiEnabled: user.inst_ai_enabled ?? false,
         aiFeatures: typeof user.inst_ai_features === 'string' ? JSON.parse(user.inst_ai_features) : (user.inst_ai_features ?? {}),
         modulesPermissions: typeof user.inst_modules_permissions === 'string' ? JSON.parse(user.inst_modules_permissions) : (user.inst_modules_permissions ?? {}),
@@ -222,12 +225,10 @@ export class SchoolAuthService {
 
   async recordAdminPortalEntry(user: any) {
     const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
-    const isInstituteAdmin = role
-      .split(',')
-      .map((r) => r.trim())
-      .some((r) => r === 'INSTITUTE_ADMIN' || r === 'ADMIN');
+    const rolesList = role.split(',').map((r) => r.trim());
+    const isInstituteAdmin = rolesList.some((r) => r === 'INSTITUTE_ADMIN' || r === 'ADMIN');
 
-    if (!isInstituteAdmin || role.includes('SUPER_ADMIN')) {
+    if (!isInstituteAdmin || rolesList.includes('SUPER_ADMIN')) {
       throw new ForbiddenException('Only institute admins can record admin portal entry');
     }
 

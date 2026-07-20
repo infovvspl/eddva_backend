@@ -71,7 +71,7 @@ export class AiBridgeService {
     return Number.isFinite(Number(total)) ? Number(total) : null;
   }
 
-  private headers(tenantId?: string, vertical?: string) {
+  private headers(tenantId?: string, vertical?: string, board?: string) {
     const h: Record<string, string> = {
       'X-API-Key': this.apiKey,
       'Content-Type': 'application/json',
@@ -81,13 +81,20 @@ export class AiBridgeService {
     }
     // Per-request product vertical (e.g. 'school'). When omitted, the AI service
     // falls back to the tenant's configured vertical (coaching by default).
+    // Education board for school tenants (cbse | icse | state), read from
+    // institutes.board. The AI service uses it to pick the right syllabus,
+    // textbooks and paper pattern — an ICSE school must not get NCERT/CBSE
+    // framing. When omitted, the AI service falls back to its own default.
+    if (board) {
+      h['X-Board'] = board;
+    }
     if (vertical) {
       h['X-Vertical'] = vertical;
     }
     return h;
   }
 
-  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string): Promise<T> {
+  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string): Promise<T> {
     const mapped = AiBridgeService.FEATURE_MAP[path];
     const v = vertical || 'coaching';
 
@@ -113,7 +120,7 @@ export class AiBridgeService {
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
-          headers: this.headers(tenantId, v),
+          headers: this.headers(tenantId, v, board),
           timeout: timeoutMs ?? this.timeout,
         }),
       );
@@ -564,7 +571,7 @@ export class AiBridgeService {
     if (t === 'descriptive' || t === 'long_answer' || t === 'subjective') {
       return (
         ' Output short- or long-answer (constructed response) only — no A/B/C/D options. ' +
-        'Include a model answer in the "answer" field using CBSE markwise structure: ' +
+        'Include a model answer in the "answer" field using board-exam markwise structure: ' +
         '2m => definition + one point/example, ' +
         '3m => definition/principle + two explanation points, ' +
         '4m => statement/formula + 2-3 explanation steps + support (diagram/example/conclusion), ' +
@@ -598,9 +605,12 @@ export class AiBridgeService {
       /** For subject tests: exact chapter names from the DB — AI must ONLY generate from these */
       chapters?: string[];
       language?: string;
+      board?: string;
     },
     tenantId?: string,
     vertical?: string,
+    /** Education board for school tenants (cbse | icse | state) — from institutes.board. */
+    board?: string,
   ) {
     const raw = await this.post<any>('/test/generate/', {
       topic: dto.topicName,
@@ -616,7 +626,7 @@ export class AiBridgeService {
       chapters: dto.chapters,           // subject-test: exact DB chapters to generate from
       seed: (dto as any).seed,          // force LLM variety
       language: dto.language,
-    }, tenantId, undefined, vertical);
+    }, tenantId, undefined, vertical, board);
 
     const questions = this.resolveToQuestionList(raw);
 
@@ -1485,10 +1495,15 @@ export class AiBridgeService {
       courseName?: string;
       extraContext?: string;
       questionCount?: number;
+      /** Output language: 'hindi' → Devanagari (Groq), 'odia' → Odia script (Gemini). Default: English. */
+      language?: string;
+      board?: string;
     },
     tenantId?: string,
     vertical?: string,
+    /** Education board for school tenants (cbse | icse | state) — from institutes.board. */
+    board?: string,
   ): Promise<{ content: string; contentType: string; topicName: string }> {
-    return this.post('/content/generate', dto, tenantId, 120_000, vertical);
+    return this.post('/content/generate', dto, tenantId, 120_000, vertical, board);
   }
 }
