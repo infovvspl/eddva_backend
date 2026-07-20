@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -487,6 +487,37 @@ export class SchoolTeacherService {
       filter += ` AND u.institute_id=$${params.length}`;
     }
 
+    if (user.role === 'STUDENT') {
+      const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
+      const sectionId = studentProfile?.section_id;
+      if (sectionId) {
+        params.push(sectionId);
+        filter += ` AND EXISTS (
+          SELECT 1 FROM teacher_academic_assignments ta 
+          WHERE ta.teacher_id = t.id AND ta.section_id::text = $${params.length}::text
+        )`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (sectionIds.length > 0) {
+        params.push(sectionIds);
+        filter += ` AND EXISTS (
+          SELECT 1 FROM teacher_academic_assignments ta 
+          WHERE ta.teacher_id = t.id AND ta.section_id::text = ANY($${params.length}::text[])
+        )`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    }
+
     const assignmentFilters: string[] = [];
     if (query.classId) {
       params.push(query.classId);
@@ -850,6 +881,17 @@ export class SchoolTeacherService {
   }
 
   async update(user: any, id: string, body: any) {
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && user) {
+      const targetInstRow = await this.ds.query(
+        `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM teachers WHERE id = $1 LIMIT 1`,
+        [id]
+      );
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(user.instituteId)) {
+        throw new ForbiddenException('You do not have permission to update this teacher');
+      }
+    }
+
     if (body.phone) {
       const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=(SELECT institute_id FROM users WHERE id=$1) AND phone=$2 AND id<>$1`, [id, body.phone]);
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
@@ -1100,8 +1142,26 @@ export class SchoolTeacherService {
     };
   }
 
-  async remove(id: string) {
-    await this.ds.query(`DELETE FROM users WHERE id=$1`, [id]);
+  async remove(user: any, id?: string) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+
+    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && reqUser) {
+      const targetInstRow = await this.ds.query(
+        `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM teachers WHERE id = $1 LIMIT 1`,
+        [targetId]
+      );
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(reqUser.instituteId)) {
+        throw new ForbiddenException('You do not have permission to delete this teacher');
+      }
+    }
+
+    await this.ds.query(`DELETE FROM users WHERE id=$1`, [targetId]);
     return { success: true };
   }
 

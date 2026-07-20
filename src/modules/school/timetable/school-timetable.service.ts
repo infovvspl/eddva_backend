@@ -136,6 +136,40 @@ export class SchoolTimetableService {
     let filterQuery = `WHERE t.institute_id::text=$1::text`;
     const params: any[] = [instituteId];
 
+    if (user.role === 'STUDENT') {
+      const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
+      const sectionId = studentProfile?.section_id;
+      if (sectionId) {
+        params.push(sectionId);
+        filterQuery += ` AND t.section_id::text = $${params.length}::text`;
+      } else {
+        filterQuery += ` AND 1=0`;
+      }
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (sectionIds.length > 0) {
+        params.push(sectionIds);
+        filterQuery += ` AND t.section_id = ANY($${params.length}::uuid[])`;
+      } else {
+        filterQuery += ` AND 1=0`;
+      }
+    } else if (user.role === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        params.push(teacherId);
+        filterQuery += ` AND (t.teacher_id = $${params.length} OR t.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $${params.length}))`;
+      } else {
+        filterQuery += ` AND 1=0`;
+      }
+    }
+
     if (query.teacherUserId) {
       params.push(query.teacherUserId);
       filterQuery += ` AND u.id::text=$${params.length}::text`;

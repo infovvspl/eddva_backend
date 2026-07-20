@@ -97,9 +97,13 @@ export class SchoolSubjectService {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const page = Math.max(1, parseInt(query.page) || 1);
     const limit = Math.max(1, parseInt(query.limit) || 10);
+    const isTeacher = user.role === 'TEACHER';
 
     // Only cache general non-search list requests — class or section scoped lists should bypass cache to avoid stale caches
-    const cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);
+    let cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);
+    if (cacheKey && isTeacher) {
+      cacheKey += `:teacher:${user.id}`;
+    }
     if (cacheKey) {
       const cached = await this.cache.get(cacheKey);
       if (cached) return cached;
@@ -107,6 +111,11 @@ export class SchoolSubjectService {
 
     let filter = `s.institute_id=$1`;
     const params: any[] = [instituteId];
+
+    if (isTeacher) {
+      params.push(user.id);
+      filter += ` AND s.id IN (SELECT DISTINCT subject_id FROM teacher_academic_assignments ta JOIN teachers t ON ta.teacher_id = t.id WHERE t.user_id = $${params.length} AND ta.subject_id IS NOT NULL)`;
+    }
 
     if (query.classId) {
       params.push(query.classId);
