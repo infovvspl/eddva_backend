@@ -123,7 +123,7 @@ export class SchoolSubjectService {
     }
     if (query.sectionId) {
       params.push(query.sectionId);
-      filter += ` AND s.section_id=$${params.length}`;
+      filter += ` AND (s.section_id=$${params.length} OR s.section_id IS NULL)`;
     }
 
     if (query.search) {
@@ -181,6 +181,15 @@ export class SchoolSubjectService {
     `;
 
     const rows: any[] = await this.ds.query(sql, params);
+
+    console.log(`[SchoolSubjectService.list] Request payload:`, query);
+    console.log(`[SchoolSubjectService.list] Authenticated school_id:`, instituteId);
+    console.log(`[SchoolSubjectService.list] Selected class_id:`, query.classId);
+    console.log(`[SchoolSubjectService.list] Selected section_id:`, query.sectionId);
+    console.log(`[SchoolSubjectService.list] SQL filters: WHERE ${filter}`);
+    console.log(`[SchoolSubjectService.list] SQL params:`, params);
+    console.log(`[SchoolSubjectService.list] Number of subjects returned:`, rows.length);
+
     const result = { success: true, data: rows, total, page, limit, totalPages };
     if (cacheKey) await this.cache.set(cacheKey, result, SUBJECT_TTL);
     return result;
