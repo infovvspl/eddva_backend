@@ -57,6 +57,39 @@ export class CareerService implements OnModuleInit {
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
+  /**
+   * Human-readable education board for an institute (from institutes.board).
+   *
+   * The career report prints this, and the AI service uses it to frame guidance,
+   * so it must reflect the school's real board rather than a hardcoded 'CBSE'.
+   * Cached for 5 minutes; a lookup failure degrades to 'CBSE' rather than
+   * blocking report generation.
+   */
+  private static readonly _boardLabelCache = new Map<string, { value: string; expiresAt: number }>();
+
+  private async resolveBoardLabel(instituteId?: string): Promise<string> {
+    if (!instituteId) return 'CBSE';
+    const cached = CareerService._boardLabelCache.get(instituteId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    let label = 'CBSE';
+    try {
+      const rows = await this.ds.query(
+        `SELECT board FROM institutes WHERE id = $1 LIMIT 1`,
+        [instituteId],
+      );
+      const raw = String(rows?.[0]?.board ?? '').trim();
+      if (raw) label = raw;
+    } catch {
+      // keep the default
+    }
+    CareerService._boardLabelCache.set(instituteId, {
+      value: label,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+    return label;
+  }
+
+
   async onModuleInit(): Promise<void> {
     await this.ensureTables();
   }
@@ -380,7 +413,10 @@ export class CareerService implements OnModuleInit {
       {
         studentName: profile.name,
         grade,
-        board: 'CBSE',
+        // Was hardcoded 'CBSE' — an ICSE student's guidance report literally read
+        // "Board: CBSE". Use the school's actual board (institutes.board), falling
+        // back to CBSE only when it is not recorded.
+        board: await this.resolveBoardLabel(instituteId),
         instituteId,
         subjectMarks,
         strongSubjects,
