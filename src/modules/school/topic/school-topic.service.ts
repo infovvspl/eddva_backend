@@ -123,16 +123,21 @@ export class SchoolTopicService {
     if (!subRows.length) throw new BadRequestException('Subject not found');
     const instituteId = subRows[0].institute_id || user.instituteId || null;
 
-    // Group rows by chapter, preserving first-seen order; dedupe topics per chapter.
+    // Group rows by chapter, preserving first-seen order; split comma-separated topics & dedupe per chapter.
     const chapterOrder: string[] = [];
     const grouped = new Map<string, string[]>();
     for (const r of rawRows) {
       const chapter = String(r?.chapter ?? '').trim();
       if (!chapter) continue;
       if (!grouped.has(chapter)) { grouped.set(chapter, []); chapterOrder.push(chapter); }
-      const topic = String(r?.topic ?? '').trim();
-      if (topic) {
-        const list = grouped.get(chapter)!;
+      const topicRaw = String(r?.topic ?? '').trim();
+      if (!topicRaw) continue;
+      // Split on commas — handles both pre-split single topics and "Topic A, Topic B" values
+      const parts = topicRaw.split(',');
+      const list = grouped.get(chapter)!;
+      for (const part of parts) {
+        const topic = part.trim();
+        if (!topic) continue;
         if (!list.some((t) => t.toLowerCase() === topic.toLowerCase())) list.push(topic);
       }
     }

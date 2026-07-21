@@ -284,7 +284,31 @@ export class SchoolSubjectService {
 
   async remove(id: string) {
     const subRows: any[] = await this.ds.query(`SELECT institute_id FROM subjects WHERE id=$1`, [id]);
-    await this.ds.query(`DELETE FROM subjects WHERE id=$1`, [id]);
+    
+    await this.ds.transaction(async (manager) => {
+      await manager.query("DELETE FROM weak_topics WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM lectures WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM topic_progress WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM topic_resources WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM battles WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM doubts WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM ai_study_sessions WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM study_materials WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1)) OR chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1)", [id]);
+      await manager.query("DELETE FROM questions WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1)) OR chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1) OR subject_id = $1", [id]);
+      await manager.query("DELETE FROM mock_tests WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1) OR subject_id = $1", [id]);
+      await manager.query("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1)", [id]);
+      await manager.query("DELETE FROM chapters WHERE subject_id = $1", [id]);
+      
+      await manager.query("DELETE FROM assessments WHERE subject_id = $1", [id]);
+      await manager.query("DELETE FROM class_subjects WHERE subject_id = $1", [id]);
+      await manager.query("DELETE FROM schedules WHERE subject_id = $1", [id]);
+      await manager.query("DELETE FROM teacher_academic_assignments WHERE subject_id = $1", [id]);
+      await manager.query("DELETE FROM teacher_subjects WHERE subject_id = $1", [id]);
+      await manager.query("DELETE FROM timetables WHERE subject_id = $1", [id]);
+      
+      await manager.query("DELETE FROM subjects WHERE id = $1", [id]);
+    });
+
     if (subRows[0]?.institute_id) await this.invalidateSubjectCache(subRows[0].institute_id);
     return { success: true };
   }
