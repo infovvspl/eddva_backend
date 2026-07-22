@@ -98,6 +98,35 @@ export class UploadController {
     }
   }
 
+  @Post('upload/platform-logo')
+  @Roles(UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Upload platform logo' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!['image/svg+xml', 'image/png', 'image/webp'].includes(file?.mimetype)) {
+          return cb(new BadRequestException('Only SVG, PNG, and WEBP files are allowed'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadPlatformLogo(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    const ext = extname(file.originalname).toLowerCase() || '.png';
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `logo${ext}`;
+    const key = `platform/branding/${Date.now()}-${uuidv4()}-${safeName}`;
+    try {
+      const url = await this.s3Service.upload(key, file.buffer, file.mimetype || 'image/png');
+      return { url, key };
+    } catch (err: any) {
+      throw new HttpException(err?.message || 'Upload failed', HttpStatus.BAD_REQUEST);
+    }
+  }
+
   @Post('upload-url')
   @ApiOperation({ summary: 'Generate a tenant-scoped pre-signed S3 PUT URL' })
   async getUploadUrl(
@@ -126,6 +155,7 @@ export class UploadController {
 
   @Put('upload/proxy')
   @Public()
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Proxy PUT upload requests to S3 to bypass browser CORS' })
   async proxyUpload(
@@ -133,6 +163,11 @@ export class UploadController {
     @Query('contentType') contentType: string,
     @Req() req: any,
   ) {
+    const MAX_PROXY_BYTES = 100 * 1024 * 1024; // 100 MB
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+    if (contentLength > MAX_PROXY_BYTES) {
+      throw new BadRequestException('File too large. Maximum upload size is 100 MB.');
+    }
     if (!s3Url) {
       throw new BadRequestException('url query parameter is required');
     }
@@ -170,8 +205,8 @@ export class UploadController {
           'Content-Type': contentType || req.headers['content-type'] || 'application/octet-stream',
           'Content-Length': req.headers['content-length'],
         },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
+        maxContentLength: MAX_PROXY_BYTES,
+        maxBodyLength: MAX_PROXY_BYTES,
       });
 
       return { success: true };

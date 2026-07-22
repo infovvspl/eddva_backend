@@ -29,8 +29,9 @@ export class AuditLogInterceptor implements NestInterceptor {
 
     const request = context.switchToHttp().getRequest();
     const ipAddress =
-      request.ip ||
       request.headers['x-forwarded-for'] ||
+      request.headers['x-real-ip'] ||
+      request.ip ||
       request.connection?.remoteAddress ||
       null;
 
@@ -53,14 +54,21 @@ export class AuditLogInterceptor implements NestInterceptor {
         let userId = request.user?.id || null;
         let userName = request.user?.fullName || request.user?.name || request.user?.email || null;
         let role = request.user?.role || null;
-        let instituteId = request.user?.instituteId || null;
+        let instituteId = request.user?.instituteId || request.user?.tenantId || null;
 
         // Special case for login: extract user info from response if not present in request.user
         if (!userId && response && response.user) {
           userId = response.user.id;
           userName = response.user.fullName || response.user.name || response.user.email;
           role = response.user.role;
-          instituteId = response.user.instituteId || null;
+          instituteId = response.user.instituteId || response.user.tenantId || null;
+        }
+
+        // For coaching context (super-admin acting on a tenant), the actor has no instituteId.
+        // Try to extract the target institute from route params so the log is attributable.
+        if (isCoaching && !instituteId) {
+          const params = request.params || {};
+          instituteId = params.id || params.tenantId || params.instituteId || null;
         }
 
         // construct description
@@ -85,7 +93,13 @@ export class AuditLogInterceptor implements NestInterceptor {
         const userId = request.user?.id || null;
         const userName = request.user?.fullName || request.user?.name || request.user?.email || null;
         const role = request.user?.role || null;
-        const instituteId = request.user?.instituteId || null;
+        let instituteId = request.user?.instituteId || request.user?.tenantId || null;
+
+        // For coaching context, try to extract target institute from params
+        if (isCoaching && !instituteId) {
+          const params = request.params || {};
+          instituteId = params.id || params.tenantId || params.instituteId || null;
+        }
 
         let description = metadata.description || `${metadata.action} action performed on ${metadata.module}`;
         description = this.interpolateDescription(description, request, null);

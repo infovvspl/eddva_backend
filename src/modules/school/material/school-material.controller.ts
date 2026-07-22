@@ -1,14 +1,37 @@
-import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, UseGuards, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, UseGuards, Patch, Res, BadRequestException, HttpCode, HttpStatus, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Response } from 'express';
 import { SchoolMaterialService } from './school-material.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { SchoolPublic } from '../decorators/school-public.decorator';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 @Controller('school/materials')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
 export class SchoolMaterialController {
   constructor(private readonly svc: SchoolMaterialService) { }
+
+  @Get('proxy-pdf')
+  @SchoolPublic()
+  async proxyPdf(@Query('url') targetUrl: string, @Res() res: Response) {
+    if (!targetUrl) throw new BadRequestException('url is required');
+    try {
+      const resp = await fetch(targetUrl);
+      if (!resp.ok) throw new BadRequestException(`S3 returned ${resp.status}`);
+      const arrayBuf = await resp.arrayBuffer();
+      const buffer = Buffer.from(arrayBuf);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.send(buffer);
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Failed to proxy PDF');
+    }
+  }
 
   @Get()
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
@@ -21,12 +44,26 @@ export class SchoolMaterialController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   presignUpload(@SchoolUser() user: any, @Body() body: any) { return this.svc.presignUpload(user, body); }
 
+  @Post('upload')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 100 * 1024 * 1024 },
+  }))
+  uploadFile(@SchoolUser() user: any, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return this.svc.uploadFile(user, file.buffer, file.originalname, file.mimetype || 'application/octet-stream');
+  }
+
   @Post('ai-generate')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_content_generator_materials')
   aiGenerate(@SchoolUser() user: any, @Body() body: any) { return this.svc.generateAiContent(user, body); }
 
   @Post('ai-save')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_content_generator_materials')
   aiSave(@SchoolUser() user: any, @Body() body: any) { return this.svc.saveAiMaterial(user, body); }
 
   // @Get('audit-data')

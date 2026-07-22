@@ -117,8 +117,13 @@ export class AiUsageService implements OnModuleInit {
         total_latency_ms BIGINT NOT NULL DEFAULT 0,
         total_tokens BIGINT NOT NULL DEFAULT 0,
         est_cost NUMERIC(16,6) NOT NULL DEFAULT 0,
+        last_call_at TIMESTAMPTZ NULL,
         PRIMARY KEY (institute_id, vertical, feature, day)
       );
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS success_count INT NOT NULL DEFAULT 0;
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS error_count INT NOT NULL DEFAULT 0;
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS total_latency_ms BIGINT NOT NULL DEFAULT 0;
+      ALTER TABLE ai_usage_daily ADD COLUMN IF NOT EXISTS last_call_at TIMESTAMPTZ NULL;
 
       CREATE TABLE IF NOT EXISTS ai_usage_quotas (
         institute_id UUID NOT NULL,
@@ -132,21 +137,33 @@ export class AiUsageService implements OnModuleInit {
     this.ready = true;
   }
 
+  private static readonly UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   /** Persist a usage event + upsert the daily rollup. Best-effort; never throws. */
   async record(ev: AiUsageEvent): Promise<void> {
     try {
       await this.ensureTables();
-      // Estimate cost when the caller didn't provide one (only for successful calls).
       if ((ev.estCost === undefined || ev.estCost === null) && ev.success) {
         ev.estCost = this.estimateCost(ev.provider, ev.totalTokens, ev.promptTokens, ev.completionTokens);
       }
+      if ((ev.totalTokens === undefined || ev.totalTokens === null) && ev.promptTokens != null && ev.completionTokens != null) {
+        ev.totalTokens = ev.promptTokens + ev.completionTokens;
+      }
+
+      // Only pass a valid UUID to the events table; invalid strings cause a PostgreSQL cast error.
+      const validUuid = ev.instituteId && AiUsageService.UUID_RE.test(ev.instituteId)
+        ? ev.instituteId : null;
+      if (ev.instituteId && !validUuid) {
+        this.logger.warn(`[record] non-UUID instituteId="${ev.instituteId}" feature=${ev.feature} — event stored with null institute_id, daily upsert skipped`);
+      }
+
       await this.ds.query(
         `INSERT INTO ai_usage_events
            (institute_id, vertical, feature, provider, model, success, status_code,
             latency_ms, prompt_tokens, completion_tokens, total_tokens, units, unit_type, est_cost)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [
-          ev.instituteId || null,
+          validUuid,
           ev.vertical || null,
           ev.feature,
           ev.provider || null,
@@ -163,35 +180,51 @@ export class AiUsageService implements OnModuleInit {
         ],
       );
 
-      // Daily rollup (only when we know the institute — quota/dashboards are per-institute).
-      if (ev.instituteId) {
-        await this.ds.query(
-          `INSERT INTO ai_usage_daily
-             (institute_id, vertical, feature, day, request_count, success_count, error_count, total_latency_ms, total_tokens, est_cost)
-           VALUES ($1,$2,$3,CURRENT_DATE,1,$4,$5,$6,$7,$8)
-           ON CONFLICT (institute_id, vertical, feature, day) DO UPDATE SET
-             request_count = ai_usage_daily.request_count + 1,
-             success_count = ai_usage_daily.success_count + $4,
-             error_count   = ai_usage_daily.error_count + $5,
-             total_latency_ms = ai_usage_daily.total_latency_ms + $6,
-             total_tokens  = ai_usage_daily.total_tokens + $7,
-             est_cost      = ai_usage_daily.est_cost + $8`,
-          [
-            ev.instituteId,
-            ev.vertical || 'coaching',
-            ev.feature,
-            ev.success ? 1 : 0,
-            ev.success ? 0 : 1,
-            ev.latencyMs ?? 0,
-            ev.totalTokens ?? 0,
-            ev.estCost ?? 0,
-          ],
-        );
-        // Invalidate quota cache for this institute/feature so the next check is fresh.
-        this.quotaCache.delete(`${ev.instituteId}:${ev.vertical || 'coaching'}:${ev.feature}`);
+      if (validUuid) {
+        await this._upsertDaily({ ...ev, instituteId: validUuid });
+        this.logger.log(`[record] ok feature=${ev.feature} vertical=${ev.vertical} institute=${validUuid}`);
+        this.quotaCache.delete(`${validUuid}:${ev.vertical || 'coaching'}:${ev.feature}`);
       }
     } catch (err: any) {
-      this.logger.warn(`AI usage record failed: ${err?.message}`);
+      this.logger.error(`AI usage record failed: ${err?.message}`);
+    }
+  }
+
+  private async _upsertDaily(ev: AiUsageEvent, retry = true): Promise<void> {
+    try {
+      await this.ds.query(
+        `INSERT INTO ai_usage_daily
+           (institute_id, vertical, feature, day, request_count, success_count, error_count, total_latency_ms, total_tokens, est_cost, last_call_at)
+         VALUES ($1,$2,$3,CURRENT_DATE,1,$4,$5,$6,$7,$8,NOW())
+         ON CONFLICT (institute_id, vertical, feature, day) DO UPDATE SET
+           request_count = ai_usage_daily.request_count + 1,
+           success_count = ai_usage_daily.success_count + $4,
+           error_count   = ai_usage_daily.error_count + $5,
+           total_latency_ms = ai_usage_daily.total_latency_ms + $6,
+           total_tokens  = ai_usage_daily.total_tokens + $7,
+           est_cost      = ai_usage_daily.est_cost + $8,
+           last_call_at  = NOW()`,
+        [
+          ev.instituteId,
+          ev.vertical || 'coaching',
+          ev.feature,
+          ev.success ? 1 : 0,
+          ev.success ? 0 : 1,
+          ev.latencyMs ?? 0,
+          ev.totalTokens ?? 0,
+          ev.estCost ?? 0,
+        ],
+      );
+    } catch (err: any) {
+      // If the error is a missing column, the table schema is stale — reset and re-migrate.
+      if (retry && err?.message?.includes('column')) {
+        this.logger.warn(`[record] daily upsert schema mismatch — re-running ensureTables: ${err.message}`);
+        this.ready = false;
+        await this.ensureTables();
+        await this._upsertDaily(ev, false);
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -347,8 +380,17 @@ export class AiUsageService implements OnModuleInit {
     const rows = await this.ds.query(
       `SELECT institute_id, vertical,
               SUM(request_count)::int AS requests,
+              SUM(success_count)::int AS success,
+              SUM(error_count)::int AS errors,
               SUM(total_tokens)::bigint AS tokens,
-              SUM(est_cost)::numeric AS cost
+              SUM(est_cost)::numeric AS cost,
+              CASE WHEN SUM(request_count) > 0
+                   THEN ROUND(100.0 * SUM(success_count) / SUM(request_count))
+                   ELSE 100 END AS success_rate,
+              CASE WHEN SUM(request_count) > 0
+                   THEN ROUND(SUM(total_latency_ms)::numeric / SUM(request_count))
+                   ELSE 0 END AS avg_latency_ms,
+              MAX(last_call_at) AS last_call_at
        FROM ai_usage_daily${where}
        GROUP BY institute_id, vertical ORDER BY requests DESC`,
       params,
@@ -372,7 +414,8 @@ export class AiUsageService implements OnModuleInit {
               feature,
               SUM(request_count)::int AS requests,
               SUM(total_tokens)::bigint AS tokens,
-              SUM(est_cost)::numeric AS cost
+              SUM(est_cost)::numeric AS cost,
+              MAX(last_call_at) AS last_call_at
        FROM ai_usage_daily${sql}
        GROUP BY TO_CHAR(day, 'YYYY-MM'), institute_id, vertical, feature
        ORDER BY month DESC, institute_id ASC, cost DESC`,
@@ -449,5 +492,60 @@ export class AiUsageService implements OnModuleInit {
     );
     this.quotaCache.clear();
     return { success: true };
+  }
+
+  /** Super-admin diagnostic: schema state + recent rows + write-test. */
+  async debugState() {
+    const result: Record<string, any> = { ready: this.ready };
+
+    // 1. Check coaching DB connectivity
+    try {
+      await this.ds.query(`SELECT 1`);
+      result.dbConnected = true;
+    } catch (e: any) {
+      result.dbConnected = false;
+      result.dbError = e?.message;
+      return result;
+    }
+
+    // 2. Schema columns
+    try {
+      result.columns = await this.ds.query(
+        `SELECT column_name, data_type FROM information_schema.columns
+         WHERE table_name = 'ai_usage_daily' ORDER BY ordinal_position`,
+      );
+    } catch (e: any) { result.columnsError = e?.message; }
+
+    // 3. Recent daily rows
+    try {
+      result.recentDaily = await this.ds.query(
+        `SELECT institute_id, vertical, feature, day, request_count FROM ai_usage_daily
+         ORDER BY day DESC, request_count DESC LIMIT 10`,
+      );
+    } catch (e: any) { result.recentDailyError = e?.message; }
+
+    // 4. Recent raw events
+    try {
+      result.recentEvents = await this.ds.query(
+        `SELECT institute_id, vertical, feature, success, created_at FROM ai_usage_events
+         ORDER BY created_at DESC LIMIT 10`,
+      );
+    } catch (e: any) { result.recentEventsError = e?.message; }
+
+    // 5. Write-test: insert a test event and immediately delete it
+    try {
+      await this.ds.query(
+        `INSERT INTO ai_usage_events (feature, success) VALUES ('__debug_test__', true)`,
+      );
+      await this.ds.query(
+        `DELETE FROM ai_usage_events WHERE feature = '__debug_test__'`,
+      );
+      result.writeTest = 'ok';
+    } catch (e: any) {
+      result.writeTest = 'FAILED';
+      result.writeTestError = e?.message;
+    }
+
+    return result;
   }
 }

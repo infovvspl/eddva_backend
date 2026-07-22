@@ -39,6 +39,7 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
 import { SchoolGamificationModule } from './gamification/gamification.module';
 import { SchoolSecurityModule } from './security/school-security.module';
 import { RecordingHighlightModule } from './recording-highlight/recording-highlight.module';
+import { SchoolNotificationFcmModule } from './notification-fcm/school-notification-fcm.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { RecordingHighlightModule } from './recording-highlight/recording-highli
     SchoolGamificationModule,
     SchoolSecurityModule,
     RecordingHighlightModule,
+    SchoolNotificationFcmModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
   providers: [SchoolJwtGuard, SchoolRolesGuard],

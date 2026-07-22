@@ -5,6 +5,8 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { SchoolChatGateway } from '../school/chat/school-chat.gateway';
 import { NotificationService } from '../notification/notification.service';
+import { CoachingChatGateway } from '../coaching-chat/coaching-chat.gateway';
+import { EnrollmentStatusService } from '../batch/enrollment-status.service';
 
 const LEGACY_VIRTUAL_SUPER_ADMIN_ID = 'demo-super-admin';
 const VIRTUAL_SUPER_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
@@ -22,24 +24,29 @@ export class CoachingChatService implements OnModuleInit {
   constructor(
     @InjectDataSource('coaching') private readonly ds: DataSource,
     private readonly gateway: SchoolChatGateway,
+    private readonly newGateway: CoachingChatGateway,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly enrollmentStatusService: EnrollmentStatusService,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   private chatActorIds(user: any): string[] {
     const ids = new Set<string>();
-    const id = String(user?.id || '').trim();
-    if (id) ids.add(id);
+    // For Super Admin we only keep the virtual IDs (canonical support user)
     if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN') {
       ids.add(VIRTUAL_SUPER_ADMIN_ID);
       ids.add(LEGACY_VIRTUAL_SUPER_ADMIN_ID);
+    } else {
+      const id = String(user?.id || '').trim();
+      if (id) ids.add(id);
     }
     return Array.from(ids);
   }
 
   private chatUserId(user: any): string {
     const id = String(user?.id || '').trim();
-    if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN' && !this.isUuid(id)) {
+    // Any Super Admin (real UUID or token) is normalized to the virtual support ID
+    if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN') {
       return VIRTUAL_SUPER_ADMIN_ID;
     }
     return id;
@@ -52,6 +59,85 @@ export class CoachingChatService implements OnModuleInit {
 
   private isUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  private async resolveToVirtualIfSuperAdmin(userId: string): Promise<string> {
+    const normalized = this.normalizeChatUserId(userId);
+    if ([VIRTUAL_SUPER_ADMIN_ID, LEGACY_VIRTUAL_SUPER_ADMIN_ID].includes(normalized)) {
+      return normalized;
+    }
+    if (this.isUuid(normalized)) {
+      const users = await this.ds.query(`SELECT role FROM users WHERE id = $1`, [normalized]);
+      if (users.length && String(users[0].role).toUpperCase() === 'SUPER_ADMIN') {
+        return VIRTUAL_SUPER_ADMIN_ID;
+      }
+    }
+    return normalized;
+  }
+
+  private async getCanonicalDmRoom(actorIds: string[], targetPeerIds: string[]): Promise<string | null> {
+    // ----------------------------------------------------------------------
+    // 1️⃣ Primary lookup – both participants already exist in chat_participants
+    // ----------------------------------------------------------------------
+    const rooms = await this.ds.query(
+      `
+        SELECT cr.id AS room_id,
+               (SELECT MAX(created_at) FROM chat_messages WHERE room_id::text = cr.id::text) as last_activity
+        FROM chat_rooms cr
+        JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text
+        JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text
+        WHERE cr.room_type = 'DM'
+          AND cp1.user_id::text = ANY($1::text[])
+          AND cp2.user_id::text = ANY($2::text[])
+        ORDER BY last_activity DESC NULLS LAST, cr.created_at DESC
+        LIMIT 1`
+      ,
+      [actorIds, targetPeerIds],
+    );
+    if (rooms.length) {
+      return rooms[0].room_id;
+    }
+
+    // ----------------------------------------------------------------------
+    // 2️⃣ Fallback lookup – a DM room exists (messages exchanged) but one
+    //    or both participants are missing from chat_participants.
+    // ----------------------------------------------------------------------
+    const fallback = await this.ds.query(
+      `
+        SELECT cr.id AS room_id
+        FROM chat_rooms cr
+        JOIN chat_messages cm ON cm.room_id::text = cr.id::text
+        WHERE cr.room_type = 'DM'
+          AND (
+            (cm.sender_id::text = ANY($1::text[]) AND cm.receiver_id::text = ANY($2::text[]))
+            OR
+            (cm.sender_id::text = ANY($2::text[]) AND cm.receiver_id::text = ANY($1::text[]))
+          )
+        LIMIT 1`,
+      [actorIds, targetPeerIds],
+    );
+    if (!fallback.length) {
+      return null;
+    }
+    const roomId = fallback[0].room_id;
+
+    // ----------------------------------------------------------------------
+    // 3️⃣ Insert missing participant rows – **only** the canonical IDs.
+    // ----------------------------------------------------------------------
+    const canonicalSenderId = actorIds.includes(VIRTUAL_SUPER_ADMIN_ID) ? VIRTUAL_SUPER_ADMIN_ID : actorIds[0];
+    const canonicalPeerId = targetPeerIds.includes(VIRTUAL_SUPER_ADMIN_ID) ? VIRTUAL_SUPER_ADMIN_ID : targetPeerIds[0];
+    const existing = await this.ds.query(
+      `SELECT user_id FROM chat_participants WHERE room_id = $1 AND user_id = ANY($2::text[])`,
+      [roomId, [canonicalSenderId, canonicalPeerId]],
+    );
+    const present = existing.map((r: any) => r.user_id);
+    const missing: string[] = [];
+    if (!present.includes(canonicalSenderId)) missing.push(canonicalSenderId);
+    if (!present.includes(canonicalPeerId)) missing.push(canonicalPeerId);
+    for (const missId of missing) {
+      await this.ds.query(`INSERT INTO chat_participants (room_id, user_id) VALUES ($1, $2)`, [roomId, missId]);
+    }
+    return roomId;
   }
 
   async onModuleInit() {
@@ -112,55 +198,79 @@ export class CoachingChatService implements OnModuleInit {
     }
   }
 
+  private async isStudentGated(user: any): Promise<boolean> {
+    if (String(user?.role || '').toLowerCase() === 'student') {
+      const row = await this.ds.query(`SELECT id FROM students WHERE user_id = $1 LIMIT 1`, [user?.id]);
+      if (row.length > 0) {
+        const hasEnrollment = await this.enrollmentStatusService.hasActiveEnrollment(row[0].id);
+        return !hasEnrollment;
+      }
+      return true;
+    }
+    return false;
+  }
+
   async getConversations(user: any, query: any) {
+    if (await this.isStudentGated(user)) {
+      return [];
+    }
     const role = query.role || 'TEACHER';
     const crossInstitute =
       String(user.role).toUpperCase() === 'SUPER_ADMIN' || role.toUpperCase() === 'SUPER_ADMIN';
     const actorIds = this.chatActorIds(user);
-    
+
     const rows: any[] = await this.ds.query(
       crossInstitute
-        ? `SELECT
-            cr.id AS room_id,
-            cr.room_type AS room_type,
-            cr.created_at,
-            cp2.user_id AS peer_id,
-            COALESCE(peer.full_name, 'Platform Admin') AS peer_name,
-            COALESCE(peer.email, '') AS peer_email,
-            COALESCE(peer.role::text, $1) AS peer_role,
-            t.name AS peer_institute_name,
-            (SELECT text FROM chat_messages WHERE room_id::text = cr.id::text ORDER BY created_at DESC LIMIT 1) AS last_message,
-            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id::text = cr.id::text AND receiver_id::text = ANY($2::text[]) AND is_read IS NOT TRUE) AS unread_count
-          FROM chat_rooms cr
-          JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text AND cp1.user_id::text = ANY($2::text[])
-          JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text AND cp2.user_id::text != ALL($2::text[])
-          LEFT JOIN users peer ON peer.id::text = cp2.user_id::text
-          LEFT JOIN tenants t ON t.id = peer.tenant_id
-          WHERE cr.room_type = 'DM' AND (LOWER(COALESCE(peer.role::text, $1)) = LOWER($1))
-          ORDER BY cr.created_at DESC`
-        : `SELECT
-            cr.id AS room_id,
-            cr.room_type AS room_type,
-            cr.created_at,
-            peer.id AS peer_id,
-            peer.full_name AS peer_name,
-            peer.email AS peer_email,
-            peer.role AS peer_role,
-            NULL AS peer_institute_name,
-            (SELECT text FROM chat_messages WHERE room_id::text = cr.id::text ORDER BY created_at DESC LIMIT 1) AS last_message,
-            (SELECT COUNT(*)::int FROM chat_messages WHERE room_id::text = cr.id::text AND receiver_id::text = $1::text AND is_read IS NOT TRUE) AS unread_count
-          FROM chat_rooms cr
-          JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text AND cp1.user_id::text = $1::text
-          JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text AND cp2.user_id::text != $1::text
-          JOIN users peer ON peer.id::text = cp2.user_id::text
-          WHERE cr.room_type = 'DM' AND LOWER(peer.role::text) = LOWER($2) AND peer.tenant_id = $3
-          ORDER BY cr.created_at DESC`,
+        ? `WITH CanonicalRooms AS (
+            SELECT DISTINCT ON (cp2.user_id)
+              cr.id AS room_id,
+              cr.room_type AS room_type,
+              cr.created_at,
+              cp2.user_id AS peer_id,
+              COALESCE(peer.full_name, 'Platform Admin') AS peer_name,
+              COALESCE(peer.email, '') AS peer_email,
+              COALESCE(peer.role::text, $1) AS peer_role,
+              t.name AS peer_institute_name,
+              (SELECT text FROM chat_messages WHERE room_id::text = cr.id::text ORDER BY created_at DESC LIMIT 1) AS last_message,
+              (SELECT MAX(created_at) FROM chat_messages WHERE room_id::text = cr.id::text) as last_activity,
+              (SELECT COUNT(*)::int FROM chat_messages WHERE room_id::text = cr.id::text AND receiver_id::text = ANY($2::text[]) AND is_read IS NOT TRUE) AS unread_count
+            FROM chat_rooms cr
+            JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text AND cp1.user_id::text = ANY($2::text[])
+            JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text AND cp2.user_id::text != ALL($2::text[])
+            LEFT JOIN users peer ON peer.id::text = cp2.user_id::text
+            LEFT JOIN tenants t ON t.id = peer.tenant_id
+            WHERE cr.room_type = 'DM' AND (LOWER(COALESCE(peer.role::text, $1)) = LOWER($1))
+            ORDER BY cp2.user_id, last_activity DESC NULLS LAST, cr.created_at DESC
+          )
+          SELECT * FROM CanonicalRooms
+          ORDER BY COALESCE(last_activity, created_at) DESC`
+        : `WITH CanonicalRooms AS (
+            SELECT DISTINCT ON (peer.id)
+              cr.id AS room_id,
+              cr.room_type AS room_type,
+              cr.created_at,
+              peer.id AS peer_id,
+              peer.full_name AS peer_name,
+              peer.email AS peer_email,
+              peer.role AS peer_role,
+              NULL AS peer_institute_name,
+              (SELECT text FROM chat_messages WHERE room_id::text = cr.id::text ORDER BY created_at DESC LIMIT 1) AS last_message,
+              (SELECT MAX(created_at) FROM chat_messages WHERE room_id::text = cr.id::text) as last_activity,
+              (SELECT COUNT(*)::int FROM chat_messages WHERE room_id::text = cr.id::text AND receiver_id::text = $1::text AND is_read IS NOT TRUE) AS unread_count
+            FROM chat_rooms cr
+            JOIN chat_participants cp1 ON cp1.room_id::text = cr.id::text AND cp1.user_id::text = $1::text
+            JOIN chat_participants cp2 ON cp2.room_id::text = cr.id::text AND cp2.user_id::text != $1::text
+            JOIN users peer ON peer.id::text = cp2.user_id::text
+            WHERE cr.room_type = 'DM' AND LOWER(peer.role::text) = LOWER($2) AND peer.tenant_id = $3
+            ORDER BY peer.id, last_activity DESC NULLS LAST, cr.created_at DESC
+          )
+          SELECT * FROM CanonicalRooms
+          ORDER BY COALESCE(last_activity, created_at) DESC`,
       crossInstitute ? [role, actorIds] : [user.id, role, user.tenantId],
     );
 
-    const isTeacher = user.role === 'TEACHER';
     const mapped = rows.map(r => ({
-      id: isTeacher ? r.room_id : r.peer_id,
+      id: r.peer_id,
       room_id: r.room_id,
       peer_id: r.peer_id,
       name: r.peer_name,
@@ -177,7 +287,7 @@ export class CoachingChatService implements OnModuleInit {
       const pRaw = await this.cacheManager.get(`presence:${r.peer_id}`);
       let presence = { status: 'offline', lastSeen: null };
       if (pRaw) {
-        try { presence = JSON.parse(pRaw as string); } catch {}
+        try { presence = JSON.parse(pRaw as string); } catch { }
       }
       return {
         ...r,
@@ -190,39 +300,80 @@ export class CoachingChatService implements OnModuleInit {
   }
 
   async getUsers(user: any, query: any) {
+    if (await this.isStudentGated(user)) {
+      return { success: true, data: [] };
+    }
     const tenantId = user.tenantId;
     const targetRole = query.role || 'TEACHER';
+    const q = query.q || '';
 
     let sql = '';
     const params: any[] = [];
 
     if (targetRole.toUpperCase() === 'SUPER_ADMIN') {
-      sql = `SELECT u.id, u.full_name AS name, u.email, u.role, u.profile_picture_url AS profile_image, 'Platform' AS institute_name 
-             FROM users u 
-             WHERE LOWER(u.role::text) = 'super_admin' AND u.status = 'active'`;
+      let match = true;
+      if (q) {
+        const searchStr = q.toLowerCase();
+        match = VIRTUAL_SUPER_ADMIN_CONTACT.name.toLowerCase().includes(searchStr) || 
+                VIRTUAL_SUPER_ADMIN_CONTACT.email.toLowerCase().includes(searchStr);
+      }
+      const rows = match ? [{ ...VIRTUAL_SUPER_ADMIN_CONTACT }] : [];
+      
+      const rowsWithPresence = await Promise.all(rows.map(async (r) => {
+        const pRaw = await this.cacheManager.get(`presence:${r.id}`);
+        let presence = { status: 'offline', lastSeen: null };
+        if (pRaw) {
+          try { presence = JSON.parse(pRaw as string); } catch { }
+        }
+        return {
+          ...r,
+          online: presence.status === 'online',
+          lastSeen: presence.lastSeen,
+        };
+      }));
+      return { success: true, data: rowsWithPresence };
     } else if (String(user.role).toUpperCase() === 'SUPER_ADMIN' && targetRole.toUpperCase() === 'INSTITUTE_ADMIN') {
       sql = `SELECT u.id, u.full_name AS name, u.email, u.role, u.profile_picture_url AS profile_image, t.name AS institute_name
              FROM users u 
              LEFT JOIN tenants t ON t.id = u.tenant_id
              WHERE LOWER(u.role::text) = 'institute_admin' AND u.status = 'active'`;
+      if (q) {
+        sql += ` AND (u.full_name ILIKE $1 OR u.email ILIKE $1 OR t.name ILIKE $1)`;
+        params.push(`%${q}%`);
+      }
     } else {
       sql = `SELECT id, full_name AS name, email, role, profile_picture_url AS profile_image 
-             FROM users 
+             FROM users u
              WHERE tenant_id = $1 AND LOWER(role::text) = LOWER($2) AND status = 'active'`;
       params.push(tenantId, targetRole);
+
+      const reqRole = (user.role || '').toUpperCase();
+      const tgtRole = targetRole.toUpperCase();
+
+      if (reqRole === 'TEACHER' && tgtRole === 'STUDENT') {
+        params.push(user.id);
+        sql += ` AND ${this.getSharedBatchConditionSql(`$${params.length}`, 'u.id')}`;
+      } else if (reqRole === 'STUDENT' && tgtRole === 'TEACHER') {
+        params.push(user.id);
+        sql += ` AND ${this.getSharedBatchConditionSql('u.id', `$${params.length}`)}`;
+      } else if ((reqRole === 'TEACHER' && tgtRole === 'TEACHER') || (reqRole === 'STUDENT' && tgtRole === 'STUDENT')) {
+        sql += ` AND 1=0`;
+      }
+
+      if (q) {
+        params.push(`%${q}%`);
+        sql += ` AND (full_name ILIKE $${params.length} OR email ILIKE $${params.length})`;
+      }
     }
     sql += ` ORDER BY name ASC`;
 
     const rows = await this.ds.query(sql, params);
-    if (targetRole.toUpperCase() === 'SUPER_ADMIN' && rows.length === 0) {
-      rows.push(VIRTUAL_SUPER_ADMIN_CONTACT);
-    }
 
     const rowsWithPresence = await Promise.all(rows.map(async (r) => {
       const pRaw = await this.cacheManager.get(`presence:${r.id}`);
       let presence = { status: 'offline', lastSeen: null };
       if (pRaw) {
-        try { presence = JSON.parse(pRaw as string); } catch {}
+        try { presence = JSON.parse(pRaw as string); } catch { }
       }
       return {
         ...r,
@@ -235,33 +386,49 @@ export class CoachingChatService implements OnModuleInit {
   }
 
   async getMessagesByPeer(user: any, peerId: string) {
-    const actorIds = this.chatActorIds(user);
-    const normalizedPeerId = this.normalizeChatUserId(peerId);
-    const rooms = await this.ds.query(
-      `SELECT cp1.room_id FROM chat_participants cp1
-       JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
-       JOIN chat_rooms cr ON cr.id::text = cp1.room_id::text
-       WHERE cr.room_type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = $2::text`,
-      [actorIds, normalizedPeerId]
-    );
-    if (!rooms.length) {
+    if (await this.isStudentGated(user)) {
       return { success: true, data: [] };
     }
-    return this.getMessages(rooms[0].room_id);
+    const actorIds = this.chatActorIds(user);
+    const rawPeerId = this.normalizeChatUserId(peerId);
+    const normalizedPeerId = await this.resolveToVirtualIfSuperAdmin(peerId);
+    const canonicalSenderId = this.chatUserId(user); // canonical ID for Super Admin or regular user
+    const targetPeerIds = [normalizedPeerId];
+    if (rawPeerId !== normalizedPeerId) targetPeerIds.push(rawPeerId);
+
+    // ---- Safety check: ensure both participants exist in the DM room ----
+    const roomId = await this.getCanonicalDmRoom(actorIds, targetPeerIds);
+
+    if (roomId) {
+
+      // Ensure both canonical participants are present
+      const participants = await this.ds.query(
+        `SELECT user_id FROM chat_participants WHERE room_id = $1 AND user_id = ANY($2::text[])`,
+        [roomId, [canonicalSenderId, normalizedPeerId]],
+      );
+      const presentIds = participants.map((r: any) => r.user_id);
+      if (!presentIds.includes(canonicalSenderId)) {
+        await this.ds.query(`INSERT INTO chat_participants (room_id,user_id) VALUES ($1,$2)`, [roomId, canonicalSenderId]);
+      }
+      if (!presentIds.includes(normalizedPeerId)) {
+        await this.ds.query(`INSERT INTO chat_participants (room_id,user_id) VALUES ($1,$2)`, [roomId, normalizedPeerId]);
+      }
+      return this.getMessages(roomId);
+    }
+
+    // No room found – return empty list (unchanged behaviour)
+    return { success: true, data: [] };
   }
 
   async markRead(user: any, peerId: string) {
     const actorIds = this.chatActorIds(user);
-    const normalizedPeerId = this.normalizeChatUserId(peerId);
-    const rooms = await this.ds.query(
-      `SELECT cp1.room_id FROM chat_participants cp1
-       JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
-       JOIN chat_rooms cr ON cr.id::text = cp1.room_id::text
-       WHERE cr.room_type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = $2::text`,
-      [actorIds, normalizedPeerId]
-    );
-    if (rooms.length) {
-      const roomId = rooms[0].room_id;
+    const rawPeerId = this.normalizeChatUserId(peerId);
+    const normalizedPeerId = await this.resolveToVirtualIfSuperAdmin(peerId);
+    const targetPeerIds = [normalizedPeerId];
+    if (rawPeerId !== normalizedPeerId) targetPeerIds.push(rawPeerId);
+
+    const roomId = await this.getCanonicalDmRoom(actorIds, targetPeerIds);
+    if (roomId) {
       await this.ds.query(
         `UPDATE chat_messages SET is_read = true, is_delivered = true WHERE room_id = $1 AND receiver_id::text = ANY($2::text[]) AND is_read IS NOT TRUE`,
         [roomId, actorIds]
@@ -275,7 +442,11 @@ export class CoachingChatService implements OnModuleInit {
     return { success: true };
   }
 
-  async listRooms(tenantId: string) {
+  async listRooms(userOrTenantId: any) {
+    if (typeof userOrTenantId === 'object' && await this.isStudentGated(userOrTenantId)) {
+      return { success: true, data: [] };
+    }
+    const tenantId = typeof userOrTenantId === 'object' ? userOrTenantId.tenantId : userOrTenantId;
     const rows: any[] = await this.ds.query(
       `SELECT cr.*,COUNT(cp.user_id)::int AS participant_count FROM chat_rooms cr LEFT JOIN chat_participants cp ON cp.room_id::text=cr.id::text WHERE cr.institute_id=$1 GROUP BY cr.id ORDER BY cr.created_at DESC`,
       [tenantId],
@@ -311,9 +482,64 @@ export class CoachingChatService implements OnModuleInit {
     return { success: true, data: rows.map((r) => ({ ...r, content: r.text })) };
   }
 
+  private getSharedBatchConditionSql(teacherParam: string, studentUserIdColumn: string): string {
+    return `
+      EXISTS (
+        SELECT 1
+        FROM enrollments e
+        JOIN students s ON s.id = e.student_id
+        JOIN batches b ON b.id = e.batch_id
+        LEFT JOIN batch_subject_teachers bst ON bst.batch_id = b.id AND bst.teacher_id = ${teacherParam}
+        WHERE s.user_id = ${studentUserIdColumn}
+          AND e.status = 'active'
+          AND (b.teacher_id = ${teacherParam} OR bst.teacher_id IS NOT NULL)
+      )
+    `;
+  }
+
+  private async assertCanMessage(
+    senderId: string, senderRole: string, senderTenantId: string,
+    receiverId: string, receiverRole: string, receiverTenantId: string
+  ) {
+    const sRole = (senderRole || '').toUpperCase();
+    const rRole = (receiverRole || '').toUpperCase();
+
+    if ((sRole === 'SUPER_ADMIN' && rRole === 'INSTITUTE_ADMIN') ||
+      (sRole === 'INSTITUTE_ADMIN' && rRole === 'SUPER_ADMIN')) {
+      return;
+    }
+
+    if (String(senderTenantId) !== String(receiverTenantId)) {
+      throw new ForbiddenException('Cross-institute messaging is not allowed');
+    }
+
+    if ((sRole === 'INSTITUTE_ADMIN' && (rRole === 'TEACHER' || rRole === 'STUDENT')) ||
+      (rRole === 'INSTITUTE_ADMIN' && (sRole === 'TEACHER' || sRole === 'STUDENT'))) {
+      return;
+    }
+
+    if ((sRole === 'TEACHER' && rRole === 'STUDENT') ||
+      (sRole === 'STUDENT' && rRole === 'TEACHER')) {
+      const teacherUserId = sRole === 'TEACHER' ? senderId : receiverId;
+      const studentUserId = sRole === 'STUDENT' ? senderId : receiverId;
+
+      const condition = this.getSharedBatchConditionSql('$1', '$2');
+      const rows = await this.ds.query(`
+        SELECT 1 WHERE ${condition}
+      `, [teacherUserId, studentUserId]);
+
+      if (rows.length > 0) {
+        return;
+      }
+      throw new ForbiddenException('You can only message students/teachers who share an active batch with you');
+    }
+
+    throw new ForbiddenException('Messaging between these roles is not allowed');
+  }
+
   async sendMessage(user: any, body: any) {
     let roomId = body.roomId;
-    let receiverId = this.normalizeChatUserId(body.receiverId);
+    let receiverId = body.receiverId ? await this.resolveToVirtualIfSuperAdmin(body.receiverId) : null;
     const text = body.content || body.text;
     const senderId = this.chatUserId(user);
     const actorIds = this.chatActorIds(user);
@@ -323,17 +549,61 @@ export class CoachingChatService implements OnModuleInit {
     const attachmentUrl = body.attachmentUrl || null;
     const attachmentName = body.attachmentName || null;
 
-    if (!roomId && receiverId) {
-      const rooms = await this.ds.query(
-        `SELECT cp1.room_id FROM chat_participants cp1
-         JOIN chat_participants cp2 ON cp1.room_id = cp2.room_id
-         JOIN chat_rooms cr ON cr.id::text = cp1.room_id::text
-         WHERE cr.room_type = 'DM' AND cp1.user_id::text = ANY($1::text[]) AND cp2.user_id::text = $2::text`,
-        [actorIds, receiverId]
+    if (!receiverId && roomId) {
+      const participants = await this.ds.query(
+        `SELECT user_id FROM chat_participants WHERE room_id=$1 AND user_id::text!=$2::text`,
+        [roomId, senderId]
       );
-      if (rooms.length) {
-        roomId = rooms[0].room_id;
-      } else {
+      if (participants.length) {
+        receiverId = await this.resolveToVirtualIfSuperAdmin(participants[0].user_id);
+      }
+    }
+
+    let rTenantId = null;
+    if (receiverId) {
+      let rRole = 'SUPER_ADMIN';
+      if (![VIRTUAL_SUPER_ADMIN_ID, LEGACY_VIRTUAL_SUPER_ADMIN_ID].includes(String(receiverId))) {
+        const receivers = await this.ds.query(`SELECT role, tenant_id FROM users WHERE id = $1`, [receiverId]);
+        if (!receivers.length) throw new ForbiddenException('Receiver not found');
+        rRole = receivers[0].role;
+        rTenantId = receivers[0].tenant_id;
+      }
+      await this.assertCanMessage(senderId, user.role, user.tenantId, receiverId, rRole, rTenantId);
+    }
+
+    if (!roomId && receiverId) {
+      const targetReceiverIds = [receiverId];
+      if (body.receiverId && receiverId !== body.receiverId) {
+         targetReceiverIds.push(this.normalizeChatUserId(body.receiverId));
+      }
+
+      const roomIdExisting = await this.getCanonicalDmRoom(actorIds, targetReceiverIds);
+      if (roomIdExisting) {
+          roomId = roomIdExisting;
+
+          // ---- Safety check: ensure BOTH canonical participants are present ----
+          // Fetch any existing participant rows for the identified room.
+          const existing = await this.ds.query(
+            `SELECT user_id FROM chat_participants WHERE room_id = $1 AND user_id = ANY($2::text[])`,
+            [roomId, [senderId, receiverId]]
+          );
+          const existingIds = existing.map((r: any) => r.user_id);
+          // Insert missing sender row
+          if (!existingIds.includes(senderId)) {
+            await this.ds.query(
+              `INSERT INTO chat_participants (room_id,user_id) VALUES ($1,$2)`,
+              [roomId, senderId]
+            );
+          }
+          // Insert missing receiver row
+          if (!existingIds.includes(receiverId)) {
+            await this.ds.query(
+              `INSERT INTO chat_participants (room_id,user_id) VALUES ($1,$2)`,
+              [roomId, receiverId]
+            );
+          }
+          // --------------------------------------------------------------------
+        } else {
         const newRooms = await this.ds.query(
           `INSERT INTO chat_rooms (room_type) VALUES ('DM') RETURNING id`,
         );
@@ -345,16 +615,6 @@ export class CoachingChatService implements OnModuleInit {
       }
     }
 
-    if (!receiverId && roomId) {
-      const participants = await this.ds.query(
-        `SELECT user_id FROM chat_participants WHERE room_id=$1 AND user_id::text!=$2::text`,
-        [roomId, senderId]
-      );
-      if (participants.length) {
-        receiverId = participants[0].user_id;
-      }
-    }
-
     let isDelivered = false;
     if (receiverId) {
       try {
@@ -363,7 +623,7 @@ export class CoachingChatService implements OnModuleInit {
           const presence = JSON.parse(pRaw as string);
           isDelivered = presence.status === 'online';
         }
-      } catch {}
+      } catch { }
     }
 
     const rows: any[] = await this.ds.query(
@@ -372,10 +632,10 @@ export class CoachingChatService implements OnModuleInit {
          parent_message_id, is_forwarded, attachment_url, attachment_name
        ) VALUES ($1, $2, $3, $4, false, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [
-        roomId, 
-        senderId, 
-        receiverId ? String(receiverId) : null, 
-        text, 
+        roomId,
+        senderId,
+        receiverId ? String(receiverId) : null,
+        text,
         isDelivered,
         user.tenantId ?? null,
         parentMessageId,
@@ -387,8 +647,16 @@ export class CoachingChatService implements OnModuleInit {
 
     const message = { ...rows[0], content: rows[0].text };
 
-    // Emit live event via gateway
+    // Emit live event via old gateway (legacy)
     this.gateway.emitDirectMessage(message);
+
+    // Emit live event via new secure gateway
+    this.newGateway.emitDirectMessage({
+      senderId: message.sender_id,
+      receiverId: message.receiver_id,
+      tenantId: rTenantId || message.tenant_id,
+      ...message
+    });
 
     // Integrate notification bells
     if (receiverId && ![VIRTUAL_SUPER_ADMIN_ID, LEGACY_VIRTUAL_SUPER_ADMIN_ID].includes(String(receiverId))) {

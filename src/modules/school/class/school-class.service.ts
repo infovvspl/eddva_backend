@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { ThumbnailService } from './thumbnail.service';
+import { R2Service } from '../../storage/r2.service';
 
 /**
  * Class recordings (uploaded recorded lectures) for the school vertical.
@@ -18,17 +19,17 @@ export class SchoolClassService implements OnModuleInit {
   private tableReady = false;
 
   private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly SERPER_URL = 'https://google.serper.dev/images';
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly s3Service: S3Service,
     private readonly aiBridgeService: AiBridgeService,
     private readonly thumbnailService: ThumbnailService,
+    private readonly r2Service: R2Service,
   ) {}
 
   async onModuleInit() {
-    void this.ensureTable().catch((err) => {
+    void this.ensureTable().then(() => this.migrateLiveRecordings()).catch((err) => {
       console.warn(`SchoolClassService init skipped: ${(err as Error).message}`);
     });
   }
@@ -72,6 +73,10 @@ export class SchoolClassService implements OnModuleInit {
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS video_size BIGINT`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS resolution VARCHAR(32)`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_source VARCHAR(16) DEFAULT 'auto'`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_status VARCHAR(16)`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_error TEXT`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_started_at TIMESTAMPTZ`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_completed_at TIMESTAMPTZ`);
 
     // Progress and In-Video Quiz Segment Responses tracking
     await this.ds.query(`
@@ -88,8 +93,40 @@ export class SchoolClassService implements OnModuleInit {
       );
       CREATE INDEX IF NOT EXISTS idx_class_rec_progress_student ON class_recording_progress(student_user_id);
       CREATE INDEX IF NOT EXISTS idx_class_rec_progress_recording ON class_recording_progress(recording_id);
+
+      DROP TABLE IF EXISTS school_student_lecture_notes;
+      ALTER TABLE class_recording_progress ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
     `);
     this.tableReady = true;
+  }
+
+  private async migrateLiveRecordings() {
+    try {
+      const res = await this.ds.query(`
+        INSERT INTO class_recordings (
+          institute_id, class_id, section_id, subject_id, teacher_user_id,
+          title, description, video_url, thumbnail_url,
+          source, recorded_date, duration, transcript_status, language, created_at
+        )
+        SELECT
+          l.institute_id, l.class_id, l.section_id, l.subject_id, l.teacher_id,
+          l.title, l.description, l.recording_url, l.thumbnail_url,
+          'live_stream', l.ended_at, l.recording_duration_seconds::varchar, NULL, 'en', l.ended_at
+        FROM school_live_lectures l
+        WHERE l.status IN ('PROCESSED', 'ENDED')
+          AND l.recording_url IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM class_recordings cr
+            WHERE cr.video_url = l.recording_url
+          )
+        RETURNING id, institute_id;
+      `);
+      if (res && res.length > 0) {
+        this.logger.log(`Migrated ${res.length} live lectures to class_recordings`);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Failed to migrate live recordings: ${err?.message}`);
+    }
   }
 
   private resolveInstituteId(user: any, override?: string): string {
@@ -197,6 +234,8 @@ export class SchoolClassService implements OnModuleInit {
              r.transcript, r.transcript_status, r.language, r.notes, r.notes_status,
              r.notes_images, r.quiz, r.quiz_status,
              r.video_size, r.resolution, r.thumbnail_source,
+             r.thumbnail_status, r.thumbnail_error, r.thumbnail_started_at, r.thumbnail_completed_at,
+             (SELECT id FROM school_live_lectures WHERE recording_url = r.video_url LIMIT 1) AS "lectureId",
              c.name AS class_name, sec.name AS section_name, s.name AS subject_name, u.name AS teacher_name,
              ch.name AS chapter_name, t.name AS topic_name,
              COALESCE(ch.sort_order, 0) AS chapter_sort_order,
@@ -233,6 +272,19 @@ export class SchoolClassService implements OnModuleInit {
     sql += ` ORDER BY r.created_at DESC`;
     const rows = await this.ds.query(sql, params);
     const data = await Promise.all(rows.map(async (row: any) => {
+      if (row.source === 'live_stream') {
+        try {
+          const [videoUrl, thumbnailUrl] = await Promise.all([
+            this.r2Service.getSignedUrl(this.r2Service.recordingsBucket, row.video_url, 3600),
+            row.thumbnail_url
+              ? this.r2Service.getSignedUrl(this.r2Service.recordingsBucket, row.thumbnail_url, 3600)
+              : Promise.resolve(null),
+          ]);
+          return { ...row, video_url: videoUrl, thumbnail_url: thumbnailUrl };
+        } catch (err: any) {
+          this.logger.warn(`Failed to sign live recording ${row.id}: ${err?.message}`);
+        }
+      }
       if (row.source === 'upload' && row.video_key) {
         try {
           return {
@@ -264,6 +316,20 @@ export class SchoolClassService implements OnModuleInit {
     const rec = rows[0];
     if (rec.source === 'youtube') {
       return { success: true, data: { videoUrl: rec.video_url, source: 'youtube' } };
+    }
+
+    if (rec.source === 'live_stream') {
+      return {
+        success: true,
+        data: {
+          videoUrl: await this.r2Service.getSignedUrl(
+            this.r2Service.recordingsBucket,
+            rec.video_url,
+            3600,
+          ),
+          source: 'live_stream',
+        },
+      };
     }
 
     let key = rec.video_key;
@@ -396,13 +462,11 @@ export class SchoolClassService implements OnModuleInit {
         throw new BadRequestException('You are not assigned to this class, section, and subject');
       }
     }
-    // Uploaded media gets auto-transcribed (Whisper/Sarvam). YouTube links don't (no media file).
-    const transcriptStatus = source === 'upload' ? 'pending' : null;
     const rows = await this.ds.query(
       `INSERT INTO class_recordings
          (institute_id, class_id, section_id, subject_id, chapter_id, topic_id, teacher_user_id, title, description,
           video_url, video_key, thumbnail_url, source, recorded_date, duration, transcript_status, language)
-       VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+       VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,null,$16)
        RETURNING *`,
       [
         instituteId,
@@ -420,19 +484,10 @@ export class SchoolClassService implements OnModuleInit {
         source,
         body.recordedDate ? new Date(body.recordedDate) : new Date(),
         body.duration || null,
-        transcriptStatus,
         language,
       ],
     );
     const recording = rows[0];
-
-    // Kick off background transcription for uploaded media (non-blocking).
-    // Odia routes through Sarvam STT inside the AI service; en/hi use Groq Whisper.
-    if (source === 'upload') {
-      this.processTranscription(recording.id, recording.video_url, effectiveTopicId || null, instituteId, language)
-        .catch((err) => this.logger.warn(`Transcription kickoff failed for ${recording.id}: ${err?.message}`));
-    }
-
     // Auto-generate thumbnail if none was manually provided (non-blocking).
     if (source === 'upload' && !body.thumbnailUrl) {
       this.processThumbnail(recording.id, recording.video_url, recording.video_key, instituteId)
@@ -440,6 +495,45 @@ export class SchoolClassService implements OnModuleInit {
     }
 
     return { success: true, data: recording };
+  }
+
+  /**
+   * Called by school-live.service when a live broadcast finishes processing.
+   * Inserts the live stream into class_recordings so it gets AI transcripts, notes, and analytics.
+   */
+  async createFromLiveBroadcast(lecture: any, data: { recordingUrl: string; thumbnailUrl: string; durationSeconds: number; recordingSizeGb: number }) {
+    await this.ensureTable();
+    try {
+      const existing = await this.ds.query(`SELECT id FROM class_recordings WHERE video_url = $1 LIMIT 1`, [data.recordingUrl]);
+      if (existing.length > 0) return;
+      const rows = await this.ds.query(
+        `INSERT INTO class_recordings
+           (institute_id, class_id, section_id, subject_id, teacher_user_id, title, description,
+            video_url, thumbnail_url, source, recorded_date, duration, transcript_status, language)
+         VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,null,$13)
+         RETURNING *`,
+        [
+          lecture.institute_id || lecture.instituteId,
+          lecture.class_id || lecture.classId || null,
+          lecture.section_id || lecture.sectionId || null,
+          lecture.subject_id || lecture.subjectId || null,
+          lecture.teacher_id || lecture.teacherId || lecture.teacher_user_id || lecture.teacherUserId || null,
+          lecture.title || 'Live Session',
+          lecture.description || null,
+          data.recordingUrl,
+          data.thumbnailUrl || null,
+          'live_stream',
+          lecture.ended_at || new Date(),
+          String(data.durationSeconds || 0),
+          'en'
+        ],
+      );
+      const recording = rows[0];
+      this.logger.log(`Live broadcast ${lecture.id} published to class_recordings as ${recording.id}`);
+
+    } catch (err: any) {
+      this.logger.warn(`Failed to create class_recording from live broadcast: ${err?.message}`);
+    }
   }
 
   /**
@@ -452,6 +546,15 @@ export class SchoolClassService implements OnModuleInit {
     videoKey: string | null,
     instituteId: string,
   ): Promise<void> {
+    await this.ds.query(
+      `UPDATE class_recordings
+       SET thumbnail_status = 'processing',
+           thumbnail_error = NULL,
+           thumbnail_started_at = NOW(),
+           thumbnail_completed_at = NULL
+       WHERE id = $1`,
+      [recordingId],
+    );
     try {
       // Use the S3 key for download if available (more reliable than presigned URL)
       const downloadUrl = videoKey
@@ -466,6 +569,14 @@ export class SchoolClassService implements OnModuleInit {
 
       if (!result) {
         this.logger.warn(`Thumbnail generation returned null for recording ${recordingId}`);
+        await this.ds.query(
+          `UPDATE class_recordings
+           SET thumbnail_status = 'failed',
+               thumbnail_error = 'Thumbnail generation did not return an image',
+               thumbnail_completed_at = NOW()
+           WHERE id = $1`,
+          [recordingId],
+        );
         return;
       }
 
@@ -497,14 +608,22 @@ export class SchoolClassService implements OnModuleInit {
       }
 
       if (sets.length > 0) {
-        await this.ds.query(
-          `UPDATE class_recordings SET ${sets.join(', ')} WHERE id = $1`,
-          params,
-        );
+        sets.push(`thumbnail_status = 'done'`);
+        sets.push(`thumbnail_error = NULL`);
+        sets.push(`thumbnail_completed_at = NOW()`);
+        await this.ds.query(`UPDATE class_recordings SET ${sets.join(', ')} WHERE id = $1`, params);
         this.logger.log(`Thumbnail + metadata saved for recording ${recordingId}`);
       }
     } catch (err: any) {
       this.logger.warn(`processThumbnail failed for ${recordingId}: ${err?.message}`);
+      await this.ds.query(
+        `UPDATE class_recordings
+         SET thumbnail_status = 'failed',
+             thumbnail_error = $2,
+             thumbnail_completed_at = NOW()
+         WHERE id = $1`,
+        [recordingId, String(err?.message || 'Thumbnail generation failed').slice(0, 1000)],
+      );
     }
   }
 
@@ -520,7 +639,13 @@ export class SchoolClassService implements OnModuleInit {
     if (!rows.length) throw new NotFoundException('Recording not found');
 
     await this.ds.query(
-      `UPDATE class_recordings SET thumbnail_url = $2, thumbnail_source = 'manual' WHERE id = $1`,
+      `UPDATE class_recordings
+       SET thumbnail_url = $2,
+           thumbnail_source = 'manual',
+           thumbnail_status = 'done',
+           thumbnail_error = NULL,
+           thumbnail_completed_at = NOW()
+       WHERE id = $1`,
       [id, body.thumbnailUrl.trim()],
     );
     return { success: true, message: 'Thumbnail updated' };
@@ -652,6 +777,36 @@ export class SchoolClassService implements OnModuleInit {
       })
       .catch((err) => this.logger.warn(`Re-generate notes images failed for ${id}: ${err?.message}`));
     return { success: true, message: 'Image enrichment started — refresh the page in 30 seconds' };
+  }
+
+  /**
+   * Notes images as base64 data URLs, keyed by their public S3 URL.
+   * The browser can't read S3 image pixels onto a canvas (no CORS on the
+   * bucket), so the PDF export fetches bytes through the server instead.
+   */
+  async getNotesImagesAsDataUrls(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT notes_images FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const imgs: Array<{ s3Url?: string }> = Array.isArray(rows[0].notes_images) ? rows[0].notes_images : [];
+    const images: Record<string, string> = {};
+    for (const img of imgs) {
+      if (!img?.s3Url) continue;
+      try {
+        const key = this.s3Service.keyFromUrl(img.s3Url);
+        const buffer = await this.s3Service.getBuffer(key);
+        const ext = key.split('.').pop()?.toLowerCase() ?? 'jpg';
+        const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        images[img.s3Url] = `data:${mime};base64,${buffer.toString('base64')}`;
+      } catch (err: any) {
+        this.logger.warn(`Notes image fetch failed for PDF export (${img.s3Url}): ${err?.message}`);
+      }
+    }
+    return { success: true, data: { images } };
   }
 
   // ── Image enrichment helpers ──────────────────────────────────────────────
@@ -1121,5 +1276,88 @@ export class SchoolClassService implements OnModuleInit {
         explanation: question.explanation || ''
       }
     };
+  }
+
+  async getStudentNotes(user: any, query: { lectureId?: string; recordingId?: string }) {
+    await this.ensureTable();
+    const studentUserId = user.id;
+    let lectureId = query.lectureId;
+
+    if (query.recordingId && !lectureId) {
+      const recs = await this.ds.query(
+        `SELECT (SELECT id FROM school_live_lectures WHERE recording_url = class_recordings.video_url LIMIT 1) AS "lectureId"
+         FROM class_recordings WHERE id = $1`,
+        [query.recordingId],
+      );
+      lectureId = recs[0]?.lectureId;
+    }
+
+    if (!lectureId) {
+      if (query.recordingId) {
+        const rows = await this.ds.query(
+          `SELECT notes FROM class_recording_progress WHERE student_user_id = $1 AND recording_id = $2 LIMIT 1`,
+          [studentUserId, query.recordingId],
+        );
+        return { success: true, notes: rows[0]?.notes || '' };
+      }
+      return { success: true, notes: '' };
+    }
+
+    const rows = await this.ds.query(
+      `SELECT notes FROM school_live_participants WHERE lecture_id = $1 AND user_id = $2 LIMIT 1`,
+      [lectureId, studentUserId],
+    );
+    return { success: true, notes: rows[0]?.notes || '' };
+  }
+
+  async saveStudentNotes(user: any, body: { lectureId?: string; recordingId?: string; notes: string }) {
+    await this.ensureTable();
+    const studentUserId = user.id;
+    const notes = body.notes || '';
+    let lectureId = body.lectureId;
+
+    if (body.recordingId && !lectureId) {
+      const recs = await this.ds.query(
+        `SELECT (SELECT id FROM school_live_lectures WHERE recording_url = class_recordings.video_url LIMIT 1) AS "lectureId"
+         FROM class_recordings WHERE id = $1`,
+        [body.recordingId],
+      );
+      lectureId = recs[0]?.lectureId;
+    }
+
+    if (!lectureId) {
+      if (body.recordingId) {
+        const progress = await this.ds.query(
+          `SELECT id FROM class_recording_progress WHERE student_user_id = $1 AND recording_id = $2 LIMIT 1`,
+          [studentUserId, body.recordingId],
+        );
+        if (progress.length) {
+          await this.ds.query(
+            `UPDATE class_recording_progress SET notes = $1, updated_at = NOW() WHERE student_user_id = $2 AND recording_id = $3`,
+            [notes, studentUserId, body.recordingId],
+          );
+        } else {
+          await this.ds.query(
+            `INSERT INTO class_recording_progress (student_user_id, recording_id, notes, watch_percentage, last_position_seconds)
+             VALUES ($1, $2, $3, 0, 0)`,
+            [studentUserId, body.recordingId, notes],
+          );
+        }
+      }
+      return { success: true, notes };
+    }
+
+    const nameResult = await this.ds.query(`SELECT name FROM users WHERE id = $1 LIMIT 1`, [studentUserId]);
+    const userName = nameResult[0]?.name || 'Student';
+
+    await this.ds.query(
+      `INSERT INTO school_live_participants (lecture_id, user_id, user_name, notes)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (lecture_id, user_id)
+       DO UPDATE SET notes = EXCLUDED.notes`,
+      [lectureId, studentUserId, userName, notes],
+    );
+
+    return { success: true, notes };
   }
 }

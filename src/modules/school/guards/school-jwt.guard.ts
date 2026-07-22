@@ -153,13 +153,26 @@ export class SchoolJwtGuard implements CanActivate {
         ? await loadStudentProfile(this.ds, row.id)
         : null;
 
+    // If the teacher's users.institute_id is null (e.g. created via registerUser which
+    // doesn't set institute_id), look it up from the teachers table as a fallback.
+    let resolvedInstituteId: string | null = row.institute_id || tokenInstituteId || null;
+    if (!resolvedInstituteId && String(row.role || '').toUpperCase() === 'TEACHER') {
+      try {
+        const tRows: any[] = await this.ds.query(
+          `SELECT institute_id FROM teachers WHERE user_id = $1 LIMIT 1`,
+          [row.id],
+        );
+        if (tRows[0]?.institute_id) resolvedInstituteId = tRows[0].institute_id;
+      } catch { /* non-fatal */ }
+    }
+
     const resolvedUser = {
       id: row.id,
       email: row.email,
       name: row.name,
       role: row.role,
       profile_image: row.profile_image,
-      instituteId: row.institute_id || tokenInstituteId,
+      instituteId: resolvedInstituteId,
       isActive: row.is_active,
       inst_ai_enabled: row.inst_ai_enabled,
       inst_ai_features: typeof row.inst_ai_features === 'string' ? JSON.parse(row.inst_ai_features) : row.inst_ai_features,

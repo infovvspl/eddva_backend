@@ -1,5 +1,5 @@
 import { Module, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TypeOrmModule } from '@nestjs/typeorm'; // restart trigger for RDS
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -90,6 +90,7 @@ import { GamificationModule } from './modules/gamification/gamification.module';
 import { InternalModule } from './modules/internal/internal.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { CoachingChatModule } from './modules/chat/chat.module';
+import { CoachingSupportTicketModule } from './modules/coaching-support-ticket/coaching-support-ticket.module';
 
 // ── School Module (all school sub-modules bundled) ────────────────────────────
 
@@ -251,6 +252,7 @@ const ALL_COACHING_ENTITIES = [
     AuditLogModule,
     TenantAiFeatureModule,
     CoachingChatModule,
+    CoachingSupportTicketModule,
 
     // ── School Module ─────────────────────────────────────────────────────────
     SchoolModule,

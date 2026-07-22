@@ -543,6 +543,14 @@ ${notes.slice(0, 4000)}`,
                 }
             }
 
+            // Ensure global subjects are always available to solve the chicken-and-egg assignment problem
+            for (const s of tenantSubjects) {
+                if (s.batchId === null) {
+                    const key = s.name.toLowerCase().trim();
+                    if (!byName.has(key)) byName.set(key, s);
+                }
+            }
+
             if (byName.size > 0) {
                 const subjectsResult = Array.from(byName.values()).sort(
                     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name),
@@ -1041,8 +1049,10 @@ ${notes.slice(0, 4000)}`,
 
         await this.validateBatchAccess(dto.batchId, userId, tenantId, isAdmin);
 
+        const normalizedVideoUrl = dto.videoUrl ? this._fixVideoUrl(dto.videoUrl.trim()) : dto.videoUrl;
+
         // Validate type-specific fields
-        if (dto.type === LectureType.RECORDED && !dto.videoUrl) {
+        if (dto.type === LectureType.RECORDED && !normalizedVideoUrl) {
             throw new BadRequestException('videoUrl is required for recorded lectures');
         }
         if (dto.type === LectureType.LIVE) {
@@ -1056,6 +1066,7 @@ ${notes.slice(0, 4000)}`,
 
         const lecture = this.lectureRepo.create({
             ...dto,
+            videoUrl: normalizedVideoUrl,
             lectureLanguage,
             transcriptLanguage: lectureLanguage,
             tenantId,
@@ -1063,14 +1074,15 @@ ${notes.slice(0, 4000)}`,
             status,
         });
         const saved = await this.lectureRepo.save(lecture);
+        await this.bustContentCache(lecture.tenantId);
 
-        if (dto.type === LectureType.RECORDED && dto.videoUrl) {
+        if (dto.type === LectureType.RECORDED && normalizedVideoUrl) {
             // Only run transcription / AI notes if the tenant has the STT feature
             void (async () => {
                 try {
                     const enabled = await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing');
                     if (enabled) {
-                        await this._processLectureAI(saved.id, dto.videoUrl, dto.topicId, tenantId);
+                        await this._processLectureAI(saved.id, normalizedVideoUrl, dto.topicId, tenantId);
                     } else {
                         // No AI: clear transcript status so the UI never shows a perpetual "pending"
                         await this.lectureRepo.update(saved.id, { transcriptStatus: null as any });
@@ -1167,6 +1179,7 @@ ${notes.slice(0, 4000)}`,
         lecture.quizCheckpoints = [];
 
         const saved = await this.lectureRepo.save(lecture);
+        await this.bustContentCache(lecture.tenantId);
 
         if (!wasPublished && saved.batchId && opts?.notifyStudents !== false) {
             this._notifyStudentsOnPublish(saved).catch(err =>
@@ -1375,14 +1388,44 @@ ${notes.slice(0, 4000)}`,
         if (!(await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing'))) {
             throw new ForbiddenException('AI transcription is not enabled for your institution.');
         }
-        if (lecture.type !== LectureType.RECORDED || !lecture.videoUrl) {
+
+        let videoUrl = lecture.videoUrl;
+        if (lecture.type === LectureType.LIVE) {
+            const rows = await this.dataSource.query(
+                `SELECT * FROM broadcast_lectures WHERE title = $1 AND batch_id = $2 AND institute_id = $3 AND status = 'PROCESSED' LIMIT 1`,
+                [lecture.title, lecture.batchId, tenantId]
+            );
+            const broadcast = rows[0];
+            if (!broadcast || !broadcast.recording_r2_path) {
+                throw new BadRequestException('Recording is not processed yet for this live stream');
+            }
+            // Sign the R2 path
+            const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
+            const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+            const client = new S3Client({
+                endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+                region: 'auto',
+                credentials: {
+                    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+                    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+                },
+                requestChecksumCalculation: 'WHEN_REQUIRED' as any,
+                responseChecksumValidation: 'WHEN_REQUIRED' as any,
+            });
+            const command = new GetObjectCommand({
+                Bucket: process.env.R2_RECORDINGS_BUCKET || 'edva-recordings',
+                Key: broadcast.recording_r2_path,
+            });
+            videoUrl = await getSignedUrl(client as any, command as any, { expiresIn: 14400 });
+        } else if (lecture.type !== LectureType.RECORDED || !videoUrl) {
             throw new BadRequestException('Only recorded lectures with a video URL can be transcribed');
         }
+
         if (lecture.transcriptStatus === TranscriptStatus.PROCESSING) {
             return { message: 'Transcription already in progress' };
         }
         await this.lectureRepo.update(id, { transcriptStatus: TranscriptStatus.PROCESSING });
-        this._processLectureAI(id, lecture.videoUrl, lecture.topicId, tenantId).catch(() => { });
+        this._processLectureAI(id, videoUrl, lecture.topicId, tenantId).catch(() => { });
         return { message: 'Transcription started' };
     }
 
@@ -1903,6 +1946,7 @@ ${notes.slice(0, 4000)}`,
         }
 
         const saved = await this.lectureRepo.save(lecture);
+        await this.bustContentCache(lecture.tenantId);
 
         // Fire in-app notifications to all enrolled students when a lecture is first published
         if (!wasPublished && saved.status === LectureStatus.PUBLISHED && saved.batchId) {
@@ -1961,6 +2005,7 @@ ${notes.slice(0, 4000)}`,
         }
 
         await this.lectureRepo.softDelete(id);
+        await this.bustContentCache(tenantId);
         return { message: 'Lecture deleted successfully' };
     }
 
@@ -1974,7 +2019,7 @@ ${notes.slice(0, 4000)}`,
     ): Promise<any> {
         this.logger.log(`Upserting progress for lecture ${lectureId}, user ${userId}`);
 
-        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId } });
+        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
         if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
 
         const student = await this.dataSource.getRepository(Student).findOne({ where: { userId } });
@@ -2198,7 +2243,7 @@ ${notes.slice(0, 4000)}`,
         userId: string,
         tenantId: string,
     ) {
-        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId } });
+        const lecture = await this.lectureRepo.findOne({ where: { id: lectureId, tenantId } });
         if (!lecture) throw new NotFoundException(`Lecture ${lectureId} not found`);
 
         const question = (lecture.quizCheckpoints ?? []).find((q) => q.id === dto.questionId);
@@ -3137,6 +3182,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             externalUrl: data.externalUrl ?? null,
         });
         const saved = await this.topicResourceRepo.save(resource);
+        await this.bustContentCache(tenantId);
         await this.mirrorTopicResourceToStudyMaterial(topicId, tenantId, data);
         this.notifyBatchStudentsOfNewResource(topic, data.title, tenantId).catch((err) => {
             this.logger.warn(`Failed to send resource notification: ${err.message}`);
@@ -3167,6 +3213,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
             ...data,
         });
         const saved = await this.topicResourceRepo.save(resource);
+        await this.bustContentCache(tenantId);
         this.notifyBatchStudentsOfNewResource(topic, data.title, tenantId).catch((err) => {
             this.logger.warn(`Failed to send resource notification: ${err.message}`);
         });
@@ -3192,7 +3239,9 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         if (!resource) throw new NotFoundException(`Resource ${resourceId} not found`);
 
         Object.assign(resource, data);
-        return this.topicResourceRepo.save(resource);
+        const saved = await this.topicResourceRepo.save(resource);
+        await this.bustContentCache(tenantId);
+        return saved;
     }
 
     async deleteTopicResource(resourceId: string, tenantId: string): Promise<{ message: string }> {
@@ -3200,6 +3249,7 @@ Write EVERYTHING above in full. Do not use placeholder text like "[explanation h
         if (!resource) throw new NotFoundException(`Resource ${resourceId} not found`);
 
         await this.topicResourceRepo.softDelete(resourceId);
+        await this.bustContentCache(tenantId);
         return { message: 'Resource deleted successfully' };
     }
 

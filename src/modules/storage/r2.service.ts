@@ -45,10 +45,12 @@ export class R2Service implements OnModuleInit {
     this.client = new S3Client({
       endpoint: `https://${cfg.accountId}.r2.cloudflarestorage.com`,
       region: 'auto',
-      credentials: {
-        accessKeyId: cfg.accessKeyId,
-        secretAccessKey: cfg.secretAccessKey,
-      },
+      ...(cfg.accessKeyId && cfg.secretAccessKey ? {
+        credentials: {
+          accessKeyId: cfg.accessKeyId,
+          secretAccessKey: cfg.secretAccessKey,
+        }
+      } : {}),
       // R2 doesn't support the CRC32 checksum header the v3 SDK adds by default.
       requestChecksumCalculation: 'WHEN_REQUIRED' as any,
       responseChecksumValidation: 'WHEN_REQUIRED' as any,
@@ -56,7 +58,12 @@ export class R2Service implements OnModuleInit {
   }
 
   /** Time-limited signed GET URL for a private object. */
-  getSignedUrl(bucket: string, key: string, expiresInSeconds: number): Promise<string> {
+  async getSignedUrl(bucket: string, key: string, expiresInSeconds: number): Promise<string> {
+    const cfg = this.config.get('storage.r2');
+    if (!cfg.accessKeyId || !cfg.secretAccessKey) {
+      this.logger.warn(`Skipping presign for ${key} because R2 credentials are not configured.`);
+      return `https://${this.cdnDomain || 'cdn.localhost'}/${key}`;
+    }
     const command = new GetObjectCommand({ Bucket: bucket, Key: key });
     return getSignedUrl(this.client as any, command as any, { expiresIn: expiresInSeconds });
   }

@@ -7,10 +7,12 @@ import { Lecture } from '../../database/entities/learning.entity';
 import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
 import { MockTest } from '../../database/entities/assessment.entity';
 import { LectureAssignment } from '../../database/entities/assignment.entity';
+import { Announcement } from '../../database/entities/announcement.entity';
 import { InstituteSettingsController } from './institute-settings.controller';
 import { AcademicCalendarController } from './academic-calendar.controller';
 import { InstituteSettingsService } from './institute-settings.service';
 import { CalendarFeedService } from './calendar-feed.service';
+import { BatchModule } from '../batch/batch.module';
 import { UploadModule } from '../upload/upload.module';
 import { NotificationModule } from '../notification/notification.module';
 
@@ -26,9 +28,11 @@ import { NotificationModule } from '../notification/notification.module';
       BatchSubjectTeacher,
       MockTest,
       LectureAssignment,
+      Announcement,
     ], 'coaching'),
     UploadModule,
     NotificationModule,
+    BatchModule,
   ],
   controllers: [InstituteSettingsController, AcademicCalendarController],
   providers: [InstituteSettingsService, CalendarFeedService],

@@ -103,18 +103,31 @@ export class StudentService {
 
     const pendingLectures = Number(pendingRow?.[0]?.cnt ?? 0);
     const testsAttempted = Number(testsRow?.[0]?.cnt ?? 0);
-    const recommendations = this.buildRecommendations(weakTopics, effectiveExamTarget);
+    const hasEnrollment = !!enrollment;
+    const recommendations = hasEnrollment ? this.buildRecommendations(weakTopics, effectiveExamTarget) : [];
+
+    const plan = await this.planRepo.findOne({ where: { studentId: student.id } });
+    const totalPlanCount = plan ? await this.planItemRepo.count({ where: { studyPlanId: plan.id } }) : 0;
+
+    const resolvedTodayPlan = hasEnrollment
+      ? todayPlan
+      : {
+          locked: true,
+          isPreview: true,
+          totalItems: totalPlanCount,
+          items: [],
+        };
 
     const dashboardData = {
       student,
-      predictedRank: profile?.predictedRank,
-      overallAccuracy: profile?.overallAccuracy ?? 0,
-      currentStreak: student.currentStreak,
-      xpTotal: student.xpTotal,
-      weakTopics,
-      todayPlan,
-      globalRank: globalRank?.rank,
-      globalPercentile: globalRank?.percentile,
+      predictedRank: hasEnrollment ? profile?.predictedRank : null,
+      overallAccuracy: hasEnrollment ? (profile?.overallAccuracy ?? 0) : 0,
+      currentStreak: hasEnrollment ? student.currentStreak : 0,
+      xpTotal: hasEnrollment ? student.xpTotal : 0,
+      weakTopics: hasEnrollment ? weakTopics : [],
+      todayPlan: resolvedTodayPlan,
+      globalRank: hasEnrollment ? globalRank?.rank : null,
+      globalPercentile: hasEnrollment ? globalRank?.percentile : null,
       pendingLectures,
       testsAttempted,
       recommendations,
@@ -875,7 +888,7 @@ export class StudentService {
 
   // ─── DISCOVER BATCHES (login modal) ──────────────────────────────────────────
 
-  async discoverBatches(userId: string, _tenantId: string) {
+  async discoverBatches(userId: string, tenantId: string) {
     const student = await this.studentRepo.findOne({ where: { userId } });
     if (!student) throw new NotFoundException('Student profile not found');
 
@@ -883,10 +896,11 @@ export class StudentService {
     const enrollments = await this.enrollmentRepo.find({ where: { studentId: student.id } });
     const enrolledBatchIds = enrollments.map(e => e.batchId);
 
-    // Query ALL active batches across ALL institutes (no tenantId filter)
+    // Only expose active batches belonging to the student's institute.
     const qb = this.batchRepo.createQueryBuilder('b')
       .leftJoinAndSelect('b.teacher', 'teacher')
-      .where('b.status = :status', { status: BatchStatus.ACTIVE })
+      .where('b.tenantId = :tenantId', { tenantId })
+      .andWhere('b.status = :status', { status: BatchStatus.ACTIVE })
       .andWhere('b.deleted_at IS NULL');
 
     // Exclude already enrolled

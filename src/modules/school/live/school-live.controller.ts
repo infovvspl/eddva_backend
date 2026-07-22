@@ -1,3 +1,4 @@
+import { SkipThrottle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -81,6 +82,23 @@ export class SchoolLiveController {
     return this.svc.getChatHistory(id, user, 500);
   }
 
+  @Get('lectures/:id/questions')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  questions(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getQuestions(id, user);
+  }
+
+  @Post('lectures/:id/questions/:questionId/answer')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  answerQuestion(
+    @SchoolUser() user: any,
+    @Param('id') id: string,
+    @Param('questionId') questionId: string,
+    @Body() dto: { answer: string },
+  ) {
+    return this.svc.saveAnswer(id, questionId, dto.answer, user);
+  }
+
   @Get('lectures/:id/participants/active')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   activeParticipants(@SchoolUser() user: any, @Param('id') id: string) {
@@ -90,7 +108,7 @@ export class SchoolLiveController {
   @Post('lectures/:id/hand')
   @SchoolRoles('STUDENT')
   hand(@SchoolUser() user: any, @Param('id') id: string, @Body() body: { raised?: boolean }) {
-    return this.svc.setHandRaised(id, user.id, !!body?.raised, user.name || 'Student').then(() => ({
+    return this.svc.setHandRaised(id, user.id, !!body?.raised, user.name || 'Student', user).then(() => ({
       raised: !!body?.raised,
     }));
   }
@@ -118,7 +136,7 @@ export class SchoolLiveController {
     @Param('id') id: string,
     @Param('pollId') pollId: string,
   ) {
-    return this.svc.endPoll(id, pollId);
+    return this.svc.endPoll(id, pollId, user);
   }
 
   @Get('lectures/:id/polls/active')
@@ -142,6 +160,20 @@ export class SchoolLiveController {
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   listPolls(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.listPolls(id, user);
+  }
+
+  // ── recordings ────────────────────────────────────────────────────────────
+
+  @Get('recordings')
+  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  listRecordings(@SchoolUser() user: any) {
+    return this.svc.listRecordings(user);
+  }
+
+  @Get('lectures/:id/recording-url')
+  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  recordingUrl(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getRecordingUrl(id, user);
   }
 }
 
@@ -171,7 +203,8 @@ export class SchoolLiveStreamHookController {
     @Query() query: any,
     @Body() body: any,
   ) {
-    this.assertSecret(headerSecret || query?.secret || body?.secret);
+    // Do NOT accept the secret from the query string — it would appear in nginx access logs.
+    this.assertSecret(headerSecret || body?.secret);
     const name = body?.name || query?.name;
     const allowed = await this.svc.validateStream(name);
     if (!allowed) throw new ForbiddenException('Stream not allowed');
@@ -185,7 +218,7 @@ export class SchoolLiveStreamHookController {
     @Query() query: any,
     @Body() body: any,
   ) {
-    this.assertSecret(headerSecret || query?.secret || body?.secret);
+    this.assertSecret(headerSecret || body?.secret);
     await this.svc.streamEnded(body?.name || query?.name);
     return { ok: true };
   }
@@ -197,6 +230,7 @@ export class SchoolLiveStreamHookController {
  * and the underlying R2 content is already public — we only add the CORS
  * headers R2's pub domain omits.
  */
+@SkipThrottle()
 @Controller('school/live')
 export class SchoolLiveHlsController {
   constructor(private readonly svc: SchoolLiveService) {}
@@ -208,6 +242,34 @@ export class SchoolLiveHlsController {
     @Res() res: Response,
   ) {
     const out = await this.svc.proxyHls(streamKey, file);
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', file.endsWith('.m3u8') ? 'no-cache' : 'public, max-age=10');
+    res.send(out.body);
+  }
+
+  @Get('hls480/:streamKey/:file')
+  async hls480(
+    @Param('streamKey') streamKey: string,
+    @Param('file') file: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.proxyHls(streamKey, file, '480');
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', file.endsWith('.m3u8') ? 'no-cache' : 'public, max-age=10');
+    res.send(out.body);
+  }
+
+  @Get('hls360/:streamKey/:file')
+  async hls360(
+    @Param('streamKey') streamKey: string,
+    @Param('file') file: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.proxyHls(streamKey, file, '360');
     if (!out) { res.status(404).end(); return; }
     res.setHeader('Content-Type', out.contentType);
     res.setHeader('Access-Control-Allow-Origin', '*');

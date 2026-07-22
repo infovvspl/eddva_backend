@@ -38,11 +38,19 @@ export class PlatformSuperAdminService {
   // â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async login(dto: PlatformLoginDto) {
+    const normalizedEmail = (dto.email || '').toLowerCase().trim();
     const user = await this.userRepo.findOne({
-      where: { email: dto.email, role: UserRole.SUPER_ADMIN },
+      where: { email: normalizedEmail, role: UserRole.SUPER_ADMIN },
     });
 
-    if (!user || !(await user.validatePassword(dto.password))) {
+    if (!user) {
+      this.logger.warn(`Super admin login failed: user not found for ${normalizedEmail}`);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const isValid = await user.validatePassword(dto.password);
+    if (!isValid) {
+      this.logger.warn(`Super admin login failed: password mismatch for ${normalizedEmail}`);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -50,7 +58,12 @@ export class PlatformSuperAdminService {
       throw new UnauthorizedException('Account suspended');
     }
 
-    const payload = { sub: user.id, tenantId: user.tenantId, role: user.role };
+    const payload = { 
+      sub: user.id, 
+      tenantId: user.tenantId, 
+      role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
+    };
     const token = await this.jwtService.signAsync(payload, {
       secret: this.configService.get('jwt.secret'),
       expiresIn: this.configService.get('jwt.expiresIn'),
@@ -91,8 +104,14 @@ export class PlatformSuperAdminService {
       this.dataSource.query(
         `SELECT COUNT(DISTINCT s.id)::int AS count
          FROM students s
-         LEFT JOIN tenants t ON t.id = s.tenant_id
-         WHERE s.deleted_at IS NULL AND (t.type != 'platform' OR t.id IS NULL)`
+         JOIN users u ON u.id = s.user_id AND u.deleted_at IS NULL
+         JOIN enrollments e ON e.student_id = s.id AND e.deleted_at IS NULL
+         JOIN batches b ON b.id = e.batch_id AND b.deleted_at IS NULL
+         JOIN tenants t ON t.id = e.tenant_id AND t.deleted_at IS NULL
+         WHERE s.deleted_at IS NULL
+           AND s.tenant_id = e.tenant_id
+           AND u.tenant_id = e.tenant_id
+           AND t.type != 'platform'`
       ).then(res => res[0]?.count || 0),
       this.userRepo
         .createQueryBuilder('u')
@@ -229,7 +248,7 @@ export class PlatformSuperAdminService {
 
   async getTenants(query: PlatformInstituteQueryDto) {
     const page  = Math.max(1, query.page  ?? 1);
-    const limit = Math.min(100, query.limit ?? 20);
+    const limit = Math.min(200, query.limit ?? 20);
     const skip  = (page - 1) * limit;
 
     const qb = this.tenantRepo
@@ -421,42 +440,105 @@ if (dto.isSuspended !== undefined) tenant.isSuspended = dto.isSuspended;
   }
 
   async getSecuritySummary() {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const year = parts.find(p => p.type === 'year').value;
+    const month = parts.find(p => p.type === 'month').value;
+    const day = parts.find(p => p.type === 'day').value;
+    const todayStart = new Date(`${year}-${month}-${day}T00:00:00+05:30`);
 
-    const rows = await this.dataSource.query(
-      `SELECT COUNT(DISTINCT user_id)::int AS count 
-       FROM audit_logs 
-       WHERE action = 'Login' AND created_at >= $1`,
-      [todayStart],
-    );
+    const [activeRes, failedRes] = await Promise.all([
+      this.dataSource.query(
+        `SELECT COUNT(DISTINCT user_id)::int AS count 
+         FROM audit_logs 
+         WHERE action = 'Login' AND status = 'Success' AND created_at >= $1`,
+        [todayStart],
+      ),
+      this.dataSource.query(
+        `SELECT COUNT(*)::int AS count 
+         FROM audit_logs 
+         WHERE action = 'Login' AND status = 'Failure' AND created_at >= $1`,
+        [todayStart],
+      ),
+    ]);
+
+    const failedCount = failedRes[0]?.count || 0;
+    const securityScore = Math.max(50, 100 - (failedCount * 2));
 
     return {
-      activeSessions: rows[0]?.count || 0,
+      activeSessions: activeRes[0]?.count || 0,
+      failedLogins: failedCount,
+      securityScore,
     };
   }
 
   async getSecuritySessions() {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const year = parts.find(p => p.type === 'year').value;
+    const month = parts.find(p => p.type === 'month').value;
+    const day = parts.find(p => p.type === 'day').value;
+    const todayStart = new Date(`${year}-${month}-${day}T00:00:00+05:30`);
+
     const rows = await this.dataSource.query(`
       SELECT 
         l.id AS "sessionId",
         l.user_id AS "userId",
         l.user_name AS "userName",
         l.role AS "role",
-        t.name AS "schoolName",
+        CASE 
+          WHEN l.role = 'super_admin' THEN 'EDDVA'
+          ELSE COALESCE(t.name, 'EDDVA')
+        END AS "schoolName",
         l.ip_address AS "ipAddress",
         'Chrome' AS "browser",
-        l.created_at AS "loginAt"
+        l.created_at::timestamptz AS "loginAt",
+        CASE 
+          WHEN u.token_version_updated_at IS NOT NULL AND l.created_at < u.token_version_updated_at THEN true
+          ELSE false
+        END AS "isTerminated",
+        l.status AS "status",
+        l.description AS "description"
       FROM audit_logs l
       LEFT JOIN tenants t ON t.id::varchar = l.institute_id
-      WHERE l.action = 'Login'
+      LEFT JOIN users u ON u.id::varchar = l.user_id
+      WHERE l.action = 'Login' AND (l.status = 'Success' OR (l.status = 'Failure' AND l.created_at >= $1))
       ORDER BY l.created_at DESC
       LIMIT 100
-    `);
-    return rows;
+    `, [todayStart]);
+    
+    return rows.map(row => ({
+      ...row,
+      isTerminated: row.isTerminated === true || row.isTerminated === 'true' // ensure boolean
+    }));
   }
 
   async forceLogout(sessionId: string) {
+    const log = await this.dataSource.query(`SELECT user_id FROM audit_logs WHERE id = $1 LIMIT 1`, [sessionId]);
+    if (!log.length || !log[0].user_id) {
+      throw new NotFoundException('Session or associated user not found');
+    }
+    const userId = log[0].user_id;
+    
+    // Increment tokenVersion to kill active access tokens, and nullify refreshToken to prevent bypass
+    const userToUpdate = await this.userRepo.findOne({ where: { id: userId } });
+    if (userToUpdate) {
+      userToUpdate.tokenVersion = (userToUpdate.tokenVersion ?? 0) + 1;
+      userToUpdate.tokenVersionUpdatedAt = new Date();
+      userToUpdate.refreshToken = null;
+      await this.userRepo.save(userToUpdate);
+    }
+    
     return { success: true, message: 'Session terminated successfully' };
   }
 }

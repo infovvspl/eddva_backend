@@ -35,27 +35,33 @@ export class AiBridgeService {
 
   // Maps an AI endpoint path to a stable usage feature key + provider.
   // Health checks and anything unmapped are skipped from tracking.
+  // Maps AI endpoint → canonical feature ID that MATCHES Python's log_usage() feature_id
+  // AND the AI_FEATURES constant. Keeps both Python success logs + NestJS failure logs
+  // in the same ai_usage_daily row (same primary key = correct success rate).
+  // /content/generate is intentionally omitted — Python logs content_{type} per content
+  // type (content_dpp, content_flashcard, etc.) for both success and failure.
   private static readonly FEATURE_MAP: Record<string, { feature: string; provider: string }> = {
-    '/doubt/resolve': { feature: 'doubt_resolve', provider: 'groq' },
-    '/doubt/ocr-image': { feature: 'image_ocr', provider: 'groq_vision' },
-    '/tutor/session': { feature: 'tutor', provider: 'groq' },
-    '/tutor/continue': { feature: 'tutor', provider: 'groq' },
-    '/content/generate': { feature: 'content_generate', provider: 'groq' },
-    '/stt/transcribe': { feature: 'stt_transcribe', provider: 'whisper_sarvam' },
-    '/stt/notes': { feature: 'stt_notes', provider: 'whisper_llm' },
-    '/stt/notes-from-text': { feature: 'notes_from_text', provider: 'groq_gemini' },
-    '/stt/notes-from-youtube': { feature: 'notes_from_youtube', provider: 'groq' },
-    '/quiz/generate': { feature: 'quiz_generate', provider: 'groq' },
-    '/translate': { feature: 'translate', provider: 'sarvam' },
-    '/plan/generate': { feature: 'plan_generate', provider: 'groq' },
-    '/syllabus/generate': { feature: 'syllabus_generate', provider: 'groq' },
-    '/test/generate/': { feature: 'test_generate', provider: 'groq' },
-    '/recommend/content': { feature: 'recommend', provider: 'groq' },
-    '/career/guidance': { feature: 'career_guidance', provider: 'groq' },
-    '/feedback/generate': { feature: 'feedback', provider: 'groq' },
-    '/notes/analyze': { feature: 'notes_analyze', provider: 'groq' },
-    '/resume/analyze': { feature: 'resume_analyze', provider: 'groq' },
-    '/interview/start': { feature: 'interview', provider: 'groq' },
+    '/doubt/resolve':       { feature: 'doubt_resolver',         provider: 'groq' },
+    '/doubt/ocr-image':     { feature: 'image_ocr_handwriting',  provider: 'groq_vision' },
+    '/tutor/session':       { feature: 'tutor',                  provider: 'groq' },
+    '/tutor/continue':      { feature: 'tutor',                  provider: 'groq' },
+    '/stt/transcribe':      { feature: 'lecture_transcription',  provider: 'whisper_sarvam' },
+    '/stt/notes':           { feature: 'ai_lecture_notes',       provider: 'whisper_llm' },
+    '/stt/notes-from-text': { feature: 'ai_lecture_notes',       provider: 'groq_gemini' },
+    '/stt/notes-from-youtube': { feature: 'ai_lecture_notes',   provider: 'groq' },
+    '/quiz/generate':       { feature: 'in_video_quiz_generator',provider: 'groq' },
+    '/translate':           { feature: 'multilingual_translation',provider: 'sarvam' },
+    '/plan/generate':       { feature: 'personalised_study_plan',provider: 'groq' },
+    '/test/generate/':      { feature: 'test_generate',          provider: 'groq' },
+    '/recommend/content':   { feature: 'recommend',              provider: 'groq' },
+    '/career/guidance':     { feature: 'career_guidance_report', provider: 'groq' },
+    '/feedback/generate':   { feature: 'feedback',               provider: 'groq' },
+    '/notes/analyze':       { feature: 'notes_analyze',          provider: 'groq' },
+    '/resume/analyze':       { feature: 'resume_analyser',        provider: 'groq' },
+    '/interview/start':      { feature: 'interview_prep',         provider: 'groq' },
+    '/ppt/generate':         { feature: 'ppt_generate',           provider: 'groq' },
+    '/ppt/regenerate-slide': { feature: 'ppt_generate',           provider: 'groq' },
+    '/ppt/search-image':     { feature: 'ppt_image_search',       provider: 'serper' },
   };
 
   private extractTokens(data: any): number | null {
@@ -65,7 +71,7 @@ export class AiBridgeService {
     return Number.isFinite(Number(total)) ? Number(total) : null;
   }
 
-  private headers(tenantId?: string, vertical?: string) {
+  private headers(tenantId?: string, vertical?: string, board?: string) {
     const h: Record<string, string> = {
       'X-API-Key': this.apiKey,
       'Content-Type': 'application/json',
@@ -75,13 +81,20 @@ export class AiBridgeService {
     }
     // Per-request product vertical (e.g. 'school'). When omitted, the AI service
     // falls back to the tenant's configured vertical (coaching by default).
+    // Education board for school tenants (cbse | icse | state), read from
+    // institutes.board. The AI service uses it to pick the right syllabus,
+    // textbooks and paper pattern — an ICSE school must not get NCERT/CBSE
+    // framing. When omitted, the AI service falls back to its own default.
+    if (board) {
+      h['X-Board'] = board;
+    }
     if (vertical) {
       h['X-Vertical'] = vertical;
     }
     return h;
   }
 
-  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string): Promise<T> {
+  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string): Promise<T> {
     const mapped = AiBridgeService.FEATURE_MAP[path];
     const v = vertical || 'coaching';
 
@@ -107,7 +120,7 @@ export class AiBridgeService {
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
-          headers: this.headers(tenantId, v),
+          headers: this.headers(tenantId, v, board),
           timeout: timeoutMs ?? this.timeout,
         }),
       );
@@ -558,7 +571,7 @@ export class AiBridgeService {
     if (t === 'descriptive' || t === 'long_answer' || t === 'subjective') {
       return (
         ' Output short- or long-answer (constructed response) only — no A/B/C/D options. ' +
-        'Include a model answer in the "answer" field using CBSE markwise structure: ' +
+        'Include a model answer in the "answer" field using board-exam markwise structure: ' +
         '2m => definition + one point/example, ' +
         '3m => definition/principle + two explanation points, ' +
         '4m => statement/formula + 2-3 explanation steps + support (diagram/example/conclusion), ' +
@@ -592,9 +605,12 @@ export class AiBridgeService {
       /** For subject tests: exact chapter names from the DB — AI must ONLY generate from these */
       chapters?: string[];
       language?: string;
+      board?: string;
     },
     tenantId?: string,
     vertical?: string,
+    /** Education board for school tenants (cbse | icse | state) — from institutes.board. */
+    board?: string,
   ) {
     const raw = await this.post<any>('/test/generate/', {
       topic: dto.topicName,
@@ -610,7 +626,7 @@ export class AiBridgeService {
       chapters: dto.chapters,           // subject-test: exact DB chapters to generate from
       seed: (dto as any).seed,          // force LLM variety
       language: dto.language,
-    }, tenantId, undefined, vertical);
+    }, tenantId, undefined, vertical, board);
 
     const questions = this.resolveToQuestionList(raw);
 
@@ -1399,10 +1415,13 @@ export class AiBridgeService {
     const languageInstruction = isOdia
       ? 'Generate all question text, option text, segment titles, and explanations in natural Odia (ଓଡ଼ିଆ) only. Keep JSON keys and option labels A/B/C/D unchanged.'
       : 'Generate questions and explanations in English only.';
+    const mathFormattingInstruction =
+      'For every formula, equation, variable expression, option, and explanation math, use valid KaTeX markdown delimiters: inline math as $...$ and display math as $$...$$. Use \\frac{a}{b} for fractions, \\cdot for multiplication, and never split one formula across lines or use a lone backslash as division.';
     const payload = {
       ...dto,
-      lectureTitle: `${dto.lectureTitle} (${languageInstruction})`,
+      lectureTitle: `${dto.lectureTitle} (${languageInstruction} ${mathFormattingInstruction})`,
       languageInstruction,
+      mathFormattingInstruction,
     };
     const raw = await this.post<any>('/quiz/generate', payload, tenantId);
     this.logger.log(`[AI #14] Received raw response from Django: ${JSON.stringify(raw)}`);
@@ -1441,6 +1460,28 @@ export class AiBridgeService {
     return { questions: checkpoints };
   }
 
+  // ── PPT Generator ─────────────────────────────────────────────────────────
+  async generatePpt(
+    dto: { topic: string; slideCount?: number; language?: string },
+    tenantId?: string,
+  ): Promise<{ success: boolean; data: { title: string; slides: any[] } }> {
+    return this.post('/ppt/generate', dto, tenantId, 240_000, 'school');
+  }
+
+  async regeneratePptSlide(
+    dto: { slideIndex: number; topic: string; currentSlide?: any; totalSlides?: number },
+    tenantId?: string,
+  ): Promise<{ success: boolean; data: any }> {
+    return this.post('/ppt/regenerate-slide', dto, tenantId, 120_000, 'school');
+  }
+
+  async searchPptImage(
+    dto: { searchTerm: string },
+    tenantId?: string,
+  ): Promise<{ success: boolean; imageUrl: string | null; imageBase64: string | null }> {
+    return this.post('/ppt/search-image', dto, tenantId, 30_000, 'school');
+  }
+
   // ── AI #16 — Topic Content Generator (DPP, notes, PYQ, etc.) ─────────────
   async generateTopicContent(
     dto: {
@@ -1454,10 +1495,15 @@ export class AiBridgeService {
       courseName?: string;
       extraContext?: string;
       questionCount?: number;
+      /** Output language: 'hindi' → Devanagari (Groq), 'odia' → Odia script (Gemini). Default: English. */
+      language?: string;
+      board?: string;
     },
     tenantId?: string,
     vertical?: string,
+    /** Education board for school tenants (cbse | icse | state) — from institutes.board. */
+    board?: string,
   ): Promise<{ content: string; contentType: string; topicName: string }> {
-    return this.post('/content/generate', dto, tenantId, 120_000, vertical);
+    return this.post('/content/generate', dto, tenantId, 120_000, vertical, board);
   }
 }

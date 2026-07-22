@@ -33,6 +33,7 @@ import {
   TenantListQueryDto,
   UpdateTenantDto,
   UpdateUserStatusDto,
+  UpdatePlatformConfigDto,
 } from './dto/super-admin.dto';
 
 import { Audit } from '../audit-log/audit.decorator';
@@ -118,6 +119,48 @@ export class SuperAdminController {
   @ApiOperation({ summary: 'Get platform-wide super admin stats' })
   getPlatformStats() {
     return this.superAdminService.getPlatformStats();
+  }
+
+  @Get('live-usage')
+  @ApiOperation({ summary: 'Get live class usage analytics (coaching)' })
+  getLiveUsage() {
+    return this.superAdminService.getLiveUsage();
+  }
+
+  @Get('revenue-dashboard')
+  @ApiOperation({ summary: 'Revenue dashboard: MRR, ARR, plan breakdown, monthly trend, expiring plans' })
+  getRevenueDashboard() {
+    return this.superAdminService.getRevenueDashboard();
+  }
+
+  @Patch('tenants/:id/subscription')
+  @ApiOperation({ summary: 'Update tenant plan, status, trial/expiry dates, seat limits' })
+  updateTenantSubscription(@Param('id', ParseUUIDPipe) id: string, @Body() body: any) {
+    return this.superAdminService.updateTenantSubscription(id, body);
+  }
+
+  @Post('tenants/:id/impersonate')
+  @ApiOperation({ summary: 'Generate a short-lived token to log in as this tenant admin (30 min)' })
+  impersonateTenant(@Param('id', ParseUUIDPipe) id: string) {
+    return this.superAdminService.impersonateTenant(id);
+  }
+
+  @Get('tenant-health')
+  @ApiOperation({ summary: 'Health scores, activity, and risk levels for all tenants' })
+  getTenantHealth() {
+    return this.superAdminService.getTenantHealthOverview();
+  }
+
+  @Get('system-health')
+  @ApiOperation({ summary: 'System health: DB latency, uptime, memory, error counts' })
+  getSystemHealth() {
+    return this.superAdminService.getSystemHealth();
+  }
+
+  @Get('tenants/:id/usage')
+  @ApiOperation({ summary: 'Usage stats for a single tenant: seats, AI tokens, live classes, storage' })
+  getTenantUsage(@Param('id', ParseUUIDPipe) id: string) {
+    return this.superAdminService.getTenantUsageStats(id);
   }
 
   @Get('announcements')
@@ -215,9 +258,15 @@ export class SuperAdminController {
   }
 
   @Patch('platform-config')
-  @ApiOperation({ summary: 'Update platform commission percentage' })
-  updateCommission(@Body('commissionPercent') commissionPercent: number) {
-    return this.superAdminService.updateCommission(Number(commissionPercent));
+  @ApiOperation({ summary: 'Update platform configuration' })
+  updatePlatformConfig(@Body() dto: UpdatePlatformConfigDto) {
+    return this.superAdminService.updatePlatformConfig(dto);
+  }
+
+  @Patch('platform-config/logo')
+  @ApiOperation({ summary: 'Update platform logo URL' })
+  updateLogo(@Body('logoUrl') logoUrl: string) {
+    return this.superAdminService.updatePlatformLogo(logoUrl);
   }
 
   // ── Payment Transactions ──────────────────────────────────────────────────────

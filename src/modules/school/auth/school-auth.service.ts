@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { querySectionSubjects } from '../common/section-subjects';
@@ -32,7 +32,7 @@ export class SchoolAuthService {
     );
   }
 
-  async login(identifier: string, password: string, ip?: string, userAgent?: string) {
+  async login(identifier: string, password: string, ip?: string, userAgent?: string, fcmToken?: string, platform?: string) {
     if (!identifier?.trim() || !password) {
       throw new BadRequestException('Email or phone and password are required');
     }
@@ -66,7 +66,7 @@ export class SchoolAuthService {
     const rows: any[] = await this.ds.query(
       `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo,
               i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features,
-              i.modules_permissions AS inst_modules_permissions
+              i.modules_permissions AS inst_modules_permissions, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE ${whereClause}`,
@@ -101,7 +101,7 @@ export class SchoolAuthService {
 
     const token = this.signSchoolToken(user);
 
-    if (user.role === 'TEACHER') {
+    if (String(user.role).toUpperCase().includes('TEACHER')) {
       try {
         await this.ds.query(
           `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
@@ -111,6 +111,30 @@ export class SchoolAuthService {
       } catch (error) {
         console.error(`Auto-attendance failed for teacher ${user.id}:`, error);
         // Do not throw; allow login to succeed even if attendance insert fails
+      }
+    } else if (String(user.role).toUpperCase().includes('INSTITUTE_ADMIN')) {
+      try {
+        await this.ds.query(
+          `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
+           ON CONFLICT (date, user_id) DO UPDATE SET status=EXCLUDED.status, remarks=EXCLUDED.remarks, updated_at=NOW()`,
+          [user.inst_id, user.id]
+        );
+      } catch (error) {
+        console.error(`Auto-attendance failed for admin ${user.id}:`, error);
+      }
+    }
+
+    // Upsert FCM device token for all roles (multi-device registry)
+    if (fcmToken) {
+      try {
+        await this.ds.query(
+          `INSERT INTO school_device_tokens (user_id, fcm_token, platform, device_info, last_active_at)
+           VALUES ($1, $2, $3, $4, NOW())
+           ON CONFLICT (user_id, fcm_token) DO UPDATE SET last_active_at = NOW(), platform = EXCLUDED.platform, device_info = EXCLUDED.device_info`,
+          [user.id, fcmToken, platform || 'web', userAgent || null],
+        );
+      } catch (err) {
+        console.error(`FCM token upsert failed for user ${user.id}:`, err);
       }
     }
 
@@ -137,6 +161,9 @@ export class SchoolAuthService {
         name: user.inst_name,
         tenantDomain: user.tenant_domain,
         logo: user.logo,
+        state: user.inst_state,
+        city: user.inst_city,
+        location: user.inst_address,
         aiEnabled: user.inst_ai_enabled ?? false,
         aiFeatures: typeof user.inst_ai_features === 'string' ? JSON.parse(user.inst_ai_features) : (user.inst_ai_features ?? {}),
         modulesPermissions: typeof user.inst_modules_permissions === 'string' ? JSON.parse(user.inst_modules_permissions) : (user.inst_modules_permissions ?? {}),
@@ -196,6 +223,42 @@ export class SchoolAuthService {
     };
   }
 
+  async recordAdminPortalEntry(user: any) {
+    const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
+    const rolesList = role.split(',').map((r) => r.trim());
+    const isInstituteAdmin = rolesList.some((r) => r === 'INSTITUTE_ADMIN' || r === 'ADMIN');
+
+    if (!isInstituteAdmin || rolesList.includes('SUPER_ADMIN')) {
+      throw new ForbiddenException('Only institute admins can record admin portal entry');
+    }
+
+    const instituteId = user?.instituteId || user?.institute_id || null;
+    if (!user?.id || !instituteId) {
+      throw new BadRequestException('Institute admin context is missing');
+    }
+
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO attendances (institute_id, user_id, date, status, remarks, created_at, updated_at)
+       VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Admin portal access', NOW(), NOW())
+       ON CONFLICT (date, user_id) DO UPDATE SET
+         status = EXCLUDED.status,
+         remarks = CASE
+           WHEN attendances.remarks ILIKE '%Admin portal access%' THEN attendances.remarks
+           WHEN attendances.remarks IS NULL OR attendances.remarks = '' THEN EXCLUDED.remarks
+           ELSE attendances.remarks || ' | ' || EXCLUDED.remarks
+         END,
+         updated_at = NOW()
+       RETURNING *`,
+      [instituteId, user.id],
+    );
+
+    return {
+      success: true,
+      message: 'Admin portal attendance recorded',
+      data: rows[0] || null,
+    };
+  }
+
   async register(body: any) {
     const { name, email, password, phone, tenantDomain, instituteName, address, city, state, pinCode, logo } = body;
     if (!name || !email || !password || !instituteName) {
@@ -249,7 +312,7 @@ export class SchoolAuthService {
     );
     const institute = instRows[0];
 
-    const hashed = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 12);
     const userRows: any[] = await this.ds.query(
       `INSERT INTO users (institute_id, name, email, password, role, phone, is_active)
        VALUES ($1,$2,$3,$4,'INSTITUTE_ADMIN',$5,TRUE) RETURNING *`,
@@ -269,7 +332,7 @@ export class SchoolAuthService {
     const existing: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email) = LOWER($1)`, [email]);
     if (existing.length) throw new BadRequestException('Email already exists');
 
-    const hashed = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 12);
     let rows: any[];
     try {
       rows = await this.ds.query(

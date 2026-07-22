@@ -31,8 +31,13 @@ export class SchoolAssessmentController {
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
   @Get('mock-tests') legacyMockTests(@SchoolUser() user: any, @Query() query: any) { return this.svc.legacyMockTests(user, query); }
   @Get('sessions') listSessions(@SchoolUser() user: any, @Query() query: any) { return this.svc.listSessions(user, query); }
-  @Post('ai-generate') aiGenerate(@SchoolUser() user: any, @Body() body: any) { return this.svc.aiGenerateDraft(user, body); }
-  @Post('translate') translate(@SchoolUser() user: any, @Body() body: { text: string; language: string }) { return this.svc.translateText(user, body.text, body.language); }
+  @Post('ai-generate')
+  @SchoolFeature('ai', 'ai_content_generator_assessments')
+  aiGenerate(@SchoolUser() user: any, @Body() body: any) { return this.svc.aiGenerateDraft(user, body); }
+
+  @Post('translate')
+  @SchoolFeature('ai', 'ai_translation')
+  translate(@SchoolUser() user: any, @Body() body: { text: string; language: string }) { return this.svc.translateText(user, body.text, body.language); }
   @Post()
   @Audit({ module: 'Assessment', action: 'Assessment Create', description: 'Created assessment {body.title}' })
   @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
@@ -56,18 +61,18 @@ export class SchoolAssessmentController {
   submit(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any, @UploadedFile() file?: Express.Multer.File) {
     return this.svc.submitAssessment(user, id, body, file);
   }
-  @Get(':id/submissions') listSubmissions(@Param('id') id: string) {
-    return this.svc.listSubmissions(id);
+  @Get(':id/submissions') listSubmissions(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.listSubmissions(user, id);
   }
   @Get(':id') findOne(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.findOne(user, id); }
 
   @Put(':id')
   @Audit({ module: 'Assessment', action: 'Assessment Edit', description: 'Updated assessment ID {params.id}' })
-  update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
+  update(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) { return this.svc.update(user, id, body); }
 
   @Delete(':id')
   @Audit({ module: 'Assessment', action: 'Assessment Delete', description: 'Deleted assessment ID {params.id}' })
-  remove(@Param('id') id: string) { return this.svc.remove(id); }
-  @Get(':id/results') listResults(@Param('id') id: string) { return this.svc.listResults(id); }
-  @Post('results') saveResult(@Body() body: any) { return this.svc.saveResult(body); }
+  remove(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.remove(user, id); }
+  @Get(':id/results') listResults(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.listResults(user, id); }
+  @Post('results') saveResult(@SchoolUser() user: any, @Body() body: any) { return this.svc.saveResult(user, body); }
 }

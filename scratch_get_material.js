@@ -8,29 +8,16 @@ async function run() {
 
   try {
     await client.connect();
-    console.log("Connected to RDS School DB");
-
-    const res = await client.query(`
-      SELECT id, title, type, description 
-      FROM study_materials 
-      WHERE id = '107991cc-77d9-42d5-ab51-af4a7cfa47e5'
-    `);
-    
-    if (res.rows.length > 0) {
-      const row = res.rows[0];
-      console.log("ID:", row.id);
-      console.log("Title:", row.title);
-      console.log("Description Raw:");
-      console.log(JSON.stringify(row.description));
-      console.log("\nDescription Text:\n", row.description);
-    } else {
-      console.log("Material not found");
+    const res = await client.query("SELECT id, title, type, description FROM study_materials WHERE type IN ('dpp','pyq') LIMIT 3");
+    for (const row of res.rows) {
+      console.log("====================================");
+      console.log("Title:", row.title, "Type:", row.type);
+      console.log("Content Preview:\n", row.description);
     }
   } catch (err) {
-    console.error("Database query failed:", err);
+    console.error(err);
   } finally {
     await client.end();
   }
 }
-
 run();

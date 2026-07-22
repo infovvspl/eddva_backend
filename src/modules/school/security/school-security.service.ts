@@ -78,7 +78,7 @@ export class SchoolSecurityService {
     const session = rows[0];
 
     // Terminate session
-    await this.ds.query(`UPDATE auth_sessions SET is_active = false, updated_at = NOW() WHERE id = $1`, [sessionId]);
+    await this.ds.query(`UPDATE auth_sessions SET is_active = false WHERE id = $1`, [sessionId]);
 
     // Log the force logout
     await this.activityLogService.log(

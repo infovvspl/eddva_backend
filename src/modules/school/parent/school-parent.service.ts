@@ -328,12 +328,14 @@ export class SchoolParentService {
     if (!child.class_id) return { thisWeek: 0, upcoming: [], past: [] };
 
     const rows: any[] = await this.ds.query(
-      `SELECT id, title, type, scheduled_date, total_marks, status
-       FROM assessments
-       WHERE class_id::text = $1::text
-       ORDER BY scheduled_date DESC NULLS LAST
+      `SELECT a.id, a.title, a.type, a.scheduled_date, a.total_marks, a.status,
+              r.marks_obtained AS "marksObtained", r.grade AS "grade", r.remarks AS "remarks", r.is_absent AS "isAbsent"
+       FROM assessments a
+       LEFT JOIN results r ON a.id = r.assessment_id AND r.student_id = $2
+       WHERE a.class_id::text = $1::text
+       ORDER BY a.scheduled_date DESC NULLS LAST
        LIMIT 200`,
-      [child.class_id],
+      [child.class_id, child.id],
     );
     const now = Date.now();
     const startOfWeek = new Date();
@@ -349,6 +351,10 @@ export class SchoolParentService {
       date: r.scheduled_date,
       totalMarks: r.total_marks,
       status: r.status,
+      marksObtained: r.marksObtained,
+      grade: r.grade,
+      remarks: r.remarks,
+      isAbsent: r.isAbsent,
     });
 
     const thisWeek = rows.filter((r) => {
@@ -367,6 +373,18 @@ export class SchoolParentService {
     };
   }
 
+  async getChildSubmission(user: any, studentId: string, assessmentId: string) {
+    const parent = await this.loadParent(user);
+    const child = await this.getOwnedChild(parent, studentId);
+    const rows: any[] = await this.ds.query(
+      `SELECT * FROM assessment_submissions
+       WHERE assessment_id::text=$1::text AND student_user_id::text=$2::text
+       LIMIT 1`,
+      [assessmentId, child.id],
+    );
+    return rows[0] || null;
+  }
+
   async getHomework(user: any, studentId: string, filter?: string) {
     const parent = await this.loadParent(user);
     const child = await this.getOwnedChild(parent, studentId);
@@ -380,7 +398,7 @@ export class SchoolParentService {
        LEFT JOIN assignment_submissions subm ON subm.assignment_id::text = a.id::text AND subm.student_id::text = $3::text
        WHERE a.tenant_id = $1 AND a.class_id::text = $2::text
        ORDER BY a.due_date DESC NULLS LAST`,
-      [parent.institute_id, child.class_id, child.id],
+      [parent.institute_id, child.class_id, child.profile_id],
     );
 
     const now = new Date().getTime();

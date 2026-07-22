@@ -1,6 +1,7 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import * as bcrypt from 'bcryptjs';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
@@ -23,14 +24,19 @@ export class SchoolAdminUsersController {
     @Query('instituteId') instituteId: string,
   ) {
     // Never select password or sensitive tokens
-    const safeFields = `u.id, u.name, u.email, u.role, u.is_active, u.phone, u.profile_image, u.institute_id, u.created_at AS "createdAt", u.updated_at AS "updatedAt", u.last_login_at AS "lastLoginAt", i.name AS institute_name`;
-    let where = `WHERE u.role IN ('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'PARENT')`;
+    const safeFields = `u.id, u.name, u.email, u.role, u.is_active, 
+      COALESCE(
+        u.phone,
+        (SELECT s.parent_phone FROM students s WHERE (s.parent_email IS NOT NULL AND LOWER(s.parent_email) = LOWER(u.email)) OR (s.user_id = u.id) LIMIT 1)
+      ) AS phone, 
+      u.profile_image, u.institute_id, u.created_at AS "createdAt", u.updated_at AS "updatedAt", u.last_login_at AS "lastLoginAt", i.name AS institute_name`;
+    let where = `WHERE 1=1`;
     const params: any[] = [];
 
     const userRole = String(user.role || '').toUpperCase();
     const userInstituteId = user.instituteId || user.institute_id || null;
 
-    if (userRole === 'INSTITUTE_ADMIN' || (userRole === 'SUPER_ADMIN' && userInstituteId)) {
+    if (userRole === 'INSTITUTE_ADMIN') {
       params.push(userInstituteId);
       where += ` AND u.institute_id = $${params.length}`;
     } else if (instituteId && instituteId !== 'ALL') {
@@ -49,13 +55,54 @@ export class SchoolAdminUsersController {
     const cnt: any[] = await this.ds.query(`SELECT COUNT(*)::int AS c ${base}`, params);
     const total = cnt[0]?.c || 0;
 
-    const offset = (Number(page) - 1) * Number(limit);
-    params.push(Number(limit), offset);
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const limitNumber = Math.max(1, Number(limit) || 50);
+    const offset = (pageNumber - 1) * limitNumber;
+    params.push(limitNumber, offset);
     const rows: any[] = await this.ds.query(
       `SELECT ${safeFields} ${base} ORDER BY u.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
 
-    return { data: rows, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) };
+    const totalPages = Math.ceil(total / limitNumber) || 1;
+    return {
+      data: rows,
+      total,
+      page: pageNumber,
+      limit: limitNumber,
+      totalPages,
+      meta: { total, totalItems: total, page: pageNumber, limit: limitNumber, totalPages },
+    };
+  }
+
+  @Patch(':id/reset-password')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  async resetPassword(
+    @Param('id') id: string,
+    @Body('password') password: string,
+    @SchoolUser() requester: any,
+  ) {
+    if (!password || password.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters.');
+    }
+
+    // INSTITUTE_ADMIN can only reset passwords for users in their own institute
+    const requesterRole = String(requester.role || '').toUpperCase();
+    const requesterInstituteId = requester.instituteId || requester.institute_id || null;
+
+    const target: any[] = await this.ds.query(
+      `SELECT id, institute_id FROM users WHERE id = $1 LIMIT 1`,
+      [id],
+    );
+    if (!target.length) throw new BadRequestException('User not found.');
+
+    if (requesterRole === 'INSTITUTE_ADMIN' && target[0].institute_id !== requesterInstituteId) {
+      throw new BadRequestException('You can only reset passwords for users in your institute.');
+    }
+
+    const hashed = await bcrypt.hash(password, 12);
+    await this.ds.query(`UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2`, [hashed, id]);
+
+    return { success: true, message: 'Password reset successfully.' };
   }
 }

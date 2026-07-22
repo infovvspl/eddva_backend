@@ -1,5 +1,6 @@
 import { InjectQueue } from '@nestjs/bull';
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -8,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Queue } from 'bull';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { DataSource, IsNull, Repository } from 'typeorm';
 
 import { UserRole } from '../../database/entities/user.entity';
@@ -39,6 +40,11 @@ const ALLOWED_REACTIONS = ['👍', '❤️', '😮', '😂', '🔥', '👏'];
 @Injectable()
 export class LiveBroadcastService {
   private readonly logger = new Logger(LiveBroadcastService.name);
+  private questionsTableReady = false;
+  private studentNotesTableReady = false;
+  // Short-lived cache of validated stream keys to avoid a DB hit on every HLS
+  // segment request (10-20 req/s per viewer × many viewers = significant load).
+  private readonly streamKeyCache = new Map<string, number>(); // key → expiresAt
 
   constructor(
     @InjectRepository(BroadcastLecture, 'coaching')
@@ -67,6 +73,40 @@ export class LiveBroadcastService {
 
   findByStreamKey(streamKey: string): Promise<BroadcastLecture | null> {
     return this.lectureRepo.findOne({ where: { streamKey } });
+  }
+
+  private async ensureQuestionsTable() {
+    if (this.questionsTableReady) return;
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS broadcast_questions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        lecture_id UUID NOT NULL REFERENCES broadcast_lectures(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL,
+        user_name VARCHAR NOT NULL,
+        text TEXT NOT NULL,
+        answer TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_broadcast_questions_lecture ON broadcast_questions (lecture_id, created_at)`);
+    this.questionsTableReady = true;
+  }
+
+  private async ensureStudentNotesTable() {
+    if (this.studentNotesTableReady) return;
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS broadcast_student_notes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        lecture_id UUID NOT NULL REFERENCES broadcast_lectures(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL,
+        notes TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(lecture_id, user_id)
+      )
+    `);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_broadcast_student_notes_lecture ON broadcast_student_notes (lecture_id)`);
+    this.studentNotesTableReady = true;
   }
 
   async markLive(lectureId: string): Promise<void> {
@@ -107,6 +147,8 @@ export class LiveBroadcastService {
   }
 
   async getUserDisplayName(userId: string, fallback = 'User'): Promise<string> {
+    // If the JWT already provided a real name, skip the DB round-trip.
+    if (fallback && fallback !== 'User') return fallback;
     try {
       const rows = await this.ds.query(
         `SELECT full_name FROM users WHERE id::text = $1::text LIMIT 1`,
@@ -174,6 +216,9 @@ export class LiveBroadcastService {
       subjectId: l.subjectId,
       subjectName: l.subjectName,
       description: l.description,
+      hasRecording: l.status === BroadcastStatus.PROCESSED,
+      durationSeconds: l.durationSeconds ?? null,
+      recordingSizeGb: l.recordingSizeGb ?? null,
       ...(l.teacherId === user.id || user.role === UserRole.INSTITUTE_ADMIN || user.role === UserRole.SUPER_ADMIN
         ? { streamKey: l.streamKey, rtmpUrl: `rtmp://${serverIp}/live` }
         : {}),
@@ -199,17 +244,26 @@ export class LiveBroadcastService {
 
   async getStreamUrl(lectureId: string, user: AuthUser) {
     const lecture = await this.getLectureWithAuth(lectureId, user);
-    // Direct CDN URL — no expiry (same as school live). Signed URLs are only used for recordings.
-    const cdnBase = (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
-    const url = `${cdnBase}/${lecture.streamKey}/index.m3u8`;
+    const teacherName = await this.getUserDisplayName(lecture.teacherId);
+    const cdnBase    = (this.config.get<string>('streaming.cdnBaseUrl')    || '').replace(/\/$/, '');
+    const cdnBase480 = (this.config.get<string>('streaming.cdnBaseUrl480') || '').replace(/\/$/, '');
+    const cdnBase360 = (this.config.get<string>('streaming.cdnBaseUrl360') || '').replace(/\/$/, '');
+    const key = lecture.streamKey;
     if (String(user.role || '').toLowerCase() === 'student') {
       void this.trackJoin(lectureId, user.id, user.name || 'Student').catch(() => undefined);
     }
     return {
-      url,
+      url: `${cdnBase}/${key}/index.m3u8`,
+      qualities: [
+        { label: 'Auto',  url: `${cdnBase}/${key}/index.m3u8` },
+        ...(cdnBase480 ? [{ label: '480p', url: `${cdnBase480}/${key}/index.m3u8` }] : []),
+        ...(cdnBase360 ? [{ label: '360p', url: `${cdnBase360}/${key}/index.m3u8` }] : []),
+      ],
       status: lecture.status,
-      streamKey: lecture.streamKey,
+      streamKey: key,
       title: lecture.title,
+      teacherId: lecture.teacherId,
+      teacherName,
       startedAt: lecture.startedAt,
       createdAt: lecture.createdAt,
     };
@@ -338,6 +392,7 @@ export class LiveBroadcastService {
       currentViewers,
       totalParticipants,
       totalMessages,
+      totalReactions: (reactionBreakdown as Array<{ count: number }>).reduce((s, r) => s + r.count, 0),
       reactionBreakdown,
       participants: participants.map((p) => ({
         userId: p.userId,
@@ -361,11 +416,29 @@ export class LiveBroadcastService {
 
   async getChatHistory(lectureId: string, user: AuthUser, limit = 500) {
     await this.getLectureWithAuth(lectureId, user);
-    return this.chatRepo.find({
+    const messages = await this.chatRepo.find({
       where: { lectureId },
       order: { createdAt: 'ASC' },
       take: limit,
     });
+    if (!messages.length) return [];
+    const userIds = Array.from(new Set(messages.map((m) => m.userId)));
+    const users = await this.ds.query(
+      `SELECT id::text, full_name FROM users WHERE id::text = ANY($1::text[])`,
+      [userIds],
+    );
+    const userMap = new Map<string, string>();
+    for (const u of users) {
+      userMap.set(u.id, u.full_name || 'User');
+    }
+    return messages.map((m) => ({
+      id: m.id,
+      lectureId: m.lectureId,
+      userId: m.userId,
+      userName: userMap.get(m.userId) || 'User',
+      text: m.text,
+      createdAt: m.createdAt,
+    }));
   }
 
   // ── participant tracking ──────────────────────────────────────────────────
@@ -377,12 +450,13 @@ export class LiveBroadcastService {
   }
 
   async trackLeave(lectureId: string, userId: string): Promise<void> {
-    const participant = await this.participantRepo.findOne({ where: { lectureId, userId } });
-    if (!participant || participant.leftAt) return;
-    const durationSeconds = Math.floor((Date.now() - participant.joinedAt.getTime()) / 1000);
-    await this.participantRepo.update(
-      { lectureId, userId },
-      { leftAt: new Date(), handRaised: false, durationSeconds },
+    await this.ds.query(
+      `UPDATE broadcast_participants
+         SET left_at = now(),
+             hand_raised = FALSE,
+             duration_seconds = EXTRACT(EPOCH FROM (now() - joined_at))::int
+       WHERE lecture_id = $1 AND user_id = $2 AND left_at IS NULL`,
+      [lectureId, userId],
     );
   }
 
@@ -406,13 +480,22 @@ export class LiveBroadcastService {
    * and re-serves it with CORS headers so hls.js (XHR) isn't blocked.
    * `file` must be a flat filename — no path traversal allowed.
    */
-  async proxyHls(streamKey: string, file: string): Promise<{ contentType: string; body: Buffer } | null> {
+  async proxyHls(streamKey: string, file: string, quality?: '480' | '360'): Promise<{ contentType: string; body: Buffer } | null> {
     if (!streamKey || !file) return null;
+    if (!/^[a-f0-9]{16,64}$/i.test(streamKey)) return null;
     if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
-    const lecture = await this.findByStreamKey(streamKey);
-    if (!lecture) return null;
-    const cdnBase = (this.config.get<string>('streaming.cdnBaseUrl') || '').replace(/\/$/, '');
+    const cachedUntil = this.streamKeyCache.get(streamKey);
+    if (!cachedUntil || cachedUntil < Date.now()) {
+      const lecture = await this.findByStreamKey(streamKey);
+      if (!lecture) { this.streamKeyCache.delete(streamKey); return null; }
+      this.streamKeyCache.set(streamKey, Date.now() + 60_000);
+    }
+    const configKey = quality === '480' ? 'streaming.cdnBaseUrl480'
+      : quality === '360' ? 'streaming.cdnBaseUrl360'
+      : 'streaming.cdnBaseUrl';
+    const cdnBase = (this.config.get<string>(configKey) || '').replace(/\/$/, '');
+    if (!cdnBase) return null;
     const remoteUrl = `${cdnBase}/${streamKey}/${file}`;
     try {
       const r = await fetch(remoteUrl, { signal: AbortSignal.timeout(8000) });
@@ -434,6 +517,70 @@ export class LiveBroadcastService {
   }
 
   // ── polls ─────────────────────────────────────────────────────────────────
+  async saveQuestion(lectureId: string, questionId: string | null, userId: string, userName: string, text: string) {
+    await this.ensureQuestionsTable();
+    const id = questionId || randomUUID();
+    const rows = await this.ds.query(
+      `INSERT INTO broadcast_questions (id, lecture_id, user_id, user_name, text)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO NOTHING
+       RETURNING id, user_id AS "userId", user_name AS "userName", text, answer, created_at AS "createdAt"`,
+      [id, lectureId, userId, userName, text],
+    );
+    return rows[0] || { id, userId, userName, text, answer: null, createdAt: new Date().toISOString() };
+  }
+
+  async saveAnswer(lectureId: string, questionId: string, answer: string, user?: AuthUser) {
+    if (user) {
+      const lecture = await this.getLectureWithAuth(lectureId, user);
+      if (lecture.teacherId !== user.id && user.role !== UserRole.INSTITUTE_ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+        throw new ForbiddenException('Only the lecture owner or an admin can answer questions');
+      }
+    }
+    const trimmed = (answer || '').trim();
+    if (!trimmed) throw new BadRequestException('Answer cannot be empty');
+    await this.ensureQuestionsTable();
+    await this.ds.query(
+      `UPDATE broadcast_questions SET answer = $1 WHERE id = $2 AND lecture_id = $3`,
+      [trimmed, questionId, lectureId],
+    );
+    return { success: true, answer: trimmed };
+  }
+
+  async getQuestions(lectureId: string, user: AuthUser) {
+    await this.getLectureWithAuth(lectureId, user);
+    await this.ensureQuestionsTable();
+    return this.ds.query(
+      `SELECT id, user_id AS "userId", user_name AS "userName", text, answer, created_at AS "createdAt"
+       FROM broadcast_questions WHERE lecture_id = $1 ORDER BY created_at ASC`,
+      [lectureId],
+    );
+  }
+
+  async getStudentNotes(lectureId: string, user: AuthUser) {
+    await this.getLectureWithAuth(lectureId, user);
+    await this.ensureStudentNotesTable();
+    const rows = await this.ds.query(
+      `SELECT notes FROM broadcast_student_notes WHERE lecture_id = $1 AND user_id = $2 LIMIT 1`,
+      [lectureId, user.id],
+    );
+    return { success: true, notes: rows[0]?.notes || '' };
+  }
+
+  async saveStudentNotes(lectureId: string, user: AuthUser, notes: string) {
+    await this.getLectureWithAuth(lectureId, user);
+    await this.ensureStudentNotesTable();
+    const value = String(notes || '');
+    await this.ds.query(
+      `INSERT INTO broadcast_student_notes (lecture_id, user_id, notes)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (lecture_id, user_id)
+       DO UPDATE SET notes = EXCLUDED.notes, updated_at = now()`,
+      [lectureId, user.id, value],
+    );
+    return { success: true, notes: value };
+  }
+
   async createPoll(lectureId: string, user: AuthUser, dto: CreatePollDto) {
     await this.getLectureWithAuth(lectureId, user);
     await this.pollRepo.update({ lectureId, status: 'ACTIVE' }, { status: 'ENDED' });
@@ -466,29 +613,33 @@ export class LiveBroadcastService {
 
   async votePoll(lectureId: string, pollId: string, user: AuthUser, userName: string, option: string) {
     await this.getLectureWithAuth(lectureId, user);
+    // Verify the poll belongs to this lecture, is still active, and the option is valid (BUG-19,20,21)
+    const poll = await this.pollRepo.findOne({ where: { id: pollId, lectureId } });
+    if (!poll) throw new NotFoundException('Poll not found');
+    if (poll.status !== 'ACTIVE') throw new BadRequestException('Poll is no longer active');
+    if (!poll.options.includes(option)) throw new BadRequestException('Invalid poll option');
     await this.pollVoteRepo.upsert(
       { pollId, userId: user.id, userName, option },
       { conflictPaths: ['pollId', 'userId'], skipUpdateIfNoValuesChanged: false },
     );
-    const poll = await this.pollRepo.findOne({ where: { id: pollId } });
-    const results = poll ? await this.getPollResults(pollId, poll.options) : {};
+    const results = await this.getPollResults(pollId, poll.options);
     void this.redis.publish(LIVE_CHANNELS.POLL_VOTED, { lectureId, pollId, results }).catch(() => undefined);
     return { success: true, results };
   }
 
   async listPolls(lectureId: string, user: AuthUser) {
     await this.getLectureWithAuth(lectureId, user);
-    const polls = await this.pollRepo.find({ where: { lectureId }, order: { createdAt: 'ASC' } });
-    return Promise.all(
-      polls.map(async (p) => ({
-        id: p.id,
-        question: p.question,
-        options: p.options,
-        correctOption: p.correctOption,
-        status: p.status,
-        createdAt: p.createdAt,
-        results: await this.getPollResults(p.id, p.options),
-      })),
+    return this.ds.query(
+      `SELECT p.id, p.question, p.options, p.correct_option AS "correctOption", p.status, p.created_at AS "createdAt",
+              COALESCE(
+                (SELECT json_object_agg(option, cnt::int)
+                 FROM (SELECT option, COUNT(*)::int AS cnt FROM broadcast_poll_votes WHERE poll_id = p.id GROUP BY option) v),
+                '{}'::json
+              ) AS results
+       FROM broadcast_polls p
+       WHERE p.lecture_id = $1
+       ORDER BY p.created_at ASC`,
+      [lectureId],
     );
   }
 

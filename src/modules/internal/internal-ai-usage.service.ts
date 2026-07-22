@@ -11,8 +11,8 @@ export class InternalAiUsageService {
   async logUsage(dto: LogAiUsageDto): Promise<{ logged: boolean }> {
     try {
       await this.aiUsageService.record({
-        instituteId: dto.instituteId ?? null,
-        vertical: dto.instituteType ?? null,
+        instituteId: dto.instituteId?.trim() || null,
+        vertical: dto.instituteType?.trim() || null,
         feature: dto.featureId,
         provider: dto.modelUsed ?? null,
         model: dto.modelUsed ?? null,

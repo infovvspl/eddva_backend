@@ -1,3 +1,4 @@
+import { SkipThrottle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -112,6 +113,25 @@ export class LectureController {
   }
 
   // ── hand raise ────────────────────────────────────────────────────────────
+  @Get(':id/questions')
+  @Roles(UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Questions asked during a lecture' })
+  questions(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    return this.svc.getQuestions(id, user);
+  }
+
+  @Post(':id/questions/:questionId/answer')
+  @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
+  @ApiOperation({ summary: 'Answer a live class question' })
+  answerQuestion(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+    @CurrentUser() user: any,
+    @Body() body: { answer?: string },
+  ) {
+    return this.svc.saveAnswer(id, questionId, body?.answer || '', user);
+  }
+
   @Post(':id/hand')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Raise or lower hand (student only)' })
@@ -126,6 +146,24 @@ export class LectureController {
   }
 
   // ── polls ─────────────────────────────────────────────────────────────────
+  @Get(':id/student-notes')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: "Get the current student's notes for a live broadcast" })
+  studentNotes(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    return this.svc.getStudentNotes(id, user);
+  }
+
+  @Post(':id/student-notes')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: "Save the current student's notes for a live broadcast" })
+  saveStudentNotes(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+    @Body() body: { notes?: string },
+  ) {
+    return this.svc.saveStudentNotes(id, user, body?.notes || '');
+  }
+
   @Post(':id/polls')
   @Roles(UserRole.TEACHER, UserRole.INSTITUTE_ADMIN)
   @ApiOperation({ summary: 'Create a poll for the live lecture (ends any active poll first)' })
@@ -178,6 +216,7 @@ export class LectureController {
  * segments via plain media requests with no auth header. The underlying CDN
  * content is public; we only add the CORS headers it omits.
  */
+@SkipThrottle()
 @ApiTags('live-broadcast')
 @Controller('lectures')
 export class LectureHlsController {
@@ -190,6 +229,34 @@ export class LectureHlsController {
     @Res() res: Response,
   ) {
     const out = await this.svc.proxyHls(streamKey, file);
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', file.endsWith('.m3u8') ? 'no-cache' : 'public, max-age=10');
+    res.send(out.body);
+  }
+
+  @Get('hls480/:streamKey/:file')
+  async hls480(
+    @Param('streamKey') streamKey: string,
+    @Param('file') file: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.proxyHls(streamKey, file, '480');
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', file.endsWith('.m3u8') ? 'no-cache' : 'public, max-age=10');
+    res.send(out.body);
+  }
+
+  @Get('hls360/:streamKey/:file')
+  async hls360(
+    @Param('streamKey') streamKey: string,
+    @Param('file') file: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.proxyHls(streamKey, file, '360');
     if (!out) { res.status(404).end(); return; }
     res.setHeader('Content-Type', out.contentType);
     res.setHeader('Access-Control-Allow-Origin', '*');

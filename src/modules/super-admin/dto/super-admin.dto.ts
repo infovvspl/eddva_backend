@@ -14,11 +14,11 @@ import {
   Min,
   IsObject,
 } from 'class-validator';
+import { AnnouncementCategory, AnnouncementPriority } from './announcement.enums';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import { AI_FEATURES, AiFeatureKey, TenantPlan, TenantStatus } from '../../../database/entities/tenant.entity';
 import { UserRole, UserStatus } from '../../../database/entities/user.entity';
-
 export class CreateTenantDto {
   @ApiProperty()
   @IsString()
@@ -285,10 +285,10 @@ export class CreateAnnouncementDto {
   @IsString()
   body: string;
 
-  @ApiPropertyOptional({ enum: ['student', 'teacher', 'all'] })
+  @ApiPropertyOptional({ enum: ['student', 'teacher', 'institute_admin', 'all'] })
   @IsOptional()
   @IsString()
-  targetRole?: 'student' | 'teacher' | 'all';
+  targetRole?: 'student' | 'teacher' | 'institute_admin' | 'all';
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -299,9 +299,24 @@ export class CreateAnnouncementDto {
   @IsOptional()
   @IsString()
   expiresAt?: string;
+
+  @ApiPropertyOptional({ enum: AnnouncementCategory })
+  @IsOptional()
+  @IsEnum(AnnouncementCategory)
+  category?: AnnouncementCategory;
+
+  @ApiPropertyOptional({ enum: AnnouncementPriority })
+  @IsOptional()
+  @IsEnum(AnnouncementPriority)
+  priority?: AnnouncementPriority;
 }
 
 export class AnnouncementListQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  category?: string;
+
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)
@@ -315,4 +330,41 @@ export class AnnouncementListQueryDto {
   @IsInt()
   @Min(1)
   limit = 20;
+}
+
+export class UpdatePlatformConfigDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  commissionPercent?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  maintenanceMode?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  battleArenaEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  aiDoubtResolutionEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  platformName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  supportEmail?: string;
 }

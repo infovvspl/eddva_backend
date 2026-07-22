@@ -1,13 +1,20 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+import {
+  SchoolFcmNotificationType,
+  SCHOOL_NOTIFICATION_TEMPLATES,
+  fillTemplate,
+} from '../notification-fcm/school-notification-templates';
 
 @Injectable()
 export class SchoolAttendanceService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
+    private readonly fcm: FcmService,
   ) {}
 
   async mark(user: any, body: any) {
@@ -29,6 +36,104 @@ export class SchoolAttendanceService {
           message: `You have been marked absent on ${body.date}.`,
           actionUrl: '/school/student/dashboard',
         });
+      }
+
+      // Notify parent if student is absent or late
+      const normalizedStatus = body.status?.toLowerCase();
+      if (normalizedStatus === 'absent' || normalizedStatus === 'late') {
+        const studentRows = await this.ds.query(
+          `SELECT s.id AS student_id, s.parent_email, s.parent_phone, u.name AS student_name
+           FROM students s
+           JOIN users u ON s.user_id = u.id
+           WHERE s.user_id = $1`,
+          [body.userId],
+        );
+
+        if (studentRows.length > 0) {
+          const { student_id, parent_email, parent_phone, student_name } = studentRows[0];
+          const parents = await this.ds.query(
+            `SELECT id FROM users
+             WHERE role = 'PARENT' AND is_active = true AND institute_id = $1
+               AND (
+                 (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+                 OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+               )`,
+            [instituteId, parent_email, parent_phone],
+          );
+
+          const notificationType = normalizedStatus === 'late'
+            ? SchoolFcmNotificationType.CHILD_LATE
+            : SchoolFcmNotificationType.CHILD_ABSENT;
+
+          for (const parent of parents) {
+            const prefAllowed = await this.fcm.checkUserPreference(parent.id, 'attendance_alerts');
+            if (!prefAllowed) continue;
+
+            const todayStr = new Date(body.date).toISOString().split('T')[0];
+            const dupRows = await this.ds.query(
+              `SELECT 1 FROM school_notification_log
+               WHERE user_id = $1
+                 AND notification_type = $2
+                 AND reference_id = $3
+                 AND sent_at::date = $4::date
+                 AND status = 'SUCCESS'
+               LIMIT 1`,
+              [parent.id, notificationType, student_id, todayStr],
+            );
+            if (dupRows.length > 0) continue;
+
+            const { title: pTitle, body: pushBody } = fillTemplate(
+              SCHOOL_NOTIFICATION_TEMPLATES[notificationType],
+              { studentName: student_name, date: todayStr },
+            );
+
+            // Send push
+            const pushResults = await this.fcm.sendPushToUser(
+              parent.id,
+              pTitle,
+              pushBody,
+              { type: notificationType, studentId: student_id },
+            );
+
+            const anySuccess = pushResults.some((r) => r.success);
+            const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+            const failureReasons = pushResults
+              .filter((r) => !r.success)
+              .map((r) => r.error)
+              .join('; ');
+
+            if (pushResults.length > 0) {
+              await this.ds.query(
+                `INSERT INTO school_notification_log
+                   (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+                 VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+                [
+                  parent.id,
+                  notificationType,
+                  student_id,
+                  anySuccess ? 'SUCCESS' : 'FAILED',
+                  firstMessageId,
+                  failureReasons || null,
+                ],
+              );
+            }
+
+            // In-app notification
+            await this.notificationService.create({
+              userId: parent.id,
+              recipientId: parent.id,
+              role: 'PARENT',
+              recipientRole: 'PARENT',
+              type: normalizedStatus,
+              category: 'attendance',
+              priority: 'high',
+              title: pTitle,
+              message: pushBody,
+              referenceId: student_id,
+              referenceType: 'student',
+            });
+          }
+        }
       }
 
       // Check overall attendance percentage for student in attendances table
@@ -91,8 +196,98 @@ export class SchoolAttendanceService {
   async get(user: any, query: any) {
     const instituteId = user.instituteId;
 
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+
+    if (!isSuperAdmin && !isInstituteAdmin && user) {
+      if (user.role === 'STUDENT') {
+        query.userId = user.id;
+      } else if (user.role === 'PARENT') {
+        const children = await this.ds.query(`
+          SELECT u.id FROM students s JOIN users u ON u.id = s.user_id WHERE s.institute_id = $1 AND (
+            (s.parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($2))
+            OR (s.parent_phone IS NOT NULL AND $3::text IS NOT NULL AND s.parent_phone = $3)
+          )
+        `, [user.instituteId, user.email, user.phone]);
+        const childUserIds = children.map((c: any) => c.id);
+        if (query.userId) {
+          if (!childUserIds.includes(query.userId)) {
+            throw new ForbiddenException('You do not have access to this student attendance');
+          }
+        } else {
+          query.userIds = childUserIds;
+        }
+      } else if (user.role === 'TEACHER') {
+        if (query.userId && query.userId !== user.id) {
+          const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+          const teacherId = tRows[0]?.id;
+          if (!teacherId) {
+            throw new ForbiddenException('You do not have access to this attendance');
+          }
+          const hasAssignment = await this.ds.query(`
+            SELECT 1 FROM students s
+            JOIN teacher_academic_assignments ta ON s.section_id::text = ta.section_id::text
+            WHERE s.user_id = $1 AND ta.teacher_id = $2 LIMIT 1
+          `, [query.userId, teacherId]);
+          if (!hasAssignment.length) {
+            throw new ForbiddenException('You do not have access to this student attendance');
+          }
+        }
+      }
+    }
+
+    if (query.userId) {
+      const userRoleResult = await this.ds.query(`SELECT role, name, email FROM users WHERE id = $1`, [query.userId]);
+      const userRole = userRoleResult[0]?.role;
+      const userRoles = String(userRole || '')
+        .toUpperCase()
+        .replace(/\s+/g, '_')
+        .split(',')
+        .map((role) => role.trim());
+      if (userRoles.includes('INSTITUTE_ADMIN')) {
+        const startDate = query.startDate ? new Date(query.startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
+        const endDate = query.endDate ? new Date(query.endDate) : new Date();
+
+        const sql = `
+          SELECT 
+            d.date::date AS date,
+            CASE 
+              WHEN d.date::date > CURRENT_DATE THEN NULL
+              WHEN EXISTS (
+                SELECT 1 FROM attendances 
+                WHERE user_id::text = $3::text AND date = d.date::date AND status = 'present'
+              ) OR EXISTS (
+                SELECT 1 FROM audit_logs 
+                WHERE user_id::text = $3::text AND created_at::date = d.date::date
+              ) THEN 'PRESENT'
+              ELSE 'ABSENT'
+            END AS status,
+            NULL AS remarks,
+            NULL AS id
+          FROM generate_series($1::date, $2::date, '1 day'::interval) d(date)
+          ORDER BY d.date DESC
+        `;
+        const rows = await this.ds.query(sql, [startDate, endDate, query.userId]);
+        const mapped = rows.map(r => ({
+          id: r.id || `virtual-${r.date.toISOString().split('T')[0]}`,
+          date: r.date,
+          status: r.status ? r.status.toUpperCase() : '—',
+          remarks: r.remarks,
+          user: {
+            id: query.userId,
+            name: userRoleResult[0].name,
+            email: userRoleResult[0].email,
+            role: userRole,
+            studentProfile: null
+          }
+        })).filter(r => r.status !== '—');
+
+        return { success: true, data: mapped, total: mapped.length, page: 1, limit: mapped.length, totalPages: 1 };
+      }
+    }
+
     if (query.role === 'TEACHER') {
-      let filter = `u.institute_id = $1 AND u.role = 'TEACHER'`;
+      let filter = `u.institute_id = $1 AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'`;
       const params: any[] = [instituteId];
 
       let joinDate = `CURRENT_DATE`;
@@ -178,11 +373,38 @@ export class SchoolAttendanceService {
     let filter = `a.institute_id = $1`;
     const params: any[] = [instituteId];
 
+    if (query.userIds) {
+      params.push(query.userIds);
+      filter += ` AND a.user_id = ANY($${params.length}::uuid[])`;
+    }
+
+    if (user.role === 'TEACHER' && !isSuperAdmin && !isInstituteAdmin) {
+      if (query.role === 'STUDENT' || !query.role) {
+        const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+        const teacherId = tRows[0]?.id;
+        if (teacherId) {
+          params.push(teacherId);
+          params.push(user.id);
+          filter += ` AND (a.user_id = $${params.length} OR EXISTS (
+            SELECT 1 FROM students s
+            JOIN teacher_academic_assignments ta ON s.section_id::text = ta.section_id::text
+            WHERE s.user_id = a.user_id AND ta.teacher_id = $${params.length - 1}
+          ))`;
+        } else {
+          filter += ` AND 1=0`;
+        }
+      }
+    }
+
     if (query.userId) { params.push(query.userId); filter += ` AND a.user_id=$${params.length}`; }
     if (query.date) { params.push(new Date(query.date)); filter += ` AND a.date=$${params.length}`; }
     if (query.startDate) { params.push(new Date(query.startDate)); filter += ` AND a.date>=$${params.length}`; }
     if (query.endDate) { params.push(new Date(query.endDate)); filter += ` AND a.date<=$${params.length}`; }
-    if (query.role) { params.push(query.role); filter += ` AND u.role=$${params.length}`; }
+    if (query.role) {
+      const normalizedRole = String(query.role).toUpperCase().replace(/\s+/g, '_');
+      params.push(`%${normalizedRole}%`);
+      filter += ` AND UPPER(REPLACE(u.role, ' ', '_')) LIKE $${params.length}`;
+    }
     
     // Add support for class and section filtering which was requested
     if (query.classId) { params.push(query.classId); filter += ` AND c.id=$${params.length}`; }
@@ -279,9 +501,12 @@ export class SchoolAttendanceService {
       const tenantId = user.instituteId;
       const existing = await this.ds.query(`
         SELECT id FROM attendance_sessions 
-        WHERE tenant_id = $1 AND class_id = $2 AND section_id = $3 AND date = $4 
-          AND COALESCE(period, '') = COALESCE($5::text, '') 
-          AND COALESCE(subject_id, '') = COALESCE($6::text, '')
+        WHERE tenant_id::text = $1::text 
+          AND class_id::text = $2::text 
+          AND section_id::text = $3::text 
+          AND date::text = $4::text 
+          AND ($5::text IS NULL OR $5::text = '' OR period::text = $5::text)
+          AND ($6::text IS NULL OR $6::text = '' OR $6::text = 'all' OR subject_id::text = $6::text)
         LIMIT 1
       `, [
         tenantId || null, 
@@ -297,8 +522,8 @@ export class SchoolAttendanceService {
       }
       return { success: true, data: { exists: false } };
     } catch (e: any) {
-      console.error("DEBUG checkSession ERROR:", e);
-      throw new ConflictException("DEBUG_ERROR: " + e.message);
+      console.error("checkSession ERROR:", e);
+      return { success: false, data: { exists: false, error: e.message } };
     }
   }
 
@@ -306,161 +531,174 @@ export class SchoolAttendanceService {
     const tenantId = user.instituteId;
     const teacherId = user.id;
 
-    let sessionId = body.sessionId;
-    if (!sessionId) {
-      // Look for duplicate session matching class, section, date, period, and subject
-      const existing = await this.ds.query(`
-        SELECT id FROM attendance_sessions 
-        WHERE tenant_id = $1 AND class_id = $2 AND section_id = $3 AND date = $4 
-          AND COALESCE(period, '') = COALESCE($5, '') 
-          AND COALESCE(subject_id, '') = COALESCE($6, '')
-        LIMIT 1
-      `, [tenantId, body.classId, body.sectionId, body.date, body.period || null, body.subjectId || null]);
-      if (existing.length > 0) {
-        throw new ConflictException({
-          success: false,
-          message: "Attendance has already been submitted for this session.",
-          canEdit: true,
-          sessionId: existing[0].id
-        });
-      }
-    }
+    const queryRunner = this.ds.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (sessionId) {
-      // Update existing session
-      await this.ds.query(`
-        UPDATE attendance_sessions 
-        SET finalized = $2, marked_by = $3, updated_at = NOW()
-        WHERE id = $1
-      `, [sessionId, body.finalized !== false, teacherId]);
-    } else {
-      // Create new session
-      const session: any[] = await this.ds.query(`
-        INSERT INTO attendance_sessions (
-          tenant_id, class_id, section_id, subject_id, teacher_id, marked_by, date, period, finalized, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
-        RETURNING id
-      `, [
-        tenantId,
-        body.classId,
-        body.sectionId,
-        body.subjectId || null,
-        teacherId,
-        teacherId, // marked_by
-        body.date,
-        body.period || null,
-        body.finalized !== false
-      ]);
-      sessionId = session[0].id;
-    }
-
-    // Batch-delete existing records for all students in one round-trip
-    const studentIds = (body.students || []).map((s: any) => s.student_id);
-    if (studentIds.length) {
-      await this.ds.query(
-        `DELETE FROM attendance_records WHERE session_id = $1 AND student_id = ANY($2::uuid[])`,
-        [sessionId, studentIds],
-      );
-    }
-
-    // Insert student attendance records
-    for (const s of (body.students || [])) {
-
-      await this.ds.query(`
-        INSERT INTO attendance_records (
-          session_id, tenant_id, student_id, status, remarks, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-      `, [
-        sessionId,
-        tenantId,
-        s.student_id,
-        s.status.toLowerCase(), // present, absent, late, leave
-        s.remarks || null
-      ]);
-
-      // Sync to general 'attendances' table for Institute Admin dashboard/reports
-      await this.ds.query(`
-        INSERT INTO attendances (
-          institute_id, user_id, date, status, remarks, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-        ON CONFLICT (date, user_id) 
-        DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks, updated_at = NOW()
-      `, [
-        tenantId,
-        s.student_id,
-        new Date(body.date),
-        s.status.toLowerCase(),
-        s.remarks || null
-      ]);
-
-      try {
-        if (s.status.toLowerCase() === 'absent') {
-          await this.notificationService.create({
-            recipientId: s.student_id,
-            senderId: user.id,
-            role: 'STUDENT',
-            type: 'attendance',
-            title: 'Attendance Alert',
-            message: `You have been marked absent for class on ${body.date}.`,
-            actionUrl: '/school/student/dashboard',
+    try {
+      let sessionId = body.sessionId;
+      if (!sessionId) {
+        // Look for duplicate session matching class, section, date, period, and subject
+        const existing = await queryRunner.query(`
+          SELECT id FROM attendance_sessions 
+          WHERE tenant_id::text = $1::text 
+            AND class_id::text = $2::text 
+            AND section_id::text = $3::text 
+            AND date::text = $4::text 
+            AND ($5::text IS NULL OR $5::text = '' OR period::text = $5::text)
+            AND ($6::text IS NULL OR $6::text = '' OR $6::text = 'all' OR subject_id::text = $6::text)
+          LIMIT 1
+        `, [tenantId, body.classId, body.sectionId, body.date, body.period || null, body.subjectId || null]);
+        if (existing.length > 0) {
+          await queryRunner.rollbackTransaction();
+          throw new ConflictException({
+            success: false,
+            message: "Attendance has already been submitted for this session.",
+            canEdit: true,
+            sessionId: existing[0].id
           });
         }
+      }
 
-        // Check overall attendance percentage in attendance_records
-        const attStats = await this.ds.query(
-          `SELECT 
-            COUNT(*) FILTER (WHERE status = 'present' OR status = 'late' OR status = 'Present' OR status = 'Late') AS attended,
-            COUNT(*) AS total
-           FROM attendance_records
-           WHERE student_id = $1`,
-          [s.student_id]
+      if (sessionId) {
+        // Update existing session — use SAVEPOINT so a column error doesn't abort the transaction
+        await queryRunner.query(`SAVEPOINT upd_session`);
+        try {
+          await queryRunner.query(`
+            UPDATE attendance_sessions 
+            SET finalized = $2, marked_by = $3, updated_at = NOW()
+            WHERE id::text = $1::text
+          `, [sessionId, body.finalized !== false, teacherId]);
+          await queryRunner.query(`RELEASE SAVEPOINT upd_session`);
+        } catch (e) {
+          await queryRunner.query(`ROLLBACK TO SAVEPOINT upd_session`);
+          await queryRunner.query(`
+            UPDATE attendance_sessions 
+            SET finalized = $2, updated_at = NOW()
+            WHERE id::text = $1::text
+          `, [sessionId, body.finalized !== false]);
+        }
+      } else {
+        // Create new session — use SAVEPOINT so a column error doesn't abort the transaction
+        let session: any[];
+        await queryRunner.query(`SAVEPOINT ins_session`);
+        try {
+          session = await queryRunner.query(`
+            INSERT INTO attendance_sessions (
+              tenant_id, class_id, section_id, subject_id, teacher_id, marked_by, date, period, finalized, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+            RETURNING id
+          `, [
+            tenantId,
+            body.classId,
+            body.sectionId,
+            body.subjectId || null,
+            teacherId,
+            teacherId,
+            body.date,
+            body.period || null,
+            body.finalized !== false
+          ]);
+          await queryRunner.query(`RELEASE SAVEPOINT ins_session`);
+        } catch (e) {
+          await queryRunner.query(`ROLLBACK TO SAVEPOINT ins_session`);
+          session = await queryRunner.query(`
+            INSERT INTO attendance_sessions (
+              section_id, subject_id, teacher_id, date, finalized, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            RETURNING id
+          `, [
+            body.sectionId,
+            body.subjectId || null,
+            teacherId,
+            body.date,
+            body.finalized !== false
+          ]);
+        }
+        sessionId = session[0].id;
+      }
+
+      // Batch-delete existing records for all students in one round-trip
+      const studentIds = (body.students || []).map((s: any) => String(s.student_id));
+      if (studentIds.length) {
+        await queryRunner.query(
+          `DELETE FROM attendance_records WHERE session_id::text = $1::text AND student_id::text = ANY($2::text[])`,
+          [sessionId, studentIds],
         );
-        if (attStats && attStats[0] && parseInt(attStats[0].total) > 0) {
-          const attended = parseInt(attStats[0].attended);
-          const total = parseInt(attStats[0].total);
-          const percentage = (attended / total) * 100;
+      }
 
-          if (percentage < 75) {
+      // Insert student attendance records
+      for (const s of (body.students || [])) {
+        await queryRunner.query(`SAVEPOINT ar_insert`);
+        try {
+          await queryRunner.query(`
+            INSERT INTO attendance_records (
+              session_id, tenant_id, student_id, status, remarks, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+          `, [
+            sessionId,
+            tenantId,
+            s.student_id,
+            s.status.toLowerCase(),
+            s.remarks || null
+          ]);
+          await queryRunner.query(`RELEASE SAVEPOINT ar_insert`);
+        } catch (e) {
+          await queryRunner.query(`ROLLBACK TO SAVEPOINT ar_insert`);
+          // Fallback: insert without optional columns (tenant_id, remarks)
+          await queryRunner.query(`
+            INSERT INTO attendance_records (
+              session_id, student_id, status, created_at, updated_at
+            ) VALUES ($1, $2, $3, NOW(), NOW())
+          `, [
+            sessionId,
+            s.student_id,
+            s.status.toLowerCase()
+          ]);
+        }
+      }
+
+      await queryRunner.commitTransaction();
+
+      // Sync to general 'attendances' table AFTER commit (best-effort, must not abort main transaction)
+      for (const s of (body.students || [])) {
+        try {
+          await this.ds.query(`
+            INSERT INTO attendances (institute_id, user_id, date, status, remarks, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            ON CONFLICT (date, user_id) DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks, updated_at = NOW()
+          `, [tenantId, s.student_id, body.date, s.status.toLowerCase(), s.remarks || null]);
+        } catch (attErr) {
+          console.warn('Sync to attendances table skipped:', (attErr as any)?.message);
+        }
+      }
+
+      // Notifications after successful transaction commit
+      for (const s of (body.students || [])) {
+        try {
+          if (s.status.toLowerCase() === 'absent') {
             await this.notificationService.create({
               recipientId: s.student_id,
               senderId: user.id,
               role: 'STUDENT',
-              type: 'attendance_warning',
-              title: 'Low Attendance Alert',
-              message: `Your session attendance has dropped below 75% (${percentage.toFixed(1)}%).`,
+              type: 'attendance',
+              title: 'Attendance Alert',
+              message: `You have been marked absent for class on ${body.date}.`,
               actionUrl: '/school/student/dashboard',
             });
-
-            // Find section class teacher
-            const teacherRows = await this.ds.query(
-              `SELECT t.user_id, u.name AS student_name
-               FROM students s
-               JOIN sections sec ON s.section_id = sec.id
-               JOIN teachers t ON sec.class_teacher_id = t.id
-               JOIN users u ON s.user_id = u.id
-               WHERE s.user_id = $1`,
-              [s.student_id]
-            );
-            if (teacherRows && teacherRows[0]) {
-              const teacherUserId = teacherRows[0].user_id;
-              const studentName = teacherRows[0].student_name;
-              await this.notificationService.create({
-                recipientId: teacherUserId,
-                senderId: user.id,
-                role: 'TEACHER',
-                type: 'attendance_warning',
-                title: 'Low Attendance Warning',
-                message: `${studentName}'s session attendance has dropped below 75% (${percentage.toFixed(1)}%).`,
-                actionUrl: '/school/teacher/dashboard',
-              });
-            }
           }
+        } catch (notifErr) {
+          console.error('Failed to trigger session attendance notification:', notifErr);
         }
-      } catch (notifErr) {
-        console.error('Failed to trigger session attendance notification:', notifErr);
       }
+
+      return { success: true, message: 'Attendance marked successfully', sessionId };
+    } catch (err) {
+      try { await queryRunner.rollbackTransaction(); } catch (_) {}
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-    return { success: true, message: 'Attendance marked successfully', sessionId };
   }
 
   async getReport() {
@@ -469,7 +707,7 @@ export class SchoolAttendanceService {
         COUNT(*) FILTER (WHERE LOWER(ar.status)='present') AS present,
         COUNT(*) FILTER (WHERE LOWER(ar.status)='absent') AS absent,
         COUNT(*) FILTER (WHERE LOWER(ar.status)='late') AS late
-      FROM users u LEFT JOIN attendance_records ar ON ar.student_id=u.id
+      FROM users u LEFT JOIN attendance_records ar ON ar.student_id::text=u.id::text
       WHERE u.role='STUDENT' GROUP BY u.id,u.name ORDER BY u.name
     `);
     return { success: true, count: result.length, data: result };
@@ -479,13 +717,13 @@ export class SchoolAttendanceService {
     const result: any[] = await this.ds.query(`
       SELECT u.id,u.name,u.email,s.roll_no FROM users u
       JOIN students s ON s.user_id=u.id JOIN sections sec ON s.section_id=sec.id
-      WHERE sec.class_id=$1 ORDER BY s.roll_no NULLS LAST, u.name
+      WHERE sec.class_id::text=$1::text ORDER BY s.roll_no NULLS LAST, u.name
     `, [classId]);
     return { success: true, count: result.length, data: result };
   }
 
   async getStudentsByClassAndSection(classId: string, sectionId: string, query: any = {}) {
-    let filter = `sec.class_id = $1 AND s.section_id = $2`;
+    let filter = `sec.class_id::text = $1::text AND s.section_id::text = $2::text`;
     const params: any[] = [classId, sectionId];
 
     if (query.search) {
@@ -552,16 +790,16 @@ export class SchoolAttendanceService {
     const todayStr = new Date().toISOString().split('T')[0];
 
     const [totalStudentsResult, sessionsToday, recordsToday] = await Promise.all([
-      this.ds.query(`SELECT COUNT(*) AS count FROM students WHERE institute_id = $1`, [tenantId]),
+      this.ds.query(`SELECT COUNT(*) AS count FROM students WHERE institute_id::text = $1::text`, [tenantId]),
       this.ds.query(
-        `SELECT COUNT(*) AS count FROM attendance_sessions WHERE tenant_id = $1 AND date = $2`,
+        `SELECT COUNT(*) AS count FROM attendance_sessions WHERE tenant_id::text = $1::text AND date = $2`,
         [tenantId, todayStr],
       ),
       this.ds.query(
         `SELECT ar.status, COUNT(ar.id) AS count
          FROM attendance_records ar
-         JOIN attendance_sessions asess ON ar.session_id = asess.id
-         WHERE asess.tenant_id = $1 AND asess.date = $2
+         JOIN attendance_sessions asess ON ar.session_id::text = asess.id::text
+         WHERE asess.tenant_id::text = $1::text AND asess.date = $2
          GROUP BY ar.status`,
         [tenantId, todayStr],
       ),
@@ -614,20 +852,20 @@ export class SchoolAttendanceService {
         c.name AS "className",
         sec.name AS "sectionName",
         sub.name AS "subjectName",
-        COUNT(ar.id) FILTER (WHERE ar.status = 'present') AS present_count,
-        COUNT(ar.id) FILTER (WHERE ar.status = 'absent') AS absent_count,
-        COUNT(ar.id) FILTER (WHERE ar.status = 'late') AS late_count,
-        COUNT(ar.id) FILTER (WHERE ar.status = 'leave') AS leave_count
+        COUNT(ar.id) FILTER (WHERE LOWER(ar.status) = 'present' OR LOWER(ar.status) = 'late') AS present_count,
+        COUNT(ar.id) FILTER (WHERE LOWER(ar.status) = 'absent') AS absent_count,
+        COUNT(ar.id) FILTER (WHERE LOWER(ar.status) = 'late') AS late_count,
+        COUNT(ar.id) FILTER (WHERE LOWER(ar.status) = 'leave') AS leave_count
       FROM attendance_sessions asess
       LEFT JOIN classes c ON asess.class_id::text = c.id::text
       LEFT JOIN sections sec ON asess.section_id::text = sec.id::text
       LEFT JOIN subjects sub ON asess.subject_id::text = sub.id::text
-      LEFT JOIN attendance_records ar ON asess.id = ar.session_id
-      WHERE asess.tenant_id = $1
+      LEFT JOIN attendance_records ar ON asess.id::text = ar.session_id::text
+      WHERE asess.tenant_id::text = $1::text
     `;
     const countSqlBase = `
       FROM attendance_sessions asess
-      WHERE asess.tenant_id = $1
+      WHERE asess.tenant_id::text = $1::text
     `;
     const params: any[] = [tenantId];
     let whereConditions = '';
@@ -638,15 +876,15 @@ export class SchoolAttendanceService {
     }
     if (query.classId) {
       params.push(query.classId);
-      whereConditions += ` AND asess.class_id = $${params.length}`;
+      whereConditions += ` AND asess.class_id::text = $${params.length}::text`;
     }
     if (query.sectionId) {
       params.push(query.sectionId);
-      whereConditions += ` AND asess.section_id = $${params.length}`;
+      whereConditions += ` AND asess.section_id::text = $${params.length}::text`;
     }
     if (query.subjectId) {
       params.push(query.subjectId);
-      whereConditions += ` AND asess.subject_id = $${params.length}`;
+      whereConditions += ` AND asess.subject_id::text = $${params.length}::text`;
     }
 
     sql += whereConditions;
@@ -682,7 +920,7 @@ export class SchoolAttendanceService {
         className: r.className || 'Unknown Class',
         sectionName: r.sectionName || 'Unknown Section',
         subjectName: r.subjectName || 'N/A',
-        present: parseInt(r.present_count || '0') + parseInt(r.late_count || '0'),
+        present: parseInt(r.present_count || '0'),
         absent: parseInt(r.absent_count || '0'),
         late: parseInt(r.late_count || '0'),
         leave: parseInt(r.leave_count || '0'),

@@ -79,4 +79,57 @@ export class SchoolAiUsageController {
     if (!b.instituteId) throw new BadRequestException('instituteId is required');
     return this.svc.deleteQuota(b.instituteId, b.vertical || 'school', b.feature || '*');
   }
+
+  @Get('logs')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  async getRawLogs(@SchoolUser() user: any, @Query() q: any) {
+    const scope = this.scope(user, q);
+    return this.svc.getRawLogs({
+      instituteId: scope.instituteId || undefined,
+      vertical: scope.vertical,
+      feature: q.feature || undefined,
+      from: scope.from,
+      to: scope.to,
+      limit: q.limit ? Number(q.limit) : undefined,
+      offset: q.offset ? Number(q.offset) : undefined,
+    });
+  }
+
+  @Get('debug')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  async debug() {
+    return this.svc.debugState();
+  }
+
+  /**
+   * Diagnostic endpoint: returns the logged-in user's identity + overview
+   * for their specific institute. Useful to verify institute_id matching.
+   * The frontend calls this automatically when analytics shows 0.
+   */
+  @Get('me-debug')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  async meDebug(@SchoolUser() user: any) {
+    const instituteId = user?.instituteId ?? null;
+    let overviewResult: any = null;
+    let queryError: string | null = null;
+    try {
+      overviewResult = await this.svc.getOverview({
+        instituteId: instituteId || undefined,
+        vertical: 'school',
+      });
+    } catch (e: any) {
+      queryError = e?.message || String(e);
+    }
+    return {
+      success: true,
+      // Flatten user fields so the frontend can read them at the top level
+      id: user?.id,
+      email: user?.email,
+      role: user?.role,
+      instituteId,
+      user: { id: user?.id, email: user?.email, role: user?.role, instituteId },
+      overview: overviewResult,
+      queryError,
+    };
+  }
 }

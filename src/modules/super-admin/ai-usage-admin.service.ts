@@ -87,6 +87,7 @@ export class AiUsageAdminService {
         featureLabel: meta?.label ?? String(f.feature),
         category: meta?.category ?? 'shared',
         requests,
+        tokens: Number(f.tokens ?? 0),
         cost: parseFloat(Number(f.cost ?? 0).toFixed(4)),
         avgLatencyMs: Math.round(Number(f.avg_latency_ms ?? 0)),
         isEnabled: flag?.isEnabled ?? true,
@@ -97,11 +98,12 @@ export class AiUsageAdminService {
     });
 
     const totalRequests = features.reduce((s, f) => s + f.requests, 0);
+    const totalTokens = features.reduce((s, f) => s + f.tokens, 0);
     const totalCost = parseFloat(features.reduce((s, f) => s + f.cost, 0).toFixed(4));
     const totalSuccess = (rawFeatures as any[]).reduce((s, f) => s + Number(f.success ?? 0), 0);
     const successRate = totalRequests > 0 ? Math.round((totalSuccess / totalRequests) * 100) : 100;
 
-    return { instituteId, totalRequests, totalCost, successRate, features };
+    return { instituteId, totalRequests, totalTokens, totalCost, successRate, features };
   }
 
   async getRawLogs(opts: { instituteId?: string; vertical?: string; feature?: string; from?: string; to?: string; limit?: number; offset?: number }) {

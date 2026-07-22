@@ -13,6 +13,12 @@ import { recordStudentActivity } from '../common/gamification-helper';
 import { randomUUID } from 'crypto';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+import {
+  SchoolFcmNotificationType,
+  SCHOOL_NOTIFICATION_TEMPLATES,
+  fillTemplate,
+} from '../notification-fcm/school-notification-templates';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -25,6 +31,7 @@ export class SchoolAssignmentService {
     private readonly notificationService: SchoolNotificationService,
     private readonly aiBridge: AiBridgeService,
     private readonly s3Service: S3Service,
+    private readonly fcm: FcmService,
   ) {}
 
   /** assignments.tenant_id stores the school institute id (not coaching tenants.id). */
@@ -290,6 +297,20 @@ export class SchoolAssignmentService {
         filter += ` AND (a.section_id IS NULL OR a.section_id::text=$${params.length}::text)`;
       } else {
         filter += ` AND a.section_id IS NULL`;
+      }
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (sectionIds.length > 0) {
+        params.push(sectionIds);
+        filter += ` AND a.section_id = ANY($${params.length}::uuid[])`;
+      } else {
+        filter += ` AND 1=0`;
       }
     } else {
       if (user.role === 'TEACHER') {
@@ -598,8 +619,63 @@ export class SchoolAssignmentService {
           }),
         ),
       );
-    } catch (notifErr) {
-      console.error('Failed to send assignment upload notifications:', notifErr);
+
+      // Send FCM push to all target students
+      if (studentUsers.length > 0 && this.fcm.isReady) {
+        for (const stu of studentUsers) {
+          const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'announcement_alerts');
+          if (!prefAllowed) continue;
+
+          // Dedup with assignment.id
+          const dupRows = await this.ds.query(
+            `SELECT 1 FROM school_notification_log
+             WHERE user_id = $1
+               AND notification_type = $2
+               AND reference_id = $3
+               AND status = 'SUCCESS'
+             LIMIT 1`,
+            [stu.user_id, SchoolFcmNotificationType.NEW_ASSIGNMENT, assignment.id],
+          );
+          if (dupRows.length > 0) continue;
+
+          const { title: pushTitle, body: pushBody } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NEW_ASSIGNMENT],
+            { title: body.title || 'Assignment' },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(
+            stu.user_id,
+            pushTitle,
+            pushBody,
+            { type: 'NEW_ASSIGNMENT', assignmentId: assignment.id },
+          );
+
+          const anySuccess = pushResults.some((r) => r.success);
+          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          const failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          if (pushResults.length > 0) {
+            await this.ds.query(
+              `INSERT INTO school_notification_log
+                 (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+               VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+              [
+                stu.user_id,
+                SchoolFcmNotificationType.NEW_ASSIGNMENT,
+                assignment.id,
+                anySuccess ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              ],
+            );
+          }
+        }
+      }
+    } catch (notifErr: any) {
+      this.logger.error(`Failed to send assignment upload notifications: ${notifErr.message}`);
     }
 
     return { success: true, data: assignment };
@@ -684,17 +760,76 @@ export class SchoolAssignmentService {
 
     // Notify the teacher
     try {
-      if (assignRows[0].teacher_id) {
+      const teacherUserId = assignRows[0].teacher_id;
+      if (teacherUserId) {
+        // Enforce teacher assignment_alerts preference
+        const prefAllowed = await this.fcm.checkUserPreference(teacherUserId, 'assignment_alerts');
+        
+        let pushSent = false;
+        let firstMessageId = null;
+        let failureReasons = null;
+
+        if (prefAllowed && this.fcm.isReady) {
+          const teacherRows = await this.ds.query(`SELECT name FROM users WHERE id = $1`, [teacherUserId]);
+          const teacherName = teacherRows[0]?.name || 'Teacher';
+          const firstName = teacherName.split(' ')[0] || 'Teacher';
+          const studentName = user.name || 'A student';
+          const assignmentTitle = assignRows[0].title || 'Assignment';
+
+          const { title, body } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.ASSIGNMENT_SUBMISSION],
+            { name: firstName, studentName, title: assignmentTitle },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(
+            teacherUserId,
+            title,
+            body,
+            { type: 'ASSIGNMENT_SUBMISSION', assignmentId },
+          );
+
+          pushSent = pushResults.some((r) => r.success);
+          firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          if (pushResults.length > 0) {
+            await this.ds.query(
+              `INSERT INTO school_notification_log
+                 (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+               VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+              [
+                teacherUserId,
+                SchoolFcmNotificationType.ASSIGNMENT_SUBMISSION,
+                assignmentId,
+                pushSent ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              ],
+            );
+          }
+        }
+
+        // In-app notification (with explicit role)
         await this.notificationService.create({
-          recipientId: assignRows[0].teacher_id,
+          userId: teacherUserId,
+          recipientId: teacherUserId,
+          role: 'TEACHER',
+          recipientRole: 'TEACHER',
           type: 'submission',
+          category: 'assignment',
+          priority: 'medium',
           title: 'Assignment Submitted',
           message: `${user.name || 'A student'} submitted ${assignRows[0].title}.`,
           actionUrl: '/school/teacher/assignments',
+          referenceId: assignmentId,
+          referenceType: 'assignment',
         });
       }
-    } catch (notifErr) {
-      console.error('Failed to send assignment submission notification:', notifErr);
+    } catch (notifErr: any) {
+      this.logger.error(`Failed to send assignment submission notification: ${notifErr.message}`);
     }
 
     // Log student activity and update streak
@@ -753,6 +888,7 @@ export class SchoolAssignmentService {
   }
 
   async getSubmissions(user: any, assignmentId: string) {
+    await this.checkAssignmentAccess(user, assignmentId);
     const rows: any[] = await this.ds.query(
       `SELECT
          subm.id, subm.student_id, subm.status,
@@ -779,11 +915,12 @@ export class SchoolAssignmentService {
   }
 
   async gradeSubmission(
-    _user: any,
+    user: any,
     assignmentId: string,
     submissionId: string,
     body: { marks?: number; feedback?: string },
   ) {
+    await this.checkAssignmentAccess(user, assignmentId);
     const rows: any[] = await this.ds.query(
       `UPDATE assignment_submissions
          SET marks = $2,
@@ -799,19 +936,90 @@ export class SchoolAssignmentService {
     return { success: true, data: rows[0] };
   }
 
-  async findOne(id: string) {
+  private async checkAssignmentAccess(user: any, assignmentId: string) {
     const rows: any[] = await this.ds.query(
       `SELECT * FROM assignments WHERE id::text=$1::text`,
-      [id],
+      [assignmentId],
+    );
+    if (!rows.length) throw new NotFoundException('Assignment not found');
+    const assignment = rows[0];
+
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (isSuperAdmin) return assignment;
+
+    if (String(assignment.tenant_id) !== String(user.instituteId)) {
+      throw new ForbiddenException('You do not have access to this assignment');
+    }
+
+    if (user.role === 'STUDENT') {
+      const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
+      if (assignment.section_id !== studentProfile?.section_id) {
+        throw new ForbiddenException('You do not have access to this assignment');
+      }
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (!sectionIds.includes(assignment.section_id)) {
+        throw new ForbiddenException('You do not have access to this assignment');
+      }
+    } else if (user.role === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        const hasAssignment = await this.ds.query(
+          `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id = $1 AND section_id::text = $2::text LIMIT 1`,
+          [teacherId, assignment.section_id]
+        );
+        if (assignment.teacher_id !== teacherId && !hasAssignment.length) {
+          throw new ForbiddenException('You do not have access to this assignment');
+        }
+      } else {
+        throw new ForbiddenException('You do not have access to this assignment');
+      }
+    }
+
+    return assignment;
+  }
+
+  async findOne(user: any, id?: string) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+    if (reqUser) {
+      await this.checkAssignmentAccess(reqUser, targetId);
+    }
+
+    const rows: any[] = await this.ds.query(
+      `SELECT * FROM assignments WHERE id::text=$1::text`,
+      [targetId],
     );
     if (!rows.length) throw new NotFoundException('Assignment not found');
     return { success: true, data: rows[0] };
   }
 
-  async update(id: string, body: any) {
+  async update(user: any, id?: string, body?: any) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !body) {
+      reqUser = null;
+      targetId = user;
+      body = id;
+    }
+    if (reqUser) {
+      await this.checkAssignmentAccess(reqUser, targetId);
+    }
+
     const sql = `UPDATE assignments SET title=COALESCE($2,title),instructions=COALESCE($3,instructions),due_date=COALESCE($4,due_date),updated_at=NOW() WHERE id::text=$1::text`;
     const params = [
-      id,
+      targetId,
       body.title,
       body.description,
       body.dueDate ? new Date(body.dueDate) : null,
@@ -820,9 +1028,19 @@ export class SchoolAssignmentService {
     return { success: true };
   }
 
-  async remove(id: string) {
-    await this.ds.query(`DELETE FROM assignment_submissions WHERE assignment_id::text=$1::text`, [id]);
-    await this.ds.query(`DELETE FROM assignments WHERE id::text=$1::text`, [id]);
+  async remove(user: any, id?: string) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+    if (reqUser) {
+      await this.checkAssignmentAccess(reqUser, targetId);
+    }
+
+    await this.ds.query(`DELETE FROM assignment_submissions WHERE assignment_id::text=$1::text`, [targetId]);
+    await this.ds.query(`DELETE FROM assignments WHERE id::text=$1::text`, [targetId]);
     return { success: true };
   }
 }

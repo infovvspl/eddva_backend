@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { DataSource, Repository, Not } from 'typeorm';
@@ -30,7 +31,9 @@ import {
   CreateTenantDto,
   TenantListQueryDto,
   UpdateTenantDto,
+  UpdatePlatformConfigDto,
 } from './dto/super-admin.dto';
+import { AnnouncementPriority } from './dto/announcement.enums';
 
 const PLAN_PRICES: Record<TenantPlan, number> = {
   [TenantPlan.STARTER]: 4999,
@@ -70,6 +73,7 @@ export class SuperAdminService {
     private readonly paymentTxRepo: Repository<PaymentTransaction>,
     private readonly notificationService: NotificationService,
     private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
     @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
@@ -84,20 +88,48 @@ export class SuperAdminService {
         this.platformConfigRepo.create({ commissionPercent: 5, isSingleton: true }),
       );
     }
-    return { commissionPercent: Number(cfg.commissionPercent) };
+    return {
+      commissionPercent: Number(cfg.commissionPercent),
+      logoUrl: cfg.logoUrl,
+      maintenanceMode: cfg.coachingMaintenanceMode ?? false,
+      coachingMaintenanceMode: cfg.coachingMaintenanceMode ?? false,
+      schoolMaintenanceMode: cfg.schoolMaintenanceMode ?? false,
+      battleArenaEnabled: cfg.battleArenaEnabled,
+      aiDoubtResolutionEnabled: cfg.aiDoubtResolutionEnabled,
+      platformName: cfg.platformName,
+      supportEmail: cfg.supportEmail,
+    };
   }
 
-  async updateCommission(commissionPercent: number) {
-    if (commissionPercent < 0 || commissionPercent > 100) {
-      throw new BadRequestException('Commission must be between 0 and 100');
-    }
+  async updatePlatformConfig(dto: UpdatePlatformConfigDto) {
     let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
     if (!cfg) {
       cfg = this.platformConfigRepo.create({ isSingleton: true });
     }
-    cfg.commissionPercent = commissionPercent;
+
+    if (dto.commissionPercent !== undefined) {
+      if (dto.commissionPercent < 0 || dto.commissionPercent > 100) {
+        throw new BadRequestException('Commission must be between 0 and 100');
+      }
+      cfg.commissionPercent = dto.commissionPercent;
+    }
+    if (dto.logoUrl !== undefined) cfg.logoUrl = dto.logoUrl;
+    if (dto.maintenanceMode !== undefined) cfg.coachingMaintenanceMode = dto.maintenanceMode;
+    if (dto.battleArenaEnabled !== undefined) cfg.battleArenaEnabled = dto.battleArenaEnabled;
+    if (dto.aiDoubtResolutionEnabled !== undefined) cfg.aiDoubtResolutionEnabled = dto.aiDoubtResolutionEnabled;
+    if (dto.platformName !== undefined) cfg.platformName = dto.platformName;
+    if (dto.supportEmail !== undefined) cfg.supportEmail = dto.supportEmail;
+
     await this.platformConfigRepo.save(cfg);
-    return { commissionPercent };
+    return this.getPlatformConfig();
+  }
+
+  async updateCommission(commissionPercent: number) {
+    return this.updatePlatformConfig({ commissionPercent });
+  }
+
+  async updatePlatformLogo(logoUrl: string) {
+    return this.updatePlatformConfig({ logoUrl });
   }
 
   // ── Payment Transactions ─────────────────────────────────────────────────────
@@ -441,8 +473,14 @@ export class SuperAdminService {
       this.dataSource.query(
         `SELECT COUNT(DISTINCT s.id)::int AS count
          FROM students s
-         LEFT JOIN tenants t ON t.id = s.tenant_id
-         WHERE s.deleted_at IS NULL AND (t.type != 'platform' OR t.id IS NULL)`
+         JOIN users u ON u.id = s.user_id AND u.deleted_at IS NULL
+         JOIN enrollments e ON e.student_id = s.id AND e.deleted_at IS NULL
+         JOIN batches b ON b.id = e.batch_id AND b.deleted_at IS NULL
+         JOIN tenants t ON t.id = e.tenant_id AND t.deleted_at IS NULL
+         WHERE s.deleted_at IS NULL
+           AND s.tenant_id = e.tenant_id
+           AND u.tenant_id = e.tenant_id
+           AND t.type != 'platform'`
       ).then(res => res[0]?.count || 0),
       this.userRepo
         .createQueryBuilder('u')
@@ -640,6 +678,380 @@ export class SuperAdminService {
     };
   }
 
+  async getLiveUsage() {
+    const [summary, perTenant, recentLectures, dailyTrend] = await Promise.all([
+      this.dataSource.query(`
+        SELECT
+          COUNT(*)::int                                                            AS total_lectures,
+          COUNT(*) FILTER (WHERE status = 'LIVE')::int                            AS live_now,
+          COUNT(*) FILTER (WHERE status IN ('ENDED','PROCESSED'))::int            AS completed,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int  AS last_30_days,
+          COALESCE(SUM(duration_seconds), 0)::bigint                             AS total_duration_seconds,
+          COALESCE(AVG(duration_seconds) FILTER (WHERE duration_seconds > 0), 0)::int AS avg_duration_seconds,
+          COALESCE(SUM(recording_size_gb), 0)::numeric(10,3)                     AS total_recording_gb
+        FROM broadcast_lectures
+      `),
+
+      this.dataSource.query(`
+        SELECT
+          t.id                                                                                    AS institute_id,
+          t.name                                                                                  AS institute_name,
+          COUNT(l.id)::int                                                                        AS total_lectures,
+          COUNT(l.id) FILTER (WHERE l.status = 'LIVE')::int                                      AS live_now,
+          COUNT(l.id) FILTER (WHERE l.status IN ('ENDED','PROCESSED'))::int                       AS completed,
+          COALESCE(SUM(l.duration_seconds), 0)::bigint                                            AS total_duration_seconds,
+          COALESCE(SUM(l.recording_size_gb), 0)::numeric(10,3)                                   AS total_recording_gb,
+          (
+            SELECT COUNT(DISTINCT p.user_id)::int
+            FROM broadcast_participants p
+            WHERE p.lecture_id IN (
+              SELECT ll.id FROM broadcast_lectures ll WHERE ll.institute_id = t.id
+            )
+          )                                                                                       AS unique_viewers,
+          MAX(l.started_at)                                                                       AS last_lecture_at
+        FROM tenants t
+        LEFT JOIN broadcast_lectures l ON l.institute_id = t.id
+        GROUP BY t.id, t.name
+        HAVING COUNT(l.id) > 0
+        ORDER BY COUNT(l.id) DESC
+        LIMIT 100
+      `),
+
+      this.dataSource.query(`
+        SELECT
+          l.id, l.title, l.status, l.institute_id,
+          t.name                                                                                  AS institute_name,
+          l.started_at, l.ended_at, l.duration_seconds,
+          (SELECT u.full_name FROM "users" u WHERE u.id = l.teacher_id LIMIT 1)                   AS teacher_name,
+          (SELECT COUNT(DISTINCT p.user_id)::int FROM broadcast_participants p WHERE p.lecture_id = l.id) AS participant_count
+        FROM broadcast_lectures l
+        JOIN tenants t ON t.id = l.institute_id
+        ORDER BY COALESCE(l.started_at, l.created_at) DESC
+        LIMIT 20
+      `),
+
+      this.dataSource.query(`
+        SELECT
+          DATE_TRUNC('day', created_at)::date::text AS day,
+          COUNT(*)::int                              AS count
+        FROM broadcast_lectures
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY 1
+        ORDER BY 1
+      `),
+    ]);
+
+    const s = summary[0] || {};
+    return {
+      summary: {
+        totalLectures:        Number(s.total_lectures)        || 0,
+        liveNow:              Number(s.live_now)              || 0,
+        completed:            Number(s.completed)             || 0,
+        last30Days:           Number(s.last_30_days)          || 0,
+        totalDurationSeconds: Number(s.total_duration_seconds) || 0,
+        avgDurationSeconds:   Number(s.avg_duration_seconds)  || 0,
+        totalRecordingGb:     Number(s.total_recording_gb)    || 0,
+      },
+      perInstitute: (perTenant as any[]).map((r) => ({
+        instituteId:          r.institute_id,
+        instituteName:        r.institute_name,
+        totalLectures:        Number(r.total_lectures)        || 0,
+        liveNow:              Number(r.live_now)              || 0,
+        completed:            Number(r.completed)             || 0,
+        totalDurationSeconds: Number(r.total_duration_seconds) || 0,
+        totalRecordingGb:     Number(r.total_recording_gb)   || 0,
+        uniqueViewers:        Number(r.unique_viewers)        || 0,
+        lastLectureAt:        r.last_lecture_at ?? null,
+      })),
+      recentLectures: (recentLectures as any[]).map((r) => ({
+        id:               r.id,
+        title:            r.title,
+        status:           r.status,
+        instituteId:      r.institute_id,
+        instituteName:    r.institute_name,
+        teacherName:      r.teacher_name ?? null,
+        startedAt:        r.started_at ?? null,
+        endedAt:          r.ended_at ?? null,
+        durationSeconds:  Number(r.duration_seconds) || null,
+        participantCount: Number(r.participant_count) || 0,
+      })),
+      dailyTrend: (dailyTrend as any[]).map((r) => ({ day: r.day, count: Number(r.count) })),
+    };
+  }
+
+  // ── Revenue Dashboard ────────────────────────────────────────────────────────
+
+  async getRevenueDashboard() {
+    const tenants = await this.tenantRepo.find({
+      where: { deletedAt: null as any },
+      select: ['id', 'name', 'plan', 'status', 'trialEndsAt', 'planExpiresAt', 'createdAt'],
+    });
+
+    const activeTenants = tenants.filter(t => t.status === TenantStatus.ACTIVE && t.plan !== TenantPlan.PLATFORM);
+    const trialTenants  = tenants.filter(t => t.status === TenantStatus.TRIAL);
+    const mrr = activeTenants.reduce((s, t) => s + (PLAN_PRICES[t.plan] || 0), 0);
+    const arr = mrr * 12;
+
+    const planBreakdown = Object.values(TenantPlan)
+      .filter(p => p !== TenantPlan.PLATFORM)
+      .map(p => ({
+        plan: p,
+        count: tenants.filter(t => t.plan === p && t.status !== TenantStatus.SUSPENDED).length,
+        revenue: tenants.filter(t => t.plan === p && t.status === TenantStatus.ACTIVE).reduce((s) => s + (PLAN_PRICES[p] || 0), 0),
+      }));
+
+    // Monthly trend for last 12 months
+    const monthlyRows: any[] = await this.dataSource.query(`
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
+        COUNT(*)::int AS new_tenants,
+        SUM(CASE WHEN plan = 'starter'    THEN 4999
+                 WHEN plan = 'growth'     THEN 14999
+                 WHEN plan = 'scale'      THEN 34999
+                 WHEN plan = 'enterprise' THEN 99999 ELSE 0 END)::bigint AS plan_revenue
+      FROM tenants
+      WHERE deleted_at IS NULL AND type != 'platform'
+        AND created_at >= NOW() - INTERVAL '12 months'
+      GROUP BY 1 ORDER BY 1
+    `);
+
+    const expiringPlans: any[] = await this.dataSource.query(`
+      SELECT id, name, plan, status, trial_ends_at, plan_expires_at
+      FROM tenants
+      WHERE deleted_at IS NULL AND type != 'platform'
+        AND (
+          (status = 'trial' AND trial_ends_at IS NOT NULL AND trial_ends_at <= NOW() + INTERVAL '14 days')
+          OR (plan_expires_at IS NOT NULL AND plan_expires_at <= NOW() + INTERVAL '14 days')
+        )
+      ORDER BY COALESCE(trial_ends_at, plan_expires_at) ASC
+      LIMIT 20
+    `);
+
+    const topTenants = activeTenants
+      .sort((a, b) => (PLAN_PRICES[b.plan] || 0) - (PLAN_PRICES[a.plan] || 0))
+      .slice(0, 10)
+      .map(t => ({
+        id: t.id,
+        name: t.name,
+        plan: t.plan,
+        monthlyRevenue: PLAN_PRICES[t.plan] || 0,
+        planExpiresAt: t.planExpiresAt,
+      }));
+
+    const [paymentSummary] = await this.dataSource.query(`
+      SELECT
+        COUNT(*)::int                         AS total_transactions,
+        COALESCE(SUM(amount), 0)::bigint      AS gross_revenue,
+        COALESCE(SUM(commission_amount), 0)::bigint AS total_commission,
+        COALESCE(SUM(net_amount), 0)::bigint  AS net_revenue
+      FROM payment_transactions
+      WHERE status = 'success'
+    `);
+
+    return {
+      mrr,
+      arr,
+      activeSubscribers: activeTenants.length,
+      trialTenants:      trialTenants.length,
+      planBreakdown,
+      monthlyTrend: monthlyRows.map(r => ({
+        month: r.month,
+        newTenants: Number(r.new_tenants),
+        planRevenue: Number(r.plan_revenue),
+      })),
+      expiringPlans: expiringPlans.map(r => ({
+        id:             r.id,
+        name:           r.name,
+        plan:           r.plan,
+        status:         r.status,
+        trialEndsAt:    r.trial_ends_at,
+        planExpiresAt:  r.plan_expires_at,
+        daysLeft: Math.ceil((new Date(r.trial_ends_at || r.plan_expires_at).getTime() - Date.now()) / 86400000),
+      })),
+      topTenants,
+      coursePayments: {
+        totalTransactions: Number(paymentSummary?.total_transactions) || 0,
+        grossRevenue:      Number(paymentSummary?.gross_revenue)      || 0,
+        totalCommission:   Number(paymentSummary?.total_commission)   || 0,
+        netRevenue:        Number(paymentSummary?.net_revenue)        || 0,
+      },
+    };
+  }
+
+  // ── Subscription Management ──────────────────────────────────────────────────
+
+  async updateTenantSubscription(
+    id: string,
+    dto: { plan?: TenantPlan; status?: TenantStatus; trialEndsAt?: string; planExpiresAt?: string; maxStudents?: number; maxTeachers?: number },
+  ) {
+    const tenant = await this.tenantRepo.findOne({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    if (dto.plan !== undefined)         tenant.plan           = dto.plan;
+    if (dto.status !== undefined)       tenant.status         = dto.status;
+    if (dto.trialEndsAt !== undefined)  tenant.trialEndsAt    = dto.trialEndsAt ? new Date(dto.trialEndsAt) : null;
+    if (dto.planExpiresAt !== undefined) tenant.planExpiresAt = dto.planExpiresAt ? new Date(dto.planExpiresAt) : null;
+    if (dto.maxStudents !== undefined)  tenant.maxStudents    = dto.maxStudents;
+    if (dto.maxTeachers !== undefined)  tenant.maxTeachers    = dto.maxTeachers;
+    await this.tenantRepo.save(tenant);
+    return { success: true, tenant };
+  }
+
+  // ── Impersonation ────────────────────────────────────────────────────────────
+
+  async impersonateTenant(tenantId: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    const adminUser = await this.userRepo.findOne({
+      where: { tenantId, role: UserRole.INSTITUTE_ADMIN, deletedAt: null as any },
+      order: { createdAt: 'ASC' },
+    });
+    if (!adminUser) throw new NotFoundException('No institute admin found for this tenant');
+
+    const secret = this.configService.get<string>('jwt.secret');
+    const token = await this.jwtService.signAsync(
+      { sub: adminUser.id, tenantId, role: adminUser.role, tokenVersion: adminUser.tokenVersion, impersonated: true },
+      { secret, expiresIn: '30m' },
+    );
+    return {
+      token,
+      user: { id: adminUser.id, name: adminUser.fullName, email: adminUser.email, role: adminUser.role },
+      tenant: { id: tenant.id, name: tenant.name },
+      expiresInMinutes: 30,
+    };
+  }
+
+  // ── Tenant Health Overview ────────────────────────────────────────────────────
+
+  async getTenantHealthOverview() {
+    const rows: any[] = await this.dataSource.query(`
+      SELECT
+        t.id, t.name, t.plan, t.status, t.created_at, t.trial_ends_at, t.plan_expires_at,
+        t.onboarding_complete,
+        (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id = t.id AND u.role = 'student' AND u.deleted_at IS NULL)    AS student_count,
+        (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id = t.id AND u.role = 'teacher' AND u.deleted_at IS NULL)    AS teacher_count,
+        t.max_students, t.max_teachers,
+        (SELECT MAX(u.last_login_at) FROM users u WHERE u.tenant_id = t.id AND u.deleted_at IS NULL)                    AS last_activity,
+        (SELECT COUNT(*)::int FROM complaints c WHERE c.institute_id = t.id AND c.status = 'OPEN' AND c.deleted_at IS NULL) AS open_tickets
+      FROM tenants t
+      WHERE t.deleted_at IS NULL AND t.type != 'platform'
+      ORDER BY t.created_at DESC
+    `);
+
+    const now = Date.now();
+    return rows.map(r => {
+      const lastActivity = r.last_activity ? new Date(r.last_activity) : null;
+      const daysSinceActivity = lastActivity ? Math.floor((now - lastActivity.getTime()) / 86400000) : null;
+
+      let score = 100;
+      if (!r.onboarding_complete)                        score -= 20;
+      if (daysSinceActivity === null)                    score -= 30;
+      else if (daysSinceActivity > 30)                   score -= 30;
+      else if (daysSinceActivity > 14)                   score -= 15;
+      if (Number(r.open_tickets) > 2)                    score -= 10;
+      if (r.status === 'suspended')                      score -= 40;
+      const expiresAt = r.trial_ends_at || r.plan_expires_at;
+      if (expiresAt && new Date(expiresAt).getTime() < now + 7 * 86400000) score -= 15;
+      score = Math.max(0, score);
+
+      const risk = score >= 70 ? 'low' : score >= 40 ? 'medium' : 'high';
+
+      return {
+        id:                 r.id,
+        name:               r.name,
+        plan:               r.plan,
+        status:             r.status,
+        studentCount:       Number(r.student_count),
+        teacherCount:       Number(r.teacher_count),
+        maxStudents:        Number(r.max_students),
+        maxTeachers:        Number(r.max_teachers),
+        lastActivity:       lastActivity?.toISOString() ?? null,
+        daysSinceActivity,
+        openTickets:        Number(r.open_tickets),
+        onboardingComplete: r.onboarding_complete,
+        healthScore:        score,
+        risk,
+        trialEndsAt:        r.trial_ends_at ?? null,
+        planExpiresAt:      r.plan_expires_at ?? null,
+      };
+    });
+  }
+
+  // ── System Health ─────────────────────────────────────────────────────────────
+
+  async getSystemHealth() {
+    const start = Date.now();
+    let dbStatus = 'ok';
+    let dbLatencyMs = 0;
+    try {
+      const t0 = Date.now();
+      await this.dataSource.query('SELECT 1');
+      dbLatencyMs = Date.now() - t0;
+    } catch {
+      dbStatus = 'error';
+    }
+
+    const mem = process.memoryUsage();
+    const uptimeSeconds = Math.floor(process.uptime());
+
+    const [dbSizeRow, tenantRow, userRow, errorRow] = await Promise.all([
+      this.dataSource.query(`SELECT pg_database_size(current_database())::bigint AS size`),
+      this.dataSource.query(`SELECT COUNT(*)::int AS c FROM tenants WHERE deleted_at IS NULL AND type != 'platform'`),
+      this.dataSource.query(`SELECT COUNT(*)::int AS c FROM users WHERE deleted_at IS NULL`),
+      this.dataSource.query(`SELECT COUNT(*)::int AS c FROM audit_logs WHERE action = 'LOGIN_FAILED' AND created_at >= NOW() - INTERVAL '24 hours'`).catch(() => [{ c: 0 }]),
+    ]);
+
+    return {
+      status:         dbStatus === 'ok' ? 'healthy' : 'degraded',
+      dbStatus,
+      dbLatencyMs,
+      apiLatencyMs:   Date.now() - start,
+      uptimeSeconds,
+      uptimeHuman:    `${Math.floor(uptimeSeconds / 3600)}h ${Math.floor((uptimeSeconds % 3600) / 60)}m`,
+      memory: {
+        usedMb:  Math.round(mem.heapUsed / 1024 / 1024),
+        totalMb: Math.round(mem.heapTotal / 1024 / 1024),
+        rss:     Math.round(mem.rss / 1024 / 1024),
+      },
+      dbSizeGb:     Number((Number(dbSizeRow[0]?.size) / 1073741824).toFixed(3)),
+      totalTenants: Number(tenantRow[0]?.c) || 0,
+      totalUsers:   Number(userRow[0]?.c)   || 0,
+      failedLoginsLast24h: Number(errorRow[0]?.c) || 0,
+      checkedAt:    new Date().toISOString(),
+    };
+  }
+
+  // ── Usage Stats per Tenant ───────────────────────────────────────────────────
+
+  async getTenantUsageStats(tenantId: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    const [studentCount, teacherCount, aiUsage, liveCount, storageRow] = await Promise.all([
+      this.dataSource.query(`SELECT COUNT(*)::int AS c FROM users WHERE tenant_id=$1 AND role='student' AND deleted_at IS NULL`, [tenantId]),
+      this.dataSource.query(`SELECT COUNT(*)::int AS c FROM users WHERE tenant_id=$1 AND role='teacher' AND deleted_at IS NULL`, [tenantId]),
+      this.dataSource.query(`SELECT COUNT(*)::int AS requests, COALESCE(SUM(total_tokens),0)::bigint AS tokens, COALESCE(SUM(est_cost),0)::numeric(12,4) AS cost FROM ai_usage_logs WHERE institute_id=$1`, [tenantId]).catch(() => [{ requests: 0, tokens: 0, cost: 0 }]),
+      this.dataSource.query(`SELECT COUNT(*)::int AS c FROM broadcast_lectures WHERE institute_id=$1`, [tenantId]).catch(() => [{ c: 0 }]),
+      this.dataSource.query(`SELECT COALESCE(SUM(recording_size_gb),0)::numeric(10,3) AS gb FROM broadcast_lectures WHERE institute_id=$1`, [tenantId]).catch(() => [{ gb: 0 }]),
+    ]);
+
+    return {
+      tenantId,
+      tenantName: tenant.name,
+      plan:        tenant.plan,
+      status:      tenant.status,
+      students: { used: Number(studentCount[0]?.c), limit: tenant.maxStudents },
+      teachers: { used: Number(teacherCount[0]?.c), limit: tenant.maxTeachers },
+      ai: {
+        requests: Number(aiUsage[0]?.requests) || 0,
+        tokens:   Number(aiUsage[0]?.tokens)   || 0,
+        cost:     Number(aiUsage[0]?.cost)      || 0,
+      },
+      liveLectures:     Number(liveCount[0]?.c) || 0,
+      recordingStorageGb: Number(storageRow[0]?.gb) || 0,
+    };
+  }
+
   async getAnnouncements(query: AnnouncementListQueryDto) {
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -652,7 +1064,11 @@ export class SuperAdminService {
       take: limit,
     });
 
-    return { announcements, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 0 } };
+    const urgentTotal = await this.announcementRepo.count({
+      where: { priority: AnnouncementPriority.URGENT, },
+    });
+
+    return { announcements, meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 0, urgentTotal } };
   }
 
   async createAnnouncement(dto: CreateAnnouncementDto) {
@@ -664,14 +1080,22 @@ export class SuperAdminService {
         targetRole: dto.targetRole || 'all',
         tenantId: dto.tenantId || null,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        category: dto.category,
+        priority: dto.priority,
       }),
     );
 
     // Also send notifications
-    const targetRoles =
-      dto.targetRole === 'all' || !dto.targetRole
-        ? [UserRole.STUDENT, UserRole.TEACHER]
-        : [dto.targetRole === 'student' ? UserRole.STUDENT : UserRole.TEACHER];
+    let targetRoles: UserRole[];
+    if (dto.targetRole === 'all' || !dto.targetRole) {
+      targetRoles = [UserRole.STUDENT, UserRole.TEACHER, UserRole.INSTITUTE_ADMIN];
+    } else if (dto.targetRole === 'student') {
+      targetRoles = [UserRole.STUDENT];
+    } else if (dto.targetRole === 'institute_admin') {
+      targetRoles = [UserRole.INSTITUTE_ADMIN];
+    } else {
+      targetRoles = [UserRole.TEACHER];
+    }
 
     const users = await this.userRepo.find({
       where: targetRoles.flatMap((role) => ({
@@ -745,12 +1169,6 @@ export class SuperAdminService {
 
     const rows = await this.dataSource.query(`
       SELECT
-        e.id              AS enrollment_id,
-        e.status          AS enrollment_status,
-        e.enrolled_at,
-        e.fee_paid,
-        e.fee_paid_at,
-
         s.id              AS student_id,
         u.full_name       AS student_name,
         u.email           AS student_email,
@@ -759,35 +1177,38 @@ export class SuperAdminService {
         s.city            AS city,
         s.state           AS state,
         s.pin_code        AS pin_code,
-
-        b.id              AS batch_id,
-        b.name            AS batch_name,
-        b.exam_target     AS exam_target,
-        b.fee_amount      AS batch_fee,
-        b.start_date      AS batch_start_date,
-        b.end_date        AS batch_end_date,
-
         t.id              AS tenant_id,
         t.name            AS institute_name,
-        t.subdomain       AS institute_subdomain
-      FROM enrollments e
-      JOIN students   s ON s.id       = e.student_id
-      JOIN users      u ON u.id       = s.user_id
-      JOIN batches    b ON b.id       = e.batch_id
-      JOIN tenants    t ON t.id       = e.tenant_id
-      WHERE ${where}
-      ORDER BY e.enrolled_at DESC
+        t.subdomain       AS institute_subdomain,
+        MAX(e.enrolled_at) AS enrolled_at,
+        JSON_AGG(JSON_BUILD_OBJECT(
+          'id', e.id,
+          'status', e.status,
+          'enrolled_at', e.enrolled_at,
+          'fee_paid', e.fee_paid,
+          'batch_id', b.id,
+          'batch_name', b.name,
+          'exam_target', b.exam_target
+        ))                AS enrollments
+      FROM students s
+      JOIN users      u ON u.id       = s.user_id AND u.deleted_at IS NULL
+      JOIN enrollments e ON e.student_id = s.id AND e.deleted_at IS NULL
+      JOIN batches    b ON b.id       = e.batch_id AND b.deleted_at IS NULL
+      JOIN tenants    t ON t.id       = e.tenant_id AND t.deleted_at IS NULL
+      WHERE s.deleted_at IS NULL AND ${where}
+      GROUP BY s.id, u.id, t.id
+      ORDER BY enrolled_at DESC
       LIMIT $${idx++} OFFSET $${idx++}
     `, [...params, limit, offset]);
 
     const countResult = await this.dataSource.query(
-      `SELECT COUNT(*)::int AS total
-       FROM enrollments e
-       JOIN students s ON s.id = e.student_id
-       JOIN users    u ON u.id = s.user_id
-       JOIN batches  b ON b.id = e.batch_id
-       JOIN tenants  t ON t.id = e.tenant_id
-       WHERE ${where}`,
+      `SELECT COUNT(DISTINCT s.id)::int AS total
+       FROM students s
+       JOIN users    u ON u.id = s.user_id AND u.deleted_at IS NULL
+       JOIN enrollments e ON e.student_id = s.id AND e.deleted_at IS NULL
+       JOIN batches  b ON b.id = e.batch_id AND b.deleted_at IS NULL
+       JOIN tenants  t ON t.id = e.tenant_id AND t.deleted_at IS NULL
+       WHERE s.deleted_at IS NULL AND ${where}`,
       params,
     );
 
@@ -812,8 +1233,26 @@ export class SuperAdminService {
       ORDER BY total_revenue DESC NULLS LAST
     `);
 
+    const mappedRows = rows.map(r => ({
+      id: `${r.student_id}-${r.tenant_id}`,
+      studentId: r.student_id,
+      studentName: r.student_name,
+      studentEmail: r.student_email,
+      studentPhone: r.student_phone,
+      careOf: r.care_of,
+      city: r.city,
+      state: r.state,
+      pinCode: r.pin_code,
+      tenantId: r.tenant_id,
+      tenantName: r.institute_name,
+      instituteSubdomain: r.institute_subdomain,
+      enrolledAt: r.enrolled_at,
+      status: (r.enrollments || []).some((en: any) => en.status === 'active') ? 'active' : 'dropped',
+      enrollments: r.enrollments || [],
+    }));
+
     return {
-      data: rows,
+      items: mappedRows,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
       revenueSummary,
     };

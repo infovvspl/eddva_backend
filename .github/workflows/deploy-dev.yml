@@ -24,6 +24,21 @@ jobs:
           npm ci
           npm run build
 
+      - name: Get runner IP and open EC2 security group
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          RUNNER_IP=$(curl -s https://checkip.amazonaws.com)
+          echo "RUNNER_IP=$RUNNER_IP" >> $GITHUB_ENV
+          aws ec2 authorize-security-group-ingress \
+            --group-id ${{ secrets.EC2_SG_ID }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr "${RUNNER_IP}/32" \
+            --description "GitHub Actions runner (auto-removed)" || true
+
       - name: Deploy to EC2 (DEV)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -36,12 +51,15 @@ jobs:
             cd /home/ubuntu/eddva_backend_dev
             git fetch --all
             git reset --hard origin/dev
+            rm -rf node_modules
             npm ci
             npm run build
-            # Inject secrets into .env (add if missing, update if present)
             grep -q '^SCHOOL_JWT_SECRET=' .env \
               && sed -i "s|^SCHOOL_JWT_SECRET=.*|SCHOOL_JWT_SECRET=${SCHOOL_JWT_SECRET}|" .env \
               || echo "SCHOOL_JWT_SECRET=${SCHOOL_JWT_SECRET}" >> .env
+            grep -q '^INTERNAL_API_KEY=' .env \
+              && sed -i 's|^INTERNAL_API_KEY=.*|INTERNAL_API_KEY=edva_internal_ai_log_2026|' .env \
+              || echo 'INTERNAL_API_KEY=edva_internal_ai_log_2026' >> .env
             if pm2 list | grep -q eddva-backend-dev; then
               pm2 restart eddva-backend-dev --update-env
             else
@@ -53,6 +71,19 @@ jobs:
                 --log /home/ubuntu/logs/backend-dev.log
             fi
             pm2 save
+
+      - name: Remove runner IP from EC2 security group
+        if: always()
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id ${{ secrets.EC2_SG_ID }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr "${RUNNER_IP}/32" || true
 
       - name: Notify success
         if: success()

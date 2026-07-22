@@ -1,10 +1,12 @@
-import { Injectable, OnModuleInit, Inject, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, OnModuleInit, Inject, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolChatGateway } from './school-chat.gateway';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { SchoolNotificationGateway } from '../notification/school-notification.gateway';
+import { S3Service } from '../../upload/s3.service';
+import { randomUUID } from 'crypto';
 
 const LEGACY_VIRTUAL_SUPER_ADMIN_ID = 'demo-super-admin';
 const VIRTUAL_SUPER_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
@@ -24,7 +26,24 @@ export class SchoolChatService implements OnModuleInit {
     private readonly gateway: SchoolChatGateway,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private readonly notificationGateway: SchoolNotificationGateway,
+    private readonly s3Service: S3Service,
   ) {}
+
+  async presignUpload(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }, req: any) {
+    const instituteId = user.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
+    if (!body.contentType) throw new BadRequestException('contentType is required');
+    const MAX = 20 * 1024 * 1024; // 20 MB max for chat attachments
+    if (body.fileSize && body.fileSize > MAX) throw new BadRequestException('File must be ≤ 20 MB');
+    const safeName = (body.fileName || 'file').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'file';
+    const key = `tenants/${instituteId}/chat/attachments/${Date.now()}-${randomUUID()}-${safeName}`;
+    const { uploadUrl, fileUrl } = await this.s3Service.presign(key, body.contentType);
+
+    const host = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const proxyUrl = `${host}/api/v1/upload/proxy?url=${encodeURIComponent(uploadUrl)}&contentType=${encodeURIComponent(body.contentType)}`;
+
+    return { uploadUrl: proxyUrl, fileUrl, key };
+  }
 
   private chatActorIds(user: any): string[] {
     const ids = new Set<string>();
@@ -150,12 +169,19 @@ export class SchoolChatService implements OnModuleInit {
   async getUsers(user: any, query: any) {
     const instituteId = user.instituteId;
     const targetRole = query.role || 'TEACHER';
+    const q = query.q || query.search || '';
 
     let sql = '';
-    const params: any[] = [instituteId];
+    const params: any[] = [];
 
     // Check smart directory restrictions
     if (user.role === 'TEACHER' && targetRole === 'PARENT') {
+      params.push(instituteId, user.id);
+      let searchCond = '';
+      if (q) {
+        params.push(`%${q}%`);
+        searchCond = ` AND (u.name ILIKE $3 OR u.email ILIKE $3)`;
+      }
       // Teachers can only view parents of students in their assigned sections/classes
       sql = `
         SELECT u.id, u.name, u.email, u.role, u.profile_image 
@@ -163,6 +189,7 @@ export class SchoolChatService implements OnModuleInit {
         WHERE u.institute_id = $1 
           AND u.role = 'PARENT' 
           AND u.is_active = true
+          ${searchCond}
           AND (
             (u.email IS NOT NULL AND LOWER(u.email) IN (
               SELECT DISTINCT LOWER(s.parent_email) 
@@ -191,8 +218,13 @@ export class SchoolChatService implements OnModuleInit {
             ))
           )
       `;
-      params.push(user.id);
     } else if (user.role === 'PARENT' && targetRole === 'TEACHER') {
+      params.push(instituteId, user.id);
+      let searchCond = '';
+      if (q) {
+        params.push(`%${q}%`);
+        searchCond = ` AND (u.name ILIKE $3 OR u.email ILIKE $3)`;
+      }
       // Parents can only view their child's teachers
       sql = `
         SELECT DISTINCT u.id, u.name, u.email, u.role, u.profile_image 
@@ -201,6 +233,7 @@ export class SchoolChatService implements OnModuleInit {
         WHERE u.institute_id = $1 
           AND u.role = 'TEACHER'
           AND u.is_active = true
+          ${searchCond}
           AND t.id IN (
             SELECT taa.teacher_id 
             FROM teacher_academic_assignments taa
@@ -213,21 +246,37 @@ export class SchoolChatService implements OnModuleInit {
             )
           )
       `;
-      params.push(user.id);
     } else if (targetRole.toUpperCase() === 'SUPER_ADMIN') {
       // Anyone looking up super admin users — no institute_id boundary
-      sql = `SELECT u.id, u.name, u.email, u.role, u.profile_image, 'Platform' AS institute_name FROM users u WHERE LOWER(u.role) = 'super_admin' AND u.is_active IS NOT FALSE`;
-      params.length = 0;
+      let searchCond = '';
+      if (q) {
+        params.push(`%${q}%`);
+        searchCond = ` AND (u.name ILIKE $1 OR u.email ILIKE $1)`;
+      }
+      sql = `SELECT u.id, u.name, u.email, u.role, u.profile_image, 'Platform' AS institute_name FROM users u WHERE LOWER(u.role) = 'super_admin' AND u.is_active IS NOT FALSE${searchCond}`;
     } else if (user.role === 'SUPER_ADMIN' && targetRole.toUpperCase() === 'INSTITUTE_ADMIN') {
       // Super admin looking up institute admins across all institutes
+      let searchCond = '';
+      if (q) {
+        params.push(`%${q}%`);
+        searchCond += ` AND (u.name ILIKE $${params.length} OR u.email ILIKE $${params.length} OR i.name ILIKE $${params.length})`;
+      }
+      if (query.instituteId && query.instituteId !== 'ALL') {
+        params.push(query.instituteId);
+        searchCond += ` AND u.institute_id = $${params.length}`;
+      }
       sql = `SELECT u.id, u.name, u.email, u.role, u.profile_image, i.name AS institute_name
              FROM users u LEFT JOIN institutes i ON i.id = u.institute_id
-             WHERE LOWER(u.role) = 'institute_admin' AND u.is_active IS NOT FALSE`;
-      params.length = 0;
+             WHERE LOWER(u.role) = 'institute_admin' AND u.is_active IS NOT FALSE${searchCond}`;
     } else {
       // Admin / Super Admin (or default rules for self-communication/staff)
-      sql = `SELECT id, name, email, role, profile_image FROM users WHERE institute_id = $1 AND LOWER(role) = LOWER($2) AND is_active = true`;
-      params.push(targetRole);
+      params.push(instituteId, targetRole);
+      let searchCond = '';
+      if (q) {
+        params.push(`%${q}%`);
+        searchCond = ` AND (name ILIKE $3 OR email ILIKE $3)`;
+      }
+      sql = `SELECT id, name, email, role, profile_image FROM users WHERE institute_id = $1 AND LOWER(role) = LOWER($2) AND is_active = true${searchCond}`;
     }
     sql += ` ORDER BY name ASC`;
 

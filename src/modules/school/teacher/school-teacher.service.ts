@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -235,7 +235,9 @@ export class SchoolTeacherService {
     const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
 
     const params: any[] = [];
-    let filter = `u.role = 'TEACHER'`;
+    const targetRole = query.role || 'TEACHER';
+    params.push(targetRole);
+    let filter = `u.role LIKE '%' || $1 || '%'`;
     if (instituteId) {
       params.push(instituteId);
       filter += ` AND u.institute_id = $${params.length}`;
@@ -255,35 +257,85 @@ export class SchoolTeacherService {
     const totalTeachers = rows[0]?.totalTeachers || 0;
     const newThisMonth = rows[0]?.newThisMonth || 0;
 
-    // Get today's attendance from attendances table (source of truth for teacher attendance)
-    const todayStr = new Date().toISOString().split('T')[0];
-    const attParams: any[] = [todayStr];
-    let attFilter = `a.date = $1 AND u.role = 'TEACHER'`;
-    if (instituteId) {
-      attParams.push(instituteId);
-      attFilter += ` AND a.institute_id = $${attParams.length}`;
-    }
+    // Get today's attendance (source of truth for teacher/admin attendance)
+    let presentCount = 0;
+    let lateCount = 0;
+    let halfDayCount = 0;
+    let explicitAbsentCount = 0;
+    let presentToday = 0;
+    let usedToday = 0;
 
-    const attQuery = `
-      SELECT
-        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'present')::int AS "presentCount",
-        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'late')::int AS "lateCount",
-        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) IN ('half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')::int AS "halfDayCount",
-        COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'absent')::int AS "explicitAbsentCount",
-        COUNT(DISTINCT a.user_id) FILTER (
-          WHERE LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
-             OR LOWER(a.status) LIKE 'half%'
-        )::int AS "presentToday"
-      FROM attendances a
-      JOIN users u ON a.user_id = u.id
-      WHERE ${attFilter}
-    `;
-    const attRows = await this.ds.query(attQuery, attParams);
-    const presentCount = attRows[0]?.presentCount || 0;
-    const lateCount = attRows[0]?.lateCount || 0;
-    const halfDayCount = attRows[0]?.halfDayCount || 0;
-    const explicitAbsentCount = attRows[0]?.explicitAbsentCount || 0;
-    const presentToday = attRows[0]?.presentToday || 0;
+    if (targetRole === 'INSTITUTE_ADMIN') {
+      console.log('[getStats] INSTITUTE_ADMIN branch - using attendances only (no audit_logs)');
+      const attParams: any[] = [];
+      let attFilter = `u.role LIKE '%INSTITUTE_ADMIN%'`;
+      if (instituteId) {
+        attParams.push(instituteId);
+        attFilter += ` AND u.institute_id = $1`;
+      }
+      const attQuery = `
+        SELECT
+          COUNT(DISTINCT u.id) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM attendances 
+              WHERE user_id::text = u.id::text AND date = CURRENT_DATE AND LOWER(status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
+            )
+          )::int AS "presentToday",
+          COUNT(DISTINCT u.id) FILTER (
+            WHERE (
+              -- Pure INSTITUTE_ADMIN (no TEACHER in role): count on any attendance today
+              u.role NOT ILIKE '%TEACHER%'
+              AND EXISTS (
+                SELECT 1 FROM attendances
+                WHERE user_id::text = u.id::text AND date = CURRENT_DATE
+                  AND LOWER(status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
+              )
+            ) OR (
+              -- Dual-role TEACHER+INSTITUTE_ADMIN: only count when admin portal was explicitly accessed
+              u.role ILIKE '%TEACHER%'
+              AND EXISTS (
+                SELECT 1 FROM attendances
+                WHERE user_id::text = u.id::text AND date = CURRENT_DATE
+                  AND LOWER(remarks) ILIKE '%admin portal access%'
+              )
+            )
+          )::int AS "usedToday"
+        FROM users u
+        WHERE ${attFilter}
+      `;
+      const attRows = await this.ds.query(attQuery, attParams);
+      presentToday = attRows[0]?.presentToday || 0;
+      usedToday = attRows[0]?.usedToday || 0;
+    } else {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const attParams: any[] = [todayStr, targetRole];
+      let attFilter = `a.date = $1 AND u.role LIKE '%' || $2 || '%'`;
+      if (instituteId) {
+        attParams.push(instituteId);
+        attFilter += ` AND a.institute_id = $${attParams.length}`;
+      }
+
+      const attQuery = `
+        SELECT
+          COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'present')::int AS "presentCount",
+          COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'late')::int AS "lateCount",
+          COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) IN ('half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')::int AS "halfDayCount",
+          COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'absent')::int AS "explicitAbsentCount",
+          COUNT(DISTINCT a.user_id) FILTER (
+            WHERE LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
+               OR LOWER(a.status) LIKE 'half%'
+          )::int AS "presentToday"
+        FROM attendances a
+        JOIN users u ON a.user_id = u.id
+        WHERE ${attFilter}
+      `;
+      const attRows = await this.ds.query(attQuery, attParams);
+      presentCount = attRows[0]?.presentCount || 0;
+      lateCount = attRows[0]?.lateCount || 0;
+      halfDayCount = attRows[0]?.halfDayCount || 0;
+      explicitAbsentCount = attRows[0]?.explicitAbsentCount || 0;
+      presentToday = attRows[0]?.presentToday || 0;
+    }
 
     // Calculate absent count as: Total - Present Today
     const absentToday = totalTeachers - presentToday;
@@ -308,6 +360,7 @@ export class SchoolTeacherService {
         presentToday,
         absentToday,
         newThisMonth,
+        usedToday,
       }
     };
   }
@@ -323,7 +376,7 @@ export class SchoolTeacherService {
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
     const employeeId = body.employeeId || await this.generateEmployeeId(instituteId);
-    const hashed = await bcrypt.hash(body.password, 10);
+    const hashed = await bcrypt.hash(body.password, 12);
 
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();
@@ -426,10 +479,43 @@ export class SchoolTeacherService {
   async list(user: any, query: any) {
     const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
     const params: any[] = [];
-    let filter = `u.role='TEACHER'`;
+    const targetRole = query.role || 'TEACHER';
+    params.push(targetRole);
+    let filter = `u.role LIKE '%' || $1 || '%'`;
     if (instituteId) {
       params.push(instituteId);
       filter += ` AND u.institute_id=$${params.length}`;
+    }
+
+    if (user.role === 'STUDENT') {
+      const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
+      const sectionId = studentProfile?.section_id;
+      if (sectionId) {
+        params.push(sectionId);
+        filter += ` AND EXISTS (
+          SELECT 1 FROM teacher_academic_assignments ta 
+          WHERE ta.teacher_id = t.id AND ta.section_id::text = $${params.length}::text
+        )`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (sectionIds.length > 0) {
+        params.push(sectionIds);
+        filter += ` AND EXISTS (
+          SELECT 1 FROM teacher_academic_assignments ta 
+          WHERE ta.teacher_id = t.id AND ta.section_id::text = ANY($${params.length}::text[])
+        )`;
+      } else {
+        filter += ` AND 1=0`;
+      }
     }
 
     const assignmentFilters: string[] = [];
@@ -485,7 +571,7 @@ export class SchoolTeacherService {
     const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const dataQuery = `
-      SELECT u.id,u.name,u.email,u.phone,u.is_active,u.created_at,u.profile_image,
+      SELECT u.id,u.name,u.email,u.phone,u.role,u.is_active,u.created_at,u.profile_image,
              u.institute_id,i.name AS institute_name,
              t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
              t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
@@ -535,6 +621,7 @@ export class SchoolTeacherService {
         name: r.name,
         email: r.email,
         phone: r.phone,
+        role: r.role,
         profileImage: r.profile_image,
         isActive: r.is_active,
         createdAt: r.created_at,
@@ -618,7 +705,7 @@ export class SchoolTeacherService {
        COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM (SELECT DISTINCT class_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN classes c ON taa.class_id=c.id), '[]'::json) as classes,
        COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN sections s ON taa.section_id=s.id), '[]'::json) as sections,
        COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM (SELECT DISTINCT subject_id FROM teacher_academic_assignments WHERE teacher_id=t.id AND subject_id IS NOT NULL) taa JOIN subjects sub ON taa.subject_id=sub.id), '[]'::json) as subjects
-       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND u.role='TEACHER'`;
+       FROM users u LEFT JOIN teachers t ON t.user_id=u.id WHERE (u.id=$1 OR t.id=$1) AND (u.role LIKE '%TEACHER%' OR u.role LIKE '%INSTITUTE_ADMIN%')`;
     
     const params: any[] = [id];
     if (instituteId) {
@@ -699,6 +786,22 @@ export class SchoolTeacherService {
       totalStudents = studentsRow[0]?.c || 0;
       assignmentsCreated = assignsRow[0]?.c || 0;
       assessmentsConducted = assessRow[0]?.c || 0;
+    } else if (r.role === 'INSTITUTE_ADMIN') {
+      const joinDate = new Date(r.created_at);
+      const today = new Date();
+      const diffTime = Math.abs(today.getTime() - joinDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+
+      const attRow = await this.ds.query(`
+        SELECT COUNT(DISTINCT d.date)::int AS present
+        FROM generate_series($2::date, CURRENT_DATE::date, '1 day'::interval) d(date)
+        WHERE EXISTS (
+          SELECT 1 FROM attendances 
+          WHERE user_id::text = $1::text AND date = d.date::date AND LOWER(status) IN ('present', 'late', 'half_day', 'half-day', 'halfday')
+        )
+      `, [r.id, joinDate]);
+      const presentCount = attRow[0]?.present || 0;
+      attendancePercentage = `${Math.min(100, Math.round((presentCount / diffDays) * 100))}%`;
     }
     const mappedData = {
       ...r,
@@ -778,88 +881,124 @@ export class SchoolTeacherService {
   }
 
   async update(user: any, id: string, body: any) {
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && user) {
+      const targetInstRow = await this.ds.query(
+        `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM teachers WHERE id = $1 LIMIT 1`,
+        [id]
+      );
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(user.instituteId)) {
+        throw new ForbiddenException('You do not have permission to update this teacher');
+      }
+    }
+
+    const userRow = await this.ds.query(`SELECT email FROM users WHERE id=$1`, [id]);
+    if (userRow.length === 0) {
+      throw new BadRequestException('Teacher user record not found');
+    }
+    const oldEmail = userRow[0]?.email;
+
     if (body.phone) {
       const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=(SELECT institute_id FROM users WHERE id=$1) AND phone=$2 AND id<>$1`, [id, body.phone]);
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
-    await this.ds.query(
-      `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),profile_image=COALESCE($4,profile_image),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
-      [id, body.name, body.isActive, body.profileImage, body.phone],
-    );
+
+    const userUpdates: string[] = [];
+    const userParams: any[] = [id];
+    if (body.name !== undefined) {
+      userParams.push(body.name);
+      userUpdates.push(`name=$${userParams.length}`);
+    }
+    if (body.isActive !== undefined) {
+      userParams.push(body.isActive);
+      userUpdates.push(`is_active=$${userParams.length}`);
+    }
+    if (body.profileImage !== undefined) {
+      userParams.push(body.profileImage);
+      userUpdates.push(`profile_image=$${userParams.length}`);
+    }
+    if (body.phone !== undefined) {
+      userParams.push(body.phone);
+      userUpdates.push(`phone=$${userParams.length}`);
+    }
+    if (body.email !== undefined) {
+      const existingEmail: any[] = await this.ds.query(`SELECT id FROM users WHERE email=$1 AND id<>$2`, [body.email, id]);
+      if (existingEmail.length) throw new BadRequestException('Email is already registered');
+      userParams.push(body.email);
+      userUpdates.push(`email=$${userParams.length}`);
+    }
+
+    // `body.role` is used for teacher designation, so we do not update `users.role` here.
+    let rowsAffected = 0;
+    if (userUpdates.length > 0) {
+      const updateResult = await this.ds.query(
+        `UPDATE users SET ${userUpdates.join(', ')}, updated_at=NOW() WHERE id=$1`,
+        userParams
+      );
+      if (Array.isArray(updateResult)) {
+        rowsAffected = updateResult[1] || 0;
+      } else if (updateResult && typeof updateResult === 'object') {
+        rowsAffected = updateResult.rowCount || 0;
+      } else {
+        rowsAffected = 1;
+      }
+    }
+
+    console.log(`[SchoolTeacherService.update] Teacher ID:`, id);
+    console.log(`[SchoolTeacherService.update] Old email:`, oldEmail);
+    console.log(`[SchoolTeacherService.update] New email:`, body.email);
+    console.log(`[SchoolTeacherService.update] Rows affected:`, rowsAffected);
+
     const existingTeacherRows: any[] = await this.ds.query(`SELECT documents FROM teachers WHERE user_id=$1`, [id]);
     const documents = this.buildTeacherDocuments(body, this.parseJsonObject(existingTeacherRows[0]?.documents));
-    await this.ds.query(
-      `UPDATE teachers SET
-        employee_id = COALESCE($2, employee_id),
-        blood_group = $3,
-        marital_status = $4,
-        department = $5,
-        joining_date = $6,
-        qualifications = $7,
-        education_details = COALESCE($8, education_details),
-        experience_details = COALESCE($9, experience_details),
-        dob = $10,
-        gender = $11,
-        national_id = $12,
-        designation = $13,
-        salary = $14,
-        experience = $15,
-        address = $16,
-        city = $17,
-        state = $18,
-        pin_code = $19,
-        allergies = $20,
-        medical_conditions = $21,
-        documents = COALESCE($22, documents),
-        shift = $23,
-        weekdays = COALESCE($24, weekdays),
-        office_hours_start = $25,
-        office_hours_end = $26,
-        max_hours_per_week = $27,
-        emergency_contact = $28,
-        guardian_contact = $29,
-        disability = $30,
-        emergency_doctor = $31,
-        nationality = $32,
-        country = $33,
-        updated_at = NOW()
-       WHERE user_id = $1`,
-      [
-        id,
-        body.employeeId || body.employeeCode || null,
-        body.bloodGroup || null,
-        body.maritalStatus || null,
-        body.department || null,
-        body.joiningDate ? new Date(body.joiningDate) : null,
-        body.qualifications || null,
-        body.educationDetails ? JSON.stringify(body.educationDetails) : null,
-        body.experienceDetails ? JSON.stringify(body.experienceDetails) : null,
-        body.dob ? new Date(body.dob) : null,
-        body.gender || null,
-        body.nationalId || null,
-        body.role || null,
-        body.salary || null,
-        body.experience || null,
-        body.currentAddress || body.address || null,
-        body.city || null,
-        body.state || null,
-        body.pinCode || body.pin_code || null,
-        body.allergies || null,
-        body.medicalConditions || null,
-        JSON.stringify(documents),
-        body.shift || null,
-        body.weekdays ? JSON.stringify(body.weekdays) : null,
-        body.officeHoursStart || null,
-        body.officeHoursEnd || null,
-        body.maxHoursPerWeek || null,
-        body.emergencyContact || null,
-        body.guardianContact || null,
-        body.disability || null,
-        body.emergencyDoctor || null,
-        body.nationality || null,
-        body.country || null
-      ]
-    );
+
+    const teacherUpdates: string[] = [];
+    const teacherParams: any[] = [id];
+    const addTeacherUpdate = (field: string, val: any) => {
+      teacherParams.push(val);
+      teacherUpdates.push(`${field}=$${teacherParams.length}`);
+    };
+
+    if (body.employeeId !== undefined || body.employeeCode !== undefined) addTeacherUpdate('employee_id', body.employeeId || body.employeeCode || null);
+    if (body.bloodGroup !== undefined) addTeacherUpdate('blood_group', body.bloodGroup || null);
+    if (body.maritalStatus !== undefined) addTeacherUpdate('marital_status', body.maritalStatus || null);
+    if (body.department !== undefined) addTeacherUpdate('department', body.department || null);
+    if (body.joiningDate !== undefined) addTeacherUpdate('joining_date', body.joiningDate ? new Date(body.joiningDate) : null);
+    if (body.qualifications !== undefined) addTeacherUpdate('qualifications', body.qualifications || null);
+    if (body.educationDetails !== undefined) addTeacherUpdate('education_details', body.educationDetails ? JSON.stringify(body.educationDetails) : null);
+    if (body.experienceDetails !== undefined) addTeacherUpdate('experience_details', body.experienceDetails ? JSON.stringify(body.experienceDetails) : null);
+    if (body.dob !== undefined) addTeacherUpdate('dob', body.dob ? new Date(body.dob) : null);
+    if (body.gender !== undefined) addTeacherUpdate('gender', body.gender || null);
+    if (body.nationalId !== undefined) addTeacherUpdate('national_id', body.nationalId || null);
+    if (body.role !== undefined) addTeacherUpdate('designation', body.role || null);
+    if (body.salary !== undefined) addTeacherUpdate('salary', body.salary || null);
+    if (body.experience !== undefined) addTeacherUpdate('experience', body.experience || null);
+    if (body.currentAddress !== undefined || body.address !== undefined) addTeacherUpdate('address', body.currentAddress || body.address || null);
+    if (body.city !== undefined) addTeacherUpdate('city', body.city || null);
+    if (body.state !== undefined) addTeacherUpdate('state', body.state || null);
+    if (body.pinCode !== undefined || body.pin_code !== undefined) addTeacherUpdate('pin_code', body.pinCode || body.pin_code || null);
+    if (body.allergies !== undefined) addTeacherUpdate('allergies', body.allergies || null);
+    if (body.medicalConditions !== undefined) addTeacherUpdate('medical_conditions', body.medicalConditions || null);
+    if (body.shift !== undefined) addTeacherUpdate('shift', body.shift || null);
+    if (body.weekdays !== undefined) addTeacherUpdate('weekdays', body.weekdays ? JSON.stringify(body.weekdays) : null);
+    if (body.officeHoursStart !== undefined) addTeacherUpdate('office_hours_start', body.officeHoursStart || null);
+    if (body.officeHoursEnd !== undefined) addTeacherUpdate('office_hours_end', body.officeHoursEnd || null);
+    if (body.maxHoursPerWeek !== undefined) addTeacherUpdate('max_hours_per_week', body.maxHoursPerWeek || null);
+    if (body.emergencyContact !== undefined) addTeacherUpdate('emergency_contact', body.emergencyContact || null);
+    if (body.guardianContact !== undefined) addTeacherUpdate('guardian_contact', body.guardianContact || null);
+    if (body.disability !== undefined) addTeacherUpdate('disability', body.disability || null);
+    if (body.emergencyDoctor !== undefined) addTeacherUpdate('emergency_doctor', body.emergencyDoctor || null);
+    if (body.nationality !== undefined) addTeacherUpdate('nationality', body.nationality || null);
+    if (body.country !== undefined) addTeacherUpdate('country', body.country || null);
+
+    addTeacherUpdate('documents', JSON.stringify(documents));
+
+    if (teacherUpdates.length > 0) {
+      await this.ds.query(
+        `UPDATE teachers SET ${teacherUpdates.join(', ')}, updated_at=NOW() WHERE user_id=$1`,
+        teacherParams
+      );
+    }
 
     let tRows = await this.ds.query(`SELECT id, institute_id FROM teachers WHERE user_id=$1`, [id]);
     if (tRows.length === 0) {
@@ -989,7 +1128,7 @@ export class SchoolTeacherService {
         if (existing.length) throw new Error('Email already exists');
 
         const employeeId = rec.employeeId || await this.generateEmployeeId(instituteId);
-        const hashed = await bcrypt.hash(rec.password, 10);
+        const hashed = await bcrypt.hash(rec.password, 12);
 
         const uRows: any[] = await this.ds.query(
           `INSERT INTO users (institute_id,name,email,password,role,phone,is_active) VALUES ($1,$2,$3,$4,'TEACHER',$5,TRUE) RETURNING id`,
@@ -1026,8 +1165,26 @@ export class SchoolTeacherService {
     };
   }
 
-  async remove(id: string) {
-    await this.ds.query(`DELETE FROM users WHERE id=$1`, [id]);
+  async remove(user: any, id?: string) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+
+    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && reqUser) {
+      const targetInstRow = await this.ds.query(
+        `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM teachers WHERE id = $1 LIMIT 1`,
+        [targetId]
+      );
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(reqUser.instituteId)) {
+        throw new ForbiddenException('You do not have permission to delete this teacher');
+      }
+    }
+
+    await this.ds.query(`DELETE FROM users WHERE id=$1`, [targetId]);
     return { success: true };
   }
 

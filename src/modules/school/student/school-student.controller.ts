@@ -16,7 +16,7 @@ export class SchoolStudentController {
   @Audit({ module: 'Users', action: 'Student Create', description: 'Created student {body.name}' })
   create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
 
-  @Get('profile/me') getMyProfile(@SchoolUser() user: any) { return this.svc.findOne(user.id); }
+  @Get('profile/me') getMyProfile(@SchoolUser() user: any) { return this.svc.findOne(user, user.id); }
   @Get('stats') stats(@SchoolUser() user: any, @Query() query: any) { return this.svc.getStats(user, query); }
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
   @Get('courses/my') myCourses(@SchoolUser() user: any) { return this.svc.getMyCourses(user); }
@@ -24,18 +24,28 @@ export class SchoolStudentController {
   @Get('courses/:classId') courseCurriculum(@SchoolUser() user: any, @Param('classId') classId: string) {
     return this.svc.getCourseDetail(user, classId);
   }
-  @Get(':id') findOne(@Param('id', ParseUUIDPipe) id: string) { return this.svc.findOne(id); }
+  @Get(':id') findOne(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.findOne(user, id); }
 
   @Put(':id')
   @Audit({ module: 'Users', action: 'Student Edit', description: 'Updated student ID {params.id}' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() body: any) { return this.svc.update(id, body); }
+  update(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) { return this.svc.update(user, id, body); }
 
   @Delete(':id')
   @Audit({ module: 'Users', action: 'Student Delete', description: 'Deleted student ID {params.id}' })
-  remove(@Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(id); }
+  remove(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(user, id); }
 
   @Post(':id/send-credentials')
   sendParentCredentials(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) {
     return this.svc.sendParentCredentials(user, id, body);
+  }
+
+  @Post(':id/previous-results')
+  addPreviousResult(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) {
+    return this.svc.addPreviousResult(user, id, body);
+  }
+
+  @Post('device-token')
+  registerDeviceToken(@SchoolUser() user: any, @Body() body: any) {
+    return this.svc.registerDeviceToken(user, body);
   }
 }

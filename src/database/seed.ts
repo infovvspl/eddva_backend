@@ -32,7 +32,7 @@ async function seed() {
     console.log(`Using Platform Tenant: ${platformTenant.id}`);
 
     // 2. Create Super Admin User (E.164 phone matches frontend + /auth/login lookup)
-    const superAdminEmail = 'superadmin@gmail.com';
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'coaching@eddva.in';
     const superAdminPhone = '+919999999999';
 
     let superAdmin = await userRepo.findOne({

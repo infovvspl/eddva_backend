@@ -11,6 +11,7 @@ export interface JwtPayload {
   tenantId: string;
   role: string;
   batchIds?: string[]; // for teachers
+  tokenVersion?: number;
   iat?: number;
   exp?: number;
 }
@@ -29,15 +30,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  private userCache = new Map<string, { value: any; expiresAt: number }>();
+  private userCache = new Map<string, { value: any; tokenVersion: number; expiresAt: number }>();
   private readonly cacheTtlMs = 15000; // 15 seconds
 
   async validate(payload: JwtPayload) {
     const userId = payload.sub;
+    const payloadTokenVersion = payload.tokenVersion ?? 0;
     const now = Date.now();
     const cached = this.userCache.get(userId);
 
     if (cached && cached.expiresAt > now) {
+      if (cached.tokenVersion !== payloadTokenVersion) {
+        throw new UnauthorizedException('Session terminated');
+      }
       return {
         ...cached.value,
         batchIds: payload.batchIds || [],
@@ -57,6 +62,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Account suspended');
     }
 
+    const userTokenVersion = user.tokenVersion ?? 0;
+    if (userTokenVersion !== payloadTokenVersion) {
+      throw new UnauthorizedException('Session terminated');
+    }
+
     const userData = {
       id: user.id,
       phoneNumber: user.phoneNumber,
@@ -67,7 +77,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       tenant: user.tenant,
     };
 
-    this.userCache.set(userId, { value: userData, expiresAt: now + this.cacheTtlMs });
+    this.userCache.set(userId, { value: userData, tokenVersion: userTokenVersion, expiresAt: now + this.cacheTtlMs });
 
     return {
       ...userData,

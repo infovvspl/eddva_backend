@@ -17,6 +17,30 @@ export class PlatformConfig extends Base {
   /** Ensures only one row exists. */
   @Column({ name: 'is_singleton', default: true, unique: true })
   isSingleton: boolean;
+
+  @Column({ name: 'logo_url', nullable: true })
+  logoUrl: string;
+
+  @Column({ name: 'maintenance_mode', default: false })
+  maintenanceMode: boolean;
+
+  @Column({ name: 'coaching_maintenance_mode', default: false })
+  coachingMaintenanceMode: boolean;
+
+  @Column({ name: 'school_maintenance_mode', default: false })
+  schoolMaintenanceMode: boolean;
+
+  @Column({ name: 'battle_arena_enabled', default: true })
+  battleArenaEnabled: boolean;
+
+  @Column({ name: 'ai_doubt_resolution_enabled', default: true })
+  aiDoubtResolutionEnabled: boolean;
+
+  @Column({ name: 'platform_name', default: 'EDVA' })
+  platformName: string;
+
+  @Column({ name: 'support_email', default: 'support@edva.in' })
+  supportEmail: string;
 }
 
 /** One row per successful Razorpay payment for a coaching course. */

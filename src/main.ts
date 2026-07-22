@@ -46,18 +46,23 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
+  app.set('trust proxy', true);
 
   // ── Static file serving for uploads ───────────────────────────────────────
   mkdirSync(join(__dirname, '..', 'uploads'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'avatars'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'videos'), { recursive: true });
   mkdirSync(join(__dirname, '..', 'uploads', 'thumbnails'), { recursive: true });
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
+  const uploadsPath = join(__dirname, '..', 'uploads');
+  app.useStaticAssets(uploadsPath, { prefix: '/uploads' });
+  app.useStaticAssets(uploadsPath, { prefix: '/api/v1/uploads' });
 
   const cfg = app.get(ConfigService);
 
   // ── Security headers ──────────────────────────────────────────────────────
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
 
   // ── Gzip compression ─────────────────────────────────────────────────────
   app.use(compression());
@@ -240,11 +245,12 @@ async function bootstrap() {
 
     await coachingDs.query(`
       CREATE TABLE IF NOT EXISTS "broadcast_poll_votes" (
-        "id"       UUID        NOT NULL DEFAULT gen_random_uuid(),
-        "poll_id"  UUID        NOT NULL,
-        "user_id"  UUID        NOT NULL,
-        "user_name" VARCHAR(200) NOT NULL,
-        "option"   VARCHAR(200) NOT NULL,
+        "id"         UUID        NOT NULL DEFAULT gen_random_uuid(),
+        "poll_id"    UUID        NOT NULL,
+        "user_id"    UUID        NOT NULL,
+        "user_name"  VARCHAR(200) NOT NULL,
+        "option"     VARCHAR(200) NOT NULL,
+        "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
         CONSTRAINT "PK_broadcast_poll_votes" PRIMARY KEY ("id"),
         CONSTRAINT "UQ_broadcast_poll_votes_user" UNIQUE ("poll_id", "user_id")
       )
@@ -330,4 +336,5 @@ async function bootstrap() {
 
 bootstrap();
 
-// Trigger Restart 3
+// Trigger Restart 6
+// Force restart

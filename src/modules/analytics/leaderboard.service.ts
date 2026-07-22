@@ -13,6 +13,7 @@ import {
 } from '../../database/entities/analytics.entity';
 import { StudentElo } from '../../database/entities/battle.entity';
 import { Student } from '../../database/entities/student.entity';
+import { EnrollmentStatusService } from '../batch/enrollment-status.service';
 
 import { LeaderboardQueryDto } from './dto/analytics.dto';
 
@@ -31,10 +32,35 @@ export class LeaderboardService {
     private readonly eloRepo: Repository<StudentElo>,
     @InjectDataSource('coaching')
     private readonly dataSource: DataSource,
+    private readonly enrollmentStatusService: EnrollmentStatusService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   async getLeaderboard(query: LeaderboardQueryDto, user: any, tenantId: string) {
+    const isStudent = user.role === 'student';
+    const student = isStudent ? await this.studentRepo.findOne({ where: { userId: user.id, tenantId }, relations: ['user'] }) : null;
+
+    if (isStudent && student && !(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+      const fullName = student.user?.fullName || 'Student';
+      return {
+        data: [
+          {
+            id: `global-${student.id}`,
+            studentId: student.id,
+            studentName: fullName,
+            avatar: student.user?.profilePictureUrl || null,
+            score: 0,
+            rank: 1,
+            percentile: 100,
+            accuracy: 0,
+            level: 1,
+          },
+        ],
+        total: 1,
+        meta: { total: 1, page: 1, limit: query.limit || 20, totalPages: 1 },
+      };
+    }
+
     const period = query.period || this.getCurrentPeriod();
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -51,7 +77,7 @@ export class LeaderboardService {
 
     const total = rows.length;
     const data = rows.slice(offset, offset + limit);
-    const currentStudentRank = await this.getCurrentStudentRank(rows, user, tenantId);
+    const currentStudentRank = await this.getCurrentStudentRank(rows, user, tenantId, student);
 
     if (currentStudentRank && !data.some((entry) => entry.studentId === currentStudentRank.studentId)) {
       data.push(currentStudentRank);
@@ -247,12 +273,12 @@ export class LeaderboardService {
     return dynamicResult;
   }
 
-  private async getCurrentStudentRank(rows: any[], user: any, tenantId: string) {
+  private async getCurrentStudentRank(rows: any[], user: any, tenantId: string, preResolvedStudent?: any) {
     if (user.role !== 'student') {
       return null;
     }
 
-    const student = await this.studentRepo.findOne({ where: { userId: user.id, tenantId } });
+    const student = preResolvedStudent || await this.studentRepo.findOne({ where: { userId: user.id, tenantId } });
     if (!student) return null;
     return rows.find((entry) => entry.studentId === student.id) || null;
   }
