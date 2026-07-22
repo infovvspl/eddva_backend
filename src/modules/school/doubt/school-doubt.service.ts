@@ -105,7 +105,8 @@ export class SchoolDoubtService implements OnModuleInit {
     `);
     await this.ds.query(`
       ALTER TABLE student_doubts
-      ADD COLUMN IF NOT EXISTS teacher_response_image_url TEXT
+      ADD COLUMN IF NOT EXISTS teacher_response_image_url TEXT,
+      ADD COLUMN IF NOT EXISTS recording_id UUID
     `);
     this.tableReady = true;
   }
@@ -154,6 +155,7 @@ export class SchoolDoubtService implements OnModuleInit {
       teacherName: r.teacher_name,
       className: r.class_name,
       sectionName: r.section_name,
+      recordingId: r.recording_id,
     };
   }
 
@@ -427,11 +429,12 @@ export class SchoolDoubtService implements OnModuleInit {
       teacherUserId = await this.resolveTeacherUserId(routingSectionId, subjectId);
     }
 
+    const recordingId = body.recordingId ? String(body.recordingId) : null;
     const rows: any[] = await this.ds.query(
       `INSERT INTO student_doubts (
          institute_id, student_user_id, teacher_user_id, subject_id, subject_name,
-         question_text, question_image_url, status, channel, ai_explanation, ai_steps
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         question_text, question_image_url, status, channel, ai_explanation, ai_steps, recording_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
       [
         instituteId,
@@ -445,6 +448,7 @@ export class SchoolDoubtService implements OnModuleInit {
         channel,
         aiExplanation,
         JSON.stringify(aiSteps),
+        recordingId,
       ],
     );
 
@@ -503,6 +507,10 @@ export class SchoolDoubtService implements OnModuleInit {
     } else if (user.role === 'INSTITUTE_ADMIN') {
       params.push(user.instituteId);
       sql += ` AND d.institute_id = $${params.length}::uuid`;
+    }
+    if (query.recordingId) {
+      params.push(query.recordingId);
+      sql += ` AND d.recording_id = $${params.length}::uuid`;
     }
 
     sql += ` ORDER BY d.created_at DESC LIMIT 100`;
