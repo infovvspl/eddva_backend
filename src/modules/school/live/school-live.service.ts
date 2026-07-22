@@ -15,6 +15,9 @@ interface SchoolUser {
   name?: string;
   role: string;
   instituteId: string | null;
+  email?: string;
+  phone?: string;
+  studentProfile?: any;
 }
 
 import { SchoolNotificationService } from '../notification/school-notification.service';
@@ -242,6 +245,43 @@ export class SchoolLiveService implements OnModuleInit {
   }
 
   async listLectures(user: SchoolUser) {
+    const params: any[] = [user.instituteId];
+    let filter = `l.institute_id = $1`;
+
+    if (user.role === 'STUDENT') {
+      const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
+      const sectionId = studentProfile?.section_id;
+      if (sectionId) {
+        params.push(sectionId);
+        filter += ` AND l.section_id::text = $2::text`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (sectionIds.length > 0) {
+        params.push(sectionIds);
+        filter += ` AND l.section_id = ANY($2::uuid[])`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    } else if (user.role === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        params.push(teacherId);
+        filter += ` AND (l.teacher_id::text = $2::text OR l.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $2::uuid))`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    }
+
     const rows = await this.ds.query(
       `SELECT l.id, l.title, l.status, l.stream_key AS "streamKey", l.playback_url AS "playbackUrl",
               l.teacher_id AS "teacherId", l.started_at AS "startedAt", l.ended_at AS "endedAt", l.created_at AS "createdAt",
@@ -257,22 +297,59 @@ export class SchoolLiveService implements OnModuleInit {
               r.language AS "language"
        FROM school_live_lectures l
        LEFT JOIN class_recordings r ON r.video_url = l.recording_url
-       WHERE l.institute_id = $1 ORDER BY l.created_at DESC`,
-      [user.instituteId],
+       WHERE ${filter} ORDER BY l.created_at DESC`,
+      params,
     );
     const rtmpUrl = `rtmp://${this.config.get<string>('streaming.serverIp')}/live`;
     return rows.map((r: any) => ({ ...r, rtmpUrl }));
   }
 
   async listLive(user: SchoolUser) {
+    const params: any[] = [user.instituteId];
+    let filter = `institute_id = $1 AND status = 'LIVE'`;
+
+    if (user.role === 'STUDENT') {
+      const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
+      const sectionId = studentProfile?.section_id;
+      if (sectionId) {
+        params.push(sectionId);
+        filter += ` AND section_id::text = $2::text`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    } else if (user.role === 'PARENT') {
+      const children = await this.ds.query(`
+        SELECT section_id FROM students WHERE institute_id = $1 AND (
+          (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+          OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+        )
+      `, [user.instituteId, user.email, user.phone]);
+      const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+      if (sectionIds.length > 0) {
+        params.push(sectionIds);
+        filter += ` AND section_id = ANY($2::uuid[])`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    } else if (user.role === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+      const teacherId = tRows[0]?.id;
+      if (teacherId) {
+        params.push(teacherId);
+        filter += ` AND (teacher_id::text = $2::text OR section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $2::uuid))`;
+      } else {
+        filter += ` AND 1=0`;
+      }
+    }
+
     return this.ds.query(
       `SELECT id, title, status, playback_url AS "playbackUrl", teacher_id AS "teacherId", started_at AS "startedAt"
-       FROM school_live_lectures WHERE institute_id = $1 AND status = 'LIVE' ORDER BY started_at DESC`,
-      [user.instituteId],
+       FROM school_live_lectures WHERE ${filter} ORDER BY started_at DESC`,
+      params,
     );
   }
 
-  async getLecture(id: string) {
+  async getLecture(id: string, user?: SchoolUser) {
     const rows = await this.ds.query(
       `SELECT id, title, status, stream_key AS "streamKey", playback_url AS "playbackUrl",
               institute_id AS "instituteId", teacher_id AS "teacherId",
@@ -283,15 +360,55 @@ export class SchoolLiveService implements OnModuleInit {
        FROM school_live_lectures WHERE id = $1`,
       [id],
     );
-    return rows[0] || null;
+    if (!rows.length) return null;
+    const lecture = rows[0];
+
+    if (user) {
+      const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
+      if (!isSuperAdmin) {
+        if (lecture.instituteId !== user.instituteId) {
+          throw new ForbiddenException('Lecture not found');
+        }
+        if (user.role === 'STUDENT') {
+          const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
+          if (lecture.sectionId !== studentProfile?.section_id) {
+            throw new ForbiddenException('You do not have access to this lecture');
+          }
+        } else if (user.role === 'TEACHER') {
+          const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+          const teacherId = tRows[0]?.id;
+          if (teacherId) {
+            const hasAssignment = await this.ds.query(
+              `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id = $1 AND (section_id::text = $2::text OR class_id::text = $3::text) LIMIT 1`,
+              [teacherId, lecture.sectionId, lecture.classId]
+            );
+            if (lecture.teacherId !== teacherId && !hasAssignment.length) {
+              throw new ForbiddenException('You do not have access to this lecture');
+            }
+          } else {
+            throw new ForbiddenException('You do not have access to this lecture');
+          }
+        } else if (user.role === 'PARENT') {
+          const children = await this.ds.query(`
+            SELECT section_id FROM students WHERE institute_id = $1 AND (
+              (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+              OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+            )
+          `, [user.instituteId, user.email, user.phone]);
+          const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+          if (!sectionIds.includes(lecture.sectionId)) {
+            throw new ForbiddenException('You do not have access to this lecture');
+          }
+        }
+      }
+    }
+
+    return lecture;
   }
 
   async getStreamUrl(id: string, user: SchoolUser) {
-    const lecture = await this.getLecture(id);
+    const lecture = await this.getLecture(id, user);
     if (!lecture) throw new NotFoundException('Lecture not found');
-    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
-      throw new NotFoundException('Lecture not found');
-    }
     if (String(user.role || '').toUpperCase() === 'STUDENT') {
       void this.trackJoin(id, user.id, user.name || 'Student').catch(() => undefined);
     }
@@ -470,11 +587,8 @@ export class SchoolLiveService implements OnModuleInit {
 
   /** Teacher/admin ends the class from the app (independent of OBS stopping). */
   async endLecture(user: SchoolUser, id: string) {
-    const lecture = await this.getLecture(id);
+    const lecture = await this.getLecture(id, user);
     if (!lecture) throw new NotFoundException('Lecture not found');
-    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
-      throw new NotFoundException('Lecture not found');
-    }
     if (lecture.status !== 'ENDED') {
       await this.ds.query(
         `UPDATE school_live_lectures SET status = 'ENDED', ended_at = COALESCE(ended_at, now()) WHERE id = $1`,
@@ -486,11 +600,8 @@ export class SchoolLiveService implements OnModuleInit {
   }
 
   async deleteLecture(id: string, user: SchoolUser) {
-    const lecture = await this.getLecture(id);
+    const lecture = await this.getLecture(id, user);
     if (!lecture) throw new NotFoundException('Lecture not found');
-    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
-      throw new NotFoundException('Lecture not found');
-    }
     await this.ds.query(`DELETE FROM school_live_lectures WHERE id = $1`, [id]);
     return { success: true };
   }

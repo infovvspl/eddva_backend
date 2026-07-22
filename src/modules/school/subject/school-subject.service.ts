@@ -10,7 +10,7 @@ function normalizeSubjectName(name: string): string {
   if (!name) return '';
   const cleaned = name.trim().replace(/\s+/g, ' ');
   const lowerCleaned = cleaned.toLowerCase();
-  
+
   if (lowerCleaned === 'math' || lowerCleaned === 'maths' || lowerCleaned === 'mathematics') {
     return 'Mathematics';
   }
@@ -35,7 +35,7 @@ function normalizeSubjectName(name: string): string {
   if (lowerCleaned === 'history') {
     return 'History';
   }
-  
+
   // Title case general words
   return cleaned
     .split(' ')
@@ -48,10 +48,10 @@ export class SchoolSubjectService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
-  ) {}
+  ) { }
 
   private async resolveInstituteId(user: any, id?: string) {
-    return user.role === 'SUPER_ADMIN' ? (id||user.instituteId) : user.instituteId;
+    return user.role === 'SUPER_ADMIN' ? (id || user.instituteId) : user.instituteId;
   }
 
   private subjectListKey(instituteId: string, classId?: string, sectionId?: string, page = 1, limit = 10) {
@@ -71,20 +71,20 @@ export class SchoolSubjectService {
           keysDeleted = true;
         }
       }
-      
+
       // Direct pattern invalidation fallback (essential for all environments)
       const limits = [10, 20, 50, 100, 500];
       const fallbackKeys: string[] = [];
-      
+
       // Delete general prefix keys
       fallbackKeys.push(`school:subjects:list:${instituteId}`);
       fallbackKeys.push(`school:subjects:list:${instituteId}:_:_`);
-      
+
       // Delete page / limit variations
       for (const l of limits) {
         fallbackKeys.push(this.subjectListKey(instituteId, undefined, undefined, 1, l));
       }
-      
+
       // Clean up common classId specific keys by iterating through typical page/limits
       // This solves classId specific caching issues when store.keys is missing or bypassed
       await Promise.all(fallbackKeys.map(k => this.cache.del(k).catch(() => undefined)));
@@ -97,9 +97,13 @@ export class SchoolSubjectService {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const page = Math.max(1, parseInt(query.page) || 1);
     const limit = Math.max(1, parseInt(query.limit) || 10);
+    const isTeacher = user.role === 'TEACHER';
 
     // Only cache general non-search list requests — class or section scoped lists should bypass cache to avoid stale caches
-    const cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);
+    let cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);
+    if (cacheKey && isTeacher) {
+      cacheKey += `:teacher:${user.id}`;
+    }
     if (cacheKey) {
       const cached = await this.cache.get(cacheKey);
       if (cached) return cached;
@@ -108,13 +112,18 @@ export class SchoolSubjectService {
     let filter = `s.institute_id=$1`;
     const params: any[] = [instituteId];
 
+    if (isTeacher) {
+      params.push(user.id);
+      filter += ` AND s.id IN (SELECT DISTINCT subject_id FROM teacher_academic_assignments ta JOIN teachers t ON ta.teacher_id = t.id WHERE t.user_id = $${params.length} AND ta.subject_id IS NOT NULL)`;
+    }
+
     if (query.classId) {
       params.push(query.classId);
       filter += ` AND s.class_id=$${params.length}`;
     }
     if (query.sectionId) {
       params.push(query.sectionId);
-      filter += ` AND s.section_id=$${params.length}`;
+      filter += ` AND (s.section_id=$${params.length} OR s.section_id IS NULL)`;
     }
 
     if (query.search) {
@@ -170,8 +179,17 @@ export class SchoolSubjectService {
       ORDER BY ${sortBy} ${sortOrder}
       LIMIT ${limit} OFFSET ${offset}
     `;
-    
+
     const rows: any[] = await this.ds.query(sql, params);
+
+    console.log(`[SchoolSubjectService.list] Request payload:`, query);
+    console.log(`[SchoolSubjectService.list] Authenticated school_id:`, instituteId);
+    console.log(`[SchoolSubjectService.list] Selected class_id:`, query.classId);
+    console.log(`[SchoolSubjectService.list] Selected section_id:`, query.sectionId);
+    console.log(`[SchoolSubjectService.list] SQL filters: WHERE ${filter}`);
+    console.log(`[SchoolSubjectService.list] SQL params:`, params);
+    console.log(`[SchoolSubjectService.list] Number of subjects returned:`, rows.length);
+
     const result = { success: true, data: rows, total, page, limit, totalPages };
     if (cacheKey) await this.cache.set(cacheKey, result, SUBJECT_TTL);
     return result;
@@ -211,7 +229,7 @@ export class SchoolSubjectService {
 
     const rows: any[] = await this.ds.query(
       `INSERT INTO subjects (institute_id,name,class_id,section_id,code,type,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [instituteId,normalizedName,body.classId||null,body.sectionId||null,body.code||null,body.type||'Theory',body.description||null]
+      [instituteId, normalizedName, body.classId || null, body.sectionId || null, body.code || null, body.type || 'Theory', body.description || null]
     );
     await this.invalidateSubjectCache(instituteId);
     return { success: true, data: rows[0] };
@@ -255,7 +273,7 @@ export class SchoolSubjectService {
         throw new BadRequestException('Subject already exists.');
       }
     }
-    
+
     await this.ds.query(
       `UPDATE subjects SET name=COALESCE($2,name),class_id=$3,section_id=$4,code=COALESCE($5,code),type=COALESCE($6,type),description=COALESCE($7,description),updated_at=NOW() WHERE id=$1`,
       [id, body.name ? normalizedName : current.name, classId, sectionId, body.code, body.type, body.description]
@@ -266,7 +284,31 @@ export class SchoolSubjectService {
 
   async remove(id: string) {
     const subRows: any[] = await this.ds.query(`SELECT institute_id FROM subjects WHERE id=$1`, [id]);
-    await this.ds.query(`DELETE FROM subjects WHERE id=$1`, [id]);
+    
+    await this.ds.transaction(async (manager) => {
+      await manager.query("DELETE FROM weak_topics WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM lectures WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM topic_progress WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM topic_resources WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM battles WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM doubts WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM ai_study_sessions WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1))", [id]);
+      await manager.query("DELETE FROM study_materials WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1)) OR chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1)", [id]);
+      await manager.query("DELETE FROM questions WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1)) OR chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1) OR subject_id = $1", [id]);
+      await manager.query("DELETE FROM mock_tests WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1) OR subject_id = $1", [id]);
+      await manager.query("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE subject_id = $1)", [id]);
+      await manager.query("DELETE FROM chapters WHERE subject_id = $1", [id]);
+      
+      await manager.query("DELETE FROM assessments WHERE subject_id = $1", [id]);
+      await manager.query("DELETE FROM class_subjects WHERE subject_id = $1", [id]);
+      await manager.query("DELETE FROM schedules WHERE subject_id = $1", [id]);
+      await manager.query("DELETE FROM teacher_academic_assignments WHERE subject_id = $1", [id]);
+      await manager.query("DELETE FROM teacher_subjects WHERE subject_id = $1", [id]);
+      await manager.query("DELETE FROM timetables WHERE subject_id = $1", [id]);
+      
+      await manager.query("DELETE FROM subjects WHERE id = $1", [id]);
+    });
+
     if (subRows[0]?.institute_id) await this.invalidateSubjectCache(subRows[0].institute_id);
     return { success: true };
   }
@@ -277,8 +319,8 @@ export class SchoolSubjectService {
   }
 
   async addClassSubject(body: any) {
-    const rows: any[] = await this.ds.query(`INSERT INTO class_subjects (class_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING *`, [body.classId,body.subjectId]);
-    return { success: true, data: rows[0]||null };
+    const rows: any[] = await this.ds.query(`INSERT INTO class_subjects (class_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING *`, [body.classId, body.subjectId]);
+    return { success: true, data: rows[0] || null };
   }
 
   async listTeacherSubjects(teacherId: string) {
@@ -287,7 +329,7 @@ export class SchoolSubjectService {
   }
 
   async assignTeacherSubject(body: any) {
-    const rows: any[] = await this.ds.query(`INSERT INTO teacher_subjects (teacher_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING *`, [body.teacherId,body.subjectId]);
-    return { success: true, data: rows[0]||null };
+    const rows: any[] = await this.ds.query(`INSERT INTO teacher_subjects (teacher_id,subject_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING *`, [body.teacherId, body.subjectId]);
+    return { success: true, data: rows[0] || null };
   }
 }

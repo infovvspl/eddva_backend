@@ -116,19 +116,19 @@ export class SchoolAssignmentController {
 
   @Get(':id')
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  findOne(@Param('id') id: string) {
-    return this.svc.findOne(id);
+  findOne(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.findOne(user, id);
   }
 
   @Put(':id')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  update(@Param('id') id: string, @Body() body: any) {
-    return this.svc.update(id, body);
+  update(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.update(user, id, body);
   }
 
   @Delete(':id')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  remove(@Param('id') id: string) {
-    return this.svc.remove(id);
+  remove(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.remove(user, id);
   }
 }

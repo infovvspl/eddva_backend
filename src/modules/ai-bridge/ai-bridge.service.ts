@@ -172,13 +172,21 @@ export class AiBridgeService {
       topicId?: string;
       mode: 'short' | 'detailed';
       studentContext?: any;
+      language?: string;
     },
     tenantId?: string,
     vertical?: string,
   ) {
+    const lang = (payload.language || '').toLowerCase();
+    const isEnglish = !lang || lang === 'english' || lang === 'en';
     return this.post('/doubt/resolve', {
       ...payload,
-      questionText: this.withMathDerivationStyleHint(payload.questionText),
+      // Only append the English math-formatting hint for English questions.
+      // Regional-language questions (Odia, Hindi) must not get this suffix because
+      // it confuses the Python subject classifier and strips the language signal.
+      questionText: isEnglish
+        ? this.withMathDerivationStyleHint(payload.questionText)
+        : payload.questionText,
     }, tenantId, undefined, vertical);
   }
 

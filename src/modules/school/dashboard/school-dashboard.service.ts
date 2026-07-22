@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, ForbiddenException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -52,7 +52,7 @@ export class SchoolDashboardService {
     const wantsAdminPortal = ['admin', 'institute-admin', 'institute_admin'].includes(requestedPortal);
     const wantsTeacherPortal = requestedPortal === 'teacher';
 
-    if (hasTeacherRole && (wantsTeacherPortal || !wantsAdminPortal)) {
+    if (hasTeacherRole && (wantsTeacherPortal || !wantsAdminPortal || !hasInstituteAdminRole)) {
       const cacheKey = `school:dashboard:teacher:${user.id}`;
       const cached = await this.safeCacheGet(cacheKey);
       if (cached) return cached;
@@ -282,6 +282,25 @@ export class SchoolDashboardService {
       const studentAttendancePercentage = totalStudents > 0 ? (presentStudentsToday / totalStudents) * 100 : 0;
       const teacherAttendancePercentage = totalTeachers > 0 ? (presentTeachersToday / totalTeachers) * 100 : 0;
 
+      const now = new Date();
+      const currentDay = now.getDay();
+      const diffToMonday = currentDay === 0 ? 6 : currentDay - 1;
+      const mondayDate = new Date(now);
+      mondayDate.setDate(now.getDate() - diffToMonday);
+
+      const sundayDate = new Date(mondayDate);
+      sundayDate.setDate(mondayDate.getDate() + 6);
+
+      const formatDateStr = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const mondayStr = formatDateStr(mondayDate);
+      const sundayStr = formatDateStr(sundayDate);
+
       const historyRows = await this.safeQuery(`
         SELECT 
           asess.date::text AS date,
@@ -290,17 +309,18 @@ export class SchoolDashboardService {
         LEFT JOIN attendance_records ar ON ar.session_id = asess.id
           AND (LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')
         WHERE asess.tenant_id = $1 
-          AND asess.date::date >= (CURRENT_DATE - INTERVAL '6 days')::date
+          AND asess.date::date >= $2::date
+          AND asess.date::date <= $3::date
         GROUP BY asess.date
         ORDER BY asess.date ASC
-      `, [instituteId], []);
+      `, [instituteId, mondayStr, sundayStr], []);
 
       const attendanceHistory = [];
       const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(mondayDate);
+        d.setDate(mondayDate.getDate() + i);
+        const dateStr = formatDateStr(d);
         const dayLabel = daysOfWeek[d.getDay()];
         
         const row = historyRows.find((r: any) => r.date === dateStr);
@@ -363,6 +383,10 @@ export class SchoolDashboardService {
       };
       await this.safeCacheSet(cacheKey, adminResult, ADMIN_TTL);
       return adminResult;
+    }
+
+    if (!hasSuperAdminRole) {
+      throw new ForbiddenException('Dashboard access denied');
     }
 
     // ── SUPER_ADMIN & Default Fallthrough ─────────────────────────────────────
@@ -587,6 +611,77 @@ export class SchoolDashboardService {
   }
 
   async adminStats(user: any) {
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const instituteId = isSuperAdmin ? null : user?.instituteId;
+
+    if (!isSuperAdmin) {
+      const [
+        teachers,
+        students,
+        parents,
+        resolvedTickets,
+        openTickets,
+        complaintTexts
+      ] = await Promise.all([
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'TEACHER' AND institute_id = $1`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'STUDENT' AND institute_id = $1`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role = 'PARENT' AND institute_id = $1`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('RESOLVED', 'CLOSED') AND institute_id = $1`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`SELECT COUNT(*)::int AS c FROM complaints WHERE status::text IN ('OPEN', 'IN_PROGRESS', 'REOPENED') AND institute_id = $1`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`SELECT title, description FROM complaints WHERE institute_id = $1`, [instituteId], []),
+      ]);
+
+      let billingCount = 0;
+      let techCount = 0;
+      let accountCount = 0;
+      let generalCount = 0;
+
+      for (const c of complaintTexts) {
+        const text = `${c.title || ''} ${c.description || ''}`.toLowerCase();
+        if (text.includes('bill') || text.includes('pay') || text.includes('fee') || text.includes('charge') || text.includes('money')) {
+          billingCount++;
+        } else if (text.includes('tech') || text.includes('bug') || text.includes('error') || text.includes('login') || text.includes('server') || text.includes('load') || text.includes('slow') || text.includes('crash') || text.includes('fail') || text.includes('support')) {
+          techCount++;
+        } else if (text.includes('account') || text.includes('user') || text.includes('profile') || text.includes('password') || text.includes('role')) {
+          accountCount++;
+        } else {
+          generalCount++;
+        }
+      }
+
+      const categories = [
+        { name: 'Billing', count: billingCount },
+        { name: 'Technical Support', count: techCount + generalCount },
+        { name: 'Account', count: accountCount },
+      ];
+
+      const totalUsersCount = 1 + (teachers[0]?.c || 0) + (students[0]?.c || 0) + (parents[0]?.c || 0);
+      const totalTicketsCount = (resolvedTickets[0]?.c || 0) + (openTickets[0]?.c || 0);
+
+      return {
+        institutes: {
+          total: 1,
+          daily: 0,
+          weekly: 0,
+          monthly: 0,
+        },
+        users: {
+          total: totalUsersCount,
+          admins: 1,
+          teachers: teachers[0]?.c || 0,
+          students: students[0]?.c || 0,
+          parents: parents[0]?.c || 0,
+          instituteActivity: [],
+        },
+        tickets: {
+          total: totalTicketsCount,
+          resolved: resolvedTickets[0]?.c || 0,
+          open: openTickets[0]?.c || 0,
+          categories: categories,
+        },
+      };
+    }
+
     const [
       totalInstitutes,
       dailyInstitutes,
@@ -692,6 +787,13 @@ export class SchoolDashboardService {
     const term = `%${qTrim}%`;
     const isSuperAdmin = user.role === 'SUPER_ADMIN';
     const instituteId = user.instituteId;
+    const isTeacher = user.role === 'TEACHER';
+
+    let teacherProfileId: string | null = null;
+    if (isTeacher) {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id = $1`, [user.id]);
+      teacherProfileId = tRows[0]?.id || null;
+    }
 
     const runQuery = async (sql: string, params: any[]) => {
       try {
@@ -702,13 +804,27 @@ export class SchoolDashboardService {
       }
     };
 
-    const getQueryConfig = (baseSql: string, isUserTable = false) => {
+    const getQueryConfig = (baseSql: string, isUserTable = false, filterType?: 'student' | 'class' | 'section' | 'subject') => {
       let filter = '';
       const params: any[] = [term];
       if (!isSuperAdmin) {
         params.push(instituteId);
         const col = isUserTable ? 'u.institute_id' : 'institute_id';
         filter = `AND ${col} = $2`;
+
+        if (isTeacher && teacherProfileId) {
+          params.push(teacherProfileId);
+          const tParam = `$${params.length}`;
+          if (filterType === 'student') {
+            filter += ` AND s.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = ${tParam})`;
+          } else if (filterType === 'class') {
+            filter += ` AND id IN (SELECT class_id FROM teacher_academic_assignments WHERE teacher_id = ${tParam})`;
+          } else if (filterType === 'section') {
+            filter += ` AND s.id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = ${tParam})`;
+          } else if (filterType === 'subject') {
+            filter += ` AND id IN (SELECT subject_id FROM teacher_academic_assignments WHERE teacher_id = ${tParam} AND subject_id IS NOT NULL)`;
+          }
+        }
       }
       const sql = baseSql.replace('__FILTER__', filter);
       return { sql, params };
@@ -720,7 +836,8 @@ export class SchoolDashboardService {
        LEFT JOIN students s ON s.user_id = u.id 
        WHERE u.role = 'STUDENT' __FILTER__ AND (u.name ILIKE $1 OR u.email ILIKE $1 OR s.enrollment_no ILIKE $1)
        LIMIT 10`,
-      true
+      true,
+      'student'
     );
 
     const teacherConf = getQueryConfig(
@@ -736,7 +853,9 @@ export class SchoolDashboardService {
       `SELECT id, name, academic_year AS "academicYear" 
        FROM classes 
        WHERE (name ILIKE $1) __FILTER__ 
-       LIMIT 10`
+       LIMIT 10`,
+      false,
+      'class'
     );
 
     const sectionConf = getQueryConfig(
@@ -744,14 +863,18 @@ export class SchoolDashboardService {
        FROM sections s 
        JOIN classes c ON s.class_id = c.id 
        WHERE (s.name ILIKE $1) __FILTER__ 
-       LIMIT 10`
+       LIMIT 10`,
+      false,
+      'section'
     );
 
     const subjectConf = getQueryConfig(
       `SELECT id, name, code 
        FROM subjects 
        WHERE (name ILIKE $1 OR code ILIKE $1) __FILTER__ 
-       LIMIT 10`
+       LIMIT 10`,
+      false,
+      'subject'
     );
 
     const eventConf = getQueryConfig(
