@@ -821,75 +821,142 @@ export class SchoolStudentService {
       }
     }
 
-    let userRows: any[] = await this.ds.query(`SELECT id, name, email, phone, role, is_active FROM users WHERE id=$1`, [targetId]);
+    let userRows: any[] = await this.ds.query(`SELECT id, name, email, phone, role, is_active, profile_image FROM users WHERE id=$1`, [targetId]);
     if (!userRows.length) {
-      userRows = await this.ds.query(`SELECT u.id, u.name, u.email, u.phone, u.role, u.is_active FROM users u JOIN students s ON s.user_id=u.id WHERE s.id=$1`, [targetId]);
+      userRows = await this.ds.query(`SELECT u.id, u.name, u.email, u.phone, u.role, u.is_active, u.profile_image FROM users u JOIN students s ON s.user_id=u.id WHERE s.id=$1`, [targetId]);
     }
     if (!userRows.length) throw new NotFoundException('Student not found');
     const userId = userRows[0].id;
-    if (body.phone) {
+    const oldUserValues = { name: userRows[0].name, email: userRows[0].email, phone: userRows[0].phone, profileImage: userRows[0].profile_image };
+
+    // ── Phone uniqueness check ──────────────────────────────────────
+    if (body.phone !== undefined && body.phone) {
       const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=(SELECT institute_id FROM users WHERE id=$1) AND phone=$2 AND id<>$1`, [userId, body.phone]);
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
-    await this.ds.query(
-      `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),profile_image=COALESCE($4,profile_image),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
-      [userId, body.name, body.isActive, body.profileImage, body.phone],
-    );
+
+    // ── Build dynamic users UPDATE ──────────────────────────────────
+    const userUpdates: string[] = [];
+    const userParams: any[] = [userId];
+    if (body.name !== undefined) {
+      userParams.push(body.name);
+      userUpdates.push(`name=$${userParams.length}`);
+    }
+    if (body.email !== undefined) {
+      const existingEmail: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1) AND id<>$2`, [body.email, userId]);
+      if (existingEmail.length) throw new BadRequestException('Email is already registered');
+      userParams.push(body.email);
+      userUpdates.push(`email=$${userParams.length}`);
+    }
+    if (body.isActive !== undefined) {
+      userParams.push(body.isActive);
+      userUpdates.push(`is_active=$${userParams.length}`);
+    }
+    // Accept both profileImage (backend convention) and photo (frontend convention)
+    const profileImageValue = body.profileImage !== undefined ? body.profileImage : body.photo;
+    if (profileImageValue !== undefined) {
+      userParams.push(profileImageValue);
+      userUpdates.push(`profile_image=$${userParams.length}`);
+    }
+    if (body.phone !== undefined) {
+      userParams.push(body.phone);
+      userUpdates.push(`phone=$${userParams.length}`);
+    }
+
+    // ── Build dynamic students UPDATE ───────────────────────────────
+    const studentUpdates: string[] = [];
+    const studentParams: any[] = [userId];
+    const addStudentUpdate = (field: string, val: any) => {
+      studentParams.push(val);
+      studentUpdates.push(`${field}=$${studentParams.length}`);
+    };
+
+    if (body.enrollmentNo !== undefined || body.enrollment_no !== undefined) addStudentUpdate('enrollment_no', body.enrollmentNo || body.enrollment_no || null);
+    if (body.rollNo !== undefined || body.roll_no !== undefined) addStudentUpdate('roll_no', body.rollNo || body.roll_no || null);
+    if (body.sectionId !== undefined || body.section_id !== undefined) addStudentUpdate('section_id', body.sectionId || body.section_id || null);
+    if (body.dob !== undefined) addStudentUpdate('dob', body.dob ? new Date(body.dob) : null);
+    if (body.gender !== undefined) addStudentUpdate('gender', body.gender || null);
+    if (body.bloodGroup !== undefined || body.blood_group !== undefined) addStudentUpdate('blood_group', body.bloodGroup || body.blood_group || null);
+    if (body.nationalId !== undefined || body.national_id !== undefined) addStudentUpdate('national_id', body.nationalId || body.national_id || null);
+    if (body.fatherName !== undefined || body.father_name !== undefined) addStudentUpdate('father_name', body.fatherName || body.father_name || null);
+    if (body.motherName !== undefined || body.mother_name !== undefined) addStudentUpdate('mother_name', body.motherName || body.mother_name || null);
+    if (body.parentPhone !== undefined || body.parent_phone !== undefined) addStudentUpdate('parent_phone', body.parentPhone || body.parent_phone || null);
+    if (body.parentEmail !== undefined || body.parent_email !== undefined) addStudentUpdate('parent_email', body.parentEmail || body.parent_email || null);
+    if (body.parentOccupation !== undefined || body.parent_occupation !== undefined) addStudentUpdate('parent_occupation', body.parentOccupation || body.parent_occupation || null);
+    if (body.currentAddress !== undefined || body.address !== undefined) addStudentUpdate('address', body.currentAddress || body.address || null);
+    if (body.city !== undefined) addStudentUpdate('city', body.city || null);
+    if (body.state !== undefined) addStudentUpdate('state', body.state || null);
+    if (body.pinCode !== undefined || body.pin_code !== undefined) addStudentUpdate('pin_code', body.pinCode || body.pin_code || null);
+    if (body.admissionDate !== undefined || body.admission_date !== undefined) addStudentUpdate('admission_date', (body.admissionDate || body.admission_date) ? new Date(body.admissionDate || body.admission_date) : null);
+    if (body.medicalConditions !== undefined || body.medical_conditions !== undefined) addStudentUpdate('medical_conditions', body.medicalConditions || body.medical_conditions || null);
+    if (body.allergies !== undefined) addStudentUpdate('allergies', body.allergies || null);
+
+    // ── Documents: merge existing with incoming, always rebuild parentDetails ──
     const existingStudentRows: any[] = await this.ds.query(`SELECT documents FROM students WHERE user_id=$1`, [userId]);
     const existingDocuments = this.parseJsonObject(existingStudentRows[0]?.documents);
-    const documents = {
+    const mergedDocuments = {
       ...existingDocuments,
       ...(body.documents ? this.parseJsonObject(body.documents) : {}),
       parentDetails: this.buildParentDetails(body, existingDocuments.parentDetails || {}),
     };
-    await this.ds.query(
-      `UPDATE students SET
-        enrollment_no = COALESCE($2, enrollment_no),
-        roll_no = COALESCE($3, roll_no),
-        section_id = COALESCE($4, section_id),
-        dob = COALESCE($5, dob),
-        gender = COALESCE($6, gender),
-        blood_group = COALESCE($7, blood_group),
-        father_name = COALESCE($8, father_name),
-        mother_name = COALESCE($9, mother_name),
-        parent_phone = COALESCE($10, parent_phone),
-        parent_email = COALESCE($11, parent_email),
-        parent_occupation = COALESCE($12, parent_occupation),
-        address = COALESCE($13, address),
-        city = COALESCE($14, city),
-        state = COALESCE($15, state),
-        pin_code = COALESCE($16, pin_code),
-        admission_date = COALESCE($17, admission_date),
-        medical_conditions = COALESCE($18, medical_conditions),
-        allergies = COALESCE($19, allergies),
-        documents = COALESCE($20, documents),
-        national_id = COALESCE($21, national_id),
-        updated_at = NOW()
-       WHERE user_id = $1`,
-      [
-        userId,
-        body.enrollmentNo || null,
-        body.rollNo || null,
-        body.sectionId || null,
-        body.dob ? new Date(body.dob) : null,
-        body.gender || null,
-        body.bloodGroup || null,
-        body.fatherName || body.father_name || null,
-        body.motherName || body.mother_name || null,
-        body.parentPhone || body.parent_phone || null,
-        body.parentEmail || body.parent_email || null,
-        body.parentOccupation || body.parent_occupation || null,
-        body.currentAddress || body.address || null,
-        body.city || null,
-        body.state || null,
-        body.pinCode || body.pin_code || null,
-        body.admissionDate ? new Date(body.admissionDate) : null,
-        body.medicalConditions || null,
-        body.allergies || null,
-        body.documents ? JSON.stringify(body.documents) : null,
-        body.nationalId || null
-      ]
-    );
+    addStudentUpdate('documents', JSON.stringify(mergedDocuments));
+
+    // ── Execute within a transaction ────────────────────────────────
+    const queryRunner = this.ds.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      let userRowsAffected = 0;
+      if (userUpdates.length > 0) {
+        const updateResult = await queryRunner.query(
+          `UPDATE users SET ${userUpdates.join(', ')}, updated_at=NOW() WHERE id=$1`,
+          userParams
+        );
+        if (Array.isArray(updateResult)) {
+          userRowsAffected = updateResult[1] || 0;
+        } else if (updateResult && typeof updateResult === 'object') {
+          userRowsAffected = updateResult.rowCount || 0;
+        } else {
+          userRowsAffected = 1;
+        }
+      }
+
+      let studentRowsAffected = 0;
+      if (studentUpdates.length > 0) {
+        const updateResult = await queryRunner.query(
+          `UPDATE students SET ${studentUpdates.join(', ')}, updated_at=NOW() WHERE user_id=$1`,
+          studentParams
+        );
+        if (Array.isArray(updateResult)) {
+          studentRowsAffected = updateResult[1] || 0;
+        } else if (updateResult && typeof updateResult === 'object') {
+          studentRowsAffected = updateResult.rowCount || 0;
+        } else {
+          studentRowsAffected = 1;
+        }
+      }
+
+      await queryRunner.commitTransaction();
+
+      // ── Audit logging ─────────────────────────────────────────────
+      console.log(`[SchoolStudentService.update] Student User ID:`, userId);
+      console.log(`[SchoolStudentService.update] Old values:`, JSON.stringify(oldUserValues));
+      console.log(`[SchoolStudentService.update] New values (body):`, JSON.stringify({ name: body.name, email: body.email, phone: body.phone, profileImage: profileImageValue }));
+      console.log(`[SchoolStudentService.update] Users rows affected:`, userRowsAffected);
+      console.log(`[SchoolStudentService.update] Students rows affected:`, studentRowsAffected);
+
+      if (userUpdates.length === 0 && studentUpdates.length <= 1) {
+        // Only the documents update was added (always happens) — no real fields changed
+        console.log(`[SchoolStudentService.update] No user-visible fields changed, only documents/parentDetails synced.`);
+      }
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(err instanceof Error ? err.message : 'Error updating student profile');
+    } finally {
+      await queryRunner.release();
+    }
+
     return { success: true };
   }
 
