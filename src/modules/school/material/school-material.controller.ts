@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, UseGuards, Patch, Res, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, UseGuards, Patch, Res, BadRequestException, HttpCode, HttpStatus, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Response } from 'express';
 import { SchoolMaterialService } from './school-material.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
@@ -41,6 +43,18 @@ export class SchoolMaterialController {
   @Post('upload-url')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   presignUpload(@SchoolUser() user: any, @Body() body: any) { return this.svc.presignUpload(user, body); }
+
+  @Post('upload')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 100 * 1024 * 1024 },
+  }))
+  uploadFile(@SchoolUser() user: any, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return this.svc.uploadFile(user, file.buffer, file.originalname, file.mimetype || 'application/octet-stream');
+  }
 
   @Post('ai-generate')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')

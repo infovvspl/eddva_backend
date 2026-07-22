@@ -429,6 +429,18 @@ export class SchoolMaterialService implements OnModuleInit {
     return { uploadUrl, fileUrl, key };
   }
 
+  /** Direct multipart upload — receives file buffer from NestJS, pushes to R2. Avoids browser PUT proxy. */
+  async uploadFile(user: any, buffer: Buffer, originalName: string, contentType: string) {
+    const instituteId = user.role === 'SUPER_ADMIN' ? user.instituteId : user.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
+    const MAX = 100 * 1024 * 1024;
+    if (buffer.length > MAX) throw new BadRequestException('File must be ≤ 100 MB');
+    const safeName = (originalName || 'file').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'file';
+    const key = `tenants/${instituteId}/school-materials/${Date.now()}-${randomUUID()}-${safeName}`;
+    const fileUrl = await this.s3Service.upload(key, buffer, contentType);
+    return { fileUrl, key };
+  }
+
   private async validateTeacherAssignment(user: any, subjectId: string | null, action: string) {
     if (user.role !== 'TEACHER') return;
     if (!subjectId) {
