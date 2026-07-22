@@ -276,7 +276,7 @@ export class SchoolLiveService implements OnModuleInit {
       const teacherId = tRows[0]?.id;
       if (teacherId) {
         params.push(teacherId);
-        filter += ` AND (l.teacher_id::text = $2::text OR l.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $2))`;
+        filter += ` AND (l.teacher_id::text = $2::text OR l.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $2::uuid))`;
       } else {
         filter += ` AND 1=0`;
       }
