@@ -38,6 +38,7 @@ export class SchoolDoubtService implements OnModuleInit {
     subjectName: string | null | undefined,
     instituteId: string,
     mode: 'short' | 'detailed' = 'detailed',
+    language?: string,
   ): Promise<{ answer: string; steps: string[]; raw: any }> {
     const aiResult: any = await this.aiBridgeService.resolveDoubt(
       {
@@ -47,6 +48,7 @@ export class SchoolDoubtService implements OnModuleInit {
         questionImageUrl: questionImageUrl || undefined,
         mode,
         studentContext: { subject: subjectName || undefined, level: 'school' },
+        language,
       },
       instituteId,
       'school',
@@ -398,6 +400,7 @@ export class SchoolDoubtService implements OnModuleInit {
           subjectName,
           instituteId,
           (body.explanationMode as 'short' | 'detailed') || 'detailed',
+          body.language,
         );
         if (!ai.answer) throw new Error('Empty AI response');
         
