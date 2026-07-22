@@ -77,6 +77,7 @@ export class SchoolClassService implements OnModuleInit {
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_error TEXT`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_started_at TIMESTAMPTZ`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_completed_at TIMESTAMPTZ`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
 
     // Progress and In-Video Quiz Segment Responses tracking
     await this.ds.query(`
@@ -228,7 +229,7 @@ export class SchoolClassService implements OnModuleInit {
                THEN ROUND((ps.completed_watchers::numeric / ps.total_watchers::numeric) * 100)::int
                ELSE 0
              END AS completion_rate,
-             r.created_at, r.class_id, r.subject_id,
+             r.created_at, r.updated_at, r.class_id, r.subject_id,
              r.section_id,
              r.chapter_id, r.topic_id, r.thumbnail_url, r.source,
              r.transcript, r.transcript_status, r.language, r.notes, r.notes_status,
@@ -680,7 +681,7 @@ export class SchoolClassService implements OnModuleInit {
     instituteId: string,
     language: 'en' | 'hi' | 'hinglish' | 'od' = 'en',
   ): Promise<void> {
-    await this.ds.query(`UPDATE class_recordings SET transcript_status='processing' WHERE id=$1`, [recordingId]);
+    await this.ds.query(`UPDATE class_recordings SET transcript_status='processing', updated_at=NOW() WHERE id=$1`, [recordingId]);
     try {
       const result: any = await this.aiBridgeService.transcribeAudio(
         { audioUrl: videoUrl, language, topicId: topicId ?? '' },
@@ -718,7 +719,7 @@ export class SchoolClassService implements OnModuleInit {
     language: 'en' | 'hi' | 'hinglish' | 'od' = 'en',
   ): Promise<void> {
     if (!transcript || transcript.trim().length < 20) return;
-    await this.ds.query(`UPDATE class_recordings SET notes_status='processing' WHERE id=$1`, [recordingId]);
+    await this.ds.query(`UPDATE class_recordings SET notes_status='processing', updated_at=NOW() WHERE id=$1`, [recordingId]);
     try {
       const result: any = await this.aiBridgeService.generateNotesFromTranscript(
         { transcript, topicId: topicId ?? '', language },
