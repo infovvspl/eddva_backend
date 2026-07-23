@@ -908,7 +908,7 @@ export class SchoolClassService implements OnModuleInit {
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.startsWith('image/')) return null;
       const buffer = Buffer.from(await res.arrayBuffer());
-      if (buffer.length < 2048) return null;
+      if (buffer.length < 512) return null;
       const mimeType = contentType.split(';')[0].trim();
       await this.s3Service.upload(s3Key, buffer, mimeType);
       return this.s3Service.toPublicUrl(s3Key);
@@ -982,14 +982,15 @@ export class SchoolClassService implements OnModuleInit {
 
         this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Downloading and uploading image to S3 path: ${s3Key}`);
         const s3Url = await this.downloadAndUploadToS3(imageUrl, s3Key);
+        const finalUrl = s3Url ?? imageUrl;
         if (!s3Url) {
-          this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Skip: Download or S3 upload failed`);
-          continue;
+          this.logger.warn(`[Image Enrichment] [Step ${i + 1}/${sections.length}] S3 upload failed — using original URL directly: ${imageUrl}`);
+        } else {
+          this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Image saved to S3. URL: ${s3Url}`);
         }
 
-        this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Image saved to S3. Injecting markdown into notes text.`);
-        enrichedNotes = this.insertImageAfterHeading(enrichedNotes, section.heading, s3Url, section.caption);
-        images.push({ heading: section.heading, searchTerm: section.searchTerm, s3Url, caption: section.caption });
+        enrichedNotes = this.insertImageAfterHeading(enrichedNotes, section.heading, finalUrl, section.caption);
+        images.push({ heading: section.heading, searchTerm: section.searchTerm, s3Url: finalUrl, caption: section.caption });
       } catch (err: any) {
         this.logger.warn(`Image enrichment skipped for "${section.heading}": ${err?.message}`);
       }
