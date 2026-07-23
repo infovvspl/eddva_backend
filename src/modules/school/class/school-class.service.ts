@@ -818,6 +818,25 @@ export class SchoolClassService implements OnModuleInit {
       .replace(/\n\n!\[.*?\]\(https?:\/\/.*?\)\n/g, '\n');
   }
 
+  private extractHeadingsLocally(notes: string): Array<{heading: string; searchTerm: string; caption: string}> {
+    const results: Array<{heading: string; searchTerm: string; caption: string}> = [];
+    for (const line of notes.split('\n')) {
+      const m = line.match(/^(#{1,3})\s+(.+)$/);
+      if (!m) continue;
+      const headingText = m[2].replace(/[*_`]/g, '').trim();
+      if (headingText.length < 4) continue;
+      const visualHints = ['diagram', 'photo', 'illustration', 'chart', 'map', 'experiment'];
+      const hasHint = visualHints.some((h) => headingText.toLowerCase().includes(h));
+      results.push({
+        heading: line.trim(),
+        searchTerm: hasHint ? headingText : `${headingText} educational diagram`,
+        caption: `Educational illustration of ${headingText}`,
+      });
+      if (results.length >= 4) break;
+    }
+    return results;
+  }
+
   private async extractImageSearchTerms(
     notes: string,
     language = 'en',
@@ -829,21 +848,26 @@ export class SchoolClassService implements OnModuleInit {
         { notes, language },
         instituteId,
       );
-      const sections = result?.sections || [];
-      this.logger.log(`[extractImageSearchTerms] Successfully extracted ${sections.length} headings.`);
-      return sections
+      const sections = (result?.sections || [])
         .slice(0, 4)
         .filter((s: any) => s?.heading && s?.searchTerm && typeof s.heading === 'string');
+      if (sections.length > 0) {
+        this.logger.log(`[extractImageSearchTerms] AI returned ${sections.length} headings.`);
+        return sections;
+      }
+      this.logger.warn('[extractImageSearchTerms] AI returned 0 sections — using local heading extraction');
     } catch (err: any) {
-      this.logger.error(`[extractImageSearchTerms] Failed to extract search terms: ${err?.message}`, err?.stack);
-      return [];
+      this.logger.warn(`[extractImageSearchTerms] AI bridge failed (${err?.message}) — using local heading extraction`);
     }
+    const local = this.extractHeadingsLocally(notes);
+    this.logger.log(`[extractImageSearchTerms] Local extraction found ${local.length} headings.`);
+    return local;
   }
 
   private async fetchSerperImage(searchTerm: string, instituteId: string, language = 'en'): Promise<string | null> {
     this.logger.log(`[Serper Search] Query initiated for term: "${searchTerm}" (Language: ${language})`);
+    let englishTerm = searchTerm;
     try {
-      let englishTerm = searchTerm;
       const hasOdiaChars = /[\u0B00-\u0B7F]/.test(searchTerm);
       if (language === 'od' && hasOdiaChars) {
         try {
@@ -869,26 +893,73 @@ export class SchoolClassService implements OnModuleInit {
         ? englishTerm
         : `${englishTerm} educational diagram`;
 
-      this.logger.log(`[Serper Search] Sending Serper request via bridge for: "${query}" (Language: en)`);
+      this.logger.log(`[Serper Search] Sending request via bridge for: "${query}"`);
       const result = await this.aiBridgeService.searchEducationalImages(
         { query, limit: 5, language: 'en' },
         instituteId,
       );
 
       const images = result?.images || [];
-      this.logger.log(`[Serper Search] Serper returned ${images.length} candidate(s) for: "${query}"`);
+      this.logger.log(`[Serper Search] Bridge returned ${images.length} candidate(s) for: "${query}"`);
       for (const img of images.slice(0, 3)) {
         if (img?.imageUrl) {
           this.logger.log(`[Serper Search] Selected image URL: ${img.imageUrl}`);
           return img.imageUrl;
         }
       }
-      this.logger.log(`[Serper Search] No images resolved for query: "${query}"`);
-      return null;
+      this.logger.log(`[Serper Search] No images via bridge — trying Wikipedia fallback`);
     } catch (err: any) {
-      this.logger.warn(`[Serper Search] Serper school image search failed: ${err?.message}`);
-      return null;
+      this.logger.warn(`[Serper Search] Bridge search failed (${err?.message}) — trying Wikipedia fallback`);
     }
+
+    // Wikipedia REST API fallback — always free, no key needed
+    return this.fetchWikipediaImage(englishTerm ?? searchTerm);
+  }
+
+  private async fetchWikipediaImage(query: string): Promise<string | null> {
+    try {
+      const title = encodeURIComponent(query.replace(/\s+educational\s*(diagram|illustration|photo)?$/i, '').trim());
+      const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`;
+      const res = await fetch(summaryUrl, {
+        headers: { 'User-Agent': 'eddva-education-app/1.0 (https://eddva.in)' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        const data: any = await res.json();
+        const imgUrl = data?.thumbnail?.source || data?.originalimage?.source;
+        if (imgUrl) {
+          this.logger.log(`[Wikipedia] Found image for "${query}": ${imgUrl}`);
+          return imgUrl;
+        }
+      }
+      // Try Wikipedia search if direct summary had no image
+      const searchRes = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=3&format=json`,
+        { headers: { 'User-Agent': 'eddva-education-app/1.0' }, signal: AbortSignal.timeout(8000) },
+      );
+      if (searchRes.ok) {
+        const searchData: any = await searchRes.json();
+        const hits: any[] = searchData?.query?.search || [];
+        for (const hit of hits) {
+          const t = encodeURIComponent(hit.title);
+          const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${t}`, {
+            headers: { 'User-Agent': 'eddva-education-app/1.0' },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (r.ok) {
+            const d: any = await r.json();
+            const u = d?.thumbnail?.source || d?.originalimage?.source;
+            if (u) {
+              this.logger.log(`[Wikipedia] Found image via search for "${query}": ${u}`);
+              return u;
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`[Wikipedia] Fallback failed for "${query}": ${err?.message}`);
+    }
+    return null;
   }
 
   private async downloadAndUploadToS3(
