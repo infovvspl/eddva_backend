@@ -282,6 +282,25 @@ export class SchoolDashboardService {
       const studentAttendancePercentage = totalStudents > 0 ? (presentStudentsToday / totalStudents) * 100 : 0;
       const teacherAttendancePercentage = totalTeachers > 0 ? (presentTeachersToday / totalTeachers) * 100 : 0;
 
+      const now = new Date();
+      const currentDay = now.getDay();
+      const diffToMonday = currentDay === 0 ? 6 : currentDay - 1;
+      const mondayDate = new Date(now);
+      mondayDate.setDate(now.getDate() - diffToMonday);
+
+      const sundayDate = new Date(mondayDate);
+      sundayDate.setDate(mondayDate.getDate() + 6);
+
+      const formatDateStr = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const mondayStr = formatDateStr(mondayDate);
+      const sundayStr = formatDateStr(sundayDate);
+
       const historyRows = await this.safeQuery(`
         SELECT 
           asess.date::text AS date,
@@ -290,17 +309,18 @@ export class SchoolDashboardService {
         LEFT JOIN attendance_records ar ON ar.session_id = asess.id
           AND (LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')
         WHERE asess.tenant_id = $1 
-          AND asess.date::date >= (CURRENT_DATE - INTERVAL '6 days')::date
+          AND asess.date::date >= $2::date
+          AND asess.date::date <= $3::date
         GROUP BY asess.date
         ORDER BY asess.date ASC
-      `, [instituteId], []);
+      `, [instituteId, mondayStr, sundayStr], []);
 
       const attendanceHistory = [];
       const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(mondayDate);
+        d.setDate(mondayDate.getDate() + i);
+        const dateStr = formatDateStr(d);
         const dayLabel = daysOfWeek[d.getDay()];
         
         const row = historyRows.find((r: any) => r.date === dateStr);
