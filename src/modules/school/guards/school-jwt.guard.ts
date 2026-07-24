@@ -123,6 +123,7 @@ export class SchoolJwtGuard implements CanActivate {
     const rows: any[] = await this.ds.query(
       `SELECT u.id, u.email, u.name, u.role, u.profile_image, u.institute_id, u.is_active, 
               i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status,
+              i.logo AS inst_logo, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address,
               i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features, i.modules_permissions AS inst_modules_permissions
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
@@ -185,6 +186,9 @@ export class SchoolJwtGuard implements CanActivate {
           tenantDomain: row.tenant_domain,
           status: row.inst_status,
           logo: row.inst_logo,
+          state: row.inst_state,
+          city: row.inst_city,
+          location: row.inst_address,
           aiEnabled: row.inst_ai_enabled,
           aiFeatures: typeof row.inst_ai_features === 'string' ? JSON.parse(row.inst_ai_features) : row.inst_ai_features,
           modulesPermissions: typeof row.inst_modules_permissions === 'string' ? JSON.parse(row.inst_modules_permissions) : row.inst_modules_permissions,
