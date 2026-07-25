@@ -480,13 +480,17 @@ export class SchoolDoubtService implements OnModuleInit {
       LEFT JOIN classes c ON c.id = sec.class_id
       WHERE 1=1`;
 
-    if (user.role === 'STUDENT') {
+    const userRoles = String(user.role || '').split(',').map(r => r.trim().toUpperCase());
+
+    if (userRoles.includes('STUDENT')) {
       params.push(user.id);
       sql += ` AND d.student_user_id = $${params.length}::uuid`;
-    } else if (user.role === 'TEACHER') {
+    } else if (userRoles.includes('TEACHER')) {
       params.push(user.id);
       const teacherIdx = params.length;
-      sql += ` AND (
+      params.push(user.instituteId);
+      const instIdx = params.length;
+      sql += ` AND d.institute_id = $${instIdx}::uuid AND (
         d.teacher_user_id::text = $${teacherIdx}::text
         OR EXISTS (
           SELECT 1 FROM students st2
@@ -494,6 +498,7 @@ export class SchoolDoubtService implements OnModuleInit {
           JOIN teachers t ON t.id = taa.teacher_id
           WHERE st2.user_id::text = d.student_user_id::text
             AND t.user_id::text = $${teacherIdx}::text
+            AND t.institute_id = $${instIdx}::uuid
             AND (
               d.subject_id IS NULL
               OR taa.subject_id IS NULL
@@ -507,7 +512,7 @@ export class SchoolDoubtService implements OnModuleInit {
       } else if (query.status === 'answered') {
         sql += ` AND d.status = 'teacher_answered'`;
       }
-    } else if (user.role === 'INSTITUTE_ADMIN') {
+    } else if (userRoles.includes('INSTITUTE_ADMIN')) {
       params.push(user.instituteId);
       sql += ` AND d.institute_id = $${params.length}::uuid`;
     }
@@ -537,10 +542,11 @@ export class SchoolDoubtService implements OnModuleInit {
     );
     if (!rows.length) throw new NotFoundException('Doubt not found');
     const d = rows[0];
-    if (user.role === 'STUDENT' && d.student_user_id !== user.id) {
+    const userRoles = String(user.role || '').split(',').map(r => r.trim().toUpperCase());
+    if (userRoles.includes('STUDENT') && d.student_user_id !== user.id) {
       throw new NotFoundException('Doubt not found');
     }
-    if (user.role === 'TEACHER' && !(await this.teacherCanAccessDoubt(user.id, d))) {
+    if (userRoles.includes('TEACHER') && (String(d.institute_id) !== String(user.instituteId) || !(await this.teacherCanAccessDoubt(user.id, d)))) {
       throw new NotFoundException('Doubt not found');
     }
     return { success: true, data: this.mapRow(d) };
@@ -616,6 +622,7 @@ export class SchoolDoubtService implements OnModuleInit {
 
   async respond(user: any, id: string, body: { response?: string; teacherResponse?: string; responseImageUrl?: string }) {
     await this.ensureTable();
+    const userRoles = String(user.role || '').split(',').map(r => r.trim().toUpperCase());
     const text = (body.response || body.teacherResponse || '').trim();
     const imageUrl = body.responseImageUrl?.trim() || null;
     if (text.length < 5 && !imageUrl) {
@@ -638,7 +645,7 @@ export class SchoolDoubtService implements OnModuleInit {
         id,
         text || (imageUrl ? '(See attached image)' : ''),
         imageUrl,
-        user.role === 'TEACHER' ? user.id : doubt.teacherUserId,
+        userRoles.includes('TEACHER') ? user.id : doubt.teacherUserId,
       ],
     );
 

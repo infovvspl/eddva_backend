@@ -110,6 +110,7 @@ async function bootstrap() {
       'If-Modified-Since',
     ],
     exposedHeaders: ['Authorization'],
+    maxAge: 86400,
     preflightContinue: false,
     optionsSuccessStatus: 204,
   });
