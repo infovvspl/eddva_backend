@@ -1,32 +1,14 @@
-const { DataSource } = require('typeorm');
-const dotenv = require('dotenv');
-const { SchoolSecurityService } = require('./src/modules/school/security/school-security.service');
+const axios = require('axios');
 
-dotenv.config({ path: '.env' });
-
-const ds = new DataSource({
-  name: 'school',
-  type: 'postgres',
-  url: process.env.SCHOOL_DB_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
-async function run() {
-  await ds.initialize();
-  const service = new SchoolSecurityService(ds, null);
-
-  const mockUser = { role: 'SUPER_ADMIN' };
-
-  console.log('--- GET /school/admin/security/summary ---');
-  const summary = await service.getSummary(mockUser);
-  console.log(summary);
-
-  console.log('--- GET /school/admin/security/sessions ---');
-  const sessions = await service.getActiveSessions(mockUser);
-  console.log('Count:', sessions.length);
-  console.log('First session:', sessions[0]);
-
-  await ds.destroy();
+async function test() {
+  console.log('Testing dev-api.eddva.in platform-config...');
+  try {
+    const res = await axios.get('https://dev-api.eddva.in/api/v1/tenants/public/platform-config?vertical=coaching');
+    console.log('Status:', res.status);
+    console.log('Data (truncated):', JSON.stringify(res.data).slice(0, 300));
+  } catch (err) {
+    console.error('Error fetching platform config:', err.message);
+  }
 }
 
-run().catch(console.error);
+test();
