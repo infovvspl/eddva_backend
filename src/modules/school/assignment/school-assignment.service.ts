@@ -953,7 +953,8 @@ export class SchoolAssignmentService {
 
     if (user.role === 'STUDENT') {
       const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
-      if (assignment.section_id !== studentProfile?.section_id) {
+      const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
+      if (assignment.section_id && sectionId && String(assignment.section_id) !== String(sectionId)) {
         throw new ForbiddenException('You do not have access to this assignment');
       }
     } else if (user.role === 'PARENT') {

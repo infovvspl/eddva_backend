@@ -1089,58 +1089,61 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
 
   private async checkAssessmentAccess(user: any, assessmentId: string) {
     const rows: any[] = await this.ds.query(
-      `SELECT a.*, c.institute_id FROM assessments a LEFT JOIN classes c ON a.class_id::text = c.id::text WHERE a.id::text=$1::text`,
+      `SELECT a.*, c.institute_id AS class_institute_id FROM assessments a LEFT JOIN classes c ON a.class_id::text = c.id::text WHERE a.id::text=$1::text`,
       [assessmentId],
     );
     if (!rows.length) throw new NotFoundException('Assessment not found');
     const assessment = rows[0];
 
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
-    if (isSuperAdmin) return assessment;
+    const userRole = String(user?.role || '').toUpperCase();
+    if (userRole === 'SUPER_ADMIN') return assessment;
 
-    if (String(assessment.institute_id) !== String(user.instituteId)) {
+    const assessmentInstituteId = assessment.institute_id || assessment.class_institute_id;
+    const userInstituteId = user?.instituteId || user?.institute;
+    if (assessmentInstituteId && userInstituteId && String(assessmentInstituteId) !== String(userInstituteId)) {
       throw new ForbiddenException('You do not have access to this assessment');
     }
 
-    if (user.role === 'STUDENT') {
-      const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
-      const classId = studentProfile?.class_id || (await this.ds.query(`SELECT class_id FROM sections WHERE id::text = $1::text`, [studentProfile?.section_id]))[0]?.class_id;
-      if (assessment.class_id !== classId) {
+    if (userRole === 'STUDENT') {
+      const studentProfile = user?.studentProfile || (await this.ds.query(`SELECT s.id, s.section_id, sec.class_id FROM students s LEFT JOIN sections sec ON s.section_id::text = sec.id::text WHERE s.user_id::text = $1::text`, [user.id]))[0];
+      const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
+      let studentClassId = studentProfile?.classId || studentProfile?.class_id;
+      if (!studentClassId && sectionId) {
+        const secRows = await this.ds.query(`SELECT class_id FROM sections WHERE id::text = $1::text`, [sectionId]);
+        studentClassId = secRows[0]?.class_id;
+      }
+      if (assessment.class_id && studentClassId && String(assessment.class_id) !== String(studentClassId)) {
         throw new ForbiddenException('You do not have access to this assessment');
       }
-    } else if (user.role === 'PARENT') {
+    } else if (userRole === 'PARENT') {
       const children = await this.ds.query(`
-        SELECT section_id FROM students WHERE institute_id = $1 AND (
+        SELECT section_id FROM students WHERE institute_id::text = $1::text AND (
           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
           OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
         )
       `, [user.instituteId, user.email, user.phone]);
       const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
-      if (sectionIds.length > 0) {
+      if (sectionIds.length > 0 && assessment.class_id) {
         const classRows = await this.ds.query(
           `SELECT DISTINCT class_id FROM sections WHERE id = ANY($1::uuid[])`,
           [sectionIds]
         );
-        const classIds = classRows.map((cr: any) => cr.class_id);
-        if (!classIds.includes(assessment.class_id)) {
+        const classIds = classRows.map((cr: any) => String(cr.class_id));
+        if (!classIds.includes(String(assessment.class_id))) {
           throw new ForbiddenException('You do not have access to this assessment');
         }
-      } else {
-        throw new ForbiddenException('You do not have access to this assessment');
       }
-    } else if (user.role === 'TEACHER') {
-      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+    } else if (userRole === 'TEACHER') {
+      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id::text=$1::text`, [user.id]);
       const teacherId = tRows[0]?.id;
-      if (teacherId) {
+      if (teacherId && assessment.teacher_id && String(assessment.teacher_id) !== String(teacherId)) {
         const hasAssignment = await this.ds.query(
-          `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id = $1 AND class_id::text = $2::text LIMIT 1`,
+          `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id::text = $1::text AND class_id::text = $2::text LIMIT 1`,
           [teacherId, assessment.class_id]
         );
-        if (assessment.teacher_id !== teacherId && !hasAssignment.length) {
+        if (!hasAssignment.length && assessment.class_id) {
           throw new ForbiddenException('You do not have access to this assessment');
         }
-      } else {
-        throw new ForbiddenException('You do not have access to this assessment');
       }
     }
 
