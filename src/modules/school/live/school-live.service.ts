@@ -250,7 +250,7 @@ export class SchoolLiveService implements OnModuleInit {
 
     if (user.role === 'STUDENT') {
       const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
-      const sectionId = studentProfile?.section_id;
+      const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
       if (sectionId) {
         params.push(sectionId);
         filter += ` AND l.section_id::text = $2::text`;
@@ -310,7 +310,7 @@ export class SchoolLiveService implements OnModuleInit {
 
     if (user.role === 'STUDENT') {
       const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
-      const sectionId = studentProfile?.section_id;
+      const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
       if (sectionId) {
         params.push(sectionId);
         filter += ` AND section_id::text = $2::text`;
@@ -371,7 +371,8 @@ export class SchoolLiveService implements OnModuleInit {
         }
         if (user.role === 'STUDENT') {
           const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
-          if (lecture.sectionId !== studentProfile?.section_id) {
+          const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
+          if (sectionId && lecture.sectionId && String(lecture.sectionId) !== String(sectionId)) {
             throw new ForbiddenException('You do not have access to this lecture');
           }
         } else if (user.role === 'TEACHER') {

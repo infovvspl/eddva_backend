@@ -138,7 +138,7 @@ export class SchoolTimetableService {
 
     if (user.role === 'STUDENT') {
       const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
-      const sectionId = studentProfile?.section_id;
+      const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
       if (sectionId) {
         params.push(sectionId);
         filterQuery += ` AND t.section_id::text = $${params.length}::text`;
