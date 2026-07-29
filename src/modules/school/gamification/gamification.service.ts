@@ -773,13 +773,21 @@ export class GamificationService implements OnModuleInit {
     const profile = user.studentProfile || {};
     const instituteId = user.instituteId || profile.instituteId;
     const classId = profile.classId;
-    const rows = await this.ds.query(
-      `SELECT s.*
-       FROM subjects s
-       WHERE s.institute_id::text=$1::text AND (s.class_id::text=$2::text OR s.class_id IS NULL)
-       ORDER BY s.name`,
-      [instituteId, classId],
-    );
+    const sectionId = profile.sectionId;
+
+    let query = `
+      SELECT s.*
+      FROM subjects s
+      WHERE s.institute_id::text=$1::text AND (s.class_id::text=$2::text OR s.class_id IS NULL)
+    `;
+    const params = [instituteId, classId];
+    if (sectionId) {
+      params.push(sectionId);
+      query += ` AND (s.section_id::text=$3::text OR s.section_id IS NULL)`;
+    }
+    query += ` ORDER BY s.name`;
+
+    const rows = await this.ds.query(query, params);
     // Deduplicate by subject name — prevents same-named subjects from bloating game deck lists
     const seen = new Set<string>();
     return rows.filter((s: any) => {
