@@ -263,9 +263,6 @@ export class GamificationService implements OnModuleInit {
       const gameXp = Number(scoreSumRows[0]?.total_xp || 0);
       const gameCoins = Number(scoreSumRows[0]?.total_coins || 0);
 
-      const gameXp = Number(scoreSumRows[0]?.total_xp || 0);
-      const gameCoins = Number(scoreSumRows[0]?.total_coins || 0);
-
       // Query student_activity and school_game_scores for activity dates to calculate real-time streak
       const activityRows = await this.ds.query(
         `SELECT DISTINCT date_str FROM (
