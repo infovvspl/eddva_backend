@@ -120,7 +120,7 @@ export class AiBridgeService {
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
-          headers: this.headers(tenantId, v, board),
+          headers: this.headers(tenantId, vertical, board),
           timeout: timeoutMs ?? this.timeout,
         }),
       );
