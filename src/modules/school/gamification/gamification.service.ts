@@ -198,26 +198,94 @@ export class GamificationService implements OnModuleInit {
     const userId = String(user?.id || '');
     try {
       const rows = await this.ds.query(
-        `SELECT xp, coins, level, badges, current_streak, longest_streak
+        `SELECT xp, lifetime_xp, coins, level, reward_balance_inr, memory_score, learning_score, focus_score, current_difficulty, rank_tier, league_name, badges, current_streak, longest_streak
          FROM gamification_profiles
          WHERE user_id = $1`,
         [userId],
       );
       if (rows.length === 0) {
-        return { xp: 0, coins: 0, level: 1, badges: [], currentStreak: 0, longestStreak: 0 };
+        return {
+          userId,
+          xp: 0,
+          lifetimeXp: 0,
+          coins: 0,
+          level: 1,
+          levelTitle: 'Learner',
+          levelProgressPercent: 0,
+          rewardBalanceInr: 0.0,
+          memoryScore: 75,
+          learningScore: 80,
+          focusScore: 85,
+          currentDifficulty: 'Intermediate',
+          rankTier: 'Gold',
+          leagueName: 'Gold League',
+          badges: [],
+          currentStreak: 0,
+          longestStreak: 0,
+          nextLevelXp: 100,
+          estimatedTimeToNextLevel: '30 mins of study',
+        };
       }
       const r = rows[0];
+      const xp = Number(r.xp || 0);
+      const level = Number(r.level || this.computeLevel(xp));
       return {
-        xp: Number(r.xp || 0),
+        userId,
+        xp,
+        lifetimeXp: Number(r.lifetime_xp || xp),
         coins: Number(r.coins || 0),
-        level: Number(r.level || 1),
-        badges: Array.isArray(r.badges) ? r.badges : [],
+        level,
+        levelTitle: this.computeLevelTitle(xp),
+        levelProgressPercent: Math.min(100, xp % 100),
+        rewardBalanceInr: Number(r.reward_balance_inr ?? (xp / 100).toFixed(2)),
+        memoryScore: Number(r.memory_score || 75),
+        learningScore: Number(r.learning_score || 80),
+        focusScore: Number(r.focus_score || 85),
+        currentDifficulty: r.current_difficulty || 'Intermediate',
+        rankTier: r.rank_tier || 'Gold',
+        leagueName: r.league_name || 'Gold League',
+        badges: Array.isArray(r.badges) ? r.badges : (typeof r.badges === 'string' ? JSON.parse(r.badges) : []),
         currentStreak: Number(r.current_streak || 0),
         longestStreak: Number(r.longest_streak || 0),
+        nextLevelXp: 100,
+        estimatedTimeToNextLevel: '30 mins of study',
       };
     } catch {
-      return { xp: 0, coins: 0, level: 1, badges: [], currentStreak: 0, longestStreak: 0 };
+      return {
+        userId,
+        xp: 0,
+        lifetimeXp: 0,
+        coins: 0,
+        level: 1,
+        levelTitle: 'Learner',
+        levelProgressPercent: 0,
+        rewardBalanceInr: 0.0,
+        memoryScore: 75,
+        learningScore: 80,
+        focusScore: 85,
+        currentDifficulty: 'Intermediate',
+        rankTier: 'Gold',
+        leagueName: 'Gold League',
+        badges: [],
+        currentStreak: 0,
+        longestStreak: 0,
+        nextLevelXp: 100,
+        estimatedTimeToNextLevel: '30 mins of study',
+      };
     }
+  }
+
+  private computeLevelTitle(xp: number): string {
+    if (xp >= 5000) return 'Legendary Overlord';
+    if (xp >= 3500) return 'Grandmaster';
+    if (xp >= 2500) return 'Master Scholar';
+    if (xp >= 1800) return 'Academic Virtuoso';
+    if (xp >= 1200) return 'Elite Scholar';
+    if (xp >= 800) return 'Champion';
+    if (xp >= 500) return 'Expert';
+    if (xp >= 250) return 'Scholar';
+    if (xp >= 100) return 'Learner';
+    return 'Beginner';
   }
 
   async startQuizRush(user: any, query: any) {
