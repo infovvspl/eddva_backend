@@ -437,19 +437,29 @@ export class SchoolStudentService {
 
   async getDashboard(user: any) {
     const fallbackStudentProfile = user?.studentProfile || {};
-    const studentRows: any[] = await this.ds.query(
-      `SELECT s.id, s.user_id, sec.class_id, s.section_id, s.enrollment_no,
-              c.name AS class_name, sec.name AS section_name
-       FROM students s
-       JOIN users u ON u.id = s.user_id
-       LEFT JOIN sections sec ON s.section_id = sec.id
-       LEFT JOIN classes c ON sec.class_id = c.id
-       WHERE s.user_id = $1 OR s.id = $2`,
-      [user.id, fallbackStudentProfile.id || null],
-    );
+    const userId = user?.id || user?.userId || user?.sub || null;
+
+    let studentRows: any[] = [];
+    if (userId || fallbackStudentProfile.id) {
+      try {
+        studentRows = await this.ds.query(
+          `SELECT s.id, s.user_id, sec.class_id, s.section_id, s.enrollment_no,
+                  c.name AS class_name, sec.name AS section_name
+           FROM students s
+           JOIN users u ON u.id = s.user_id
+           LEFT JOIN sections sec ON s.section_id = sec.id
+           LEFT JOIN classes c ON sec.class_id = c.id
+           WHERE s.user_id = $1 OR s.id = $2`,
+          [userId, fallbackStudentProfile.id || userId],
+        );
+      } catch (e) {
+        console.warn('[getDashboard] studentRows query warning:', (e as Error)?.message);
+      }
+    }
+
     const student = studentRows[0] || {
       id: fallbackStudentProfile.id || null,
-      user_id: user.id,
+      user_id: userId,
       class_id: fallbackStudentProfile.classId || null,
       section_id: fallbackStudentProfile.sectionId || null,
       enrollment_no: fallbackStudentProfile.enrollmentNo || null,
@@ -460,86 +470,85 @@ export class SchoolStudentService {
       longest_streak: user?.longestStreak || 0,
     };
 
-    const effectiveStudentId = student.id;
     const effectiveSectionId = student.section_id || fallbackStudentProfile.sectionId || null;
 
     let attendanceSummary = { present: 0, absent: 0, leave: 0, total: 0, percentage: null as number | null };
-    console.log("[DEBUG getDashboard] user_id:", student.user_id, "student_id(profile):", student.id);
-    if (student.user_id) {
-      const recordRows: any[] = await this.ds.query(
-        `SELECT
-           COUNT(*) FILTER (WHERE LOWER(ar.status) IN ('present', 'late'))::int AS present,
-           COUNT(*) FILTER (WHERE LOWER(ar.status)='absent')::int AS absent,
-           COUNT(*) FILTER (WHERE LOWER(ar.status)='leave')::int AS leave,
-           COUNT(*)::int AS total
-         FROM attendance_records ar
-         WHERE ar.student_id = $1`,
-        [student.user_id],
-      );
-      const recordPresent = Number(recordRows[0]?.present || 0);
-      const recordAbsent = Number(recordRows[0]?.absent || 0);
-      const recordLeave = Number(recordRows[0]?.leave || 0);
-      const recordTotal = Number(recordRows[0]?.total || 0);
-      console.log("[DEBUG getDashboard] attendance_records query result:", { recordPresent, recordAbsent, recordLeave, recordTotal });
-
-      if (recordTotal > 0) {
-        attendanceSummary = {
-          present: recordPresent,
-          absent: recordAbsent,
-          leave: recordLeave,
-          total: recordTotal,
-          percentage: Math.round(((recordPresent + recordLeave) / recordTotal) * 100),
-        };
-      } else {
-        const legacyRows: any[] = await this.ds.query(
+    if (student.id || student.user_id) {
+      try {
+        const recordRows: any[] = await this.ds.query(
           `SELECT
-             COUNT(*) FILTER (WHERE LOWER(status) IN ('present', 'late'))::int AS present,
-             COUNT(*) FILTER (WHERE LOWER(status)='absent')::int AS absent,
-             COUNT(*) FILTER (WHERE LOWER(status)='leave')::int AS leave,
+             COUNT(*) FILTER (WHERE LOWER(ar.status) IN ('present', 'late'))::int AS present,
+             COUNT(*) FILTER (WHERE LOWER(ar.status)='absent')::int AS absent,
+             COUNT(*) FILTER (WHERE LOWER(ar.status)='leave')::int AS leave,
              COUNT(*)::int AS total
-           FROM attendances
-           WHERE user_id=$1`,
-          [student.user_id],
+           FROM attendance_records ar
+           WHERE ar.student_id = $1 OR ar.student_id = $2`,
+          [student.id, student.user_id],
         );
-        const legacyPresent = Number(legacyRows[0]?.present || 0);
-        const legacyAbsent = Number(legacyRows[0]?.absent || 0);
-        const legacyLeave = Number(legacyRows[0]?.leave || 0);
-        const legacyTotal = Number(legacyRows[0]?.total || 0);
-        if (legacyTotal > 0) {
+        const recordPresent = Number(recordRows[0]?.present || 0);
+        const recordAbsent = Number(recordRows[0]?.absent || 0);
+        const recordLeave = Number(recordRows[0]?.leave || 0);
+        const recordTotal = Number(recordRows[0]?.total || 0);
+
+        if (recordTotal > 0) {
           attendanceSummary = {
-            present: legacyPresent,
-            absent: legacyAbsent,
-            leave: legacyLeave,
-            total: legacyTotal,
-            percentage: Math.round(((legacyPresent + legacyLeave) / legacyTotal) * 100),
+            present: recordPresent,
+            absent: recordAbsent,
+            leave: recordLeave,
+            total: recordTotal,
+            percentage: Math.round(((recordPresent + recordLeave) / recordTotal) * 100),
           };
+        } else if (student.user_id) {
+          const legacyRows: any[] = await this.ds.query(
+            `SELECT
+               COUNT(*) FILTER (WHERE LOWER(status) IN ('present', 'late'))::int AS present,
+               COUNT(*) FILTER (WHERE LOWER(status)='absent')::int AS absent,
+               COUNT(*) FILTER (WHERE LOWER(status)='leave')::int AS leave,
+               COUNT(*)::int AS total
+             FROM attendances
+             WHERE user_id=$1`,
+            [student.user_id],
+          );
+          const legacyPresent = Number(legacyRows[0]?.present || 0);
+          const legacyAbsent = Number(legacyRows[0]?.absent || 0);
+          const legacyLeave = Number(legacyRows[0]?.leave || 0);
+          const legacyTotal = Number(legacyRows[0]?.total || 0);
+          if (legacyTotal > 0) {
+            attendanceSummary = {
+              present: legacyPresent,
+              absent: legacyAbsent,
+              leave: legacyLeave,
+              total: legacyTotal,
+              percentage: Math.round(((legacyPresent + legacyLeave) / legacyTotal) * 100),
+            };
+          }
         }
+      } catch (e) {
+        console.warn('[getDashboard] Attendance query warning:', (e as Error)?.message);
       }
     }
     const attendancePercentage = attendanceSummary.percentage;
 
-    const dayNum = new Date().getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
-    const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-    const dayOfWeekStr = days[dayNum];
+    const dayNum = new Date().getDay();
     const mappedDayOfWeek = dayNum === 0 ? 7 : dayNum;
 
-    // Using timetables table to get today's classes
-    const timetablesRows: any[] = await this.ds.query(
-      `SELECT t.*, sub.name AS subject_name, u.name AS teacher_name
-       FROM timetables t
-       LEFT JOIN subjects sub ON t.subject_id=sub.id
-       LEFT JOIN teachers teach ON t.teacher_id=teach.id
-       LEFT JOIN users u ON teach.user_id=u.id
-       WHERE t.section_id=$1 AND t.day_of_week=$2
-       ORDER BY t.start_time`,
-      [effectiveSectionId, mappedDayOfWeek],
-    );
-
-    console.log("Student User:", student);
-    console.log("Student Class:", student.class_id);
-    console.log("Student Section:", student.section_id);
-    console.log("Calculated Day:", dayOfWeekStr);
-    console.log("Today's Classes:", timetablesRows);
+    let timetablesRows: any[] = [];
+    if (effectiveSectionId) {
+      try {
+        timetablesRows = await this.ds.query(
+          `SELECT t.*, sub.name AS subject_name, u.name AS teacher_name
+           FROM timetables t
+           LEFT JOIN subjects sub ON t.subject_id=sub.id
+           LEFT JOIN teachers teach ON t.teacher_id=teach.id
+           LEFT JOIN users u ON teach.user_id=u.id
+           WHERE t.section_id=$1 AND t.day_of_week=$2
+           ORDER BY t.start_time`,
+          [effectiveSectionId, mappedDayOfWeek],
+        );
+      } catch (e) {
+        console.warn('[getDashboard] Timetables query warning:', (e as Error)?.message);
+      }
+    }
 
     const todayPlan = timetablesRows.map((t) => ({
       id: t.id,
@@ -551,28 +560,72 @@ export class SchoolStudentService {
       type: t.type || '',
     }));
 
-    // Fetch gamification profile from school database
     let gamificationProfile = { xp: 0, coins: 0, level: 1, badges: [] as string[], current_streak: 0, longest_streak: 0 };
-    try {
-      const profileRows = await this.ds.query(
-        `SELECT xp, coins, level, badges, current_streak, longest_streak 
-         FROM gamification_profiles 
-         WHERE user_id = $1`,
-        [user.id]
-      );
-      if (profileRows.length > 0) {
-        const row = profileRows[0];
+    if (userId) {
+      try {
+        const studentId = student?.id || fallbackStudentProfile.id || userId;
+        const profileRows = await this.ds.query(
+          `SELECT xp, coins, level, badges, current_streak, longest_streak 
+           FROM gamification_profiles 
+           WHERE user_id::text = $1::text OR user_id::text = $2::text`,
+          [userId, studentId]
+        ).catch(() => []);
+
+        const userRows = await this.ds.query(
+          `SELECT xp_total, current_streak, longest_streak FROM users WHERE id::text = $1::text LIMIT 1`,
+          [userId],
+        ).catch(() => []);
+        const userXp = Number(userRows[0]?.xp_total || 0);
+        const userCurrentStreak = Number(userRows[0]?.current_streak || 0);
+        const userLongestStreak = Number(userRows[0]?.longest_streak || 0);
+
+        const studentDataRows = await this.ds.query(
+          `SELECT xp_total, eddva_coins, current_streak, longest_streak FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
+          [userId, studentId],
+        ).catch(() => []);
+        const studentXp = Number(studentDataRows[0]?.xp_total || 0);
+        const studentCoins = Number(studentDataRows[0]?.eddva_coins || 0);
+        const studentCurrentStreak = Number(studentDataRows[0]?.current_streak || 0);
+        const studentLongestStreak = Number(studentDataRows[0]?.longest_streak || 0);
+
+        const scoreSumRows = await this.ds.query(
+          `SELECT COALESCE(SUM(xp_earned), 0)::int AS total_xp, COALESCE(SUM(coins_earned), 0)::int AS total_coins
+           FROM school_game_scores
+           WHERE student_user_id::text = $1::text OR student_id::text = $1::text OR student_user_id::text = $2::text OR student_id::text = $2::text`,
+          [userId, studentId],
+        ).catch(() => [{ total_xp: 0, total_coins: 0 }]);
+
+        const gameXp = Number(scoreSumRows[0]?.total_xp || 0);
+        const gameCoins = Number(scoreSumRows[0]?.total_coins || 0);
+
+        let finalXp = Math.max(gameXp, userXp, studentXp);
+        let finalCoins = Math.max(gameCoins, studentCoins);
+        let finalStreak = Math.max(userCurrentStreak, studentCurrentStreak);
+        let finalLongestStreak = Math.max(userLongestStreak, studentLongestStreak);
+        let finalBadges: string[] = [];
+
+        if (profileRows.length > 0) {
+          const row = profileRows[0];
+          finalXp = Math.max(Number(row.xp || 0), gameXp, userXp, studentXp);
+          finalCoins = Math.max(Number(row.coins || 0), gameCoins, studentCoins);
+          finalStreak = Math.max(Number(row.current_streak || 0), userCurrentStreak, studentCurrentStreak);
+          finalLongestStreak = Math.max(Number(row.longest_streak || 0), userLongestStreak, studentLongestStreak);
+          finalBadges = Array.isArray(row.badges) ? row.badges : [];
+        }
+
+        const calculatedLevel = Math.max(1, Math.floor(finalXp / 100) + 1);
+
         gamificationProfile = {
-          xp: Number(row.xp || 0),
-          coins: Number(row.coins || 0),
-          level: Number(row.level || 1),
-          badges: Array.isArray(row.badges) ? row.badges : [],
-          current_streak: Number(row.current_streak || 0),
-          longest_streak: Number(row.longest_streak || 0)
+          xp: finalXp,
+          coins: finalCoins,
+          level: calculatedLevel,
+          badges: finalBadges,
+          current_streak: finalStreak,
+          longest_streak: finalLongestStreak,
         };
+      } catch (e) {
+        console.warn('[getDashboard] Gamification profile query warning:', (e as Error)?.message);
       }
-    } catch (e) {
-      console.warn('[getDashboard] Could not query gamification_profiles (table might not exist yet):', (e as Error)?.message);
     }
 
     return {

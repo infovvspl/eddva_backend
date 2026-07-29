@@ -744,7 +744,7 @@ export class GamificationService implements OnModuleInit {
     return rows.map((r: any, idx: number) => ({
       rank: idx + 1,
       userId: r.user_id,
-      name: `Student ${r.user_id.slice(-4)}`,
+      name: r.user_name || r.name || `Student ${String(r.user_id || '0000').slice(-4)}`,
       xp: Number(r.xp || 0),
       coins: Number(r.coins || 0),
       level: Number(r.level || 1),
