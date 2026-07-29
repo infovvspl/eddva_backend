@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { calculateCurrentStreak } from '../../../common/gamification-helper';
 
 type GameType = 'quiz_rush' | 'treasure_hunt' | 'math_sprint' | 'memory_match' | 'word_master' | 'battle_arena';
 
@@ -193,85 +194,156 @@ export class GamificationService implements OnModuleInit {
     }
   }
 
-  /** Returns the student's real-time gamification stats from gamification_profiles */
+  /** Returns the student's real-time gamification stats from gamification_profiles, users, and school_game_scores */
   async getMyProfile(user: any) {
-    const userId = String(user?.id || '');
+    const userId = String(user?.id || user?.userId || user?.sub || '');
+    const studentId = String(user?.studentProfile?.id || '');
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+
+    const defaultProfile = {
+      userId: userId || 'default-user',
+      xp: 0,
+      lifetimeXp: 0,
+      coins: 0,
+      level: 1,
+      levelTitle: 'Learner',
+      levelProgressPercent: 0,
+      rewardBalanceInr: 0.0,
+      memoryScore: 75,
+      learningScore: 80,
+      focusScore: 85,
+      currentDifficulty: 'Intermediate',
+      rankTier: 'Gold',
+      leagueName: 'Gold League',
+      badges: [],
+      currentStreak: 0,
+      longestStreak: 0,
+      nextLevelXp: 100,
+      estimatedTimeToNextLevel: '30 mins of study',
+    };
+
+    if (!userId) {
+      return defaultProfile;
+    }
+
     try {
       const rows = await this.ds.query(
         `SELECT xp, lifetime_xp, coins, level, reward_balance_inr, memory_score, learning_score, focus_score, current_difficulty, rank_tier, league_name, badges, current_streak, longest_streak
          FROM gamification_profiles
-         WHERE user_id = $1`,
+         WHERE user_id::text = $1::text OR user_id::text = $2::text`,
+        [userId, studentId || userId],
+      ).catch(() => []);
+
+      // Query users table for accumulated XP and streak counters
+      const userRows = await this.ds.query(
+        `SELECT xp_total, current_streak, longest_streak FROM users WHERE id::text = $1::text LIMIT 1`,
         [userId],
-      );
-      if (rows.length === 0) {
-        return {
-          userId,
-          xp: 0,
-          lifetimeXp: 0,
-          coins: 0,
-          level: 1,
-          levelTitle: 'Learner',
-          levelProgressPercent: 0,
-          rewardBalanceInr: 0.0,
-          memoryScore: 75,
-          learningScore: 80,
-          focusScore: 85,
-          currentDifficulty: 'Intermediate',
-          rankTier: 'Gold',
-          leagueName: 'Gold League',
-          badges: [],
-          currentStreak: 0,
-          longestStreak: 0,
-          nextLevelXp: 100,
-          estimatedTimeToNextLevel: '30 mins of study',
-        };
+      ).catch(() => []);
+      const userXp = Number(userRows[0]?.xp_total || 0);
+      const userCurrentStreak = Number(userRows[0]?.current_streak || 0);
+      const userLongestStreak = Number(userRows[0]?.longest_streak || 0);
+
+      // Query students table for student-level streak, XP, and coins
+      const studentRows = await this.ds.query(
+        `SELECT xp_total, eddva_coins, current_streak, longest_streak FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
+        [userId, studentId || userId],
+      ).catch(() => []);
+      const studentXp = Number(studentRows[0]?.xp_total || 0);
+      const studentCoins = Number(studentRows[0]?.eddva_coins || 0);
+      const studentCurrentStreak = Number(studentRows[0]?.current_streak || 0);
+      const studentLongestStreak = Number(studentRows[0]?.longest_streak || 0);
+
+      // Query school_game_scores for all accumulated game scores
+      const scoreSumRows = await this.ds.query(
+        `SELECT COALESCE(SUM(xp_earned), 0)::int AS total_xp, COALESCE(SUM(coins_earned), 0)::int AS total_coins
+         FROM school_game_scores
+         WHERE student_user_id::text = $1::text OR student_id::text = $1::text OR student_user_id::text = $2::text OR student_id::text = $2::text`,
+        [userId, studentId || userId],
+      ).catch(() => [{ total_xp: 0, total_coins: 0 }]);
+
+      // Query student_activity and school_game_scores for activity dates to calculate real-time streak
+      const activityRows = await this.ds.query(
+        `SELECT DISTINCT date_str FROM (
+           SELECT activity_date::text AS date_str FROM student_activity WHERE user_id::text = $1::text OR user_id::text = $2::text
+           UNION
+           SELECT created_at::date::text AS date_str FROM school_game_scores WHERE student_user_id::text = $1::text OR student_id::text = $1::text OR student_user_id::text = $2::text OR student_id::text = $2::text
+         ) t`,
+        [userId, studentId || userId],
+      ).catch(() => []);
+
+      const activityDates = activityRows.map((r: any) => r.date_str).filter(Boolean);
+      const activityStreak = calculateCurrentStreak(activityDates);
+
+      let xp = Math.max(gameXp, userXp, studentXp);
+      let coins = Math.max(gameCoins, studentCoins);
+      let badges: any[] = [];
+      let currentStreak = Math.max(userCurrentStreak, studentCurrentStreak, activityStreak);
+      let longestStreak = Math.max(userLongestStreak, studentLongestStreak, activityStreak);
+      let memoryScore = 75;
+      let learningScore = 80;
+      let focusScore = 85;
+      let currentDifficulty = 'Intermediate';
+      let rankTier = 'Gold';
+      let leagueName = 'Gold League';
+
+      if (rows.length > 0) {
+        const r = rows[0];
+        xp = Math.max(Number(r.xp || 0), gameXp, userXp, studentXp);
+        coins = Math.max(Number(r.coins || 0), gameCoins, studentCoins);
+        badges = Array.isArray(r.badges) ? r.badges : (typeof r.badges === 'string' ? JSON.parse(r.badges) : []);
+        currentStreak = Math.max(Number(r.current_streak || 0), userCurrentStreak, studentCurrentStreak, activityStreak);
+        longestStreak = Math.max(Number(r.longest_streak || 0), userLongestStreak, studentLongestStreak, activityStreak);
+        memoryScore = Number(r.memory_score || 75);
+        learningScore = Number(r.learning_score || 80);
+        focusScore = Number(r.focus_score || 85);
+        currentDifficulty = r.current_difficulty || 'Intermediate';
+        rankTier = r.rank_tier || 'Gold';
+        leagueName = r.league_name || 'Gold League';
+        if (isUuid) {
+          await this.ds.query(
+            `UPDATE gamification_profiles
+             SET xp = $1, coins = $2, level = $3, current_streak = $4, longest_streak = $5, updated_at = NOW()
+             WHERE user_id::text = $6::text OR user_id::text = $7::text`,
+            [xp, coins, this.computeLevel(xp), currentStreak, longestStreak, userId, studentId || userId],
+          ).catch(() => {});
+        }
+      } else {
+        if (isUuid) {
+          await this.ds.query(
+            `INSERT INTO gamification_profiles (user_id, xp, coins, level, badges, current_streak, longest_streak)
+             VALUES ($1::uuid, $2, $3, $4, '[]', $5, $6)
+             ON CONFLICT (user_id) DO UPDATE SET xp = EXCLUDED.xp, coins = EXCLUDED.coins, level = EXCLUDED.level, current_streak = EXCLUDED.current_streak`,
+            [userId, xp, coins, this.computeLevel(xp), currentStreak, longestStreak],
+          ).catch(() => {});
+        }
       }
-      const r = rows[0];
-      const xp = Number(r.xp || 0);
-      const level = Number(r.level || this.computeLevel(xp));
+
+      const calculatedLevel = this.computeLevel(xp);
+
       return {
         userId,
         xp,
-        lifetimeXp: Number(r.lifetime_xp || xp),
-        coins: Number(r.coins || 0),
-        level,
+        lifetimeXp: xp,
+        coins,
+        level: calculatedLevel,
         levelTitle: this.computeLevelTitle(xp),
         levelProgressPercent: Math.min(100, xp % 100),
-        rewardBalanceInr: Number(r.reward_balance_inr ?? (xp / 100).toFixed(2)),
-        memoryScore: Number(r.memory_score || 75),
-        learningScore: Number(r.learning_score || 80),
-        focusScore: Number(r.focus_score || 85),
-        currentDifficulty: r.current_difficulty || 'Intermediate',
-        rankTier: r.rank_tier || 'Gold',
-        leagueName: r.league_name || 'Gold League',
-        badges: Array.isArray(r.badges) ? r.badges : (typeof r.badges === 'string' ? JSON.parse(r.badges) : []),
-        currentStreak: Number(r.current_streak || 0),
-        longestStreak: Number(r.longest_streak || 0),
+        rewardBalanceInr: Number((xp / 100).toFixed(2)),
+        memoryScore,
+        learningScore,
+        focusScore,
+        currentDifficulty,
+        rankTier,
+        leagueName,
+        badges,
+        currentStreak,
+        longestStreak,
         nextLevelXp: 100,
         estimatedTimeToNextLevel: '30 mins of study',
       };
-    } catch {
-      return {
-        userId,
-        xp: 0,
-        lifetimeXp: 0,
-        coins: 0,
-        level: 1,
-        levelTitle: 'Learner',
-        levelProgressPercent: 0,
-        rewardBalanceInr: 0.0,
-        memoryScore: 75,
-        learningScore: 80,
-        focusScore: 85,
-        currentDifficulty: 'Intermediate',
-        rankTier: 'Gold',
-        leagueName: 'Gold League',
-        badges: [],
-        currentStreak: 0,
-        longestStreak: 0,
-        nextLevelXp: 100,
-        estimatedTimeToNextLevel: '30 mins of study',
-      };
+    } catch (err) {
+      console.error('[getMyProfile Error]:', err);
+      return defaultProfile;
     }
   }
 
