@@ -10,6 +10,10 @@ export class GamificationApiController {
   ) {}
 
   private getUserIdFromRequest(req: Request): string {
+    if ((req as any).user?.id) {
+      return (req as any).user.id;
+    }
+
     let token: string | undefined;
 
     const auth = req.headers['authorization'];
@@ -26,17 +30,21 @@ export class GamificationApiController {
     }
 
     try {
-      const decoded: any = jwt.verify(
-        token,
-        process.env.JWT_SECRET || 'change_me_in_production',
-      );
+      const schoolSecret = process.env.SCHOOL_JWT_SECRET ||
+        (process.env.JWT_SECRET ? process.env.JWT_SECRET + '_school' : 'dev_school_secret_change_in_prod');
+      let decoded: any;
+      try {
+        decoded = jwt.verify(token, schoolSecret);
+      } catch {
+        decoded = jwt.verify(token, process.env.JWT_SECRET || 'change_me_in_production');
+      }
       return decoded.id || decoded.sub || 'demo_student_user_123';
     } catch {
       return 'demo_student_user_123';
     }
   }
 
-  @Get(['gamification/my-profile', 'school/gamification/my-profile'])
+  @Get('gamification/my-profile')
   async getMyProfile(@Req() req: Request) {
     const userId = this.getUserIdFromRequest(req);
     return this.gamificationService.getStudentGamificationProfile(userId);
