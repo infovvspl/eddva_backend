@@ -56,7 +56,7 @@ export class GamificationApiController {
     return this.gamificationService.getStudentGamificationProfile(userId);
   }
 
-  @Get(['student/dashboard', 'school/student/dashboard', 'students/dashboard', 'school/students/dashboard'])
+  @Get(['student/dashboard', 'students/dashboard'])
   async getStudentDashboard(@Req() req: Request) {
     const userId = this.getUserIdFromRequest(req);
     return this.gamificationService.getStudentGamificationProfile(userId);
