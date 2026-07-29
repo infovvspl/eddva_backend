@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { SchoolPptService } from './school-ppt.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
@@ -33,6 +33,24 @@ export class SchoolPptController {
   @SchoolFeature('ai', 'ai_ppt_generator')
   searchImage(@Body() body: any, @Req() req: Request & { user?: any }) {
     return this.svc.searchImage(body, req.user?.instituteId);
+  }
+
+  /**
+   * Unguarded image extractor for saved PPT presentations.
+   * Pulls the exact saved slide image (external URL or embedded media file)
+   * from the S3 .pptx package and returns it.
+   */
+  @Get('material/:id/image/:slideIndex')
+  async getMaterialSlideImage(
+    @Param('id') id: string,
+    @Param('slideIndex') slideIndex: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.getMaterialSlideImage(id, parseInt(slideIndex, 10));
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(out.buffer);
   }
 
   /**
