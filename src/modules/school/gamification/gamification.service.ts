@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { calculateCurrentStreak } from '../../../common/gamification-helper';
 
-type GameType = 'quiz_rush' | 'treasure_hunt' | 'math_sprint' | 'memory_match' | 'word_master';
+type GameType = 'quiz_rush' | 'treasure_hunt' | 'math_sprint' | 'memory_match' | 'word_master' | 'battle_arena';
 
 @Injectable()
 export class GamificationService implements OnModuleInit {
@@ -35,6 +35,13 @@ export class GamificationService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT now()
       )
     `);
+    
+    // Add play_mode and anti-cheat columns to sessions
+    await this.ds.query(`ALTER TABLE school_game_sessions ADD COLUMN IF NOT EXISTS play_mode varchar(20) NOT NULL DEFAULT 'ranked'`);
+    await this.ds.query(`ALTER TABLE school_game_sessions ADD COLUMN IF NOT EXISTS tab_switches_count int NOT NULL DEFAULT 0`);
+    await this.ds.query(`ALTER TABLE school_game_sessions ADD COLUMN IF NOT EXISTS cheat_flagged boolean NOT NULL DEFAULT false`);
+    await this.ds.query(`ALTER TABLE school_game_sessions ADD COLUMN IF NOT EXISTS cheat_reason varchar(255)`);
+
     await this.ds.query(`
       CREATE TABLE IF NOT EXISTS school_game_scores (
         id uuid PRIMARY KEY,
@@ -56,12 +63,135 @@ export class GamificationService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT now()
       )
     `);
+
+    // Create school_game_skills table
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS school_game_skills (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_user_id uuid NOT NULL,
+        subject_id uuid NOT NULL,
+        chapter_id uuid,
+        game_type varchar(50) NOT NULL,
+        skill_score float NOT NULL DEFAULT 30.0,
+        last_ten_accuracies float[] DEFAULT '{}',
+        total_games_played int NOT NULL DEFAULT 0,
+        streak int NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+
     // Performance indexes for leaderboard + score queries
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_institute ON school_game_sessions (institute_id, status, created_at)`);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_student ON school_game_sessions (student_user_id, created_at)`);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_institute_student ON school_game_scores (institute_id, student_user_id)`);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_session ON school_game_scores (session_id)`);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_metadata ON school_game_sessions USING GIN (metadata)`);
+    await this.ds.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_composite ON school_game_skills (student_user_id, subject_id, COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000'::uuid), game_type)`);
+  }
+
+  async getOrCreateSkill(userId: string, subjectId: string, chapterId: string | null, gameType: string): Promise<number> {
+    const chapId = chapterId || '00000000-0000-0000-0000-000000000000';
+    try {
+      const rows = await this.ds.query(
+        `SELECT skill_score FROM school_game_skills 
+         WHERE student_user_id = $1 AND subject_id = $2 AND COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000') = $3 AND game_type = $4`,
+        [userId, subjectId, chapId, gameType],
+      );
+      if (rows.length > 0) {
+        return Number(rows[0].skill_score);
+      }
+      const insertRows = await this.ds.query(
+        `INSERT INTO school_game_skills (student_user_id, subject_id, chapter_id, game_type, skill_score)
+         VALUES ($1, $2, $3, $4, 30.0)
+         ON CONFLICT (student_user_id, subject_id, COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000'::uuid), game_type) DO UPDATE SET skill_score = EXCLUDED.skill_score
+         RETURNING skill_score`,
+        [userId, subjectId, chapterId, gameType],
+      );
+      return Number(insertRows[0]?.skill_score || 30.0);
+    } catch (e: any) {
+      this.logger.warn(`Failed to get/create skill: ${e.message}`);
+      return 30.0;
+    }
+  }
+
+  async resolveSkillDifficulty(userId: string, subjectId: string, chapterId: string | null, gameType: string): Promise<'easy' | 'medium' | 'hard'> {
+    const score = await this.getOrCreateSkill(userId, subjectId, chapterId, gameType);
+    if (score < 40) return 'easy';
+    if (score < 75) return 'medium';
+    return 'hard';
+  }
+
+  async updateSkillScore(userId: string, subjectId: string, chapterId: string | null, gameType: string, currentSessionAccuracy: number) {
+    try {
+      const history = await this.ds.query(
+        `SELECT score, total_questions, correct_answers, time_taken_seconds, difficulty 
+         FROM school_game_scores
+         WHERE student_user_id = $1 AND game_type = $2 AND (metadata->>'passed')::boolean IS DISTINCT FROM false
+         ORDER BY created_at DESC LIMIT 10`,
+        [userId, gameType],
+      );
+
+      let avgAccuracy = currentSessionAccuracy;
+      let winRatio = currentSessionAccuracy >= 70 ? 100 : 0;
+      let speedScore = 50;
+      let streakScore = 30;
+      let xpScore = 30;
+      let recoveryScore = 50;
+
+      if (history.length > 0) {
+        let totalQ = 0;
+        let totalCorrect = 0;
+        let wins = 0;
+        let totalSecs = 0;
+
+        history.forEach((h: any) => {
+          const tq = Number(h.total_questions || 5);
+          const ca = Number(h.correct_answers || 0);
+          totalQ += tq;
+          totalCorrect += ca;
+          const acc = tq > 0 ? (ca / tq) * 100 : 0;
+          if (acc >= 70) wins += 1;
+          totalSecs += Number(h.time_taken_seconds || 0);
+        });
+
+        avgAccuracy = totalQ > 0 ? (totalCorrect / totalQ) * 100 : 50;
+        winRatio = (wins / history.length) * 100;
+
+        const avgSpeed = totalQ > 0 ? totalSecs / totalQ : 30;
+        if (avgSpeed <= 10) speedScore = 100;
+        else if (avgSpeed >= 40) speedScore = 20;
+        else speedScore = 100 - ((avgSpeed - 10) * 80) / 30;
+      }
+
+      const profile = await this.getMyProfile({ id: userId });
+      streakScore = Math.min(100, (profile?.currentStreak || 0) * 20);
+      xpScore = Math.min(100, ((profile?.xp || 0) / 1000) * 100);
+
+      recoveryScore = currentSessionAccuracy > avgAccuracy ? 80 : 40;
+
+      const newSkillScore =
+        (avgAccuracy * 0.35) +
+        (winRatio * 0.20) +
+        (speedScore * 0.15) +
+        (streakScore * 0.10) +
+        (xpScore * 0.10) +
+        (recoveryScore * 0.10);
+
+      await this.ds.query(
+        `INSERT INTO school_game_skills (student_user_id, subject_id, chapter_id, game_type, skill_score, total_games_played, last_ten_accuracies)
+         VALUES ($1, $2, $3, $4, $5, 1, ARRAY[$6::float])
+         ON CONFLICT (student_user_id, subject_id, COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000'::uuid), game_type)
+         DO UPDATE SET 
+           skill_score = $5,
+           total_games_played = school_game_skills.total_games_played + 1,
+           last_ten_accuracies = ARRAY_APPEND(school_game_skills.last_ten_accuracies, $6::float),
+           updated_at = NOW()`,
+        [userId, subjectId, chapterId, gameType, Math.round(newSkillScore), currentSessionAccuracy],
+      );
+    } catch (e: any) {
+      this.logger.warn(`Failed to update skill score: ${e.message}`);
+    }
   }
 
   /** Returns the student's real-time gamification stats from gamification_profiles, users, and school_game_scores */
@@ -231,21 +361,51 @@ export class GamificationService implements OnModuleInit {
   }
 
   async startQuizRush(user: any, query: any) {
+    const playMode = query.mode === 'free_play' ? 'free_play' : 'ranked';
     const ctx = await this.resolveContext(user, query.subjectId, query.chapterId);
-    const questions = await this.generateMcqs(ctx, 5, query.difficulty || 'medium', 'Quiz Rush');
-    const session = await this.createSession(user, ctx, 'quiz_rush', { questions, difficulty: query.difficulty || 'medium' });
-    return { sessionId: session.id, questions: this.publicQuestions(questions) };
+    let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
+    if (playMode === 'ranked') {
+      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'quiz_rush');
+    } else {
+      difficulty = query.difficulty || 'medium';
+    }
+    const questions = await this.generateMcqs(ctx, 5, difficulty, 'Quiz Rush');
+    const session = await this.createSession(user, ctx, 'quiz_rush', { questions, difficulty }, playMode);
+    return { sessionId: session.id, questions: this.publicQuestions(questions), difficulty };
   }
 
   async submitQuizRush(user: any, body: any) {
     const session = await this.getActiveSession(user, body.sessionId, 'quiz_rush');
     const result = this.gradeMcqRun(session.metadata.questions, body.answers || [], true);
     const perfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
-    const xpEarned = result.xpEarned + (perfect ? 50 : 0);
-    const coinsEarned = result.coinsEarned + (perfect ? 5 : 0);
-    await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers });
-    await this.saveScore(session, result.score + (perfect ? 50 : 0), xpEarned, coinsEarned, result);
-    return this.resultPayload({ ...result, xpEarned, coinsEarned, score: result.score + (perfect ? 50 : 0) });
+    
+    // Anti-cheat checks
+    const tabSwitches = Number(body.tabSwitchesCount || 0);
+    const timeTaken = Number(body.timeTakenSeconds || 999);
+    const totalQ = session.metadata.questions?.length || 5;
+    
+    let cheatFlagged = false;
+    let cheatReason = '';
+    if (tabSwitches >= 3) {
+      cheatFlagged = true;
+      cheatReason = 'Excessive tab switching detected';
+    } else if (totalQ > 0 && (timeTaken / totalQ) < 5 && result.correctAnswers / totalQ >= 0.8) {
+      cheatFlagged = true;
+      cheatReason = 'Unnaturally high solving speed';
+    }
+
+    const xpEarned = cheatFlagged ? 0 : (result.xpEarned + (perfect ? 50 : 0));
+    const coinsEarned = cheatFlagged ? 0 : (result.coinsEarned + (perfect ? 5 : 0));
+    
+    await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
+    await this.saveScore(session, cheatFlagged ? 0 : (result.score + (perfect ? 50 : 0)), xpEarned, coinsEarned, result);
+    
+    if (!cheatFlagged && session.play_mode === 'ranked') {
+      const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
+      await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'quiz_rush', accuracy);
+    }
+    
+    return this.resultPayload({ ...result, xpEarned, coinsEarned, score: cheatFlagged ? 0 : (result.score + (perfect ? 50 : 0)), cheatFlagged, cheatReason });
   }
 
   async getTreasureMaps(user: any) {
@@ -281,12 +441,16 @@ export class GamificationService implements OnModuleInit {
     });
   }
 
-  async getTreasureChallenge(user: any, subjectId: string, stageOrder = 1) {
+  async getTreasureChallenge(user: any, subjectId: string, stageOrder = 1, queryMode = 'ranked') {
     const ctx = await this.resolveContext(user, subjectId, null);
     const safeStageOrder = Math.max(1, Math.min(5, Number(stageOrder || 1)));
-    const questions = await this.generateMcqs(ctx, 3, 'medium', `Treasure Hunt checkpoint ${safeStageOrder} application riddle`);
-    const session = await this.createSession(user, ctx, 'treasure_hunt', { questions, questId: subjectId, stageOrder: safeStageOrder });
-    return { sessionId: session.id, questId: subjectId, stageOrder: safeStageOrder, questions: this.publicQuestions(questions) };
+    let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
+    if (queryMode === 'ranked') {
+      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'treasure_hunt');
+    }
+    const questions = await this.generateMcqs(ctx, 3, difficulty, `Treasure Hunt checkpoint ${safeStageOrder} application riddle`);
+    const session = await this.createSession(user, ctx, 'treasure_hunt', { questions, questId: subjectId, stageOrder: safeStageOrder, difficulty }, queryMode);
+    return { sessionId: session.id, questId: subjectId, stageOrder: safeStageOrder, questions: this.publicQuestions(questions), difficulty };
   }
 
   async completeTreasureStage(user: any, body: any) {
@@ -294,35 +458,91 @@ export class GamificationService implements OnModuleInit {
     const result = this.gradeMcqRun(session.metadata.questions, body.answers || [], false);
     const passed = result.totalQuestions > 0 && result.correctAnswers / result.totalQuestions >= 0.6;
     const stageOrder = Number(session.metadata?.stageOrder || 1);
-    const xpEarned = passed ? result.correctAnswers * 20 + 20 : result.correctAnswers * 5;
-    const coinsEarned = passed ? 8 : 0;
-    await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers, passed, stageOrder });
+    
+    // Anti-cheat checks
+    const tabSwitches = Number(body.tabSwitchesCount || 0);
+    const timeTaken = Number(body.timeTakenSeconds || 999);
+    const totalQ = session.metadata.questions?.length || 3;
+    
+    let cheatFlagged = false;
+    let cheatReason = '';
+    if (tabSwitches >= 3) {
+      cheatFlagged = true;
+      cheatReason = 'Excessive tab switching detected';
+    } else if (totalQ > 0 && (timeTaken / totalQ) < 5 && result.correctAnswers / totalQ >= 0.8) {
+      cheatFlagged = true;
+      cheatReason = 'Unnaturally high solving speed';
+    }
+
+    const xpEarned = cheatFlagged ? 0 : (passed ? result.correctAnswers * 20 + 20 : result.correctAnswers * 5);
+    const coinsEarned = cheatFlagged ? 0 : (passed ? 8 : 0);
+    
+    await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers, passed, stageOrder }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
+    
+    if (!cheatFlagged && session.play_mode === 'ranked') {
+      const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
+      await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'treasure_hunt', accuracy);
+    }
+
     return {
-      passed,
-      questCompleted: passed && stageOrder >= 5,
-      currentStageOrder: passed ? Math.min(5, stageOrder + 1) : stageOrder,
+      passed: cheatFlagged ? false : passed,
+      questCompleted: cheatFlagged ? false : (passed && stageOrder >= 5),
+      currentStageOrder: cheatFlagged ? stageOrder : (passed ? Math.min(5, stageOrder + 1) : stageOrder),
       xpEarned,
       coinsEarned,
       correctAnswers: result.correctAnswers,
       totalQuestions: result.totalQuestions,
+      cheatFlagged,
+      cheatReason,
     };
   }
 
-  async startMathSprint(user: any, difficulty = 'medium') {
+  async startMathSprint(user: any, difficultyParam = 'medium', queryMode = 'ranked') {
     const subject = await this.findMathSubject(user);
     const ctx = await this.resolveContext(user, subject?.id || null, null);
+    let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
+    if (queryMode === 'ranked') {
+      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'math_sprint');
+    } else {
+      difficulty = (difficultyParam as any) || 'medium';
+    }
     const questions = await this.generateMathSprintQuestions(ctx, difficulty);
-    const session = await this.createSession(user, ctx, 'math_sprint', { questions, difficulty });
-    return { sessionId: session.id, questions: this.publicQuestions(questions) };
+    const session = await this.createSession(user, ctx, 'math_sprint', { questions, difficulty }, queryMode);
+    return { sessionId: session.id, questions: this.publicQuestions(questions), difficulty };
   }
 
   async submitMathSprint(user: any, body: any) {
     const session = await this.getActiveSession(user, body.sessionId, 'math_sprint');
     const result = this.gradeMcqRun(session.metadata.questions, body.answers || [], false);
-    await this.completeSession(session.id, result.xpEarned, result.coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers });
-    await this.saveScore(session, result.score, result.xpEarned, result.coinsEarned, result);
-    return this.resultPayload(result);
+    
+    // Anti-cheat checks
+    const tabSwitches = Number(body.tabSwitchesCount || 0);
+    const timeTaken = Number(body.timeTakenSeconds || 999);
+    const totalQ = session.metadata.questions?.length || 12;
+    
+    let cheatFlagged = false;
+    let cheatReason = '';
+    if (tabSwitches >= 3) {
+      cheatFlagged = true;
+      cheatReason = 'Excessive tab switching detected';
+    } else if (totalQ > 0 && (timeTaken / totalQ) < 3 && result.correctAnswers / totalQ >= 0.8) {
+      cheatFlagged = true;
+      cheatReason = 'Unnaturally high solving speed';
+    }
+
+    const xpEarned = cheatFlagged ? 0 : result.xpEarned;
+    const coinsEarned = cheatFlagged ? 0 : result.coinsEarned;
+
+    await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
+    await this.saveScore(session, cheatFlagged ? 0 : result.score, xpEarned, coinsEarned, result);
+    
+    if (!cheatFlagged && session.play_mode === 'ranked') {
+      const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
+      await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'math_sprint', accuracy);
+    }
+
+    return this.resultPayload({ ...result, xpEarned, coinsEarned, score: cheatFlagged ? 0 : result.score, cheatFlagged, cheatReason });
   }
 
   async getMemoryMatchDecks(user: any) {
@@ -336,13 +556,16 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
-  async startMemoryMatch(user: any, deckId: string, difficultyParam?: string) {
+  async startMemoryMatch(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked') {
     const subjects = await this.listClassSubjects(user);
     const theme = this.resolveMemoryMatchTheme(deckId, subjects);
-    const difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
+    let difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
       ? difficultyParam.toLowerCase()
       : (theme.difficulty || 'medium');
     const ctx = await this.resolveContext(user, theme.subjectId, null);
+    if (queryMode === 'ranked') {
+      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'memory_match');
+    }
     const promptMode = [
       `Memory Match: ${theme.name} (${difficulty})`,
       theme.description,
@@ -357,7 +580,7 @@ export class GamificationService implements OnModuleInit {
         { id: randomUUID(), matchId, content: p.definition },
       ];
     }));
-    const session = await this.createSession(user, ctx, 'memory_match', { pairs, cards, deckName: theme.name, difficulty, themeKey: theme.key });
+    const session = await this.createSession(user, ctx, 'memory_match', { pairs, cards, deckName: theme.name, difficulty, themeKey: theme.key }, queryMode);
     return { sessionId: session.id, deckName: theme.name, difficulty, cards };
   }
 
@@ -366,12 +589,35 @@ export class GamificationService implements OnModuleInit {
     const pairs = Number(session.metadata.pairs?.length || 6);
     const turns = Number(body.turnsCount || 0);
     const misses = Number(body.mismatchesCount || 0);
-    const xpEarned = Math.max(20, pairs * 15 + Math.max(0, 100 - Math.max(0, turns - pairs) * 6));
-    const coinsEarned = Math.max(1, pairs - Math.min(misses, pairs));
-    const result = { totalQuestions: pairs, correctAnswers: pairs, maxStreak: pairs, timeTakenSeconds: 0, questionsAttempted: pairs, turnsCount: turns, mismatchesCount: misses };
-    await this.completeSession(session.id, xpEarned, coinsEarned, result);
-    await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
-    return this.resultPayload({ ...result, score: xpEarned, xpEarned, coinsEarned });
+    
+    // Anti-cheat checks
+    const tabSwitches = Number(body.tabSwitchesCount || 0);
+    const timeTaken = Number(body.timeTakenSeconds || 999);
+    
+    let cheatFlagged = false;
+    let cheatReason = '';
+    if (tabSwitches >= 3) {
+      cheatFlagged = true;
+      cheatReason = 'Excessive tab switching detected';
+    } else if (timeTaken < 10) {
+      cheatFlagged = true;
+      cheatReason = 'Unnaturally high solving speed';
+    }
+
+    const xpEarned = cheatFlagged ? 0 : Math.max(20, pairs * 15 + Math.max(0, 100 - Math.max(0, turns - pairs) * 6));
+    const coinsEarned = cheatFlagged ? 0 : Math.max(1, pairs - Math.min(misses, pairs));
+    
+    const result = { totalQuestions: pairs, correctAnswers: pairs, maxStreak: pairs, timeTakenSeconds: timeTaken, questionsAttempted: pairs, turnsCount: turns, mismatchesCount: misses };
+    await this.completeSession(session.id, xpEarned, coinsEarned, result, cheatFlagged, cheatReason || null, tabSwitches);
+    await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
+    
+    if (!cheatFlagged && session.play_mode === 'ranked') {
+      const maxTurns = pairs * 3;
+      const accuracy = Math.max(10, Math.min(100, Math.round(((maxTurns - Math.min(turns, maxTurns)) / maxTurns) * 100)));
+      await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'memory_match', accuracy);
+    }
+
+    return this.resultPayload({ ...result, score: cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, cheatFlagged, cheatReason });
   }
 
   async getWordMasterDecks(user: any) {
@@ -385,13 +631,16 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
-  async startWordMaster(user: any, deckId: string, difficultyParam?: string) {
+  async startWordMaster(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked') {
     const subjects = await this.listClassSubjects(user);
     const theme = this.resolveWordMasterTheme(deckId, subjects);
-    const difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
+    let difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
       ? difficultyParam.toLowerCase()
       : (theme.difficulty || 'medium');
     const ctx = await this.resolveContext(user, theme.subjectId, null);
+    if (queryMode === 'ranked') {
+      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'word_master');
+    }
     const promptMode = [
       `Word Master: ${theme.name} (${difficulty})`,
       theme.description,
@@ -406,7 +655,7 @@ export class GamificationService implements OnModuleInit {
       return { word, scrambled: this.scramble(word), hint, length: word.length };
     }).filter((w: any) => w.word.length >= 4 && w.hint.length >= 12 && !this.hintContainsAnswer(w.hint, w.word));
     if (words.length < 4) throw new BadRequestException('AI could not generate enough vocabulary words. Please try again.');
-    const session = await this.createSession(user, ctx, 'word_master', { words, deckName: theme.name, difficulty, themeKey: theme.key });
+    const session = await this.createSession(user, ctx, 'word_master', { words, deckName: theme.name, difficulty, themeKey: theme.key }, queryMode);
     return { sessionId: session.id, deckName: theme.name, difficulty, words: words.map(({ word, ...rest }: any) => rest) };
   }
 
@@ -428,12 +677,34 @@ export class GamificationService implements OnModuleInit {
         streak = 0;
       }
     }
-    const xpEarned = correctAnswers * 15 + (correctAnswers === words.length ? 50 : 0);
-    const coinsEarned = correctAnswers + (correctAnswers === words.length ? 5 : 0);
+    
+    // Anti-cheat checks
+    const tabSwitches = Number(body.tabSwitchesCount || 0);
+    const timeTaken = Number(body.timeTakenSeconds || 999);
+    const totalQ = words.length;
+    
+    let cheatFlagged = false;
+    let cheatReason = '';
+    if (tabSwitches >= 3) {
+      cheatFlagged = true;
+      cheatReason = 'Excessive tab switching detected';
+    } else if (totalQ > 0 && (timeTaken / totalQ) < 4 && correctAnswers / totalQ >= 0.8) {
+      cheatFlagged = true;
+      cheatReason = 'Unnaturally high solving speed';
+    }
+
+    const xpEarned = cheatFlagged ? 0 : (correctAnswers * 15 + (correctAnswers === words.length ? 50 : 0));
+    const coinsEarned = cheatFlagged ? 0 : (correctAnswers + (correctAnswers === words.length ? 5 : 0));
     const result = { totalQuestions: words.length, correctAnswers, maxStreak, wordsAttempted: words.length, score: xpEarned };
-    await this.completeSession(session.id, xpEarned, coinsEarned, { answers, correctAnswers });
-    await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
-    return this.resultPayload({ ...result, xpEarned, coinsEarned });
+    await this.completeSession(session.id, xpEarned, coinsEarned, { answers, correctAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
+    await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
+    
+    if (!cheatFlagged && session.play_mode === 'ranked') {
+      const accuracy = totalQ > 0 ? (correctAnswers / totalQ) * 100 : 0;
+      await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'word_master', accuracy);
+    }
+
+    return this.resultPayload({ ...result, xpEarned, coinsEarned, cheatFlagged, cheatReason });
   }
 
   async leaderboard(user: any, gameType: GameType) {
@@ -441,7 +712,8 @@ export class GamificationService implements OnModuleInit {
       `SELECT gs.*, u.name
        FROM school_game_scores gs
        LEFT JOIN users u ON u.id = gs.student_user_id
-       WHERE gs.institute_id::text = $1::text AND gs.game_type = $2
+       INNER JOIN school_game_sessions s ON s.id = gs.session_id
+       WHERE gs.institute_id::text = $1::text AND gs.game_type = $2 AND s.cheat_flagged = false
        ORDER BY gs.score DESC, gs.created_at ASC
        LIMIT 50`,
       [user.instituteId || user.studentProfile?.instituteId, gameType],
@@ -713,13 +985,13 @@ export class GamificationService implements OnModuleInit {
     };
   }
 
-  private async createSession(user: any, ctx: any, gameType: GameType, metadata: any) {
+  private async createSession(user: any, ctx: any, gameType: GameType, metadata: any, playMode = 'ranked') {
     const rows = await this.ds.query(
       `INSERT INTO school_game_sessions
-       (id, institute_id, student_id, student_user_id, class_id, subject_id, chapter_id, game_type, metadata)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+       (id, institute_id, student_id, student_user_id, class_id, subject_id, chapter_id, game_type, metadata, play_mode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
        RETURNING *`,
-      [randomUUID(), ctx.instituteId, ctx.studentId, user.id, ctx.classId, ctx.subjectId, ctx.chapterId, gameType, JSON.stringify(metadata)],
+      [randomUUID(), ctx.instituteId, ctx.studentId, user.id, ctx.classId, ctx.subjectId, ctx.chapterId, gameType, JSON.stringify(metadata), playMode],
     );
     return rows[0];
   }
@@ -747,12 +1019,13 @@ export class GamificationService implements OnModuleInit {
     return rows[0];
   }
 
-  private async completeSession(sessionId: string, xp: number, coins: number, extra: any) {
+  private async completeSession(sessionId: string, xp: number, coins: number, extra: any, cheatFlagged = false, cheatReason: string | null = null, tabSwitches = 0) {
     await this.ds.query(
       `UPDATE school_game_sessions
-       SET status='completed', xp_earned=$2, coins_earned=$3, metadata = metadata || $4::jsonb, updated_at=now()
+       SET status='completed', xp_earned=$2, coins_earned=$3, metadata = metadata || $4::jsonb, updated_at=now(),
+           cheat_flagged = $5, cheat_reason = $6, tab_switches_count = $7
        WHERE id=$1`,
-      [sessionId, Math.round(xp), Math.round(coins), JSON.stringify(extra)],
+      [sessionId, Math.round(xp), Math.round(coins), JSON.stringify(extra), cheatFlagged, cheatReason, tabSwitches],
     );
   }
 

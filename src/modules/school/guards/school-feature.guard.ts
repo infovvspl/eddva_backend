@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { SCHOOL_FEATURE_KEY, SchoolFeatureRequirement } from '../decorators/school-feature.decorator';
-import { AI_FEATURE_DEFAULT_ON } from '../common/ai-features.registry';
+import { isSchoolAiFeatureEnabled } from '../common/ai-features.registry';
 
 @Injectable()
 export class SchoolFeatureGuard implements CanActivate {
@@ -42,11 +42,7 @@ export class SchoolFeatureGuard implements CanActivate {
           });
         }
 
-        const aiFeatures = user.inst_ai_features || {};
-        const val = aiFeatures[requirement.key];
-        const defaultOn = AI_FEATURE_DEFAULT_ON.has(requirement.key);
-        const enabled = val === undefined ? defaultOn : val !== false;
-        if (!enabled) {
+        if (!isSchoolAiFeatureEnabled(user, requirement.key)) {
           throw new ForbiddenException({
             code: 'FEATURE_DISABLED',
             feature: requirement.key,
