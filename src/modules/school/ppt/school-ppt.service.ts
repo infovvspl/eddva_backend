@@ -165,15 +165,26 @@ export class SchoolPptService {
     if (cached && cached.expiresAt > Date.now()) return cached.value || undefined;
     try {
       const rows = await this.ds.query(
-        `SELECT board FROM institutes WHERE id = $1 LIMIT 1`,
+        `SELECT board, state FROM institutes WHERE id = $1 LIMIT 1`,
         [instituteId],
       );
-      const value = String(rows?.[0]?.board ?? '').trim().toLowerCase();
+      if (!rows.length) return undefined;
+      const boardVal = String(rows[0].board ?? '').trim();
+      const stateVal = String(rows[0].state ?? '').trim();
+
+      let finalBoard = boardVal;
+      const boardLower = boardVal.toLowerCase();
+      if (boardLower.includes('state') || boardLower === 'state board' || boardLower === 'stateboard') {
+        if (stateVal) {
+          finalBoard = stateVal.toLowerCase().includes('board') ? stateVal : `${stateVal} State Board`;
+        }
+      }
+
       SchoolPptService._boardCache.set(instituteId, {
-        value,
+        value: finalBoard,
         expiresAt: Date.now() + 5 * 60 * 1000,
       });
-      return value || undefined;
+      return finalBoard || undefined;
     } catch (err) {
       this.logger.warn(`Could not resolve board for institute ${instituteId}: ${(err as Error).message}`);
       return undefined;
