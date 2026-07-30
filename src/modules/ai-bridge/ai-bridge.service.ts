@@ -64,6 +64,7 @@ export class AiBridgeService {
     '/ppt/search-image':     { feature: 'ppt_image_search',       provider: 'serper' },
     '/grading/subjective-rubric-batch': { feature: 'subjective_rubric_generation', provider: 'groq' },
     '/grading/subjective-answer': { feature: 'subjective_answer_grading', provider: 'groq' },
+    '/memorization/generate': { feature: 'ai_memorization_retention', provider: 'groq' },
   };
 
   private extractTokens(data: any): number | null {
@@ -503,6 +504,18 @@ export class AiBridgeService {
     tenantId?: string,
   ) {
     return this.post('/syllabus/generate', payload, tenantId);
+  }
+
+  async generateMemorizationAids(
+    payload: {
+      weakConcepts: Array<{ topicName: string; subjectName: string; severity?: string }>;
+      isDefaultTemplate?: boolean;
+    },
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+  ) {
+    return this.post('/memorization/generate', payload, tenantId, undefined, vertical, board);
   }
 
   /**
