@@ -62,6 +62,11 @@ export class SchoolAssessmentController {
   submit(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any, @Req() req: any, @UploadedFile() file?: Express.Multer.File) {
     return this.svc.submitAssessment(user, id, body, file, req);
   }
+  @Post('ocr')
+  @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
+  ocrQuestionImage(@SchoolUser() user: any, @UploadedFile() file: Express.Multer.File, @Req() req: any) {
+    return this.svc.ocrQuestionImage(user, file, req);
+  }
   @Get(':id/submissions')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   listSubmissions(@SchoolUser() user: any, @Param('id') id: string) {

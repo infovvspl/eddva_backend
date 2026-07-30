@@ -1552,6 +1552,33 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     }
   }
 
+  async ocrQuestionImage(user: any, file?: Express.Multer.File, req?: any) {
+    if (!isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting')) {
+      throw new BadRequestException('AI handwriting OCR feature is not enabled for this school/user');
+    }
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    const filePath = this.storedUploadPath(file);
+    if (!filePath) {
+      throw new BadRequestException('Failed to process file upload');
+    }
+    const host = process.env.APP_URL || (req ? `${req.protocol}://${req.get('host')}` : '');
+    const imageUrl = host ? `${host}/${filePath}` : filePath;
+
+    try {
+      const ocr = await this.aiBridge.extractImageText({ imageUrl, purpose: 'grading' }, user?.instituteId);
+      return {
+        success: true,
+        text: String(ocr?.text || '').trim(),
+        imageUrl,
+      };
+    } catch (err: any) {
+      this.logger.warn(`OCR transcription failed for single question: ${err?.message || err}`);
+      throw new BadRequestException(`OCR transcription failed: ${err?.message || err}`);
+    }
+  }
+
   async submitAssessment(user: any, assessmentId: string, body: any, file?: Express.Multer.File, req?: any) {
     await this.checkAssessmentAccess(user, assessmentId);
     await this.ensureAssessmentContentColumns();
@@ -1679,7 +1706,16 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
   ): Promise<void> {
     const toGrade = questions
       .filter((q: any) => this.subjectiveTypes.has(q.type))
-      .map((q: any) => ({ question: q, answerText: String(answers?.[q.id] ?? '').trim() }))
+      .map((q: any) => {
+        const rawAnswer = answers?.[q.id];
+        let answerText = '';
+        if (rawAnswer && typeof rawAnswer === 'object') {
+          answerText = String(rawAnswer.text || '').trim();
+        } else {
+          answerText = String(rawAnswer ?? '').trim();
+        }
+        return { question: q, answerText };
+      })
       .filter((x) => x.answerText.length > 0);
     if (!toGrade.length) return;
 
@@ -1782,7 +1818,12 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           questionId: q.id,
           questionText: q.text,
           maxMarks: Number(q.marks || 1),
-          studentAnswer: answers?.[q.id] ?? '',
+          studentAnswer: typeof answers?.[q.id] === 'object' && answers?.[q.id] !== null
+            ? answers?.[q.id].text ?? ''
+            : answers?.[q.id] ?? '',
+          studentAnswerImage: typeof answers?.[q.id] === 'object' && answers?.[q.id] !== null
+            ? answers?.[q.id].imageUrl ?? null
+            : null,
           rubric: q.rubric || null,
           status: detail.status || 'pending',
           currentMarks: detail.marks ?? null,
