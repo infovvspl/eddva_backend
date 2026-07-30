@@ -1522,17 +1522,36 @@ export class AiBridgeService {
 
   // ── PPT Generator ─────────────────────────────────────────────────────────
   async generatePpt(
-    dto: { topic: string; slideCount?: number; language?: string },
+    dto: {
+      topic: string;
+      slideCount?: number;
+      language?: string;
+      className?: string;
+      subjectName?: string;
+      chapterName?: string;
+      topicName?: string;
+    },
     tenantId?: string,
+    board?: string,
   ): Promise<{ success: boolean; data: { title: string; slides: any[] } }> {
-    return this.post('/ppt/generate', dto, tenantId, 240_000, 'school');
+    return this.post('/ppt/generate', dto, tenantId, 240_000, 'school', board);
   }
 
   async regeneratePptSlide(
-    dto: { slideIndex: number; topic: string; currentSlide?: any; totalSlides?: number },
+    dto: {
+      slideIndex: number;
+      topic: string;
+      currentSlide?: any;
+      totalSlides?: number;
+      className?: string;
+      subjectName?: string;
+      chapterName?: string;
+      topicName?: string;
+    },
     tenantId?: string,
+    board?: string,
   ): Promise<{ success: boolean; data: any }> {
-    return this.post('/ppt/regenerate-slide', dto, tenantId, 120_000, 'school');
+    return this.post('/ppt/regenerate-slide', dto, tenantId, 120_000, 'school', board);
   }
 
   async searchPptImage(
