@@ -16,7 +16,7 @@ export class SchoolPptController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   @SchoolFeature('ai', 'ai_ppt_generator')
   generate(@Body() body: any, @Req() req: Request & { user?: any }) {
-    return this.svc.generate(body, req.user?.instituteId);
+    return this.svc.generate(body, req.user?.instituteId, req.user);
   }
 
   @Post('regenerate-slide')
@@ -24,7 +24,7 @@ export class SchoolPptController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   @SchoolFeature('ai', 'ai_ppt_generator')
   regenerate(@Body() body: any, @Req() req: Request & { user?: any }) {
-    return this.svc.regenerateSlide(body, req.user?.instituteId);
+    return this.svc.regenerateSlide(body, req.user?.instituteId, req.user);
   }
 
   @Post('search-image')
