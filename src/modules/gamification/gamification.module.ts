@@ -5,11 +5,13 @@ import { GamificationApiController } from './gamification-api.controller';
 import { Student } from '../../database/entities/student.entity';
 import { GamificationHistory } from '../../database/entities/gamification.entity';
 import { NotificationModule } from '../notification/notification.module';
+import { AiBridgeModule } from '../ai-bridge/ai-bridge.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Student, GamificationHistory], 'coaching'),
     NotificationModule,
+    AiBridgeModule,
   ],
   controllers: [GamificationApiController],
   providers: [GamificationService],

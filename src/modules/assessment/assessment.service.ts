@@ -1859,7 +1859,9 @@ export class AssessmentService {
 
       if (fallback.length < 1) {
         this.logger.log(`No questions in bank for tenant ${tenantId} — generating via AI for ${relevantTopics.length} topics`);
-        const aiQuestions = await this.generateAiQuestionsForDiagnostic(relevantTopics, tenantId);
+        const instRows = await this.dataSource.query(`SELECT board FROM institutes WHERE id = $1`, [tenantId]).catch(() => []);
+        const boardVal = instRows[0]?.board || 'CBSE';
+        const aiQuestions = await this.generateAiQuestionsForDiagnostic(relevantTopics, tenantId, student.class, boardVal);
         if (aiQuestions.length < 1) {
           throw new BadRequestException(
             'The question bank is empty and the AI service could not generate questions at this time. ' +
@@ -2247,6 +2249,8 @@ export class AssessmentService {
   private async generateAiQuestionsForDiagnostic(
     topics: Topic[],
     tenantId: string,
+    classVal?: string,
+    boardVal?: string,
   ): Promise<Question[]> {
     // Limit to 5 topics max — avoid overloading local Ollama under parallel load
     const MAX_TOPICS = 5;
@@ -2303,8 +2307,12 @@ export class AssessmentService {
             difficulty,
             type: 'mcq_single',
             notes: lectureNotes.length > 0 ? lectureNotes : undefined,
+            examTarget: classVal,
+            board: boardVal,
           },
           tenantId,
+          'school',
+          boardVal,
         )) as any[];
       } catch (err) {
         aiFailCount++;
