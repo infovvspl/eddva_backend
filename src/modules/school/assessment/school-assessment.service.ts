@@ -1596,9 +1596,6 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
   }
 
   async ocrQuestionImage(user: any, file?: Express.Multer.File, req?: any) {
-    if (!isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting')) {
-      throw new BadRequestException('AI handwriting OCR feature is not enabled for this school/user');
-    }
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
@@ -1616,6 +1613,15 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const language = req?.body?.language || req?.query?.language || '';
     const ocrImageUrl = (await this.formatAccessibleUrl(rawUrl, req)) || rawUrl;
 
+    if (!isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting')) {
+      return {
+        success: false,
+        text: '',
+        imageUrl: ocrImageUrl,
+        message: 'AI handwriting OCR feature is not enabled',
+      };
+    }
+
     try {
       const ocr = await this.aiBridge.extractImageText({ imageUrl: ocrImageUrl, purpose: 'grading', language }, user?.instituteId);
       return {
@@ -1625,7 +1631,12 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       };
     } catch (err: any) {
       this.logger.warn(`OCR transcription failed for single question: ${err?.message || err}`);
-      throw new BadRequestException(`OCR transcription failed: ${err?.message || err}`);
+      return {
+        success: false,
+        text: '',
+        imageUrl: ocrImageUrl,
+        message: err?.message || 'OCR extraction unavailable',
+      };
     }
   }
 
