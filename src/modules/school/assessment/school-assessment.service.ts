@@ -1516,21 +1516,49 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
    * Never throws — a submission must still save even if OCR fails or is
    * unavailable, just without transcribed text.
    */
-  private getRequestHost(req: any): string {
-    if (process.env.APP_URL) return process.env.APP_URL;
-    if (!req) return '';
-    const forwardedHost = req.headers?.['x-forwarded-host'];
-    const forwardedProto = req.headers?.['x-forwarded-proto'] || 'https';
-    let host = forwardedHost ? `${forwardedProto}://${forwardedHost}` : `${req.protocol}://${req.get('host')}`;
-    if (req.headers?.['origin'] && (host.includes('127.0.0.1') || host.includes('localhost'))) {
-      const origin = String(req.headers['origin']);
-      if (origin.includes('dev.eddva.in')) {
+  private getRequestHost(req?: any): string {
+    if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+    
+    const forwardedHost = req?.headers?.['x-forwarded-host'];
+    const forwardedProto = req?.headers?.['x-forwarded-proto'] || 'https';
+    let host = forwardedHost
+      ? `${forwardedProto}://${forwardedHost}`
+      : (req?.protocol && req?.get?.('host')) ? `${req.protocol}://${req.get('host')}` : '';
+
+    const refOrOrigin = String(req?.headers?.['referer'] || req?.headers?.['origin'] || '');
+    
+    if (!host || host.includes('127.0.0.1') || host.includes('localhost') || host.startsWith('http:')) {
+      if (refOrOrigin.includes('dev.eddva.in') || process.env.NODE_ENV === 'production' || !host || host.includes('127.0.0.1')) {
         host = 'https://dev-api.eddva.in';
-      } else if (origin.includes('eddva.in')) {
+      } else if (refOrOrigin.includes('eddva.in')) {
         host = 'https://api.eddva.in';
       }
     }
-    return host;
+    return host.replace(/\/$/, '');
+  }
+
+  private async formatAccessibleUrl(url?: string | null, req?: any): Promise<string | null> {
+    if (!url) return null;
+    let target = String(url).trim();
+    if (!target) return null;
+
+    if (target.includes('127.0.0.1') || target.includes('localhost')) {
+      target = target.replace(/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?/, 'https://dev-api.eddva.in');
+    } else if (target.startsWith('/uploads/') || target.startsWith('uploads/')) {
+      const host = this.getRequestHost(req);
+      const cleanPath = target.replace(/^\/+/, '');
+      target = host ? `${host}/${cleanPath}` : `https://dev-api.eddva.in/${cleanPath}`;
+    }
+
+    if (target.startsWith('http')) {
+      try {
+        const key = this.s3Service.keyFromUrl(target);
+        if (key?.startsWith('tenants/')) {
+          return await this.s3Service.presignGet(key, 3600);
+        }
+      } catch { /* return normalized target */ }
+    }
+    return target;
   }
 
   private async uploadToS3IfConfigured(file: Express.Multer.File, user: any): Promise<string | null> {
@@ -1567,25 +1595,8 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       return { answerText, answers };
     }
     try {
-      let imageUrl = filePath;
-      if (imageUrl && !imageUrl.startsWith('http')) {
-        const host = this.getRequestHost(req);
-        if (!host) return { answerText, answers };
-        imageUrl = `${host}/${filePath}`;
-      }
-
-      // Presign the image URL if it's from our S3/R2 bucket
-      let ocrImageUrl = imageUrl;
-      if (ocrImageUrl && ocrImageUrl.startsWith('http')) {
-        try {
-          const key = this.s3Service.keyFromUrl(ocrImageUrl);
-          if (key?.startsWith('tenants/')) {
-            ocrImageUrl = await this.s3Service.presignGet(key, 3600);
-          }
-        } catch (err) {
-          this.logger.warn(`Failed to presign assessment image URL for AI: ${err.message}`);
-        }
-      }
+      const ocrImageUrl = await this.formatAccessibleUrl(filePath, req);
+      if (!ocrImageUrl) return { answerText, answers };
 
       const ocr = await this.aiBridge.extractImageText({ imageUrl: ocrImageUrl, purpose: 'grading', language }, user?.instituteId);
       const ocrText = String(ocr?.text || '').trim();
@@ -1618,36 +1629,25 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       throw new BadRequestException('No file uploaded');
     }
 
-    let imageUrl = await this.uploadToS3IfConfigured(file, user);
-    if (!imageUrl) {
+    let rawUrl = await this.uploadToS3IfConfigured(file, user);
+    if (!rawUrl) {
       const filePath = this.storedUploadPath(file);
       if (!filePath) {
         throw new BadRequestException('Failed to process file upload');
       }
       const host = this.getRequestHost(req);
-      imageUrl = host ? `${host}/${filePath}` : filePath;
+      rawUrl = host ? `${host}/${filePath.replace(/^\/+/, '')}` : filePath;
     }
 
     const language = req?.body?.language || req?.query?.language || '';
-
-    let ocrImageUrl = imageUrl;
-    if (ocrImageUrl && ocrImageUrl.startsWith('http')) {
-      try {
-        const key = this.s3Service.keyFromUrl(ocrImageUrl);
-        if (key?.startsWith('tenants/')) {
-          ocrImageUrl = await this.s3Service.presignGet(key, 3600);
-        }
-      } catch (err) {
-        this.logger.warn(`Failed to presign assessment image URL for AI: ${err.message}`);
-      }
-    }
+    const ocrImageUrl = (await this.formatAccessibleUrl(rawUrl, req)) || rawUrl;
 
     try {
       const ocr = await this.aiBridge.extractImageText({ imageUrl: ocrImageUrl, purpose: 'grading', language }, user?.instituteId);
       return {
         success: true,
         text: String(ocr?.text || '').trim(),
-        imageUrl,
+        imageUrl: ocrImageUrl,
       };
     } catch (err: any) {
       this.logger.warn(`OCR transcription failed for single question: ${err?.message || err}`);
@@ -1924,20 +1924,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       }
     }
 
-    let fileUrl = submission.file_path || null;
-    if (fileUrl && fileUrl.startsWith('http')) {
-      try {
-        const key = this.s3Service.keyFromUrl(fileUrl);
-        if (key?.startsWith('tenants/')) {
-          fileUrl = await this.s3Service.presignGet(key, 3600);
-        }
-      } catch (err) {
-        this.logger.warn(`Failed to presign submission file url: ${err.message}`);
-      }
-    } else if (fileUrl && !fileUrl.startsWith('http')) {
-      const host = this.getRequestHost(req);
-      if (host) fileUrl = `${host}/${fileUrl}`;
-    }
+    const fileUrl = await this.formatAccessibleUrl(submission.file_path, req);
 
     const subjectiveQuestions = questions
       .filter((q: any) => this.subjectiveTypes.has(q.type))
@@ -2108,17 +2095,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     );
 
     for (const row of rows) {
-      if (row.file_path && row.file_path.startsWith('http')) {
-        try {
-          const key = this.s3Service.keyFromUrl(row.file_path);
-          if (key?.startsWith('tenants/')) {
-            row.file_path = await this.s3Service.presignGet(key, 3600);
-          }
-        } catch { /* ignore */ }
-      } else if (row.file_path) {
-        const host = this.getRequestHost(req);
-        if (host) row.file_path = `${host}/${row.file_path}`;
-      }
+      row.file_path = await this.formatAccessibleUrl(row.file_path, req);
     }
 
     return { success: true, data: rows };

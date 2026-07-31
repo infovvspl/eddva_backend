@@ -148,7 +148,10 @@ export class SchoolDoubtService implements OnModuleInit {
     return { success: true, data: { uploadUrl, fileUrl, key } };
   }
 
-  private mapRow(r: any) {
+  private async mapRow(r: any) {
+    const questionImageUrl = await this.toAccessibleImageUrl(r.question_image_url);
+    const teacherResponseImageUrl = await this.toAccessibleImageUrl(r.teacher_response_image_url);
+
     return {
       id: r.id,
       instituteId: r.institute_id,
@@ -157,13 +160,13 @@ export class SchoolDoubtService implements OnModuleInit {
       subjectId: r.subject_id,
       subjectName: r.subject_name,
       questionText: r.question_text,
-      questionImageUrl: r.question_image_url,
+      questionImageUrl,
       status: r.status,
       channel: r.channel,
       aiExplanation: r.ai_explanation,
       aiSteps: r.ai_steps || [],
       teacherResponse: r.teacher_response,
-      teacherResponseImageUrl: r.teacher_response_image_url,
+      teacherResponseImageUrl,
       isAiHelpful: r.is_ai_helpful,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -538,7 +541,8 @@ export class SchoolDoubtService implements OnModuleInit {
 
     sql += ` ORDER BY d.created_at DESC LIMIT 100`;
     const rows: any[] = await this.ds.query(sql, params);
-    return { success: true, data: rows.map((r) => this.mapRow(r)) };
+    const data = await Promise.all(rows.map((r) => this.mapRow(r)));
+    return { success: true, data };
   }
 
   async findOne(user: any, id: string) {
@@ -564,7 +568,7 @@ export class SchoolDoubtService implements OnModuleInit {
     if (userRoles.includes('TEACHER') && (String(d.institute_id) !== String(user.instituteId) || !(await this.teacherCanAccessDoubt(user.id, d)))) {
       throw new NotFoundException('Doubt not found');
     }
-    return { success: true, data: this.mapRow(d) };
+    return { success: true, data: await this.mapRow(d) };
   }
 
   async escalate(user: any, id: string) {
