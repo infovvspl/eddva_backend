@@ -62,6 +62,35 @@ export class SchoolTextbookService {
         ingested_at   TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    // Reachability is recorded per material because a file can disappear
+    // independently of whether its chapter was ever indexed — the retired S3
+    // bucket left rows pointing at objects that no longer exist.
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS textbook_link_status (
+        material_id   UUID PRIMARY KEY,
+        institute_id  UUID NOT NULL,
+        chapter_id    UUID,
+        url           TEXT,
+        http_status   INTEGER,
+        reachable     BOOLEAN NOT NULL DEFAULT FALSE,
+        checked_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS textbook_ingest_runs (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        institute_id  UUID NOT NULL,
+        status        VARCHAR(16) NOT NULL DEFAULT 'running',
+        total         INTEGER NOT NULL DEFAULT 0,
+        done          INTEGER NOT NULL DEFAULT 0,
+        succeeded     INTEGER NOT NULL DEFAULT 0,
+        failed        INTEGER NOT NULL DEFAULT 0,
+        last_chapter  TEXT,
+        last_error    TEXT,
+        started_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+        finished_at   TIMESTAMP
+      )
+    `);
     this.schemaReady = true;
   }
 
@@ -190,7 +219,189 @@ export class SchoolTextbookService {
     }
   }
 
-  /** Which chapters are indexed — drives the coverage view. */
+  /**
+   * Check every chapter PDF still resolves, and record the result.
+   *
+   * The migration off the old S3 bucket left rows pointing at objects that no
+   * longer exist, so "has a PDF" and "has a usable PDF" are different questions.
+   * Indexing a dead link just wastes a vision pass, so the bulk run consults this.
+   */
+  async auditLinks(user: any, limit = 1000) {
+    const instituteId = user?.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute context is required');
+    await this.ensureSchema();
+
+    const rows = await this.ds.query(
+      `SELECT sm.id, sm.s3_key, sm.chapter_id
+       FROM study_materials sm
+       JOIN chapters c ON c.id = sm.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN classes cl ON cl.id = s.class_id
+       WHERE cl.institute_id::text = $1::text
+         AND sm.s3_key ILIKE '%.pdf' AND sm.is_active
+       LIMIT $2`,
+      [instituteId, limit],
+    );
+
+    let reachable = 0;
+    let dead = 0;
+    for (const r of rows) {
+      const status = await this.headStatus(r.s3_key);
+      const ok = status === 200;
+      ok ? reachable++ : dead++;
+      await this.ds.query(
+        `INSERT INTO textbook_link_status
+           (material_id, institute_id, chapter_id, url, http_status, reachable, checked_at)
+         VALUES ($1,$2,$3,$4,$5,$6,NOW())
+         ON CONFLICT (material_id) DO UPDATE SET
+           http_status = EXCLUDED.http_status, reachable = EXCLUDED.reachable,
+           url = EXCLUDED.url, checked_at = NOW()`,
+        [r.id, instituteId, r.chapter_id, r.s3_key, status, ok],
+      );
+    }
+
+    this.logger.log(`Link audit: ${reachable} reachable, ${dead} dead of ${rows.length}`);
+    return { checked: rows.length, reachable, dead };
+  }
+
+  /** HEAD the URL; any transport failure counts as unreachable, not as an error. */
+  private async headStatus(url: string): Promise<number> {
+    if (!url) return 0;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20_000);
+      try {
+        const res = await fetch(url, { method: 'HEAD', signal: controller.signal });
+        return res.status;
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Index every reachable, not-yet-indexed chapter for this institute.
+   *
+   * Returns as soon as the run is queued: a scanned chapter costs a vision pass
+   * per page, so a full library is hours of work and cannot sit on an HTTP
+   * request. Progress is written to textbook_ingest_runs and polled separately.
+   */
+  async startBulkIngest(user: any, opts: { reindex?: boolean; limit?: number } = {}) {
+    const instituteId = user?.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute context is required');
+    await this.ensureSchema();
+
+    const running = await this.ds.query(
+      `SELECT id FROM textbook_ingest_runs
+       WHERE institute_id::text = $1::text AND status = 'running' LIMIT 1`,
+      [instituteId],
+    );
+    if (running.length) {
+      throw new BadRequestException('An indexing run is already in progress for this institute');
+    }
+
+    const targets = await this.pendingMaterials(instituteId, opts);
+    const run = await this.ds.query(
+      `INSERT INTO textbook_ingest_runs (institute_id, total) VALUES ($1,$2) RETURNING id`,
+      [instituteId, targets.length],
+    );
+    const runId = run[0].id;
+
+    // Fire and forget: the caller gets the run id immediately.
+    void this.processBulk(runId, instituteId, targets).catch((err) =>
+      this.logger.error(`Bulk ingest run ${runId} crashed: ${(err as Error).message}`),
+    );
+
+    return { runId, queued: targets.length };
+  }
+
+  /** Chapters worth indexing: has a PDF, known reachable, and not already done. */
+  private async pendingMaterials(instituteId: string, opts: { reindex?: boolean; limit?: number }) {
+    const skipIndexed = opts.reindex
+      ? ''
+      : `AND NOT EXISTS (SELECT 1 FROM textbook_sources ts
+                         WHERE ts.chapter_id::text = c.id::text AND ts.chunk_count > 0)`;
+    return this.ds.query(
+      `SELECT DISTINCT ON (c.id) sm.id AS material_id, c.id AS chapter_id, c.name AS chapter_name
+       FROM study_materials sm
+       JOIN chapters c ON c.id = sm.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN classes cl ON cl.id = s.class_id
+       LEFT JOIN textbook_link_status ls ON ls.material_id::text = sm.id::text
+       WHERE cl.institute_id::text = $1::text
+         AND sm.s3_key ILIKE '%.pdf' AND sm.is_active
+         -- Unaudited links are attempted; only a link known to be dead is skipped.
+         AND (ls.reachable IS NULL OR ls.reachable = TRUE)
+         ${skipIndexed}
+       ORDER BY c.id, sm.created_at DESC
+       LIMIT $2`,
+      [instituteId, opts.limit ?? 500],
+    );
+  }
+
+  /**
+   * Work the queue one chapter at a time.
+   *
+   * Sequential on purpose: each scanned chapter is a vision pass over every page,
+   * and running them concurrently would spend the account's rate limit for no
+   * benefit on what is background work. One chapter failing must not stop the run.
+   */
+  private async processBulk(runId: string, instituteId: string, targets: any[]) {
+    let done = 0, ok = 0, failed = 0;
+    for (const t of targets) {
+      try {
+        const res = await this.ingestMaterial({ instituteId }, t.material_id);
+        res.indexed ? ok++ : failed++;
+        await this.ds.query(
+          `UPDATE textbook_ingest_runs
+           SET done=$2, succeeded=$3, failed=$4, last_chapter=$5, last_error=NULL
+           WHERE id=$1`,
+          [runId, ++done, ok, failed, t.chapter_name],
+        );
+      } catch (err) {
+        failed++;
+        await this.ds.query(
+          `UPDATE textbook_ingest_runs
+           SET done=$2, succeeded=$3, failed=$4, last_chapter=$5, last_error=$6
+           WHERE id=$1`,
+          [runId, ++done, ok, failed, t.chapter_name, (err as Error).message?.slice(0, 400)],
+        );
+        this.logger.warn(`Bulk ingest: "${t.chapter_name}" failed — ${(err as Error).message}`);
+      }
+    }
+    await this.ds.query(
+      `UPDATE textbook_ingest_runs SET status='finished', finished_at=NOW() WHERE id=$1`,
+      [runId],
+    );
+    this.logger.log(`Bulk ingest run ${runId} finished: ${ok} indexed, ${failed} failed`);
+  }
+
+  /** Progress for the most recent run, for polling from the coverage screen. */
+  async ingestRunStatus(user: any) {
+    const instituteId = user?.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute context is required');
+    await this.ensureSchema();
+    const rows = await this.ds.query(
+      `SELECT id, status, total, done, succeeded, failed, last_chapter AS "lastChapter",
+              last_error AS "lastError", started_at AS "startedAt", finished_at AS "finishedAt"
+       FROM textbook_ingest_runs
+       WHERE institute_id::text = $1::text
+       ORDER BY started_at DESC LIMIT 1`,
+      [instituteId],
+    );
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Every chapter with its grounding state — drives the coverage screen.
+   *
+   * Returns the whole curriculum, not just indexed chapters, because the useful
+   * question is "what is still missing". Each row also carries whether a PDF
+   * exists and whether that file still resolves, so a dead link is visibly
+   * different from a chapter nobody has uploaded yet.
+   */
   async coverage(user: any) {
     const instituteId = user?.instituteId;
     if (!instituteId) throw new BadRequestException('Institute context is required');
@@ -198,13 +409,27 @@ export class SchoolTextbookService {
     return this.ds.query(
       `SELECT c.id AS "chapterId", c.name AS "chapterName",
               s.name AS "subjectName", cl.name AS "className",
-              ts.pages, ts.chunk_count AS "chunks", ts.method, ts.quality, ts.ingested_at AS "ingestedAt",
-              (ts.chapter_id IS NOT NULL) AS "indexed"
+              ts.pages, ts.chunk_count AS "passages", ts.method, ts.quality,
+              ts.ingested_at AS "ingestedAt",
+              (ts.chapter_id IS NOT NULL AND ts.chunk_count > 0) AS "indexed",
+              m.material_id AS "materialId",
+              (m.material_id IS NOT NULL) AS "hasPdf",
+              m.reachable AS "linkReachable"
        FROM chapters c
        JOIN subjects s ON s.id = c.subject_id
        LEFT JOIN classes cl ON cl.id = s.class_id
        LEFT JOIN textbook_sources ts
               ON ts.chapter_id::text = c.id::text AND ts.institute_id::text = $1::text
+       LEFT JOIN LATERAL (
+         -- Newest PDF per chapter, with whatever the last audit found.
+         SELECT sm.id AS material_id, ls.reachable
+         FROM study_materials sm
+         LEFT JOIN textbook_link_status ls ON ls.material_id::text = sm.id::text
+         WHERE sm.chapter_id::text = c.id::text
+           AND sm.s3_key ILIKE '%.pdf' AND sm.is_active
+         ORDER BY sm.created_at DESC
+         LIMIT 1
+       ) m ON TRUE
        WHERE cl.institute_id::text = $1::text
        ORDER BY cl.name, s.name, c.sort_order NULLS LAST, c.name`,
       [instituteId],

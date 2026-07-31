@@ -215,6 +215,7 @@ export class AiBridgeService {
       subjectName?: string;
       className?: string;
       board?: string;
+      sourcePassages?: any[];
     },
     tenantId?: string,
     vertical?: string,

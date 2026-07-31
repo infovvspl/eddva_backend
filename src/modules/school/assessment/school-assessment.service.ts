@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { recordStudentActivity } from '../common/gamification-helper';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { FcmService } from '../notification-fcm/fcm.service';
 import { isSchoolAiFeatureEnabled } from '../common/ai-features.registry';
 import {
@@ -26,6 +27,7 @@ export class SchoolAssessmentService {
     private readonly aiBridge: AiBridgeService,
     private readonly fcm: FcmService,
     private readonly s3Service: S3Service,
+    private readonly textbooks: SchoolTextbookService,
   ) { }
 
   private storedUploadPath(file?: Express.Multer.File | null) {
@@ -938,13 +940,61 @@ export class SchoolAssessmentService {
     };
   }
 
+  /** Curriculum names from whichever id the request carries. Best-effort. */
+  private async resolveAssessmentNames(body: any): Promise<{
+    className?: string; subjectName?: string; chapterName?: string; topicName?: string;
+  }> {
+    const out: any = {};
+    const topicId = body?.topicId || body?.topic_id;
+    const chapterId = body?.chapterId || body?.chapter_id;
+    const subjectId = body?.subjectId || body?.subject_id;
+    const CLASS_JOIN = `
+      LEFT JOIN sections sec ON sec.id::text = s.section_id::text
+      LEFT JOIN classes cl ON cl.id::text = COALESCE(s.class_id, sec.class_id)::text`;
+    try {
+      if (topicId) {
+        const r = await this.ds.query(
+          `SELECT t.name AS topic_name, c.name AS chapter_name, s.name AS subject_name,
+                  cl.name AS class_name
+           FROM topics t JOIN chapters c ON c.id = t.chapter_id
+           JOIN subjects s ON s.id = c.subject_id ${CLASS_JOIN}
+           WHERE t.id::text = $1::text LIMIT 1`, [topicId]);
+        if (r[0]) Object.assign(out, {
+          topicName: r[0].topic_name, chapterName: r[0].chapter_name,
+          subjectName: r[0].subject_name, className: r[0].class_name });
+      } else if (chapterId) {
+        const r = await this.ds.query(
+          `SELECT c.name AS chapter_name, s.name AS subject_name, cl.name AS class_name
+           FROM chapters c JOIN subjects s ON s.id = c.subject_id ${CLASS_JOIN}
+           WHERE c.id::text = $1::text LIMIT 1`, [chapterId]);
+        if (r[0]) Object.assign(out, {
+          chapterName: r[0].chapter_name, subjectName: r[0].subject_name,
+          className: r[0].class_name });
+      } else if (subjectId) {
+        const r = await this.ds.query(
+          `SELECT s.name AS subject_name, cl.name AS class_name
+           FROM subjects s ${CLASS_JOIN} WHERE s.id::text = $1::text LIMIT 1`, [subjectId]);
+        if (r[0]) Object.assign(out, {
+          subjectName: r[0].subject_name, className: r[0].class_name });
+      }
+    } catch (err) {
+      this.logger.warn(`Assessment name resolution failed: ${(err as Error).message}`);
+    }
+    return out;
+  }
+
   async aiGenerateDraft(user: any, body: any) {
     const instituteId = user.instituteId || body.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
-    const subjectName = body.subjectName || 'General';
-    const className = body.className || 'Class';
-    const chapterName = (body.chapterName || '').trim();
-    const topicName = (body.topicName || '').trim();
+    // Names come from the client when it has them, but fall back to the database
+    // rather than to the literals 'General'/'Class'. Those placeholders reached
+    // the paper header and, worse, the prompt — so the AI was setting a paper for
+    // no particular subject at no particular level.
+    const named = await this.resolveAssessmentNames(body);
+    const subjectName = body.subjectName || named.subjectName || 'General';
+    const className = body.className || named.className || 'Class';
+    const chapterName = (body.chapterName || named.chapterName || '').trim();
+    const topicName = (body.topicName || named.topicName || '').trim();
     const testType = body.type || body.assessmentType || 'topic';
     const difficulty = body.difficulty || 'intermediate';
     const totalMarks = body.totalMarks || body.total_marks || 100;
@@ -1010,6 +1060,25 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       `Output ONLY the Markdown question paper.`,
     ].filter(Boolean).join('\n');
 
+    // Ground the paper in the school's own chapter when it has been indexed, so
+    // questions are set from the book the students actually study.
+    // Accept either casing, and fall back to the topic's chapter for a topic
+    // test, which carries a topic but not always a chapter.
+    let groundingChapterId: string | null =
+      body.chapterId || body.chapter_id || null;
+    if (!groundingChapterId && (body.topicId || body.topic_id)) {
+      try {
+        const rows = await this.ds.query(
+          `SELECT chapter_id FROM topics WHERE id::text = $1::text LIMIT 1`,
+          [body.topicId || body.topic_id],
+        );
+        groundingChapterId = rows[0]?.chapter_id ?? null;
+      } catch { /* grounding is best-effort */ }
+    }
+    const sourcePassages = await this.textbooks.getChapterPassages(
+      instituteId, groundingChapterId,
+    );
+
     try {
       const result = await this.aiBridge.generateTopicContent(
         {
@@ -1022,6 +1091,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           difficulty,
           length: 'detailed',
           extraContext,
+          ...(sourcePassages.length ? { sourcePassages } : {}),
         },
         instituteId,
         'school',

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SchoolTextbookModule } from '../textbook/school-textbook.module';
 import { SchoolMaterialService } from './school-material.service';
 import { SchoolMaterialController } from './school-material.controller';
 import { UploadModule } from '../../upload/upload.module';
@@ -7,7 +8,7 @@ import { SchoolNotificationModule } from '../notification/school-notification.mo
 import { InternalModule } from '../../internal/internal.module';
 
 @Module({
-  imports: [UploadModule, AiBridgeModule, SchoolNotificationModule, InternalModule],
+  imports: [SchoolTextbookModule, UploadModule, AiBridgeModule, SchoolNotificationModule, InternalModule],
   controllers: [SchoolMaterialController],
   providers: [SchoolMaterialService],
 })

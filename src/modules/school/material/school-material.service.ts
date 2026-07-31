@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { randomUUID, createHash } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 
@@ -34,6 +35,7 @@ export class SchoolMaterialService implements OnModuleInit {
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: SchoolNotificationService,
     private readonly featureFlagService: AiFeatureFlagService,
+    private readonly textbooks: SchoolTextbookService,
   ) { }
 
   /** Ensure newer material types exist on the study_materials.type enum. */
@@ -273,6 +275,10 @@ export class SchoolMaterialService implements OnModuleInit {
       (body.extraContext || '').trim(),
     ].filter(Boolean).join('. ') || undefined;
 
+    const sourcePassages = await this.textbooks.getChapterPassages(
+      user.instituteId, ctx.chapter_id,
+    );
+
     const result = await this.aiBridgeService.generateTopicContent(
       {
         topicName: ctx.topic_name,
@@ -286,12 +292,24 @@ export class SchoolMaterialService implements OnModuleInit {
         extraContext,
         language: body.language || undefined,
         board: board,
+        // When this chapter's textbook has been indexed, every content type here
+        // is written from the book and cites its pages instead of drawing on the
+        // model's general knowledge.
+        ...(sourcePassages.length ? { sourcePassages } : {}),
       },
       user.instituteId ?? undefined,
       'school',
       await this.resolveBoard(user.instituteId),
     );
-    return { content: result.content, contentType: result.contentType, topicName: ctx.topic_name };
+    return {
+      content: result.content,
+      contentType: result.contentType,
+      topicName: ctx.topic_name,
+      source: (result as any).source ?? {
+        grounded: false,
+        reason: sourcePassages.length ? 'unavailable' : 'not_indexed',
+      },
+    };
   }
 
   /** Persist AI-generated markdown as a study material (text-based, no file). */
