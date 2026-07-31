@@ -12,6 +12,7 @@ import {
   fillTemplate,
 } from '../notification-fcm/school-notification-templates';
 import { S3Service } from '../../upload/s3.service';
+import { resolvePublicApiUrl, normalizeAccessibleUrl } from '../../../common/url-helper';
 
 @Injectable()
 export class SchoolAssessmentService {
@@ -1517,40 +1518,13 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
    * unavailable, just without transcribed text.
    */
   private getRequestHost(req?: any): string {
-    if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
-    
-    const forwardedHost = req?.headers?.['x-forwarded-host'];
-    const forwardedProto = req?.headers?.['x-forwarded-proto'] || 'https';
-    let host = forwardedHost
-      ? `${forwardedProto}://${forwardedHost}`
-      : (req?.protocol && req?.get?.('host')) ? `${req.protocol}://${req.get('host')}` : '';
-
-    const refOrOrigin = String(req?.headers?.['referer'] || req?.headers?.['origin'] || '');
-    
-    if (!host || host.includes('127.0.0.1') || host.includes('localhost') || host.startsWith('http:')) {
-      if (refOrOrigin.includes('dev.eddva.in') || process.env.NODE_ENV === 'production' || !host || host.includes('127.0.0.1')) {
-        host = 'https://dev-api.eddva.in';
-      } else if (refOrOrigin.includes('eddva.in')) {
-        host = 'https://api.eddva.in';
-      }
-    }
-    return host.replace(/\/$/, '');
+    return resolvePublicApiUrl(req);
   }
 
   private async formatAccessibleUrl(url?: string | null, req?: any): Promise<string | null> {
     if (!url) return null;
-    let target = String(url).trim();
-    if (!target) return null;
-
-    if (target.includes('127.0.0.1') || target.includes('localhost')) {
-      target = target.replace(/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?/, 'https://dev-api.eddva.in');
-    } else if (target.startsWith('/uploads/') || target.startsWith('uploads/')) {
-      const host = this.getRequestHost(req);
-      const cleanPath = target.replace(/^\/+/, '');
-      target = host ? `${host}/${cleanPath}` : `https://dev-api.eddva.in/${cleanPath}`;
-    }
-
-    if (target.startsWith('http')) {
+    let target = normalizeAccessibleUrl(url, req);
+    if (target && target.startsWith('http')) {
       try {
         const key = this.s3Service.keyFromUrl(target);
         if (key?.startsWith('tenants/')) {

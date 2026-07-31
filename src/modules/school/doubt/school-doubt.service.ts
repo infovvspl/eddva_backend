@@ -12,6 +12,7 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
 import { querySectionSubjects } from '../common/section-subjects';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
+import { normalizeAccessibleUrl } from '../../../common/url-helper';
 
 type DoubtStatus = 'open' | 'ai_answered' | 'escalated' | 'teacher_answered';
 
@@ -32,17 +33,18 @@ export class SchoolDoubtService implements OnModuleInit {
    * so the answer is framed for a school student. Returns a plain-text answer
    * plus extracted step list for the school doubt UI.
    */
-  private async toAccessibleImageUrl(imageUrl?: string): Promise<string | undefined> {
-    const raw = String(imageUrl || '').trim();
-    if (!raw) return undefined;
+  private async toAccessibleImageUrl(imageUrl?: string | null): Promise<string | undefined> {
+    if (!imageUrl) return undefined;
+    const target = normalizeAccessibleUrl(imageUrl);
+    if (!target) return undefined;
     try {
-      const key = this.s3Service.keyFromUrl(raw);
+      const key = this.s3Service.keyFromUrl(target);
       if (key?.startsWith('tenants/')) {
         return await this.s3Service.presignGet(key, 3600);
       }
-      return raw;
+      return target;
     } catch {
-      return raw;
+      return target;
     }
   }
 
