@@ -62,6 +62,9 @@ export class AiBridgeService {
     '/ppt/generate':         { feature: 'ppt_generate',           provider: 'groq' },
     '/ppt/regenerate-slide': { feature: 'ppt_generate',           provider: 'groq' },
     '/ppt/search-image':     { feature: 'ppt_image_search',       provider: 'serper' },
+    '/grading/subjective-rubric-batch': { feature: 'subjective_rubric_generation', provider: 'groq' },
+    '/grading/subjective-answer': { feature: 'subjective_answer_grading', provider: 'groq' },
+    '/memorization/generate': { feature: 'ai_memorization_retention', provider: 'groq' },
   };
 
   private extractTokens(data: any): number | null {
@@ -195,10 +198,60 @@ export class AiBridgeService {
    *                `doubt` = richer extraction for doubt flows (default).
    */
   async extractImageText(
-    payload: { imageUrl: string; purpose?: 'doubt' | 'grading' },
+    payload: { imageUrl: string; purpose?: 'doubt' | 'grading'; language?: string },
     tenantId?: string,
   ): Promise<{ text: string }> {
     return this.post('/doubt/ocr-image', payload, tenantId, 120_000);
+  }
+
+  // ── Subjective-answer grading rubric generation ──────────────────────────
+  // Given a batch of short/long-answer questions, returns marking-scheme
+  // criteria (summing to each question's marks), key concepts, and a model
+  // answer per question — generated once at assessment creation time so
+  // grading later doesn't need to invent a rubric from scratch every time.
+  async generateSubjectiveRubrics(
+    payload: {
+      questions: Array<{ questionId: string; text: string; marks: number; type: string }>;
+      subjectName?: string;
+      className?: string;
+      board?: string;
+    },
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+  ): Promise<{ rubrics: Array<{ questionId: string; criteria: Array<{ text: string; marks: number }>; keyConcepts: string[]; modelAnswer: string }> }> {
+    return this.post('/grading/subjective-rubric-batch', payload, tenantId, 45_000, vertical, board);
+  }
+
+  // AI-grade one subjective (short/long answer) student response against its
+  // rubric (or, when no rubric is stored, the AI service infers criteria on
+  // the fly from the question + optional model answer).
+  async gradeSubjectiveAnswer(
+    payload: {
+      questionText: string;
+      maxMarks: number;
+      studentAnswer: string;
+      criteria?: Array<{ text: string; marks: number }>;
+      keyConcepts?: string[];
+      modelAnswer?: string;
+      subjectName?: string;
+      className?: string;
+    },
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+  ): Promise<{
+    criteria: Array<{ criterion: string; maxMarks: number; awardedMarks: number; justification: string }>;
+    totalAwarded: number;
+    maxMarks: number;
+    strengths: string[];
+    missingPoints: string[];
+    suggestions: string[];
+    flagForReview: boolean;
+    reviewNote: string;
+    _meta?: { model?: string; latency_ms?: number };
+  }> {
+    return this.post('/grading/subjective-answer', payload, tenantId, 30_000, vertical, board);
   }
 
   // ── AI #2 — AI Tutor ──────────────────────────────────────────────────────
@@ -451,6 +504,18 @@ export class AiBridgeService {
     tenantId?: string,
   ) {
     return this.post('/syllabus/generate', payload, tenantId);
+  }
+
+  async generateMemorizationAids(
+    payload: {
+      weakConcepts: Array<{ topicName: string; subjectName: string; severity?: string }>;
+      isDefaultTemplate?: boolean;
+    },
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+  ) {
+    return this.post('/memorization/generate', payload, tenantId, undefined, vertical, board);
   }
 
   /**
@@ -1470,17 +1535,36 @@ export class AiBridgeService {
 
   // ── PPT Generator ─────────────────────────────────────────────────────────
   async generatePpt(
-    dto: { topic: string; slideCount?: number; language?: string },
+    dto: {
+      topic: string;
+      slideCount?: number;
+      language?: string;
+      className?: string;
+      subjectName?: string;
+      chapterName?: string;
+      topicName?: string;
+    },
     tenantId?: string,
+    board?: string,
   ): Promise<{ success: boolean; data: { title: string; slides: any[] } }> {
-    return this.post('/ppt/generate', dto, tenantId, 240_000, 'school');
+    return this.post('/ppt/generate', dto, tenantId, 240_000, 'school', board);
   }
 
   async regeneratePptSlide(
-    dto: { slideIndex: number; topic: string; currentSlide?: any; totalSlides?: number },
+    dto: {
+      slideIndex: number;
+      topic: string;
+      currentSlide?: any;
+      totalSlides?: number;
+      className?: string;
+      subjectName?: string;
+      chapterName?: string;
+      topicName?: string;
+    },
     tenantId?: string,
+    board?: string,
   ): Promise<{ success: boolean; data: any }> {
-    return this.post('/ppt/regenerate-slide', dto, tenantId, 120_000, 'school');
+    return this.post('/ppt/regenerate-slide', dto, tenantId, 120_000, 'school', board);
   }
 
   async searchPptImage(

@@ -8,6 +8,7 @@ import { GamificationHistory } from '../../database/entities/gamification.entity
 import { NotificationService } from '../notification/notification.service';
 import { recordStudentActivity } from '../../common/gamification-helper';
 import { SEED_ACHIEVEMENTS } from './seed-achievements';
+import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
 
 @Injectable()
 export class GamificationService implements OnModuleInit {
@@ -21,6 +22,7 @@ export class GamificationService implements OnModuleInit {
     private readonly cacheManager: Cache,
     @InjectDataSource('school')
     private readonly schoolDs: DataSource,
+    private readonly aiBridge: AiBridgeService,
   ) {}
 
   async onModuleInit() {
@@ -552,17 +554,146 @@ export class GamificationService implements OnModuleInit {
     return { transactions, redemptions };
   }
 
-  /**
-   * AI Memorization Engine: Fetch or Generate Flashcards, Mnemonics & Mind Maps
-   */
   async getAiMemorizationItems(userId: string) {
+    const student = await this.studentRepo.findOne({ where: { userId } }).catch(() => null);
+    const classVal = student?.class || '10';
+    const tenantId = student?.tenantId;
+    let boardVal = 'CBSE';
+    if (tenantId) {
+      const instRows = await this.schoolDs.query(`SELECT board FROM institutes WHERE id = $1`, [tenantId]).catch(() => []);
+      if (instRows && instRows[0]?.board) {
+        boardVal = instRows[0].board;
+      }
+    }
+
+    // Delete any old hardcoded fallback seed items to clear space for real AI-generated cards
+    await this.schoolDs.query(
+      `DELETE FROM ai_memorization_items 
+       WHERE user_id = $1 AND (
+         concept_name ILIKE '%Snell%' OR 
+         concept_name ILIKE '%Alkali%' OR 
+         concept_name ILIKE '%Derivative%' OR 
+         concept_name ILIKE '%Photosynthesis%'
+       )`,
+      [userId]
+    ).catch(() => {});
+
     let items = await this.schoolDs.query(
       `SELECT * FROM ai_memorization_items WHERE user_id = $1 ORDER BY next_review_at ASC`,
       [userId]
     );
 
     if (items.length === 0) {
-      // Seed initial AI generated items for student
+      let weakConcepts = [];
+      try {
+        // Query weak_topics
+        const wtRows = await this.schoolDs.query(
+          `SELECT t.name as topic_name, s.name as subject_name, wt.severity
+           FROM weak_topics wt
+           JOIN topics t ON t.id = wt.topic_id
+           JOIN chapters c ON c.id = t.chapter_id
+           JOIN subjects s ON s.id = c.subject_id
+           JOIN students std ON std.id = wt.student_id
+           WHERE std.user_id::text = $1::text OR std.id::text = $1::text
+           ORDER BY wt.created_at DESC LIMIT 5`,
+          [userId]
+        ).catch(() => []);
+
+        if (wtRows && wtRows.length > 0) {
+          weakConcepts.push(...wtRows.map(r => ({ topicName: r.topic_name, subjectName: r.subject_name, severity: r.severity })));
+        }
+
+        // Query school_game_skills with low score
+        const skillRows = await this.schoolDs.query(
+          `SELECT s.name as subject_name, COALESCE(c.name, 'General') as topic_name
+           FROM school_game_skills gs
+           JOIN subjects s ON s.id = gs.subject_id
+           LEFT JOIN chapters c ON c.id = gs.chapter_id
+           WHERE (gs.student_user_id::text = $1::text) AND gs.skill_score < 60
+           LIMIT 5`,
+          [userId]
+        ).catch(() => []);
+
+        if (skillRows && skillRows.length > 0) {
+          weakConcepts.push(...skillRows.map(r => ({ topicName: r.topic_name, subjectName: r.subject_name, severity: 'medium' })));
+        }
+      } catch (e) {
+        console.error('[getAiMemorizationItems] Error querying weak topics:', e);
+      }
+
+      if (weakConcepts.length === 0) {
+        // No student-specific weak topics. Let's find or generate default template cards for this Class + Board.
+        const templateUserId = `DEFAULT_TEMPLATE_CLASS_${classVal}_BOARD_${boardVal}`;
+        let defaultCards = await this.schoolDs.query(
+          `SELECT * FROM ai_memorization_items WHERE user_id = $1`,
+          [templateUserId]
+        ).catch(() => []);
+
+        if (defaultCards.length === 0) {
+          // Default cards for this class and board do not exist yet. Generate once via AI now!
+          const defaultConcepts = this.getDefaultConceptsForClass(classVal, boardVal);
+          try {
+            const generated = await this.aiBridge.generateMemorizationAids({ weakConcepts: defaultConcepts, isDefaultTemplate: true }, tenantId || undefined, 'school', boardVal) as any;
+            const itemsList = Array.isArray(generated) ? generated : (generated?.items ?? generated?.data ?? []);
+            if (itemsList && itemsList.length > 0) {
+              for (const item of itemsList) {
+                await this.schoolDs.query(
+                  `INSERT INTO ai_memorization_items (user_id, subject_name, topic_name, concept_name, item_type, content_json, weak_score)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                  [templateUserId, item.subject_name || 'General', item.topic_name || 'General', item.concept_name || 'Concept', item.item_type, JSON.stringify(item.content_json), item.weak_score || 50]
+                );
+              }
+              // Fetch template cards back
+              defaultCards = await this.schoolDs.query(
+                `SELECT * FROM ai_memorization_items WHERE user_id = $1`,
+                [templateUserId]
+              ).catch(() => []);
+            }
+          } catch (aiErr) {
+            console.error('[getAiMemorizationItems] Default template generation failed:', aiErr);
+          }
+        }
+
+        // Copy class/board template cards to student's own active memorization profile
+        if (defaultCards && defaultCards.length > 0) {
+          for (const card of defaultCards) {
+            await this.schoolDs.query(
+              `INSERT INTO ai_memorization_items (user_id, subject_name, topic_name, concept_name, item_type, content_json, weak_score)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+              [userId, card.subject_name, card.topic_name, card.concept_name, card.item_type, JSON.stringify(card.content_json), card.weak_score]
+            ).catch(() => {});
+          }
+          items = await this.schoolDs.query(
+            `SELECT * FROM ai_memorization_items WHERE user_id = $1 ORDER BY next_review_at ASC`,
+            [userId]
+          );
+        }
+      } else {
+        // Generate personalized retention cards based on the student's actual weak concepts!
+        try {
+          const generated = await this.aiBridge.generateMemorizationAids({ weakConcepts }, tenantId || undefined, 'school', boardVal) as any;
+          const itemsList = Array.isArray(generated) ? generated : (generated?.items ?? generated?.data ?? []);
+          if (itemsList && itemsList.length > 0) {
+            for (const item of itemsList) {
+              await this.schoolDs.query(
+                `INSERT INTO ai_memorization_items (user_id, subject_name, topic_name, concept_name, item_type, content_json, weak_score)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [userId, item.subject_name || 'General', item.topic_name || 'General', item.concept_name || 'Concept', item.item_type, JSON.stringify(item.content_json), item.weak_score || 50]
+              );
+            }
+            items = await this.schoolDs.query(
+              `SELECT * FROM ai_memorization_items WHERE user_id = $1 ORDER BY next_review_at ASC`,
+              [userId]
+            );
+          }
+        } catch (aiErr) {
+          console.error('[getAiMemorizationItems] Personal AI Bridge generation failed:', aiErr);
+        }
+      }
+    }
+
+    if (items.length === 0) {
+      // Seed initial static items for student as fallback
       const initialItems = [
         {
           subject: 'Science',
@@ -610,6 +741,32 @@ export class GamificationService implements OnModuleInit {
     }
 
     return items;
+  }
+
+  private getDefaultConceptsForClass(classVal: string, boardVal: string) {
+    if (classVal === '12' || classVal === 'dropper') {
+      return [
+        { topicName: `${boardVal} Class 12 Physics - Electrostatics & Coulombs Law`, subjectName: 'Physics', severity: 'medium' },
+        { topicName: `${boardVal} Class 12 Chemistry - Solutions & Colligative Properties`, subjectName: 'Chemistry', severity: 'medium' },
+        { topicName: `${boardVal} Class 12 Mathematics - Calculus Derivatives`, subjectName: 'Mathematics', severity: 'medium' },
+        { topicName: `${boardVal} Class 12 Biology - Genetics Mendelian Inheritance`, subjectName: 'Biology', severity: 'medium' }
+      ];
+    } else if (classVal === '11') {
+      return [
+        { topicName: `${boardVal} Class 11 Physics - Laws of Motion & Friction`, subjectName: 'Physics', severity: 'medium' },
+        { topicName: `${boardVal} Class 11 Chemistry - Chemical Bonding`, subjectName: 'Chemistry', severity: 'medium' },
+        { topicName: `${boardVal} Class 11 Mathematics - Trigonometric Formulas`, subjectName: 'Mathematics', severity: 'medium' },
+        { topicName: `${boardVal} Class 11 Biology - Cell Cycle`, subjectName: 'Biology', severity: 'medium' }
+      ];
+    } else {
+      // Classes 8, 9, 10
+      return [
+        { topicName: `${boardVal} Class ${classVal} Science - Light Refraction`, subjectName: 'Science', severity: 'medium' },
+        { topicName: `${boardVal} Class ${classVal} Science - Chemical Reactions`, subjectName: 'Science', severity: 'medium' },
+        { topicName: `${boardVal} Class ${classVal} Mathematics - Quadratic Equations`, subjectName: 'Mathematics', severity: 'medium' },
+        { topicName: `${boardVal} Class ${classVal} Science - Photosynthesis`, subjectName: 'Science', severity: 'medium' }
+      ];
+    }
   }
 
   /**
@@ -744,7 +901,7 @@ export class GamificationService implements OnModuleInit {
     return rows.map((r: any, idx: number) => ({
       rank: idx + 1,
       userId: r.user_id,
-      name: `Student ${r.user_id.slice(-4)}`,
+      name: r.user_name || r.name || `Student ${String(r.user_id || '0000').slice(-4)}`,
       xp: Number(r.xp || 0),
       coins: Number(r.coins || 0),
       level: Number(r.level || 1),

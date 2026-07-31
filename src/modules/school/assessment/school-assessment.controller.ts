@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { mkdirSync } from 'fs';
 import { diskStorage } from 'multer';
@@ -8,6 +8,7 @@ import { SchoolAssessmentService } from './school-assessment.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
+import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { Audit } from '../../audit-log/audit.decorator';
 import { SchoolFeature } from '../decorators/school-feature.decorator';
 import { SchoolFeatureGuard } from '../guards/school-feature.guard';
@@ -58,13 +59,40 @@ export class SchoolAssessmentController {
   @Post(':id/submit')
   @Audit({ module: 'Assessment', action: 'Assessment Submit', description: 'Submitted assessment ID {params.id}' })
   @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
-  submit(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any, @UploadedFile() file?: Express.Multer.File) {
-    return this.svc.submitAssessment(user, id, body, file);
+  submit(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any, @Req() req: any, @UploadedFile() file?: Express.Multer.File) {
+    return this.svc.submitAssessment(user, id, body, file, req);
   }
-  @Get(':id/submissions') listSubmissions(@SchoolUser() user: any, @Param('id') id: string) {
-    return this.svc.listSubmissions(user, id);
+  @Post('ocr')
+  @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
+  ocrQuestionImage(@SchoolUser() user: any, @UploadedFile() file: Express.Multer.File, @Req() req: any) {
+    return this.svc.ocrQuestionImage(user, file, req);
+  }
+  @Get(':id/submissions')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  listSubmissions(@SchoolUser() user: any, @Param('id') id: string, @Req() req: any) {
+    return this.svc.listSubmissions(user, id, req);
   }
   @Get(':id') findOne(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.findOne(user, id); }
+
+  @Get(':id/submissions/:studentId/review')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  getSubmissionForReview(@SchoolUser() user: any, @Param('id') id: string, @Param('studentId') studentId: string, @Req() req: any) {
+    return this.svc.getSubmissionForReview(user, id, studentId, req);
+  }
+
+  @Put(':id/submissions/:studentId/review')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  @Audit({ module: 'Assessment', action: 'AI Grading Review', description: 'Reviewed AI-graded submission for student {params.studentId}' })
+  reviewSubjectiveGrading(@SchoolUser() user: any, @Param('id') id: string, @Param('studentId') studentId: string, @Body() body: any) {
+    return this.svc.reviewSubjectiveGrading(user, id, studentId, body);
+  }
+
+  @Post(':id/submissions/:studentId/publish')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  @Audit({ module: 'Assessment', action: 'Result Publish', description: 'Published result for student {params.studentId}' })
+  publishGradedResult(@SchoolUser() user: any, @Param('id') id: string, @Param('studentId') studentId: string) {
+    return this.svc.publishGradedResult(user, id, studentId);
+  }
 
   @Put(':id')
   @Audit({ module: 'Assessment', action: 'Assessment Edit', description: 'Updated assessment ID {params.id}' })
@@ -74,5 +102,8 @@ export class SchoolAssessmentController {
   @Audit({ module: 'Assessment', action: 'Assessment Delete', description: 'Deleted assessment ID {params.id}' })
   remove(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.remove(user, id); }
   @Get(':id/results') listResults(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.listResults(user, id); }
-  @Post('results') saveResult(@SchoolUser() user: any, @Body() body: any) { return this.svc.saveResult(user, body); }
+
+  @Post('results')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  saveResult(@SchoolUser() user: any, @Body() body: any) { return this.svc.saveResult(user, body); }
 }

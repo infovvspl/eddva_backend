@@ -5,11 +5,13 @@ import { SchoolNotificationService } from '../notification/school-notification.s
 import { recordStudentActivity } from '../common/gamification-helper';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { FcmService } from '../notification-fcm/fcm.service';
+import { isSchoolAiFeatureEnabled } from '../common/ai-features.registry';
 import {
   SchoolFcmNotificationType,
   SCHOOL_NOTIFICATION_TEMPLATES,
   fillTemplate,
 } from '../notification-fcm/school-notification-templates';
+import { S3Service } from '../../upload/s3.service';
 
 @Injectable()
 export class SchoolAssessmentService {
@@ -23,6 +25,7 @@ export class SchoolAssessmentService {
     private readonly notificationService: SchoolNotificationService,
     private readonly aiBridge: AiBridgeService,
     private readonly fcm: FcmService,
+    private readonly s3Service: S3Service,
   ) { }
 
   private storedUploadPath(file?: Express.Multer.File | null) {
@@ -58,6 +61,12 @@ export class SchoolAssessmentService {
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS answer_key TEXT NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS language VARCHAR NULL DEFAULT 'en'`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS questions_json JSONB NULL`);
+    // Legacy column was INTEGER — AI-graded subjective marks (e.g. rescaled rubric
+    // weights, half-marks) are fractional, so this must accept decimals. `ADD COLUMN
+    // IF NOT EXISTS` above is a no-op once the column already exists (which it does
+    // here, from before this table grew JSONB content), so the type has to be
+    // widened explicitly.
+    await this.ds.query(`ALTER TABLE assessments ALTER COLUMN total_marks TYPE NUMERIC(7,2) USING total_marks::numeric`);
     await this.ds.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_events_linked_id ON events (linked_id) WHERE linked_id IS NOT NULL`);
     this.schemaReady = true;
   }
@@ -94,6 +103,11 @@ export class SchoolAssessmentService {
   private async ensureResultSchema() {
     if (this.resultSchemaReady) return;
     await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS total_marks NUMERIC(5,2) NOT NULL DEFAULT 100`);
+    // Both columns pre-date this table's JSONB-era additions and are legacy
+    // INTEGER — widen them the same way as assessments.total_marks (see that
+    // ALTER's comment): AI-graded subjective marks can be fractional.
+    await this.ds.query(`ALTER TABLE results ALTER COLUMN total_marks TYPE NUMERIC(7,2) USING total_marks::numeric`);
+    await this.ds.query(`ALTER TABLE results ALTER COLUMN marks_obtained TYPE NUMERIC(7,2) USING marks_obtained::numeric`);
     await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS percentage NUMERIC(5,2) NOT NULL DEFAULT 0`);
     await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS is_absent BOOLEAN NOT NULL DEFAULT false`);
     await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS grade VARCHAR NULL`);
@@ -131,6 +145,7 @@ export class SchoolAssessmentService {
         correctAnswer: _correctAnswer,
         correct_answer: _correct_answer,
         explanation: _explanation,
+        rubric: _rubric,
         ...safeQuestion
       } = question;
       return safeQuestion;
@@ -564,6 +579,107 @@ export class SchoolAssessmentService {
     return { score, total, writtenPending, details };
   }
 
+  private subjectiveTypes = new Set(['short_answer', 'long_answer']);
+
+  /**
+   * The authoritative total for a paper is the sum of its own questions' marks,
+   * not whatever a form field happened to say — a mismatch here (e.g. a form
+   * defaulting to 100 while the actual question set only sums to 34) silently
+   * produces wrong percentages/grades everywhere downstream. Returns null when
+   * there are no parsed questions (e.g. a metadata-only/file-upload assessment),
+   * so callers can fall back to the form value in that case only.
+   */
+  private sumQuestionMarks(questions: any[]): number | null {
+    if (!questions?.length) return null;
+    const sum = questions.reduce((total: number, q: any) => total + Number(q.marks || 0), 0);
+    return sum > 0 ? sum : null;
+  }
+
+  // Cached institute board lookup — mirrors school-material.service.ts's
+  // resolveBoard() so an ICSE school never gets CBSE-framed rubric wording.
+  private static readonly _boardCache = new Map<string, { value: string; expiresAt: number }>();
+
+  private async resolveBoard(instituteId?: string): Promise<string | undefined> {
+    if (!instituteId) return undefined;
+    const cached = SchoolAssessmentService._boardCache.get(instituteId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value || undefined;
+    try {
+      const rows = await this.ds.query(`SELECT board FROM institutes WHERE id = $1 LIMIT 1`, [instituteId]);
+      const value = String(rows?.[0]?.board ?? '').trim().toLowerCase();
+      SchoolAssessmentService._boardCache.set(instituteId, { value, expiresAt: Date.now() + 5 * 60 * 1000 });
+      return value || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async resolveSubjectAndClassNames(subjectId?: string, classId?: string): Promise<{ subjectName?: string; className?: string }> {
+    try {
+      const [subjectRows, classRows] = await Promise.all([
+        subjectId ? this.ds.query(`SELECT name FROM subjects WHERE id::text=$1::text LIMIT 1`, [subjectId]) : Promise.resolve([]),
+        classId ? this.ds.query(`SELECT name FROM classes WHERE id::text=$1::text LIMIT 1`, [classId]) : Promise.resolve([]),
+      ]);
+      return { subjectName: subjectRows?.[0]?.name, className: classRows?.[0]?.name };
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Best-effort: enriches short_answer/long_answer questions with an AI-generated
+   * marking-scheme rubric (criteria + key concepts + model answer) at the point an
+   * assessment is created/updated, so grading later never has to invent one from
+   * scratch. Never throws — assessment creation must succeed even if this fails
+   * or the feature is disabled; questions simply keep no `rubric` field, and the
+   * grading step (Phase 2) falls back to inferring criteria on the fly for those.
+   */
+  private async generateSubjectiveRubrics(
+    questions: any[],
+    ctx: { subjectId?: string; classId?: string; instituteId?: string },
+    user: any,
+  ): Promise<any[]> {
+    const needsRubric = questions.filter((q: any) => this.subjectiveTypes.has(q.type) && !q.rubric);
+    if (!needsRubric.length) return questions;
+    if (!isSchoolAiFeatureEnabled(user, 'ai_subjective_grading')) return questions;
+
+    try {
+      const [{ subjectName, className }, board] = await Promise.all([
+        this.resolveSubjectAndClassNames(ctx.subjectId, ctx.classId),
+        this.resolveBoard(ctx.instituteId),
+      ]);
+      const result = await this.aiBridge.generateSubjectiveRubrics(
+        {
+          questions: needsRubric.map((q: any) => ({ questionId: q.id, text: q.text, marks: Number(q.marks || 1), type: q.type })),
+          subjectName,
+          className,
+          board,
+        },
+        ctx.instituteId,
+        'school',
+        board,
+      );
+      const rubricsById = new Map((result?.rubrics || []).map((r: any) => [r.questionId, r]));
+      return questions.map((q: any) => {
+        if (!this.subjectiveTypes.has(q.type) || q.rubric) return q;
+        const r = rubricsById.get(q.id);
+        if (!r) return q;
+        return {
+          ...q,
+          rubric: {
+            criteria: r.criteria,
+            keyConcepts: r.keyConcepts,
+            modelAnswer: r.modelAnswer,
+            source: 'ai_generated',
+            generatedAt: new Date().toISOString(),
+          },
+        };
+      });
+    } catch (err) {
+      this.logger.warn(`Subjective rubric generation failed: ${err?.message || err}`);
+      return questions;
+    }
+  }
+
   async list(user: any, query: any) {
     await this.ensureAssessmentContentColumns();
     await this.ensureAssessmentSubmissionSchema();
@@ -962,13 +1078,21 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const rawAnswerKey = body.answerKey || body.answer_key || null;
     const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
     const answerKey = this.rebuildAnswerKeyWithSections(contentText, splitAnswerKey);
-    const questionsJson = this.parseQuestionsFromMarkdown(contentText || '', answerKey || '');
+    let questionsJson = this.parseQuestionsFromMarkdown(contentText || '', answerKey || '');
+    if (questionsJson.some((q: any) => this.subjectiveTypes.has(q.type))) {
+      questionsJson = await this.generateSubjectiveRubrics(
+        questionsJson,
+        { subjectId: body.subjectId || body.subject_id, classId, instituteId: user?.instituteId },
+        user,
+      );
+    }
     const filePath = this.storedUploadPath(file) || body.filePath || body.file_path || null;
     const contentSource = filePath ? 'upload' : contentText ? (body.contentSource || body.content_source || 'manual') : 'metadata';
     const title = String(body.title || '').trim() || this.deriveTitle(contentText || '', '');
     if (!title) {
       throw new BadRequestException('Assessment title is required');
     }
+    const resolvedTotalMarks = this.sumQuestionMarks(questionsJson) ?? (body.totalMarks || body.total_marks || 100);
 
     return await this.ds.transaction(async (manager) => {
       const rows: any[] = await manager.query(
@@ -980,7 +1104,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           body.assessmentType || body.type || 'exam',
           body.subjectId || body.subject_id || null,
           classId,
-          body.totalMarks || body.total_marks || 100,
+          resolvedTotalMarks,
           body.durationMinutes || body.duration_minutes || 60,
           body.scheduledAt || body.scheduledDate || body.scheduled_date
             ? new Date(body.scheduledAt || body.scheduledDate || body.scheduled_date)
@@ -1177,9 +1301,21 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const rawAnswerKey = body.answerKey || body.answer_key || null;
     const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
     const answerKey = this.rebuildAnswerKeyWithSections(contentText, splitAnswerKey);
-    const questionsJson = contentText || answerKey
+    let questionsJson = contentText || answerKey
       ? this.parseQuestionsFromMarkdown(contentText || '', answerKey || '')
       : null;
+    if (questionsJson?.some((q: any) => this.subjectiveTypes.has(q.type))) {
+      questionsJson = await this.generateSubjectiveRubrics(
+        questionsJson,
+        { subjectId: body.subjectId || body.subject_id, classId: body.classId || body.class_id, instituteId: reqUser?.instituteId },
+        reqUser,
+      );
+    }
+    // Whenever this update touches content and re-parses real questions, the sum of
+    // their marks is authoritative — takes priority over a stale/mismatched form
+    // value. Only falls back to the form value (or leaves total_marks untouched via
+    // COALESCE) when this update doesn't touch content at all.
+    const resolvedTotalMarks = this.sumQuestionMarks(questionsJson) ?? (body.totalMarks || body.total_marks || null);
 
     return await this.ds.transaction(async (manager) => {
       // Find the existing assessment's teacher and institute before updating
@@ -1212,7 +1348,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           targetId,
           body.title || null,
           body.assessmentType || body.type || null,
-          body.totalMarks || body.total_marks || null,
+          resolvedTotalMarks,
           body.durationMinutes || body.duration_minutes || null,
           body.status || null,
           body.scheduledAt || body.scheduledDate || body.scheduled_date
@@ -1361,16 +1497,174 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     return { success: true, data: rows[0] };
   }
 
-  async submitAssessment(user: any, assessmentId: string, body: any, file?: Express.Multer.File) {
+  private isImageFilePath(filePath?: string | null): boolean {
+    return !!filePath && /\.(jpe?g|png|webp|heic|heif)$/i.test(filePath);
+  }
+
+  /**
+   * Reuses the existing `ai_ocr_handwriting` flag and `extractImageText()` bridge
+   * call (the same one the coaching module already uses) to transcribe a
+   * photographed handwritten answer before grading runs.
+   *
+   * v1 limitation, by design: the submit endpoint accepts one file for the whole
+   * submission (no per-question image upload exists yet), so the transcribed
+   * text is applied to whichever subjective questions are otherwise
+   * under-answered (< 15 chars) — not precisely mapped to a specific question. A
+   * precise per-question version needs new upload infrastructure and is
+   * deferred; this wires the existing OCR call rather than building that.
+   *
+   * Never throws — a submission must still save even if OCR fails or is
+   * unavailable, just without transcribed text.
+   */
+  private getRequestHost(req?: any): string {
+    if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+    
+    const forwardedHost = req?.headers?.['x-forwarded-host'];
+    const forwardedProto = req?.headers?.['x-forwarded-proto'] || 'https';
+    let host = forwardedHost
+      ? `${forwardedProto}://${forwardedHost}`
+      : (req?.protocol && req?.get?.('host')) ? `${req.protocol}://${req.get('host')}` : '';
+
+    const refOrOrigin = String(req?.headers?.['referer'] || req?.headers?.['origin'] || '');
+    
+    if (!host || host.includes('127.0.0.1') || host.includes('localhost') || host.startsWith('http:')) {
+      if (refOrOrigin.includes('dev.eddva.in') || process.env.NODE_ENV === 'production' || !host || host.includes('127.0.0.1')) {
+        host = 'https://dev-api.eddva.in';
+      } else if (refOrOrigin.includes('eddva.in')) {
+        host = 'https://api.eddva.in';
+      }
+    }
+    return host.replace(/\/$/, '');
+  }
+
+  private async formatAccessibleUrl(url?: string | null, req?: any): Promise<string | null> {
+    if (!url) return null;
+    let target = String(url).trim();
+    if (!target) return null;
+
+    if (target.includes('127.0.0.1') || target.includes('localhost')) {
+      target = target.replace(/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?/, 'https://dev-api.eddva.in');
+    } else if (target.startsWith('/uploads/') || target.startsWith('uploads/')) {
+      const host = this.getRequestHost(req);
+      const cleanPath = target.replace(/^\/+/, '');
+      target = host ? `${host}/${cleanPath}` : `https://dev-api.eddva.in/${cleanPath}`;
+    }
+
+    if (target.startsWith('http')) {
+      try {
+        const key = this.s3Service.keyFromUrl(target);
+        if (key?.startsWith('tenants/')) {
+          return await this.s3Service.presignGet(key, 3600);
+        }
+      } catch { /* return normalized target */ }
+    }
+    return target;
+  }
+
+  private async uploadToS3IfConfigured(file: Express.Multer.File, user: any): Promise<string | null> {
+    if (!file) return null;
+    try {
+      const fs = require('fs');
+      const fileBuffer = fs.readFileSync(file.path);
+      const instituteId = user?.instituteId || 'default';
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || 'image.jpeg';
+      const key = `tenants/${instituteId}/school-assessments/${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
+      
+      const fileUrl = await this.s3Service.upload(key, fileBuffer, file.mimetype || 'image/jpeg');
+      
+      // Clean up temp file
+      fs.unlink(file.path, () => {});
+      
+      return fileUrl;
+    } catch (err) {
+      this.logger.error(`Failed to upload assessment image to S3/R2: ${err.message}`);
+      return null;
+    }
+  }
+
+  private async ocrHandwrittenSubmission(
+    user: any,
+    filePath: string | null,
+    req: any,
+    answerText: string,
+    answers: Record<string, any>,
+    questions: any[],
+    language?: string,
+  ): Promise<{ answerText: string; answers: Record<string, any> }> {
+    if (!this.isImageFilePath(filePath) || !isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting')) {
+      return { answerText, answers };
+    }
+    try {
+      const ocrImageUrl = await this.formatAccessibleUrl(filePath, req);
+      if (!ocrImageUrl) return { answerText, answers };
+
+      const ocr = await this.aiBridge.extractImageText({ imageUrl: ocrImageUrl, purpose: 'grading', language }, user?.instituteId);
+      const ocrText = String(ocr?.text || '').trim();
+      if (!ocrText) return { answerText, answers };
+
+      const mergedAnswerText = answerText
+        ? `${answerText}\n\n[Transcribed from uploaded handwritten answer image]\n${ocrText}`
+        : ocrText;
+
+      const mergedAnswers = { ...answers };
+      for (const q of questions) {
+        if (!this.subjectiveTypes.has(q.type)) continue;
+        const current = String(mergedAnswers[q.id] ?? '').trim();
+        if (current.length < 15) {
+          mergedAnswers[q.id] = ocrText;
+        }
+      }
+      return { answerText: mergedAnswerText, answers: mergedAnswers };
+    } catch (err) {
+      this.logger.warn(`OCR transcription failed for handwritten submission: ${err?.message || err}`);
+      return { answerText, answers };
+    }
+  }
+
+  async ocrQuestionImage(user: any, file?: Express.Multer.File, req?: any) {
+    if (!isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting')) {
+      throw new BadRequestException('AI handwriting OCR feature is not enabled for this school/user');
+    }
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    let rawUrl = await this.uploadToS3IfConfigured(file, user);
+    if (!rawUrl) {
+      const filePath = this.storedUploadPath(file);
+      if (!filePath) {
+        throw new BadRequestException('Failed to process file upload');
+      }
+      const host = this.getRequestHost(req);
+      rawUrl = host ? `${host}/${filePath.replace(/^\/+/, '')}` : filePath;
+    }
+
+    const language = req?.body?.language || req?.query?.language || '';
+    const ocrImageUrl = (await this.formatAccessibleUrl(rawUrl, req)) || rawUrl;
+
+    try {
+      const ocr = await this.aiBridge.extractImageText({ imageUrl: ocrImageUrl, purpose: 'grading', language }, user?.instituteId);
+      return {
+        success: true,
+        text: String(ocr?.text || '').trim(),
+        imageUrl: ocrImageUrl,
+      };
+    } catch (err: any) {
+      this.logger.warn(`OCR transcription failed for single question: ${err?.message || err}`);
+      throw new BadRequestException(`OCR transcription failed: ${err?.message || err}`);
+    }
+  }
+
+  async submitAssessment(user: any, assessmentId: string, body: any, file?: Express.Multer.File, req?: any) {
     await this.checkAssessmentAccess(user, assessmentId);
     await this.ensureAssessmentContentColumns();
     await this.ensureAssessmentSubmissionSchema();
 
-    const assessmentRows: any[] = await this.ds.query(`SELECT id,title,duration_minutes,total_marks,content_text,answer_key,questions_json FROM assessments WHERE id::text=$1::text`, [assessmentId]);
+    const assessmentRows: any[] = await this.ds.query(`SELECT id,title,duration_minutes,total_marks,content_text,answer_key,questions_json,language FROM assessments WHERE id::text=$1::text`, [assessmentId]);
     if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
     const assessment = await this.hydrateQuestions(assessmentRows[0]);
 
-    const answerText = String(body.answerText || body.answer_text || body.notes || '').trim();
+    let answerText = String(body.answerText || body.answer_text || body.notes || '').trim();
     const submittedAnswers = body.answersJson || body.answers_json || body.answers;
     let bodyAnswers: Record<string, any> | null = null;
     if (submittedAnswers) {
@@ -1380,7 +1674,11 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         throw new BadRequestException('Invalid answer format');
       }
     }
-    const filePath = this.storedUploadPath(file) || body.filePath || body.file_path || null;
+    let filePath = body.filePath || body.file_path || null;
+    if (file) {
+      const s3Url = await this.uploadToS3IfConfigured(file, user);
+      filePath = s3Url || this.storedUploadPath(file);
+    }
     const autoSubmit = body.autoSubmit === true || body.autoSubmit === 'true';
     if (!answerText && !filePath && !bodyAnswers && !autoSubmit) {
       throw new BadRequestException('Write an answer or upload a file');
@@ -1396,8 +1694,9 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     }
 
     const existingAnswers = typeof attempt?.answers_json === 'object' && attempt.answers_json ? attempt.answers_json : {};
-    const answers = bodyAnswers || existingAnswers;
+    let answers = bodyAnswers || existingAnswers;
     const questions = this.normalizeQuestions(assessment.questions_json);
+    ({ answerText, answers } = await this.ocrHandwrittenSubmission(user, filePath, req, answerText, answers, questions, assessment.language));
     const grading = questions.length ? this.gradeObjective(questions, answers || {}) : null;
     const gradingStatus = grading
       ? grading.writtenPending
@@ -1456,10 +1755,319 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       console.error('Failed to log student activity (assessment):', err.message),
     );
 
+    // AI-grade subjective answers in the background — never blocks the student's
+    // submit response (an LLM call per subjective question can take a few seconds
+    // each, and many students may submit near a deadline at once).
+    if (grading?.writtenPending && isSchoolAiFeatureEnabled(user, 'ai_subjective_grading')) {
+      void this.runAiSubjectiveGrading(assessmentId, user.id, questions, answers || {}, user.instituteId).catch((err) =>
+        this.logger.error(`AI subjective grading failed for ${assessmentId}/${user.id}: ${err?.message || err}`),
+      );
+    }
+
     return { success: true, data: rows[0] };
   }
 
-  async listSubmissions(user: any, assessmentId?: string) {
+  /**
+   * Background pass: AI-grades every subjective (short_answer/long_answer)
+   * question with a non-empty student answer, then merges the results into
+   * `grading_details`/`grading_status` — never into `results` directly, so a
+   * teacher must always review before a student sees any AI-suggested marks
+   * (enforced later in Phase 4's publish endpoint, not here).
+   *
+   * Re-fetches the current submission row before writing, so it never clobbers
+   * marks a teacher may have already entered manually while this was running.
+   */
+  private async runAiSubjectiveGrading(
+    assessmentId: string,
+    studentUserId: string,
+    questions: any[],
+    answers: Record<string, any>,
+    instituteId: string,
+  ): Promise<void> {
+    const toGrade = questions
+      .filter((q: any) => this.subjectiveTypes.has(q.type))
+      .map((q: any) => {
+        const rawAnswer = answers?.[q.id];
+        let answerText = '';
+        if (rawAnswer && typeof rawAnswer === 'object') {
+          answerText = String(rawAnswer.text || '').trim();
+        } else {
+          answerText = String(rawAnswer ?? '').trim();
+        }
+        return { question: q, answerText };
+      })
+      .filter((x) => x.answerText.length > 0);
+    if (!toGrade.length) return;
+
+    const board = await this.resolveBoard(instituteId);
+    const results = await Promise.allSettled(
+      toGrade.map(({ question, answerText }) =>
+        this.aiBridge
+          .gradeSubjectiveAnswer(
+            {
+              questionText: question.text,
+              maxMarks: Number(question.marks || 1),
+              studentAnswer: answerText,
+              criteria: question.rubric?.criteria,
+              keyConcepts: question.rubric?.keyConcepts,
+              modelAnswer: question.rubric?.modelAnswer || question.correctAnswer || undefined,
+            },
+            instituteId,
+            'school',
+            board,
+          )
+          .then((res) => ({ questionId: question.id, res })),
+      ),
+    );
+
+    const rows: any[] = await this.ds.query(
+      `SELECT grading_details, grading_status FROM assessment_submissions
+       WHERE assessment_id::text=$1::text AND student_user_id::text=$2::text`,
+      [assessmentId, studentUserId],
+    );
+    if (!rows.length) return;
+    const currentDetails: any[] = this.normalizeQuestions(rows[0].grading_details);
+    let anyGraded = false;
+
+    for (const settled of results) {
+      if (settled.status !== 'fulfilled') {
+        this.logger.warn(
+          `AI grading call failed for a question in ${assessmentId}/${studentUserId}: ${(settled as any).reason?.message || settled.reason}`,
+        );
+        continue;
+      }
+      const { questionId, res } = settled.value;
+      const entry = currentDetails.find((d: any) => d.questionId === questionId);
+      if (!entry || entry.status !== 'pending') continue; // a teacher may already be grading this one manually
+      entry.status = 'ai_graded';
+      entry.marks = res.totalAwarded;
+      entry.aiGrading = {
+        criteria: res.criteria,
+        strengths: res.strengths,
+        missingPoints: res.missingPoints,
+        suggestions: res.suggestions,
+        flagForReview: res.flagForReview,
+        reviewNote: res.reviewNote,
+        model: res._meta?.model,
+        gradedAt: new Date().toISOString(),
+      };
+      anyGraded = true;
+    }
+
+    if (!anyGraded) return;
+    const newStatus = rows[0].grading_status === 'objective_graded_pending_manual' ? 'ai_graded_pending_review' : rows[0].grading_status;
+    await this.ds.query(
+      `UPDATE assessment_submissions SET grading_details=$3::jsonb, grading_status=$4, updated_at=NOW()
+       WHERE assessment_id::text=$1::text AND student_user_id::text=$2::text`,
+      [assessmentId, studentUserId, JSON.stringify(currentDetails), newStatus],
+    );
+  }
+
+  /**
+   * Teacher-facing: AI-suggested marks + feedback for every subjective question, side by side with any prior review.
+   *
+   * `studentUserId` (not the submission row's own surrogate id) is the lookup key — the rest of this
+   * module already identifies a submission by student in the URL (e.g. the frontend's existing
+   * `assessments/:id/submissions/:studentId/review` route, and `UNIQUE (assessment_id, student_user_id)`
+   * on the table makes student_user_id a sufficient natural key on its own).
+   */
+  async getSubmissionForReview(user: any, assessmentId: string, studentUserId: string, req?: any) {
+    await this.checkAssessmentAccess(user, assessmentId);
+    const assessmentRows: any[] = await this.ds.query(
+      `SELECT questions_json FROM assessments WHERE id::text=$1::text`,
+      [assessmentId],
+    );
+    if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
+    const questions = this.normalizeQuestions(assessmentRows[0].questions_json);
+
+    const subRows: any[] = await this.ds.query(
+      `SELECT id, student_user_id, answers_json, grading_details, grading_status, objective_score, objective_total, file_path
+       FROM assessment_submissions WHERE student_user_id::text=$1::text AND assessment_id::text=$2::text`,
+      [studentUserId, assessmentId],
+    );
+    if (!subRows.length) throw new NotFoundException('Submission not found');
+    let submission = subRows[0];
+    let gradingDetails = this.normalizeQuestions(submission.grading_details);
+    const answers = typeof submission.answers_json === 'object' && submission.answers_json ? submission.answers_json : {};
+
+    let instituteId = user?.instituteId;
+    if (!instituteId) {
+      const studentRows = await this.ds.query(`SELECT institute_id FROM students WHERE user_id = $1 LIMIT 1`, [studentUserId]);
+      if (studentRows.length) {
+        instituteId = studentRows[0].institute_id;
+      }
+    }
+
+    // If any subjective questions are pending grading and AI grading is enabled, grade them on the fly!
+    const subjectivePending = questions.some((q: any) => {
+      if (!this.subjectiveTypes.has(q.type)) return false;
+      const detail = gradingDetails.find((d: any) => String(d.questionId) === String(q.id));
+      return detail && detail.status === 'pending';
+    });
+    const aiEnabled = user?.role === 'SUPER_ADMIN' || isSchoolAiFeatureEnabled(user, 'ai_subjective_grading');
+    if (subjectivePending && aiEnabled && instituteId) {
+      try {
+        await this.runAiSubjectiveGrading(assessmentId, studentUserId, questions, answers || {}, instituteId);
+        
+        // Re-fetch the updated submission!
+        const updatedSubRows = await this.ds.query(
+          `SELECT id, student_user_id, answers_json, grading_details, grading_status, objective_score, objective_total, file_path
+           FROM assessment_submissions WHERE student_user_id::text=$1::text AND assessment_id::text=$2::text`,
+          [studentUserId, assessmentId],
+        );
+        if (updatedSubRows.length) {
+          submission = updatedSubRows[0];
+          gradingDetails = this.normalizeQuestions(submission.grading_details);
+        }
+      } catch (err) {
+        this.logger.error(`Failed on-the-fly AI grading in getSubmissionForReview: ${err.message}`);
+      }
+    }
+
+    const fileUrl = await this.formatAccessibleUrl(submission.file_path, req);
+
+    const subjectiveQuestions = questions
+      .filter((q: any) => this.subjectiveTypes.has(q.type))
+      .map((q: any) => {
+        const detail = gradingDetails.find((d: any) => d.questionId === q.id) || {};
+        return {
+          questionId: q.id,
+          questionText: q.text,
+          maxMarks: Number(q.marks || 1),
+          studentAnswer: typeof answers?.[q.id] === 'object' && answers?.[q.id] !== null
+            ? answers?.[q.id].text ?? ''
+            : answers?.[q.id] ?? '',
+          studentAnswerImage: typeof answers?.[q.id] === 'object' && answers?.[q.id] !== null
+            ? answers?.[q.id].imageUrl ?? null
+            : null,
+          rubric: q.rubric || null,
+          status: detail.status || 'pending',
+          currentMarks: detail.marks ?? null,
+          aiGrading: detail.aiGrading || null,
+          teacherReview: detail.teacherReview || null,
+        };
+      });
+
+    return {
+      success: true,
+      data: {
+        submissionId: submission.id,
+        studentUserId: submission.student_user_id,
+        objectiveScore: submission.objective_score,
+        objectiveTotal: submission.objective_total,
+        gradingStatus: submission.grading_status,
+        fileUrl,
+        subjectiveQuestions,
+      },
+    };
+  }
+
+  /** Teacher-facing: approve/override marks for one or more subjective questions. Does not publish. */
+  async reviewSubjectiveGrading(user: any, assessmentId: string, studentUserId: string, body: any) {
+    await this.checkAssessmentAccess(user, assessmentId);
+    const updates: Array<{ questionId: string; finalMarks: number; reviewerNote?: string }> = body?.updates || [];
+    if (!updates.length) throw new BadRequestException('No updates provided');
+
+    const assessmentRows: any[] = await this.ds.query(
+      `SELECT questions_json FROM assessments WHERE id::text=$1::text`,
+      [assessmentId],
+    );
+    if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
+    const questions = this.normalizeQuestions(assessmentRows[0].questions_json);
+    const marksByQuestionId = new Map(questions.map((q: any) => [q.id, Number(q.marks || 1)]));
+
+    const subRows: any[] = await this.ds.query(
+      `SELECT grading_details FROM assessment_submissions WHERE student_user_id::text=$1::text AND assessment_id::text=$2::text`,
+      [studentUserId, assessmentId],
+    );
+    if (!subRows.length) throw new NotFoundException('Submission not found');
+    const gradingDetails = this.normalizeQuestions(subRows[0].grading_details);
+
+    for (const update of updates) {
+      const maxMarks = marksByQuestionId.get(update.questionId);
+      if (maxMarks === undefined) throw new BadRequestException(`Unknown question ${update.questionId}`);
+      const finalMarks = Number(update.finalMarks);
+      if (!Number.isFinite(finalMarks) || finalMarks < 0 || finalMarks > maxMarks) {
+        throw new BadRequestException(`finalMarks for ${update.questionId} must be between 0 and ${maxMarks}`);
+      }
+      const entry = gradingDetails.find((d: any) => d.questionId === update.questionId);
+      if (!entry) throw new BadRequestException(`No grading entry for question ${update.questionId}`);
+
+      const aiTotal = entry.aiGrading ? Number(entry.marks || 0) : null;
+      entry.marks = finalMarks;
+      entry.status = 'reviewed';
+      entry.teacherReview = {
+        status: aiTotal !== null && Math.abs(aiTotal - finalMarks) < 0.01 ? 'approved' : 'overridden',
+        finalMarks,
+        reviewerNote: update.reviewerNote || '',
+        reviewedBy: user?.id,
+        reviewedAt: new Date().toISOString(),
+      };
+    }
+
+    await this.ds.query(
+      `UPDATE assessment_submissions SET grading_details=$3::jsonb, updated_at=NOW()
+       WHERE student_user_id::text=$1::text AND assessment_id::text=$2::text`,
+      [studentUserId, assessmentId, JSON.stringify(gradingDetails)],
+    );
+
+    return { success: true, data: { updated: updates.length } };
+  }
+
+  /** Teacher-facing: finalize a submission's result once every subjective question has been reviewed. */
+  async publishGradedResult(user: any, assessmentId: string, studentUserId: string) {
+    await this.checkAssessmentAccess(user, assessmentId);
+    const assessmentRows: any[] = await this.ds.query(
+      `SELECT total_marks, questions_json FROM assessments WHERE id::text=$1::text`,
+      [assessmentId],
+    );
+    if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
+    const questions = this.normalizeQuestions(assessmentRows[0].questions_json);
+    const totalMarks = Number(assessmentRows[0].total_marks || 100);
+
+    const subRows: any[] = await this.ds.query(
+      `SELECT student_user_id, objective_score, grading_details FROM assessment_submissions
+       WHERE student_user_id::text=$1::text AND assessment_id::text=$2::text`,
+      [studentUserId, assessmentId],
+    );
+    if (!subRows.length) throw new NotFoundException('Submission not found');
+    const submission = subRows[0];
+    const gradingDetails = this.normalizeQuestions(submission.grading_details);
+
+    const subjectiveQuestionIds = new Set(
+      questions.filter((q: any) => this.subjectiveTypes.has(q.type)).map((q: any) => q.id),
+    );
+    const unreviewed = gradingDetails.filter((d: any) => subjectiveQuestionIds.has(d.questionId) && !d.teacherReview);
+    if (unreviewed.length) {
+      throw new BadRequestException('Review all questions before publishing');
+    }
+
+    const subjectiveMarks = gradingDetails
+      .filter((d: any) => subjectiveQuestionIds.has(d.questionId))
+      .reduce((sum: number, d: any) => sum + Number(d.teacherReview?.finalMarks || 0), 0);
+    const marksObtained = Math.round((Number(submission.objective_score || 0) + subjectiveMarks) * 100) / 100;
+    const percentOf = marksObtained / Math.max(totalMarks, 1);
+    const grade = percentOf >= 0.9 ? 'A+' : percentOf >= 0.75 ? 'A' : percentOf >= 0.6 ? 'B' : percentOf >= 0.4 ? 'C' : 'F';
+
+    await this.saveResult({
+      assessmentId,
+      studentId: submission.student_user_id,
+      totalMarks,
+      marksObtained,
+      grade,
+      remarks: 'Reviewed and published by teacher',
+    });
+
+    await this.ds.query(
+      `UPDATE assessment_submissions SET grading_status='reviewed_published', updated_at=NOW()
+       WHERE student_user_id::text=$1::text AND assessment_id::text=$2::text`,
+      [studentUserId, assessmentId],
+    );
+
+    return { success: true, data: { marksObtained, totalMarks, grade } };
+  }
+
+  async listSubmissions(user: any, assessmentId?: string, req?: any) {
     let reqUser = user;
     let targetId = assessmentId;
     if (typeof user === 'string' && !assessmentId) {
@@ -1485,6 +2093,11 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
        ORDER BY sub.submitted_at DESC`,
       [targetId],
     );
+
+    for (const row of rows) {
+      row.file_path = await this.formatAccessibleUrl(row.file_path, req);
+    }
+
     return { success: true, data: rows };
   }
 

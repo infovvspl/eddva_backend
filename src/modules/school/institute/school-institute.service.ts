@@ -384,6 +384,7 @@ export class SchoolInstituteService {
        ai_enabled=COALESCE($18::boolean,ai_enabled),
        ai_features=CASE WHEN $19::jsonb IS NOT NULL THEN COALESCE(ai_features,'{}'::jsonb) || $19::jsonb ELSE ai_features END,
        modules_permissions=CASE WHEN $20::jsonb IS NOT NULL THEN COALESCE(modules_permissions,'{}'::jsonb) || $20::jsonb ELSE modules_permissions END,
+       board=COALESCE($21,board),
        updated_at=NOW() WHERE id=$1`,
       [
         id,
@@ -406,6 +407,7 @@ export class SchoolInstituteService {
         aiEnabled !== undefined ? aiEnabled : null,
         aiFeatures !== undefined ? JSON.stringify(aiFeatures) : null,
         modulesPermissions !== undefined ? JSON.stringify(modulesPermissions) : null,
+        body.board || null,
       ],
     );
 

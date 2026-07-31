@@ -16,6 +16,16 @@ export class SchoolGamificationController {
     return this.gamification.startQuizRush((req as any).user, query);
   }
 
+  @Get('quiz-rush/next-question')
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  getNextQuizRushQuestion(
+    @Req() req: Request,
+    @Query('sessionId') sessionId: string,
+    @Query('currentIdx') currentIdx?: string,
+  ) {
+    return this.gamification.getNextQuizRushQuestion((req as any).user, sessionId, currentIdx);
+  }
+
   @Post('quiz-rush/submit')
   submitQuizRush(@Req() req: Request, @Body() body: any) {
     return this.gamification.submitQuizRush((req as any).user, body);
@@ -26,6 +36,7 @@ export class SchoolGamificationController {
     return this.gamification.leaderboard((req as any).user, 'quiz_rush');
   }
 
+
   @Get('treasure/maps')
   getTreasureMaps(@Req() req: Request) {
     return this.gamification.getTreasureMaps((req as any).user);
@@ -33,8 +44,13 @@ export class SchoolGamificationController {
 
   @Get('treasure/challenge')
   @SchoolFeature('ai', 'ai_game_quizzes')
-  getTreasureChallenge(@Req() req: Request, @Query('questId') questId: string, @Query('stageOrder') stageOrder?: string) {
-    return this.gamification.getTreasureChallenge((req as any).user, questId, Number(stageOrder || 1));
+  getTreasureChallenge(
+    @Req() req: Request,
+    @Query('questId') questId: string,
+    @Query('stageOrder') stageOrder?: string,
+    @Query('mode') mode?: string,
+  ) {
+    return this.gamification.getTreasureChallenge((req as any).user, questId, Number(stageOrder || 1), mode || 'ranked');
   }
 
   @Post('treasure/complete')
@@ -44,8 +60,18 @@ export class SchoolGamificationController {
 
   @Get('math-sprint/start')
   @SchoolFeature('ai', 'ai_game_quizzes')
-  startMathSprint(@Req() req: Request, @Query('difficulty') difficulty: string) {
-    return this.gamification.startMathSprint((req as any).user, difficulty || 'medium');
+  startMathSprint(@Req() req: Request, @Query('difficulty') difficulty: string, @Query('mode') mode?: string) {
+    return this.gamification.startMathSprint((req as any).user, difficulty || 'medium', mode || 'ranked');
+  }
+
+  @Get('math-sprint/next-question')
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  getNextMathSprintQuestion(
+    @Req() req: Request,
+    @Query('sessionId') sessionId: string,
+    @Query('currentIdx') currentIdx?: string,
+  ) {
+    return this.gamification.getNextMathSprintQuestion((req as any).user, sessionId, currentIdx);
   }
 
   @Post('math-sprint/submit')
@@ -65,8 +91,13 @@ export class SchoolGamificationController {
 
   @Get('memory-match/start')
   @SchoolFeature('ai', 'ai_game_quizzes')
-  startMemoryMatch(@Req() req: Request, @Query('deckId') deckId: string, @Query('difficulty') difficulty?: string) {
-    return this.gamification.startMemoryMatch((req as any).user, deckId, difficulty);
+  startMemoryMatch(
+    @Req() req: Request,
+    @Query('deckId') deckId: string,
+    @Query('difficulty') difficulty?: string,
+    @Query('mode') mode?: string,
+  ) {
+    return this.gamification.startMemoryMatch((req as any).user, deckId, difficulty, mode || 'ranked');
   }
 
   @Post('memory-match/submit')
@@ -86,8 +117,19 @@ export class SchoolGamificationController {
 
   @Get('word-master/start')
   @SchoolFeature('ai', 'ai_game_quizzes')
-  startWordMaster(@Req() req: Request, @Query('deckId') deckId: string, @Query('difficulty') difficulty?: string) {
-    return this.gamification.startWordMaster((req as any).user, deckId, difficulty);
+  startWordMaster(
+    @Req() req: Request,
+    @Query('deckId') deckId: string,
+    @Query('difficulty') difficulty?: string,
+    @Query('mode') mode?: string,
+  ) {
+    return this.gamification.startWordMaster((req as any).user, deckId, difficulty, mode || 'ranked');
+  }
+
+  @Post('word-master/submit-word')
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  submitWordMasterWord(@Req() req: Request, @Body() body: any) {
+    return this.gamification.submitWordMasterWord((req as any).user, body);
   }
 
   @Post('word-master/submit')
