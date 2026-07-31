@@ -88,6 +88,74 @@ export class GamificationService implements OnModuleInit {
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_session ON school_game_scores (session_id)`);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_metadata ON school_game_sessions USING GIN (metadata)`);
     await this.ds.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_composite ON school_game_skills (student_user_id, subject_id, COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000'::uuid), game_type)`);
+
+    // Cross-game question deduplication: tracks which question texts a student
+    // has already seen so the AI never repeats them in future sessions.
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS school_game_seen_questions (
+        id          bigserial PRIMARY KEY,
+        student_user_id uuid NOT NULL,
+        game_type   varchar(50) NOT NULL,
+        subject_id  uuid,
+        question_text text NOT NULL,
+        seen_at     timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_seen_q_lookup ON school_game_seen_questions (student_user_id, game_type, subject_id, seen_at)`);
+  }
+
+  /**
+   * Returns up to 60 recently seen question/term texts for a student+game+subject
+   * so the AI can be told not to repeat them. Looks back 60 days.
+   */
+  private async getSeenQuestions(userId: string, gameType: string, subjectId: string | null): Promise<string[]> {
+    try {
+      const rows = await this.ds.query(
+        `SELECT question_text FROM school_game_seen_questions
+         WHERE student_user_id = $1
+           AND game_type = $2
+           AND ($3::uuid IS NULL OR subject_id = $3::uuid)
+           AND seen_at > now() - interval '60 days'
+         ORDER BY seen_at DESC
+         LIMIT 60`,
+        [userId, gameType, subjectId || null],
+      );
+      return rows.map((r: any) => String(r.question_text));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Persists question/term texts a student just played through so future
+   * sessions can exclude them. Prunes entries older than 90 days on each write.
+   */
+  private async recordSeenQuestions(
+    userId: string,
+    gameType: string,
+    subjectId: string | null,
+    texts: string[],
+  ): Promise<void> {
+    const clean = texts.filter(t => t && t.trim().length > 2).slice(0, 30);
+    if (!clean.length) return;
+    try {
+      for (const text of clean) {
+        await this.ds.query(
+          `INSERT INTO school_game_seen_questions (student_user_id, game_type, subject_id, question_text)
+           VALUES ($1, $2, $3, $4)`,
+          [userId, gameType, subjectId || null, text.slice(0, 500)],
+        );
+      }
+      // Prune entries older than 90 days for this student + game
+      await this.ds.query(
+        `DELETE FROM school_game_seen_questions
+         WHERE student_user_id = $1 AND game_type = $2 AND seen_at < now() - interval '90 days'`,
+        [userId, gameType],
+      );
+    } catch (e: any) {
+      this.logger.warn(`recordSeenQuestions failed: ${e?.message}`);
+    }
+
   }
 
   async getOrCreateSkill(userId: string, subjectId: string, chapterId: string | null, gameType: string): Promise<number> {
@@ -371,7 +439,9 @@ export class GamificationService implements OnModuleInit {
     } else {
       difficulty = query.difficulty || 'medium';
     }
-    const questions = await this.generateMcqs(ctx, 5, difficulty, 'Quiz Rush');
+    const seenTexts = await this.getSeenQuestions(user.id, 'quiz_rush', ctx.subjectId);
+    const excludeObjs = seenTexts.map(t => ({ content: t }));
+    const questions = await this.generateMcqs(ctx, 5, difficulty, 'Quiz Rush', excludeObjs);
     const session = await this.createSession(user, ctx, 'quiz_rush', { questions, difficulty }, playMode);
     return { sessionId: session.id, questions: this.publicQuestions(questions.slice(0, 1)), difficulty };
   }
@@ -443,7 +513,11 @@ export class GamificationService implements OnModuleInit {
     
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : (result.score + (perfect ? 50 : 0)), xpEarned, coinsEarned, result);
-    
+
+    // Record seen questions so the next game gets fresh questions
+    const qrTexts = (answeredQuestions as any[]).map((q: any) => q.content || q.questionText || q.question || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'quiz_rush', session.subject_id, qrTexts);
+
     if (!cheatFlagged && session.play_mode === 'ranked') {
       const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
       await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'quiz_rush', accuracy);
@@ -492,7 +566,9 @@ export class GamificationService implements OnModuleInit {
     if (queryMode === 'ranked') {
       difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'treasure_hunt');
     }
-    const questions = await this.generateMcqs(ctx, 3, difficulty, `Treasure Hunt checkpoint ${safeStageOrder} application riddle`);
+    const seenTexts = await this.getSeenQuestions(user.id, 'treasure_hunt', ctx.subjectId);
+    const excludeObjs = seenTexts.map(t => ({ content: t }));
+    const questions = await this.generateMcqs(ctx, 3, difficulty, `Treasure Hunt checkpoint ${safeStageOrder} application riddle`, excludeObjs);
     const session = await this.createSession(user, ctx, 'treasure_hunt', { questions, questId: subjectId, stageOrder: safeStageOrder, difficulty }, queryMode);
     return { sessionId: session.id, questId: subjectId, stageOrder: safeStageOrder, questions: this.publicQuestions(questions), difficulty };
   }
@@ -523,7 +599,11 @@ export class GamificationService implements OnModuleInit {
     
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers, passed, stageOrder }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
-    
+
+    // Record seen questions for cross-game deduplication
+    const tqTexts = (session.metadata.questions as any[] || []).map((q: any) => q.content || q.questionText || q.question || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'treasure_hunt', session.subject_id, tqTexts);
+
     if (!cheatFlagged && session.play_mode === 'ranked') {
       const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
       await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'treasure_hunt', accuracy);
@@ -551,7 +631,8 @@ export class GamificationService implements OnModuleInit {
     } else {
       difficulty = (difficultyParam as any) || 'medium';
     }
-    const questions = await this.generateMathSprintQuestions(ctx, difficulty);
+    const seenTexts = await this.getSeenQuestions(user.id, 'math_sprint', ctx.subjectId);
+    const questions = await this.generateMathSprintQuestions(ctx, difficulty, seenTexts);
     const session = await this.createSession(user, ctx, 'math_sprint', { questions, difficulty }, queryMode);
     return { sessionId: session.id, questions: this.publicQuestions(questions.slice(0, 1)), difficulty };
   }
@@ -619,6 +700,10 @@ export class GamificationService implements OnModuleInit {
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : result.score, xpEarned, coinsEarned, result);
     
+    // Record seen questions for cross-game deduplication
+    const msTexts = (answeredQuestions as any[]).map((q: any) => q.content || q.questionText || q.question || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'math_sprint', session.subject_id, msTexts);
+
     if (!cheatFlagged && session.play_mode === 'ranked') {
       const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
       await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'math_sprint', accuracy);
@@ -654,7 +739,9 @@ export class GamificationService implements OnModuleInit {
       theme.prompt,
       'Generate paired terms and meanings that feel like clue cards, with concise matchable definitions.',
     ].join(' - ');
-    const pairs = await this.generateConceptPairs(ctx, 6, promptMode);
+    const seenTexts = await this.getSeenQuestions(user.id, 'memory_match', ctx.subjectId);
+    const excludeWords = seenTexts.map(t => ({ word: t }));
+    const pairs = await this.generateConceptPairs(ctx, 6, promptMode, difficulty, excludeWords);
     const cards = this.shuffle(pairs.flatMap((p: any) => {
       const matchId = randomUUID();
       return [
@@ -692,7 +779,11 @@ export class GamificationService implements OnModuleInit {
     const result = { totalQuestions: pairs, correctAnswers: pairs, maxStreak: pairs, timeTakenSeconds: timeTaken, questionsAttempted: pairs, turnsCount: turns, mismatchesCount: misses };
     await this.completeSession(session.id, xpEarned, coinsEarned, result, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
-    
+
+    // Record seen terms for cross-game deduplication
+    const mmTerms = (session.metadata.pairs as any[] || []).map((p: any) => p.term || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'memory_match', session.subject_id, mmTerms);
+
     if (!cheatFlagged && session.play_mode === 'ranked') {
       const maxTurns = pairs * 3;
       const accuracy = Math.max(10, Math.min(100, Math.round(((maxTurns - Math.min(turns, maxTurns)) / maxTurns) * 100)));
@@ -730,7 +821,9 @@ export class GamificationService implements OnModuleInit {
       this.wordMasterDifficultyPrompt(difficulty),
       'Choose surprising, student-friendly syllabus vocabulary that feels like a puzzle, but never put the answer word inside the clue.',
     ].join(' - ');
-    const pairs = await this.generateConceptPairs(ctx, 10, promptMode, difficulty);
+    const seenTexts = await this.getSeenQuestions(user.id, 'word_master', ctx.subjectId);
+    const excludeWords = seenTexts.map(t => ({ word: t }));
+    const pairs = await this.generateConceptPairs(ctx, 10, promptMode, difficulty, excludeWords);
     const words = pairs.map((pair: any) => {
       const word = this.toVocabularyWord(pair.term);
       const hint = this.sanitizeWordHint(pair.definition, pair.term, word);
@@ -854,6 +947,10 @@ export class GamificationService implements OnModuleInit {
     const result = { totalQuestions: totalQ, correctAnswers, maxStreak, wordsAttempted: totalQ, score: xpEarned };
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers, correctAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
+
+    // Record seen words for cross-game deduplication
+    const wmWords = (answeredWords as any[]).map((w: any) => w.word || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'word_master', session.subject_id, wmWords);
     
     if (!cheatFlagged && session.play_mode === 'ranked') {
       const accuracy = totalQ > 0 ? (correctAnswers / totalQ) * 100 : 0;
@@ -1000,8 +1097,11 @@ export class GamificationService implements OnModuleInit {
     return mapped;
   }
 
-  private async generateMathSprintQuestions(ctx: any, difficulty: string) {
+  private async generateMathSprintQuestions(ctx: any, difficulty: string, seenTexts: string[] = []) {
     try {
+      const notes = seenTexts.length > 0
+        ? `CRITICAL: Do NOT generate expressions identical to these already used: ${seenTexts.slice(0, 30).join(', ')}`
+        : undefined;
       const questions = await this.aiBridge.generateQuestionsFromTopic({
         topicId: ctx.chapterId || ctx.subjectId,
         topicName: [
@@ -1017,6 +1117,7 @@ export class GamificationService implements OnModuleInit {
         type: 'mcq_single',
         examTarget: 'cbse',
         subject: 'Mathematics',
+        notes,
       }, ctx.instituteId, 'school');
       const mapped = (questions || [])
         .map((q: any) => this.toGameQuestion(q))
