@@ -177,10 +177,22 @@ export class S3Service implements OnModuleInit {
 
   /** Extract the S3 object key from a public URL previously returned by toPublicUrl(). */
   keyFromUrl(publicUrl: string): string {
+    if (!publicUrl) return '';
+    const cleanUrl = publicUrl.split('?')[0];
+    const tenantsMatch = cleanUrl.match(/(tenants\/[^\s]+)/);
+    if (tenantsMatch) return tenantsMatch[1];
+
     const base = this.publicUrl
       ? this.publicUrl.replace(/\/$/, '')
       : `https://${this.bucket}.s3.${this.config.get<string>('storage.s3.region')}.amazonaws.com`;
-    return publicUrl.replace(`${base}/`, '');
+    let key = cleanUrl.replace(`${base}/`, '');
+    if (key.startsWith('http://') || key.startsWith('https://')) {
+      key = key.replace(/^https?:\/\/[^\/]+\//, '');
+      if (this.bucket && key.startsWith(`${this.bucket}/`)) {
+        key = key.slice(this.bucket.length + 1);
+      }
+    }
+    return key;
   }
 
   /** Whether an object exists at the given key (used for cache lookups). */
