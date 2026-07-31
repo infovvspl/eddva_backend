@@ -1641,7 +1641,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     let answerText = String(body.answerText || body.answer_text || body.notes || '').trim();
     const submittedAnswers = body.answersJson || body.answers_json || body.answers;
     let bodyAnswers: Record<string, any> | null = null;
-    if (submittedAnswers) {
+    if (submittedAnswers !== undefined && submittedAnswers !== null) {
       try {
         bodyAnswers = typeof submittedAnswers === 'string' ? JSON.parse(submittedAnswers || '{}') : submittedAnswers;
       } catch {
@@ -1654,7 +1654,8 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       filePath = s3Url || this.storedUploadPath(file);
     }
     const autoSubmit = body.autoSubmit === true || body.autoSubmit === 'true';
-    if (!answerText && !filePath && !bodyAnswers && !autoSubmit) {
+    const hasStructuredQuestions = Array.isArray(assessment?.questions_json) && assessment.questions_json.length > 0;
+    if (!answerText && !filePath && bodyAnswers === null && !autoSubmit && !hasStructuredQuestions) {
       throw new BadRequestException('Write an answer or upload a file');
     }
 
