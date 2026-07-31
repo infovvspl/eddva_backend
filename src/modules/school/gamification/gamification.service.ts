@@ -1079,20 +1079,65 @@ export class GamificationService implements OnModuleInit {
   }
 
   private toGameQuestion(q: any) {
-    const options = (q.options || []).slice(0, 4).map((o: any) => ({
-      id: randomUUID(),
-      optionLabel: o.label,
-      content: String(o.content || '').trim(),
-      isCorrect: Boolean(o.isCorrect),
-    }));
-    if (!options.some((o: any) => o.isCorrect) && options[0]) options[0].isCorrect = true;
+    const options = (q.options || []).slice(0, 4).map((o: any, idx: number) => {
+      const label = String.fromCharCode(65 + idx); // 'A', 'B', 'C', 'D'
+      let content = '';
+      let isCorrect = false;
+      let optionLabel = label;
+
+      if (o && typeof o === 'object') {
+        content = String(o.content || o.text || o.optionText || '').trim();
+        optionLabel = o.label || o.optionLabel || label;
+        isCorrect = Boolean(o.isCorrect);
+      } else {
+        content = String(o || '').trim();
+      }
+
+      // If isCorrect is not explicitly set, determine it via q.answer or q.correctOptions
+      if (!isCorrect) {
+        const correctAns = String(q.answer || '').trim().toUpperCase();
+        const correctOpts = Array.isArray(q.correctOptions)
+          ? q.correctOptions.map((x: any) => String(x).trim().toUpperCase())
+          : [];
+        isCorrect =
+          correctAns === optionLabel ||
+          correctAns === label ||
+          correctAns === content.toUpperCase() ||
+          correctOpts.includes(optionLabel) ||
+          correctOpts.includes(label);
+      }
+
+      return {
+        id: randomUUID(),
+        optionLabel,
+        content,
+        isCorrect,
+      };
+    });
+
+    // Ensure at least one option is correct
+    if (!options.some((o: any) => o.isCorrect) && options.length > 0) {
+      const ansText = String(q.answer || '').trim().toUpperCase();
+      let matched = false;
+      for (const opt of options) {
+        if (ansText && (opt.content.toUpperCase().includes(ansText) || ansText.includes(opt.content.toUpperCase()))) {
+          opt.isCorrect = true;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched && options[0]) {
+        options[0].isCorrect = true;
+      }
+    }
+
     return {
       id: randomUUID(),
-      content: String(q.content || q.questionText || '').trim(),
+      content: String(q.content || q.questionText || q.question || '').trim(),
       contentImageUrl: null,
       type: 'mcq_single',
       difficulty: 'medium',
-      explanation: q.explanation || q.solutionText || '',
+      explanation: q.explanation || q.solutionText || q.solution || '',
       options,
     };
   }
@@ -1104,7 +1149,12 @@ export class GamificationService implements OnModuleInit {
     const normalizedExpression = expression.replace(/\s+/g, ' ');
     const correctAnswer = this.evaluateExpression(normalizedExpression);
     const numericOptions = (q.options || [])
-      .map((o: any) => ({ ...o, content: this.extractNumericAnswer(o.content) }))
+      .map((o: any) => {
+        const optionVal = o && typeof o === 'object' ? o.content : o;
+        return {
+          content: this.extractNumericAnswer(optionVal)
+        };
+      })
       .filter((o: any) => o.content !== null);
     if (numericOptions.length < 4) return null;
 
