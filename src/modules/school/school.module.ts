@@ -32,6 +32,7 @@ import { SchoolCalendarModule } from './calendar/school-calendar.module';
 import { CareerModule } from './career/career.module';
 import { SchoolStudyPlanModule } from './study-plan/school-study-plan.module';
 import { SchoolPptModule } from './ppt/school-ppt.module';
+import { SchoolTextbookModule } from './textbook/school-textbook.module';
 import { SchoolLiveModule } from './live/school-live.module';
 import { SchoolJwtGuard } from './guards/school-jwt.guard';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
@@ -75,6 +76,7 @@ import { SchoolNotificationFcmModule } from './notification-fcm/school-notificat
     CareerModule,
     SchoolStudyPlanModule,
     SchoolPptModule,
+    SchoolTextbookModule,
     SchoolLiveModule,
     SchoolGamificationModule,
     SchoolSecurityModule,

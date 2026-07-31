@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolTextbookService } from '../textbook/school-textbook.service';
 const AdmZip = require('adm-zip');
 
 /** Keep in step with _MAX_SLIDES in the AI service's ppt.py. */
@@ -20,6 +21,7 @@ export class SchoolPptService {
   constructor(
     private readonly aiBridge: AiBridgeService,
     @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly textbooks: SchoolTextbookService,
   ) {}
 
   /**
@@ -198,16 +200,43 @@ export class SchoolPptService {
     const ctx = await this.resolveCurriculumContext(body, user);
     const board = await this.resolveBoard(instituteId);
 
-    return this.aiBridge.generatePpt(
+    // If this chapter's textbook has been indexed, the deck is written from the
+    // book itself. Otherwise generation proceeds from general knowledge, and the
+    // response says so, so the two are never presented as the same thing.
+    const chapterId = body?.chapterId || (await this.chapterIdForTopic(body?.topicId));
+    const sourcePassages = await this.textbooks.getChapterPassages(instituteId!, chapterId);
+
+    const result = await this.aiBridge.generatePpt(
       {
         topic,
         slideCount: Math.max(3, Math.min(MAX_SLIDES, Number(slideCount) || 5)),
         language,
         ...ctx,
+        ...(sourcePassages.length ? { sourcePassages } : {}),
       },
       instituteId,
       board,
     );
+
+    const data: any = result?.data ?? {};
+    if (!data.source) {
+      data.source = { grounded: false, reason: sourcePassages.length ? 'unavailable' : 'not_indexed' };
+    }
+    return result;
+  }
+
+  /** A topic knows its chapter; grounding is always at chapter granularity. */
+  private async chapterIdForTopic(topicId?: string): Promise<string | null> {
+    if (!topicId) return null;
+    try {
+      const rows = await this.ds.query(
+        `SELECT chapter_id FROM topics WHERE id::text = $1::text LIMIT 1`,
+        [topicId],
+      );
+      return rows[0]?.chapter_id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   async regenerateSlide(body: any, instituteId?: string, user?: any) {

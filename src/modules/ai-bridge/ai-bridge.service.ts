@@ -1543,10 +1543,11 @@ export class AiBridgeService {
       subjectName?: string;
       chapterName?: string;
       topicName?: string;
+      sourcePassages?: any[];
     },
     tenantId?: string,
     board?: string,
-  ): Promise<{ success: boolean; data: { title: string; slides: any[] } }> {
+  ): Promise<{ success: boolean; data: { title: string; slides: any[]; source?: any } }> {
     return this.post('/ppt/generate', dto, tenantId, 240_000, 'school', board);
   }
 
@@ -1565,6 +1566,16 @@ export class AiBridgeService {
     board?: string,
   ): Promise<{ success: boolean; data: any }> {
     return this.post('/ppt/regenerate-slide', dto, tenantId, 120_000, 'school', board);
+  }
+
+  /** Read a chapter PDF into page-tagged passages (scans are transcribed there). */
+  async ingestTextbook(
+    dto: { fileUrl: string; allowOcr?: boolean },
+    tenantId?: string,
+  ): Promise<{ success: boolean; data: any }> {
+    // A scanned chapter goes through a vision pass page by page, so this is far
+    // slower than a normal bridge call.
+    return this.post('/textbook/ingest', dto, tenantId, 300_000, 'school');
   }
 
   async searchPptImage(
