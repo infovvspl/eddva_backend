@@ -313,8 +313,11 @@ async function bootstrap() {
     await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_users_institute ON users (institute_id)`);
     await schoolDs.query(`CREATE INDEX IF NOT EXISTS idx_school_institutes_status ON institutes (status)`);
     await schoolDs.query(`ALTER TABLE institutes ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
-    await schoolDs.query(`ALTER TABLE institutes ADD COLUMN IF NOT EXISTS ai_features JSONB NOT NULL DEFAULT '{"ai_doubt_solver":true,"ai_notes_generator":true,"ai_quiz_generator":true,"ai_study_planner":true,"ai_career_guidance":true}'`);
-    await schoolDs.query(`UPDATE institutes SET ai_features = '{"ai_doubt_solver":true,"ai_notes_generator":true,"ai_quiz_generator":true,"ai_study_planner":true,"ai_career_guidance":true}'::jsonb WHERE ai_features = '[]'::jsonb OR ai_features = '{}'::jsonb`);
+    await schoolDs.query(`ALTER TABLE institutes ADD COLUMN IF NOT EXISTS ai_features JSONB NOT NULL DEFAULT '{"ai_doubt_solver":true,"ai_notes_generator":true,"ai_quiz_generator":true,"ai_study_planner":true,"ai_career_guidance":true,"ai_ocr_handwriting":true,"ai_subjective_grading":true}'`);
+    await schoolDs.query(`UPDATE institutes SET ai_features = '{"ai_doubt_solver":true,"ai_notes_generator":true,"ai_quiz_generator":true,"ai_study_planner":true,"ai_career_guidance":true,"ai_ocr_handwriting":true,"ai_subjective_grading":true}'::jsonb WHERE ai_features = '[]'::jsonb OR ai_features = '{}'::jsonb`);
+    // Ensure all existing institutes have these OCR features merged in, and ensure AI is active (ai_enabled=true) for development/sandbox
+    await schoolDs.query(`UPDATE institutes SET ai_enabled = true`);
+    await schoolDs.query(`UPDATE institutes SET ai_features = ai_features || '{"ai_ocr_handwriting":true,"ai_subjective_grading":true}'::jsonb`);
     await schoolDs.query(`ALTER TABLE institutes ADD COLUMN IF NOT EXISTS modules_permissions JSONB NOT NULL DEFAULT '{"live_classes":true,"assessments":true,"assignments":true,"chat":true}'`);
     await schoolDs.query(`UPDATE institutes SET modules_permissions = '{"live_classes":true,"assessments":true,"assignments":true,"chat":true}'::jsonb WHERE modules_permissions = '{}'::jsonb OR modules_permissions IS NULL`);
     logger.log('School DB indexes + institute columns ensured');

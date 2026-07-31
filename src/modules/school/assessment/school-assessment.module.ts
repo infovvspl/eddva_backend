@@ -4,9 +4,10 @@ import { SchoolAssessmentController } from './school-assessment.controller';
 import { SchoolNotificationModule } from '../notification/school-notification.module';
 import { AiBridgeModule } from '../../ai-bridge/ai-bridge.module';
 import { SchoolNotificationFcmModule } from '../notification-fcm/school-notification-fcm.module';
+import { UploadModule } from '../../upload/upload.module';
 
 @Module({
-  imports: [SchoolNotificationModule, AiBridgeModule, SchoolNotificationFcmModule],
+  imports: [SchoolNotificationModule, AiBridgeModule, SchoolNotificationFcmModule, UploadModule],
   controllers: [SchoolAssessmentController],
   providers: [SchoolAssessmentService]
 })

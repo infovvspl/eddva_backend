@@ -11,6 +11,7 @@ import {
   SCHOOL_NOTIFICATION_TEMPLATES,
   fillTemplate,
 } from '../notification-fcm/school-notification-templates';
+import { S3Service } from '../../upload/s3.service';
 
 @Injectable()
 export class SchoolAssessmentService {
@@ -24,6 +25,7 @@ export class SchoolAssessmentService {
     private readonly notificationService: SchoolNotificationService,
     private readonly aiBridge: AiBridgeService,
     private readonly fcm: FcmService,
+    private readonly s3Service: S3Service,
   ) { }
 
   private storedUploadPath(file?: Express.Multer.File | null) {
@@ -1514,6 +1516,44 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
    * Never throws — a submission must still save even if OCR fails or is
    * unavailable, just without transcribed text.
    */
+  private getRequestHost(req: any): string {
+    if (process.env.APP_URL) return process.env.APP_URL;
+    if (!req) return '';
+    const forwardedHost = req.headers?.['x-forwarded-host'];
+    const forwardedProto = req.headers?.['x-forwarded-proto'] || 'https';
+    let host = forwardedHost ? `${forwardedProto}://${forwardedHost}` : `${req.protocol}://${req.get('host')}`;
+    if (req.headers?.['origin'] && (host.includes('127.0.0.1') || host.includes('localhost'))) {
+      const origin = String(req.headers['origin']);
+      if (origin.includes('dev.eddva.in')) {
+        host = 'https://dev-api.eddva.in';
+      } else if (origin.includes('eddva.in')) {
+        host = 'https://api.eddva.in';
+      }
+    }
+    return host;
+  }
+
+  private async uploadToS3IfConfigured(file: Express.Multer.File, user: any): Promise<string | null> {
+    if (!file) return null;
+    try {
+      const fs = require('fs');
+      const fileBuffer = fs.readFileSync(file.path);
+      const instituteId = user?.instituteId || 'default';
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || 'image.jpeg';
+      const key = `tenants/${instituteId}/school-assessments/${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
+      
+      const fileUrl = await this.s3Service.upload(key, fileBuffer, file.mimetype || 'image/jpeg');
+      
+      // Clean up temp file
+      fs.unlink(file.path, () => {});
+      
+      return fileUrl;
+    } catch (err) {
+      this.logger.error(`Failed to upload assessment image to S3/R2: ${err.message}`);
+      return null;
+    }
+  }
+
   private async ocrHandwrittenSubmission(
     user: any,
     filePath: string | null,
@@ -1527,10 +1567,27 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       return { answerText, answers };
     }
     try {
-      const host = process.env.APP_URL || (req ? `${req.protocol}://${req.get('host')}` : '');
-      if (!host) return { answerText, answers };
-      const imageUrl = `${host}/${filePath}`;
-      const ocr = await this.aiBridge.extractImageText({ imageUrl, purpose: 'grading', language }, user?.instituteId);
+      let imageUrl = filePath;
+      if (imageUrl && !imageUrl.startsWith('http')) {
+        const host = this.getRequestHost(req);
+        if (!host) return { answerText, answers };
+        imageUrl = `${host}/${filePath}`;
+      }
+
+      // Presign the image URL if it's from our S3/R2 bucket
+      let ocrImageUrl = imageUrl;
+      if (ocrImageUrl && ocrImageUrl.startsWith('http')) {
+        try {
+          const key = this.s3Service.keyFromUrl(ocrImageUrl);
+          if (key?.startsWith('tenants/')) {
+            ocrImageUrl = await this.s3Service.presignGet(key, 3600);
+          }
+        } catch (err) {
+          this.logger.warn(`Failed to presign assessment image URL for AI: ${err.message}`);
+        }
+      }
+
+      const ocr = await this.aiBridge.extractImageText({ imageUrl: ocrImageUrl, purpose: 'grading', language }, user?.instituteId);
       const ocrText = String(ocr?.text || '').trim();
       if (!ocrText) return { answerText, answers };
 
@@ -1560,16 +1617,33 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
-    const filePath = this.storedUploadPath(file);
-    if (!filePath) {
-      throw new BadRequestException('Failed to process file upload');
+
+    let imageUrl = await this.uploadToS3IfConfigured(file, user);
+    if (!imageUrl) {
+      const filePath = this.storedUploadPath(file);
+      if (!filePath) {
+        throw new BadRequestException('Failed to process file upload');
+      }
+      const host = this.getRequestHost(req);
+      imageUrl = host ? `${host}/${filePath}` : filePath;
     }
-    const host = process.env.APP_URL || (req ? `${req.protocol}://${req.get('host')}` : '');
-    const imageUrl = host ? `${host}/${filePath}` : filePath;
+
     const language = req?.body?.language || req?.query?.language || '';
 
+    let ocrImageUrl = imageUrl;
+    if (ocrImageUrl && ocrImageUrl.startsWith('http')) {
+      try {
+        const key = this.s3Service.keyFromUrl(ocrImageUrl);
+        if (key?.startsWith('tenants/')) {
+          ocrImageUrl = await this.s3Service.presignGet(key, 3600);
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to presign assessment image URL for AI: ${err.message}`);
+      }
+    }
+
     try {
-      const ocr = await this.aiBridge.extractImageText({ imageUrl, purpose: 'grading', language }, user?.instituteId);
+      const ocr = await this.aiBridge.extractImageText({ imageUrl: ocrImageUrl, purpose: 'grading', language }, user?.instituteId);
       return {
         success: true,
         text: String(ocr?.text || '').trim(),
@@ -1600,7 +1674,11 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         throw new BadRequestException('Invalid answer format');
       }
     }
-    const filePath = this.storedUploadPath(file) || body.filePath || body.file_path || null;
+    let filePath = body.filePath || body.file_path || null;
+    if (file) {
+      const s3Url = await this.uploadToS3IfConfigured(file, user);
+      filePath = s3Url || this.storedUploadPath(file);
+    }
     const autoSubmit = body.autoSubmit === true || body.autoSubmit === 'true';
     if (!answerText && !filePath && !bodyAnswers && !autoSubmit) {
       throw new BadRequestException('Write an answer or upload a file');
@@ -1681,7 +1759,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     // submit response (an LLM call per subjective question can take a few seconds
     // each, and many students may submit near a deadline at once).
     if (grading?.writtenPending && isSchoolAiFeatureEnabled(user, 'ai_subjective_grading')) {
-      void this.runAiSubjectiveGrading(assessmentId, user.id, questions, answers || {}, user).catch((err) =>
+      void this.runAiSubjectiveGrading(assessmentId, user.id, questions, answers || {}, user.instituteId).catch((err) =>
         this.logger.error(`AI subjective grading failed for ${assessmentId}/${user.id}: ${err?.message || err}`),
       );
     }
@@ -1704,7 +1782,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     studentUserId: string,
     questions: any[],
     answers: Record<string, any>,
-    user: any,
+    instituteId: string,
   ): Promise<void> {
     const toGrade = questions
       .filter((q: any) => this.subjectiveTypes.has(q.type))
@@ -1721,7 +1799,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       .filter((x) => x.answerText.length > 0);
     if (!toGrade.length) return;
 
-    const board = await this.resolveBoard(user?.instituteId);
+    const board = await this.resolveBoard(instituteId);
     const results = await Promise.allSettled(
       toGrade.map(({ question, answerText }) =>
         this.aiBridge
@@ -1734,7 +1812,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
               keyConcepts: question.rubric?.keyConcepts,
               modelAnswer: question.rubric?.modelAnswer || question.correctAnswer || undefined,
             },
-            user?.instituteId,
+            instituteId,
             'school',
             board,
           )
@@ -1793,7 +1871,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
    * `assessments/:id/submissions/:studentId/review` route, and `UNIQUE (assessment_id, student_user_id)`
    * on the table makes student_user_id a sufficient natural key on its own).
    */
-  async getSubmissionForReview(user: any, assessmentId: string, studentUserId: string) {
+  async getSubmissionForReview(user: any, assessmentId: string, studentUserId: string, req?: any) {
     await this.checkAssessmentAccess(user, assessmentId);
     const assessmentRows: any[] = await this.ds.query(
       `SELECT questions_json FROM assessments WHERE id::text=$1::text`,
@@ -1803,14 +1881,63 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const questions = this.normalizeQuestions(assessmentRows[0].questions_json);
 
     const subRows: any[] = await this.ds.query(
-      `SELECT id, student_user_id, answers_json, grading_details, grading_status, objective_score, objective_total
+      `SELECT id, student_user_id, answers_json, grading_details, grading_status, objective_score, objective_total, file_path
        FROM assessment_submissions WHERE student_user_id::text=$1::text AND assessment_id::text=$2::text`,
       [studentUserId, assessmentId],
     );
     if (!subRows.length) throw new NotFoundException('Submission not found');
-    const submission = subRows[0];
-    const gradingDetails = this.normalizeQuestions(submission.grading_details);
+    let submission = subRows[0];
+    let gradingDetails = this.normalizeQuestions(submission.grading_details);
     const answers = typeof submission.answers_json === 'object' && submission.answers_json ? submission.answers_json : {};
+
+    let instituteId = user?.instituteId;
+    if (!instituteId) {
+      const studentRows = await this.ds.query(`SELECT institute_id FROM students WHERE user_id = $1 LIMIT 1`, [studentUserId]);
+      if (studentRows.length) {
+        instituteId = studentRows[0].institute_id;
+      }
+    }
+
+    // If any subjective questions are pending grading and AI grading is enabled, grade them on the fly!
+    const subjectivePending = questions.some((q: any) => {
+      if (!this.subjectiveTypes.has(q.type)) return false;
+      const detail = gradingDetails.find((d: any) => String(d.questionId) === String(q.id));
+      return detail && detail.status === 'pending';
+    });
+    const aiEnabled = user?.role === 'SUPER_ADMIN' || isSchoolAiFeatureEnabled(user, 'ai_subjective_grading');
+    if (subjectivePending && aiEnabled && instituteId) {
+      try {
+        await this.runAiSubjectiveGrading(assessmentId, studentUserId, questions, answers || {}, instituteId);
+        
+        // Re-fetch the updated submission!
+        const updatedSubRows = await this.ds.query(
+          `SELECT id, student_user_id, answers_json, grading_details, grading_status, objective_score, objective_total, file_path
+           FROM assessment_submissions WHERE student_user_id::text=$1::text AND assessment_id::text=$2::text`,
+          [studentUserId, assessmentId],
+        );
+        if (updatedSubRows.length) {
+          submission = updatedSubRows[0];
+          gradingDetails = this.normalizeQuestions(submission.grading_details);
+        }
+      } catch (err) {
+        this.logger.error(`Failed on-the-fly AI grading in getSubmissionForReview: ${err.message}`);
+      }
+    }
+
+    let fileUrl = submission.file_path || null;
+    if (fileUrl && fileUrl.startsWith('http')) {
+      try {
+        const key = this.s3Service.keyFromUrl(fileUrl);
+        if (key?.startsWith('tenants/')) {
+          fileUrl = await this.s3Service.presignGet(key, 3600);
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to presign submission file url: ${err.message}`);
+      }
+    } else if (fileUrl && !fileUrl.startsWith('http')) {
+      const host = this.getRequestHost(req);
+      if (host) fileUrl = `${host}/${fileUrl}`;
+    }
 
     const subjectiveQuestions = questions
       .filter((q: any) => this.subjectiveTypes.has(q.type))
@@ -1842,6 +1969,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         objectiveScore: submission.objective_score,
         objectiveTotal: submission.objective_total,
         gradingStatus: submission.grading_status,
+        fileUrl,
         subjectiveQuestions,
       },
     };
@@ -1952,7 +2080,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     return { success: true, data: { marksObtained, totalMarks, grade } };
   }
 
-  async listSubmissions(user: any, assessmentId?: string) {
+  async listSubmissions(user: any, assessmentId?: string, req?: any) {
     let reqUser = user;
     let targetId = assessmentId;
     if (typeof user === 'string' && !assessmentId) {
@@ -1978,6 +2106,21 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
        ORDER BY sub.submitted_at DESC`,
       [targetId],
     );
+
+    for (const row of rows) {
+      if (row.file_path && row.file_path.startsWith('http')) {
+        try {
+          const key = this.s3Service.keyFromUrl(row.file_path);
+          if (key?.startsWith('tenants/')) {
+            row.file_path = await this.s3Service.presignGet(key, 3600);
+          }
+        } catch { /* ignore */ }
+      } else if (row.file_path) {
+        const host = this.getRequestHost(req);
+        if (host) row.file_path = `${host}/${row.file_path}`;
+      }
+    }
+
     return { success: true, data: rows };
   }
 
