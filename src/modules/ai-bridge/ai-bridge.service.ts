@@ -182,12 +182,13 @@ export class AiBridgeService {
   ) {
     const lang = (payload.language || '').toLowerCase();
     const isEnglish = !lang || lang === 'english' || lang === 'en';
+    const subj = String(payload?.studentContext?.subject || '').toLowerCase();
+    const isMathSubject = subj.includes('math') || subj.includes('physic') || subj.includes('algebra') || subj.includes('calculus') || subj.includes('chem');
+    const shouldAddMathHint = isEnglish && isMathSubject;
+
     return this.post('/doubt/resolve', {
       ...payload,
-      // Only append the English math-formatting hint for English questions.
-      // Regional-language questions (Odia, Hindi) must not get this suffix because
-      // it confuses the Python subject classifier and strips the language signal.
-      questionText: isEnglish
+      questionText: shouldAddMathHint
         ? this.withMathDerivationStyleHint(payload.questionText)
         : payload.questionText,
     }, tenantId, undefined, vertical);
