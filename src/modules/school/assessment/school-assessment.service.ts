@@ -1600,6 +1600,20 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       throw new BadRequestException('No file uploaded');
     }
 
+    const language = req?.body?.language || req?.query?.language || '';
+    const aiOcrEnabled = user?.role === 'SUPER_ADMIN' || user?.inst_ai_enabled !== false || isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting');
+
+    // Read file buffer FIRST (before R2 upload which deletes the disk file)
+    // so we can send a base64 data URI directly to the AI service.
+    let fileBuffer: Buffer | null = null;
+    try {
+      const fs = require('fs') as typeof import('fs');
+      fileBuffer = file.buffer ?? (file.path ? fs.readFileSync(file.path) : null);
+    } catch (e: any) {
+      this.logger.warn(`OCR: failed to read file buffer: ${e?.message}`);
+    }
+
+    // Upload to R2/S3 for persistent storage (this also deletes the temp disk file)
     let rawUrl = await this.uploadToS3IfConfigured(file, user);
     if (!rawUrl) {
       const filePath = this.storedUploadPath(file);
@@ -1609,11 +1623,8 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       const host = this.getRequestHost(req);
       rawUrl = host ? `${host}/${filePath.replace(/^\/+/, '')}` : filePath;
     }
-
-    const language = req?.body?.language || req?.query?.language || '';
     const ocrImageUrl = (await this.formatAccessibleUrl(rawUrl, req)) || rawUrl;
 
-    const aiOcrEnabled = user?.role === 'SUPER_ADMIN' || user?.inst_ai_enabled !== false || isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting');
     if (!aiOcrEnabled) {
       return {
         success: false,
@@ -1623,15 +1634,28 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       };
     }
 
+    // Prefer base64 data URI so the AI service never needs to make an
+    // outbound HTTP fetch (which fails when uploads/ isn't publicly served
+    // or R2 objects are private on staging/production).
+    let imagePayload: string;
+    if (fileBuffer && fileBuffer.length > 0) {
+      const mime = file.mimetype || 'image/jpeg';
+      imagePayload = `data:${mime};base64,${fileBuffer.toString('base64')}`;
+      this.logger.log(`OCR: sending base64 data URI (${fileBuffer.length} bytes) to AI vision`);
+    } else {
+      imagePayload = ocrImageUrl;
+      this.logger.warn(`OCR: file buffer unavailable, falling back to URL: ${ocrImageUrl}`);
+    }
+
     try {
-      const ocr = await this.aiBridge.extractImageText({ imageUrl: ocrImageUrl, purpose: 'grading', language }, user?.instituteId);
+      const ocr = await this.aiBridge.extractImageText({ imageUrl: imagePayload, purpose: 'grading', language }, user?.instituteId);
       return {
         success: true,
         text: String(ocr?.text || '').trim(),
         imageUrl: ocrImageUrl,
       };
     } catch (err: any) {
-      this.logger.warn(`OCR transcription failed for single question: ${err?.message || err}`);
+      this.logger.warn(`OCR transcription failed: ${err?.message || err}`);
       return {
         success: false,
         text: '',
