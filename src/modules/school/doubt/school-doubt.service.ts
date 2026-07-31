@@ -32,6 +32,20 @@ export class SchoolDoubtService implements OnModuleInit {
    * so the answer is framed for a school student. Returns a plain-text answer
    * plus extracted step list for the school doubt UI.
    */
+  private async toAccessibleImageUrl(imageUrl?: string): Promise<string | undefined> {
+    const raw = String(imageUrl || '').trim();
+    if (!raw) return undefined;
+    try {
+      const key = this.s3Service.keyFromUrl(raw);
+      if (key?.startsWith('tenants/')) {
+        return await this.s3Service.presignGet(key, 3600);
+      }
+      return raw;
+    } catch {
+      return raw;
+    }
+  }
+
   private async resolveWithAi(
     questionText: string,
     questionImageUrl: string | null | undefined,
@@ -40,12 +54,13 @@ export class SchoolDoubtService implements OnModuleInit {
     mode: 'short' | 'detailed' = 'detailed',
     language?: string,
   ): Promise<{ answer: string; steps: string[]; raw: any }> {
+    const aiImageUrl = await this.toAccessibleImageUrl(questionImageUrl || undefined);
     const aiResult: any = await this.aiBridgeService.resolveDoubt(
       {
         questionText:
           (questionText || '').trim() ||
-          (questionImageUrl ? 'Explain and solve the question shown in the attached image.' : ''),
-        questionImageUrl: questionImageUrl || undefined,
+          (aiImageUrl ? 'Explain and solve the question shown in the attached image.' : ''),
+        questionImageUrl: aiImageUrl || undefined,
         mode,
         studentContext: { subject: subjectName || undefined, level: 'school' },
         language,

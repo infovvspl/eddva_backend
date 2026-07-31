@@ -62,17 +62,22 @@ export class SchoolAssessmentController {
   submit(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any, @Req() req: any, @UploadedFile() file?: Express.Multer.File) {
     return this.svc.submitAssessment(user, id, body, file, req);
   }
+  @Post('ocr')
+  @UseInterceptors(FileInterceptor('file', { storage: uploadStorage }))
+  ocrQuestionImage(@SchoolUser() user: any, @UploadedFile() file: Express.Multer.File, @Req() req: any) {
+    return this.svc.ocrQuestionImage(user, file, req);
+  }
   @Get(':id/submissions')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  listSubmissions(@SchoolUser() user: any, @Param('id') id: string) {
-    return this.svc.listSubmissions(user, id);
+  listSubmissions(@SchoolUser() user: any, @Param('id') id: string, @Req() req: any) {
+    return this.svc.listSubmissions(user, id, req);
   }
   @Get(':id') findOne(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.findOne(user, id); }
 
   @Get(':id/submissions/:studentId/review')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  getSubmissionForReview(@SchoolUser() user: any, @Param('id') id: string, @Param('studentId') studentId: string) {
-    return this.svc.getSubmissionForReview(user, id, studentId);
+  getSubmissionForReview(@SchoolUser() user: any, @Param('id') id: string, @Param('studentId') studentId: string, @Req() req: any) {
+    return this.svc.getSubmissionForReview(user, id, studentId, req);
   }
 
   @Put(':id/submissions/:studentId/review')

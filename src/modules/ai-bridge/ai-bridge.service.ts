@@ -198,7 +198,7 @@ export class AiBridgeService {
    *                `doubt` = richer extraction for doubt flows (default).
    */
   async extractImageText(
-    payload: { imageUrl: string; purpose?: 'doubt' | 'grading' },
+    payload: { imageUrl: string; purpose?: 'doubt' | 'grading'; language?: string },
     tenantId?: string,
   ): Promise<{ text: string }> {
     return this.post('/doubt/ocr-image', payload, tenantId, 120_000);
