@@ -1613,7 +1613,8 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const language = req?.body?.language || req?.query?.language || '';
     const ocrImageUrl = (await this.formatAccessibleUrl(rawUrl, req)) || rawUrl;
 
-    if (!isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting')) {
+    const aiOcrEnabled = user?.role === 'SUPER_ADMIN' || user?.inst_ai_enabled !== false || isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting');
+    if (!aiOcrEnabled) {
       return {
         success: false,
         text: '',
