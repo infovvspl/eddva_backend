@@ -1521,6 +1521,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     answerText: string,
     answers: Record<string, any>,
     questions: any[],
+    language?: string,
   ): Promise<{ answerText: string; answers: Record<string, any> }> {
     if (!this.isImageFilePath(filePath) || !isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting')) {
       return { answerText, answers };
@@ -1529,7 +1530,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       const host = process.env.APP_URL || (req ? `${req.protocol}://${req.get('host')}` : '');
       if (!host) return { answerText, answers };
       const imageUrl = `${host}/${filePath}`;
-      const ocr = await this.aiBridge.extractImageText({ imageUrl, purpose: 'grading' }, user?.instituteId);
+      const ocr = await this.aiBridge.extractImageText({ imageUrl, purpose: 'grading', language }, user?.instituteId);
       const ocrText = String(ocr?.text || '').trim();
       if (!ocrText) return { answerText, answers };
 
@@ -1565,9 +1566,10 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     }
     const host = process.env.APP_URL || (req ? `${req.protocol}://${req.get('host')}` : '');
     const imageUrl = host ? `${host}/${filePath}` : filePath;
+    const language = req?.body?.language || req?.query?.language || '';
 
     try {
-      const ocr = await this.aiBridge.extractImageText({ imageUrl, purpose: 'grading' }, user?.instituteId);
+      const ocr = await this.aiBridge.extractImageText({ imageUrl, purpose: 'grading', language }, user?.instituteId);
       return {
         success: true,
         text: String(ocr?.text || '').trim(),
@@ -1584,7 +1586,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     await this.ensureAssessmentContentColumns();
     await this.ensureAssessmentSubmissionSchema();
 
-    const assessmentRows: any[] = await this.ds.query(`SELECT id,title,duration_minutes,total_marks,content_text,answer_key,questions_json FROM assessments WHERE id::text=$1::text`, [assessmentId]);
+    const assessmentRows: any[] = await this.ds.query(`SELECT id,title,duration_minutes,total_marks,content_text,answer_key,questions_json,language FROM assessments WHERE id::text=$1::text`, [assessmentId]);
     if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
     const assessment = await this.hydrateQuestions(assessmentRows[0]);
 
@@ -1616,7 +1618,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const existingAnswers = typeof attempt?.answers_json === 'object' && attempt.answers_json ? attempt.answers_json : {};
     let answers = bodyAnswers || existingAnswers;
     const questions = this.normalizeQuestions(assessment.questions_json);
-    ({ answerText, answers } = await this.ocrHandwrittenSubmission(user, filePath, req, answerText, answers, questions));
+    ({ answerText, answers } = await this.ocrHandwrittenSubmission(user, filePath, req, answerText, answers, questions, assessment.language));
     const grading = questions.length ? this.gradeObjective(questions, answers || {}) : null;
     const gradingStatus = grading
       ? grading.writtenPending
