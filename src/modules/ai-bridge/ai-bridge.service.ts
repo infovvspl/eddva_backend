@@ -1603,12 +1603,19 @@ export class AiBridgeService {
       /** Output language: 'hindi' → Devanagari (Groq), 'odia' → Odia script (Gemini). Default: English. */
       language?: string;
       board?: string;
+      /** Passages from the school's own chapter; presence switches on grounding. */
+      sourcePassages?: any[];
     },
     tenantId?: string,
     vertical?: string,
     /** Education board for school tenants (cbse | icse | state) — from institutes.board. */
     board?: string,
-  ): Promise<{ content: string; contentType: string; topicName: string }> {
-    return this.post('/content/generate', dto, tenantId, 120_000, vertical, board);
+  ): Promise<{ content: string; contentType: string; topicName: string; source?: any }> {
+    // A grounded call carries a whole chapter and runs on Gemini, so it takes
+    // appreciably longer than writing from general knowledge — the same reason
+    // /ppt/generate gets 240s. Ungrounded calls keep the tighter budget so a
+    // genuinely stuck request still fails quickly.
+    const timeoutMs = dto.sourcePassages?.length ? 240_000 : 120_000;
+    return this.post('/content/generate', dto, tenantId, timeoutMs, vertical, board);
   }
 }

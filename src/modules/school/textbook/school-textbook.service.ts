@@ -2,6 +2,8 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { S3Service } from '../../upload/s3.service';
+import { randomUUID } from 'crypto';
 
 /**
  * Textbook grounding — the school's own chapter as the source for AI content.
@@ -23,6 +25,7 @@ export class SchoolTextbookService {
   constructor(
     private readonly aiBridge: AiBridgeService,
     @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly s3Service: S3Service,
   ) {}
 
   /** Self-provisioning, matching the convention used across the school module. */
@@ -95,15 +98,31 @@ export class SchoolTextbookService {
   }
 
   /**
+   * Which institute this request acts on.
+   *
+   * Staff are pinned to their own institute; a super-admin has none of their own
+   * and must name one, which is how the school-detail screen drives this.
+   */
+  private resolveInstitute(user: any, requestedId?: string | null): string {
+    const isSuper = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const id = isSuper ? (requestedId || user?.instituteId) : user?.instituteId;
+    if (!id) {
+      throw new BadRequestException(
+        isSuper ? 'instituteId is required' : 'Institute context is required',
+      );
+    }
+    return id;
+  }
+
+  /**
    * Read a chapter PDF already uploaded as a study material and index it.
    *
    * Re-ingesting a chapter replaces what was there: a school correcting a bad
    * scan must not end up with both versions feeding the same slide deck.
    */
-  async ingestMaterial(user: any, materialId: string) {
+  async ingestMaterial(user: any, materialId: string, forInstituteId?: string) {
     if (!materialId) throw new BadRequestException('materialId is required');
-    const instituteId = user?.instituteId;
-    if (!instituteId) throw new BadRequestException('Institute context is required');
+    const instituteId = this.resolveInstitute(user, forInstituteId);
     await this.ensureSchema();
 
     const rows = await this.ds.query(
@@ -220,15 +239,79 @@ export class SchoolTextbookService {
   }
 
   /**
+   * Attach a PDF to a chapter and index it in one step.
+   *
+   * Uploading and indexing were separate, so a chapter could sit with a book
+   * against it that the AI had never read — the state the coverage screen calls
+   * "not indexed". Doing both here means a teacher who uploads a chapter has it
+   * usable immediately, which is the behaviour they expect.
+   */
+  async uploadAndIndex(
+    user: any,
+    chapterId: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string },
+    forInstituteId?: string,
+  ) {
+    if (!chapterId) throw new BadRequestException('chapterId is required');
+    if (!file?.buffer?.length) throw new BadRequestException('No file uploaded');
+    if (!/\.pdf$/i.test(file.originalname || '')) {
+      throw new BadRequestException('Only PDF chapters can be indexed');
+    }
+    const instituteId = this.resolveInstitute(user, forInstituteId);
+    await this.ensureSchema();
+
+    const chapterRows = await this.ds.query(
+      `SELECT c.id, c.name AS chapter_name, s.id AS subject_id, s.class_id
+       FROM chapters c
+       JOIN subjects s ON s.id = c.subject_id
+       WHERE c.id::text = $1::text LIMIT 1`,
+      [chapterId],
+    );
+    const chapter = chapterRows[0];
+    if (!chapter) throw new NotFoundException('Chapter not found');
+
+    const safeName = (file.originalname || 'chapter.pdf').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'chapter.pdf';
+    const key = `tenants/${instituteId}/school-materials/${Date.now()}-${randomUUID()}-${safeName}`;
+    const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype || 'application/pdf');
+
+    const inserted = await this.ds.query(
+      // exam and type are NOT NULL enums; 'school'/'ebook' is what the 300-odd
+      // chapter PDFs already in this table use.
+      `INSERT INTO study_materials
+         (tenant_id, title, s3_key, chapter_id, subject_id_fk, class_id, uploaded_by,
+          exam, type, is_active, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'school','ebook',TRUE,NOW())
+       RETURNING id`,
+      [
+        instituteId, file.originalname || chapter.chapter_name, fileUrl,
+        chapter.id, chapter.subject_id, chapter.class_id, user?.id ?? null,
+      ],
+    );
+    const materialId = inserted[0].id;
+
+    // A freshly uploaded file is by definition reachable; recording it keeps the
+    // bulk run from re-checking and the coverage screen from showing it unknown.
+    await this.ds.query(
+      `INSERT INTO textbook_link_status
+         (material_id, institute_id, chapter_id, url, http_status, reachable, checked_at)
+       VALUES ($1,$2,$3,$4,200,TRUE,NOW())
+       ON CONFLICT (material_id) DO UPDATE SET reachable = TRUE, http_status = 200, checked_at = NOW()`,
+      [materialId, instituteId, chapter.id, fileUrl],
+    );
+
+    const result = await this.ingestMaterial(user, materialId, instituteId);
+    return { ...result, materialId, fileUrl, fileName: file.originalname };
+  }
+
+  /**
    * Check every chapter PDF still resolves, and record the result.
    *
    * The migration off the old S3 bucket left rows pointing at objects that no
    * longer exist, so "has a PDF" and "has a usable PDF" are different questions.
    * Indexing a dead link just wastes a vision pass, so the bulk run consults this.
    */
-  async auditLinks(user: any, limit = 1000) {
-    const instituteId = user?.instituteId;
-    if (!instituteId) throw new BadRequestException('Institute context is required');
+  async auditLinks(user: any, limit = 1000, forInstituteId?: string) {
+    const instituteId = this.resolveInstitute(user, forInstituteId);
     await this.ensureSchema();
 
     const rows = await this.ds.query(
@@ -288,9 +371,8 @@ export class SchoolTextbookService {
    * per page, so a full library is hours of work and cannot sit on an HTTP
    * request. Progress is written to textbook_ingest_runs and polled separately.
    */
-  async startBulkIngest(user: any, opts: { reindex?: boolean; limit?: number } = {}) {
-    const instituteId = user?.instituteId;
-    if (!instituteId) throw new BadRequestException('Institute context is required');
+  async startBulkIngest(user: any, opts: { reindex?: boolean; limit?: number; instituteId?: string } = {}) {
+    const instituteId = this.resolveInstitute(user, opts.instituteId);
     await this.ensureSchema();
 
     const running = await this.ds.query(
@@ -379,9 +461,8 @@ export class SchoolTextbookService {
   }
 
   /** Progress for the most recent run, for polling from the coverage screen. */
-  async ingestRunStatus(user: any) {
-    const instituteId = user?.instituteId;
-    if (!instituteId) throw new BadRequestException('Institute context is required');
+  async ingestRunStatus(user: any, forInstituteId?: string) {
+    const instituteId = this.resolveInstitute(user, forInstituteId);
     await this.ensureSchema();
     const rows = await this.ds.query(
       `SELECT id, status, total, done, succeeded, failed, last_chapter AS "lastChapter",
@@ -402,9 +483,8 @@ export class SchoolTextbookService {
    * exists and whether that file still resolves, so a dead link is visibly
    * different from a chapter nobody has uploaded yet.
    */
-  async coverage(user: any) {
-    const instituteId = user?.instituteId;
-    if (!instituteId) throw new BadRequestException('Institute context is required');
+  async coverage(user: any, forInstituteId?: string) {
+    const instituteId = this.resolveInstitute(user, forInstituteId);
     await this.ensureSchema();
     return this.ds.query(
       `SELECT c.id AS "chapterId", c.name AS "chapterName",
@@ -414,7 +494,12 @@ export class SchoolTextbookService {
               (ts.chapter_id IS NOT NULL AND ts.chunk_count > 0) AS "indexed",
               m.material_id AS "materialId",
               (m.material_id IS NOT NULL) AS "hasPdf",
-              m.reachable AS "linkReachable"
+              m.reachable AS "linkReachable",
+              -- Which file is behind this chapter, so a teacher can confirm the
+              -- right book was indexed rather than trusting a green tick.
+              m.s3_key AS "fileUrl",
+              COALESCE(NULLIF(m.title,''), regexp_replace(m.s3_key, '^.*/', '')) AS "fileName",
+              m.uploaded_at AS "uploadedAt"
        FROM chapters c
        JOIN subjects s ON s.id = c.subject_id
        LEFT JOIN classes cl ON cl.id = s.class_id
@@ -422,7 +507,8 @@ export class SchoolTextbookService {
               ON ts.chapter_id::text = c.id::text AND ts.institute_id::text = $1::text
        LEFT JOIN LATERAL (
          -- Newest PDF per chapter, with whatever the last audit found.
-         SELECT sm.id AS material_id, ls.reachable
+         SELECT sm.id AS material_id, ls.reachable, sm.s3_key, sm.title,
+                sm.created_at AS uploaded_at
          FROM study_materials sm
          LEFT JOIN textbook_link_status ls ON ls.material_id::text = sm.id::text
          WHERE sm.chapter_id::text = c.id::text
