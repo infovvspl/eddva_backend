@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { randomUUID, createHash } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 
@@ -34,6 +35,7 @@ export class SchoolMaterialService implements OnModuleInit {
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: SchoolNotificationService,
     private readonly featureFlagService: AiFeatureFlagService,
+    private readonly textbooks: SchoolTextbookService,
   ) { }
 
   /** Ensure newer material types exist on the study_materials.type enum. */
@@ -210,15 +212,26 @@ export class SchoolMaterialService implements OnModuleInit {
     if (cached && cached.expiresAt > Date.now()) return cached.value || undefined;
     try {
       const rows = await this.ds.query(
-        `SELECT board FROM institutes WHERE id = $1 LIMIT 1`,
+        `SELECT board, state FROM institutes WHERE id = $1 LIMIT 1`,
         [instituteId],
       );
-      const value = String(rows?.[0]?.board ?? '').trim().toLowerCase();
+      if (!rows.length) return undefined;
+      const boardVal = String(rows[0].board ?? '').trim();
+      const stateVal = String(rows[0].state ?? '').trim();
+
+      let finalBoard = boardVal;
+      const boardLower = boardVal.toLowerCase();
+      if (boardLower.includes('state') || boardLower === 'state board' || boardLower === 'stateboard') {
+        if (stateVal) {
+          finalBoard = stateVal.toLowerCase().includes('board') ? stateVal : `${stateVal} State Board`;
+        }
+      }
+
       SchoolMaterialService._boardCache.set(instituteId, {
-        value,
+        value: finalBoard,
         expiresAt: Date.now() + 5 * 60 * 1000,
       });
-      return value || undefined;
+      return finalBoard || undefined;
     } catch (err) {
       // Never block AI generation on this lookup — the AI service falls back to
       // its own default board when the header is absent.
@@ -240,19 +253,20 @@ export class SchoolMaterialService implements OnModuleInit {
     const board = instRows[0]?.board || 'CBSE';
 
     const contentType = String(body.contentType || 'notes').trim().toLowerCase();
-    const isQuestionType = contentType === 'dpp' || contentType === 'pyq';
+    const isQuestionType = contentType === 'dpp' || contentType === 'pyq' || contentType === 'faq';
     const isPresentation = contentType === 'presentation' || contentType === 'ppt';
+    const qCount = Number(body.questionCount) || 10;
     const typeSpecificInstruction =
       contentType === 'faq'
-        ? `Generate a Frequently Asked Questions (FAQ) sheet only. Do not write notes, summary, study guide, or lesson sections. FAQ means questions that are repeatedly asked in target exams. For every question, you must specify the actual past exam years it was asked (e.g., ${board} Class 10 2018, 2021). Format each question as: "**Q1. [EXAMTAG: <exam target and comma-separated years>] <question?>**" on its own line, followed by "**A.** <answer>" on a new line. Include 12-15 real student questions grouped under sub-topic headings. For numerical questions, the answer must provide a detailed step-by-step solution where each new step is on a new line (never in paragraph format). For theory questions, the answer must provide a total, complete solution explaining the concept. Do not just give the final answer; provide the full, comprehensive explanation. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3.`
+        ? `Generate a Frequently Asked Questions (FAQ) sheet only. Do not write notes, summary, study guide, or lesson sections. FAQ means questions that are repeatedly asked in target exams. For every question, you must specify the actual past exam years it was asked (e.g., ${board} Class 10 2018, 2021). Format each question as: "**Q1. [EXAMTAG: <exam target and comma-separated years>] <question?>**" on its own line, followed by "**A.** <answer>" on a new line. Include exactly ${qCount} real student questions grouped under sub-topic headings. For numerical questions, the answer must provide a detailed step-by-step solution where each new step is on a new line (never in paragraph format). For theory questions, the answer must provide a total, complete solution explaining the concept. Do not just give the final answer; provide the full, comprehensive explanation. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3.`
         : contentType === 'revision_checklist'
           ? 'Generate a revision checklist only. Do not write notes or paragraphs. Group by sub-topic and make every actionable item a Markdown checkbox using - [ ].'
           : contentType === 'flashcard'
             ? 'Generate flashcards only. Use repeated **Q:** and **A:** pairs. Do not write normal notes.'
             : contentType === 'dpp'
-              ? 'Generate a Daily Assessment question paper first. Put all detailed solutions on the next page by adding a separate Markdown heading "## Detailed Solutions" only after all questions. Do not include solutions inline with questions. For all numerical questions, provide a detailed step-by-step solution showing calculations and working, where each new mathematical step is written on a new line, never combined into a single paragraph. For all MCQ and theory questions, provide the complete explanation/reasoning along with the correct option, not just the option letter alone. CRITICAL MCQ FORMATTING: Write each option (A-D) on a new line, never inline on a single line. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3. For all mathematics in DPP, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$. Never output raw \\frac or \\sqrt outside dollar signs, and never use the Unicode square-root symbol.'
+              ? `Generate a Daily Assessment question paper consisting of exactly ${qCount} questions. Put all detailed solutions on the next page by adding a separate Markdown heading "## Detailed Solutions" only after all questions. Do not include solutions inline with questions. For all numerical questions, provide a detailed step-by-step solution showing calculations and working, where each new mathematical step is written on a new line, never combined into a single paragraph. For all MCQ and theory questions, provide the complete explanation/reasoning along with the correct option, not just the option letter alone. CRITICAL MCQ FORMATTING: Write each option (A-D) on a new line, never inline on a single line. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3. For all mathematics in DPP, use valid KaTeX Markdown: wrap inline expressions in single dollar signs, e.g. $x = \\frac{6}{3 + \\sqrt{2}}$. Never output raw \\frac or \\sqrt outside dollar signs, and never use the Unicode square-root symbol.`
               : contentType === 'pyq'
-                ? `Generate school PYQ practice for ${className || 'the selected class'} only. Use class/board-style previous-year question patterns for this class, not JEE, NEET, or competitive exam PYQs. Put all detailed solutions on the next page by adding a separate Markdown heading "## Detailed Solutions" only after all questions. Do not include solutions inline with questions. For all numerical questions, provide a detailed step-by-step solution showing calculations and working, where each new mathematical step is written on a new line, never combined into a single paragraph. For all MCQ and theory questions, provide the complete explanation/reasoning along with the correct option, not just the option letter alone. Do not include out-of-class difficulty, integer-type JEE numericals, multi-correct JEE patterns, or competitive exam traps. CRITICAL MCQ FORMATTING: Write each option (A-D) on a new line, never inline on a single line. Each question must show the exact real, authentic year and class of the board exam (e.g. ${board} ${className || 'Class 10'} 2021) next to the question number. It MUST be a real, authentic past year of the exam, never a dummy year or empty placeholder like '____' or 'Year' or '20XX'. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3. For mathematics, wrap only the expression in single dollar signs, e.g. Determine whether $3\\sqrt{5}$ is rational. Do not wrap complete English sentences in math delimiters.`
+                ? `Generate school PYQ practice consisting of exactly ${qCount} questions for ${className || 'the selected class'} only. Use class/board-style previous-year question patterns for this class, not JEE, NEET, or competitive exam PYQs. Put all detailed solutions on the next page by adding a separate Markdown heading "## Detailed Solutions" only after all questions. Do not include solutions inline with questions. For all numerical questions, provide a detailed step-by-step solution showing calculations and working, where each new mathematical step is written on a new line, never combined into a single paragraph. For all MCQ and theory questions, provide the complete explanation/reasoning along with the correct option, not just the option letter alone. Do not include out-of-class difficulty, integer-type JEE numericals, multi-correct JEE patterns, or competitive exam traps. CRITICAL MCQ FORMATTING: Write each option (A-D) on a new line, never inline on a single line. Each question must show the exact real, authentic year and class of the board exam (e.g. ${board} ${className || 'Class 10'} 2021) next to the question number. It MUST be a real, authentic past year of the exam, never a dummy year or empty placeholder like '____' or 'Year' or '20XX'. CRITICAL MATH NOTATION: For all mathematics, equations, exponents, and variables, always use valid KaTeX/LaTeX Markdown. Exponents must use carets (e.g., $x^2$, $x^3$), and all mathematical expressions must be wrapped in single dollar signs (e.g. $3\\sqrt{5}$, $f(3) = 0$). Never output raw math or variables without dollar signs, and never use raw exponents like x2 or x3. For mathematics, wrap only the expression in single dollar signs, e.g. Determine whether $3\\sqrt{5}$ is rational. Do not wrap complete English sentences in math delimiters.`
                 : '';
     const extraContext = [
       isQuestionType && body.questionCount ? `Generate exactly ${body.questionCount} questions` : '',
@@ -260,6 +274,10 @@ export class SchoolMaterialService implements OnModuleInit {
       typeSpecificInstruction,
       (body.extraContext || '').trim(),
     ].filter(Boolean).join('. ') || undefined;
+
+    const sourcePassages = await this.textbooks.getChapterPassages(
+      user.instituteId, ctx.chapter_id,
+    );
 
     const result = await this.aiBridgeService.generateTopicContent(
       {
@@ -274,12 +292,24 @@ export class SchoolMaterialService implements OnModuleInit {
         extraContext,
         language: body.language || undefined,
         board: board,
+        // When this chapter's textbook has been indexed, every content type here
+        // is written from the book and cites its pages instead of drawing on the
+        // model's general knowledge.
+        ...(sourcePassages.length ? { sourcePassages } : {}),
       },
       user.instituteId ?? undefined,
       'school',
       await this.resolveBoard(user.instituteId),
     );
-    return { content: result.content, contentType: result.contentType, topicName: ctx.topic_name };
+    return {
+      content: result.content,
+      contentType: result.contentType,
+      topicName: ctx.topic_name,
+      source: (result as any).source ?? {
+        grounded: false,
+        reason: sourcePassages.length ? 'unavailable' : 'not_indexed',
+      },
+    };
   }
 
   /** Persist AI-generated markdown as a study material (text-based, no file). */

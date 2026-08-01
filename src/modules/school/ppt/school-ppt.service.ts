@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolTextbookService } from '../textbook/school-textbook.service';
 const AdmZip = require('adm-zip');
 
 /** Keep in step with _MAX_SLIDES in the AI service's ppt.py. */
@@ -20,6 +21,7 @@ export class SchoolPptService {
   constructor(
     private readonly aiBridge: AiBridgeService,
     @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly textbooks: SchoolTextbookService,
   ) {}
 
   /**
@@ -30,57 +32,124 @@ export class SchoolPptService {
    * best-effort — an unknown ID must not block generation, it just produces a
    * less tightly scoped deck, which is still better than a hard failure.
    */
-  private async resolveCurriculumContext(body: any): Promise<{
+  private async resolveCurriculumContext(body: any, user?: any): Promise<{
     className?: string;
     subjectName?: string;
     chapterName?: string;
     topicName?: string;
   }> {
-    const out: Record<string, string | undefined> = {
-      className: body?.className?.trim() || undefined,
-      subjectName: body?.subjectName?.trim() || undefined,
-      chapterName: body?.chapterName?.trim() || undefined,
-      topicName: body?.topicName?.trim() || undefined,
+    // Normalises anything (SQL NULL, a non-string body field, blanks) to a
+    // trimmed string or undefined, so a malformed request degrades to a
+    // less-scoped deck instead of throwing, and no `"className": null` is sent.
+    const clean = (v: unknown): string | undefined => {
+      if (typeof v !== 'string') return undefined;
+      const t = v.trim();
+      return t || undefined;
     };
+
+    const out: Record<string, string | undefined> = {
+      className: clean(body?.className),
+      subjectName: clean(body?.subjectName),
+      chapterName: clean(body?.chapterName),
+      topicName: clean(body?.topicName),
+    };
+
+    // subjects.class_id is frequently NULL — a subject may be attached to a
+    // section instead — so the class is resolved through the same chain
+    // school-material.service.ts uses: subjects.class_id, then the section's
+    // class, then the teacher's assignment for that subject. Without this the
+    // deck reaches the AI with no grade level at all and it invents one, which
+    // is exactly how a Class 10 topic ends up with university-level slides.
+    const CLASS_JOIN = `
+           LEFT JOIN sections sec ON sec.id::text = s.section_id::text
+           LEFT JOIN classes cl ON cl.id::text = COALESCE(s.class_id, sec.class_id)::text`;
 
     try {
       if (body?.topicId) {
         const rows = await this.ds.query(
           `SELECT t.name AS topic_name, c.name AS chapter_name,
-                  s.name AS subject_name, cl.name AS class_name
+                  s.name AS subject_name, s.id AS subject_id, cl.name AS class_name
            FROM topics t
            JOIN chapters c ON c.id = t.chapter_id
            JOIN subjects s ON s.id = c.subject_id
-           LEFT JOIN classes cl ON cl.id = s.class_id
+           ${CLASS_JOIN}
            WHERE t.id = $1 LIMIT 1`,
           [body.topicId],
         );
         if (rows.length) {
-          out.topicName ??= rows[0].topic_name;
-          out.chapterName ??= rows[0].chapter_name;
-          out.subjectName ??= rows[0].subject_name;
-          out.className ??= rows[0].class_name;
+          out.topicName ??= clean(rows[0].topic_name);
+          out.chapterName ??= clean(rows[0].chapter_name);
+          out.subjectName ??= clean(rows[0].subject_name);
+          out.className ??= clean(rows[0].class_name);
+          out.className ??= await this.classNameFromTeacherAssignment(rows[0].subject_id, user);
         }
       } else if (body?.chapterId) {
         const rows = await this.ds.query(
-          `SELECT c.name AS chapter_name, s.name AS subject_name, cl.name AS class_name
+          `SELECT c.name AS chapter_name, s.name AS subject_name, s.id AS subject_id,
+                  cl.name AS class_name
            FROM chapters c
            JOIN subjects s ON s.id = c.subject_id
-           LEFT JOIN classes cl ON cl.id = s.class_id
+           ${CLASS_JOIN}
            WHERE c.id = $1 LIMIT 1`,
           [body.chapterId],
         );
         if (rows.length) {
-          out.chapterName ??= rows[0].chapter_name;
-          out.subjectName ??= rows[0].subject_name;
-          out.className ??= rows[0].class_name;
+          out.chapterName ??= clean(rows[0].chapter_name);
+          out.subjectName ??= clean(rows[0].subject_name);
+          out.className ??= clean(rows[0].class_name);
+          out.className ??= await this.classNameFromTeacherAssignment(rows[0].subject_id, user);
+        }
+      } else if (body?.subjectId) {
+        const rows = await this.ds.query(
+          `SELECT s.name AS subject_name, s.id AS subject_id, cl.name AS class_name
+           FROM subjects s
+           ${CLASS_JOIN}
+           WHERE s.id = $1 LIMIT 1`,
+          [body.subjectId],
+        );
+        if (rows.length) {
+          out.subjectName ??= clean(rows[0].subject_name);
+          out.className ??= clean(rows[0].class_name);
+          out.className ??= await this.classNameFromTeacherAssignment(rows[0].subject_id, user);
         }
       }
     } catch (err) {
       this.logger.warn(`PPT curriculum resolution failed: ${(err as Error).message}`);
     }
 
+    if (!out.className) {
+      this.logger.warn(
+        `PPT generating without a class level (subject=${out.subjectName ?? '?'} ` +
+        `chapter=${out.chapterName ?? '?'} topic=${out.topicName ?? '?'}) — ` +
+        `slides will not be pitched to a grade.`,
+      );
+    }
+
     return out;
+  }
+
+  /** Last-resort class lookup: what class is this teacher assigned this subject for? */
+  private async classNameFromTeacherAssignment(
+    subjectId: string | null | undefined,
+    user: any,
+  ): Promise<string | undefined> {
+    if (!subjectId || !user?.id) return undefined;
+    try {
+      const rows = await this.ds.query(
+        `SELECT cl.name AS class_name
+         FROM teacher_academic_assignments taa
+         JOIN teachers t ON t.id = taa.teacher_id
+         LEFT JOIN sections sec ON sec.id::text = taa.section_id::text
+         LEFT JOIN classes cl ON cl.id::text = COALESCE(taa.class_id, sec.class_id)::text
+         WHERE t.user_id = $1 AND taa.subject_id = $2 AND cl.name IS NOT NULL
+         ORDER BY taa.created_at DESC
+         LIMIT 1`,
+        [user.id, subjectId],
+      );
+      return rows[0]?.class_name || undefined;
+    } catch {
+      return undefined; // never block generation on a best-effort lookup
+    }
   }
 
   /**
@@ -98,47 +167,85 @@ export class SchoolPptService {
     if (cached && cached.expiresAt > Date.now()) return cached.value || undefined;
     try {
       const rows = await this.ds.query(
-        `SELECT board FROM institutes WHERE id = $1 LIMIT 1`,
+        `SELECT board, state FROM institutes WHERE id = $1 LIMIT 1`,
         [instituteId],
       );
-      const value = String(rows?.[0]?.board ?? '').trim().toLowerCase();
+      if (!rows.length) return undefined;
+      const boardVal = String(rows[0].board ?? '').trim();
+      const stateVal = String(rows[0].state ?? '').trim();
+
+      let finalBoard = boardVal;
+      const boardLower = boardVal.toLowerCase();
+      if (boardLower.includes('state') || boardLower === 'state board' || boardLower === 'stateboard') {
+        if (stateVal) {
+          finalBoard = stateVal.toLowerCase().includes('board') ? stateVal : `${stateVal} State Board`;
+        }
+      }
+
       SchoolPptService._boardCache.set(instituteId, {
-        value,
+        value: finalBoard,
         expiresAt: Date.now() + 5 * 60 * 1000,
       });
-      return value || undefined;
+      return finalBoard || undefined;
     } catch (err) {
       this.logger.warn(`Could not resolve board for institute ${instituteId}: ${(err as Error).message}`);
       return undefined;
     }
   }
 
-  async generate(body: any, instituteId?: string) {
+  async generate(body: any, instituteId?: string, user?: any) {
     const { topic, slideCount = 5, language = 'English' } = body || {};
     if (!topic) throw new BadRequestException('Topic is required.');
 
-    const ctx = await this.resolveCurriculumContext(body);
+    const ctx = await this.resolveCurriculumContext(body, user);
     const board = await this.resolveBoard(instituteId);
 
-    return this.aiBridge.generatePpt(
+    // If this chapter's textbook has been indexed, the deck is written from the
+    // book itself. Otherwise generation proceeds from general knowledge, and the
+    // response says so, so the two are never presented as the same thing.
+    const chapterId = body?.chapterId || (await this.chapterIdForTopic(body?.topicId));
+    const sourcePassages = await this.textbooks.getChapterPassages(instituteId!, chapterId);
+
+    const result = await this.aiBridge.generatePpt(
       {
         topic,
         slideCount: Math.max(3, Math.min(MAX_SLIDES, Number(slideCount) || 5)),
         language,
         ...ctx,
+        ...(sourcePassages.length ? { sourcePassages } : {}),
       },
       instituteId,
       board,
     );
+
+    const data: any = result?.data ?? {};
+    if (!data.source) {
+      data.source = { grounded: false, reason: sourcePassages.length ? 'unavailable' : 'not_indexed' };
+    }
+    return result;
   }
 
-  async regenerateSlide(body: any, instituteId?: string) {
+  /** A topic knows its chapter; grounding is always at chapter granularity. */
+  private async chapterIdForTopic(topicId?: string): Promise<string | null> {
+    if (!topicId) return null;
+    try {
+      const rows = await this.ds.query(
+        `SELECT chapter_id FROM topics WHERE id::text = $1::text LIMIT 1`,
+        [topicId],
+      );
+      return rows[0]?.chapter_id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async regenerateSlide(body: any, instituteId?: string, user?: any) {
     const { slideIndex, topic, currentSlide, totalSlides } = body || {};
     if (topic === undefined || slideIndex === undefined) {
       throw new BadRequestException('slideIndex and topic are required.');
     }
 
-    const ctx = await this.resolveCurriculumContext(body);
+    const ctx = await this.resolveCurriculumContext(body, user);
     const board = await this.resolveBoard(instituteId);
 
     return this.aiBridge.regeneratePptSlide(

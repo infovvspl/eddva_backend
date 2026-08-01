@@ -1,0 +1,438 @@
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+
+/**
+ * Textbook grounding — the school's own chapter as the source for AI content.
+ *
+ * A chapter PDF that already lives in study_materials is read by the AI service
+ * and comes back as page-tagged passages, which are stored here. Generation then
+ * quotes those passages instead of the model's general knowledge, so a teacher
+ * can check any slide against the page it cites.
+ *
+ * Extraction happens in the Python service (pdfplumber, plus vision transcription
+ * for the scans that school books usually are); persistence happens here, because
+ * the school database has a single writer by design.
+ */
+@Injectable()
+export class SchoolTextbookService {
+  private readonly logger = new Logger(SchoolTextbookService.name);
+  private schemaReady = false;
+
+  constructor(
+    private readonly aiBridge: AiBridgeService,
+    @InjectDataSource('school') private readonly ds: DataSource,
+  ) {}
+
+  /** Self-provisioning, matching the convention used across the school module. */
+  private async ensureSchema() {
+    if (this.schemaReady) return;
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS textbook_chunks (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        institute_id  UUID NOT NULL,
+        material_id   UUID,
+        class_id      UUID,
+        subject_id    UUID,
+        chapter_id    UUID NOT NULL,
+        page_no       INTEGER,
+        chunk_index   INTEGER NOT NULL,
+        content       TEXT NOT NULL,
+        tokens        INTEGER,
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    // Retrieval is always "this chapter for this institute", so that pair is the
+    // index that matters; the ranking happens in the AI service over a small set.
+    await this.ds.query(
+      `CREATE INDEX IF NOT EXISTS idx_textbook_chunks_scope
+       ON textbook_chunks (institute_id, chapter_id, chunk_index)`,
+    );
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS textbook_sources (
+        chapter_id    UUID PRIMARY KEY,
+        institute_id  UUID NOT NULL,
+        material_id   UUID,
+        pages         INTEGER,
+        chunk_count   INTEGER,
+        total_tokens  INTEGER,
+        method        VARCHAR(24),
+        quality       VARCHAR(24),
+        ingested_at   TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    // Reachability is recorded per material because a file can disappear
+    // independently of whether its chapter was ever indexed — the retired S3
+    // bucket left rows pointing at objects that no longer exist.
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS textbook_link_status (
+        material_id   UUID PRIMARY KEY,
+        institute_id  UUID NOT NULL,
+        chapter_id    UUID,
+        url           TEXT,
+        http_status   INTEGER,
+        reachable     BOOLEAN NOT NULL DEFAULT FALSE,
+        checked_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS textbook_ingest_runs (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        institute_id  UUID NOT NULL,
+        status        VARCHAR(16) NOT NULL DEFAULT 'running',
+        total         INTEGER NOT NULL DEFAULT 0,
+        done          INTEGER NOT NULL DEFAULT 0,
+        succeeded     INTEGER NOT NULL DEFAULT 0,
+        failed        INTEGER NOT NULL DEFAULT 0,
+        last_chapter  TEXT,
+        last_error    TEXT,
+        started_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+        finished_at   TIMESTAMP
+      )
+    `);
+    this.schemaReady = true;
+  }
+
+  /**
+   * Read a chapter PDF already uploaded as a study material and index it.
+   *
+   * Re-ingesting a chapter replaces what was there: a school correcting a bad
+   * scan must not end up with both versions feeding the same slide deck.
+   */
+  async ingestMaterial(user: any, materialId: string) {
+    if (!materialId) throw new BadRequestException('materialId is required');
+    const instituteId = user?.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute context is required');
+    await this.ensureSchema();
+
+    const rows = await this.ds.query(
+      `SELECT sm.id, sm.s3_key, sm.chapter_id, sm.class_id, sm.subject_id_fk AS subject_id,
+              c.name AS chapter_name
+       FROM study_materials sm
+       JOIN chapters c ON c.id = sm.chapter_id
+       WHERE sm.id::text = $1::text LIMIT 1`,
+      [materialId],
+    );
+    const material = rows[0];
+    if (!material) throw new NotFoundException('Study material not found');
+    if (!material.chapter_id) {
+      throw new BadRequestException('This material is not linked to a chapter, so it cannot be indexed');
+    }
+    if (!/\.pdf(\?|$)/i.test(material.s3_key || '')) {
+      throw new BadRequestException('Only PDF chapters can be indexed');
+    }
+
+    const res = await this.aiBridge.ingestTextbook({ fileUrl: material.s3_key }, instituteId);
+    const data: any = res?.data ?? res;
+    const chunks: any[] = data?.chunks ?? [];
+
+    if (!chunks.length) {
+      // A scan the vision pass could not read is a real outcome a human must see,
+      // not an error to swallow — the chapter simply stays ungrounded.
+      await this.recordSource(instituteId, material, data, 0);
+      return {
+        chapterId: material.chapter_id,
+        chapterName: material.chapter_name,
+        indexed: false,
+        quality: data?.quality ?? 'no_text',
+        needsOcr: !!data?.needs_ocr,
+        message: 'No readable text found in this PDF. It may be a low-quality scan.',
+      };
+    }
+
+    await this.ds.query(`DELETE FROM textbook_chunks WHERE chapter_id::text = $1::text`, [
+      material.chapter_id,
+    ]);
+
+    // One multi-row insert rather than a statement per passage; a chapter is
+    // typically 10-40 passages so this stays a single round-trip.
+    const values: any[] = [];
+    const tuples = chunks.map((c, i) => {
+      const base = i * 8;
+      values.push(
+        instituteId, material.id, material.class_id, material.subject_id,
+        material.chapter_id, c.page_no ?? null, c.chunk_index ?? i, c.content,
+      );
+      return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8})`;
+    });
+    await this.ds.query(
+      `INSERT INTO textbook_chunks
+         (institute_id, material_id, class_id, subject_id, chapter_id, page_no, chunk_index, content)
+       VALUES ${tuples.join(',')}`,
+      values,
+    );
+    await this.recordSource(instituteId, material, data, chunks.length);
+
+    this.logger.log(
+      `Indexed chapter "${material.chapter_name}": ${chunks.length} passages ` +
+      `(${data?.pages} pages, method=${data?.method})`,
+    );
+    return {
+      chapterId: material.chapter_id,
+      chapterName: material.chapter_name,
+      indexed: true,
+      pages: data?.pages ?? 0,
+      chunks: chunks.length,
+      tokens: data?.total_tokens ?? 0,
+      method: data?.method ?? 'text_layer',
+      quality: data?.quality ?? 'ok',
+    };
+  }
+
+  private async recordSource(instituteId: string, material: any, data: any, chunkCount: number) {
+    await this.ds.query(
+      `INSERT INTO textbook_sources
+         (chapter_id, institute_id, material_id, pages, chunk_count, total_tokens, method, quality, ingested_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
+       ON CONFLICT (chapter_id) DO UPDATE SET
+         institute_id = EXCLUDED.institute_id, material_id = EXCLUDED.material_id,
+         pages = EXCLUDED.pages, chunk_count = EXCLUDED.chunk_count,
+         total_tokens = EXCLUDED.total_tokens, method = EXCLUDED.method,
+         quality = EXCLUDED.quality, ingested_at = NOW()`,
+      [
+        material.chapter_id, instituteId, material.id, data?.pages ?? 0, chunkCount,
+        data?.total_tokens ?? 0, data?.method ?? 'text_layer', data?.quality ?? 'unknown',
+      ],
+    );
+  }
+
+  /**
+   * Passages for a chapter, in reading order. Empty means the chapter has not
+   * been indexed, and the caller should fall back to general-knowledge output.
+   */
+  async getChapterPassages(instituteId: string, chapterId?: string | null): Promise<any[]> {
+    if (!instituteId || !chapterId) return [];
+    try {
+      await this.ensureSchema();
+      return await this.ds.query(
+        `SELECT page_no, chunk_index, content, tokens
+         FROM textbook_chunks
+         WHERE institute_id::text = $1::text AND chapter_id::text = $2::text
+         ORDER BY page_no NULLS LAST, chunk_index`,
+        [instituteId, chapterId],
+      );
+    } catch (err) {
+      // Grounding is an enhancement; never let a lookup failure block generation.
+      this.logger.warn(`Textbook passage lookup failed: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Check every chapter PDF still resolves, and record the result.
+   *
+   * The migration off the old S3 bucket left rows pointing at objects that no
+   * longer exist, so "has a PDF" and "has a usable PDF" are different questions.
+   * Indexing a dead link just wastes a vision pass, so the bulk run consults this.
+   */
+  async auditLinks(user: any, limit = 1000) {
+    const instituteId = user?.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute context is required');
+    await this.ensureSchema();
+
+    const rows = await this.ds.query(
+      `SELECT sm.id, sm.s3_key, sm.chapter_id
+       FROM study_materials sm
+       JOIN chapters c ON c.id = sm.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN classes cl ON cl.id = s.class_id
+       WHERE cl.institute_id::text = $1::text
+         AND sm.s3_key ILIKE '%.pdf' AND sm.is_active
+       LIMIT $2`,
+      [instituteId, limit],
+    );
+
+    let reachable = 0;
+    let dead = 0;
+    for (const r of rows) {
+      const status = await this.headStatus(r.s3_key);
+      const ok = status === 200;
+      ok ? reachable++ : dead++;
+      await this.ds.query(
+        `INSERT INTO textbook_link_status
+           (material_id, institute_id, chapter_id, url, http_status, reachable, checked_at)
+         VALUES ($1,$2,$3,$4,$5,$6,NOW())
+         ON CONFLICT (material_id) DO UPDATE SET
+           http_status = EXCLUDED.http_status, reachable = EXCLUDED.reachable,
+           url = EXCLUDED.url, checked_at = NOW()`,
+        [r.id, instituteId, r.chapter_id, r.s3_key, status, ok],
+      );
+    }
+
+    this.logger.log(`Link audit: ${reachable} reachable, ${dead} dead of ${rows.length}`);
+    return { checked: rows.length, reachable, dead };
+  }
+
+  /** HEAD the URL; any transport failure counts as unreachable, not as an error. */
+  private async headStatus(url: string): Promise<number> {
+    if (!url) return 0;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20_000);
+      try {
+        const res = await fetch(url, { method: 'HEAD', signal: controller.signal });
+        return res.status;
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Index every reachable, not-yet-indexed chapter for this institute.
+   *
+   * Returns as soon as the run is queued: a scanned chapter costs a vision pass
+   * per page, so a full library is hours of work and cannot sit on an HTTP
+   * request. Progress is written to textbook_ingest_runs and polled separately.
+   */
+  async startBulkIngest(user: any, opts: { reindex?: boolean; limit?: number } = {}) {
+    const instituteId = user?.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute context is required');
+    await this.ensureSchema();
+
+    const running = await this.ds.query(
+      `SELECT id FROM textbook_ingest_runs
+       WHERE institute_id::text = $1::text AND status = 'running' LIMIT 1`,
+      [instituteId],
+    );
+    if (running.length) {
+      throw new BadRequestException('An indexing run is already in progress for this institute');
+    }
+
+    const targets = await this.pendingMaterials(instituteId, opts);
+    const run = await this.ds.query(
+      `INSERT INTO textbook_ingest_runs (institute_id, total) VALUES ($1,$2) RETURNING id`,
+      [instituteId, targets.length],
+    );
+    const runId = run[0].id;
+
+    // Fire and forget: the caller gets the run id immediately.
+    void this.processBulk(runId, instituteId, targets).catch((err) =>
+      this.logger.error(`Bulk ingest run ${runId} crashed: ${(err as Error).message}`),
+    );
+
+    return { runId, queued: targets.length };
+  }
+
+  /** Chapters worth indexing: has a PDF, known reachable, and not already done. */
+  private async pendingMaterials(instituteId: string, opts: { reindex?: boolean; limit?: number }) {
+    const skipIndexed = opts.reindex
+      ? ''
+      : `AND NOT EXISTS (SELECT 1 FROM textbook_sources ts
+                         WHERE ts.chapter_id::text = c.id::text AND ts.chunk_count > 0)`;
+    return this.ds.query(
+      `SELECT DISTINCT ON (c.id) sm.id AS material_id, c.id AS chapter_id, c.name AS chapter_name
+       FROM study_materials sm
+       JOIN chapters c ON c.id = sm.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN classes cl ON cl.id = s.class_id
+       LEFT JOIN textbook_link_status ls ON ls.material_id::text = sm.id::text
+       WHERE cl.institute_id::text = $1::text
+         AND sm.s3_key ILIKE '%.pdf' AND sm.is_active
+         -- Unaudited links are attempted; only a link known to be dead is skipped.
+         AND (ls.reachable IS NULL OR ls.reachable = TRUE)
+         ${skipIndexed}
+       ORDER BY c.id, sm.created_at DESC
+       LIMIT $2`,
+      [instituteId, opts.limit ?? 500],
+    );
+  }
+
+  /**
+   * Work the queue one chapter at a time.
+   *
+   * Sequential on purpose: each scanned chapter is a vision pass over every page,
+   * and running them concurrently would spend the account's rate limit for no
+   * benefit on what is background work. One chapter failing must not stop the run.
+   */
+  private async processBulk(runId: string, instituteId: string, targets: any[]) {
+    let done = 0, ok = 0, failed = 0;
+    for (const t of targets) {
+      try {
+        const res = await this.ingestMaterial({ instituteId }, t.material_id);
+        res.indexed ? ok++ : failed++;
+        await this.ds.query(
+          `UPDATE textbook_ingest_runs
+           SET done=$2, succeeded=$3, failed=$4, last_chapter=$5, last_error=NULL
+           WHERE id=$1`,
+          [runId, ++done, ok, failed, t.chapter_name],
+        );
+      } catch (err) {
+        failed++;
+        await this.ds.query(
+          `UPDATE textbook_ingest_runs
+           SET done=$2, succeeded=$3, failed=$4, last_chapter=$5, last_error=$6
+           WHERE id=$1`,
+          [runId, ++done, ok, failed, t.chapter_name, (err as Error).message?.slice(0, 400)],
+        );
+        this.logger.warn(`Bulk ingest: "${t.chapter_name}" failed — ${(err as Error).message}`);
+      }
+    }
+    await this.ds.query(
+      `UPDATE textbook_ingest_runs SET status='finished', finished_at=NOW() WHERE id=$1`,
+      [runId],
+    );
+    this.logger.log(`Bulk ingest run ${runId} finished: ${ok} indexed, ${failed} failed`);
+  }
+
+  /** Progress for the most recent run, for polling from the coverage screen. */
+  async ingestRunStatus(user: any) {
+    const instituteId = user?.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute context is required');
+    await this.ensureSchema();
+    const rows = await this.ds.query(
+      `SELECT id, status, total, done, succeeded, failed, last_chapter AS "lastChapter",
+              last_error AS "lastError", started_at AS "startedAt", finished_at AS "finishedAt"
+       FROM textbook_ingest_runs
+       WHERE institute_id::text = $1::text
+       ORDER BY started_at DESC LIMIT 1`,
+      [instituteId],
+    );
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Every chapter with its grounding state — drives the coverage screen.
+   *
+   * Returns the whole curriculum, not just indexed chapters, because the useful
+   * question is "what is still missing". Each row also carries whether a PDF
+   * exists and whether that file still resolves, so a dead link is visibly
+   * different from a chapter nobody has uploaded yet.
+   */
+  async coverage(user: any) {
+    const instituteId = user?.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute context is required');
+    await this.ensureSchema();
+    return this.ds.query(
+      `SELECT c.id AS "chapterId", c.name AS "chapterName",
+              s.name AS "subjectName", cl.name AS "className",
+              ts.pages, ts.chunk_count AS "passages", ts.method, ts.quality,
+              ts.ingested_at AS "ingestedAt",
+              (ts.chapter_id IS NOT NULL AND ts.chunk_count > 0) AS "indexed",
+              m.material_id AS "materialId",
+              (m.material_id IS NOT NULL) AS "hasPdf",
+              m.reachable AS "linkReachable"
+       FROM chapters c
+       JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN classes cl ON cl.id = s.class_id
+       LEFT JOIN textbook_sources ts
+              ON ts.chapter_id::text = c.id::text AND ts.institute_id::text = $1::text
+       LEFT JOIN LATERAL (
+         -- Newest PDF per chapter, with whatever the last audit found.
+         SELECT sm.id AS material_id, ls.reachable
+         FROM study_materials sm
+         LEFT JOIN textbook_link_status ls ON ls.material_id::text = sm.id::text
+         WHERE sm.chapter_id::text = c.id::text
+           AND sm.s3_key ILIKE '%.pdf' AND sm.is_active
+         ORDER BY sm.created_at DESC
+         LIMIT 1
+       ) m ON TRUE
+       WHERE cl.institute_id::text = $1::text
+       ORDER BY cl.name, s.name, c.sort_order NULLS LAST, c.name`,
+      [instituteId],
+    );
+  }
+}

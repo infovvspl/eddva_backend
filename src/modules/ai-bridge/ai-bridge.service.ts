@@ -64,6 +64,7 @@ export class AiBridgeService {
     '/ppt/search-image':     { feature: 'ppt_image_search',       provider: 'serper' },
     '/grading/subjective-rubric-batch': { feature: 'subjective_rubric_generation', provider: 'groq' },
     '/grading/subjective-answer': { feature: 'subjective_answer_grading', provider: 'groq' },
+    '/memorization/generate': { feature: 'ai_memorization_retention', provider: 'groq' },
   };
 
   private extractTokens(data: any): number | null {
@@ -181,12 +182,13 @@ export class AiBridgeService {
   ) {
     const lang = (payload.language || '').toLowerCase();
     const isEnglish = !lang || lang === 'english' || lang === 'en';
+    const subj = String(payload?.studentContext?.subject || '').toLowerCase();
+    const isMathSubject = subj.includes('math') || subj.includes('physic') || subj.includes('algebra') || subj.includes('calculus') || subj.includes('chem');
+    const shouldAddMathHint = isEnglish && isMathSubject;
+
     return this.post('/doubt/resolve', {
       ...payload,
-      // Only append the English math-formatting hint for English questions.
-      // Regional-language questions (Odia, Hindi) must not get this suffix because
-      // it confuses the Python subject classifier and strips the language signal.
-      questionText: isEnglish
+      questionText: shouldAddMathHint
         ? this.withMathDerivationStyleHint(payload.questionText)
         : payload.questionText,
     }, tenantId, undefined, vertical);
@@ -197,7 +199,7 @@ export class AiBridgeService {
    *                `doubt` = richer extraction for doubt flows (default).
    */
   async extractImageText(
-    payload: { imageUrl: string; purpose?: 'doubt' | 'grading' },
+    payload: { imageUrl: string; purpose?: 'doubt' | 'grading'; language?: string },
     tenantId?: string,
   ): Promise<{ text: string }> {
     return this.post('/doubt/ocr-image', payload, tenantId, 120_000);
@@ -214,6 +216,7 @@ export class AiBridgeService {
       subjectName?: string;
       className?: string;
       board?: string;
+      sourcePassages?: any[];
     },
     tenantId?: string,
     vertical?: string,
@@ -503,6 +506,18 @@ export class AiBridgeService {
     tenantId?: string,
   ) {
     return this.post('/syllabus/generate', payload, tenantId);
+  }
+
+  async generateMemorizationAids(
+    payload: {
+      weakConcepts: Array<{ topicName: string; subjectName: string; severity?: string }>;
+      isDefaultTemplate?: boolean;
+    },
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+  ) {
+    return this.post('/memorization/generate', payload, tenantId, undefined, vertical, board);
   }
 
   /**
@@ -1530,10 +1545,11 @@ export class AiBridgeService {
       subjectName?: string;
       chapterName?: string;
       topicName?: string;
+      sourcePassages?: any[];
     },
     tenantId?: string,
     board?: string,
-  ): Promise<{ success: boolean; data: { title: string; slides: any[] } }> {
+  ): Promise<{ success: boolean; data: { title: string; slides: any[]; source?: any } }> {
     return this.post('/ppt/generate', dto, tenantId, 240_000, 'school', board);
   }
 
@@ -1552,6 +1568,16 @@ export class AiBridgeService {
     board?: string,
   ): Promise<{ success: boolean; data: any }> {
     return this.post('/ppt/regenerate-slide', dto, tenantId, 120_000, 'school', board);
+  }
+
+  /** Read a chapter PDF into page-tagged passages (scans are transcribed there). */
+  async ingestTextbook(
+    dto: { fileUrl: string; allowOcr?: boolean },
+    tenantId?: string,
+  ): Promise<{ success: boolean; data: any }> {
+    // A scanned chapter goes through a vision pass page by page, so this is far
+    // slower than a normal bridge call.
+    return this.post('/textbook/ingest', dto, tenantId, 300_000, 'school');
   }
 
   async searchPptImage(

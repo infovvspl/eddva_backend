@@ -89,6 +89,74 @@ export class GamificationService implements OnModuleInit {
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_session ON school_game_scores (session_id)`);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_metadata ON school_game_sessions USING GIN (metadata)`);
     await this.ds.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_composite ON school_game_skills (student_user_id, subject_id, COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000'::uuid), game_type)`);
+
+    // Cross-game question deduplication: tracks which question texts a student
+    // has already seen so the AI never repeats them in future sessions.
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS school_game_seen_questions (
+        id          bigserial PRIMARY KEY,
+        student_user_id uuid NOT NULL,
+        game_type   varchar(50) NOT NULL,
+        subject_id  uuid,
+        question_text text NOT NULL,
+        seen_at     timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_seen_q_lookup ON school_game_seen_questions (student_user_id, game_type, subject_id, seen_at)`);
+  }
+
+  /**
+   * Returns up to 60 recently seen question/term texts for a student+game+subject
+   * so the AI can be told not to repeat them. Looks back 60 days.
+   */
+  private async getSeenQuestions(userId: string, gameType: string, subjectId: string | null): Promise<string[]> {
+    try {
+      const rows = await this.ds.query(
+        `SELECT question_text FROM school_game_seen_questions
+         WHERE student_user_id = $1
+           AND game_type = $2
+           AND ($3::uuid IS NULL OR subject_id = $3::uuid)
+           AND seen_at > now() - interval '60 days'
+         ORDER BY seen_at DESC
+         LIMIT 60`,
+        [userId, gameType, subjectId || null],
+      );
+      return rows.map((r: any) => String(r.question_text));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Persists question/term texts a student just played through so future
+   * sessions can exclude them. Prunes entries older than 90 days on each write.
+   */
+  private async recordSeenQuestions(
+    userId: string,
+    gameType: string,
+    subjectId: string | null,
+    texts: string[],
+  ): Promise<void> {
+    const clean = texts.filter(t => t && t.trim().length > 2).slice(0, 30);
+    if (!clean.length) return;
+    try {
+      for (const text of clean) {
+        await this.ds.query(
+          `INSERT INTO school_game_seen_questions (student_user_id, game_type, subject_id, question_text)
+           VALUES ($1, $2, $3, $4)`,
+          [userId, gameType, subjectId || null, text.slice(0, 500)],
+        );
+      }
+      // Prune entries older than 90 days for this student + game
+      await this.ds.query(
+        `DELETE FROM school_game_seen_questions
+         WHERE student_user_id = $1 AND game_type = $2 AND seen_at < now() - interval '90 days'`,
+        [userId, gameType],
+      );
+    } catch (e: any) {
+      this.logger.warn(`recordSeenQuestions failed: ${e?.message}`);
+    }
+
   }
 
   async getOrCreateSkill(userId: string, subjectId: string, chapterId: string | null, gameType: string): Promise<number> {
@@ -372,20 +440,64 @@ export class GamificationService implements OnModuleInit {
     } else {
       difficulty = query.difficulty || 'medium';
     }
-    const questions = await this.generateMcqs(ctx, 5, difficulty, 'Quiz Rush');
+    const seenTexts = await this.getSeenQuestions(user.id, 'quiz_rush', ctx.subjectId);
+    const excludeObjs = seenTexts.map(t => ({ content: t }));
+    const questions = await this.generateMcqs(ctx, 5, difficulty, 'Quiz Rush', excludeObjs);
     const session = await this.createSession(user, ctx, 'quiz_rush', { questions, difficulty }, playMode);
-    return { sessionId: session.id, questions: this.publicQuestions(questions), difficulty };
+    return { sessionId: session.id, questions: this.publicQuestions(questions.slice(0, 1)), difficulty };
+  }
+
+  async getNextQuizRushQuestion(user: any, sessionId: string, currentIdxQuery?: string) {
+    const session = await this.getActiveSession(user, sessionId, 'quiz_rush');
+    const questions = session.metadata.questions || [];
+    const currentDifficulty = session.metadata.difficulty || 'medium';
+    const currentIdx = currentIdxQuery !== undefined ? Number(currentIdxQuery) : (questions.length - 1);
+    const nextIdx = currentIdx + 1;
+
+    if (nextIdx < questions.length) {
+      return { 
+        question: this.publicQuestions([questions[nextIdx]])[0], 
+        difficulty: questions[nextIdx].difficulty || currentDifficulty 
+      };
+    }
+
+    const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+    const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
+    const newQuestions = await this.generateMcqs(ctx, 5, nextDifficulty, 'Quiz Rush', questions);
+    if (!newQuestions || newQuestions.length === 0) {
+      throw new BadRequestException('Could not generate more questions.');
+    }
+    
+    const newQuestionsWithDiff = newQuestions.map(q => ({ ...q, difficulty: nextDifficulty }));
+    const updatedQuestions = [...questions, ...newQuestionsWithDiff];
+    
+    const updatedMetadata = {
+      ...session.metadata,
+      questions: updatedQuestions,
+      difficulty: nextDifficulty,
+    };
+
+    await this.ds.query(
+      `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+      [sessionId, JSON.stringify(updatedMetadata)]
+    );
+
+    return { 
+      question: this.publicQuestions([newQuestionsWithDiff[0]])[0], 
+      difficulty: nextDifficulty 
+    };
   }
 
   async submitQuizRush(user: any, body: any) {
     const session = await this.getActiveSession(user, body.sessionId, 'quiz_rush');
-    const result = this.gradeMcqRun(session.metadata.questions, body.answers || [], true);
-    const perfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
+    const answeredQuestions = (session.metadata.questions || []).slice(0, (body.answers || []).length);
+    const result = this.gradeMcqRun(answeredQuestions, body.answers || [], true);
+    const perfect = result.correctAnswers >= 5;
     
     // Anti-cheat checks
     const tabSwitches = Number(body.tabSwitchesCount || 0);
     const timeTaken = Number(body.timeTakenSeconds || 999);
-    const totalQ = session.metadata.questions?.length || 5;
+    const totalQ = answeredQuestions.length || 5;
     
     let cheatFlagged = false;
     let cheatReason = '';
@@ -402,7 +514,11 @@ export class GamificationService implements OnModuleInit {
     
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : (result.score + (perfect ? 50 : 0)), xpEarned, coinsEarned, result);
-    
+
+    // Record seen questions so the next game gets fresh questions
+    const qrTexts = (answeredQuestions as any[]).map((q: any) => q.content || q.questionText || q.question || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'quiz_rush', session.subject_id, qrTexts);
+
     if (!cheatFlagged && session.play_mode === 'ranked') {
       const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
       await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'quiz_rush', accuracy);
@@ -451,7 +567,9 @@ export class GamificationService implements OnModuleInit {
     if (queryMode === 'ranked') {
       difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'treasure_hunt');
     }
-    const questions = await this.generateMcqs(ctx, 3, difficulty, `Treasure Hunt checkpoint ${safeStageOrder} application riddle`);
+    const seenTexts = await this.getSeenQuestions(user.id, 'treasure_hunt', ctx.subjectId);
+    const excludeObjs = seenTexts.map(t => ({ content: t }));
+    const questions = await this.generateMcqs(ctx, 3, difficulty, `Treasure Hunt checkpoint ${safeStageOrder} application riddle`, excludeObjs);
     const session = await this.createSession(user, ctx, 'treasure_hunt', { questions, questId: subjectId, stageOrder: safeStageOrder, difficulty }, queryMode);
     return { sessionId: session.id, questId: subjectId, stageOrder: safeStageOrder, questions: this.publicQuestions(questions), difficulty };
   }
@@ -482,7 +600,11 @@ export class GamificationService implements OnModuleInit {
     
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers, passed, stageOrder }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
-    
+
+    // Record seen questions for cross-game deduplication
+    const tqTexts = (session.metadata.questions as any[] || []).map((q: any) => q.content || q.questionText || q.question || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'treasure_hunt', session.subject_id, tqTexts);
+
     if (!cheatFlagged && session.play_mode === 'ranked') {
       const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
       await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'treasure_hunt', accuracy);
@@ -510,19 +632,58 @@ export class GamificationService implements OnModuleInit {
     } else {
       difficulty = (difficultyParam as any) || 'medium';
     }
-    const questions = await this.generateMathSprintQuestions(ctx, difficulty);
+    const seenTexts = await this.getSeenQuestions(user.id, 'math_sprint', ctx.subjectId);
+    const questions = await this.generateMathSprintQuestions(ctx, difficulty, seenTexts);
     const session = await this.createSession(user, ctx, 'math_sprint', { questions, difficulty }, queryMode);
-    return { sessionId: session.id, questions: this.publicQuestions(questions), difficulty };
+    return { sessionId: session.id, questions: this.publicQuestions(questions.slice(0, 1)), difficulty };
+  }
+
+  async getNextMathSprintQuestion(user: any, sessionId: string, currentIdxQuery?: string) {
+    const session = await this.getActiveSession(user, sessionId, 'math_sprint');
+    const questions = session.metadata.questions || [];
+    const currentDifficulty = session.metadata.difficulty || 'medium';
+    const currentIdx = currentIdxQuery !== undefined ? Number(currentIdxQuery) : (questions.length - 1);
+    const nextIdx = currentIdx + 1;
+
+    if (nextIdx < questions.length) {
+      return { 
+        question: this.publicQuestions([questions[nextIdx]])[0], 
+        difficulty: questions[nextIdx].difficulty || currentDifficulty 
+      };
+    }
+
+    const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+    const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
+    const newQuestion = this.localMathQuestion(nextDifficulty, ctx.className);
+    (newQuestion as any).difficulty = nextDifficulty;
+    
+    const updatedQuestions = [...questions, newQuestion];
+    const updatedMetadata = {
+      ...session.metadata,
+      questions: updatedQuestions,
+      difficulty: nextDifficulty,
+    };
+
+    await this.ds.query(
+      `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+      [sessionId, JSON.stringify(updatedMetadata)]
+    );
+
+    return { 
+      question: this.publicQuestions([newQuestion])[0], 
+      difficulty: nextDifficulty 
+    };
   }
 
   async submitMathSprint(user: any, body: any) {
     const session = await this.getActiveSession(user, body.sessionId, 'math_sprint');
-    const result = this.gradeMcqRun(session.metadata.questions, body.answers || [], false);
+    const answeredQuestions = (session.metadata.questions || []).slice(0, (body.answers || []).length);
+    const result = this.gradeMcqRun(answeredQuestions, body.answers || [], false);
     
     // Anti-cheat checks
     const tabSwitches = Number(body.tabSwitchesCount || 0);
     const timeTaken = Number(body.timeTakenSeconds || 999);
-    const totalQ = session.metadata.questions?.length || 12;
+    const totalQ = answeredQuestions.length || 12;
     
     let cheatFlagged = false;
     let cheatReason = '';
@@ -540,6 +701,10 @@ export class GamificationService implements OnModuleInit {
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : result.score, xpEarned, coinsEarned, result);
     
+    // Record seen questions for cross-game deduplication
+    const msTexts = (answeredQuestions as any[]).map((q: any) => q.content || q.questionText || q.question || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'math_sprint', session.subject_id, msTexts);
+
     if (!cheatFlagged && session.play_mode === 'ranked') {
       const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
       await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'math_sprint', accuracy);
@@ -575,7 +740,9 @@ export class GamificationService implements OnModuleInit {
       theme.prompt,
       'Generate paired terms and meanings that feel like clue cards, with concise matchable definitions.',
     ].join(' - ');
-    const pairs = await this.generateConceptPairs(ctx, 6, promptMode);
+    const seenTexts = await this.getSeenQuestions(user.id, 'memory_match', ctx.subjectId);
+    const excludeWords = seenTexts.map(t => ({ word: t }));
+    const pairs = await this.generateConceptPairs(ctx, 6, promptMode, difficulty, excludeWords);
     const cards = this.shuffle(pairs.flatMap((p: any) => {
       const matchId = randomUUID();
       return [
@@ -613,7 +780,11 @@ export class GamificationService implements OnModuleInit {
     const result = { totalQuestions: pairs, correctAnswers: pairs, maxStreak: pairs, timeTakenSeconds: timeTaken, questionsAttempted: pairs, turnsCount: turns, mismatchesCount: misses };
     await this.completeSession(session.id, xpEarned, coinsEarned, result, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
-    
+
+    // Record seen terms for cross-game deduplication
+    const mmTerms = (session.metadata.pairs as any[] || []).map((p: any) => p.term || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'memory_match', session.subject_id, mmTerms);
+
     if (!cheatFlagged && session.play_mode === 'ranked') {
       const maxTurns = pairs * 3;
       const accuracy = Math.max(10, Math.min(100, Math.round(((maxTurns - Math.min(turns, maxTurns)) / maxTurns) * 100)));
@@ -651,7 +822,9 @@ export class GamificationService implements OnModuleInit {
       this.wordMasterDifficultyPrompt(difficulty),
       'Choose surprising, student-friendly syllabus vocabulary that feels like a puzzle, but never put the answer word inside the clue.',
     ].join(' - ');
-    const pairs = await this.generateConceptPairs(ctx, 10, promptMode, difficulty);
+    const seenTexts = await this.getSeenQuestions(user.id, 'word_master', ctx.subjectId);
+    const excludeWords = seenTexts.map(t => ({ word: t }));
+    const pairs = await this.generateConceptPairs(ctx, 10, promptMode, difficulty, excludeWords);
     const words = pairs.map((pair: any) => {
       const word = this.toVocabularyWord(pair.term);
       const hint = this.sanitizeWordHint(pair.definition, pair.term, word);
@@ -659,13 +832,86 @@ export class GamificationService implements OnModuleInit {
     }).filter((w: any) => w.word.length >= 4 && w.hint.length >= 12 && !this.hintContainsAnswer(w.hint, w.word));
     if (words.length < 4) throw new BadRequestException('AI could not generate enough vocabulary words. Please try again.');
     const session = await this.createSession(user, ctx, 'word_master', { words, deckName: theme.name, difficulty, themeKey: theme.key }, queryMode);
-    return { sessionId: session.id, deckName: theme.name, difficulty, words: words.map(({ word, ...rest }: any) => rest) };
+    return { sessionId: session.id, deckName: theme.name, difficulty, words: words.slice(0, 1).map(({ word, ...rest }: any) => rest) };
+  }
+
+  async submitWordMasterWord(user: any, body: any) {
+    const session = await this.getActiveSession(user, body.sessionId, 'word_master');
+    const words = session.metadata.words || [];
+    const index = Number(body.index || 0);
+    const userWord = String(body.word || '').toUpperCase().trim();
+    
+    const correctWordData = words[index];
+    if (!correctWordData) {
+      throw new BadRequestException('Word index out of bounds');
+    }
+    
+    const isCorrect = correctWordData.word && userWord === String(correctWordData.word).toUpperCase().trim();
+    
+    if (isCorrect) {
+      const nextIdx = index + 1;
+      if (nextIdx < words.length) {
+        const nextWordPublic = { ...words[nextIdx] };
+        delete (nextWordPublic as any).word;
+        return { isCorrect: true, nextWord: nextWordPublic };
+      }
+      
+      const currentDifficulty = session.metadata.difficulty || 'medium';
+      const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+      const subjects = await this.listClassSubjects(user);
+      const theme = this.resolveWordMasterTheme(session.metadata.themeKey || '', subjects);
+      const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
+      
+      const promptMode = [
+        `Word Master: ${theme.name} (${nextDifficulty})`,
+        theme.description,
+        theme.prompt,
+        this.wordMasterDifficultyPrompt(nextDifficulty),
+        'Choose surprising, student-friendly syllabus vocabulary that feels like a puzzle, but never put the answer word inside the clue.',
+      ].join(' - ');
+      
+      const pairs = await this.generateConceptPairs(ctx, 10, promptMode, nextDifficulty, words);
+      const newWords = pairs.map((pair: any) => {
+        const word = this.toVocabularyWord(pair.term);
+        const hint = this.sanitizeWordHint(pair.definition, pair.term, word);
+        return { word, scrambled: this.scramble(word), hint, length: word.length };
+      }).filter((w: any) => w.word.length >= 4 && w.hint.length >= 12 && !this.hintContainsAnswer(w.hint, w.word));
+      
+      if (!newWords || newWords.length === 0) {
+        throw new BadRequestException('Could not generate more words.');
+      }
+      
+      const updatedWords = [...words, ...newWords];
+      const updatedMetadata = {
+        ...session.metadata,
+        words: updatedWords,
+        difficulty: nextDifficulty,
+      };
+      
+      await this.ds.query(
+        `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+        [body.sessionId, JSON.stringify(updatedMetadata)]
+      );
+      
+      const nextWordPublic = { ...newWords[0] };
+      delete (nextWordPublic as any).word;
+      return { isCorrect: true, nextWord: nextWordPublic };
+    } else {
+      const results = await this.submitWordMaster(user, {
+        sessionId: body.sessionId,
+        answers: body.answers || [],
+        tabSwitchesCount: body.tabSwitchesCount,
+        timeTakenSeconds: body.timeTakenSeconds,
+      });
+      return { isCorrect: false, results };
+    }
   }
 
   async submitWordMaster(user: any, body: any) {
     const session = await this.getActiveSession(user, body.sessionId, 'word_master');
     const words = session.metadata.words || [];
     const answers = body.answers || [];
+    const answeredWords = words.slice(0, answers.length);
     let correctAnswers = 0;
     let maxStreak = 0;
     let streak = 0;
@@ -684,7 +930,7 @@ export class GamificationService implements OnModuleInit {
     // Anti-cheat checks
     const tabSwitches = Number(body.tabSwitchesCount || 0);
     const timeTaken = Number(body.timeTakenSeconds || 999);
-    const totalQ = words.length;
+    const totalQ = answeredWords.length || 10;
     
     let cheatFlagged = false;
     let cheatReason = '';
@@ -696,11 +942,16 @@ export class GamificationService implements OnModuleInit {
       cheatReason = 'Unnaturally high solving speed';
     }
 
-    const xpEarned = cheatFlagged ? 0 : (correctAnswers * 15 + (correctAnswers === words.length ? 50 : 0));
-    const coinsEarned = cheatFlagged ? 0 : (correctAnswers + (correctAnswers === words.length ? 5 : 0));
-    const result = { totalQuestions: words.length, correctAnswers, maxStreak, wordsAttempted: words.length, score: xpEarned };
+    const perfect = correctAnswers >= 10;
+    const xpEarned = cheatFlagged ? 0 : (correctAnswers * 15 + (perfect ? 50 : 0));
+    const coinsEarned = cheatFlagged ? 0 : (correctAnswers + (perfect ? 5 : 0));
+    const result = { totalQuestions: totalQ, correctAnswers, maxStreak, wordsAttempted: totalQ, score: xpEarned };
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers, correctAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
+
+    // Record seen words for cross-game deduplication
+    const wmWords = (answeredWords as any[]).map((w: any) => w.word || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'word_master', session.subject_id, wmWords);
     
     if (!cheatFlagged && session.play_mode === 'ranked') {
       const accuracy = totalQ > 0 ? (correctAnswers / totalQ) * 100 : 0;
@@ -804,7 +1055,7 @@ export class GamificationService implements OnModuleInit {
     return subjects.find((s: any) => /math/i.test(s.name)) || subjects[0];
   }
 
-  private async generateMcqs(ctx: any, count: number, difficulty: string, mode: string) {
+  private async generateMcqs(ctx: any, count: number, difficulty: string, mode: string, excludeQuestions?: any[]) {
     const topicName = [
       `Class ${ctx.className}`,
       ctx.subjectName,
@@ -815,6 +1066,14 @@ export class GamificationService implements OnModuleInit {
         ? 'Question text should be a short scenario, clue, or application riddle suitable for a treasure checkpoint.'
         : '',
     ].filter(Boolean).join(' - ');
+
+    const excludeTexts = (excludeQuestions || [])
+      .map(q => q.content || q.questionText || q.question || '')
+      .filter(Boolean);
+    const notes = excludeTexts.length > 0
+      ? `CRITICAL: Do NOT generate questions similar to these already asked questions:\n` + excludeTexts.map(t => `- ${t}`).join('\n')
+      : undefined;
+
     let questions: any[];
     try {
       questions = await this.aiBridge.generateQuestionsFromTopic({
@@ -826,6 +1085,7 @@ export class GamificationService implements OnModuleInit {
         examTarget: 'cbse',
         subject: ctx.subjectName,
         chapter: ctx.chapterName || undefined,
+        notes,
       }, ctx.instituteId, 'school');
     } catch (err: any) {
       this.logger.error(`Gamification AI error [${mode}]: ${err?.message || err}`);
@@ -838,8 +1098,11 @@ export class GamificationService implements OnModuleInit {
     return mapped;
   }
 
-  private async generateMathSprintQuestions(ctx: any, difficulty: string) {
+  private async generateMathSprintQuestions(ctx: any, difficulty: string, seenTexts: string[] = []) {
     try {
+      const notes = seenTexts.length > 0
+        ? `CRITICAL: Do NOT generate expressions identical to these already used: ${seenTexts.slice(0, 30).join(', ')}`
+        : undefined;
       const questions = await this.aiBridge.generateQuestionsFromTopic({
         topicId: ctx.chapterId || ctx.subjectId,
         topicName: [
@@ -855,6 +1118,7 @@ export class GamificationService implements OnModuleInit {
         type: 'mcq_single',
         examTarget: 'cbse',
         subject: 'Mathematics',
+        notes,
       }, ctx.instituteId, 'school');
       const mapped = (questions || [])
         .map((q: any) => this.toGameQuestion(q))
@@ -868,7 +1132,14 @@ export class GamificationService implements OnModuleInit {
     return this.fillMathQuestions([], difficulty, ctx.className, 12);
   }
 
-  private async generateConceptPairs(ctx: any, count: number, mode: string, difficulty = 'medium') {
+  private async generateConceptPairs(ctx: any, count: number, mode: string, difficulty = 'medium', excludeWords?: any[]) {
+    const excludeTexts = (excludeWords || [])
+      .map(w => w.word || w.term || '')
+      .filter(Boolean);
+    const notes = excludeTexts.length > 0
+      ? `CRITICAL: Do NOT generate questions/words similar to these already used terms:\n` + excludeTexts.map(t => `- ${t}`).join('\n')
+      : undefined;
+
     let raw: any[];
     try {
       raw = await this.aiBridge.generateQuestionsFromTopic({
@@ -889,6 +1160,7 @@ export class GamificationService implements OnModuleInit {
         examTarget: 'cbse',
         subject: ctx.subjectName,
         chapter: ctx.chapterName || undefined,
+        notes,
       }, ctx.instituteId, 'school');
     } catch (err: any) {
       this.logger.warn(`${mode} AI error: ${err?.message || err}; falling back to subject terms`);
@@ -909,20 +1181,65 @@ export class GamificationService implements OnModuleInit {
   }
 
   private toGameQuestion(q: any) {
-    const options = (q.options || []).slice(0, 4).map((o: any) => ({
-      id: randomUUID(),
-      optionLabel: o.label,
-      content: String(o.content || '').trim(),
-      isCorrect: Boolean(o.isCorrect),
-    }));
-    if (!options.some((o: any) => o.isCorrect) && options[0]) options[0].isCorrect = true;
+    const options = (q.options || []).slice(0, 4).map((o: any, idx: number) => {
+      const label = String.fromCharCode(65 + idx); // 'A', 'B', 'C', 'D'
+      let content = '';
+      let isCorrect = false;
+      let optionLabel = label;
+
+      if (o && typeof o === 'object') {
+        content = String(o.content || o.text || o.optionText || '').trim();
+        optionLabel = o.label || o.optionLabel || label;
+        isCorrect = Boolean(o.isCorrect);
+      } else {
+        content = String(o || '').trim();
+      }
+
+      // If isCorrect is not explicitly set, determine it via q.answer or q.correctOptions
+      if (!isCorrect) {
+        const correctAns = String(q.answer || '').trim().toUpperCase();
+        const correctOpts = Array.isArray(q.correctOptions)
+          ? q.correctOptions.map((x: any) => String(x).trim().toUpperCase())
+          : [];
+        isCorrect =
+          correctAns === optionLabel ||
+          correctAns === label ||
+          correctAns === content.toUpperCase() ||
+          correctOpts.includes(optionLabel) ||
+          correctOpts.includes(label);
+      }
+
+      return {
+        id: randomUUID(),
+        optionLabel,
+        content,
+        isCorrect,
+      };
+    });
+
+    // Ensure at least one option is correct
+    if (!options.some((o: any) => o.isCorrect) && options.length > 0) {
+      const ansText = String(q.answer || '').trim().toUpperCase();
+      let matched = false;
+      for (const opt of options) {
+        if (ansText && (opt.content.toUpperCase().includes(ansText) || ansText.includes(opt.content.toUpperCase()))) {
+          opt.isCorrect = true;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched && options[0]) {
+        options[0].isCorrect = true;
+      }
+    }
+
     return {
       id: randomUUID(),
-      content: String(q.content || q.questionText || '').trim(),
+      content: String(q.content || q.questionText || q.question || '').trim(),
       contentImageUrl: null,
       type: 'mcq_single',
       difficulty: 'medium',
-      explanation: q.explanation || q.solutionText || '',
+      explanation: q.explanation || q.solutionText || q.solution || '',
       options,
     };
   }
@@ -934,7 +1251,12 @@ export class GamificationService implements OnModuleInit {
     const normalizedExpression = expression.replace(/\s+/g, ' ');
     const correctAnswer = this.evaluateExpression(normalizedExpression);
     const numericOptions = (q.options || [])
-      .map((o: any) => ({ ...o, content: this.extractNumericAnswer(o.content) }))
+      .map((o: any) => {
+        const optionVal = o && typeof o === 'object' ? o.content : o;
+        return {
+          content: this.extractNumericAnswer(optionVal)
+        };
+      })
       .filter((o: any) => o.content !== null);
     if (numericOptions.length < 4) return null;
 
