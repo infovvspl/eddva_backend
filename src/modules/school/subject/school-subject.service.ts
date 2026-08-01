@@ -203,27 +203,20 @@ export class SchoolSubjectService {
     }
     const normalizedName = normalizeSubjectName(body.name);
 
-    // Uniqueness check: LOWER(TRIM(name)) within same scope (instituteId, classId, sectionId)
-    let dupQuery = `
-      SELECT id FROM subjects 
-      WHERE institute_id = $1 
-        AND LOWER(TRIM(name)) = LOWER(TRIM($2))
-    `;
-    const dupParams = [instituteId, normalizedName];
-    if (body.classId) {
-      dupQuery += ` AND class_id = $3`;
-      dupParams.push(body.classId);
-    } else {
-      dupQuery += ` AND class_id IS NULL`;
-    }
-    if (body.sectionId) {
-      dupQuery += ` AND section_id = $${dupParams.length + 1}`;
-      dupParams.push(body.sectionId);
-    } else {
-      dupQuery += ` AND section_id IS NULL`;
-    }
-
-    const dups = await this.ds.query(dupQuery, dupParams);
+    // Uniqueness within (institute, class, section) on the normalised name.
+    //
+    // Scope is compared through COALESCE rather than branching to IS NULL. The
+    // old form let a class-wide subject and a section-scoped one coexist — SQL
+    // never matches NULL to NULL — which is how Class 10 ended up with two
+    // Economics subjects, each carrying its own copy of every chapter.
+    const dups = await this.ds.query(
+      `SELECT id FROM subjects
+       WHERE institute_id = $1
+         AND LOWER(TRIM(name)) = LOWER(TRIM($2))
+         AND COALESCE(class_id::text, '')   = COALESCE($3::text, '')
+         AND COALESCE(section_id::text, '') = COALESCE($4::text, '')`,
+      [instituteId, normalizedName, body.classId ?? null, body.sectionId ?? null],
+    );
     if (dups.length > 0) {
       throw new BadRequestException('Subject already exists.');
     }
@@ -248,28 +241,16 @@ export class SchoolSubjectService {
     const sectionId = body.sectionId !== undefined ? (body.sectionId || null) : current.section_id;
 
     if (body.name || body.classId !== undefined || body.sectionId !== undefined) {
-      // Check for duplicate
-      let dupQuery = `
-        SELECT id FROM subjects 
-        WHERE institute_id = $1 
-          AND LOWER(TRIM(name)) = LOWER(TRIM($2))
-          AND id <> $3
-      `;
-      const dupParams = [current.institute_id, normalizedName, id];
-      if (classId) {
-        dupQuery += ` AND class_id = $4`;
-        dupParams.push(classId);
-      } else {
-        dupQuery += ` AND class_id IS NULL`;
-      }
-      if (sectionId) {
-        dupQuery += ` AND section_id = $${dupParams.length + 1}`;
-        dupParams.push(sectionId);
-      } else {
-        dupQuery += ` AND section_id IS NULL`;
-      }
-
-      const dups = await this.ds.query(dupQuery, dupParams);
+      // Same COALESCE scope comparison as create() — see the note there.
+      const dups = await this.ds.query(
+        `SELECT id FROM subjects
+         WHERE institute_id = $1
+           AND LOWER(TRIM(name)) = LOWER(TRIM($2))
+           AND id <> $3
+           AND COALESCE(class_id::text, '')   = COALESCE($4::text, '')
+           AND COALESCE(section_id::text, '') = COALESCE($5::text, '')`,
+        [current.institute_id, normalizedName, id, classId ?? null, sectionId ?? null],
+      );
       if (dups.length > 0) {
         throw new BadRequestException('Subject already exists.');
       }

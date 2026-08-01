@@ -180,12 +180,60 @@ export class SchoolCurriculumDedupeService {
       });
     }
 
+    // Chapters can also duplicate inside a single subject — createChapter had no
+    // name check, so the same chapter could be added twice (often differing only
+    // by trailing whitespace). Those groups have no duplicate subject to hang
+    // off, so they are reported separately.
+    const chapterOnly = await this.findChapterOnlyDuplicates(
+      instituteId, new Set(duplicates.map((g) => g.canonicalId)),
+    );
+
     return {
       instituteId,
       duplicateGroups: duplicates.length,
       subjectsInvolved: duplicates.reduce((n, g) => n + g.members.length, 0),
+      chapterOnlyGroups: chapterOnly.length,
       groups: duplicates,
+      chapterGroups: chapterOnly,
     };
+  }
+
+  /** Same-named chapters within one subject, excluding subjects already covered
+   *  by a subject merge (that pass collapses their chapters anyway). */
+  private async findChapterOnlyDuplicates(instituteId: string, skipSubjectIds: Set<string>) {
+    const rows = await this.ds.query(
+      `SELECT c.subject_id AS "subjectId", s.name AS "subjectName", cl.name AS "className",
+              LOWER(BTRIM(c.name)) AS key,
+              json_agg(json_build_object(
+                'id', c.id, 'name', c.name,
+                'passages', COALESCE(ts.chunk_count, 0),
+                'materials', (SELECT count(*)::int FROM study_materials sm WHERE sm.chapter_id = c.id)
+              ) ORDER BY c.created_at) AS variants
+       FROM chapters c
+       JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN classes cl ON cl.id = s.class_id
+       LEFT JOIN textbook_sources ts ON ts.chapter_id = c.id
+       WHERE s.institute_id::text = $1::text
+       GROUP BY c.subject_id, s.name, cl.name, LOWER(BTRIM(c.name))
+       HAVING count(*) > 1`,
+      [instituteId],
+    );
+
+    return rows
+      .filter((r: any) => !skipSubjectIds.has(r.subjectId))
+      .map((r: any) => {
+        const keep = this.pickCanonicalChapter(r.variants);
+        return {
+          groupKey: `chapter:${r.subjectId}:${r.key}`,
+          className: r.className,
+          subjectName: r.subjectName,
+          subjectId: r.subjectId,
+          finalName: bestChapterName(r.variants.map((v: any) => v.name)),
+          keepId: keep.id,
+          mergeIds: r.variants.filter((v: any) => v.id !== keep.id).map((v: any) => v.id),
+          variants: r.variants,
+        };
+      });
   }
 
   /**
@@ -261,11 +309,43 @@ export class SchoolCurriculumDedupeService {
     }
     const report = await this.findDuplicates(user, forInstituteId);
     const wanted = report.groups.filter((g: any) => groupKeys.includes(g.groupKey));
-    if (!wanted.length) {
+    const wantedChapters = (report.chapterGroups || []).filter((g: any) =>
+      groupKeys.includes(g.groupKey),
+    );
+    if (!wanted.length && !wantedChapters.length) {
       throw new BadRequestException('None of those groups are currently duplicated');
     }
 
     const results = [];
+    for (const cg of wantedChapters) {
+      const runner = this.ds.createQueryRunner();
+      await runner.connect();
+      await runner.startTransaction();
+      try {
+        for (const loser of cg.mergeIds) {
+          await this.repointChapter(runner, cg.keepId, loser);
+        }
+        await runner.query(`UPDATE chapters SET name = $1 WHERE id::text = $2::text`, [
+          cg.finalName, cg.keepId,
+        ]);
+        await runner.commitTransaction();
+        this.logger.log(
+          `Merged ${cg.mergeIds.length} duplicate chapter(s) of "${cg.finalName}" ` +
+          `in ${cg.className} / ${cg.subjectName}`,
+        );
+        results.push({
+          groupKey: cg.groupKey, chapterName: cg.finalName,
+          className: cg.className, subjectName: cg.subjectName,
+          chaptersMerged: cg.mergeIds.length,
+        });
+      } catch (err) {
+        await runner.rollbackTransaction();
+        this.logger.error(`Chapter merge failed for ${cg.groupKey}: ${(err as Error).message}`);
+        results.push({ groupKey: cg.groupKey, failed: true, error: (err as Error).message });
+      } finally {
+        await runner.release();
+      }
+    }
     for (const group of wanted) {
       const runner = this.ds.createQueryRunner();
       await runner.connect();
