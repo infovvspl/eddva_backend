@@ -1,4 +1,8 @@
-import { Body, Controller, Get, Post, UseGuards, Req } from '@nestjs/common';
+import {
+  Body, Controller, Get, Post, Query, UseGuards, UseInterceptors, UploadedFile, Req,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import type { Request } from 'express';
 import { SchoolTextbookService } from './school-textbook.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
@@ -17,7 +21,26 @@ export class SchoolTextbookController {
   @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   ingest(@Body() body: any, @Req() req: Request & { user?: any }) {
-    return this.svc.ingestMaterial(req.user, body?.materialId);
+    return this.svc.ingestMaterial(req.user, body?.materialId, body?.instituteId);
+  }
+
+  /**
+   * Attach a PDF to a chapter and index it in one step, so an uploaded chapter
+   * is usable immediately rather than waiting for a separate indexing pass.
+   */
+  @Post('upload')
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 60 * 1024 * 1024 },
+  }))
+  uploadAndIndex(
+    @Body() body: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request & { user?: any },
+  ) {
+    return this.svc.uploadAndIndex(req.user, body?.chapterId, file as any, body?.instituteId);
   }
 
   /**
@@ -28,7 +51,7 @@ export class SchoolTextbookController {
   @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
   auditLinks(@Body() body: any, @Req() req: Request & { user?: any }) {
-    return this.svc.auditLinks(req.user, body?.limit);
+    return this.svc.auditLinks(req.user, body?.limit, body?.instituteId);
   }
 
   /** Queue every reachable, unindexed chapter. Returns immediately with a run id. */
@@ -39,6 +62,7 @@ export class SchoolTextbookController {
     return this.svc.startBulkIngest(req.user, {
       reindex: !!body?.reindex,
       limit: body?.limit,
+      instituteId: body?.instituteId,
     });
   }
 
@@ -46,15 +70,15 @@ export class SchoolTextbookController {
   @Get('ingest-status')
   @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
-  ingestStatus(@Req() req: Request & { user?: any }) {
-    return this.svc.ingestRunStatus(req.user);
+  ingestStatus(@Query('instituteId') instituteId: string, @Req() req: Request & { user?: any }) {
+    return this.svc.ingestRunStatus(req.user, instituteId);
   }
 
   /** Which chapters have a usable textbook behind them. */
   @Get('coverage')
   @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
-  coverage(@Req() req: Request & { user?: any }) {
-    return this.svc.coverage(req.user);
+  coverage(@Query('instituteId') instituteId: string, @Req() req: Request & { user?: any }) {
+    return this.svc.coverage(req.user, instituteId);
   }
 }
