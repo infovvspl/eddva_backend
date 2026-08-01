@@ -4,6 +4,7 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { GamificationService } from './gamification.service';
 import { SchoolFeature } from '../decorators/school-feature.decorator';
 import { SchoolFeatureGuard } from '../guards/school-feature.guard';
+import { SchoolPublic } from '../decorators/school-public.decorator';
 
 @UseGuards(SchoolJwtGuard, SchoolFeatureGuard)
 @Controller('school/gamification')
@@ -146,5 +147,17 @@ export class SchoolGamificationController {
   @Get('my-profile')
   getMyProfile(@Req() req: Request) {
     return this.gamification.getMyProfile((req as any).user);
+  }
+
+  @Get('leaderboard')
+  @SchoolPublic()
+  async getMultiLeaderboard(@Query('scope') scope: string) {
+    try {
+      const data = await this.gamification.getMultiLeaderboard(scope || 'GLOBAL');
+      return { success: true, data: Array.isArray(data) ? data : [] };
+    } catch (err: any) {
+      console.error('[SchoolGamificationController] Leaderboard error:', err?.message || err);
+      return { success: true, data: [] };
+    }
   }
 }
