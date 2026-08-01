@@ -401,7 +401,13 @@ export class SchoolAssessmentService {
         current.options.push({ id: this.normalizeOptionId(option[1]), label: option[1], text: option[2].trim() });
         continue;
       }
-      const qMatch = line.match(/^\s*(\d+)[.)]\s+(.+)$/);
+      // Accept both "1." and "Q1." numbering. Papers are written by more than
+      // one model and are also pasted in by teachers; a Q-prefixed paper used to
+      // parse to zero questions, which silently disabled rubrics and auto-grading
+      // because there were no questions to attach them to.
+      const qMatch =
+        line.match(/^\s*Q\s*\.?\s*(\d+)\s*[.)]?\s+(.+)$/i) ||
+        line.match(/^\s*(\d+)\s*[.)]\s+(.+)$/);
       if (qMatch) {
         if (!this.sectionLetter(section) || this.isInstructionLikeText(qMatch[2])) continue;
         finishCurrent();
