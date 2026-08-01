@@ -170,7 +170,8 @@ export class SchoolSubjectService {
                  ORDER BY ch.sort_order, ch.name
                )
                FROM chapters ch
-               WHERE ch.subject_id::text = s.id::text
+               WHERE ch.subject_id::text = s.id::text 
+                  OR ch.subject_id::text IN (SELECT sub.id::text FROM subjects sub WHERE LOWER(sub.name) = LOWER(s.name) AND sub.institute_id::text = s.institute_id::text)
              ), '[]'::json) AS chapters
       FROM subjects s
       LEFT JOIN classes c ON s.class_id = c.id
