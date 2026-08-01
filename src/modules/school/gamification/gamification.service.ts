@@ -560,8 +560,8 @@ export class GamificationService implements OnModuleInit {
     });
   }
 
-  async getTreasureChallenge(user: any, subjectId: string, stageOrder = 1, queryMode = 'ranked') {
-    const ctx = await this.resolveContext(user, subjectId, null);
+  async getTreasureChallenge(user: any, questId: string, stageOrder = 1, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
+    const ctx = await this.resolveContext(user, subjectId || questId, chapterId || null);
     const safeStageOrder = Math.max(1, Math.min(5, Number(stageOrder || 1)));
     let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
     if (queryMode === 'ranked') {
@@ -717,6 +717,7 @@ export class GamificationService implements OnModuleInit {
     const subjects = await this.listClassSubjects(user);
     return this.memoryMatchThemes(subjects).map((theme) => ({
       id: this.themeDeckId(theme.key, theme.subjectId),
+      subjectId: theme.subjectId,
       name: theme.name,
       description: theme.description,
       defaultDifficulty: theme.difficulty || 'medium',
@@ -724,13 +725,13 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
-  async startMemoryMatch(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked') {
+  async startMemoryMatch(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
     const subjects = await this.listClassSubjects(user);
     const theme = this.resolveMemoryMatchTheme(deckId, subjects);
     let difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
       ? difficultyParam.toLowerCase()
       : (theme.difficulty || 'medium');
-    const ctx = await this.resolveContext(user, theme.subjectId, null);
+    const ctx = await this.resolveContext(user, subjectId || theme.subjectId, chapterId || null);
     if (queryMode === 'ranked') {
       difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'memory_match');
     }
@@ -798,6 +799,7 @@ export class GamificationService implements OnModuleInit {
     const subjects = await this.listClassSubjects(user);
     return this.wordMasterThemes(subjects).map((theme) => ({
       id: this.themeDeckId(theme.key, theme.subjectId),
+      subjectId: theme.subjectId,
       name: theme.name,
       description: theme.description,
       defaultDifficulty: theme.difficulty || 'medium',
@@ -805,13 +807,13 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
-  async startWordMaster(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked') {
+  async startWordMaster(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
     const subjects = await this.listClassSubjects(user);
     const theme = this.resolveWordMasterTheme(deckId, subjects);
     let difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
       ? difficultyParam.toLowerCase()
       : (theme.difficulty || 'medium');
-    const ctx = await this.resolveContext(user, theme.subjectId, null);
+    const ctx = await this.resolveContext(user, subjectId || theme.subjectId, chapterId || null);
     if (queryMode === 'ranked') {
       difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'word_master');
     }
@@ -997,16 +999,22 @@ export class GamificationService implements OnModuleInit {
     const classId = profile.classId;
     if (!instituteId || !classId) throw new BadRequestException('Student class profile is required for school games.');
 
-    const subject = subjectId && subjectId !== 'any'
-      ? (await this.ds.query(
-        `SELECT * FROM subjects WHERE id::text=$1::text AND institute_id::text=$2::text AND (class_id::text=$3::text OR class_id IS NULL) LIMIT 1`,
-        [subjectId, instituteId, classId],
-      ))[0]
-      : (await this.listClassSubjects(user))[0];
-    if (!subject) throw new BadRequestException('No subject found for this class.');
+    let subject: any = null;
+    if (subjectId && subjectId !== 'any') {
+      const rows = await this.ds.query(
+        `SELECT * FROM subjects WHERE id::text=$1::text LIMIT 1`,
+        [subjectId],
+      );
+      if (rows && rows.length > 0) subject = rows[0];
+    }
+    if (!subject) {
+      const classSubjects = await this.listClassSubjects(user);
+      subject = classSubjects[0];
+    }
+    if (!subject) throw new BadRequestException('No subject found for this student.');
 
     const chapter = chapterId && chapterId !== 'any'
-      ? (await this.ds.query(`SELECT * FROM chapters WHERE id::text=$1::text AND subject_id::text=$2::text LIMIT 1`, [chapterId, subject.id]))[0]
+      ? (await this.ds.query(`SELECT * FROM chapters WHERE id::text=$1::text LIMIT 1`, [chapterId]))[0]
       : null;
 
     return {
@@ -1028,7 +1036,21 @@ export class GamificationService implements OnModuleInit {
     const sectionId = profile.sectionId;
 
     let query = `
-      SELECT s.*
+      SELECT s.*,
+             COALESCE((
+               SELECT json_agg(
+                 json_build_object(
+                   'id', ch.id,
+                   'name', ch.name,
+                   'sortOrder', ch.sort_order,
+                   'subjectId', ch.subject_id
+                 )
+                 ORDER BY ch.sort_order, ch.name
+               )
+               FROM chapters ch
+               WHERE ch.subject_id::text = s.id::text 
+                  OR ch.subject_id::text IN (SELECT sub.id::text FROM subjects sub WHERE LOWER(sub.name) = LOWER(s.name) AND sub.institute_id::text = s.institute_id::text)
+             ), '[]'::json) AS chapters
       FROM subjects s
       WHERE s.institute_id::text=$1::text AND (s.class_id::text=$2::text OR s.class_id IS NULL)
     `;

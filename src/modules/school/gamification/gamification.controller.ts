@@ -50,8 +50,10 @@ export class SchoolGamificationController {
     @Query('questId') questId: string,
     @Query('stageOrder') stageOrder?: string,
     @Query('mode') mode?: string,
+    @Query('subjectId') subjectId?: string,
+    @Query('chapterId') chapterId?: string,
   ) {
-    return this.gamification.getTreasureChallenge((req as any).user, questId, Number(stageOrder || 1), mode || 'ranked');
+    return this.gamification.getTreasureChallenge((req as any).user, questId, Number(stageOrder || 1), mode || 'ranked', subjectId, chapterId);
   }
 
   @Post('treasure/complete')
@@ -97,8 +99,10 @@ export class SchoolGamificationController {
     @Query('deckId') deckId: string,
     @Query('difficulty') difficulty?: string,
     @Query('mode') mode?: string,
+    @Query('subjectId') subjectId?: string,
+    @Query('chapterId') chapterId?: string,
   ) {
-    return this.gamification.startMemoryMatch((req as any).user, deckId, difficulty, mode || 'ranked');
+    return this.gamification.startMemoryMatch((req as any).user, deckId, difficulty, mode || 'ranked', subjectId, chapterId);
   }
 
   @Post('memory-match/submit')
@@ -123,8 +127,10 @@ export class SchoolGamificationController {
     @Query('deckId') deckId: string,
     @Query('difficulty') difficulty?: string,
     @Query('mode') mode?: string,
+    @Query('subjectId') subjectId?: string,
+    @Query('chapterId') chapterId?: string,
   ) {
-    return this.gamification.startWordMaster((req as any).user, deckId, difficulty, mode || 'ranked');
+    return this.gamification.startWordMaster((req as any).user, deckId, difficulty, mode || 'ranked', subjectId, chapterId);
   }
 
   @Post('word-master/submit-word')
