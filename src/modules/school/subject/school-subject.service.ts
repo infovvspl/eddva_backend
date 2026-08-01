@@ -6,7 +6,8 @@ import type { Cache } from 'cache-manager';
 
 const SUBJECT_TTL = 30 * 60 * 1000; // 30 min — curriculum changes are admin-initiated
 
-function normalizeSubjectName(name: string): string {
+/** Shared with the de-dupe service so both agree on what a duplicate name is. */
+export function normalizeSubjectName(name: string): string {
   if (!name) return '';
   const cleaned = name.trim().replace(/\s+/g, ' ');
   const lowerCleaned = cleaned.toLowerCase();
