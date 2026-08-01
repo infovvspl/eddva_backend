@@ -1605,11 +1605,12 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     return target;
   }
 
-  private async uploadToS3IfConfigured(file: Express.Multer.File, user: any): Promise<string | null> {
+  private async uploadToS3IfConfigured(file: Express.Multer.File, user: any, preloadedBuffer?: Buffer | null): Promise<string | null> {
     if (!file) return null;
     try {
       const fs = require('fs');
-      const fileBuffer = fs.readFileSync(file.path);
+      const fileBuffer = preloadedBuffer || (file.buffer ?? (file.path && fs.existsSync(file.path) ? fs.readFileSync(file.path) : null));
+      if (!fileBuffer) return null;
       const instituteId = user?.instituteId || 'default';
       const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || 'image.jpeg';
       const key = `tenants/${instituteId}/school-assessments/${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
@@ -1617,7 +1618,9 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       const fileUrl = await this.s3Service.upload(key, fileBuffer, file.mimetype || 'image/jpeg');
       
       // Clean up temp file
-      fs.unlink(file.path, () => {});
+      if (file.path && fs.existsSync(file.path)) {
+        fs.unlink(file.path, () => {});
+      }
       
       return fileUrl;
     } catch (err) {
@@ -1678,13 +1681,17 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     let fileBuffer: Buffer | null = null;
     try {
       const fs = require('fs') as typeof import('fs');
-      fileBuffer = file.buffer ?? (file.path ? fs.readFileSync(file.path) : null);
+      if (file.buffer) {
+        fileBuffer = file.buffer;
+      } else if (file.path && fs.existsSync(file.path)) {
+        fileBuffer = fs.readFileSync(file.path);
+      }
     } catch (e: any) {
       this.logger.warn(`OCR: failed to read file buffer: ${e?.message}`);
     }
 
     // Upload to R2/S3 for persistent storage (this also deletes the temp disk file)
-    let rawUrl = await this.uploadToS3IfConfigured(file, user);
+    let rawUrl = await this.uploadToS3IfConfigured(file, user, fileBuffer);
     if (!rawUrl) {
       const filePath = this.storedUploadPath(file);
       if (!filePath) {
