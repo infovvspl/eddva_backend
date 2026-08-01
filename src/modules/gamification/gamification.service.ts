@@ -54,6 +54,20 @@ export class GamificationService implements OnModuleInit {
       )
     `);
 
+    const profileColumns = [
+      `ADD COLUMN IF NOT EXISTS lifetime_xp INTEGER NOT NULL DEFAULT 0`,
+      `ADD COLUMN IF NOT EXISTS reward_balance_inr NUMERIC(12, 2) NOT NULL DEFAULT 0.00`,
+      `ADD COLUMN IF NOT EXISTS memory_score INTEGER NOT NULL DEFAULT 75`,
+      `ADD COLUMN IF NOT EXISTS learning_score INTEGER NOT NULL DEFAULT 80`,
+      `ADD COLUMN IF NOT EXISTS focus_score INTEGER NOT NULL DEFAULT 85`,
+      `ADD COLUMN IF NOT EXISTS current_difficulty VARCHAR(50) NOT NULL DEFAULT 'Intermediate'`,
+      `ADD COLUMN IF NOT EXISTS rank_tier VARCHAR(50) NOT NULL DEFAULT 'Gold'`,
+      `ADD COLUMN IF NOT EXISTS league_name VARCHAR(50) NOT NULL DEFAULT 'Gold League'`,
+    ];
+    for (const col of profileColumns) {
+      await this.schoolDs.query(`ALTER TABLE gamification_profiles ${col}`).catch(() => {});
+    }
+
     // 2. Gamification History / Logs
     await this.schoolDs.query(`
       CREATE TABLE IF NOT EXISTS gamification_history (
@@ -734,23 +748,123 @@ export class GamificationService implements OnModuleInit {
    * Multi-Dimensional Leaderboards Fetcher
    */
   async getMultiLeaderboard(scope: string = 'GLOBAL') {
-    const rows = await this.schoolDs.query(
-      `SELECT user_id, xp, coins, level, current_streak, current_difficulty, rank_tier, league_name 
-       FROM gamification_profiles 
-       ORDER BY xp DESC 
-       LIMIT 50`
-    );
+    try {
+      await this.ensureTablesExist().catch(() => {});
 
-    return rows.map((r: any, idx: number) => ({
-      rank: idx + 1,
-      userId: r.user_id,
-      name: r.user_name || r.name || `Student ${String(r.user_id || '0000').slice(-4)}`,
-      xp: Number(r.xp || 0),
-      coins: Number(r.coins || 0),
-      level: Number(r.level || 1),
-      streak: Number(r.current_streak || 0),
-      tier: r.rank_tier || 'Gold',
-      league: r.league_name || 'Gold League',
-    }));
+      let rows: any[] = [];
+      try {
+        rows = await this.schoolDs.query(
+          `SELECT 
+             gp.user_id, 
+             gp.xp, 
+             gp.coins, 
+             gp.level, 
+             gp.current_streak, 
+             gp.current_difficulty, 
+             gp.rank_tier, 
+             gp.league_name,
+             u.name as user_name,
+             u2.name as student_user_name
+           FROM gamification_profiles gp
+           LEFT JOIN users u ON u.id::text = gp.user_id::text
+           LEFT JOIN students s ON (s.id::text = gp.user_id::text OR s.user_id::text = gp.user_id::text)
+           LEFT JOIN users u2 ON u2.id::text = s.user_id::text
+           ORDER BY gp.xp DESC 
+           LIMIT 50`
+        );
+      } catch {
+        rows = await this.schoolDs.query(
+          `SELECT user_id, xp, coins, level, current_streak, current_difficulty, rank_tier, league_name 
+           FROM gamification_profiles 
+           ORDER BY xp DESC 
+           LIMIT 50`
+        ).catch(() => []);
+      }
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        // Fallback: If no gamification_profiles exist yet, query students table
+        const fallbackStudents = await this.schoolDs.query(
+          `SELECT s.id as user_id, u.name as student_name, s.xp_total as xp, s.eddva_coins as coins, s.current_streak
+           FROM students s
+           LEFT JOIN users u ON u.id::text = s.user_id::text
+           ORDER BY s.xp_total DESC
+           LIMIT 50`
+        ).catch(() => []);
+
+        if (Array.isArray(fallbackStudents) && fallbackStudents.length > 0) {
+          return fallbackStudents.map((r: any, idx: number) => ({
+            rank: idx + 1,
+            userId: r.user_id,
+            name: r.student_name || r.name || `Student ${String(r.user_id || '0000').slice(-4)}`,
+            xp: Number(r.xp || 0),
+            coins: Number(r.coins || 0),
+            level: Math.max(1, Math.floor(Number(r.xp || 0) / 100) + 1),
+            streak: Number(r.current_streak || 0),
+            tier: 'Gold',
+            league: 'Gold League',
+          }));
+        }
+
+        return [];
+      }
+
+      // Cross-query Coaching DB for any user names that were missing from School DB
+      const userIdsToLookup = rows
+        .map((r) => r.user_id)
+        .filter(Boolean);
+
+      const coachingNameMap: Record<string, string> = {};
+      if (userIdsToLookup.length > 0) {
+        try {
+          const len = userIdsToLookup.length;
+          const p1 = userIdsToLookup.map((_, i) => `$${i + 1}`).join(',');
+          const p2 = userIdsToLookup.map((_, i) => `$${i + 1 + len}`).join(',');
+          const p3 = userIdsToLookup.map((_, i) => `$${i + 1 + len * 2}`).join(',');
+
+          const coachingUsers = await this.studentRepo.manager.query(
+            `SELECT u.id::text as u_id, s.id::text as s_id, s.user_id::text as s_u_id, u.full_name
+             FROM users u
+             LEFT JOIN students s ON s.user_id::text = u.id::text
+             WHERE u.id::text IN (${p1}) OR s.id::text IN (${p2}) OR s.user_id::text IN (${p3})`,
+            [...userIdsToLookup, ...userIdsToLookup, ...userIdsToLookup],
+          ).catch(() => []);
+          (coachingUsers || []).forEach((u: any) => {
+            if (u?.full_name) {
+              if (u.u_id) coachingNameMap[u.u_id] = u.full_name;
+              if (u.s_id) coachingNameMap[u.s_id] = u.full_name;
+              if (u.s_u_id) coachingNameMap[u.s_u_id] = u.full_name;
+            }
+          });
+        } catch {}
+      }
+
+      return rows.map((r: any, idx: number) => {
+        const uName = r.user_name && r.user_name !== 'null' ? r.user_name : null;
+        const suName = r.student_user_name && r.student_user_name !== 'null' ? r.student_user_name : null;
+        const rName = r.name && r.name !== 'null' ? r.name : null;
+
+        const resolvedName =
+          uName ||
+          suName ||
+          coachingNameMap[r.user_id] ||
+          rName ||
+          `Student ${String(r.user_id || '0000').slice(-4)}`;
+
+        return {
+          rank: idx + 1,
+          userId: r.user_id,
+          name: resolvedName,
+          xp: Number(r.xp || 0),
+          coins: Number(r.coins || 0),
+          level: Number(r.level || 1),
+          streak: Number(r.current_streak || 0),
+          tier: r.rank_tier || 'Gold',
+          league: r.league_name || 'Gold League',
+        };
+      });
+    } catch (err: any) {
+      console.error('[GamificationService] Error in getMultiLeaderboard:', err?.message || err);
+      return [];
+    }
   }
 }

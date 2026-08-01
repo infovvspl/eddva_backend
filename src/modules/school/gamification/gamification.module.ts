@@ -9,6 +9,7 @@ import { AiBridgeModule } from '../../ai-bridge/ai-bridge.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([MemoryMatchLeaderboard], 'school'),
+    TypeOrmModule.forFeature([], 'coaching'),
     AiBridgeModule,
   ],
   controllers: [SchoolGamificationController],
