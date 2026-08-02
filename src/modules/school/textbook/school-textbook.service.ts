@@ -5,6 +5,27 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
 import { randomUUID } from 'crypto';
 
+/** Anything that can run raw SQL — a DataSource, or a transaction's manager. */
+type SqlExecutor = { query(sql: string, params?: any[]): Promise<any> };
+
+/** Passages per INSERT. 8 bind params each, against Postgres' 65535 ceiling. */
+const _INSERT_BATCH = 500;
+
+/**
+ * A bulk run with no progress for this long is treated as abandoned.
+ * Comfortably longer than the slowest single chapter (a scanned book goes
+ * through a vision pass and the bridge allows 300s), so a slow run is never
+ * mistaken for a dead one.
+ */
+const _RUN_STALE_MS = 15 * 60 * 1000;
+
+/**
+ * Chapters indexed concurrently during a bulk run. Kept small on purpose: the
+ * vision API quota is shared with slide and note generation, which teachers are
+ * using interactively while a library indexes in the background.
+ */
+const _BULK_WORKERS = Number(process.env.TEXTBOOK_BULK_WORKERS || 3);
+
 /**
  * Textbook grounding — the school's own chapter as the source for AI content.
  *
@@ -94,7 +115,38 @@ export class SchoolTextbookService {
         finished_at   TIMESTAMP
       )
     `);
+    // Heartbeat, added after the table shipped. A run only holds the lock while
+    // it is demonstrably still working; without this a process that died
+    // mid-run left status='running' forever and blocked the institute for good.
+    await this.ds.query(
+      `ALTER TABLE textbook_ingest_runs
+       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`,
+    );
     this.schemaReady = true;
+  }
+
+  /**
+   * Release runs that can no longer be making progress.
+   *
+   * processBulk is an in-memory promise, so a deploy or crash mid-run leaves its
+   * row 'running' with nothing left to advance it. That row then rejects every
+   * future run for the institute, and only a manual UPDATE clears it. A run that
+   * has not touched its heartbeat within the window is marked 'stalled' instead.
+   */
+  private async reapStaleRuns(instituteId: string) {
+    const res = await this.ds.query(
+      `UPDATE textbook_ingest_runs
+       SET status = 'stalled', finished_at = NOW(),
+           last_error = COALESCE(last_error, 'Interrupted — no progress before the service restarted')
+       WHERE institute_id::text = $1::text
+         AND status = 'running'
+         AND updated_at < NOW() - ($2 || ' milliseconds')::interval
+       RETURNING id`,
+      [instituteId, String(_RUN_STALE_MS)],
+    );
+    if (res.length) {
+      this.logger.warn(`Released ${res.length} stalled indexing run(s) for institute ${instituteId}`);
+    }
   }
 
   /**
@@ -125,15 +177,25 @@ export class SchoolTextbookService {
     const instituteId = this.resolveInstitute(user, forInstituteId);
     await this.ensureSchema();
 
+    // Constrained to the acting institute, not just the id: the passages are
+    // stored under the caller's institute, so an unfiltered lookup would let one
+    // school index another school's book into its own grounding store. The join
+    // down to classes is the same one auditLinks and pendingMaterials use.
     const rows = await this.ds.query(
       `SELECT sm.id, sm.s3_key, sm.chapter_id, sm.class_id, sm.subject_id_fk AS subject_id,
               c.name AS chapter_name
        FROM study_materials sm
        JOIN chapters c ON c.id = sm.chapter_id
-       WHERE sm.id::text = $1::text LIMIT 1`,
-      [materialId],
+       JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN classes cl ON cl.id = s.class_id
+       WHERE sm.id::text = $1::text
+         AND cl.institute_id::text = $2::text
+       LIMIT 1`,
+      [materialId, instituteId],
     );
     const material = rows[0];
+    // Deliberately the same error as a genuinely missing id — a caller must not
+    // be able to probe which material ids exist at other schools.
     if (!material) throw new NotFoundException('Study material not found');
     if (!material.chapter_id) {
       throw new BadRequestException('This material is not linked to a chapter, so it cannot be indexed');
@@ -149,39 +211,58 @@ export class SchoolTextbookService {
     if (!chunks.length) {
       // A scan the vision pass could not read is a real outcome a human must see,
       // not an error to swallow — the chapter simply stays ungrounded.
+      const quality = data?.quality ?? 'no_text';
       await this.recordSource(instituteId, material, data, 0);
       return {
         chapterId: material.chapter_id,
         chapterName: material.chapter_name,
         indexed: false,
-        quality: data?.quality ?? 'no_text',
+        quality,
         needsOcr: !!data?.needs_ocr,
-        message: 'No readable text found in this PDF. It may be a low-quality scan.',
+        // The distinction matters: a chapter too long to transcribe in one pass
+        // is a good scan with a fixable shape, and telling someone to re-scan it
+        // sends them after a problem they do not have.
+        message:
+          quality === 'too_long'
+            ? 'This chapter is too long to transcribe in one pass. Split the PDF into smaller parts and upload them separately.'
+            : 'No readable text found in this PDF. It may be a low-quality scan.',
       };
     }
 
-    await this.ds.query(`DELETE FROM textbook_chunks WHERE chapter_id::text = $1::text`, [
-      material.chapter_id,
-    ]);
+    // Replacing a chapter's passages is one atomic step. Delete and insert as
+    // separate statements meant a failed insert left the chapter with nothing
+    // while textbook_sources still reported it indexed — a chapter that silently
+    // stopped being grounded while the coverage screen said READY.
+    await this.ds.transaction(async (tx) => {
+      await tx.query(`DELETE FROM textbook_chunks WHERE chapter_id::text = $1::text`, [
+        material.chapter_id,
+      ]);
 
-    // One multi-row insert rather than a statement per passage; a chapter is
-    // typically 10-40 passages so this stays a single round-trip.
-    const values: any[] = [];
-    const tuples = chunks.map((c, i) => {
-      const base = i * 8;
-      values.push(
-        instituteId, material.id, material.class_id, material.subject_id,
-        material.chapter_id, c.page_no ?? null, c.chunk_index ?? i, c.content,
-      );
-      return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8})`;
+      // Multi-row inserts rather than a statement per passage. Batched because
+      // Postgres accepts at most 65535 bind parameters per statement and each
+      // passage binds 8 — a whole-textbook PDF indexed as one chapter would
+      // otherwise fail at around 8,190 passages.
+      for (let start = 0; start < chunks.length; start += _INSERT_BATCH) {
+        const batch = chunks.slice(start, start + _INSERT_BATCH);
+        const values: any[] = [];
+        const tuples = batch.map((c, i) => {
+          const base = i * 8;
+          values.push(
+            instituteId, material.id, material.class_id, material.subject_id,
+            material.chapter_id, c.page_no ?? null, c.chunk_index ?? start + i, c.content,
+          );
+          return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8})`;
+        });
+        await tx.query(
+          `INSERT INTO textbook_chunks
+             (institute_id, material_id, class_id, subject_id, chapter_id, page_no, chunk_index, content)
+           VALUES ${tuples.join(',')}`,
+          values,
+        );
+      }
+
+      await this.recordSource(instituteId, material, data, chunks.length, tx);
     });
-    await this.ds.query(
-      `INSERT INTO textbook_chunks
-         (institute_id, material_id, class_id, subject_id, chapter_id, page_no, chunk_index, content)
-       VALUES ${tuples.join(',')}`,
-      values,
-    );
-    await this.recordSource(instituteId, material, data, chunks.length);
 
     this.logger.log(
       `Indexed chapter "${material.chapter_name}": ${chunks.length} passages ` +
@@ -199,8 +280,19 @@ export class SchoolTextbookService {
     };
   }
 
-  private async recordSource(instituteId: string, material: any, data: any, chunkCount: number) {
-    await this.ds.query(
+  /**
+   * Record what was ingested. Takes an optional executor so it can run inside
+   * the same transaction as the passages it describes — the summary and the
+   * passages must never disagree.
+   */
+  private async recordSource(
+    instituteId: string,
+    material: any,
+    data: any,
+    chunkCount: number,
+    exec: SqlExecutor = this.ds,
+  ) {
+    await exec.query(
       `INSERT INTO textbook_sources
          (chapter_id, institute_id, material_id, pages, chunk_count, total_tokens, method, quality, ingested_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
@@ -375,13 +467,19 @@ export class SchoolTextbookService {
     const instituteId = this.resolveInstitute(user, opts.instituteId);
     await this.ensureSchema();
 
+    await this.reapStaleRuns(instituteId);
+
     const running = await this.ds.query(
-      `SELECT id FROM textbook_ingest_runs
+      `SELECT id, last_chapter, done, total FROM textbook_ingest_runs
        WHERE institute_id::text = $1::text AND status = 'running' LIMIT 1`,
       [instituteId],
     );
     if (running.length) {
-      throw new BadRequestException('An indexing run is already in progress for this institute');
+      const r = running[0];
+      throw new BadRequestException(
+        `An indexing run is already in progress for this institute ` +
+        `(${r.done}/${r.total} done${r.last_chapter ? `, on "${r.last_chapter}"` : ''}).`,
+      );
     }
 
     const targets = await this.pendingMaterials(instituteId, opts);
@@ -424,46 +522,73 @@ export class SchoolTextbookService {
   }
 
   /**
-   * Work the queue one chapter at a time.
+   * Work the queue with a small pool of workers.
    *
-   * Sequential on purpose: each scanned chapter is a vision pass over every page,
-   * and running them concurrently would spend the account's rate limit for no
-   * benefit on what is background work. One chapter failing must not stop the run.
+   * A scanned chapter is a vision pass over every page, so a full library run is
+   * hours of work; taking them strictly one at a time left most of the available
+   * API quota idle. The pool is deliberately small — enough to overlap the waiting,
+   * not enough to exhaust the rate limit that the whole platform shares.
+   *
+   * One chapter failing must never stop the run, so every worker isolates its own
+   * errors and the queue simply moves on.
    */
   private async processBulk(runId: string, instituteId: string, targets: any[]) {
-    let done = 0, ok = 0, failed = 0;
-    for (const t of targets) {
-      try {
-        const res = await this.ingestMaterial({ instituteId }, t.material_id);
-        res.indexed ? ok++ : failed++;
+    let cursor = 0;
+    const workers = Math.max(1, Math.min(_BULK_WORKERS, targets.length));
+
+    const worker = async () => {
+      while (cursor < targets.length) {
+        const t = targets[cursor++];
+        let error: string | null = null;
+        let indexed = false;
+        try {
+          const res = await this.ingestMaterial({ instituteId }, t.material_id);
+          indexed = res.indexed;
+          if (!indexed) error = res.message ?? 'No readable text';
+        } catch (err) {
+          error = (err as Error).message?.slice(0, 400) ?? 'Unknown error';
+          this.logger.warn(`Bulk ingest: "${t.chapter_name}" failed — ${error}`);
+        }
+        // Counters are incremented in SQL rather than in JS: with several workers
+        // interleaving, a read-modify-write from each would lose updates. This is
+        // also the run's heartbeat — reapStaleRuns reads updated_at to tell a slow
+        // run from an abandoned one.
         await this.ds.query(
           `UPDATE textbook_ingest_runs
-           SET done=$2, succeeded=$3, failed=$4, last_chapter=$5, last_error=NULL
-           WHERE id=$1`,
-          [runId, ++done, ok, failed, t.chapter_name],
+           SET done = done + 1,
+               succeeded = succeeded + $2,
+               failed = failed + $3,
+               last_chapter = $4,
+               last_error = $5,
+               updated_at = NOW()
+           WHERE id = $1`,
+          [runId, indexed ? 1 : 0, indexed ? 0 : 1, t.chapter_name, error],
         );
-      } catch (err) {
-        failed++;
-        await this.ds.query(
-          `UPDATE textbook_ingest_runs
-           SET done=$2, succeeded=$3, failed=$4, last_chapter=$5, last_error=$6
-           WHERE id=$1`,
-          [runId, ++done, ok, failed, t.chapter_name, (err as Error).message?.slice(0, 400)],
-        );
-        this.logger.warn(`Bulk ingest: "${t.chapter_name}" failed — ${(err as Error).message}`);
       }
-    }
-    await this.ds.query(
-      `UPDATE textbook_ingest_runs SET status='finished', finished_at=NOW() WHERE id=$1`,
+    };
+
+    await Promise.all(Array.from({ length: workers }, worker));
+
+    const final = await this.ds.query(
+      `UPDATE textbook_ingest_runs
+       SET status='finished', finished_at=NOW(), updated_at=NOW()
+       WHERE id=$1 RETURNING succeeded, failed`,
       [runId],
     );
-    this.logger.log(`Bulk ingest run ${runId} finished: ${ok} indexed, ${failed} failed`);
+    const { succeeded = 0, failed = 0 } = final[0] ?? {};
+    this.logger.log(
+      `Bulk ingest run ${runId} finished: ${succeeded} indexed, ${failed} failed ` +
+      `(${workers} worker${workers === 1 ? '' : 's'})`,
+    );
   }
 
   /** Progress for the most recent run, for polling from the coverage screen. */
   async ingestRunStatus(user: any, forInstituteId?: string) {
     const instituteId = this.resolveInstitute(user, forInstituteId);
     await this.ensureSchema();
+    // Reaped here too, so a screen polling a run that died reports it rather
+    // than showing a progress bar that will never move again.
+    await this.reapStaleRuns(instituteId);
     const rows = await this.ds.query(
       `SELECT id, status, total, done, succeeded, failed, last_chapter AS "lastChapter",
               last_error AS "lastError", started_at AS "startedAt", finished_at AS "finishedAt"
