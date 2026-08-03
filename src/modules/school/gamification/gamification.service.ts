@@ -10,6 +10,7 @@ type GameType = 'quiz_rush' | 'treasure_hunt' | 'math_sprint' | 'memory_match' |
 @Injectable()
 export class GamificationService implements OnModuleInit {
   private readonly logger = new Logger(GamificationService.name);
+  private readonly _boardCache = new Map<string, { value: string; expiresAt: number }>();
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
@@ -510,7 +511,7 @@ export class GamificationService implements OnModuleInit {
     }
 
     const xpEarned = cheatFlagged ? 0 : (result.xpEarned + (perfect ? 50 : 0));
-    const coinsEarned = cheatFlagged ? 0 : (result.coinsEarned + (perfect ? 5 : 0));
+    const coinsEarned = cheatFlagged ? -15 : (result.coinsEarned + (perfect ? 5 : 0));
     
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : (result.score + (perfect ? 50 : 0)), xpEarned, coinsEarned, result);
@@ -596,7 +597,7 @@ export class GamificationService implements OnModuleInit {
     }
 
     const xpEarned = cheatFlagged ? 0 : (passed ? result.correctAnswers * 20 + 20 : result.correctAnswers * 5);
-    const coinsEarned = cheatFlagged ? 0 : (passed ? 8 : 0);
+    const coinsEarned = cheatFlagged ? -15 : (passed ? 8 : 0);
     
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers, passed, stageOrder }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
@@ -696,7 +697,7 @@ export class GamificationService implements OnModuleInit {
     }
 
     const xpEarned = cheatFlagged ? 0 : result.xpEarned;
-    const coinsEarned = cheatFlagged ? 0 : result.coinsEarned;
+    const coinsEarned = cheatFlagged ? -15 : result.coinsEarned;
 
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : result.score, xpEarned, coinsEarned, result);
@@ -776,7 +777,7 @@ export class GamificationService implements OnModuleInit {
     }
 
     const xpEarned = cheatFlagged ? 0 : Math.max(20, pairs * 15 + Math.max(0, 100 - Math.max(0, turns - pairs) * 6));
-    const coinsEarned = cheatFlagged ? 0 : Math.max(1, pairs - Math.min(misses, pairs));
+    const coinsEarned = cheatFlagged ? -15 : Math.max(1, pairs - Math.min(misses, pairs));
     
     const result = { totalQuestions: pairs, correctAnswers: pairs, maxStreak: pairs, timeTakenSeconds: timeTaken, questionsAttempted: pairs, turnsCount: turns, mismatchesCount: misses };
     await this.completeSession(session.id, xpEarned, coinsEarned, result, cheatFlagged, cheatReason || null, tabSwitches);
@@ -899,13 +900,78 @@ export class GamificationService implements OnModuleInit {
       delete (nextWordPublic as any).word;
       return { isCorrect: true, nextWord: nextWordPublic };
     } else {
-      const results = await this.submitWordMaster(user, {
-        sessionId: body.sessionId,
-        answers: body.answers || [],
-        tabSwitchesCount: body.tabSwitchesCount,
-        timeTakenSeconds: body.timeTakenSeconds,
-      });
-      return { isCorrect: false, results };
+      // Let's count how many wrong answers are in body.answers
+      const answers = body.answers || [];
+      let wrongCount = 0;
+      for (const ans of answers) {
+        const idx = Number(ans.index);
+        const wordData = words[idx];
+        const ok = wordData && wordData.word && String(ans.word || '').toUpperCase().trim() === String(wordData.word).toUpperCase().trim();
+        if (!ok) {
+          wrongCount += 1;
+        }
+      }
+
+      if (wrongCount < 3) {
+        // We have lives left! Return the next word.
+        const nextIdx = index + 1;
+        if (nextIdx < words.length) {
+          const nextWordPublic = { ...words[nextIdx] };
+          delete (nextWordPublic as any).word;
+          return { isCorrect: false, nextWord: nextWordPublic, lives: 3 - wrongCount };
+        }
+
+        // generate more words if needed
+        const currentDifficulty = session.metadata.difficulty || 'medium';
+        const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+        const subjects = await this.listClassSubjects(user);
+        const theme = this.resolveWordMasterTheme(session.metadata.themeKey || '', subjects);
+        const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
+        
+        const promptMode = [
+          `Word Master: ${theme.name} (${nextDifficulty})`,
+          theme.description,
+          theme.prompt,
+          this.wordMasterDifficultyPrompt(nextDifficulty),
+          'Choose surprising, student-friendly syllabus vocabulary that feels like a puzzle, but never put the answer word inside the clue.',
+        ].join(' - ');
+        
+        const pairs = await this.generateConceptPairs(ctx, 10, promptMode, nextDifficulty, words);
+        const newWords = pairs.map((pair: any) => {
+          const word = this.toVocabularyWord(pair.term);
+          const hint = this.sanitizeWordHint(pair.definition, pair.term, word);
+          return { word, scrambled: this.scramble(word), hint, length: word.length };
+        }).filter((w: any) => w.word.length >= 4 && w.hint.length >= 12 && !this.hintContainsAnswer(w.hint, w.word));
+        
+        if (!newWords || newWords.length === 0) {
+          throw new BadRequestException('Could not generate more words.');
+        }
+        
+        const updatedWords = [...words, ...newWords];
+        const updatedMetadata = {
+          ...session.metadata,
+          words: updatedWords,
+          difficulty: nextDifficulty,
+        };
+        
+        await this.ds.query(
+          `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+          [body.sessionId, JSON.stringify(updatedMetadata)]
+        );
+        
+        const nextWordPublic = { ...newWords[0] };
+        delete (nextWordPublic as any).word;
+        return { isCorrect: false, nextWord: nextWordPublic, lives: 3 - wrongCount };
+      } else {
+        // No lives left! Submit the game.
+        const results = await this.submitWordMaster(user, {
+          sessionId: body.sessionId,
+          answers: body.answers || [],
+          tabSwitchesCount: body.tabSwitchesCount,
+          timeTakenSeconds: body.timeTakenSeconds,
+        });
+        return { isCorrect: false, results, lives: 0 };
+      }
     }
   }
 
@@ -946,7 +1012,7 @@ export class GamificationService implements OnModuleInit {
 
     const perfect = correctAnswers >= 10;
     const xpEarned = cheatFlagged ? 0 : (correctAnswers * 15 + (perfect ? 50 : 0));
-    const coinsEarned = cheatFlagged ? 0 : (correctAnswers + (perfect ? 5 : 0));
+    const coinsEarned = cheatFlagged ? -15 : (correctAnswers + (perfect ? 5 : 0));
     const result = { totalQuestions: totalQ, correctAnswers, maxStreak, wordsAttempted: totalQ, score: xpEarned };
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers, correctAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
@@ -993,6 +1059,39 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
+  private async resolveBoard(instituteId?: string): Promise<string> {
+    if (!instituteId) return 'CBSE';
+    const cached = this._boardCache.get(instituteId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value || 'CBSE';
+    try {
+      const rows = await this.ds.query(
+        `SELECT board, state FROM institutes WHERE id = $1 LIMIT 1`,
+        [instituteId],
+      );
+      if (!rows || !rows.length) return 'CBSE';
+      const boardVal = String(rows[0].board ?? '').trim();
+      const stateVal = String(rows[0].state ?? '').trim();
+
+      let finalBoard = boardVal;
+      const boardLower = boardVal.toLowerCase();
+      if (boardLower.includes('state') || boardLower === 'state board' || boardLower === 'stateboard') {
+        if (stateVal) {
+          finalBoard = stateVal.toLowerCase().includes('board') ? stateVal : `${stateVal} State Board`;
+        }
+      }
+
+      const boardResult = finalBoard || 'CBSE';
+      this._boardCache.set(instituteId, {
+        value: boardResult,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
+      return boardResult;
+    } catch (err) {
+      this.logger.warn(`Could not resolve board for institute ${instituteId}: ${(err as Error).message}`);
+      return 'CBSE';
+    }
+  }
+
   private async resolveContext(user: any, subjectId?: string | null, chapterId?: string | null) {
     const profile = user.studentProfile || {};
     const instituteId = user.instituteId || profile.instituteId;
@@ -1017,6 +1116,8 @@ export class GamificationService implements OnModuleInit {
       ? (await this.ds.query(`SELECT * FROM chapters WHERE id::text=$1::text LIMIT 1`, [chapterId]))[0]
       : null;
 
+    const board = await this.resolveBoard(instituteId);
+
     return {
       instituteId,
       classId,
@@ -1026,6 +1127,7 @@ export class GamificationService implements OnModuleInit {
       subjectName: subject.name,
       chapterId: chapter?.id || null,
       chapterName: chapter?.name || null,
+      board,
     };
   }
 
@@ -1078,7 +1180,9 @@ export class GamificationService implements OnModuleInit {
   }
 
   private async generateMcqs(ctx: any, count: number, difficulty: string, mode: string, excludeQuestions?: any[]) {
+    const boardStr = ctx.board ? `${ctx.board} Board` : 'CBSE Board';
     const topicName = [
+      boardStr,
       `Class ${ctx.className}`,
       ctx.subjectName,
       ctx.chapterName || 'mixed school syllabus',
@@ -1104,11 +1208,11 @@ export class GamificationService implements OnModuleInit {
         count,
         difficulty: difficulty === 'any' ? 'medium' : difficulty,
         type: 'mcq_single',
-        examTarget: 'cbse',
+        examTarget: ctx.board || 'cbse',
         subject: ctx.subjectName,
         chapter: ctx.chapterName || undefined,
         notes,
-      }, ctx.instituteId, 'school');
+      }, ctx.instituteId, 'school', ctx.board);
     } catch (err: any) {
       this.logger.error(`Gamification AI error [${mode}]: ${err?.message || err}`);
       throw new BadRequestException('Could not generate quiz questions. The AI service is temporarily unavailable. Please try again in a moment.');
@@ -1125,10 +1229,13 @@ export class GamificationService implements OnModuleInit {
       const notes = seenTexts.length > 0
         ? `CRITICAL: Do NOT generate expressions identical to these already used: ${seenTexts.slice(0, 30).join(', ')}`
         : undefined;
+      const boardStr = ctx.board ? `${ctx.board} Board` : 'CBSE Board';
       const questions = await this.aiBridge.generateQuestionsFromTopic({
-        topicId: ctx.chapterId || ctx.subjectId,
+        topicId: ctx.subjectId,
         topicName: [
+          boardStr,
           `Class ${ctx.className}`,
+          'Mathematics Complete Syllabus',
           'Math Sprint',
           'Generate rapid mental-maths arithmetic only.',
           'Each question content must be ONLY an expression like "24 + 18", "7 x 8", "96 / 12", or "15% of 80".',
@@ -1138,10 +1245,10 @@ export class GamificationService implements OnModuleInit {
         count: 12,
         difficulty: difficulty === 'any' ? 'medium' : difficulty,
         type: 'mcq_single',
-        examTarget: 'cbse',
+        examTarget: ctx.board || 'cbse',
         subject: 'Mathematics',
         notes,
-      }, ctx.instituteId, 'school');
+      }, ctx.instituteId, 'school', ctx.board);
       const mapped = (questions || [])
         .map((q: any) => this.toGameQuestion(q))
         .map((q: any) => this.toMathSprintQuestion(q))
@@ -1163,10 +1270,12 @@ export class GamificationService implements OnModuleInit {
       : undefined;
 
     let raw: any[];
+    const boardStr = ctx.board ? `${ctx.board} Board` : 'CBSE Board';
     try {
       raw = await this.aiBridge.generateQuestionsFromTopic({
         topicId: ctx.chapterId || ctx.subjectId,
         topicName: [
+          boardStr,
           `Class ${ctx.className}`,
           ctx.subjectName,
           ctx.chapterName || 'mixed school syllabus',
@@ -1179,11 +1288,11 @@ export class GamificationService implements OnModuleInit {
         count,
         difficulty,
         type: 'short_answer',
-        examTarget: 'cbse',
+        examTarget: ctx.board || 'cbse',
         subject: ctx.subjectName,
         chapter: ctx.chapterName || undefined,
         notes,
-      }, ctx.instituteId, 'school');
+      }, ctx.instituteId, 'school', ctx.board);
     } catch (err: any) {
       this.logger.warn(`${mode} AI error: ${err?.message || err}; falling back to subject terms`);
       return this.fallbackConceptPairs(ctx).slice(0, count);
@@ -1416,14 +1525,14 @@ export class GamificationService implements OnModuleInit {
         await this.ds.query(
           `INSERT INTO gamification_profiles (user_id, xp, coins, level, badges, current_streak, longest_streak)
            VALUES ($1, $2, $3, $4, '[]', 0, 0)`,
-          [userId, newXp, coinsInt, newLevel],
+          [userId, newXp, Math.max(0, coinsInt), newLevel],
         );
       } else {
         const newXp = Number(profileRows[0].xp || 0) + xpInt;
         const newLevel = this.computeLevel(newXp);
         await this.ds.query(
           `UPDATE gamification_profiles
-           SET xp = xp + $1, coins = coins + $2, level = $3, updated_at = NOW()
+           SET xp = xp + $1, coins = GREATEST(0, coins + $2), level = $3, updated_at = NOW()
            WHERE user_id = $4`,
           [xpInt, coinsInt, newLevel, userId],
         );
