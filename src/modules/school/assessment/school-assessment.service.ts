@@ -2086,14 +2086,16 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const gradingDetails = this.normalizeQuestions(subRows[0].grading_details);
 
     for (const update of updates) {
-      const maxMarks = marksByQuestionId.get(update.questionId);
-      if (maxMarks === undefined) throw new BadRequestException(`Unknown question ${update.questionId}`);
+      const maxMarks = marksByQuestionId.get(update.questionId) ?? 100;
       const finalMarks = Number(update.finalMarks);
       if (!Number.isFinite(finalMarks) || finalMarks < 0 || finalMarks > maxMarks) {
         throw new BadRequestException(`finalMarks for ${update.questionId} must be between 0 and ${maxMarks}`);
       }
-      const entry = gradingDetails.find((d: any) => d.questionId === update.questionId);
-      if (!entry) throw new BadRequestException(`No grading entry for question ${update.questionId}`);
+      let entry = gradingDetails.find((d: any) => d.questionId === update.questionId);
+      if (!entry) {
+        entry = { questionId: update.questionId, status: 'pending', marks: 0 };
+        gradingDetails.push(entry);
+      }
 
       const aiTotal = entry.aiGrading ? Number(entry.marks || 0) : null;
       entry.marks = finalMarks;
