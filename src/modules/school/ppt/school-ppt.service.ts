@@ -1,100 +1,267 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolTextbookService } from '../textbook/school-textbook.service';
+const AdmZip = require('adm-zip');
+
+/** Keep in step with _MAX_SLIDES in the AI service's ppt.py. */
+const MAX_SLIDES = 25;
 
 /**
- * Native AI PPT generation — ported from the standalone ppt-generator Express app
- * so it runs inside EDVA (no separate server). Uses GROQ (Llama 3.3 70B) for slide
- * content and Serper.dev for images. Keys come from env (GROQ_API_KEY, SERPER_API_KEY).
+ * PPT generation is delegated entirely to the Django AI service (POST /ppt/*).
+ * This service is a thin façade: it validates inputs, forwards to AiBridge,
+ * and keeps the image-proxy helper (which must stay in NestJS because browsers
+ * cannot send an Authorization header on bare <img src> requests).
  */
 @Injectable()
 export class SchoolPptService {
   private readonly logger = new Logger(SchoolPptService.name);
 
-  private readonly GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-  private readonly SERPER_API_KEY = process.env.SERPER_API_KEY || process.env.SERPER_KEY || '';
-  private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly SERPER_URL = 'https://google.serper.dev/images';
+  constructor(
+    private readonly aiBridge: AiBridgeService,
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly textbooks: SchoolTextbookService,
+  ) {}
 
-  private sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+  /**
+   * Curriculum names for the deck's scope, resolved from IDs.
+   *
+   * The studio sends IDs (or nothing, when opened as a free-text tool); the AI
+   * service needs human-readable names to put in the prompt. Resolution is
+   * best-effort — an unknown ID must not block generation, it just produces a
+   * less tightly scoped deck, which is still better than a hard failure.
+   */
+  private async resolveCurriculumContext(body: any, user?: any): Promise<{
+    className?: string;
+    subjectName?: string;
+    chapterName?: string;
+    topicName?: string;
+  }> {
+    // Normalises anything (SQL NULL, a non-string body field, blanks) to a
+    // trimmed string or undefined, so a malformed request degrades to a
+    // less-scoped deck instead of throwing, and no `"className": null` is sent.
+    const clean = (v: unknown): string | undefined => {
+      if (typeof v !== 'string') return undefined;
+      const t = v.trim();
+      return t || undefined;
+    };
 
-  // ── Public: full presentation ────────────────────────────────────────────
-  async generate(body: any) {
-    const { topic, slideCount = 5, language = 'English' } = body || {};
-    if (!topic) throw new BadRequestException('Topic is required.');
-    if (!this.GROQ_API_KEY) throw new BadRequestException('GROQ_API_KEY is not configured on the server.');
+    const out: Record<string, string | undefined> = {
+      className: clean(body?.className),
+      subjectName: clean(body?.subjectName),
+      chapterName: clean(body?.chapterName),
+      topicName: clean(body?.topicName),
+    };
 
-    this.logger.log(`Generating PPT — topic="${topic}", slides=${slideCount}, lang=${language}`);
-    const slidesJson = await this.generateSlideContent(topic, slideCount, language);
-    const slidesWithImages = await this.attachImagesToSlides(slidesJson.slides);
-    return { success: true, data: { title: slidesJson.title, slides: slidesWithImages } };
+    // subjects.class_id is frequently NULL — a subject may be attached to a
+    // section instead — so the class is resolved through the same chain
+    // school-material.service.ts uses: subjects.class_id, then the section's
+    // class, then the teacher's assignment for that subject. Without this the
+    // deck reaches the AI with no grade level at all and it invents one, which
+    // is exactly how a Class 10 topic ends up with university-level slides.
+    const CLASS_JOIN = `
+           LEFT JOIN sections sec ON sec.id::text = s.section_id::text
+           LEFT JOIN classes cl ON cl.id::text = COALESCE(s.class_id, sec.class_id)::text`;
+
+    try {
+      if (body?.topicId) {
+        const rows = await this.ds.query(
+          `SELECT t.name AS topic_name, c.name AS chapter_name,
+                  s.name AS subject_name, s.id AS subject_id, cl.name AS class_name
+           FROM topics t
+           JOIN chapters c ON c.id = t.chapter_id
+           JOIN subjects s ON s.id = c.subject_id
+           ${CLASS_JOIN}
+           WHERE t.id = $1 LIMIT 1`,
+          [body.topicId],
+        );
+        if (rows.length) {
+          out.topicName ??= clean(rows[0].topic_name);
+          out.chapterName ??= clean(rows[0].chapter_name);
+          out.subjectName ??= clean(rows[0].subject_name);
+          out.className ??= clean(rows[0].class_name);
+          out.className ??= await this.classNameFromTeacherAssignment(rows[0].subject_id, user);
+        }
+      } else if (body?.chapterId) {
+        const rows = await this.ds.query(
+          `SELECT c.name AS chapter_name, s.name AS subject_name, s.id AS subject_id,
+                  cl.name AS class_name
+           FROM chapters c
+           JOIN subjects s ON s.id = c.subject_id
+           ${CLASS_JOIN}
+           WHERE c.id = $1 LIMIT 1`,
+          [body.chapterId],
+        );
+        if (rows.length) {
+          out.chapterName ??= clean(rows[0].chapter_name);
+          out.subjectName ??= clean(rows[0].subject_name);
+          out.className ??= clean(rows[0].class_name);
+          out.className ??= await this.classNameFromTeacherAssignment(rows[0].subject_id, user);
+        }
+      } else if (body?.subjectId) {
+        const rows = await this.ds.query(
+          `SELECT s.name AS subject_name, s.id AS subject_id, cl.name AS class_name
+           FROM subjects s
+           ${CLASS_JOIN}
+           WHERE s.id = $1 LIMIT 1`,
+          [body.subjectId],
+        );
+        if (rows.length) {
+          out.subjectName ??= clean(rows[0].subject_name);
+          out.className ??= clean(rows[0].class_name);
+          out.className ??= await this.classNameFromTeacherAssignment(rows[0].subject_id, user);
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`PPT curriculum resolution failed: ${(err as Error).message}`);
+    }
+
+    if (!out.className) {
+      this.logger.warn(
+        `PPT generating without a class level (subject=${out.subjectName ?? '?'} ` +
+        `chapter=${out.chapterName ?? '?'} topic=${out.topicName ?? '?'}) — ` +
+        `slides will not be pitched to a grade.`,
+      );
+    }
+
+    return out;
   }
 
-  // ── Public: regenerate a single slide ────────────────────────────────────
-  async regenerateSlide(body: any) {
+  /** Last-resort class lookup: what class is this teacher assigned this subject for? */
+  private async classNameFromTeacherAssignment(
+    subjectId: string | null | undefined,
+    user: any,
+  ): Promise<string | undefined> {
+    if (!subjectId || !user?.id) return undefined;
+    try {
+      const rows = await this.ds.query(
+        `SELECT cl.name AS class_name
+         FROM teacher_academic_assignments taa
+         JOIN teachers t ON t.id = taa.teacher_id
+         LEFT JOIN sections sec ON sec.id::text = taa.section_id::text
+         LEFT JOIN classes cl ON cl.id::text = COALESCE(taa.class_id, sec.class_id)::text
+         WHERE t.user_id = $1 AND taa.subject_id = $2 AND cl.name IS NOT NULL
+         ORDER BY taa.created_at DESC
+         LIMIT 1`,
+        [user.id, subjectId],
+      );
+      return rows[0]?.class_name || undefined;
+    } catch {
+      return undefined; // never block generation on a best-effort lookup
+    }
+  }
+
+  /**
+   * Education board (cbse | icse | state | ib) for an institute.
+   *
+   * Without it the AI service falls back to its default board, so an ICSE school
+   * gets CBSE/NCERT-framed slides. Cached for 5 minutes — the board effectively
+   * never changes and this would otherwise add a round-trip to every request.
+   */
+  private static readonly _boardCache = new Map<string, { value: string; expiresAt: number }>();
+
+  private async resolveBoard(instituteId?: string): Promise<string | undefined> {
+    if (!instituteId) return undefined;
+    const cached = SchoolPptService._boardCache.get(instituteId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value || undefined;
+    try {
+      const rows = await this.ds.query(
+        `SELECT board, state FROM institutes WHERE id = $1 LIMIT 1`,
+        [instituteId],
+      );
+      if (!rows.length) return undefined;
+      const boardVal = String(rows[0].board ?? '').trim();
+      const stateVal = String(rows[0].state ?? '').trim();
+
+      let finalBoard = boardVal;
+      const boardLower = boardVal.toLowerCase();
+      if (boardLower.includes('state') || boardLower === 'state board' || boardLower === 'stateboard') {
+        if (stateVal) {
+          finalBoard = stateVal.toLowerCase().includes('board') ? stateVal : `${stateVal} State Board`;
+        }
+      }
+
+      SchoolPptService._boardCache.set(instituteId, {
+        value: finalBoard,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
+      return finalBoard || undefined;
+    } catch (err) {
+      this.logger.warn(`Could not resolve board for institute ${instituteId}: ${(err as Error).message}`);
+      return undefined;
+    }
+  }
+
+  async generate(body: any, instituteId?: string, user?: any) {
+    const { topic, slideCount = 5, language = 'English' } = body || {};
+    if (!topic) throw new BadRequestException('Topic is required.');
+
+    const ctx = await this.resolveCurriculumContext(body, user);
+    const board = await this.resolveBoard(instituteId);
+
+    // If this chapter's textbook has been indexed, the deck is written from the
+    // book itself. Otherwise generation proceeds from general knowledge, and the
+    // response says so, so the two are never presented as the same thing.
+    const chapterId = body?.chapterId || (await this.chapterIdForTopic(body?.topicId));
+    const sourcePassages = await this.textbooks.getChapterPassages(instituteId!, chapterId);
+
+    const result = await this.aiBridge.generatePpt(
+      {
+        topic,
+        slideCount: Math.max(3, Math.min(MAX_SLIDES, Number(slideCount) || 5)),
+        language,
+        ...ctx,
+        ...(sourcePassages.length ? { sourcePassages } : {}),
+      },
+      instituteId,
+      board,
+    );
+
+    const data: any = result?.data ?? {};
+    if (!data.source) {
+      data.source = { grounded: false, reason: sourcePassages.length ? 'unavailable' : 'not_indexed' };
+    }
+    return result;
+  }
+
+  /** A topic knows its chapter; grounding is always at chapter granularity. */
+  private async chapterIdForTopic(topicId?: string): Promise<string | null> {
+    if (!topicId) return null;
+    try {
+      const rows = await this.ds.query(
+        `SELECT chapter_id FROM topics WHERE id::text = $1::text LIMIT 1`,
+        [topicId],
+      );
+      return rows[0]?.chapter_id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async regenerateSlide(body: any, instituteId?: string, user?: any) {
     const { slideIndex, topic, currentSlide, totalSlides } = body || {};
     if (topic === undefined || slideIndex === undefined) {
       throw new BadRequestException('slideIndex and topic are required.');
     }
-    const slideType = slideIndex === 0 ? 'title' : slideIndex === totalSlides - 1 ? 'summary' : 'content';
 
-    const systemPrompt = `You are a senior curriculum writer. Regenerate slide ${slideIndex + 1} of ${totalSlides} for a presentation about "${topic}". Type: "${slideType}".
+    const ctx = await this.resolveCurriculumContext(body, user);
+    const board = await this.resolveBoard(instituteId);
 
-BULLET RULE — each bullet must be ONE complete sentence of 12–20 words with a specific fact. Not a fragment. Not a long paragraph.
-  ✗ TOO SHORT: "Located in Pakistan"
-  ✗ TOO LONG: "The Harappan civilisation was centred in the Indus River Valley and stretched across approximately 1.25 million square kilometres covering modern-day Pakistan, northwest India, and parts of Afghanistan."
-  ✓ CORRECT: "The Harappan civilisation (3300–1300 BCE) spanned 1.25 million sq km across modern Pakistan and India."
-
-${slideType === 'title' ? 'Title slide: engaging title (5–8 words) + subtitle (10–18 words previewing what students will learn). bullets must be [].' : ''}
-${slideType === 'summary' ? 'Summary slide: 5 bullet points, each a complete sentence of 12–20 words summarising one key fact from the presentation.' : ''}
-${slideType === 'content' ? 'Content slide: EXACTLY 5 bullet points, each a complete sentence of 12–20 words with a specific fact, number, name, or detail. No fragments. No essays.' : ''}
-
-IMAGE RULE: imageSearchTerm must describe the exact visual content of THIS slide's sub-topic — not the general topic. Include a visual type hint (map, diagram, photograph, artifact, chart).
-
-Return ONLY valid JSON:
-{
-  "slideNumber": ${slideIndex + 1},
-  "type": "${slideType}",
-  "title": "Slide Title",
-  "subtitle": "",
-  "bullets": ["Complete sentence with specific facts.", "Another complete sentence..."],
-  "speakerNotes": "3-4 sentences of teaching tips and discussion questions for the teacher",
-  "imageSearchTerm": "specific 4-7 word term matching THIS slide's exact sub-topic with visual type hint"
-}`;
-
-    const res = await fetch(this.GROQ_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${this.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Regenerate slide ${slideIndex + 1} about "${topic}". Current slide data: ${JSON.stringify(currentSlide)}` },
-        ],
-        temperature: 0.8,
-        max_tokens: 2048,
-      }),
-    });
-    if (!res.ok) {
-      const errBody = await res.text();
-      throw new BadRequestException(`GROQ API error ${res.status}: ${errBody}`);
-    }
-    const groqData: any = await res.json();
-    const newSlide = JSON.parse(groqData.choices[0].message.content);
-    const imageData = await this.fetchImageForSlide(newSlide.imageSearchTerm, newSlide.title);
-    newSlide.imageUrl = imageData.imageUrl;
-    newSlide.imageBase64 = imageData.imageBase64;
-    return { success: true, data: newSlide };
+    return this.aiBridge.regeneratePptSlide(
+      { slideIndex, topic, currentSlide, totalSlides, ...ctx },
+      instituteId,
+      board,
+    );
   }
 
-  // ── Public: search a single image ────────────────────────────────────────
-  async searchImage(body: any) {
+  async searchImage(body: any, instituteId?: string) {
     const searchTerm = body?.searchTerm;
     if (!searchTerm) throw new BadRequestException('searchTerm is required.');
-    const imageData = await this.fetchImageForSlide(searchTerm, searchTerm);
-    return { success: true, ...imageData };
+    return this.aiBridge.searchPptImage({ searchTerm }, instituteId);
   }
 
-  // ── Public: proxy an external image (bypass hotlink protection) ───────────
+  /** Proxy an external image URL — bypasses hotlink protection for studio preview. */
   async proxyImage(url: string): Promise<{ contentType: string; buffer: Buffer } | null> {
     if (!url) return null;
     try {
@@ -116,199 +283,62 @@ Return ONLY valid JSON:
     }
   }
 
-  // ════════════════════════════════════════════════════════════════════════
-  //  GROQ — slide content
-  // ════════════════════════════════════════════════════════════════════════
-  private repairJson(str: string): string {
-    str = str.trim().replace(/^﻿/, '');
-    str = str.replace(/"([a-zA-Z_]+)=([\s\S]*?)(?=",\s*\n|"\s*\n\s*[}\]])/g, (_m, key, val) => {
-      val = val.trim();
-      if (val.startsWith('[')) val = val.replace(/'([^']*)'/g, '"$1"');
-      return `"${key}": ${val}`;
-    });
-    str = str.replace(/\[([^[\]{}]*?)\]/g, (match) =>
-      match.includes("'") ? match.replace(/'([^']*)'/g, '"$1"') : match,
-    );
-    str = str.replace(/,(\s*[}\]])/g, '$1');
-    return str;
-  }
-
-  private async generateSlideContent(topic: string, slideCount: number, language: string): Promise<any> {
-    const systemPrompt = `You are an expert educational presentation designer creating classroom PPT slides.
-
-═══ JSON FORMAT RULES ═══
-• All strings: DOUBLE QUOTES only — never single quotes.
-• "bullets": proper JSON array — "bullets": ["...", "..."]
-• Never write bullets=[...] — always use a colon.
-• No trailing commas before } or ].
-
-═══ BULLET POINT STANDARD (most important rule) ═══
-Each bullet point must be ONE complete, informative sentence of 12–20 words.
-It must state a clear fact, include a specific detail, and be understandable on its own.
-
-  ✗ TOO SHORT (fragment — rejected): "Located in Pakistan" / "Hot climate"
-  ✗ TOO LONG (essay — rejected): a 40-word run-on sentence.
-  ✓ CORRECT LENGTH (12–20 words):
-      "The Harappan civilisation (3300–1300 BCE) covered 1.25 million sq km across modern Pakistan and India."
-      "Cities like Mohenjo-daro used a precise grid layout with wide roads and brick-lined drainage systems."
-
-═══ SLIDE STRUCTURE ═══
-Generate EXACTLY ${slideCount} slides about "${topic}" in ${language}.
-
-Slide 1  → type "title"
-  • title: short compelling title (5–8 words)
-  • subtitle: one sentence (10–18 words) that previews what students will learn
-  • bullets: []
-
-Slides 2 – ${slideCount - 1}  → type "content"
-  • title: clear 3–6 word heading for this specific sub-topic
-  • bullets: EXACTLY 5 bullet points — each a complete sentence of 12–20 words with a specific fact
-  • Each slide must cover a DIFFERENT sub-topic.
-
-Slide ${slideCount}  → type "summary"
-  • title: "Key Takeaways" or similar
-  • bullets: 5 bullet points, each a complete sentence of 12–20 words summarising one key fact
-
-═══ IMAGE SEARCH TERM RULES ═══
-imageSearchTerm MUST match the exact sub-topic of THAT slide — never the general topic.
-  1. Term must name the concept specific to THAT slide.
-  2. 4–7 words long.
-  3. Include a visual type word: map, diagram, photograph, excavation, artifact, chart, illustration.
-
-ALL slides:
-  • speakerNotes: 2–3 sentences — a teaching tip or discussion question for the teacher
-
-═══ OUTPUT ═══
-Return ONLY valid JSON — no markdown fences, no commentary:
-{
-  "title": "Presentation Title",
-  "slides": [
-    { "slideNumber": 1, "type": "title", "title": "Engaging Main Title", "subtitle": "One sentence previewing what students will learn.", "bullets": [], "speakerNotes": "Ask students what they already know.", "imageSearchTerm": "topic overview educational photograph" },
-    { "slideNumber": 2, "type": "content", "title": "Sub-Topic Heading", "subtitle": "", "bullets": ["Complete sentence of 12–20 words with a specific fact.", "Another complete sentence of 12–20 words.", "A sentence explaining a cause, effect, or significance.", "A sentence with a number, date, name, or comparison.", "An interesting detail that deepens understanding."], "speakerNotes": "Ask students: which fact surprised you most?", "imageSearchTerm": "specific 4-7 word term with visual hint" }
-  ]
-}`;
-
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      const response = await fetch(this.GROQ_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${this.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Write a ${slideCount}-slide educational presentation about: "${topic}". Each bullet must be one complete sentence of 12–20 words with a specific fact. Not fragments. Not essays.` },
-          ],
-          temperature: attempt === 1 ? 0.7 : 0.4,
-          max_tokens: 8000,
-        }),
-      });
-
-      if (!response.ok) {
-        const errBody = await response.text();
-        if (response.status === 400) {
-          try {
-            const errData = JSON.parse(errBody);
-            const raw = errData?.error?.failed_generation;
-            if (raw) {
-              this.logger.warn(`Attempt ${attempt}: GROQ JSON validation failed, repairing…`);
-              return JSON.parse(this.repairJson(raw));
-            }
-          } catch { /* fall through */ }
-        }
-        if (attempt === 3) throw new BadRequestException(`GROQ API error ${response.status}: ${errBody}`);
-        await this.sleep(1000);
-        continue;
-      }
-
-      const data: any = await response.json();
-      const content = data.choices[0].message.content;
-      try {
-        return JSON.parse(content);
-      } catch {
-        try {
-          return JSON.parse(this.repairJson(content));
-        } catch {
-          if (attempt === 3) throw new BadRequestException('Failed to parse GROQ response as JSON after 3 attempts');
-          await this.sleep(1000);
-        }
-      }
-    }
-    throw new BadRequestException('Failed to generate slide content');
-  }
-
-  // ════════════════════════════════════════════════════════════════════════
-  //  Serper.dev — images
-  // ════════════════════════════════════════════════════════════════════════
-  private enrichSearchTerm(term: string, slideTitle: string): string {
-    if (!term || term.trim().split(/\s+/).length < 3) {
-      const base = (slideTitle || term || '').trim();
-      return base + ' educational diagram photograph';
-    }
-    const visualHints = ['map', 'diagram', 'photograph', 'photo', 'chart', 'illustration', 'artifact', 'image', 'picture', 'excavation', 'figure', 'drawing'];
-    const lower = term.toLowerCase();
-    return visualHints.some((h) => lower.includes(h)) ? term : term + ' photograph';
-  }
-
-  private async fetchImageForSlide(searchTerm: string, slideTitle: string): Promise<{ imageUrl: string | null; imageBase64: string | null }> {
-    if (!this.SERPER_API_KEY) return { imageUrl: null, imageBase64: null };
+  async getMaterialSlideImage(materialId: string, slideIndex: number): Promise<{ contentType: string; buffer: Buffer } | null> {
     try {
-      const enriched = this.enrichSearchTerm(searchTerm, slideTitle);
-      const serperRes = await fetch(this.SERPER_URL, {
-        method: 'POST',
-        headers: { 'X-API-KEY': this.SERPER_API_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: enriched, num: 5 }),
-      });
-      if (!serperRes.ok) return { imageUrl: null, imageBase64: null };
-      const serperData: any = await serperRes.json();
-      const images = serperData.images || [];
-      if (!images.length) return { imageUrl: null, imageBase64: null };
-      for (const candidate of images.slice(0, 5)) {
-        const imageBase64 = await this.downloadImageAsBase64(candidate.imageUrl);
-        if (imageBase64) return { imageUrl: candidate.imageUrl, imageBase64 };
+      // 1. Fetch the material S3 URL
+      const rows = await this.ds.query(
+        `SELECT s3_key FROM study_materials WHERE id = $1`,
+        [materialId],
+      );
+      if (!rows.length || !rows[0].s3_key) return null;
+      const fileUrl = rows[0].s3_key;
+
+      // 2. Download pptx file buffer
+      const res = await fetch(fileUrl);
+      if (!res.ok) return null;
+      const pptxBuffer = Buffer.from(await res.arrayBuffer());
+
+      // 3. Unzip pptx file in memory
+      const zip = new AdmZip(pptxBuffer);
+
+      // Relationship file path for slideN (slideIndex starts at 0, slide files are 1-indexed)
+      const relPath = `ppt/slides/_rels/slide${slideIndex + 1}.xml.rels`;
+      const relEntry = zip.getEntry(relPath);
+      if (!relEntry) return null;
+
+      const relXml = relEntry.getData().toString('utf8');
+
+      // 4. Extract target relationship for image
+      const match = relXml.match(/Type="http:\/\/schemas.openxmlformats.org\/officeDocument\/2006\/relationships\/image"[^>]*Target="([^"]+)"/);
+      if (!match) return null;
+
+      let target = match[1];
+
+      // 5. If external URL, download and return
+      if (target.startsWith('http://') || target.startsWith('https://')) {
+        return this.proxyImage(target);
       }
-      return { imageUrl: images[0].imageUrl, imageBase64: null };
+
+      // 6. If local relative path inside the zip archive, extract it
+      const normalizedPath = target.replace(/^\.\.\//, 'ppt/');
+      const imgEntry = zip.getEntry(normalizedPath);
+      if (!imgEntry) return null;
+
+      const buffer = imgEntry.getData();
+      const ext = normalizedPath.split('.').pop()?.toLowerCase() || 'png';
+      const contentTypeMap = {
+        png: 'image/png',
+        jpeg: 'image/jpeg',
+        jpg: 'image/jpeg',
+        webp: 'image/webp',
+        gif: 'image/gif',
+      };
+      const contentType = contentTypeMap[ext] || 'image/png';
+
+      return { contentType, buffer };
     } catch (err: any) {
-      this.logger.warn(`Image fetch error for "${searchTerm}": ${err?.message}`);
-      return { imageUrl: null, imageBase64: null };
-    }
-  }
-
-  private async downloadImageAsBase64(url: string): Promise<string | null> {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Referer: 'https://www.google.com/',
-          Accept: 'image/webp,image/apng,image/jpeg,image/png,image/*,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!response.ok) return null;
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.startsWith('image/')) return null;
-      const buffer = Buffer.from(await response.arrayBuffer());
-      if (buffer.length < 1024) return null;
-      const mimeType = contentType.split(';')[0].trim();
-      return `data:${mimeType};base64,${buffer.toString('base64')}`;
-    } catch {
+      this.logger.warn(`Failed to extract slide image from material ${materialId}: ${err?.message}`);
       return null;
     }
-  }
-
-  private async attachImagesToSlides(slides: any[]): Promise<any[]> {
-    const results: any[] = [];
-    for (let i = 0; i < slides.length; i++) {
-      const slide = slides[i];
-      try {
-        const imageData = await this.fetchImageForSlide(slide.imageSearchTerm, slide.title);
-        results.push({ ...slide, imageUrl: imageData.imageUrl, imageBase64: imageData.imageBase64 });
-      } catch {
-        results.push({ ...slide, imageUrl: null, imageBase64: null });
-      }
-      if (i < slides.length - 1) await this.sleep(1000);
-    }
-    return results;
   }
 }

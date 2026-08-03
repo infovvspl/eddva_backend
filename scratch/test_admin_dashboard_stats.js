@@ -1,7 +1,7 @@
 const http = require('http');
 
 async function testAdminLoginAndStats() {
-  const loginData = JSON.stringify({ email: 'aps@gmail.com', password: '123' });
+  const loginData = JSON.stringify({ email: 'odm@gmail.com', password: '123' });
   
   const loginReq = http.request('http://localhost:3000/api/v1/school/auth/login', {
     method: 'POST',

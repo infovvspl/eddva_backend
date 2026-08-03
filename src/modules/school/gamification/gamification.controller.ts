@@ -2,15 +2,29 @@ import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/comm
 import { Request } from 'express';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { GamificationService } from './gamification.service';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
+import { SchoolPublic } from '../decorators/school-public.decorator';
 
-@UseGuards(SchoolJwtGuard)
+@UseGuards(SchoolJwtGuard, SchoolFeatureGuard)
 @Controller('school/gamification')
 export class SchoolGamificationController {
   constructor(private readonly gamification: GamificationService) {}
 
   @Get('quiz-rush/start')
+  @SchoolFeature('ai', 'ai_game_quizzes')
   startQuizRush(@Req() req: Request, @Query() query: any) {
     return this.gamification.startQuizRush((req as any).user, query);
+  }
+
+  @Get('quiz-rush/next-question')
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  getNextQuizRushQuestion(
+    @Req() req: Request,
+    @Query('sessionId') sessionId: string,
+    @Query('currentIdx') currentIdx?: string,
+  ) {
+    return this.gamification.getNextQuizRushQuestion((req as any).user, sessionId, currentIdx);
   }
 
   @Post('quiz-rush/submit')
@@ -23,14 +37,23 @@ export class SchoolGamificationController {
     return this.gamification.leaderboard((req as any).user, 'quiz_rush');
   }
 
+
   @Get('treasure/maps')
   getTreasureMaps(@Req() req: Request) {
     return this.gamification.getTreasureMaps((req as any).user);
   }
 
   @Get('treasure/challenge')
-  getTreasureChallenge(@Req() req: Request, @Query('questId') questId: string, @Query('stageOrder') stageOrder?: string) {
-    return this.gamification.getTreasureChallenge((req as any).user, questId, Number(stageOrder || 1));
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  getTreasureChallenge(
+    @Req() req: Request,
+    @Query('questId') questId: string,
+    @Query('stageOrder') stageOrder?: string,
+    @Query('mode') mode?: string,
+    @Query('subjectId') subjectId?: string,
+    @Query('chapterId') chapterId?: string,
+  ) {
+    return this.gamification.getTreasureChallenge((req as any).user, questId, Number(stageOrder || 1), mode || 'ranked', subjectId, chapterId);
   }
 
   @Post('treasure/complete')
@@ -39,8 +62,19 @@ export class SchoolGamificationController {
   }
 
   @Get('math-sprint/start')
-  startMathSprint(@Req() req: Request, @Query('difficulty') difficulty: string) {
-    return this.gamification.startMathSprint((req as any).user, difficulty || 'medium');
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  startMathSprint(@Req() req: Request, @Query('difficulty') difficulty: string, @Query('mode') mode?: string) {
+    return this.gamification.startMathSprint((req as any).user, difficulty || 'medium', mode || 'ranked');
+  }
+
+  @Get('math-sprint/next-question')
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  getNextMathSprintQuestion(
+    @Req() req: Request,
+    @Query('sessionId') sessionId: string,
+    @Query('currentIdx') currentIdx?: string,
+  ) {
+    return this.gamification.getNextMathSprintQuestion((req as any).user, sessionId, currentIdx);
   }
 
   @Post('math-sprint/submit')
@@ -59,8 +93,16 @@ export class SchoolGamificationController {
   }
 
   @Get('memory-match/start')
-  startMemoryMatch(@Req() req: Request, @Query('deckId') deckId: string, @Query('difficulty') difficulty?: string) {
-    return this.gamification.startMemoryMatch((req as any).user, deckId, difficulty);
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  startMemoryMatch(
+    @Req() req: Request,
+    @Query('deckId') deckId: string,
+    @Query('difficulty') difficulty?: string,
+    @Query('mode') mode?: string,
+    @Query('subjectId') subjectId?: string,
+    @Query('chapterId') chapterId?: string,
+  ) {
+    return this.gamification.startMemoryMatch((req as any).user, deckId, difficulty, mode || 'ranked', subjectId, chapterId);
   }
 
   @Post('memory-match/submit')
@@ -79,8 +121,22 @@ export class SchoolGamificationController {
   }
 
   @Get('word-master/start')
-  startWordMaster(@Req() req: Request, @Query('deckId') deckId: string, @Query('difficulty') difficulty?: string) {
-    return this.gamification.startWordMaster((req as any).user, deckId, difficulty);
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  startWordMaster(
+    @Req() req: Request,
+    @Query('deckId') deckId: string,
+    @Query('difficulty') difficulty?: string,
+    @Query('mode') mode?: string,
+    @Query('subjectId') subjectId?: string,
+    @Query('chapterId') chapterId?: string,
+  ) {
+    return this.gamification.startWordMaster((req as any).user, deckId, difficulty, mode || 'ranked', subjectId, chapterId);
+  }
+
+  @Post('word-master/submit-word')
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  submitWordMasterWord(@Req() req: Request, @Body() body: any) {
+    return this.gamification.submitWordMasterWord((req as any).user, body);
   }
 
   @Post('word-master/submit')
@@ -97,5 +153,17 @@ export class SchoolGamificationController {
   @Get('my-profile')
   getMyProfile(@Req() req: Request) {
     return this.gamification.getMyProfile((req as any).user);
+  }
+
+  @Get('leaderboard')
+  @SchoolPublic()
+  async getMultiLeaderboard(@Query('scope') scope: string) {
+    try {
+      const data = await this.gamification.getMultiLeaderboard(scope || 'GLOBAL');
+      return { success: true, data: Array.isArray(data) ? data : [] };
+    } catch (err: any) {
+      console.error('[SchoolGamificationController] Leaderboard error:', err?.message || err);
+      return { success: true, data: [] };
+    }
   }
 }

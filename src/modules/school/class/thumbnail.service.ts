@@ -73,7 +73,8 @@ export class ThumbnailService {
     try {
       fs.mkdirSync(tmpDir, { recursive: true });
 
-      // Step 1: Download the video (or first chunk) to a temp file
+      // Step 1: Download the video to a temp file. Some MP4s keep metadata at
+      // the end, so an initial byte range can look like corrupt video to ffmpeg.
       await this.downloadVideo(videoUrl, tmpVideoPath);
 
       // Step 2: Probe the video for metadata
@@ -84,14 +85,12 @@ export class ThumbnailService {
 
       // Step 4: Read the thumbnail and upload to S3
       if (!fs.existsSync(tmpThumbPath)) {
-        this.logger.warn(`Thumbnail file was not created for recording ${recordingId}`);
-        return null;
+        throw new Error('Thumbnail file was not created');
       }
 
       const thumbBuffer = fs.readFileSync(tmpThumbPath);
       if (thumbBuffer.length < 1024) {
-        this.logger.warn(`Thumbnail too small (${thumbBuffer.length}B) for recording ${recordingId}`);
-        return null;
+        throw new Error(`Thumbnail too small (${thumbBuffer.length}B)`);
       }
 
       const s3Key = `tenants/${instituteId}/class-recording-thumbnails/${recordingId}.webp`;
@@ -114,7 +113,7 @@ export class ThumbnailService {
       };
     } catch (err: any) {
       this.logger.warn(`Thumbnail generation failed for recording ${recordingId}: ${err?.message}`);
-      return null;
+      throw err;
     } finally {
       // Cleanup temp files
       this.cleanupTmp(tmpDir);
@@ -123,7 +122,7 @@ export class ThumbnailService {
 
   /**
    * Download a video from a URL (or presigned S3 URL) to a local temp file.
-   * Downloads up to 20 MB for thumbnail extraction efficiency.
+   * Downloads the full file because non-fast-start MP4s need tail metadata.
    */
   private async downloadVideo(url: string, destPath: string): Promise<void> {
     // If the URL is an S3 key (not a full URL), presign it first
@@ -132,18 +131,18 @@ export class ThumbnailService {
       downloadUrl = await this.s3Service.presignGet(url, 300);
     }
 
-    const MAX_BYTES = 20 * 1024 * 1024; // 20 MB — enough for a 5s frame
-
     const response = await fetch(downloadUrl, {
-      headers: { Range: `bytes=0-${MAX_BYTES - 1}` },
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(5 * 60 * 1000),
     });
 
-    if (!response.ok && response.status !== 206) {
+    if (!response.ok) {
       throw new Error(`Failed to download video: HTTP ${response.status}`);
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length < 1024) {
+      throw new Error(`Downloaded video is too small (${buffer.length}B)`);
+    }
     fs.writeFileSync(destPath, buffer);
   }
 

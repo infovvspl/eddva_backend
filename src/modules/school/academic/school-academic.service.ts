@@ -51,11 +51,20 @@ export class SchoolAcademicService {
   async listClasses(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const academicYear = query.academicYear ? String(query.academicYear).trim() : undefined;
-    const cacheKey = this.classListKey(instituteId, academicYear);
+    const isTeacher = user.role === 'TEACHER';
+
+    let cacheKey = this.classListKey(instituteId, academicYear);
+    if (isTeacher) {
+      cacheKey += `:teacher:${user.id}`;
+    }
+
     const cached = await this.cache.get(cacheKey);
     if (cached) return cached;
 
     let rows: any[];
+    const isTeacherFilter = isTeacher
+      ? `AND c.id IN (SELECT DISTINCT class_id FROM teacher_academic_assignments ta JOIN teachers t ON ta.teacher_id = t.id WHERE t.user_id = $${academicYear ? 3 : 2})`
+      : '';
 
     if (academicYear) {
       rows = await this.ds.query(
@@ -107,9 +116,10 @@ export class SchoolAcademicService {
         FROM classes c
         WHERE c.institute_id = $1
           AND c.academic_year = $2
+          ${isTeacherFilter}
         ORDER BY c.name
         `,
-        [instituteId, academicYear],
+        isTeacher ? [instituteId, academicYear, user.id] : [instituteId, academicYear],
       );
     } else {
       rows = await this.ds.query(
@@ -160,9 +170,10 @@ export class SchoolAcademicService {
                ), '[]'::json) AS sections
         FROM classes c
         WHERE c.institute_id = $1
+          ${isTeacherFilter}
         ORDER BY c.name
         `,
-        [instituteId],
+        isTeacher ? [instituteId, user.id] : [instituteId],
       );
     }
 
@@ -195,8 +206,26 @@ export class SchoolAcademicService {
         [instituteId, name, academicYear],
       );
 
+      const newClass = rows[0];
+
+      if (body.section) {
+        const sectionNames = String(body.section).split(',').map(s => s.trim()).filter(Boolean);
+        for (const secName of sectionNames) {
+          const secExists = await this.ds.query(
+            `SELECT id FROM sections WHERE class_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))`,
+            [newClass.id, secName]
+          );
+          if (secExists.length === 0) {
+            await this.ds.query(
+              `INSERT INTO sections (class_id, name, academic_year) VALUES ($1, $2, $3)`,
+              [newClass.id, secName, academicYear]
+            );
+          }
+        }
+      }
+
       await this.invalidateClassCaches(instituteId);
-      return { success: true, data: rows[0] };
+      return { success: true, data: newClass };
     } catch (err: any) {
       if (err.code === '23505') {
         throw new ConflictException(`Class '${name}' already exists for academic year ${academicYear}.`);
@@ -236,6 +265,23 @@ export class SchoolAcademicService {
         `,
         [id, newName, newYear],
       );
+
+      if (body.section) {
+        const sectionNames = String(body.section).split(',').map(s => s.trim()).filter(Boolean);
+        for (const secName of sectionNames) {
+          const secExists = await this.ds.query(
+            `SELECT id FROM sections WHERE class_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))`,
+            [id, secName]
+          );
+          if (secExists.length === 0) {
+            await this.ds.query(
+              `INSERT INTO sections (class_id, name, academic_year) VALUES ($1, $2, $3)`,
+              [id, secName, newYear]
+            );
+          }
+        }
+      }
+
     } catch (err: any) {
       if (err.code === '23505') {
         throw new ConflictException(`Class '${newName}' already exists for academic year ${newYear}.`);
@@ -315,7 +361,13 @@ export class SchoolAcademicService {
 
   async listSections(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
-    const cacheKey = this.sectionListKey(instituteId, query.classId, query.academicYear);
+    const isTeacher = user.role === 'TEACHER';
+
+    let cacheKey = this.sectionListKey(instituteId, query.classId, query.academicYear);
+    if (isTeacher) {
+      cacheKey += `:teacher:${user.id}`;
+    }
+
     const cached = await this.cache.get(cacheKey);
     if (cached) return cached;
 
@@ -331,6 +383,12 @@ export class SchoolAcademicService {
       params.push(query.academicYear);
       baseQuery += ` AND sec.academic_year=$${params.length}`;
     }
+
+    if (isTeacher) {
+      params.push(user.id);
+      baseQuery += ` AND sec.id IN (SELECT DISTINCT section_id FROM teacher_academic_assignments ta JOIN teachers t ON ta.teacher_id = t.id WHERE t.user_id = $${params.length})`;
+    }
+
     baseQuery += ` ORDER BY sec.name`;
     const rows = await this.ds.query(baseQuery, params);
 

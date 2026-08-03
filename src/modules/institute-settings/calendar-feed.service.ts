@@ -8,6 +8,7 @@ import { Student } from '../../database/entities/student.entity';
 import { UserRole } from '../../database/entities/user.entity';
 import { MockTest } from '../../database/entities/assessment.entity';
 import { LectureAssignment } from '../../database/entities/assignment.entity';
+import { EnrollmentStatusService } from '../batch/enrollment-status.service';
 
 import { InstituteSettingsService } from './institute-settings.service';
 
@@ -61,6 +62,7 @@ export class CalendarFeedService {
     private readonly mockTestRepo: Repository<MockTest>,
     @InjectRepository(LectureAssignment, 'coaching')
     private readonly assignmentRepo: Repository<LectureAssignment>,
+    private readonly enrollmentStatusService: EnrollmentStatusService,
   ) {}
 
   /** Batches visible on the calendar for this actor; `null` means all batches in the tenant (institute admin). */
@@ -99,6 +101,16 @@ export class CalendarFeedService {
   }
 
   async getAggregatedFeed(user: { id: string; role: string }, tenantId: string, year?: number, month?: number) {
+    if (user.role === UserRole.STUDENT) {
+      const student = await this.studentRepo.findOne({ where: { userId: user.id } });
+      if (student && !(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+        return {
+          instituteEvents: [],
+          liveClasses: [],
+        };
+      }
+    }
+
     const y = year ?? new Date().getFullYear();
     const m = month ?? new Date().getMonth() + 1;
 
@@ -309,6 +321,20 @@ export class CalendarFeedService {
   }
 
   async getSummaryStats(user: any, tenantId: string, year?: number, month?: number) {
+    if (user.role === UserRole.STUDENT) {
+      const student = await this.studentRepo.findOne({ where: { userId: user.id } });
+      if (student && !(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+        return {
+          totalLectures: 0,
+          liveClasses: 0,
+          mockTests: 0,
+          holidays: 0,
+          meetings: 0,
+          pendingAssignments: 0,
+        };
+      }
+    }
+
     const y = year ?? new Date().getFullYear();
     const m = month ?? new Date().getMonth() + 1;
 

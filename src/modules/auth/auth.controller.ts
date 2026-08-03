@@ -112,7 +112,11 @@ export class AuthController {
         `Institute "${instituteSub}" was not found. Check the URL or register this school first.`,
       );
     }
-    return this.authService.loginWithPassword(dto, tenantId);
+    // When no explicit tenant subdomain was provided, the middleware falls back to
+    // the platform tenant. In that case pass null so findUserForPasswordLogin searches
+    // across all tenants (backwards-compatible behaviour for bare-localhost / generic URLs).
+    const effectiveTenantId = req.tenant?.subdomain === 'platform' ? null : tenantId;
+    return this.authService.loginWithPassword(dto, effectiveTenantId);
   }
 
   private subdomainFromHost(hostname: string): string | null {

@@ -28,6 +28,11 @@ export class UpdateClassUniqueConstraint1783200000000 implements MigrationInterf
     // 4. Add composite unique constraint for (institute_id, academic_year, name)
     await queryRunner.query(`
       ALTER TABLE classes
+      DROP CONSTRAINT IF EXISTS classes_institute_id_academic_year_name_key;
+    `);
+
+    await queryRunner.query(`
+      ALTER TABLE classes
       ADD CONSTRAINT classes_institute_id_academic_year_name_key
       UNIQUE (institute_id, academic_year, name);
     `);

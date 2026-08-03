@@ -86,7 +86,9 @@
       "Bash(ssh ubuntu@13.127.31.213 \"sudo grep -n 'hls480\\\\|hls360\\\\|hls/' /etc/nginx/nginx.conf | grep 'location'\")",
       "Bash(ssh ubuntu@13.127.31.213 \"cat /usr/local/bin/rtmp_record_done.sh 2>/dev/null || cat /etc/nginx/rtmp_record_done.sh 2>/dev/null || find / -name 'rtmp_record_done.sh' 2>/dev/null | head -3 | xargs cat\")",
       "Bash(ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@43.204.136.13 \"cat /etc/nginx/sites-enabled/default 2>/dev/null || cat /etc/nginx/sites-enabled/*.conf 2>/dev/null || cat /etc/nginx/nginx.conf 2>/dev/null | head -100\")",
-      "PowerShell(cd \"C:\\\\Users\\\\HP\\\\Desktop\\\\VVSPL\\\\eddva_frontend\"; $env:NODE_OPTIONS=\"--max-old-space-size=3072\"; npm run build 2>&1 | Select-Object -Last 30)"
+      "PowerShell(cd \"C:\\\\Users\\\\HP\\\\Desktop\\\\VVSPL\\\\eddva_frontend\"; $env:NODE_OPTIONS=\"--max-old-space-size=3072\"; npm run build 2>&1 | Select-Object -Last 30)",
+      "Bash(Get-Content \"C:\\\\Users\\\\HP\\\\Desktop\\\\VVSPL\\\\AI_Study\\\\.env\")",
+      "Bash(Select-Object -Last 10)"
     ],
     "additionalDirectories": [
       "c:\\Users\\subha\\Desktop\\eddva_frontend\\src\\lib\\api",

@@ -21,6 +21,7 @@
     "migration:run": "npm run typeorm -- migration:run -d src/config/database.config.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/config/database.config.ts",
     "seed": "ts-node src/database/seed.ts",
+    "seed:super-admins": "ts-node -r tsconfig-paths/register src/database/seed-super-admins.ts",
     "backfill:mock-test-math": "node scripts/backfill-mock-test-math.js",
     "prepare": "husky"
   },
@@ -45,6 +46,8 @@
     "@nestjs/throttler": "^5.0.0",
     "@nestjs/typeorm": "^10.0.0",
     "@nestjs/websockets": "^10.0.0",
+    "@types/adm-zip": "^0.5.8",
+    "adm-zip": "^0.6.0",
     "agora-token": "^2.0.5",
     "axios": "^1.5.0",
     "bcryptjs": "^2.4.3",

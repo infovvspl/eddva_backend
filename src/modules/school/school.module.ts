@@ -32,6 +32,7 @@ import { SchoolCalendarModule } from './calendar/school-calendar.module';
 import { CareerModule } from './career/career.module';
 import { SchoolStudyPlanModule } from './study-plan/school-study-plan.module';
 import { SchoolPptModule } from './ppt/school-ppt.module';
+import { SchoolTextbookModule } from './textbook/school-textbook.module';
 import { SchoolLiveModule } from './live/school-live.module';
 import { SchoolJwtGuard } from './guards/school-jwt.guard';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
@@ -39,6 +40,7 @@ import { SchoolRolesGuard } from './guards/school-roles.guard';
 import { SchoolGamificationModule } from './gamification/gamification.module';
 import { SchoolSecurityModule } from './security/school-security.module';
 import { RecordingHighlightModule } from './recording-highlight/recording-highlight.module';
+import { SchoolNotificationFcmModule } from './notification-fcm/school-notification-fcm.module';
 
 @Module({
   imports: [
@@ -74,10 +76,12 @@ import { RecordingHighlightModule } from './recording-highlight/recording-highli
     CareerModule,
     SchoolStudyPlanModule,
     SchoolPptModule,
+    SchoolTextbookModule,
     SchoolLiveModule,
     SchoolGamificationModule,
     SchoolSecurityModule,
     RecordingHighlightModule,
+    SchoolNotificationFcmModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
   providers: [SchoolJwtGuard, SchoolRolesGuard],

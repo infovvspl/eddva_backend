@@ -3,15 +3,18 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { calculateCurrentStreak } from '../../../common/gamification-helper';
 
-type GameType = 'quiz_rush' | 'treasure_hunt' | 'math_sprint' | 'memory_match' | 'word_master';
+type GameType = 'quiz_rush' | 'treasure_hunt' | 'math_sprint' | 'memory_match' | 'word_master' | 'battle_arena';
 
 @Injectable()
 export class GamificationService implements OnModuleInit {
   private readonly logger = new Logger(GamificationService.name);
+  private readonly _boardCache = new Map<string, { value: string; expiresAt: number }>();
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
+    @InjectDataSource('coaching') private readonly coachingDs: DataSource,
     private readonly aiBridge: AiBridgeService,
   ) {}
 
@@ -34,6 +37,13 @@ export class GamificationService implements OnModuleInit {
         updated_at timestamptz NOT NULL DEFAULT now()
       )
     `);
+    
+    // Add play_mode and anti-cheat columns to sessions
+    await this.ds.query(`ALTER TABLE school_game_sessions ADD COLUMN IF NOT EXISTS play_mode varchar(20) NOT NULL DEFAULT 'ranked'`);
+    await this.ds.query(`ALTER TABLE school_game_sessions ADD COLUMN IF NOT EXISTS tab_switches_count int NOT NULL DEFAULT 0`);
+    await this.ds.query(`ALTER TABLE school_game_sessions ADD COLUMN IF NOT EXISTS cheat_flagged boolean NOT NULL DEFAULT false`);
+    await this.ds.query(`ALTER TABLE school_game_sessions ADD COLUMN IF NOT EXISTS cheat_reason varchar(255)`);
+
     await this.ds.query(`
       CREATE TABLE IF NOT EXISTS school_game_scores (
         id uuid PRIMARY KEY,
@@ -55,57 +65,467 @@ export class GamificationService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT now()
       )
     `);
+
+    // Create school_game_skills table
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS school_game_skills (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_user_id uuid NOT NULL,
+        subject_id uuid NOT NULL,
+        chapter_id uuid,
+        game_type varchar(50) NOT NULL,
+        skill_score float NOT NULL DEFAULT 30.0,
+        last_ten_accuracies float[] DEFAULT '{}',
+        total_games_played int NOT NULL DEFAULT 0,
+        streak int NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+
     // Performance indexes for leaderboard + score queries
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_institute ON school_game_sessions (institute_id, status, created_at)`);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_student ON school_game_sessions (student_user_id, created_at)`);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_institute_student ON school_game_scores (institute_id, student_user_id)`);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_scores_session ON school_game_scores (session_id)`);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_game_sessions_metadata ON school_game_sessions USING GIN (metadata)`);
+    await this.ds.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_composite ON school_game_skills (student_user_id, subject_id, COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000'::uuid), game_type)`);
+
+    // Cross-game question deduplication: tracks which question texts a student
+    // has already seen so the AI never repeats them in future sessions.
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS school_game_seen_questions (
+        id          bigserial PRIMARY KEY,
+        student_user_id uuid NOT NULL,
+        game_type   varchar(50) NOT NULL,
+        subject_id  uuid,
+        question_text text NOT NULL,
+        seen_at     timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_seen_q_lookup ON school_game_seen_questions (student_user_id, game_type, subject_id, seen_at)`);
   }
 
-  /** Returns the student's real-time gamification stats from gamification_profiles */
-  async getMyProfile(user: any) {
-    const userId = String(user?.id || '');
+  /**
+   * Returns up to 60 recently seen question/term texts for a student+game+subject
+   * so the AI can be told not to repeat them. Looks back 60 days.
+   */
+  private async getSeenQuestions(userId: string, gameType: string, subjectId: string | null): Promise<string[]> {
     try {
       const rows = await this.ds.query(
-        `SELECT xp, coins, level, badges, current_streak, longest_streak
-         FROM gamification_profiles
-         WHERE user_id = $1`,
-        [userId],
+        `SELECT question_text FROM school_game_seen_questions
+         WHERE student_user_id = $1
+           AND game_type = $2
+           AND ($3::uuid IS NULL OR subject_id = $3::uuid)
+           AND seen_at > now() - interval '60 days'
+         ORDER BY seen_at DESC
+         LIMIT 60`,
+        [userId, gameType, subjectId || null],
       );
-      if (rows.length === 0) {
-        return { xp: 0, coins: 0, level: 1, badges: [], currentStreak: 0, longestStreak: 0 };
-      }
-      const r = rows[0];
-      return {
-        xp: Number(r.xp || 0),
-        coins: Number(r.coins || 0),
-        level: Number(r.level || 1),
-        badges: Array.isArray(r.badges) ? r.badges : [],
-        currentStreak: Number(r.current_streak || 0),
-        longestStreak: Number(r.longest_streak || 0),
-      };
+      return rows.map((r: any) => String(r.question_text));
     } catch {
-      return { xp: 0, coins: 0, level: 1, badges: [], currentStreak: 0, longestStreak: 0 };
+      return [];
     }
   }
 
+  /**
+   * Persists question/term texts a student just played through so future
+   * sessions can exclude them. Prunes entries older than 90 days on each write.
+   */
+  private async recordSeenQuestions(
+    userId: string,
+    gameType: string,
+    subjectId: string | null,
+    texts: string[],
+  ): Promise<void> {
+    const clean = texts.filter(t => t && t.trim().length > 2).slice(0, 30);
+    if (!clean.length) return;
+    try {
+      for (const text of clean) {
+        await this.ds.query(
+          `INSERT INTO school_game_seen_questions (student_user_id, game_type, subject_id, question_text)
+           VALUES ($1, $2, $3, $4)`,
+          [userId, gameType, subjectId || null, text.slice(0, 500)],
+        );
+      }
+      // Prune entries older than 90 days for this student + game
+      await this.ds.query(
+        `DELETE FROM school_game_seen_questions
+         WHERE student_user_id = $1 AND game_type = $2 AND seen_at < now() - interval '90 days'`,
+        [userId, gameType],
+      );
+    } catch (e: any) {
+      this.logger.warn(`recordSeenQuestions failed: ${e?.message}`);
+    }
+
+  }
+
+  async getOrCreateSkill(userId: string, subjectId: string, chapterId: string | null, gameType: string): Promise<number> {
+    const chapId = chapterId || '00000000-0000-0000-0000-000000000000';
+    try {
+      const rows = await this.ds.query(
+        `SELECT skill_score FROM school_game_skills 
+         WHERE student_user_id = $1 AND subject_id = $2 AND COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000') = $3 AND game_type = $4`,
+        [userId, subjectId, chapId, gameType],
+      );
+      if (rows.length > 0) {
+        return Number(rows[0].skill_score);
+      }
+      const insertRows = await this.ds.query(
+        `INSERT INTO school_game_skills (student_user_id, subject_id, chapter_id, game_type, skill_score)
+         VALUES ($1, $2, $3, $4, 30.0)
+         ON CONFLICT (student_user_id, subject_id, COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000'::uuid), game_type) DO UPDATE SET skill_score = EXCLUDED.skill_score
+         RETURNING skill_score`,
+        [userId, subjectId, chapterId, gameType],
+      );
+      return Number(insertRows[0]?.skill_score || 30.0);
+    } catch (e: any) {
+      this.logger.warn(`Failed to get/create skill: ${e.message}`);
+      return 30.0;
+    }
+  }
+
+  async resolveSkillDifficulty(userId: string, subjectId: string, chapterId: string | null, gameType: string): Promise<'easy' | 'medium' | 'hard'> {
+    const score = await this.getOrCreateSkill(userId, subjectId, chapterId, gameType);
+    if (score < 40) return 'easy';
+    if (score < 75) return 'medium';
+    return 'hard';
+  }
+
+  async updateSkillScore(userId: string, subjectId: string, chapterId: string | null, gameType: string, currentSessionAccuracy: number) {
+    try {
+      const history = await this.ds.query(
+        `SELECT score, total_questions, correct_answers, time_taken_seconds, difficulty 
+         FROM school_game_scores
+         WHERE student_user_id = $1 AND game_type = $2 AND (metadata->>'passed')::boolean IS DISTINCT FROM false
+         ORDER BY created_at DESC LIMIT 10`,
+        [userId, gameType],
+      );
+
+      let avgAccuracy = currentSessionAccuracy;
+      let winRatio = currentSessionAccuracy >= 70 ? 100 : 0;
+      let speedScore = 50;
+      let streakScore = 30;
+      let xpScore = 30;
+      let recoveryScore = 50;
+
+      if (history.length > 0) {
+        let totalQ = 0;
+        let totalCorrect = 0;
+        let wins = 0;
+        let totalSecs = 0;
+
+        history.forEach((h: any) => {
+          const tq = Number(h.total_questions || 5);
+          const ca = Number(h.correct_answers || 0);
+          totalQ += tq;
+          totalCorrect += ca;
+          const acc = tq > 0 ? (ca / tq) * 100 : 0;
+          if (acc >= 70) wins += 1;
+          totalSecs += Number(h.time_taken_seconds || 0);
+        });
+
+        avgAccuracy = totalQ > 0 ? (totalCorrect / totalQ) * 100 : 50;
+        winRatio = (wins / history.length) * 100;
+
+        const avgSpeed = totalQ > 0 ? totalSecs / totalQ : 30;
+        if (avgSpeed <= 10) speedScore = 100;
+        else if (avgSpeed >= 40) speedScore = 20;
+        else speedScore = 100 - ((avgSpeed - 10) * 80) / 30;
+      }
+
+      const profile = await this.getMyProfile({ id: userId });
+      streakScore = Math.min(100, (profile?.currentStreak || 0) * 20);
+      xpScore = Math.min(100, ((profile?.xp || 0) / 1000) * 100);
+
+      recoveryScore = currentSessionAccuracy > avgAccuracy ? 80 : 40;
+
+      const newSkillScore =
+        (avgAccuracy * 0.35) +
+        (winRatio * 0.20) +
+        (speedScore * 0.15) +
+        (streakScore * 0.10) +
+        (xpScore * 0.10) +
+        (recoveryScore * 0.10);
+
+      await this.ds.query(
+        `INSERT INTO school_game_skills (student_user_id, subject_id, chapter_id, game_type, skill_score, total_games_played, last_ten_accuracies)
+         VALUES ($1, $2, $3, $4, $5, 1, ARRAY[$6::float])
+         ON CONFLICT (student_user_id, subject_id, COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000'::uuid), game_type)
+         DO UPDATE SET 
+           skill_score = $5,
+           total_games_played = school_game_skills.total_games_played + 1,
+           last_ten_accuracies = ARRAY_APPEND(school_game_skills.last_ten_accuracies, $6::float),
+           updated_at = NOW()`,
+        [userId, subjectId, chapterId, gameType, Math.round(newSkillScore), currentSessionAccuracy],
+      );
+    } catch (e: any) {
+      this.logger.warn(`Failed to update skill score: ${e.message}`);
+    }
+  }
+
+  /** Returns the student's real-time gamification stats from gamification_profiles, users, and school_game_scores */
+  async getMyProfile(user: any) {
+    const userId = String(user?.id || user?.userId || user?.sub || '');
+    const studentId = String(user?.studentProfile?.id || '');
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+
+    const defaultProfile = {
+      userId: userId || 'default-user',
+      xp: 0,
+      lifetimeXp: 0,
+      coins: 0,
+      level: 1,
+      levelTitle: 'Learner',
+      levelProgressPercent: 0,
+      rewardBalanceInr: 0.0,
+      memoryScore: 75,
+      learningScore: 80,
+      focusScore: 85,
+      currentDifficulty: 'Intermediate',
+      rankTier: 'Gold',
+      leagueName: 'Gold League',
+      badges: [],
+      currentStreak: 0,
+      longestStreak: 0,
+      nextLevelXp: 100,
+      estimatedTimeToNextLevel: '30 mins of study',
+    };
+
+    if (!userId) {
+      return defaultProfile;
+    }
+
+    try {
+      const rows = await this.ds.query(
+        `SELECT xp, lifetime_xp, coins, level, reward_balance_inr, memory_score, learning_score, focus_score, current_difficulty, rank_tier, league_name, badges, current_streak, longest_streak
+         FROM gamification_profiles
+         WHERE user_id::text = $1::text OR user_id::text = $2::text`,
+        [userId, studentId || userId],
+      ).catch(() => []);
+
+      // Query users table for accumulated XP and streak counters
+      const userRows = await this.ds.query(
+        `SELECT xp_total, current_streak, longest_streak FROM users WHERE id::text = $1::text LIMIT 1`,
+        [userId],
+      ).catch(() => []);
+      const userXp = Number(userRows[0]?.xp_total || 0);
+      const userCurrentStreak = Number(userRows[0]?.current_streak || 0);
+      const userLongestStreak = Number(userRows[0]?.longest_streak || 0);
+
+      // Query students table for student-level streak, XP, and coins
+      const studentRows = await this.ds.query(
+        `SELECT xp_total, eddva_coins, current_streak, longest_streak FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
+        [userId, studentId || userId],
+      ).catch(() => []);
+      const studentXp = Number(studentRows[0]?.xp_total || 0);
+      const studentCoins = Number(studentRows[0]?.eddva_coins || 0);
+      const studentCurrentStreak = Number(studentRows[0]?.current_streak || 0);
+      const studentLongestStreak = Number(studentRows[0]?.longest_streak || 0);
+
+      // Query school_game_scores for all accumulated game scores
+      const scoreSumRows = await this.ds.query(
+        `SELECT COALESCE(SUM(xp_earned), 0)::int AS total_xp, COALESCE(SUM(coins_earned), 0)::int AS total_coins
+         FROM school_game_scores
+         WHERE student_user_id::text = $1::text OR student_id::text = $1::text OR student_user_id::text = $2::text OR student_id::text = $2::text`,
+        [userId, studentId || userId],
+      ).catch(() => [{ total_xp: 0, total_coins: 0 }]);
+      const gameXp = Number(scoreSumRows[0]?.total_xp || 0);
+      const gameCoins = Number(scoreSumRows[0]?.total_coins || 0);
+
+      // Query student_activity and school_game_scores for activity dates to calculate real-time streak
+      const activityRows = await this.ds.query(
+        `SELECT DISTINCT date_str FROM (
+           SELECT activity_date::text AS date_str FROM student_activity WHERE user_id::text = $1::text OR user_id::text = $2::text
+           UNION
+           SELECT created_at::date::text AS date_str FROM school_game_scores WHERE student_user_id::text = $1::text OR student_id::text = $1::text OR student_user_id::text = $2::text OR student_id::text = $2::text
+         ) t`,
+        [userId, studentId || userId],
+      ).catch(() => []);
+
+      const activityDates = activityRows.map((r: any) => r.date_str).filter(Boolean);
+      const activityStreak = calculateCurrentStreak(activityDates);
+
+      let xp = Math.max(gameXp, userXp, studentXp);
+      let coins = Math.max(gameCoins, studentCoins, Number(rows[0]?.coins || 0));
+      let badges: any[] = [];
+      let currentStreak = Math.max(userCurrentStreak, studentCurrentStreak, activityStreak);
+      let longestStreak = Math.max(userLongestStreak, studentLongestStreak, activityStreak);
+      let memoryScore = 75;
+      let learningScore = 80;
+      let focusScore = 85;
+      let currentDifficulty = 'Intermediate';
+      let rankTier = 'Gold';
+      let leagueName = 'Gold League';
+
+      if (rows.length > 0) {
+        const r = rows[0];
+        xp = Math.max(Number(r.xp || 0), gameXp, userXp, studentXp);
+        coins = Math.max(Number(r.coins || 0), gameCoins, studentCoins);
+        badges = Array.isArray(r.badges) ? r.badges : (typeof r.badges === 'string' ? JSON.parse(r.badges) : []);
+        currentStreak = Math.max(Number(r.current_streak || 0), userCurrentStreak, studentCurrentStreak, activityStreak);
+        longestStreak = Math.max(Number(r.longest_streak || 0), userLongestStreak, studentLongestStreak, activityStreak);
+        memoryScore = Number(r.memory_score || 75);
+        learningScore = Number(r.learning_score || 80);
+        focusScore = Number(r.focus_score || 85);
+        currentDifficulty = r.current_difficulty || 'Intermediate';
+        rankTier = r.rank_tier || 'Gold';
+        leagueName = r.league_name || 'Gold League';
+        if (isUuid) {
+          await this.ds.query(
+            `UPDATE gamification_profiles
+             SET xp = $1, coins = $2, level = $3, current_streak = $4, longest_streak = $5, reward_balance_inr = ROUND(($2 / 10)::numeric, 2), updated_at = NOW()
+             WHERE user_id::text = $6::text OR user_id::text = $7::text`,
+            [xp, coins, this.computeLevel(xp), currentStreak, longestStreak, userId, studentId || userId],
+          ).catch(() => {});
+        }
+      } else {
+        if (isUuid) {
+          await this.ds.query(
+            `INSERT INTO gamification_profiles (user_id, xp, coins, level, badges, current_streak, longest_streak)
+             VALUES ($1::uuid, $2, $3, $4, '[]', $5, $6)
+             ON CONFLICT (user_id) DO UPDATE SET xp = EXCLUDED.xp, coins = EXCLUDED.coins, level = EXCLUDED.level, current_streak = EXCLUDED.current_streak`,
+            [userId, xp, coins, this.computeLevel(xp), currentStreak, longestStreak],
+          ).catch(() => {});
+        }
+      }
+
+      const calculatedLevel = this.computeLevel(xp);
+
+      return {
+        userId,
+        xp,
+        lifetimeXp: xp,
+        coins,
+        level: calculatedLevel,
+        levelTitle: this.computeLevelTitle(xp),
+        levelProgressPercent: Math.min(100, xp % 100),
+        rewardBalanceInr: Number((coins / 10).toFixed(2)),
+        memoryScore,
+        learningScore,
+        focusScore,
+        currentDifficulty,
+        rankTier,
+        leagueName,
+        badges,
+        currentStreak,
+        longestStreak,
+        nextLevelXp: 100,
+        estimatedTimeToNextLevel: '30 mins of study',
+      };
+    } catch (err) {
+      console.error('[getMyProfile Error]:', err);
+      return defaultProfile;
+    }
+  }
+
+  private computeLevelTitle(xp: number): string {
+    if (xp >= 5000) return 'Legendary Overlord';
+    if (xp >= 3500) return 'Grandmaster';
+    if (xp >= 2500) return 'Master Scholar';
+    if (xp >= 1800) return 'Academic Virtuoso';
+    if (xp >= 1200) return 'Elite Scholar';
+    if (xp >= 800) return 'Champion';
+    if (xp >= 500) return 'Expert';
+    if (xp >= 250) return 'Scholar';
+    if (xp >= 100) return 'Learner';
+    return 'Beginner';
+  }
+
   async startQuizRush(user: any, query: any) {
+    const playMode = query.mode === 'free_play' ? 'free_play' : 'ranked';
     const ctx = await this.resolveContext(user, query.subjectId, query.chapterId);
-    const questions = await this.generateMcqs(ctx, 5, query.difficulty || 'medium', 'Quiz Rush');
-    const session = await this.createSession(user, ctx, 'quiz_rush', { questions, difficulty: query.difficulty || 'medium' });
-    return { sessionId: session.id, questions: this.publicQuestions(questions) };
+    let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
+    if (playMode === 'ranked') {
+      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'quiz_rush');
+    } else {
+      difficulty = query.difficulty || 'medium';
+    }
+    const seenTexts = await this.getSeenQuestions(user.id, 'quiz_rush', ctx.subjectId);
+    const excludeObjs = seenTexts.map(t => ({ content: t }));
+    const questions = await this.generateMcqs(ctx, 5, difficulty, 'Quiz Rush', excludeObjs);
+    const session = await this.createSession(user, ctx, 'quiz_rush', { questions, difficulty }, playMode);
+    return { sessionId: session.id, questions: this.publicQuestions(questions.slice(0, 1)), difficulty };
+  }
+
+  async getNextQuizRushQuestion(user: any, sessionId: string, currentIdxQuery?: string) {
+    const session = await this.getActiveSession(user, sessionId, 'quiz_rush');
+    const questions = session.metadata.questions || [];
+    const currentDifficulty = session.metadata.difficulty || 'medium';
+    const currentIdx = currentIdxQuery !== undefined ? Number(currentIdxQuery) : (questions.length - 1);
+    const nextIdx = currentIdx + 1;
+
+    if (nextIdx < questions.length) {
+      return { 
+        question: this.publicQuestions([questions[nextIdx]])[0], 
+        difficulty: questions[nextIdx].difficulty || currentDifficulty 
+      };
+    }
+
+    const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+    const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
+    const newQuestions = await this.generateMcqs(ctx, 5, nextDifficulty, 'Quiz Rush', questions);
+    if (!newQuestions || newQuestions.length === 0) {
+      throw new BadRequestException('Could not generate more questions.');
+    }
+    
+    const newQuestionsWithDiff = newQuestions.map(q => ({ ...q, difficulty: nextDifficulty }));
+    const updatedQuestions = [...questions, ...newQuestionsWithDiff];
+    
+    const updatedMetadata = {
+      ...session.metadata,
+      questions: updatedQuestions,
+      difficulty: nextDifficulty,
+    };
+
+    await this.ds.query(
+      `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+      [sessionId, JSON.stringify(updatedMetadata)]
+    );
+
+    return { 
+      question: this.publicQuestions([newQuestionsWithDiff[0]])[0], 
+      difficulty: nextDifficulty 
+    };
   }
 
   async submitQuizRush(user: any, body: any) {
     const session = await this.getActiveSession(user, body.sessionId, 'quiz_rush');
-    const result = this.gradeMcqRun(session.metadata.questions, body.answers || [], true);
-    const perfect = result.correctAnswers === result.totalQuestions && result.totalQuestions > 0;
-    const xpEarned = result.xpEarned + (perfect ? 50 : 0);
-    const coinsEarned = result.coinsEarned + (perfect ? 5 : 0);
-    await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers });
-    await this.saveScore(session, result.score + (perfect ? 50 : 0), xpEarned, coinsEarned, result);
-    return this.resultPayload({ ...result, xpEarned, coinsEarned, score: result.score + (perfect ? 50 : 0) });
+    const answeredQuestions = (session.metadata.questions || []).slice(0, (body.answers || []).length);
+    const result = this.gradeMcqRun(answeredQuestions, body.answers || [], true);
+    const perfect = result.correctAnswers >= 5;
+    
+    // Anti-cheat checks
+    const tabSwitches = Number(body.tabSwitchesCount || 0);
+    const timeTaken = Number(body.timeTakenSeconds || 999);
+    const totalQ = answeredQuestions.length || 5;
+    
+    let cheatFlagged = false;
+    let cheatReason = '';
+    if (tabSwitches >= 3) {
+      cheatFlagged = true;
+      cheatReason = 'Excessive tab switching detected';
+    } else if (totalQ > 0 && (timeTaken / totalQ) < 5 && result.correctAnswers / totalQ >= 0.8) {
+      cheatFlagged = true;
+      cheatReason = 'Unnaturally high solving speed';
+    }
+
+    const xpEarned = cheatFlagged ? 0 : (result.xpEarned + (perfect ? 50 : 0));
+    const coinsEarned = cheatFlagged ? -15 : (result.coinsEarned + (perfect ? 5 : 0));
+    
+    await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
+    await this.saveScore(session, cheatFlagged ? 0 : (result.score + (perfect ? 50 : 0)), xpEarned, coinsEarned, result);
+
+    // Record seen questions so the next game gets fresh questions
+    const qrTexts = (answeredQuestions as any[]).map((q: any) => q.content || q.questionText || q.question || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'quiz_rush', session.subject_id, qrTexts);
+
+    if (!cheatFlagged && session.play_mode === 'ranked') {
+      const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
+      await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'quiz_rush', accuracy);
+    }
+    
+    return this.resultPayload({ ...result, xpEarned, coinsEarned, score: cheatFlagged ? 0 : (result.score + (perfect ? 50 : 0)), cheatFlagged, cheatReason });
   }
 
   async getTreasureMaps(user: any) {
@@ -141,12 +561,18 @@ export class GamificationService implements OnModuleInit {
     });
   }
 
-  async getTreasureChallenge(user: any, subjectId: string, stageOrder = 1) {
-    const ctx = await this.resolveContext(user, subjectId, null);
+  async getTreasureChallenge(user: any, questId: string, stageOrder = 1, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
+    const ctx = await this.resolveContext(user, subjectId || questId, chapterId || null);
     const safeStageOrder = Math.max(1, Math.min(5, Number(stageOrder || 1)));
-    const questions = await this.generateMcqs(ctx, 3, 'medium', `Treasure Hunt checkpoint ${safeStageOrder} application riddle`);
-    const session = await this.createSession(user, ctx, 'treasure_hunt', { questions, questId: subjectId, stageOrder: safeStageOrder });
-    return { sessionId: session.id, questId: subjectId, stageOrder: safeStageOrder, questions: this.publicQuestions(questions) };
+    let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
+    if (queryMode === 'ranked') {
+      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'treasure_hunt');
+    }
+    const seenTexts = await this.getSeenQuestions(user.id, 'treasure_hunt', ctx.subjectId);
+    const excludeObjs = seenTexts.map(t => ({ content: t }));
+    const questions = await this.generateMcqs(ctx, 3, difficulty, `Treasure Hunt checkpoint ${safeStageOrder} application riddle`, excludeObjs);
+    const session = await this.createSession(user, ctx, 'treasure_hunt', { questions, questId: subjectId, stageOrder: safeStageOrder, difficulty }, queryMode);
+    return { sessionId: session.id, questId: subjectId, stageOrder: safeStageOrder, questions: this.publicQuestions(questions), difficulty };
   }
 
   async completeTreasureStage(user: any, body: any) {
@@ -154,41 +580,145 @@ export class GamificationService implements OnModuleInit {
     const result = this.gradeMcqRun(session.metadata.questions, body.answers || [], false);
     const passed = result.totalQuestions > 0 && result.correctAnswers / result.totalQuestions >= 0.6;
     const stageOrder = Number(session.metadata?.stageOrder || 1);
-    const xpEarned = passed ? result.correctAnswers * 20 + 20 : result.correctAnswers * 5;
-    const coinsEarned = passed ? 8 : 0;
-    await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers, passed, stageOrder });
+    
+    // Anti-cheat checks
+    const tabSwitches = Number(body.tabSwitchesCount || 0);
+    const timeTaken = Number(body.timeTakenSeconds || 999);
+    const totalQ = session.metadata.questions?.length || 3;
+    
+    let cheatFlagged = false;
+    let cheatReason = '';
+    if (tabSwitches >= 3) {
+      cheatFlagged = true;
+      cheatReason = 'Excessive tab switching detected';
+    } else if (totalQ > 0 && (timeTaken / totalQ) < 5 && result.correctAnswers / totalQ >= 0.8) {
+      cheatFlagged = true;
+      cheatReason = 'Unnaturally high solving speed';
+    }
+
+    const xpEarned = cheatFlagged ? 0 : (passed ? result.correctAnswers * 20 + 20 : result.correctAnswers * 5);
+    const coinsEarned = cheatFlagged ? -15 : (passed ? 8 : 0);
+    
+    await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers, passed, stageOrder }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
+
+    // Record seen questions for cross-game deduplication
+    const tqTexts = (session.metadata.questions as any[] || []).map((q: any) => q.content || q.questionText || q.question || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'treasure_hunt', session.subject_id, tqTexts);
+
+    if (!cheatFlagged && session.play_mode === 'ranked') {
+      const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
+      await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'treasure_hunt', accuracy);
+    }
+
     return {
-      passed,
-      questCompleted: passed && stageOrder >= 5,
-      currentStageOrder: passed ? Math.min(5, stageOrder + 1) : stageOrder,
+      passed: cheatFlagged ? false : passed,
+      questCompleted: cheatFlagged ? false : (passed && stageOrder >= 5),
+      currentStageOrder: cheatFlagged ? stageOrder : (passed ? Math.min(5, stageOrder + 1) : stageOrder),
       xpEarned,
       coinsEarned,
       correctAnswers: result.correctAnswers,
       totalQuestions: result.totalQuestions,
+      cheatFlagged,
+      cheatReason,
     };
   }
 
-  async startMathSprint(user: any, difficulty = 'medium') {
+  async startMathSprint(user: any, difficultyParam = 'medium', queryMode = 'ranked') {
     const subject = await this.findMathSubject(user);
     const ctx = await this.resolveContext(user, subject?.id || null, null);
-    const questions = await this.generateMathSprintQuestions(ctx, difficulty);
-    const session = await this.createSession(user, ctx, 'math_sprint', { questions, difficulty });
-    return { sessionId: session.id, questions: this.publicQuestions(questions) };
+    let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
+    if (queryMode === 'ranked') {
+      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'math_sprint');
+    } else {
+      difficulty = (difficultyParam as any) || 'medium';
+    }
+    const seenTexts = await this.getSeenQuestions(user.id, 'math_sprint', ctx.subjectId);
+    const questions = await this.generateMathSprintQuestions(ctx, difficulty, seenTexts);
+    const session = await this.createSession(user, ctx, 'math_sprint', { questions, difficulty }, queryMode);
+    return { sessionId: session.id, questions: this.publicQuestions(questions.slice(0, 1)), difficulty };
+  }
+
+  async getNextMathSprintQuestion(user: any, sessionId: string, currentIdxQuery?: string) {
+    const session = await this.getActiveSession(user, sessionId, 'math_sprint');
+    const questions = session.metadata.questions || [];
+    const currentDifficulty = session.metadata.difficulty || 'medium';
+    const currentIdx = currentIdxQuery !== undefined ? Number(currentIdxQuery) : (questions.length - 1);
+    const nextIdx = currentIdx + 1;
+
+    if (nextIdx < questions.length) {
+      return { 
+        question: this.publicQuestions([questions[nextIdx]])[0], 
+        difficulty: questions[nextIdx].difficulty || currentDifficulty 
+      };
+    }
+
+    const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+    const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
+    const newQuestion = this.localMathQuestion(nextDifficulty, ctx.className);
+    (newQuestion as any).difficulty = nextDifficulty;
+    
+    const updatedQuestions = [...questions, newQuestion];
+    const updatedMetadata = {
+      ...session.metadata,
+      questions: updatedQuestions,
+      difficulty: nextDifficulty,
+    };
+
+    await this.ds.query(
+      `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+      [sessionId, JSON.stringify(updatedMetadata)]
+    );
+
+    return { 
+      question: this.publicQuestions([newQuestion])[0], 
+      difficulty: nextDifficulty 
+    };
   }
 
   async submitMathSprint(user: any, body: any) {
     const session = await this.getActiveSession(user, body.sessionId, 'math_sprint');
-    const result = this.gradeMcqRun(session.metadata.questions, body.answers || [], false);
-    await this.completeSession(session.id, result.xpEarned, result.coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers });
-    await this.saveScore(session, result.score, result.xpEarned, result.coinsEarned, result);
-    return this.resultPayload(result);
+    const answeredQuestions = (session.metadata.questions || []).slice(0, (body.answers || []).length);
+    const result = this.gradeMcqRun(answeredQuestions, body.answers || [], false);
+    
+    // Anti-cheat checks
+    const tabSwitches = Number(body.tabSwitchesCount || 0);
+    const timeTaken = Number(body.timeTakenSeconds || 999);
+    const totalQ = answeredQuestions.length || 12;
+    
+    let cheatFlagged = false;
+    let cheatReason = '';
+    if (tabSwitches >= 3) {
+      cheatFlagged = true;
+      cheatReason = 'Excessive tab switching detected';
+    } else if (totalQ > 0 && (timeTaken / totalQ) < 3 && result.correctAnswers / totalQ >= 0.8) {
+      cheatFlagged = true;
+      cheatReason = 'Unnaturally high solving speed';
+    }
+
+    const xpEarned = cheatFlagged ? 0 : result.xpEarned;
+    const coinsEarned = cheatFlagged ? -15 : result.coinsEarned;
+
+    await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
+    await this.saveScore(session, cheatFlagged ? 0 : result.score, xpEarned, coinsEarned, result);
+    
+    // Record seen questions for cross-game deduplication
+    const msTexts = (answeredQuestions as any[]).map((q: any) => q.content || q.questionText || q.question || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'math_sprint', session.subject_id, msTexts);
+
+    if (!cheatFlagged && session.play_mode === 'ranked') {
+      const accuracy = totalQ > 0 ? (result.correctAnswers / totalQ) * 100 : 0;
+      await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'math_sprint', accuracy);
+    }
+
+    return this.resultPayload({ ...result, xpEarned, coinsEarned, score: cheatFlagged ? 0 : result.score, cheatFlagged, cheatReason });
   }
 
   async getMemoryMatchDecks(user: any) {
     const subjects = await this.listClassSubjects(user);
     return this.memoryMatchThemes(subjects).map((theme) => ({
       id: this.themeDeckId(theme.key, theme.subjectId),
+      subjectId: theme.subjectId,
       name: theme.name,
       description: theme.description,
       defaultDifficulty: theme.difficulty || 'medium',
@@ -196,20 +726,25 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
-  async startMemoryMatch(user: any, deckId: string, difficultyParam?: string) {
+  async startMemoryMatch(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
     const subjects = await this.listClassSubjects(user);
     const theme = this.resolveMemoryMatchTheme(deckId, subjects);
-    const difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
+    let difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
       ? difficultyParam.toLowerCase()
       : (theme.difficulty || 'medium');
-    const ctx = await this.resolveContext(user, theme.subjectId, null);
+    const ctx = await this.resolveContext(user, subjectId || theme.subjectId, chapterId || null);
+    if (queryMode === 'ranked') {
+      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'memory_match');
+    }
     const promptMode = [
       `Memory Match: ${theme.name} (${difficulty})`,
       theme.description,
       theme.prompt,
       'Generate paired terms and meanings that feel like clue cards, with concise matchable definitions.',
     ].join(' - ');
-    const pairs = await this.generateConceptPairs(ctx, 6, promptMode);
+    const seenTexts = await this.getSeenQuestions(user.id, 'memory_match', ctx.subjectId);
+    const excludeWords = seenTexts.map(t => ({ word: t }));
+    const pairs = await this.generateConceptPairs(ctx, 6, promptMode, difficulty, excludeWords);
     const cards = this.shuffle(pairs.flatMap((p: any) => {
       const matchId = randomUUID();
       return [
@@ -217,7 +752,7 @@ export class GamificationService implements OnModuleInit {
         { id: randomUUID(), matchId, content: p.definition },
       ];
     }));
-    const session = await this.createSession(user, ctx, 'memory_match', { pairs, cards, deckName: theme.name, difficulty, themeKey: theme.key });
+    const session = await this.createSession(user, ctx, 'memory_match', { pairs, cards, deckName: theme.name, difficulty, themeKey: theme.key }, queryMode);
     return { sessionId: session.id, deckName: theme.name, difficulty, cards };
   }
 
@@ -226,18 +761,46 @@ export class GamificationService implements OnModuleInit {
     const pairs = Number(session.metadata.pairs?.length || 6);
     const turns = Number(body.turnsCount || 0);
     const misses = Number(body.mismatchesCount || 0);
-    const xpEarned = Math.max(20, pairs * 15 + Math.max(0, 100 - Math.max(0, turns - pairs) * 6));
-    const coinsEarned = Math.max(1, pairs - Math.min(misses, pairs));
-    const result = { totalQuestions: pairs, correctAnswers: pairs, maxStreak: pairs, timeTakenSeconds: 0, questionsAttempted: pairs, turnsCount: turns, mismatchesCount: misses };
-    await this.completeSession(session.id, xpEarned, coinsEarned, result);
-    await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
-    return this.resultPayload({ ...result, score: xpEarned, xpEarned, coinsEarned });
+    
+    // Anti-cheat checks
+    const tabSwitches = Number(body.tabSwitchesCount || 0);
+    const timeTaken = Number(body.timeTakenSeconds || 999);
+    
+    let cheatFlagged = false;
+    let cheatReason = '';
+    if (tabSwitches >= 3) {
+      cheatFlagged = true;
+      cheatReason = 'Excessive tab switching detected';
+    } else if (timeTaken < 10) {
+      cheatFlagged = true;
+      cheatReason = 'Unnaturally high solving speed';
+    }
+
+    const xpEarned = cheatFlagged ? 0 : Math.max(20, pairs * 15 + Math.max(0, 100 - Math.max(0, turns - pairs) * 6));
+    const coinsEarned = cheatFlagged ? -15 : Math.max(1, pairs - Math.min(misses, pairs));
+    
+    const result = { totalQuestions: pairs, correctAnswers: pairs, maxStreak: pairs, timeTakenSeconds: timeTaken, questionsAttempted: pairs, turnsCount: turns, mismatchesCount: misses };
+    await this.completeSession(session.id, xpEarned, coinsEarned, result, cheatFlagged, cheatReason || null, tabSwitches);
+    await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
+
+    // Record seen terms for cross-game deduplication
+    const mmTerms = (session.metadata.pairs as any[] || []).map((p: any) => p.term || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'memory_match', session.subject_id, mmTerms);
+
+    if (!cheatFlagged && session.play_mode === 'ranked') {
+      const maxTurns = pairs * 3;
+      const accuracy = Math.max(10, Math.min(100, Math.round(((maxTurns - Math.min(turns, maxTurns)) / maxTurns) * 100)));
+      await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'memory_match', accuracy);
+    }
+
+    return this.resultPayload({ ...result, score: cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, cheatFlagged, cheatReason });
   }
 
   async getWordMasterDecks(user: any) {
     const subjects = await this.listClassSubjects(user);
     return this.wordMasterThemes(subjects).map((theme) => ({
       id: this.themeDeckId(theme.key, theme.subjectId),
+      subjectId: theme.subjectId,
       name: theme.name,
       description: theme.description,
       defaultDifficulty: theme.difficulty || 'medium',
@@ -245,13 +808,16 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
-  async startWordMaster(user: any, deckId: string, difficultyParam?: string) {
+  async startWordMaster(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
     const subjects = await this.listClassSubjects(user);
     const theme = this.resolveWordMasterTheme(deckId, subjects);
-    const difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
+    let difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
       ? difficultyParam.toLowerCase()
       : (theme.difficulty || 'medium');
-    const ctx = await this.resolveContext(user, theme.subjectId, null);
+    const ctx = await this.resolveContext(user, subjectId || theme.subjectId, chapterId || null);
+    if (queryMode === 'ranked') {
+      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'word_master');
+    }
     const promptMode = [
       `Word Master: ${theme.name} (${difficulty})`,
       theme.description,
@@ -259,21 +825,161 @@ export class GamificationService implements OnModuleInit {
       this.wordMasterDifficultyPrompt(difficulty),
       'Choose surprising, student-friendly syllabus vocabulary that feels like a puzzle, but never put the answer word inside the clue.',
     ].join(' - ');
-    const pairs = await this.generateConceptPairs(ctx, 10, promptMode, difficulty);
+    const seenTexts = await this.getSeenQuestions(user.id, 'word_master', ctx.subjectId);
+    const excludeWords = seenTexts.map(t => ({ word: t }));
+    const pairs = await this.generateConceptPairs(ctx, 10, promptMode, difficulty, excludeWords);
     const words = pairs.map((pair: any) => {
       const word = this.toVocabularyWord(pair.term);
       const hint = this.sanitizeWordHint(pair.definition, pair.term, word);
       return { word, scrambled: this.scramble(word), hint, length: word.length };
     }).filter((w: any) => w.word.length >= 4 && w.hint.length >= 12 && !this.hintContainsAnswer(w.hint, w.word));
     if (words.length < 4) throw new BadRequestException('AI could not generate enough vocabulary words. Please try again.');
-    const session = await this.createSession(user, ctx, 'word_master', { words, deckName: theme.name, difficulty, themeKey: theme.key });
-    return { sessionId: session.id, deckName: theme.name, difficulty, words: words.map(({ word, ...rest }: any) => rest) };
+    const session = await this.createSession(user, ctx, 'word_master', { words, deckName: theme.name, difficulty, themeKey: theme.key }, queryMode);
+    return { sessionId: session.id, deckName: theme.name, difficulty, words: words.slice(0, 1).map(({ word, ...rest }: any) => rest) };
+  }
+
+  async submitWordMasterWord(user: any, body: any) {
+    const session = await this.getActiveSession(user, body.sessionId, 'word_master');
+    const words = session.metadata.words || [];
+    const index = Number(body.index || 0);
+    const userWord = String(body.word || '').toUpperCase().trim();
+    
+    const correctWordData = words[index];
+    if (!correctWordData) {
+      throw new BadRequestException('Word index out of bounds');
+    }
+    
+    const isCorrect = correctWordData.word && userWord === String(correctWordData.word).toUpperCase().trim();
+    
+    if (isCorrect) {
+      const nextIdx = index + 1;
+      if (nextIdx < words.length) {
+        const nextWordPublic = { ...words[nextIdx] };
+        delete (nextWordPublic as any).word;
+        return { isCorrect: true, nextWord: nextWordPublic };
+      }
+      
+      const currentDifficulty = session.metadata.difficulty || 'medium';
+      const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+      const subjects = await this.listClassSubjects(user);
+      const theme = this.resolveWordMasterTheme(session.metadata.themeKey || '', subjects);
+      const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
+      
+      const promptMode = [
+        `Word Master: ${theme.name} (${nextDifficulty})`,
+        theme.description,
+        theme.prompt,
+        this.wordMasterDifficultyPrompt(nextDifficulty),
+        'Choose surprising, student-friendly syllabus vocabulary that feels like a puzzle, but never put the answer word inside the clue.',
+      ].join(' - ');
+      
+      const pairs = await this.generateConceptPairs(ctx, 10, promptMode, nextDifficulty, words);
+      const newWords = pairs.map((pair: any) => {
+        const word = this.toVocabularyWord(pair.term);
+        const hint = this.sanitizeWordHint(pair.definition, pair.term, word);
+        return { word, scrambled: this.scramble(word), hint, length: word.length };
+      }).filter((w: any) => w.word.length >= 4 && w.hint.length >= 12 && !this.hintContainsAnswer(w.hint, w.word));
+      
+      if (!newWords || newWords.length === 0) {
+        throw new BadRequestException('Could not generate more words.');
+      }
+      
+      const updatedWords = [...words, ...newWords];
+      const updatedMetadata = {
+        ...session.metadata,
+        words: updatedWords,
+        difficulty: nextDifficulty,
+      };
+      
+      await this.ds.query(
+        `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+        [body.sessionId, JSON.stringify(updatedMetadata)]
+      );
+      
+      const nextWordPublic = { ...newWords[0] };
+      delete (nextWordPublic as any).word;
+      return { isCorrect: true, nextWord: nextWordPublic };
+    } else {
+      // Let's count how many wrong answers are in body.answers
+      const answers = body.answers || [];
+      let wrongCount = 0;
+      for (const ans of answers) {
+        const idx = Number(ans.index);
+        const wordData = words[idx];
+        const ok = wordData && wordData.word && String(ans.word || '').toUpperCase().trim() === String(wordData.word).toUpperCase().trim();
+        if (!ok) {
+          wrongCount += 1;
+        }
+      }
+
+      if (wrongCount < 3) {
+        // We have lives left! Return the next word.
+        const nextIdx = index + 1;
+        if (nextIdx < words.length) {
+          const nextWordPublic = { ...words[nextIdx] };
+          delete (nextWordPublic as any).word;
+          return { isCorrect: false, nextWord: nextWordPublic, lives: 3 - wrongCount };
+        }
+
+        // generate more words if needed
+        const currentDifficulty = session.metadata.difficulty || 'medium';
+        const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+        const subjects = await this.listClassSubjects(user);
+        const theme = this.resolveWordMasterTheme(session.metadata.themeKey || '', subjects);
+        const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
+        
+        const promptMode = [
+          `Word Master: ${theme.name} (${nextDifficulty})`,
+          theme.description,
+          theme.prompt,
+          this.wordMasterDifficultyPrompt(nextDifficulty),
+          'Choose surprising, student-friendly syllabus vocabulary that feels like a puzzle, but never put the answer word inside the clue.',
+        ].join(' - ');
+        
+        const pairs = await this.generateConceptPairs(ctx, 10, promptMode, nextDifficulty, words);
+        const newWords = pairs.map((pair: any) => {
+          const word = this.toVocabularyWord(pair.term);
+          const hint = this.sanitizeWordHint(pair.definition, pair.term, word);
+          return { word, scrambled: this.scramble(word), hint, length: word.length };
+        }).filter((w: any) => w.word.length >= 4 && w.hint.length >= 12 && !this.hintContainsAnswer(w.hint, w.word));
+        
+        if (!newWords || newWords.length === 0) {
+          throw new BadRequestException('Could not generate more words.');
+        }
+        
+        const updatedWords = [...words, ...newWords];
+        const updatedMetadata = {
+          ...session.metadata,
+          words: updatedWords,
+          difficulty: nextDifficulty,
+        };
+        
+        await this.ds.query(
+          `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+          [body.sessionId, JSON.stringify(updatedMetadata)]
+        );
+        
+        const nextWordPublic = { ...newWords[0] };
+        delete (nextWordPublic as any).word;
+        return { isCorrect: false, nextWord: nextWordPublic, lives: 3 - wrongCount };
+      } else {
+        // No lives left! Submit the game.
+        const results = await this.submitWordMaster(user, {
+          sessionId: body.sessionId,
+          answers: body.answers || [],
+          tabSwitchesCount: body.tabSwitchesCount,
+          timeTakenSeconds: body.timeTakenSeconds,
+        });
+        return { isCorrect: false, results, lives: 0 };
+      }
+    }
   }
 
   async submitWordMaster(user: any, body: any) {
     const session = await this.getActiveSession(user, body.sessionId, 'word_master');
     const words = session.metadata.words || [];
     const answers = body.answers || [];
+    const answeredWords = words.slice(0, answers.length);
     let correctAnswers = 0;
     let maxStreak = 0;
     let streak = 0;
@@ -288,12 +994,39 @@ export class GamificationService implements OnModuleInit {
         streak = 0;
       }
     }
-    const xpEarned = correctAnswers * 15 + (correctAnswers === words.length ? 50 : 0);
-    const coinsEarned = correctAnswers + (correctAnswers === words.length ? 5 : 0);
-    const result = { totalQuestions: words.length, correctAnswers, maxStreak, wordsAttempted: words.length, score: xpEarned };
-    await this.completeSession(session.id, xpEarned, coinsEarned, { answers, correctAnswers });
-    await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
-    return this.resultPayload({ ...result, xpEarned, coinsEarned });
+    
+    // Anti-cheat checks
+    const tabSwitches = Number(body.tabSwitchesCount || 0);
+    const timeTaken = Number(body.timeTakenSeconds || 999);
+    const totalQ = answeredWords.length || 10;
+    
+    let cheatFlagged = false;
+    let cheatReason = '';
+    if (tabSwitches >= 3) {
+      cheatFlagged = true;
+      cheatReason = 'Excessive tab switching detected';
+    } else if (totalQ > 0 && (timeTaken / totalQ) < 4 && correctAnswers / totalQ >= 0.8) {
+      cheatFlagged = true;
+      cheatReason = 'Unnaturally high solving speed';
+    }
+
+    const perfect = correctAnswers >= 10;
+    const xpEarned = cheatFlagged ? 0 : (correctAnswers * 15 + (perfect ? 50 : 0));
+    const coinsEarned = cheatFlagged ? -15 : (correctAnswers + (perfect ? 5 : 0));
+    const result = { totalQuestions: totalQ, correctAnswers, maxStreak, wordsAttempted: totalQ, score: xpEarned };
+    await this.completeSession(session.id, xpEarned, coinsEarned, { answers, correctAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
+    await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
+
+    // Record seen words for cross-game deduplication
+    const wmWords = (answeredWords as any[]).map((w: any) => w.word || '').filter(Boolean);
+    void this.recordSeenQuestions(user.id, 'word_master', session.subject_id, wmWords);
+    
+    if (!cheatFlagged && session.play_mode === 'ranked') {
+      const accuracy = totalQ > 0 ? (correctAnswers / totalQ) * 100 : 0;
+      await this.updateSkillScore(user.id, session.subject_id, session.chapter_id, 'word_master', accuracy);
+    }
+
+    return this.resultPayload({ ...result, xpEarned, coinsEarned, cheatFlagged, cheatReason });
   }
 
   async leaderboard(user: any, gameType: GameType) {
@@ -301,7 +1034,8 @@ export class GamificationService implements OnModuleInit {
       `SELECT gs.*, u.name
        FROM school_game_scores gs
        LEFT JOIN users u ON u.id = gs.student_user_id
-       WHERE gs.institute_id::text = $1::text AND gs.game_type = $2
+       INNER JOIN school_game_sessions s ON s.id = gs.session_id
+       WHERE gs.institute_id::text = $1::text AND gs.game_type = $2 AND s.cheat_flagged = false
        ORDER BY gs.score DESC, gs.created_at ASC
        LIMIT 50`,
       [user.instituteId || user.studentProfile?.instituteId, gameType],
@@ -325,23 +1059,64 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
+  private async resolveBoard(instituteId?: string): Promise<string> {
+    if (!instituteId) return 'CBSE';
+    const cached = this._boardCache.get(instituteId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value || 'CBSE';
+    try {
+      const rows = await this.ds.query(
+        `SELECT board, state FROM institutes WHERE id = $1 LIMIT 1`,
+        [instituteId],
+      );
+      if (!rows || !rows.length) return 'CBSE';
+      const boardVal = String(rows[0].board ?? '').trim();
+      const stateVal = String(rows[0].state ?? '').trim();
+
+      let finalBoard = boardVal;
+      const boardLower = boardVal.toLowerCase();
+      if (boardLower.includes('state') || boardLower === 'state board' || boardLower === 'stateboard') {
+        if (stateVal) {
+          finalBoard = stateVal.toLowerCase().includes('board') ? stateVal : `${stateVal} State Board`;
+        }
+      }
+
+      const boardResult = finalBoard || 'CBSE';
+      this._boardCache.set(instituteId, {
+        value: boardResult,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
+      return boardResult;
+    } catch (err) {
+      this.logger.warn(`Could not resolve board for institute ${instituteId}: ${(err as Error).message}`);
+      return 'CBSE';
+    }
+  }
+
   private async resolveContext(user: any, subjectId?: string | null, chapterId?: string | null) {
     const profile = user.studentProfile || {};
     const instituteId = user.instituteId || profile.instituteId;
     const classId = profile.classId;
     if (!instituteId || !classId) throw new BadRequestException('Student class profile is required for school games.');
 
-    const subject = subjectId && subjectId !== 'any'
-      ? (await this.ds.query(
-        `SELECT * FROM subjects WHERE id::text=$1::text AND institute_id::text=$2::text AND (class_id::text=$3::text OR class_id IS NULL) LIMIT 1`,
-        [subjectId, instituteId, classId],
-      ))[0]
-      : (await this.listClassSubjects(user))[0];
-    if (!subject) throw new BadRequestException('No subject found for this class.');
+    let subject: any = null;
+    if (subjectId && subjectId !== 'any') {
+      const rows = await this.ds.query(
+        `SELECT * FROM subjects WHERE id::text=$1::text LIMIT 1`,
+        [subjectId],
+      );
+      if (rows && rows.length > 0) subject = rows[0];
+    }
+    if (!subject) {
+      const classSubjects = await this.listClassSubjects(user);
+      subject = classSubjects[0];
+    }
+    if (!subject) throw new BadRequestException('No subject found for this student.');
 
     const chapter = chapterId && chapterId !== 'any'
-      ? (await this.ds.query(`SELECT * FROM chapters WHERE id::text=$1::text AND subject_id::text=$2::text LIMIT 1`, [chapterId, subject.id]))[0]
+      ? (await this.ds.query(`SELECT * FROM chapters WHERE id::text=$1::text LIMIT 1`, [chapterId]))[0]
       : null;
+
+    const board = await this.resolveBoard(instituteId);
 
     return {
       instituteId,
@@ -352,6 +1127,7 @@ export class GamificationService implements OnModuleInit {
       subjectName: subject.name,
       chapterId: chapter?.id || null,
       chapterName: chapter?.name || null,
+      board,
     };
   }
 
@@ -359,13 +1135,35 @@ export class GamificationService implements OnModuleInit {
     const profile = user.studentProfile || {};
     const instituteId = user.instituteId || profile.instituteId;
     const classId = profile.classId;
-    const rows = await this.ds.query(
-      `SELECT s.*
-       FROM subjects s
-       WHERE s.institute_id::text=$1::text AND (s.class_id::text=$2::text OR s.class_id IS NULL)
-       ORDER BY s.name`,
-      [instituteId, classId],
-    );
+    const sectionId = profile.sectionId;
+
+    let query = `
+      SELECT s.*,
+             COALESCE((
+               SELECT json_agg(
+                 json_build_object(
+                   'id', ch.id,
+                   'name', ch.name,
+                   'sortOrder', ch.sort_order,
+                   'subjectId', ch.subject_id
+                 )
+                 ORDER BY ch.sort_order, ch.name
+               )
+               FROM chapters ch
+               WHERE ch.subject_id::text = s.id::text 
+                  OR ch.subject_id::text IN (SELECT sub.id::text FROM subjects sub WHERE LOWER(sub.name) = LOWER(s.name) AND sub.institute_id::text = s.institute_id::text)
+             ), '[]'::json) AS chapters
+      FROM subjects s
+      WHERE s.institute_id::text=$1::text AND (s.class_id::text=$2::text OR s.class_id IS NULL)
+    `;
+    const params = [instituteId, classId];
+    if (sectionId) {
+      params.push(sectionId);
+      query += ` AND (s.section_id::text=$3::text OR s.section_id IS NULL)`;
+    }
+    query += ` ORDER BY s.name`;
+
+    const rows = await this.ds.query(query, params);
     // Deduplicate by subject name — prevents same-named subjects from bloating game deck lists
     const seen = new Set<string>();
     return rows.filter((s: any) => {
@@ -381,8 +1179,10 @@ export class GamificationService implements OnModuleInit {
     return subjects.find((s: any) => /math/i.test(s.name)) || subjects[0];
   }
 
-  private async generateMcqs(ctx: any, count: number, difficulty: string, mode: string) {
+  private async generateMcqs(ctx: any, count: number, difficulty: string, mode: string, excludeQuestions?: any[]) {
+    const boardStr = ctx.board ? `${ctx.board} Board` : 'CBSE Board';
     const topicName = [
+      boardStr,
       `Class ${ctx.className}`,
       ctx.subjectName,
       ctx.chapterName || 'mixed school syllabus',
@@ -392,16 +1192,31 @@ export class GamificationService implements OnModuleInit {
         ? 'Question text should be a short scenario, clue, or application riddle suitable for a treasure checkpoint.'
         : '',
     ].filter(Boolean).join(' - ');
-    const questions = await this.aiBridge.generateQuestionsFromTopic({
-      topicId: ctx.chapterId || ctx.subjectId,
-      topicName,
-      count,
-      difficulty: difficulty === 'any' ? 'medium' : difficulty,
-      type: 'mcq_single',
-      examTarget: 'cbse',
-      subject: ctx.subjectName,
-      chapter: ctx.chapterName || undefined,
-    }, ctx.instituteId, 'school');
+
+    const excludeTexts = (excludeQuestions || [])
+      .map(q => q.content || q.questionText || q.question || '')
+      .filter(Boolean);
+    const notes = excludeTexts.length > 0
+      ? `CRITICAL: Do NOT generate questions similar to these already asked questions:\n` + excludeTexts.map(t => `- ${t}`).join('\n')
+      : undefined;
+
+    let questions: any[];
+    try {
+      questions = await this.aiBridge.generateQuestionsFromTopic({
+        topicId: ctx.chapterId || ctx.subjectId,
+        topicName,
+        count,
+        difficulty: difficulty === 'any' ? 'medium' : difficulty,
+        type: 'mcq_single',
+        examTarget: ctx.board || 'cbse',
+        subject: ctx.subjectName,
+        chapter: ctx.chapterName || undefined,
+        notes,
+      }, ctx.instituteId, 'school', ctx.board);
+    } catch (err: any) {
+      this.logger.error(`Gamification AI error [${mode}]: ${err?.message || err}`);
+      throw new BadRequestException('Could not generate quiz questions. The AI service is temporarily unavailable. Please try again in a moment.');
+    }
     const mapped = (questions || []).slice(0, count).map((q: any) => this.toGameQuestion(q));
     if (mapped.length < Math.min(3, count)) {
       throw new BadRequestException('AI could not generate enough school questions. Please try again.');
@@ -409,12 +1224,18 @@ export class GamificationService implements OnModuleInit {
     return mapped;
   }
 
-  private async generateMathSprintQuestions(ctx: any, difficulty: string) {
+  private async generateMathSprintQuestions(ctx: any, difficulty: string, seenTexts: string[] = []) {
     try {
+      const notes = seenTexts.length > 0
+        ? `CRITICAL: Do NOT generate expressions identical to these already used: ${seenTexts.slice(0, 30).join(', ')}`
+        : undefined;
+      const boardStr = ctx.board ? `${ctx.board} Board` : 'CBSE Board';
       const questions = await this.aiBridge.generateQuestionsFromTopic({
-        topicId: ctx.chapterId || ctx.subjectId,
+        topicId: ctx.subjectId,
         topicName: [
+          boardStr,
           `Class ${ctx.className}`,
+          'Mathematics Complete Syllabus',
           'Math Sprint',
           'Generate rapid mental-maths arithmetic only.',
           'Each question content must be ONLY an expression like "24 + 18", "7 x 8", "96 / 12", or "15% of 80".',
@@ -424,9 +1245,10 @@ export class GamificationService implements OnModuleInit {
         count: 12,
         difficulty: difficulty === 'any' ? 'medium' : difficulty,
         type: 'mcq_single',
-        examTarget: 'cbse',
+        examTarget: ctx.board || 'cbse',
         subject: 'Mathematics',
-      }, ctx.instituteId, 'school');
+        notes,
+      }, ctx.instituteId, 'school', ctx.board);
       const mapped = (questions || [])
         .map((q: any) => this.toGameQuestion(q))
         .map((q: any) => this.toMathSprintQuestion(q))
@@ -439,26 +1261,42 @@ export class GamificationService implements OnModuleInit {
     return this.fillMathQuestions([], difficulty, ctx.className, 12);
   }
 
-  private async generateConceptPairs(ctx: any, count: number, mode: string, difficulty = 'medium') {
-    const raw = await this.aiBridge.generateQuestionsFromTopic({
-      topicId: ctx.chapterId || ctx.subjectId,
-      topicName: [
-        `Class ${ctx.className}`,
-        ctx.subjectName,
-        ctx.chapterName || 'mixed school syllabus',
-        mode,
-        'Generate key school syllabus terminology only.',
-        'For each item, the question/content field must be ONLY the term or phrase, max 4 words.',
-        'The answer/model answer field must be a one-sentence student-friendly definition or clue.',
-        'Do not include coaching, JEE, NEET, competitive-exam framing, or MCQ options.',
-      ].join(' - '),
-      count,
-      difficulty,
-      type: 'short_answer',
-      examTarget: 'cbse',
-      subject: ctx.subjectName,
-      chapter: ctx.chapterName || undefined,
-    }, ctx.instituteId, 'school');
+  private async generateConceptPairs(ctx: any, count: number, mode: string, difficulty = 'medium', excludeWords?: any[]) {
+    const excludeTexts = (excludeWords || [])
+      .map(w => w.word || w.term || '')
+      .filter(Boolean);
+    const notes = excludeTexts.length > 0
+      ? `CRITICAL: Do NOT generate questions/words similar to these already used terms:\n` + excludeTexts.map(t => `- ${t}`).join('\n')
+      : undefined;
+
+    let raw: any[];
+    const boardStr = ctx.board ? `${ctx.board} Board` : 'CBSE Board';
+    try {
+      raw = await this.aiBridge.generateQuestionsFromTopic({
+        topicId: ctx.chapterId || ctx.subjectId,
+        topicName: [
+          boardStr,
+          `Class ${ctx.className}`,
+          ctx.subjectName,
+          ctx.chapterName || 'mixed school syllabus',
+          mode,
+          'Generate key school syllabus terminology only.',
+          'For each item, the question/content field must be ONLY the term or phrase, max 4 words.',
+          'The answer/model answer field must be a one-sentence student-friendly definition or clue.',
+          'Do not include coaching, JEE, NEET, competitive-exam framing, or MCQ options.',
+        ].join(' - '),
+        count,
+        difficulty,
+        type: 'short_answer',
+        examTarget: ctx.board || 'cbse',
+        subject: ctx.subjectName,
+        chapter: ctx.chapterName || undefined,
+        notes,
+      }, ctx.instituteId, 'school', ctx.board);
+    } catch (err: any) {
+      this.logger.warn(`${mode} AI error: ${err?.message || err}; falling back to subject terms`);
+      return this.fallbackConceptPairs(ctx).slice(0, count);
+    }
 
     const pairs = (raw || [])
       .map((q: any) => ({
@@ -474,20 +1312,65 @@ export class GamificationService implements OnModuleInit {
   }
 
   private toGameQuestion(q: any) {
-    const options = (q.options || []).slice(0, 4).map((o: any) => ({
-      id: randomUUID(),
-      optionLabel: o.label,
-      content: String(o.content || '').trim(),
-      isCorrect: Boolean(o.isCorrect),
-    }));
-    if (!options.some((o: any) => o.isCorrect) && options[0]) options[0].isCorrect = true;
+    const options = (q.options || []).slice(0, 4).map((o: any, idx: number) => {
+      const label = String.fromCharCode(65 + idx); // 'A', 'B', 'C', 'D'
+      let content = '';
+      let isCorrect = false;
+      let optionLabel = label;
+
+      if (o && typeof o === 'object') {
+        content = String(o.content || o.text || o.optionText || '').trim();
+        optionLabel = o.label || o.optionLabel || label;
+        isCorrect = Boolean(o.isCorrect);
+      } else {
+        content = String(o || '').trim();
+      }
+
+      // If isCorrect is not explicitly set, determine it via q.answer or q.correctOptions
+      if (!isCorrect) {
+        const correctAns = String(q.answer || '').trim().toUpperCase();
+        const correctOpts = Array.isArray(q.correctOptions)
+          ? q.correctOptions.map((x: any) => String(x).trim().toUpperCase())
+          : [];
+        isCorrect =
+          correctAns === optionLabel ||
+          correctAns === label ||
+          correctAns === content.toUpperCase() ||
+          correctOpts.includes(optionLabel) ||
+          correctOpts.includes(label);
+      }
+
+      return {
+        id: randomUUID(),
+        optionLabel,
+        content,
+        isCorrect,
+      };
+    });
+
+    // Ensure at least one option is correct
+    if (!options.some((o: any) => o.isCorrect) && options.length > 0) {
+      const ansText = String(q.answer || '').trim().toUpperCase();
+      let matched = false;
+      for (const opt of options) {
+        if (ansText && (opt.content.toUpperCase().includes(ansText) || ansText.includes(opt.content.toUpperCase()))) {
+          opt.isCorrect = true;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched && options[0]) {
+        options[0].isCorrect = true;
+      }
+    }
+
     return {
       id: randomUUID(),
-      content: String(q.content || q.questionText || '').trim(),
+      content: String(q.content || q.questionText || q.question || '').trim(),
       contentImageUrl: null,
       type: 'mcq_single',
       difficulty: 'medium',
-      explanation: q.explanation || q.solutionText || '',
+      explanation: q.explanation || q.solutionText || q.solution || '',
       options,
     };
   }
@@ -499,7 +1382,12 @@ export class GamificationService implements OnModuleInit {
     const normalizedExpression = expression.replace(/\s+/g, ' ');
     const correctAnswer = this.evaluateExpression(normalizedExpression);
     const numericOptions = (q.options || [])
-      .map((o: any) => ({ ...o, content: this.extractNumericAnswer(o.content) }))
+      .map((o: any) => {
+        const optionVal = o && typeof o === 'object' ? o.content : o;
+        return {
+          content: this.extractNumericAnswer(optionVal)
+        };
+      })
       .filter((o: any) => o.content !== null);
     if (numericOptions.length < 4) return null;
 
@@ -561,13 +1449,13 @@ export class GamificationService implements OnModuleInit {
     };
   }
 
-  private async createSession(user: any, ctx: any, gameType: GameType, metadata: any) {
+  private async createSession(user: any, ctx: any, gameType: GameType, metadata: any, playMode = 'ranked') {
     const rows = await this.ds.query(
       `INSERT INTO school_game_sessions
-       (id, institute_id, student_id, student_user_id, class_id, subject_id, chapter_id, game_type, metadata)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+       (id, institute_id, student_id, student_user_id, class_id, subject_id, chapter_id, game_type, metadata, play_mode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
        RETURNING *`,
-      [randomUUID(), ctx.instituteId, ctx.studentId, user.id, ctx.classId, ctx.subjectId, ctx.chapterId, gameType, JSON.stringify(metadata)],
+      [randomUUID(), ctx.instituteId, ctx.studentId, user.id, ctx.classId, ctx.subjectId, ctx.chapterId, gameType, JSON.stringify(metadata), playMode],
     );
     return rows[0];
   }
@@ -595,12 +1483,13 @@ export class GamificationService implements OnModuleInit {
     return rows[0];
   }
 
-  private async completeSession(sessionId: string, xp: number, coins: number, extra: any) {
+  private async completeSession(sessionId: string, xp: number, coins: number, extra: any, cheatFlagged = false, cheatReason: string | null = null, tabSwitches = 0) {
     await this.ds.query(
       `UPDATE school_game_sessions
-       SET status='completed', xp_earned=$2, coins_earned=$3, metadata = metadata || $4::jsonb, updated_at=now()
+       SET status='completed', xp_earned=$2, coins_earned=$3, metadata = metadata || $4::jsonb, updated_at=now(),
+           cheat_flagged = $5, cheat_reason = $6, tab_switches_count = $7
        WHERE id=$1`,
-      [sessionId, Math.round(xp), Math.round(coins), JSON.stringify(extra)],
+      [sessionId, Math.round(xp), Math.round(coins), JSON.stringify(extra), cheatFlagged, cheatReason, tabSwitches],
     );
   }
 
@@ -636,14 +1525,14 @@ export class GamificationService implements OnModuleInit {
         await this.ds.query(
           `INSERT INTO gamification_profiles (user_id, xp, coins, level, badges, current_streak, longest_streak)
            VALUES ($1, $2, $3, $4, '[]', 0, 0)`,
-          [userId, newXp, coinsInt, newLevel],
+          [userId, newXp, Math.max(0, coinsInt), newLevel],
         );
       } else {
         const newXp = Number(profileRows[0].xp || 0) + xpInt;
         const newLevel = this.computeLevel(newXp);
         await this.ds.query(
           `UPDATE gamification_profiles
-           SET xp = xp + $1, coins = coins + $2, level = $3, updated_at = NOW()
+           SET xp = xp + $1, coins = GREATEST(0, coins + $2), level = $3, updated_at = NOW()
            WHERE user_id = $4`,
           [xpInt, coinsInt, newLevel, userId],
         );
@@ -1292,5 +2181,127 @@ export class GamificationService implements OnModuleInit {
       { term: 'Compare', definition: 'To identify similarities and differences.' },
       { term: 'Summary', definition: 'A short version of the main points.' },
     ];
+  }
+
+  /**
+   * Multi-Scope Leaderboard query for school gamification.
+   */
+  async getMultiLeaderboard(scope: string = 'GLOBAL') {
+    try {
+      let rows: any[] = [];
+      try {
+        rows = await this.ds.query(
+          `SELECT 
+             gp.user_id, 
+             gp.xp, 
+             gp.coins, 
+             gp.level, 
+             gp.current_streak, 
+             gp.current_difficulty, 
+             gp.rank_tier, 
+             gp.league_name,
+             u.name as user_name,
+             u2.name as student_user_name
+           FROM gamification_profiles gp
+           LEFT JOIN users u ON u.id::text = gp.user_id::text
+           LEFT JOIN students s ON (s.id::text = gp.user_id::text OR s.user_id::text = gp.user_id::text)
+           LEFT JOIN users u2 ON u2.id::text = s.user_id::text
+           ORDER BY gp.xp DESC 
+           LIMIT 50`
+        );
+      } catch {
+        rows = await this.ds.query(
+          `SELECT user_id, xp, coins, level, current_streak, current_difficulty, rank_tier, league_name 
+           FROM gamification_profiles 
+           ORDER BY xp DESC 
+           LIMIT 50`
+        ).catch(() => []);
+      }
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        // Fallback: Query students table directly
+        const fallbackStudents = await this.ds.query(
+          `SELECT s.id as user_id, u.name as student_name, s.xp_total as xp, s.eddva_coins as coins, s.current_streak
+           FROM students s
+           LEFT JOIN users u ON u.id::text = s.user_id::text
+           ORDER BY s.xp_total DESC
+           LIMIT 50`
+        ).catch(() => []);
+
+        if (Array.isArray(fallbackStudents) && fallbackStudents.length > 0) {
+          return fallbackStudents.map((r: any, idx: number) => ({
+            rank: idx + 1,
+            userId: r.user_id,
+            name: r.student_name || r.name || `Student ${String(r.user_id || '0000').slice(-4)}`,
+            xp: Number(r.xp || 0),
+            coins: Number(r.coins || 0),
+            level: Math.max(1, Math.floor(Number(r.xp || 0) / 100) + 1),
+            streak: Number(r.current_streak || 0),
+            tier: 'Gold',
+            league: 'Gold League',
+          }));
+        }
+
+        return [];
+      }
+
+      // Query users from school/coaching database and attempt cross-table resolution
+      const userIdsToLookup = rows
+        .map((r) => r.user_id)
+        .filter(Boolean);
+
+      const fallbackNameMap: Record<string, string> = {};
+      if (userIdsToLookup.length > 0) {
+        try {
+          const len = userIdsToLookup.length;
+          const p1 = userIdsToLookup.map((_, i) => `$${i + 1}`).join(',');
+          const p2 = userIdsToLookup.map((_, i) => `$${i + 1 + len}`).join(',');
+          const p3 = userIdsToLookup.map((_, i) => `$${i + 1 + len * 2}`).join(',');
+
+          const extraUsers = await this.coachingDs.query(
+            `SELECT u.id::text as u_id, s.id::text as s_id, s.user_id::text as s_u_id, u.full_name
+             FROM users u
+             LEFT JOIN students s ON s.user_id::text = u.id::text
+             WHERE u.id::text IN (${p1}) OR s.id::text IN (${p2}) OR s.user_id::text IN (${p3})`,
+            [...userIdsToLookup, ...userIdsToLookup, ...userIdsToLookup],
+          ).catch(() => []);
+          (extraUsers || []).forEach((u: any) => {
+            if (u?.full_name) {
+              if (u.u_id) fallbackNameMap[u.u_id] = u.full_name;
+              if (u.s_id) fallbackNameMap[u.s_id] = u.full_name;
+              if (u.s_u_id) fallbackNameMap[u.s_u_id] = u.full_name;
+            }
+          });
+        } catch {}
+      }
+
+      return rows.map((r: any, idx: number) => {
+        const uName = r.user_name && r.user_name !== 'null' ? r.user_name : null;
+        const suName = r.student_user_name && r.student_user_name !== 'null' ? r.student_user_name : null;
+        const rName = r.name && r.name !== 'null' ? r.name : null;
+
+        const resolvedName =
+          uName ||
+          suName ||
+          fallbackNameMap[r.user_id] ||
+          rName ||
+          `Student ${String(r.user_id || '0000').slice(-4)}`;
+
+        return {
+          rank: idx + 1,
+          userId: r.user_id,
+          name: resolvedName,
+          xp: Number(r.xp || 0),
+          coins: Number(r.coins || 0),
+          level: Number(r.level || 1),
+          streak: Number(r.current_streak || 0),
+          tier: r.rank_tier || 'Gold',
+          league: r.league_name || 'Gold League',
+        };
+      });
+    } catch (err: any) {
+      console.error('[SchoolGamificationService] Error in getMultiLeaderboard:', err?.message || err);
+      return [];
+    }
   }
 }

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { BatchController } from './batch.controller';
 import { BatchService } from './batch.service';
+import { EnrollmentStatusService } from './enrollment-status.service';
 
 import { Batch, BatchSubjectTeacher, Enrollment } from '../../database/entities/batch.entity';
 import { BatchFeedback } from '../../database/entities/batch-feedback.entity';
@@ -27,6 +28,7 @@ import { NotificationModule } from '../notification/notification.module';
     ], 'coaching'),
   ],
   controllers: [BatchController],
-  providers: [BatchService],
+  providers: [BatchService, EnrollmentStatusService],
+  exports: [EnrollmentStatusService],
 })
 export class BatchModule {}

@@ -78,9 +78,12 @@ export class AuthService {
 
   async registerStudent(dto: StudentRegisterDto, _tenantId: string) {
     // Self-registration uses the resolved tenant (from subdomain or header) if present, otherwise platform tenant
-    const platformTenant = await this.tenantRepo.findOne({ where: { subdomain: 'platform' } });
-    if (!platformTenant) throw new Error('Platform tenant not configured');
-    const tenantId = _tenantId || platformTenant.id;
+    let tenantId = _tenantId;
+    if (!tenantId) {
+      const platformTenant = await this.tenantRepo.findOne({ where: { subdomain: 'platform' } });
+      if (!platformTenant) throw new Error('Platform tenant not configured');
+      tenantId = platformTenant.id;
+    }
 
     // Normalize phone number
     const normalizedPhone = this.normalizeLoginPhone(dto.phoneNumber);
@@ -218,7 +221,7 @@ export class AuthService {
     };
   }
 
-  async loginWithPassword(dto: LoginWithPasswordDto, tenantId: string) {
+  async loginWithPassword(dto: LoginWithPasswordDto, tenantId: string | null) {
     if (!dto.email && !dto.phoneNumber) {
       throw new BadRequestException('Either email or phone number is required');
     }
@@ -305,11 +308,13 @@ export class AuthService {
 
   private async findUserForPasswordLogin(
     dto: LoginWithPasswordDto,
-    tenantId: string,
+    tenantId: string | null,
   ): Promise<User | null> {
     const email = dto.email?.trim();
     if (email) {
-      return this.userRepo.findOne({ where: { email: ILike(email), tenantId } });
+      const where: any = { email: ILike(email) };
+      if (tenantId) where.tenantId = tenantId;
+      return this.userRepo.findOne({ where });
     }
 
     const raw = dto.phoneNumber?.trim();
@@ -321,7 +326,9 @@ export class AuthService {
     }
 
     for (const variant of phoneVariants) {
-      const user = await this.userRepo.findOne({ where: { phoneNumber: variant, tenantId } });
+      const where: any = { phoneNumber: variant };
+      if (tenantId) where.tenantId = tenantId;
+      const user = await this.userRepo.findOne({ where });
       if (user) return user;
     }
     return null;

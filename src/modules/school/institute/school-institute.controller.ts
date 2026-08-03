@@ -38,6 +38,10 @@ export class SchoolInstituteController {
     return this.svc.list(Number(page)||1, Number(perPage)||20, status, search);
   }
 
+  @Get('storage-usage')
+  @SchoolRoles('SUPER_ADMIN')
+  getStorageUsage() { return this.svc.storageUsage(); }
+
   @Get(':id')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   findOne(@Param('id') id: string, @SchoolUser() user: any) {

@@ -19,7 +19,6 @@ export class SchoolClassService implements OnModuleInit {
   private tableReady = false;
 
   private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly SERPER_URL = 'https://google.serper.dev/images';
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
@@ -74,6 +73,11 @@ export class SchoolClassService implements OnModuleInit {
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS video_size BIGINT`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS resolution VARCHAR(32)`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_source VARCHAR(16) DEFAULT 'auto'`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_status VARCHAR(16)`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_error TEXT`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_started_at TIMESTAMPTZ`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_completed_at TIMESTAMPTZ`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
 
     // Progress and In-Video Quiz Segment Responses tracking
     await this.ds.query(`
@@ -225,12 +229,13 @@ export class SchoolClassService implements OnModuleInit {
                THEN ROUND((ps.completed_watchers::numeric / ps.total_watchers::numeric) * 100)::int
                ELSE 0
              END AS completion_rate,
-             r.created_at, r.class_id, r.subject_id,
+             r.created_at, r.updated_at, r.class_id, r.subject_id,
              r.section_id,
              r.chapter_id, r.topic_id, r.thumbnail_url, r.source,
              r.transcript, r.transcript_status, r.language, r.notes, r.notes_status,
              r.notes_images, r.quiz, r.quiz_status,
              r.video_size, r.resolution, r.thumbnail_source,
+             r.thumbnail_status, r.thumbnail_error, r.thumbnail_started_at, r.thumbnail_completed_at,
              (SELECT id FROM school_live_lectures WHERE recording_url = r.video_url LIMIT 1) AS "lectureId",
              c.name AS class_name, sec.name AS section_name, s.name AS subject_name, u.name AS teacher_name,
              ch.name AS chapter_name, t.name AS topic_name,
@@ -542,6 +547,15 @@ export class SchoolClassService implements OnModuleInit {
     videoKey: string | null,
     instituteId: string,
   ): Promise<void> {
+    await this.ds.query(
+      `UPDATE class_recordings
+       SET thumbnail_status = 'processing',
+           thumbnail_error = NULL,
+           thumbnail_started_at = NOW(),
+           thumbnail_completed_at = NULL
+       WHERE id = $1`,
+      [recordingId],
+    );
     try {
       // Use the S3 key for download if available (more reliable than presigned URL)
       const downloadUrl = videoKey
@@ -556,6 +570,14 @@ export class SchoolClassService implements OnModuleInit {
 
       if (!result) {
         this.logger.warn(`Thumbnail generation returned null for recording ${recordingId}`);
+        await this.ds.query(
+          `UPDATE class_recordings
+           SET thumbnail_status = 'failed',
+               thumbnail_error = 'Thumbnail generation did not return an image',
+               thumbnail_completed_at = NOW()
+           WHERE id = $1`,
+          [recordingId],
+        );
         return;
       }
 
@@ -587,14 +609,22 @@ export class SchoolClassService implements OnModuleInit {
       }
 
       if (sets.length > 0) {
-        await this.ds.query(
-          `UPDATE class_recordings SET ${sets.join(', ')} WHERE id = $1`,
-          params,
-        );
+        sets.push(`thumbnail_status = 'done'`);
+        sets.push(`thumbnail_error = NULL`);
+        sets.push(`thumbnail_completed_at = NOW()`);
+        await this.ds.query(`UPDATE class_recordings SET ${sets.join(', ')} WHERE id = $1`, params);
         this.logger.log(`Thumbnail + metadata saved for recording ${recordingId}`);
       }
     } catch (err: any) {
       this.logger.warn(`processThumbnail failed for ${recordingId}: ${err?.message}`);
+      await this.ds.query(
+        `UPDATE class_recordings
+         SET thumbnail_status = 'failed',
+             thumbnail_error = $2,
+             thumbnail_completed_at = NOW()
+         WHERE id = $1`,
+        [recordingId, String(err?.message || 'Thumbnail generation failed').slice(0, 1000)],
+      );
     }
   }
 
@@ -610,7 +640,13 @@ export class SchoolClassService implements OnModuleInit {
     if (!rows.length) throw new NotFoundException('Recording not found');
 
     await this.ds.query(
-      `UPDATE class_recordings SET thumbnail_url = $2, thumbnail_source = 'manual' WHERE id = $1`,
+      `UPDATE class_recordings
+       SET thumbnail_url = $2,
+           thumbnail_source = 'manual',
+           thumbnail_status = 'done',
+           thumbnail_error = NULL,
+           thumbnail_completed_at = NOW()
+       WHERE id = $1`,
       [id, body.thumbnailUrl.trim()],
     );
     return { success: true, message: 'Thumbnail updated' };
@@ -645,7 +681,7 @@ export class SchoolClassService implements OnModuleInit {
     instituteId: string,
     language: 'en' | 'hi' | 'hinglish' | 'od' = 'en',
   ): Promise<void> {
-    await this.ds.query(`UPDATE class_recordings SET transcript_status='processing' WHERE id=$1`, [recordingId]);
+    await this.ds.query(`UPDATE class_recordings SET transcript_status='processing', updated_at=NOW() WHERE id=$1`, [recordingId]);
     try {
       const result: any = await this.aiBridgeService.transcribeAudio(
         { audioUrl: videoUrl, language, topicId: topicId ?? '' },
@@ -683,7 +719,7 @@ export class SchoolClassService implements OnModuleInit {
     language: 'en' | 'hi' | 'hinglish' | 'od' = 'en',
   ): Promise<void> {
     if (!transcript || transcript.trim().length < 20) return;
-    await this.ds.query(`UPDATE class_recordings SET notes_status='processing' WHERE id=$1`, [recordingId]);
+    await this.ds.query(`UPDATE class_recordings SET notes_status='processing', updated_at=NOW() WHERE id=$1`, [recordingId]);
     try {
       const result: any = await this.aiBridgeService.generateNotesFromTranscript(
         { transcript, topicId: topicId ?? '', language },
@@ -744,12 +780,61 @@ export class SchoolClassService implements OnModuleInit {
     return { success: true, message: 'Image enrichment started — refresh the page in 30 seconds' };
   }
 
+  /**
+   * Notes images as base64 data URLs, keyed by their public S3 URL.
+   * The browser can't read S3 image pixels onto a canvas (no CORS on the
+   * bucket), so the PDF export fetches bytes through the server instead.
+   */
+  async getNotesImagesAsDataUrls(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT notes_images FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const imgs: Array<{ s3Url?: string }> = Array.isArray(rows[0].notes_images) ? rows[0].notes_images : [];
+    const images: Record<string, string> = {};
+    for (const img of imgs) {
+      if (!img?.s3Url) continue;
+      try {
+        const key = this.s3Service.keyFromUrl(img.s3Url);
+        const buffer = await this.s3Service.getBuffer(key);
+        const ext = key.split('.').pop()?.toLowerCase() ?? 'jpg';
+        const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        images[img.s3Url] = `data:${mime};base64,${buffer.toString('base64')}`;
+      } catch (err: any) {
+        this.logger.warn(`Notes image fetch failed for PDF export (${img.s3Url}): ${err?.message}`);
+      }
+    }
+    return { success: true, data: { images } };
+  }
+
   // ── Image enrichment helpers ──────────────────────────────────────────────
 
   private stripEmbeddedImages(notes: string): string {
     return notes
       .replace(/\n!\[.*?\]\(https?:\/\/.*?\)\n\*.*?\*\n/g, '\n')
       .replace(/\n\n!\[.*?\]\(https?:\/\/.*?\)\n/g, '\n');
+  }
+
+  private extractHeadingsLocally(notes: string): Array<{heading: string; searchTerm: string; caption: string}> {
+    const results: Array<{heading: string; searchTerm: string; caption: string}> = [];
+    for (const line of notes.split('\n')) {
+      const m = line.match(/^(#{1,3})\s+(.+)$/);
+      if (!m) continue;
+      const headingText = m[2].replace(/[*_`]/g, '').trim();
+      if (headingText.length < 4) continue;
+      const visualHints = ['diagram', 'photo', 'illustration', 'chart', 'map', 'experiment'];
+      const hasHint = visualHints.some((h) => headingText.toLowerCase().includes(h));
+      results.push({
+        heading: line.trim(),
+        searchTerm: hasHint ? headingText : `${headingText} educational diagram`,
+        caption: `Educational illustration of ${headingText}`,
+      });
+      if (results.length >= 4) break;
+    }
+    return results;
   }
 
   private async extractImageSearchTerms(
@@ -763,21 +848,26 @@ export class SchoolClassService implements OnModuleInit {
         { notes, language },
         instituteId,
       );
-      const sections = result?.sections || [];
-      this.logger.log(`[extractImageSearchTerms] Successfully extracted ${sections.length} headings.`);
-      return sections
+      const sections = (result?.sections || [])
         .slice(0, 4)
         .filter((s: any) => s?.heading && s?.searchTerm && typeof s.heading === 'string');
+      if (sections.length > 0) {
+        this.logger.log(`[extractImageSearchTerms] AI returned ${sections.length} headings.`);
+        return sections;
+      }
+      this.logger.warn('[extractImageSearchTerms] AI returned 0 sections — using local heading extraction');
     } catch (err: any) {
-      this.logger.error(`[extractImageSearchTerms] Failed to extract search terms: ${err?.message}`, err?.stack);
-      return [];
+      this.logger.warn(`[extractImageSearchTerms] AI bridge failed (${err?.message}) — using local heading extraction`);
     }
+    const local = this.extractHeadingsLocally(notes);
+    this.logger.log(`[extractImageSearchTerms] Local extraction found ${local.length} headings.`);
+    return local;
   }
 
   private async fetchSerperImage(searchTerm: string, instituteId: string, language = 'en'): Promise<string | null> {
     this.logger.log(`[Serper Search] Query initiated for term: "${searchTerm}" (Language: ${language})`);
+    let englishTerm = searchTerm;
     try {
-      let englishTerm = searchTerm;
       const hasOdiaChars = /[\u0B00-\u0B7F]/.test(searchTerm);
       if (language === 'od' && hasOdiaChars) {
         try {
@@ -803,26 +893,73 @@ export class SchoolClassService implements OnModuleInit {
         ? englishTerm
         : `${englishTerm} educational diagram`;
 
-      this.logger.log(`[Serper Search] Sending Serper request via bridge for: "${query}" (Language: en)`);
+      this.logger.log(`[Serper Search] Sending request via bridge for: "${query}"`);
       const result = await this.aiBridgeService.searchEducationalImages(
         { query, limit: 5, language: 'en' },
         instituteId,
       );
 
       const images = result?.images || [];
-      this.logger.log(`[Serper Search] Serper returned ${images.length} candidate(s) for: "${query}"`);
+      this.logger.log(`[Serper Search] Bridge returned ${images.length} candidate(s) for: "${query}"`);
       for (const img of images.slice(0, 3)) {
         if (img?.imageUrl) {
           this.logger.log(`[Serper Search] Selected image URL: ${img.imageUrl}`);
           return img.imageUrl;
         }
       }
-      this.logger.log(`[Serper Search] No images resolved for query: "${query}"`);
-      return null;
+      this.logger.log(`[Serper Search] No images via bridge — trying Wikipedia fallback`);
     } catch (err: any) {
-      this.logger.warn(`[Serper Search] Serper school image search failed: ${err?.message}`);
-      return null;
+      this.logger.warn(`[Serper Search] Bridge search failed (${err?.message}) — trying Wikipedia fallback`);
     }
+
+    // Wikipedia REST API fallback — always free, no key needed
+    return this.fetchWikipediaImage(englishTerm ?? searchTerm);
+  }
+
+  private async fetchWikipediaImage(query: string): Promise<string | null> {
+    try {
+      const title = encodeURIComponent(query.replace(/\s+educational\s*(diagram|illustration|photo)?$/i, '').trim());
+      const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`;
+      const res = await fetch(summaryUrl, {
+        headers: { 'User-Agent': 'eddva-education-app/1.0 (https://eddva.in)' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        const data: any = await res.json();
+        const imgUrl = data?.thumbnail?.source || data?.originalimage?.source;
+        if (imgUrl) {
+          this.logger.log(`[Wikipedia] Found image for "${query}": ${imgUrl}`);
+          return imgUrl;
+        }
+      }
+      // Try Wikipedia search if direct summary had no image
+      const searchRes = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=3&format=json`,
+        { headers: { 'User-Agent': 'eddva-education-app/1.0' }, signal: AbortSignal.timeout(8000) },
+      );
+      if (searchRes.ok) {
+        const searchData: any = await searchRes.json();
+        const hits: any[] = searchData?.query?.search || [];
+        for (const hit of hits) {
+          const t = encodeURIComponent(hit.title);
+          const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${t}`, {
+            headers: { 'User-Agent': 'eddva-education-app/1.0' },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (r.ok) {
+            const d: any = await r.json();
+            const u = d?.thumbnail?.source || d?.originalimage?.source;
+            if (u) {
+              this.logger.log(`[Wikipedia] Found image via search for "${query}": ${u}`);
+              return u;
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`[Wikipedia] Fallback failed for "${query}": ${err?.message}`);
+    }
+    return null;
   }
 
   private async downloadAndUploadToS3(
@@ -842,7 +979,7 @@ export class SchoolClassService implements OnModuleInit {
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.startsWith('image/')) return null;
       const buffer = Buffer.from(await res.arrayBuffer());
-      if (buffer.length < 2048) return null;
+      if (buffer.length < 512) return null;
       const mimeType = contentType.split(';')[0].trim();
       await this.s3Service.upload(s3Key, buffer, mimeType);
       return this.s3Service.toPublicUrl(s3Key);
@@ -916,14 +1053,15 @@ export class SchoolClassService implements OnModuleInit {
 
         this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Downloading and uploading image to S3 path: ${s3Key}`);
         const s3Url = await this.downloadAndUploadToS3(imageUrl, s3Key);
+        const finalUrl = s3Url ?? imageUrl;
         if (!s3Url) {
-          this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Skip: Download or S3 upload failed`);
-          continue;
+          this.logger.warn(`[Image Enrichment] [Step ${i + 1}/${sections.length}] S3 upload failed — using original URL directly: ${imageUrl}`);
+        } else {
+          this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Image saved to S3. URL: ${s3Url}`);
         }
 
-        this.logger.log(`[Image Enrichment] [Step ${i + 1}/${sections.length}] Image saved to S3. Injecting markdown into notes text.`);
-        enrichedNotes = this.insertImageAfterHeading(enrichedNotes, section.heading, s3Url, section.caption);
-        images.push({ heading: section.heading, searchTerm: section.searchTerm, s3Url, caption: section.caption });
+        enrichedNotes = this.insertImageAfterHeading(enrichedNotes, section.heading, finalUrl, section.caption);
+        images.push({ heading: section.heading, searchTerm: section.searchTerm, s3Url: finalUrl, caption: section.caption });
       } catch (err: any) {
         this.logger.warn(`Image enrichment skipped for "${section.heading}": ${err?.message}`);
       }

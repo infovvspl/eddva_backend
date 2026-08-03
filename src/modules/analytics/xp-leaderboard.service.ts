@@ -6,6 +6,7 @@ import type { Cache } from 'cache-manager';
 
 import { MockTestType, TestSession, TestSessionStatus } from '../../database/entities/assessment.entity';
 import { Student } from '../../database/entities/student.entity';
+import { EnrollmentStatusService } from '../batch/enrollment-status.service';
 
 const XP_RANKED_TTL = 3 * 60 * 1000;   // 3 min — leaderboard positions shift with every XP earn
 const MOCK_RANK_TTL = 5 * 60 * 1000;   // 5 min — mock rankings change on test submission
@@ -17,11 +18,24 @@ export class XpLeaderboardService {
     private readonly studentRepo: Repository<Student>,
     @InjectRepository(TestSession, 'coaching')
     private readonly sessionRepo: Repository<TestSession>,
+    private readonly enrollmentStatusService: EnrollmentStatusService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   async getMe(user: any, tenantId: string) {
     const student = await this.getStudentForUser(user.id, tenantId);
+
+    if (!(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+      return {
+        cycleXp: 0,
+        rank: null,
+        zone: null,
+        daysUntilReset: this.daysUntilCycleReset(),
+        level: 1,
+        isUnlocked: false,
+      };
+    }
+
     const ranked = await this.getRankedStudents(tenantId);
     const me = ranked.find((row) => row.id === student.id);
     const rank = me?.rank ?? null;
@@ -39,6 +53,22 @@ export class XpLeaderboardService {
 
   async getGroup(user: any, tenantId: string) {
     const student = await this.getStudentForUser(user.id, tenantId);
+
+    if (!(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+      const fullName = student.user?.fullName || 'Student';
+      return [
+        {
+          studentId: student.id,
+          fullName,
+          avatarUrl: student.user?.profilePictureUrl || null,
+          xpEarned: 0,
+          rank: 1,
+          zone: null,
+          isCurrentStudent: true,
+        },
+      ];
+    }
+
     const ranked = await this.getRankedStudents(tenantId);
     const current = ranked.find((row) => row.id === student.id);
     const groupSize = 30;
@@ -58,6 +88,11 @@ export class XpLeaderboardService {
 
   async getMockRank(user: any, tenantId: string, examType: 'jee' | 'neet') {
     const student = await this.getStudentForUser(user.id, tenantId);
+
+    if (!(await this.enrollmentStatusService.hasActiveEnrollment(student.id))) {
+      return { mockXpTotal: 0, rank: null, percentile: null, accuracy: null };
+    }
+
     const mockCacheKey = `xp:mockrank:${student.id}:${examType}`;
     const mockCached = await this.cache.get(mockCacheKey);
     if (mockCached) return mockCached;
@@ -123,7 +158,7 @@ export class XpLeaderboardService {
   }
 
   private async getStudentForUser(userId: string, tenantId: string) {
-    const student = await this.studentRepo.findOne({ where: { userId, tenantId } });
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId }, relations: ['user'] });
     if (!student) throw new NotFoundException('Student profile not found');
     return student;
   }

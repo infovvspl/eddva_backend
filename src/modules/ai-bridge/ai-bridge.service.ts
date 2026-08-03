@@ -57,8 +57,14 @@ export class AiBridgeService {
     '/career/guidance':     { feature: 'career_guidance_report', provider: 'groq' },
     '/feedback/generate':   { feature: 'feedback',               provider: 'groq' },
     '/notes/analyze':       { feature: 'notes_analyze',          provider: 'groq' },
-    '/resume/analyze':      { feature: 'resume_analyser',        provider: 'groq' },
-    '/interview/start':     { feature: 'interview_prep',         provider: 'groq' },
+    '/resume/analyze':       { feature: 'resume_analyser',        provider: 'groq' },
+    '/interview/start':      { feature: 'interview_prep',         provider: 'groq' },
+    '/ppt/generate':         { feature: 'ppt_generate',           provider: 'groq' },
+    '/ppt/regenerate-slide': { feature: 'ppt_generate',           provider: 'groq' },
+    '/ppt/search-image':     { feature: 'ppt_image_search',       provider: 'serper' },
+    '/grading/subjective-rubric-batch': { feature: 'subjective_rubric_generation', provider: 'groq' },
+    '/grading/subjective-answer': { feature: 'subjective_answer_grading', provider: 'groq' },
+    '/memorization/generate': { feature: 'ai_memorization_retention', provider: 'groq' },
   };
 
   private extractTokens(data: any): number | null {
@@ -68,7 +74,7 @@ export class AiBridgeService {
     return Number.isFinite(Number(total)) ? Number(total) : null;
   }
 
-  private headers(tenantId?: string, vertical?: string) {
+  private headers(tenantId?: string, vertical?: string, board?: string) {
     const h: Record<string, string> = {
       'X-API-Key': this.apiKey,
       'Content-Type': 'application/json',
@@ -78,13 +84,20 @@ export class AiBridgeService {
     }
     // Per-request product vertical (e.g. 'school'). When omitted, the AI service
     // falls back to the tenant's configured vertical (coaching by default).
+    // Education board for school tenants (cbse | icse | state), read from
+    // institutes.board. The AI service uses it to pick the right syllabus,
+    // textbooks and paper pattern — an ICSE school must not get NCERT/CBSE
+    // framing. When omitted, the AI service falls back to its own default.
+    if (board) {
+      h['X-Board'] = board;
+    }
     if (vertical) {
       h['X-Vertical'] = vertical;
     }
     return h;
   }
 
-  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string): Promise<T> {
+  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string): Promise<T> {
     const mapped = AiBridgeService.FEATURE_MAP[path];
     const v = vertical || 'coaching';
 
@@ -110,7 +123,7 @@ export class AiBridgeService {
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
-          headers: this.headers(tenantId, v),
+          headers: this.headers(tenantId, vertical, board),
           timeout: timeoutMs ?? this.timeout,
         }),
       );
@@ -162,13 +175,22 @@ export class AiBridgeService {
       topicId?: string;
       mode: 'short' | 'detailed';
       studentContext?: any;
+      language?: string;
     },
     tenantId?: string,
     vertical?: string,
   ) {
+    const lang = (payload.language || '').toLowerCase();
+    const isEnglish = !lang || lang === 'english' || lang === 'en';
+    const subj = String(payload?.studentContext?.subject || '').toLowerCase();
+    const isMathSubject = subj.includes('math') || subj.includes('physic') || subj.includes('algebra') || subj.includes('calculus') || subj.includes('chem');
+    const shouldAddMathHint = isEnglish && isMathSubject;
+
     return this.post('/doubt/resolve', {
       ...payload,
-      questionText: this.withMathDerivationStyleHint(payload.questionText),
+      questionText: shouldAddMathHint
+        ? this.withMathDerivationStyleHint(payload.questionText)
+        : payload.questionText,
     }, tenantId, undefined, vertical);
   }
 
@@ -177,10 +199,61 @@ export class AiBridgeService {
    *                `doubt` = richer extraction for doubt flows (default).
    */
   async extractImageText(
-    payload: { imageUrl: string; purpose?: 'doubt' | 'grading' },
+    payload: { imageUrl: string; purpose?: 'doubt' | 'grading'; language?: string },
     tenantId?: string,
   ): Promise<{ text: string }> {
     return this.post('/doubt/ocr-image', payload, tenantId, 120_000);
+  }
+
+  // ── Subjective-answer grading rubric generation ──────────────────────────
+  // Given a batch of short/long-answer questions, returns marking-scheme
+  // criteria (summing to each question's marks), key concepts, and a model
+  // answer per question — generated once at assessment creation time so
+  // grading later doesn't need to invent a rubric from scratch every time.
+  async generateSubjectiveRubrics(
+    payload: {
+      questions: Array<{ questionId: string; text: string; marks: number; type: string }>;
+      subjectName?: string;
+      className?: string;
+      board?: string;
+      sourcePassages?: any[];
+    },
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+  ): Promise<{ rubrics: Array<{ questionId: string; criteria: Array<{ text: string; marks: number }>; keyConcepts: string[]; modelAnswer: string }> }> {
+    return this.post('/grading/subjective-rubric-batch', payload, tenantId, 45_000, vertical, board);
+  }
+
+  // AI-grade one subjective (short/long answer) student response against its
+  // rubric (or, when no rubric is stored, the AI service infers criteria on
+  // the fly from the question + optional model answer).
+  async gradeSubjectiveAnswer(
+    payload: {
+      questionText: string;
+      maxMarks: number;
+      studentAnswer: string;
+      criteria?: Array<{ text: string; marks: number }>;
+      keyConcepts?: string[];
+      modelAnswer?: string;
+      subjectName?: string;
+      className?: string;
+    },
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+  ): Promise<{
+    criteria: Array<{ criterion: string; maxMarks: number; awardedMarks: number; justification: string }>;
+    totalAwarded: number;
+    maxMarks: number;
+    strengths: string[];
+    missingPoints: string[];
+    suggestions: string[];
+    flagForReview: boolean;
+    reviewNote: string;
+    _meta?: { model?: string; latency_ms?: number };
+  }> {
+    return this.post('/grading/subjective-answer', payload, tenantId, 30_000, vertical, board);
   }
 
   // ── AI #2 — AI Tutor ──────────────────────────────────────────────────────
@@ -435,6 +508,18 @@ export class AiBridgeService {
     return this.post('/syllabus/generate', payload, tenantId);
   }
 
+  async generateMemorizationAids(
+    payload: {
+      weakConcepts: Array<{ topicName: string; subjectName: string; severity?: string }>;
+      isDefaultTemplate?: boolean;
+    },
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+  ) {
+    return this.post('/memorization/generate', payload, tenantId, undefined, vertical, board);
+  }
+
   /**
    * Strip markdown code fences and parse the inner JSON.
    * Handles: ```json ... ```, ``` ... ```, or plain JSON strings.
@@ -561,7 +646,7 @@ export class AiBridgeService {
     if (t === 'descriptive' || t === 'long_answer' || t === 'subjective') {
       return (
         ' Output short- or long-answer (constructed response) only — no A/B/C/D options. ' +
-        'Include a model answer in the "answer" field using CBSE markwise structure: ' +
+        'Include a model answer in the "answer" field using board-exam markwise structure: ' +
         '2m => definition + one point/example, ' +
         '3m => definition/principle + two explanation points, ' +
         '4m => statement/formula + 2-3 explanation steps + support (diagram/example/conclusion), ' +
@@ -595,9 +680,12 @@ export class AiBridgeService {
       /** For subject tests: exact chapter names from the DB — AI must ONLY generate from these */
       chapters?: string[];
       language?: string;
+      board?: string;
     },
     tenantId?: string,
     vertical?: string,
+    /** Education board for school tenants (cbse | icse | state) — from institutes.board. */
+    board?: string,
   ) {
     const raw = await this.post<any>('/test/generate/', {
       topic: dto.topicName,
@@ -613,7 +701,7 @@ export class AiBridgeService {
       chapters: dto.chapters,           // subject-test: exact DB chapters to generate from
       seed: (dto as any).seed,          // force LLM variety
       language: dto.language,
-    }, tenantId, undefined, vertical);
+    }, tenantId, undefined, vertical, board);
 
     const questions = this.resolveToQuestionList(raw);
 
@@ -1447,6 +1535,58 @@ export class AiBridgeService {
     return { questions: checkpoints };
   }
 
+  // ── PPT Generator ─────────────────────────────────────────────────────────
+  async generatePpt(
+    dto: {
+      topic: string;
+      slideCount?: number;
+      language?: string;
+      className?: string;
+      subjectName?: string;
+      chapterName?: string;
+      topicName?: string;
+      sourcePassages?: any[];
+    },
+    tenantId?: string,
+    board?: string,
+  ): Promise<{ success: boolean; data: { title: string; slides: any[]; source?: any } }> {
+    return this.post('/ppt/generate', dto, tenantId, 240_000, 'school', board);
+  }
+
+  async regeneratePptSlide(
+    dto: {
+      slideIndex: number;
+      topic: string;
+      currentSlide?: any;
+      totalSlides?: number;
+      className?: string;
+      subjectName?: string;
+      chapterName?: string;
+      topicName?: string;
+    },
+    tenantId?: string,
+    board?: string,
+  ): Promise<{ success: boolean; data: any }> {
+    return this.post('/ppt/regenerate-slide', dto, tenantId, 120_000, 'school', board);
+  }
+
+  /** Read a chapter PDF into page-tagged passages (scans are transcribed there). */
+  async ingestTextbook(
+    dto: { fileUrl: string; allowOcr?: boolean },
+    tenantId?: string,
+  ): Promise<{ success: boolean; data: any }> {
+    // A scanned chapter goes through a vision pass page by page, so this is far
+    // slower than a normal bridge call.
+    return this.post('/textbook/ingest', dto, tenantId, 300_000, 'school');
+  }
+
+  async searchPptImage(
+    dto: { searchTerm: string },
+    tenantId?: string,
+  ): Promise<{ success: boolean; imageUrl: string | null; imageBase64: string | null }> {
+    return this.post('/ppt/search-image', dto, tenantId, 30_000, 'school');
+  }
+
   // ── AI #16 — Topic Content Generator (DPP, notes, PYQ, etc.) ─────────────
   async generateTopicContent(
     dto: {
@@ -1460,10 +1600,22 @@ export class AiBridgeService {
       courseName?: string;
       extraContext?: string;
       questionCount?: number;
+      /** Output language: 'hindi' → Devanagari (Groq), 'odia' → Odia script (Gemini). Default: English. */
+      language?: string;
+      board?: string;
+      /** Passages from the school's own chapter; presence switches on grounding. */
+      sourcePassages?: any[];
     },
     tenantId?: string,
     vertical?: string,
-  ): Promise<{ content: string; contentType: string; topicName: string }> {
-    return this.post('/content/generate', dto, tenantId, 120_000, vertical);
+    /** Education board for school tenants (cbse | icse | state) — from institutes.board. */
+    board?: string,
+  ): Promise<{ content: string; contentType: string; topicName: string; source?: any }> {
+    // A grounded call carries a whole chapter and runs on Gemini, so it takes
+    // appreciably longer than writing from general knowledge — the same reason
+    // /ppt/generate gets 240s. Ungrounded calls keep the tighter budget so a
+    // genuinely stuck request still fails quickly.
+    const timeoutMs = dto.sourcePassages?.length ? 240_000 : 120_000;
+    return this.post('/content/generate', dto, tenantId, timeoutMs, vertical, board);
   }
 }

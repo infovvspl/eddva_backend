@@ -67,13 +67,21 @@ jobs:
             mkdir -p /home/ubuntu/logs
             pm2 restart ecosystem.config.js --env production --update-env || pm2 start ecosystem.config.js --env production
 
-            echo "Waiting for app to boot..."
-            sleep 12
-
-            echo "Health check..."
-            curl -sf http://localhost:3000/api/v1/tenants/public/platform-config?vertical=coaching \
-              -o /dev/null && echo "✅ Health check passed" \
-              || (pm2 logs eddva-backend --lines 20 --nostream && exit 1)
+            echo "Waiting for app to boot (up to 60s)..."
+            for i in $(seq 1 12); do
+              sleep 5
+              if curl -sf "http://localhost:3000/api/v1/tenants/public/platform-config?vertical=coaching" \
+                   -o /dev/null 2>/dev/null; then
+                echo "✅ Health check passed (attempt $i, $((i*5))s)"
+                break
+              fi
+              echo "  attempt $i/12 — not ready yet..."
+              if [ "$i" -eq 12 ]; then
+                echo "❌ Health check timed out after 60s"
+                pm2 logs eddva-backend --lines 30 --nostream
+                exit 1
+              fi
+            done
 
             echo "Backend deployed successfully at $(date)"
             pm2 status

@@ -16,8 +16,9 @@ export class SchoolRolesGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
     if (!user) throw new ForbiddenException('User authorization failed');
     const userRole = String(user.role || '').toUpperCase();
+    const userRoles = userRole.split(',').map((r) => r.trim());
     const allowedRoles = roles.map((role) => String(role).toUpperCase());
-    if (!allowedRoles.includes(userRole)) {
+    if (!userRoles.some((ur) => allowedRoles.includes(ur))) {
       throw new ForbiddenException(`Role '${user.role}' is not authorized to access this resource`);
     }
     return true;

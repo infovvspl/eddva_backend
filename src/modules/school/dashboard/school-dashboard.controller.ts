@@ -9,7 +9,9 @@ import { SchoolUser } from '../decorators/school-user.decorator';
 export class SchoolDashboardController {
   constructor(private readonly svc: SchoolDashboardService) {}
 
-  @Get('dashboard/stats') stats(@SchoolUser() user: any) { return this.svc.stats(user); }
+  @Get('dashboard/stats') stats(@SchoolUser() user: any, @Query('portal') portal?: string) {
+    return this.svc.stats(user, portal);
+  }
 
   @Get('admin/stats') adminStats(@SchoolUser() user: any) { return this.svc.adminStats(user); }
 

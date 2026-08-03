@@ -54,5 +54,5 @@ export class SchoolTeacherController {
 
   @Delete(':id')
   @Audit({ module: 'Users', action: 'Teacher Delete', description: 'Deleted teacher ID {params.id}' })
-  remove(@Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(id); }
+  remove(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(user, id); }
 }

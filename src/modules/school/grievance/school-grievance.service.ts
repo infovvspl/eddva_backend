@@ -1,10 +1,21 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SchoolNotificationService } from '../notification/school-notification.service';
+import { FcmService } from '../notification-fcm/fcm.service';
+import {
+  SchoolFcmNotificationType,
+  SCHOOL_NOTIFICATION_TEMPLATES,
+  fillTemplate,
+} from '../notification-fcm/school-notification-templates';
 
 @Injectable()
 export class SchoolGrievanceService implements OnModuleInit {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly notificationService: SchoolNotificationService,
+    private readonly fcm: FcmService,
+  ) {}
 
   private ticketNumber(id: string) {
     return `USR-${String(id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`;
@@ -151,12 +162,99 @@ export class SchoolGrievanceService implements OnModuleInit {
       `INSERT INTO grievances (raised_by,title,category,description,status) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [user.id, body.title || body.subject || 'Grievance', body.category || body.type || null, body.description || null, body.status || 'OPEN'],
     );
+    const r = rows[0];
+
+    // Notify institute admins
+    try {
+      const instituteId = user.instituteId;
+      if (instituteId) {
+        const admins = await this.ds.query(
+          `SELECT id FROM users WHERE role = 'INSTITUTE_ADMIN' AND is_active = true AND institute_id = $1`,
+          [instituteId],
+        );
+
+        for (const admin of admins) {
+          // Check preference
+          const prefAllowed = await this.fcm.checkUserPreference(admin.id, 'announcement_alerts');
+          if (!prefAllowed) continue;
+
+          // Check duplicate
+          const dupRows = await this.ds.query(
+            `SELECT 1 FROM school_notification_log
+             WHERE user_id = $1
+               AND notification_type = $2
+               AND reference_id = $3
+               AND status = 'SUCCESS'
+             LIMIT 1`,
+            [admin.id, SchoolFcmNotificationType.NEW_COMPLAINT, r.id],
+          );
+          if (dupRows.length > 0) continue;
+
+          const { title: pTitle, body: pushBody } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NEW_COMPLAINT],
+            {
+              category: r.category || 'general',
+              submitterName: user.name || 'User',
+            },
+          );
+
+          // Send push
+          const pushResults = await this.fcm.sendPushToUser(
+            admin.id,
+            pTitle,
+            pushBody,
+            { type: 'NEW_COMPLAINT', grievanceId: r.id },
+          );
+
+          const anySuccess = pushResults.some((r) => r.success);
+          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+          const failureReasons = pushResults
+            .filter((r) => !r.success)
+            .map((r) => r.error)
+            .join('; ');
+
+          if (pushResults.length > 0) {
+            await this.ds.query(
+              `INSERT INTO school_notification_log
+                 (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+               VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+              [
+                admin.id,
+                SchoolFcmNotificationType.NEW_COMPLAINT,
+                r.id,
+                anySuccess ? 'SUCCESS' : 'FAILED',
+                firstMessageId,
+                failureReasons || null,
+              ],
+            );
+          }
+
+          // In-app notification
+          await this.notificationService.create({
+            userId: admin.id,
+            recipientId: admin.id,
+            role: 'INSTITUTE_ADMIN',
+            recipientRole: 'INSTITUTE_ADMIN',
+            type: 'complaint',
+            category: 'general',
+            priority: 'high',
+            title: pTitle,
+            message: pushBody,
+            referenceId: r.id,
+            referenceType: 'grievance',
+          });
+        }
+      }
+    } catch (notifErr: any) {
+      console.error('Failed to notify admin of new grievance:', notifErr.message);
+    }
+
     return {
       success: true,
       data: {
-        ...rows[0],
-        ticket_number: this.ticketNumber(rows[0].id),
-        ticketNumber: this.ticketNumber(rows[0].id),
+        ...r,
+        ticket_number: this.ticketNumber(r.id),
+        ticketNumber: this.ticketNumber(r.id),
       },
     };
   }

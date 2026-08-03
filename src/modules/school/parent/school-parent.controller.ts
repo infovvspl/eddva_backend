@@ -50,6 +50,15 @@ export class SchoolParentController {
     return this.svc.getTests(user, id);
   }
 
+  @Get('students/:id/assessments/:assessmentId/submission')
+  getChildSubmission(
+    @SchoolUser() user: any,
+    @Param('id') id: string,
+    @Param('assessmentId') assessmentId: string,
+  ) {
+    return this.svc.getChildSubmission(user, id, assessmentId);
+  }
+
   @Get('teachers') getTeachers(@SchoolUser() user: any) {
     return this.svc.getTeachers(user);
   }

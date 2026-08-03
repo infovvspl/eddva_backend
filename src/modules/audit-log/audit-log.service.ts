@@ -154,8 +154,8 @@ export class AuditLogService implements OnModuleInit {
       params.push(query.module);
     }
     if (query.role) {
-      conditions.push(`LOWER(al.role) = LOWER($${idx++})`);
-      params.push(query.role);
+      conditions.push(`UPPER(REPLACE(al.role, ' ', '_')) LIKE $${idx++}`);
+      params.push(`%${String(query.role).toUpperCase().replace(/\s+/g, '_')}%`);
     }
     if (query.status) {
       conditions.push(`LOWER(al.status) = LOWER($${idx++})`);
@@ -195,7 +195,7 @@ export class AuditLogService implements OnModuleInit {
          al.ip_address     AS "ipAddress",
          al.status,
          al.vertical,
-         al.created_at     AS "createdAt"
+         al.created_at::timestamptz AS "createdAt"
        FROM audit_logs al
        LEFT JOIN ${tenantTable} t ON t.id::text = al.institute_id::text
        ${where}

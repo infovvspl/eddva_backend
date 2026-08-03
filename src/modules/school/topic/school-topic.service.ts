@@ -2,6 +2,29 @@ import { Injectable, ForbiddenException, Logger, BadRequestException } from '@ne
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
+/**
+ * Tidy a chapter name so case alone cannot create a second chapter.
+ *
+ * Chapter titles are sentences, so short joining words stay lowercase unless
+ * they lead — title-casing every word would turn "Money and Credit" into
+ * "Money And Credit". A name that is already mixed case is left alone; only
+ * SHOUTED names are reformatted.
+ */
+const CHAPTER_SMALL_WORDS = new Set([
+  'a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with',
+]);
+
+export function normalizeChapterName(name: string): string {
+  const cleaned = String(name || '').trim().replace(/\s+/g, ' ');
+  if (!cleaned) return '';
+  if (cleaned !== cleaned.toUpperCase()) return cleaned;
+  return cleaned
+    .toLowerCase()
+    .split(' ')
+    .map((w, i) => (i > 0 && CHAPTER_SMALL_WORDS.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ');
+}
+
 @Injectable()
 export class SchoolTopicService {
   private readonly logger = new Logger(SchoolTopicService.name);
@@ -96,9 +119,23 @@ export class SchoolTopicService {
       instituteId = subRows.length > 0 ? subRows[0].institute_id : (user.instituteId || null);
     }
 
+    // Normalise and reject a name this subject already has. bulkImport has
+    // always done this; createChapter did not, so "DEVELOPMENT" and
+    // "Development" could both be inserted and then show as separate chapters.
+    const name = normalizeChapterName(body.name);
+    if (!name) throw new BadRequestException('Chapter name is required');
+
+    const existing = await this.ds.query(
+      `SELECT id FROM chapters WHERE subject_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2)) LIMIT 1`,
+      [body.subjectId, name],
+    );
+    if (existing.length) {
+      throw new BadRequestException('A chapter with this name already exists for this subject.');
+    }
+
     const rows: any[] = await this.ds.query(
       `INSERT INTO chapters (subject_id,institute_id,name,sort_order) VALUES ($1,$2,$3,$4) RETURNING *`,
-      [body.subjectId, instituteId, body.name, body.orderIndex || 0]
+      [body.subjectId, instituteId, name, body.orderIndex || 0]
     );
     return { success: true, data: rows[0] };
   }
@@ -123,16 +160,21 @@ export class SchoolTopicService {
     if (!subRows.length) throw new BadRequestException('Subject not found');
     const instituteId = subRows[0].institute_id || user.instituteId || null;
 
-    // Group rows by chapter, preserving first-seen order; dedupe topics per chapter.
+    // Group rows by chapter, preserving first-seen order; split comma-separated topics & dedupe per chapter.
     const chapterOrder: string[] = [];
     const grouped = new Map<string, string[]>();
     for (const r of rawRows) {
       const chapter = String(r?.chapter ?? '').trim();
       if (!chapter) continue;
       if (!grouped.has(chapter)) { grouped.set(chapter, []); chapterOrder.push(chapter); }
-      const topic = String(r?.topic ?? '').trim();
-      if (topic) {
-        const list = grouped.get(chapter)!;
+      const topicRaw = String(r?.topic ?? '').trim();
+      if (!topicRaw) continue;
+      // Split on commas — handles both pre-split single topics and "Topic A, Topic B" values
+      const parts = topicRaw.split(',');
+      const list = grouped.get(chapter)!;
+      for (const part of parts) {
+        const topic = part.trim();
+        if (!topic) continue;
         if (!list.some((t) => t.toLowerCase() === topic.toLowerCase())) list.push(topic);
       }
     }
@@ -147,7 +189,8 @@ export class SchoolTopicService {
       const maxRows = await qr.query(`SELECT COALESCE(MAX(sort_order),0) AS m FROM chapters WHERE subject_id=$1`, [subjectId]);
       let nextChapterOrder = Number(maxRows[0]?.m) || 0;
 
-      for (const chapterName of chapterOrder) {
+      for (const rawChapterName of chapterOrder) {
+    const chapterName = normalizeChapterName(rawChapterName);
         let chapterId: string;
         const existing = await qr.query(
           `SELECT id FROM chapters WHERE subject_id=$1 AND LOWER(name)=LOWER($2) LIMIT 1`,
@@ -202,7 +245,7 @@ export class SchoolTopicService {
 
     await this.ds.query(
       `UPDATE chapters SET name=COALESCE($2,name),sort_order=COALESCE($3,sort_order),updated_at=NOW() WHERE id=$1`,
-      [id, body.name, body.orderIndex]
+      [id, body.name ? normalizeChapterName(body.name) : null, body.orderIndex]
     );
     return { success: true };
   }

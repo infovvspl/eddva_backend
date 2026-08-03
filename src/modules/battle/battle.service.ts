@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In } from 'typeorm';
 import {
@@ -155,7 +155,29 @@ export class BattleService {
     chapterId?: string,
   ) {
     const student = await this.getStudent(userId);
-    const effectiveDifficulty: 'easy' | 'medium' | 'hard' = requestedDifficulty ?? 'medium';
+    let effectiveDifficulty: 'easy' | 'medium' | 'hard' = 'medium';
+    
+    if (requestedDifficulty) {
+      effectiveDifficulty = requestedDifficulty;
+    } else if (subjectId) {
+      const skillRows = await this.dataSource.query(
+        `SELECT skill_score FROM school_game_skills 
+         WHERE student_user_id = $1 AND subject_id = $2 AND COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000') = $3 AND game_type = $4`,
+        [userId, subjectId, chapterId || '00000000-0000-0000-0000-000000000000', 'battle_arena'],
+      );
+      if (skillRows.length > 0) {
+        const score = Number(skillRows[0].skill_score);
+        effectiveDifficulty = score < 40 ? 'easy' : score < 75 ? 'medium' : 'hard';
+      } else {
+        await this.dataSource.query(
+          `INSERT INTO school_game_skills (student_user_id, subject_id, chapter_id, game_type, skill_score)
+           VALUES ($1, $2, $3, $4, 30.0)
+           ON CONFLICT (student_user_id, subject_id, COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000'::uuid), game_type) DO NOTHING`,
+          [userId, subjectId, chapterId || null, 'battle_arena'],
+        );
+        effectiveDifficulty = 'easy';
+      }
+    }
 
     // â”€â”€ Auto-matchmaking: for quick_duel, topic_battle, and daily mode
     //    find an existing WAITING room (with <maxParticipants) and join it
@@ -778,6 +800,8 @@ export class BattleService {
   // â”€â”€â”€ Finish Battle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async finishBattle(battleId: string) {
+    const battle = await this.battleRepo.findOne({ where: { id: battleId } });
+    if (!battle) return;
     const participants = await this.participantRepo.find({ where: { battleId } });
     const sorted = [...participants].sort((a, b) => b.roundsWon - a.roundsWon || a.id.localeCompare(b.id));
     const top = sorted[0];
@@ -838,6 +862,52 @@ export class BattleService {
       else xpEarned += LOSS_BONUS;
 
       await this.participantRepo.update(p.id, { eloAfter: newElo, eloChange, xpEarned });
+
+      // Recalculate skill score for battle arena!
+      if (battle.topicId || (battle.replayData as any)?.subjectId) {
+        const studentRecord = await studentRepo.findOne({ where: { id: p.studentId } });
+        if (studentRecord) {
+          const subjectId = battle.replayData?.subjectId || battle.replayData?.aiQuestions?.[0]?.meta?.subjectId;
+          const chapterId = battle.replayData?.chapterId || battle.replayData?.aiQuestions?.[0]?.meta?.chapterId;
+          if (subjectId) {
+            const correctCount = correctByStudent.get(p.studentId) ?? 0;
+            const totalCount = battle.totalRounds || 5;
+            const accuracy = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
+            
+            const skillRows = await this.dataSource.query(
+              `SELECT skill_score FROM school_game_skills 
+               WHERE student_user_id = $1 AND subject_id = $2 AND COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000') = $3 AND game_type = $4`,
+              [studentRecord.userId, subjectId, chapterId || '00000000-0000-0000-0000-000000000000', 'battle_arena'],
+            );
+            
+            let oldScore = 30.0;
+            if (skillRows.length > 0) {
+              oldScore = Number(skillRows[0].skill_score);
+            }
+            
+            let newScore = oldScore;
+            if (isWinner) {
+              newScore = Math.min(100, oldScore + (accuracy >= 80 ? 8 : 4));
+            } else if (isDraw) {
+              newScore = Math.min(100, Math.max(0, oldScore + (accuracy >= 60 ? 2 : -2)));
+            } else {
+              newScore = Math.max(0, oldScore - (accuracy <= 40 ? 8 : 4));
+            }
+            
+            await this.dataSource.query(
+              `INSERT INTO school_game_skills (student_user_id, subject_id, chapter_id, game_type, skill_score, total_games_played, last_ten_accuracies)
+               VALUES ($1, $2, $3, $4, $5, 1, ARRAY[$6::float])
+               ON CONFLICT (student_user_id, subject_id, COALESCE(chapter_id, '00000000-0000-0000-0000-000000000000'::uuid), game_type)
+               DO UPDATE SET 
+                 skill_score = $5,
+                 total_games_played = school_game_skills.total_games_played + 1,
+                 last_ten_accuracies = ARRAY_APPEND(school_game_skills.last_ten_accuracies, $6::float),
+                 updated_at = NOW()`,
+              [studentRecord.userId, subjectId, chapterId || null, 'battle_arena', Math.round(newScore), accuracy],
+            );
+          }
+        }
+      }
 
       await studentRepo.increment({ id: p.studentId }, 'xpTotal', xpEarned);
 

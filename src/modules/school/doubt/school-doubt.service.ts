@@ -12,6 +12,7 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
 import { querySectionSubjects } from '../common/section-subjects';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
+import { normalizeAccessibleUrl } from '../../../common/url-helper';
 
 type DoubtStatus = 'open' | 'ai_answered' | 'escalated' | 'teacher_answered';
 
@@ -32,26 +33,45 @@ export class SchoolDoubtService implements OnModuleInit {
    * so the answer is framed for a school student. Returns a plain-text answer
    * plus extracted step list for the school doubt UI.
    */
+  private async toAccessibleImageUrl(imageUrl?: string | null): Promise<string | undefined> {
+    if (!imageUrl) return undefined;
+    const target = normalizeAccessibleUrl(imageUrl);
+    if (!target) return undefined;
+    try {
+      const key = this.s3Service.keyFromUrl(target);
+      if (key?.startsWith('tenants/')) {
+        return await this.s3Service.presignGet(key, 3600);
+      }
+      return target;
+    } catch {
+      return target;
+    }
+  }
+
   private async resolveWithAi(
     questionText: string,
     questionImageUrl: string | null | undefined,
     subjectName: string | null | undefined,
     instituteId: string,
-  ): Promise<{ answer: string; steps: string[] }> {
+    mode: 'short' | 'detailed' = 'detailed',
+    language?: string,
+  ): Promise<{ answer: string; steps: string[]; raw: any }> {
+    const aiImageUrl = await this.toAccessibleImageUrl(questionImageUrl || undefined);
     const aiResult: any = await this.aiBridgeService.resolveDoubt(
       {
         questionText:
           (questionText || '').trim() ||
-          (questionImageUrl ? 'Explain and solve the question shown in the attached image.' : ''),
-        questionImageUrl: questionImageUrl || undefined,
-        mode: 'detailed',
+          (aiImageUrl ? 'Explain and solve the question shown in the attached image.' : ''),
+        questionImageUrl: aiImageUrl || undefined,
+        mode,
         studentContext: { subject: subjectName || undefined, level: 'school' },
+        language,
       },
       instituteId,
       'school',
     );
     const answer = this.aiAnswerText(aiResult);
-    return { answer, steps: this.extractSteps(answer) };
+    return { answer, steps: this.extractSteps(answer), raw: aiResult };
   }
 
   /** Flatten the AI bridge doubt response into a single markdown answer string. */
@@ -104,7 +124,8 @@ export class SchoolDoubtService implements OnModuleInit {
     `);
     await this.ds.query(`
       ALTER TABLE student_doubts
-      ADD COLUMN IF NOT EXISTS teacher_response_image_url TEXT
+      ADD COLUMN IF NOT EXISTS teacher_response_image_url TEXT,
+      ADD COLUMN IF NOT EXISTS recording_id UUID
     `);
     this.tableReady = true;
   }
@@ -129,7 +150,10 @@ export class SchoolDoubtService implements OnModuleInit {
     return { success: true, data: { uploadUrl, fileUrl, key } };
   }
 
-  private mapRow(r: any) {
+  private async mapRow(r: any) {
+    const questionImageUrl = await this.toAccessibleImageUrl(r.question_image_url);
+    const teacherResponseImageUrl = await this.toAccessibleImageUrl(r.teacher_response_image_url);
+
     return {
       id: r.id,
       instituteId: r.institute_id,
@@ -138,13 +162,13 @@ export class SchoolDoubtService implements OnModuleInit {
       subjectId: r.subject_id,
       subjectName: r.subject_name,
       questionText: r.question_text,
-      questionImageUrl: r.question_image_url,
+      questionImageUrl,
       status: r.status,
       channel: r.channel,
       aiExplanation: r.ai_explanation,
       aiSteps: r.ai_steps || [],
       teacherResponse: r.teacher_response,
-      teacherResponseImageUrl: r.teacher_response_image_url,
+      teacherResponseImageUrl,
       isAiHelpful: r.is_ai_helpful,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -153,6 +177,7 @@ export class SchoolDoubtService implements OnModuleInit {
       teacherName: r.teacher_name,
       className: r.class_name,
       sectionName: r.section_name,
+      recordingId: r.recording_id,
     };
   }
 
@@ -394,9 +419,21 @@ export class SchoolDoubtService implements OnModuleInit {
           body.questionImageUrl,
           subjectName,
           instituteId,
+          (body.explanationMode as 'short' | 'detailed') || 'detailed',
+          body.language,
         );
         if (!ai.answer) throw new Error('Empty AI response');
-        aiExplanation = ai.answer;
+        
+        const hasStructure = ai.raw?.brief || ai.raw?.detailed;
+        aiExplanation = hasStructure
+          ? JSON.stringify({
+              brief: ai.raw.brief,
+              detailed: ai.raw.detailed,
+              subject: ai.raw.subject,
+              type: ai.raw.type,
+            })
+          : ai.answer;
+          
         aiSteps = ai.steps;
         status = 'ai_answered';
         channel = 'ai';
@@ -415,11 +452,12 @@ export class SchoolDoubtService implements OnModuleInit {
       teacherUserId = await this.resolveTeacherUserId(routingSectionId, subjectId);
     }
 
+    const recordingId = body.recordingId ? String(body.recordingId) : null;
     const rows: any[] = await this.ds.query(
       `INSERT INTO student_doubts (
          institute_id, student_user_id, teacher_user_id, subject_id, subject_name,
-         question_text, question_image_url, status, channel, ai_explanation, ai_steps
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         question_text, question_image_url, status, channel, ai_explanation, ai_steps, recording_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
       [
         instituteId,
@@ -433,6 +471,7 @@ export class SchoolDoubtService implements OnModuleInit {
         channel,
         aiExplanation,
         JSON.stringify(aiSteps),
+        recordingId,
       ],
     );
 
@@ -461,13 +500,17 @@ export class SchoolDoubtService implements OnModuleInit {
       LEFT JOIN classes c ON c.id = sec.class_id
       WHERE 1=1`;
 
-    if (user.role === 'STUDENT') {
+    const userRoles = String(user.role || '').split(',').map(r => r.trim().toUpperCase());
+
+    if (userRoles.includes('STUDENT')) {
       params.push(user.id);
       sql += ` AND d.student_user_id = $${params.length}::uuid`;
-    } else if (user.role === 'TEACHER') {
+    } else if (userRoles.includes('TEACHER')) {
       params.push(user.id);
       const teacherIdx = params.length;
-      sql += ` AND (
+      params.push(user.instituteId);
+      const instIdx = params.length;
+      sql += ` AND d.institute_id = $${instIdx}::uuid AND (
         d.teacher_user_id::text = $${teacherIdx}::text
         OR EXISTS (
           SELECT 1 FROM students st2
@@ -475,6 +518,7 @@ export class SchoolDoubtService implements OnModuleInit {
           JOIN teachers t ON t.id = taa.teacher_id
           WHERE st2.user_id::text = d.student_user_id::text
             AND t.user_id::text = $${teacherIdx}::text
+            AND t.institute_id = $${instIdx}::uuid
             AND (
               d.subject_id IS NULL
               OR taa.subject_id IS NULL
@@ -488,14 +532,19 @@ export class SchoolDoubtService implements OnModuleInit {
       } else if (query.status === 'answered') {
         sql += ` AND d.status = 'teacher_answered'`;
       }
-    } else if (user.role === 'INSTITUTE_ADMIN') {
+    } else if (userRoles.includes('INSTITUTE_ADMIN')) {
       params.push(user.instituteId);
       sql += ` AND d.institute_id = $${params.length}::uuid`;
+    }
+    if (query.recordingId) {
+      params.push(query.recordingId);
+      sql += ` AND d.recording_id = $${params.length}::uuid`;
     }
 
     sql += ` ORDER BY d.created_at DESC LIMIT 100`;
     const rows: any[] = await this.ds.query(sql, params);
-    return { success: true, data: rows.map((r) => this.mapRow(r)) };
+    const data = await Promise.all(rows.map((r) => this.mapRow(r)));
+    return { success: true, data };
   }
 
   async findOne(user: any, id: string) {
@@ -514,13 +563,14 @@ export class SchoolDoubtService implements OnModuleInit {
     );
     if (!rows.length) throw new NotFoundException('Doubt not found');
     const d = rows[0];
-    if (user.role === 'STUDENT' && d.student_user_id !== user.id) {
+    const userRoles = String(user.role || '').split(',').map(r => r.trim().toUpperCase());
+    if (userRoles.includes('STUDENT') && d.student_user_id !== user.id) {
       throw new NotFoundException('Doubt not found');
     }
-    if (user.role === 'TEACHER' && !(await this.teacherCanAccessDoubt(user.id, d))) {
+    if (userRoles.includes('TEACHER') && (String(d.institute_id) !== String(user.instituteId) || !(await this.teacherCanAccessDoubt(user.id, d)))) {
       throw new NotFoundException('Doubt not found');
     }
-    return { success: true, data: this.mapRow(d) };
+    return { success: true, data: await this.mapRow(d) };
   }
 
   async escalate(user: any, id: string) {
@@ -593,6 +643,7 @@ export class SchoolDoubtService implements OnModuleInit {
 
   async respond(user: any, id: string, body: { response?: string; teacherResponse?: string; responseImageUrl?: string }) {
     await this.ensureTable();
+    const userRoles = String(user.role || '').split(',').map(r => r.trim().toUpperCase());
     const text = (body.response || body.teacherResponse || '').trim();
     const imageUrl = body.responseImageUrl?.trim() || null;
     if (text.length < 5 && !imageUrl) {
@@ -615,7 +666,7 @@ export class SchoolDoubtService implements OnModuleInit {
         id,
         text || (imageUrl ? '(See attached image)' : ''),
         imageUrl,
-        user.role === 'TEACHER' ? user.id : doubt.teacherUserId,
+        userRoles.includes('TEACHER') ? user.id : doubt.teacherUserId,
       ],
     );
 

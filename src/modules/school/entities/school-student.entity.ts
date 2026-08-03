@@ -13,4 +13,5 @@ export class SchoolStudent extends SchoolBase {
   @Column({ nullable: true }) gender: string;
   @Column({ name: 'parent_name', nullable: true }) parentName: string;
   @Column({ name: 'parent_phone', nullable: true }) parentPhone: string;
+  @Column({ name: 'notification_enabled', default: true }) notificationEnabled: boolean;
 }

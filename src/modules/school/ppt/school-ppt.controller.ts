@@ -1,28 +1,57 @@
-import { Body, Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { SchoolPptService } from './school-ppt.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { SchoolFeature } from '../decorators/school-feature.decorator';
+import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 
 @Controller('school/ppt')
 export class SchoolPptController {
   constructor(private readonly svc: SchoolPptService) {}
 
   @Post('generate')
-  @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
-  generate(@Body() body: any) { return this.svc.generate(body); }
+  @SchoolFeature('ai', 'ai_ppt_generator')
+  generate(@Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.svc.generate(body, req.user?.instituteId, req.user);
+  }
 
   @Post('regenerate-slide')
-  @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
-  regenerate(@Body() body: any) { return this.svc.regenerateSlide(body); }
+  @SchoolFeature('ai', 'ai_ppt_generator')
+  regenerate(@Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.svc.regenerateSlide(body, req.user?.instituteId, req.user);
+  }
 
   @Post('search-image')
-  @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
-  searchImage(@Body() body: any) { return this.svc.searchImage(body); }
+  @SchoolFeature('ai', 'ai_ppt_generator')
+  searchImage(@Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.svc.searchImage(body, req.user?.instituteId);
+  }
+
+  /**
+   * Unguarded image extractor for saved PPT presentations.
+   * Pulls the exact saved slide image (external URL or embedded media file)
+   * from the S3 .pptx package and returns it.
+   */
+  @Get('material/:id/image/:slideIndex')
+  async getMaterialSlideImage(
+    @Param('id') id: string,
+    @Param('slideIndex') slideIndex: string,
+    @Res() res: Response,
+  ) {
+    const out = await this.svc.getMaterialSlideImage(id, parseInt(slideIndex, 10));
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(out.buffer);
+  }
 
   /**
    * Unguarded image proxy — used by <img src> in the studio preview, which

@@ -1,0 +1,63 @@
+{
+  "items": [
+    {
+      "subject_name": "Physics",
+      "topic_name": "Light Refraction",
+      "concept_name": "Snell's Law",
+      "item_type": "FLASHCARD",
+      "content_json": {
+        "front": "What is Snell's Law?",
+        "back": "The ratio of the sines of the angles of incidence and refraction is equal to the ratio of the velocities in the two media."
+      },
+      "weak_score": 50
+    },
+    {
+      "subject_name": "Chemistry",
+      "topic_name": "Chemical Reactions",
+      "concept_name": "Types of Chemical Reactions",
+      "item_type": "MNEMONIC",
+      "content_json": {
+        "mnemonic": "CDS",
+        "meaning": "Combination, Decomposition, Substitution"
+      },
+      "weak_score": 60
+    },
+    {
+      "subject_name": "Mathematics",
+      "topic_name": "Quadratic Equations",
+      "concept_name": "Quadratic Formula",
+      "item_type": "FORMULA",
+      "content_json": {
+        "title": "Quadratic Formula",
+        "formulas": [
+          "x = (-b ± √(b² - 4ac)) / 2a"
+        ]
+      },
+      "weak_score": 50
+    },
+    {
+      "subject_name": "Biology",
+      "topic_name": "Photosynthesis",
+      "concept_name": "Photosynthesis Equation",
+      "item_type": "STORY",
+      "content_json": {
+        "story": "Imagine a plant named Phil, who loves to eat Carbon dioxide and drink Water, and then he goes to the party and dances with Light energy, and then he produces Glucose and Oxygen, and says 'I'm so happy, I just made my own food!'"
+      },
+      "weak_score": 60
+    }
+  ],
+  "_cache_meta": {
+    "cached_at": 1785393733.7475834,
+    "tokens": 0,
+    "cost_usd": 0,
+    "institute_id": "apexiq-nestjs-service",
+    "feature": "ai_memorization_retention",
+    "vertical": "school-cbse"
+  },
+  "_meta": {
+    "source": "cache",
+    "model": "cached",
+    "institute": "apexiq-nestjs-service",
+    "vertical": "school"
+  }
+}

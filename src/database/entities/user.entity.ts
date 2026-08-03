@@ -120,7 +120,7 @@ export class User extends Base {
   }
 
   async hashRefreshToken(token: string) {
-    this.refreshToken = await bcrypt.hash(token, 10);
+    this.refreshToken = await bcrypt.hash(token, 12);
   }
 
   async validateRefreshToken(token: string): Promise<boolean> {

@@ -80,7 +80,7 @@ export class StudyPlanService {
     private readonly dataSource: DataSource,
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   // â”€â”€â”€ Plan Generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -213,7 +213,7 @@ export class StudyPlanService {
     });
 
     // Always attempt to populate spaced revision tasks from completed topics
-    await this.addRevisionTasks(student.id, tenantId).catch(() => {});
+    await this.addRevisionTasks(student.id, tenantId).catch(() => { });
 
     if (force) {
       const body = syllabusComplete
@@ -227,7 +227,7 @@ export class StudyPlanService {
         channels: ['push', 'in_app'],
         refType: 'study_plan_regenerated',
         refId: plan.id,
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     return this.getPlanWithItems(plan.id, tenantId);
@@ -1181,12 +1181,12 @@ export class StudyPlanService {
   }
 
   private async resolvePlanItems(items: PlanItem[], tenantId: string, studentId?: string) {
-    const lectureIds  = items.filter(i => i.type === PlanItemType.LECTURE  && i.refId).map(i => i.refId!);
+    const lectureIds = items.filter(i => i.type === PlanItemType.LECTURE && i.refId).map(i => i.refId!);
     const mockTestIds = items.filter(i => i.type === PlanItemType.MOCK_TEST && i.refId).map(i => i.refId!);
     const topicRefIds = items.filter(i => (i.type === PlanItemType.PRACTICE || i.type === PlanItemType.REVISION) && i.refId).map(i => i.refId!);
 
     const [lectures, mockTests, topics, lectureProgresses] = await Promise.all([
-      lectureIds.length  ? this.lectureRepo.find({ where: { id: In(lectureIds), tenantId }, relations: ['topic', 'topic.chapter', 'topic.chapter.subject'] }) : [],
+      lectureIds.length ? this.lectureRepo.find({ where: { id: In(lectureIds), tenantId }, relations: ['topic', 'topic.chapter', 'topic.chapter.subject'] }) : [],
       mockTestIds.length ? this.mockTestRepo.find({ where: { id: In(mockTestIds), tenantId } }) : [],
       topicRefIds.length ? this.topicRepo.find({ where: { id: In(topicRefIds), tenantId }, relations: ['chapter', 'chapter.subject'] }) : [],
       (studentId && lectureIds.length) ? this.lectureProgressRepo.find({ where: { studentId, lectureId: In(lectureIds) } }) : [],
@@ -1222,7 +1222,7 @@ export class StudyPlanService {
     return items.map(item => {
       if (item.type === PlanItemType.LECTURE && item.refId) {
         const lec = lectures.find(l => l.id === item.refId);
-        const lp  = progressByLecture.get(item.refId);
+        const lp = progressByLecture.get(item.refId);
         return { ...pub(item), content: { lectureId: lec?.id, lectureTitle: lec?.title || item.title, topicName: lec?.topic?.name ?? null, subjectName: lec?.topic?.chapter?.subject?.name ?? null, thumbnailUrl: lec?.thumbnailUrl ?? null, videoDurationSeconds: lec?.videoDurationSeconds ?? null, watchPercentage: lp?.watchPercentage ?? 0 } };
       }
       if (item.type === PlanItemType.MOCK_TEST && item.refId) {
@@ -1279,23 +1279,23 @@ export class StudyPlanService {
 
   private mapPlanItemType(type: string): PlanItemType {
     switch (type) {
-      case 'lecture':       return PlanItemType.LECTURE;
-      case 'practice':      return PlanItemType.PRACTICE;
-      case 'revision':      return PlanItemType.REVISION;
-      case 'mock_test':     return PlanItemType.MOCK_TEST;
+      case 'lecture': return PlanItemType.LECTURE;
+      case 'practice': return PlanItemType.PRACTICE;
+      case 'revision': return PlanItemType.REVISION;
+      case 'mock_test': return PlanItemType.MOCK_TEST;
       case 'doubt_session': return PlanItemType.DOUBT_SESSION;
-      case 'battle':        return PlanItemType.BATTLE;
-      default:              return PlanItemType.PRACTICE;
+      case 'battle': return PlanItemType.BATTLE;
+      default: return PlanItemType.PRACTICE;
     }
   }
 
   private xpForItem(type: PlanItemType): number {
     switch (type) {
-      case PlanItemType.LECTURE:       return 10;
-      case PlanItemType.PRACTICE:      return 8;
-      case PlanItemType.REVISION:      return 6;
-      case PlanItemType.MOCK_TEST:     return 20;
-      case PlanItemType.BATTLE:        return 25;
+      case PlanItemType.LECTURE: return 10;
+      case PlanItemType.PRACTICE: return 8;
+      case PlanItemType.REVISION: return 6;
+      case PlanItemType.MOCK_TEST: return 20;
+      case PlanItemType.BATTLE: return 25;
       case PlanItemType.DOUBT_SESSION: return 5;
       default: return 5;
     }

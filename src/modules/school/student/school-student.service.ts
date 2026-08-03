@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
+import { normalizeSubjectName } from '../subject/school-subject.service';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { MailService } from '../../mail/mail.service';
@@ -132,7 +133,7 @@ export class SchoolStudentService {
     }
 
     const enrollmentNo = body.enrollmentNo || await this.generateEnrollmentNo(instituteId);
-    const hashed = await bcrypt.hash(body.password, 10);
+    const hashed = await bcrypt.hash(body.password, 12);
     const sectionId = body.sectionId || null;
 
     const queryRunner = this.ds.createQueryRunner();
@@ -186,7 +187,17 @@ export class SchoolStudentService {
       filter += ` AND u.institute_id=$${params.length}`;
     }
 
-    if (user.role === 'TEACHER') {
+    if (user.role === 'STUDENT') {
+      params.push(user.id);
+      filter += ` AND u.id=$${params.length}`;
+    } else if (user.role === 'PARENT') {
+      params.push(user.email);
+      params.push(user.phone);
+      filter += ` AND (
+        (s.parent_email IS NOT NULL AND $${params.length - 1}::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($${params.length - 1}))
+        OR (s.parent_phone IS NOT NULL AND $${params.length}::text IS NOT NULL AND s.parent_phone = $${params.length})
+      )`;
+    } else if (user.role === 'TEACHER') {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
@@ -427,19 +438,29 @@ export class SchoolStudentService {
 
   async getDashboard(user: any) {
     const fallbackStudentProfile = user?.studentProfile || {};
-    const studentRows: any[] = await this.ds.query(
-      `SELECT s.id, s.user_id, sec.class_id, s.section_id, s.enrollment_no,
-              c.name AS class_name, sec.name AS section_name
-       FROM students s
-       JOIN users u ON u.id = s.user_id
-       LEFT JOIN sections sec ON s.section_id = sec.id
-       LEFT JOIN classes c ON sec.class_id = c.id
-       WHERE s.user_id = $1 OR s.id = $2`,
-      [user.id, fallbackStudentProfile.id || null],
-    );
+    const userId = user?.id || user?.userId || user?.sub || null;
+
+    let studentRows: any[] = [];
+    if (userId || fallbackStudentProfile.id) {
+      try {
+        studentRows = await this.ds.query(
+          `SELECT s.id, s.user_id, sec.class_id, s.section_id, s.enrollment_no,
+                  c.name AS class_name, sec.name AS section_name
+           FROM students s
+           JOIN users u ON u.id = s.user_id
+           LEFT JOIN sections sec ON s.section_id = sec.id
+           LEFT JOIN classes c ON sec.class_id = c.id
+           WHERE s.user_id = $1 OR s.id = $2`,
+          [userId, fallbackStudentProfile.id || userId],
+        );
+      } catch (e) {
+        console.warn('[getDashboard] studentRows query warning:', (e as Error)?.message);
+      }
+    }
+
     const student = studentRows[0] || {
       id: fallbackStudentProfile.id || null,
-      user_id: user.id,
+      user_id: userId,
       class_id: fallbackStudentProfile.classId || null,
       section_id: fallbackStudentProfile.sectionId || null,
       enrollment_no: fallbackStudentProfile.enrollmentNo || null,
@@ -450,86 +471,85 @@ export class SchoolStudentService {
       longest_streak: user?.longestStreak || 0,
     };
 
-    const effectiveStudentId = student.id;
     const effectiveSectionId = student.section_id || fallbackStudentProfile.sectionId || null;
 
     let attendanceSummary = { present: 0, absent: 0, leave: 0, total: 0, percentage: null as number | null };
-    console.log("[DEBUG getDashboard] user_id:", student.user_id, "student_id(profile):", student.id);
-    if (student.user_id) {
-      const recordRows: any[] = await this.ds.query(
-        `SELECT
-           COUNT(*) FILTER (WHERE LOWER(ar.status) IN ('present', 'late'))::int AS present,
-           COUNT(*) FILTER (WHERE LOWER(ar.status)='absent')::int AS absent,
-           COUNT(*) FILTER (WHERE LOWER(ar.status)='leave')::int AS leave,
-           COUNT(*)::int AS total
-         FROM attendance_records ar
-         WHERE ar.student_id = $1`,
-        [student.user_id],
-      );
-      const recordPresent = Number(recordRows[0]?.present || 0);
-      const recordAbsent = Number(recordRows[0]?.absent || 0);
-      const recordLeave = Number(recordRows[0]?.leave || 0);
-      const recordTotal = Number(recordRows[0]?.total || 0);
-      console.log("[DEBUG getDashboard] attendance_records query result:", { recordPresent, recordAbsent, recordLeave, recordTotal });
-
-      if (recordTotal > 0) {
-        attendanceSummary = {
-          present: recordPresent,
-          absent: recordAbsent,
-          leave: recordLeave,
-          total: recordTotal,
-          percentage: Math.round(((recordPresent + recordLeave) / recordTotal) * 100),
-        };
-      } else {
-        const legacyRows: any[] = await this.ds.query(
+    if (student.id || student.user_id) {
+      try {
+        const recordRows: any[] = await this.ds.query(
           `SELECT
-             COUNT(*) FILTER (WHERE LOWER(status) IN ('present', 'late'))::int AS present,
-             COUNT(*) FILTER (WHERE LOWER(status)='absent')::int AS absent,
-             COUNT(*) FILTER (WHERE LOWER(status)='leave')::int AS leave,
+             COUNT(*) FILTER (WHERE LOWER(ar.status) IN ('present', 'late'))::int AS present,
+             COUNT(*) FILTER (WHERE LOWER(ar.status)='absent')::int AS absent,
+             COUNT(*) FILTER (WHERE LOWER(ar.status)='leave')::int AS leave,
              COUNT(*)::int AS total
-           FROM attendances
-           WHERE user_id=$1`,
-          [student.user_id],
+           FROM attendance_records ar
+           WHERE ar.student_id = $1 OR ar.student_id = $2`,
+          [student.id, student.user_id],
         );
-        const legacyPresent = Number(legacyRows[0]?.present || 0);
-        const legacyAbsent = Number(legacyRows[0]?.absent || 0);
-        const legacyLeave = Number(legacyRows[0]?.leave || 0);
-        const legacyTotal = Number(legacyRows[0]?.total || 0);
-        if (legacyTotal > 0) {
+        const recordPresent = Number(recordRows[0]?.present || 0);
+        const recordAbsent = Number(recordRows[0]?.absent || 0);
+        const recordLeave = Number(recordRows[0]?.leave || 0);
+        const recordTotal = Number(recordRows[0]?.total || 0);
+
+        if (recordTotal > 0) {
           attendanceSummary = {
-            present: legacyPresent,
-            absent: legacyAbsent,
-            leave: legacyLeave,
-            total: legacyTotal,
-            percentage: Math.round(((legacyPresent + legacyLeave) / legacyTotal) * 100),
+            present: recordPresent,
+            absent: recordAbsent,
+            leave: recordLeave,
+            total: recordTotal,
+            percentage: Math.round(((recordPresent + recordLeave) / recordTotal) * 100),
           };
+        } else if (student.user_id) {
+          const legacyRows: any[] = await this.ds.query(
+            `SELECT
+               COUNT(*) FILTER (WHERE LOWER(status) IN ('present', 'late'))::int AS present,
+               COUNT(*) FILTER (WHERE LOWER(status)='absent')::int AS absent,
+               COUNT(*) FILTER (WHERE LOWER(status)='leave')::int AS leave,
+               COUNT(*)::int AS total
+             FROM attendances
+             WHERE user_id=$1`,
+            [student.user_id],
+          );
+          const legacyPresent = Number(legacyRows[0]?.present || 0);
+          const legacyAbsent = Number(legacyRows[0]?.absent || 0);
+          const legacyLeave = Number(legacyRows[0]?.leave || 0);
+          const legacyTotal = Number(legacyRows[0]?.total || 0);
+          if (legacyTotal > 0) {
+            attendanceSummary = {
+              present: legacyPresent,
+              absent: legacyAbsent,
+              leave: legacyLeave,
+              total: legacyTotal,
+              percentage: Math.round(((legacyPresent + legacyLeave) / legacyTotal) * 100),
+            };
+          }
         }
+      } catch (e) {
+        console.warn('[getDashboard] Attendance query warning:', (e as Error)?.message);
       }
     }
     const attendancePercentage = attendanceSummary.percentage;
 
-    const dayNum = new Date().getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
-    const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-    const dayOfWeekStr = days[dayNum];
+    const dayNum = new Date().getDay();
     const mappedDayOfWeek = dayNum === 0 ? 7 : dayNum;
 
-    // Using timetables table to get today's classes
-    const timetablesRows: any[] = await this.ds.query(
-      `SELECT t.*, sub.name AS subject_name, u.name AS teacher_name
-       FROM timetables t
-       LEFT JOIN subjects sub ON t.subject_id=sub.id
-       LEFT JOIN teachers teach ON t.teacher_id=teach.id
-       LEFT JOIN users u ON teach.user_id=u.id
-       WHERE t.section_id=$1 AND t.day_of_week=$2
-       ORDER BY t.start_time`,
-      [effectiveSectionId, mappedDayOfWeek],
-    );
-
-    console.log("Student User:", student);
-    console.log("Student Class:", student.class_id);
-    console.log("Student Section:", student.section_id);
-    console.log("Calculated Day:", dayOfWeekStr);
-    console.log("Today's Classes:", timetablesRows);
+    let timetablesRows: any[] = [];
+    if (effectiveSectionId) {
+      try {
+        timetablesRows = await this.ds.query(
+          `SELECT t.*, sub.name AS subject_name, u.name AS teacher_name
+           FROM timetables t
+           LEFT JOIN subjects sub ON t.subject_id=sub.id
+           LEFT JOIN teachers teach ON t.teacher_id=teach.id
+           LEFT JOIN users u ON teach.user_id=u.id
+           WHERE t.section_id=$1 AND t.day_of_week=$2
+           ORDER BY t.start_time`,
+          [effectiveSectionId, mappedDayOfWeek],
+        );
+      } catch (e) {
+        console.warn('[getDashboard] Timetables query warning:', (e as Error)?.message);
+      }
+    }
 
     const todayPlan = timetablesRows.map((t) => ({
       id: t.id,
@@ -541,28 +561,72 @@ export class SchoolStudentService {
       type: t.type || '',
     }));
 
-    // Fetch gamification profile from school database
     let gamificationProfile = { xp: 0, coins: 0, level: 1, badges: [] as string[], current_streak: 0, longest_streak: 0 };
-    try {
-      const profileRows = await this.ds.query(
-        `SELECT xp, coins, level, badges, current_streak, longest_streak 
-         FROM gamification_profiles 
-         WHERE user_id = $1`,
-        [user.id]
-      );
-      if (profileRows.length > 0) {
-        const row = profileRows[0];
+    if (userId) {
+      try {
+        const studentId = student?.id || fallbackStudentProfile.id || userId;
+        const profileRows = await this.ds.query(
+          `SELECT xp, coins, level, badges, current_streak, longest_streak 
+           FROM gamification_profiles 
+           WHERE user_id::text = $1::text OR user_id::text = $2::text`,
+          [userId, studentId]
+        ).catch(() => []);
+
+        const userRows = await this.ds.query(
+          `SELECT xp_total, current_streak, longest_streak FROM users WHERE id::text = $1::text LIMIT 1`,
+          [userId],
+        ).catch(() => []);
+        const userXp = Number(userRows[0]?.xp_total || 0);
+        const userCurrentStreak = Number(userRows[0]?.current_streak || 0);
+        const userLongestStreak = Number(userRows[0]?.longest_streak || 0);
+
+        const studentDataRows = await this.ds.query(
+          `SELECT xp_total, eddva_coins, current_streak, longest_streak FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
+          [userId, studentId],
+        ).catch(() => []);
+        const studentXp = Number(studentDataRows[0]?.xp_total || 0);
+        const studentCoins = Number(studentDataRows[0]?.eddva_coins || 0);
+        const studentCurrentStreak = Number(studentDataRows[0]?.current_streak || 0);
+        const studentLongestStreak = Number(studentDataRows[0]?.longest_streak || 0);
+
+        const scoreSumRows = await this.ds.query(
+          `SELECT COALESCE(SUM(xp_earned), 0)::int AS total_xp, COALESCE(SUM(coins_earned), 0)::int AS total_coins
+           FROM school_game_scores
+           WHERE student_user_id::text = $1::text OR student_id::text = $1::text OR student_user_id::text = $2::text OR student_id::text = $2::text`,
+          [userId, studentId],
+        ).catch(() => [{ total_xp: 0, total_coins: 0 }]);
+
+        const gameXp = Number(scoreSumRows[0]?.total_xp || 0);
+        const gameCoins = Number(scoreSumRows[0]?.total_coins || 0);
+
+        let finalXp = Math.max(gameXp, userXp, studentXp);
+        let finalCoins = Math.max(gameCoins, studentCoins);
+        let finalStreak = Math.max(userCurrentStreak, studentCurrentStreak);
+        let finalLongestStreak = Math.max(userLongestStreak, studentLongestStreak);
+        let finalBadges: string[] = [];
+
+        if (profileRows.length > 0) {
+          const row = profileRows[0];
+          finalXp = Math.max(Number(row.xp || 0), gameXp, userXp, studentXp);
+          finalCoins = Math.max(Number(row.coins || 0), gameCoins, studentCoins);
+          finalStreak = Math.max(Number(row.current_streak || 0), userCurrentStreak, studentCurrentStreak);
+          finalLongestStreak = Math.max(Number(row.longest_streak || 0), userLongestStreak, studentLongestStreak);
+          finalBadges = Array.isArray(row.badges) ? row.badges : [];
+        }
+
+        const calculatedLevel = Math.max(1, Math.floor(finalXp / 100) + 1);
+
         gamificationProfile = {
-          xp: Number(row.xp || 0),
-          coins: Number(row.coins || 0),
-          level: Number(row.level || 1),
-          badges: Array.isArray(row.badges) ? row.badges : [],
-          current_streak: Number(row.current_streak || 0),
-          longest_streak: Number(row.longest_streak || 0)
+          xp: finalXp,
+          coins: finalCoins,
+          level: calculatedLevel,
+          badges: finalBadges,
+          current_streak: finalStreak,
+          longest_streak: finalLongestStreak,
         };
+      } catch (e) {
+        console.warn('[getDashboard] Gamification profile query warning:', (e as Error)?.message);
       }
-    } catch (e) {
-      console.warn('[getDashboard] Could not query gamification_profiles (table might not exist yet):', (e as Error)?.message);
     }
 
     return {
@@ -576,8 +640,11 @@ export class SchoolStudentService {
           enrollmentNo: student.enrollment_no,
           currentLevel: gamificationProfile.level,
           eddvaCoins: gamificationProfile.coins,
+          coins: gamificationProfile.coins,
           unlockedBadges: gamificationProfile.badges,
         },
+        eddvaCoins: gamificationProfile.coins,
+        coins: gamificationProfile.coins,
         xpTotal: gamificationProfile.xp,
         currentStreak: gamificationProfile.current_streak,
         longestStreak: gamificationProfile.longest_streak,
@@ -589,15 +656,22 @@ export class SchoolStudentService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(user: any, id?: string) {
+    let targetId = id;
+    let reqUser = user;
+    if (typeof user === 'string' && !id) {
+      targetId = user;
+      reqUser = null;
+    }
+
     // Guard against non-UUID ids (e.g. a stray '/students/<word>') so we return a
     // clean 404 instead of a Postgres "invalid input syntax for type uuid" 500.
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(targetId || ''))) {
       throw new NotFoundException('Student not found');
     }
     const rows: any[] = await this.ds.query(
       `SELECT u.id AS user_id, u.name, u.email, u.phone, u.profile_image, u.role, u.is_active, u.created_at,
-              u.institute_id,
+              u.institute_id, i.name AS institute_name, i.logo AS institute_logo,
               s.id AS profile_id, s.enrollment_no, s.roll_no, s.section_id, s.dob, s.gender, s.blood_group,
               s.father_name, s.mother_name, s.parent_phone, s.admission_date,
               s.parent_email, s.parent_occupation, s.address, s.city, s.state, s.pin_code,
@@ -607,11 +681,45 @@ export class SchoolStudentService {
        LEFT JOIN students s ON s.user_id=u.id
        LEFT JOIN sections sec ON s.section_id=sec.id
        LEFT JOIN classes c ON sec.class_id=c.id
+       LEFT JOIN institutes i ON u.institute_id=i.id
        WHERE (u.id=$1 OR s.id=$1) AND u.role='STUDENT'`,
-      [id],
+      [targetId],
     );
     if (!rows.length) throw new NotFoundException('Student not found');
     const r = rows[0];
+
+    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && reqUser) {
+      if (String(r.institute_id) !== String(reqUser.instituteId)) {
+        throw new ForbiddenException('You do not have access to this student profile');
+      }
+      if (reqUser.role === 'STUDENT' && String(r.user_id) !== String(reqUser.id)) {
+        throw new ForbiddenException('You do not have access to this student profile');
+      }
+      if (reqUser.role === 'PARENT') {
+        const parentEmail = r.parent_email;
+        const parentPhone = r.parent_phone;
+        const isMatched = (parentEmail && reqUser.email && parentEmail.toLowerCase() === reqUser.email.toLowerCase()) ||
+                          (parentPhone && reqUser.phone && parentPhone === reqUser.phone);
+        if (!isMatched) {
+          throw new ForbiddenException('You do not have access to this student profile');
+        }
+      }
+      if (reqUser.role === 'TEACHER') {
+        const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [reqUser.id]);
+        const teacherId = tRows[0]?.id;
+        if (!teacherId) {
+          throw new ForbiddenException('You do not have access to this student profile');
+        }
+        const assignedSecs = await this.ds.query(
+          `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id = $1 AND section_id::text = $2::text LIMIT 1`,
+          [teacherId, r.section_id]
+        );
+        if (!assignedSecs.length) {
+          throw new ForbiddenException('You do not have access to this student profile');
+        }
+      }
+    }
 
     const testSessions = r.user_id ? await this.ds.query(`
       SELECT 
@@ -661,6 +769,7 @@ export class SchoolStudentService {
         r.grade AS "grade",
         r.remarks AS "remarks",
         r.is_absent AS "isAbsent",
+        r.updated_at AS "updatedAt",
         a.title AS "assessmentTitle",
         sub.name AS "subjectName",
         c.id AS "classId",
@@ -701,6 +810,8 @@ export class SchoolStudentService {
       role: r.role,
       isActive: r.is_active,
       createdAt: r.created_at,
+      instituteName: r.institute_name,
+      instituteLogo: r.institute_logo,
       performance: testSessions,
       parentDetails,
       attendancePercentage,
@@ -745,76 +856,164 @@ export class SchoolStudentService {
     return { success: true, data: mappedData };
   }
 
-  async update(id: string, body: any) {
-    let userRows: any[] = await this.ds.query(`SELECT id, name, email, phone, role, is_active FROM users WHERE id=$1`, [id]);
+  async update(user: any, id?: string, body?: any) {
+    let reqUser = user;
+    let targetId = id;
+    let targetBody = body;
+    if (typeof user === 'string' && !body) {
+      reqUser = null;
+      targetId = user;
+      targetBody = id;
+    }
+    body = targetBody;
+
+    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && reqUser) {
+      const targetInstRow = await this.ds.query(
+        `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM students WHERE id = $1 LIMIT 1`,
+        [targetId]
+      );
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(reqUser.instituteId)) {
+        throw new ForbiddenException('You do not have permission to update this student');
+      }
+    }
+
+    let userRows: any[] = await this.ds.query(`SELECT id, name, email, phone, role, is_active, profile_image FROM users WHERE id=$1`, [targetId]);
     if (!userRows.length) {
-      userRows = await this.ds.query(`SELECT u.id, u.name, u.email, u.phone, u.role, u.is_active FROM users u JOIN students s ON s.user_id=u.id WHERE s.id=$1`, [id]);
+      userRows = await this.ds.query(`SELECT u.id, u.name, u.email, u.phone, u.role, u.is_active, u.profile_image FROM users u JOIN students s ON s.user_id=u.id WHERE s.id=$1`, [targetId]);
     }
     if (!userRows.length) throw new NotFoundException('Student not found');
     const userId = userRows[0].id;
-    if (body.phone) {
+    const oldUserValues = { name: userRows[0].name, email: userRows[0].email, phone: userRows[0].phone, profileImage: userRows[0].profile_image };
+
+    // ── Phone uniqueness check ──────────────────────────────────────
+    if (body.phone !== undefined && body.phone) {
       const existingPhone: any[] = await this.ds.query(`SELECT id FROM users WHERE institute_id=(SELECT institute_id FROM users WHERE id=$1) AND phone=$2 AND id<>$1`, [userId, body.phone]);
       if (existingPhone.length) throw new BadRequestException('Phone number is already registered under this institute');
     }
-    await this.ds.query(
-      `UPDATE users SET name=COALESCE($2,name),is_active=COALESCE($3,is_active),profile_image=COALESCE($4,profile_image),phone=COALESCE($5,phone),updated_at=NOW() WHERE id=$1`,
-      [userId, body.name, body.isActive, body.profileImage, body.phone],
-    );
+
+    // ── Build dynamic users UPDATE ──────────────────────────────────
+    const userUpdates: string[] = [];
+    const userParams: any[] = [userId];
+    if (body.name !== undefined) {
+      userParams.push(body.name);
+      userUpdates.push(`name=$${userParams.length}`);
+    }
+    if (body.email !== undefined) {
+      const existingEmail: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1) AND id<>$2`, [body.email, userId]);
+      if (existingEmail.length) throw new BadRequestException('Email is already registered');
+      userParams.push(body.email);
+      userUpdates.push(`email=$${userParams.length}`);
+    }
+    if (body.isActive !== undefined) {
+      userParams.push(body.isActive);
+      userUpdates.push(`is_active=$${userParams.length}`);
+    }
+    // Accept both profileImage (backend convention) and photo (frontend convention)
+    const profileImageValue = body.profileImage !== undefined ? body.profileImage : body.photo;
+    if (profileImageValue !== undefined) {
+      userParams.push(profileImageValue);
+      userUpdates.push(`profile_image=$${userParams.length}`);
+    }
+    if (body.phone !== undefined) {
+      userParams.push(body.phone);
+      userUpdates.push(`phone=$${userParams.length}`);
+    }
+
+    // ── Build dynamic students UPDATE ───────────────────────────────
+    const studentUpdates: string[] = [];
+    const studentParams: any[] = [userId];
+    const addStudentUpdate = (field: string, val: any) => {
+      studentParams.push(val);
+      studentUpdates.push(`${field}=$${studentParams.length}`);
+    };
+
+    if (body.enrollmentNo !== undefined || body.enrollment_no !== undefined) addStudentUpdate('enrollment_no', body.enrollmentNo || body.enrollment_no || null);
+    if (body.rollNo !== undefined || body.roll_no !== undefined) addStudentUpdate('roll_no', body.rollNo || body.roll_no || null);
+    if (body.sectionId !== undefined || body.section_id !== undefined) addStudentUpdate('section_id', body.sectionId || body.section_id || null);
+    if (body.dob !== undefined) addStudentUpdate('dob', body.dob ? new Date(body.dob) : null);
+    if (body.gender !== undefined) addStudentUpdate('gender', body.gender || null);
+    if (body.bloodGroup !== undefined || body.blood_group !== undefined) addStudentUpdate('blood_group', body.bloodGroup || body.blood_group || null);
+    if (body.nationalId !== undefined || body.national_id !== undefined) addStudentUpdate('national_id', body.nationalId || body.national_id || null);
+    if (body.fatherName !== undefined || body.father_name !== undefined) addStudentUpdate('father_name', body.fatherName || body.father_name || null);
+    if (body.motherName !== undefined || body.mother_name !== undefined) addStudentUpdate('mother_name', body.motherName || body.mother_name || null);
+    if (body.parentPhone !== undefined || body.parent_phone !== undefined) addStudentUpdate('parent_phone', body.parentPhone || body.parent_phone || null);
+    if (body.parentEmail !== undefined || body.parent_email !== undefined) addStudentUpdate('parent_email', body.parentEmail || body.parent_email || null);
+    if (body.parentOccupation !== undefined || body.parent_occupation !== undefined) addStudentUpdate('parent_occupation', body.parentOccupation || body.parent_occupation || null);
+    if (body.currentAddress !== undefined || body.address !== undefined) addStudentUpdate('address', body.currentAddress || body.address || null);
+    if (body.city !== undefined) addStudentUpdate('city', body.city || null);
+    if (body.state !== undefined) addStudentUpdate('state', body.state || null);
+    if (body.pinCode !== undefined || body.pin_code !== undefined) addStudentUpdate('pin_code', body.pinCode || body.pin_code || null);
+    if (body.admissionDate !== undefined || body.admission_date !== undefined) addStudentUpdate('admission_date', (body.admissionDate || body.admission_date) ? new Date(body.admissionDate || body.admission_date) : null);
+    if (body.medicalConditions !== undefined || body.medical_conditions !== undefined) addStudentUpdate('medical_conditions', body.medicalConditions || body.medical_conditions || null);
+    if (body.allergies !== undefined) addStudentUpdate('allergies', body.allergies || null);
+
+    // ── Documents: merge existing with incoming, always rebuild parentDetails ──
     const existingStudentRows: any[] = await this.ds.query(`SELECT documents FROM students WHERE user_id=$1`, [userId]);
     const existingDocuments = this.parseJsonObject(existingStudentRows[0]?.documents);
-    const documents = {
+    const mergedDocuments = {
       ...existingDocuments,
       ...(body.documents ? this.parseJsonObject(body.documents) : {}),
       parentDetails: this.buildParentDetails(body, existingDocuments.parentDetails || {}),
     };
-    await this.ds.query(
-      `UPDATE students SET
-        enrollment_no = COALESCE($2, enrollment_no),
-        roll_no = COALESCE($3, roll_no),
-        section_id = COALESCE($4, section_id),
-        dob = COALESCE($5, dob),
-        gender = COALESCE($6, gender),
-        blood_group = COALESCE($7, blood_group),
-        father_name = COALESCE($8, father_name),
-        mother_name = COALESCE($9, mother_name),
-        parent_phone = COALESCE($10, parent_phone),
-        parent_email = COALESCE($11, parent_email),
-        parent_occupation = COALESCE($12, parent_occupation),
-        address = COALESCE($13, address),
-        city = COALESCE($14, city),
-        state = COALESCE($15, state),
-        pin_code = COALESCE($16, pin_code),
-        admission_date = COALESCE($17, admission_date),
-        medical_conditions = COALESCE($18, medical_conditions),
-        allergies = COALESCE($19, allergies),
-        documents = COALESCE($20, documents),
-        national_id = COALESCE($21, national_id),
-        updated_at = NOW()
-       WHERE user_id = $1`,
-      [
-        userId,
-        body.enrollmentNo || null,
-        body.rollNo || null,
-        body.sectionId || null,
-        body.dob ? new Date(body.dob) : null,
-        body.gender || null,
-        body.bloodGroup || null,
-        body.fatherName || body.father_name || null,
-        body.motherName || body.mother_name || null,
-        body.parentPhone || body.parent_phone || null,
-        body.parentEmail || body.parent_email || null,
-        body.parentOccupation || body.parent_occupation || null,
-        body.currentAddress || body.address || null,
-        body.city || null,
-        body.state || null,
-        body.pinCode || body.pin_code || null,
-        body.admissionDate ? new Date(body.admissionDate) : null,
-        body.medicalConditions || null,
-        body.allergies || null,
-        body.documents ? JSON.stringify(body.documents) : null,
-        body.nationalId || null
-      ]
-    );
+    addStudentUpdate('documents', JSON.stringify(mergedDocuments));
+
+    // ── Execute within a transaction ────────────────────────────────
+    const queryRunner = this.ds.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      let userRowsAffected = 0;
+      if (userUpdates.length > 0) {
+        const updateResult = await queryRunner.query(
+          `UPDATE users SET ${userUpdates.join(', ')}, updated_at=NOW() WHERE id=$1`,
+          userParams
+        );
+        if (Array.isArray(updateResult)) {
+          userRowsAffected = updateResult[1] || 0;
+        } else if (updateResult && typeof updateResult === 'object') {
+          userRowsAffected = updateResult.rowCount || 0;
+        } else {
+          userRowsAffected = 1;
+        }
+      }
+
+      let studentRowsAffected = 0;
+      if (studentUpdates.length > 0) {
+        const updateResult = await queryRunner.query(
+          `UPDATE students SET ${studentUpdates.join(', ')}, updated_at=NOW() WHERE user_id=$1`,
+          studentParams
+        );
+        if (Array.isArray(updateResult)) {
+          studentRowsAffected = updateResult[1] || 0;
+        } else if (updateResult && typeof updateResult === 'object') {
+          studentRowsAffected = updateResult.rowCount || 0;
+        } else {
+          studentRowsAffected = 1;
+        }
+      }
+
+      await queryRunner.commitTransaction();
+
+      // ── Audit logging ─────────────────────────────────────────────
+      console.log(`[SchoolStudentService.update] Student User ID:`, userId);
+      console.log(`[SchoolStudentService.update] Old values:`, JSON.stringify(oldUserValues));
+      console.log(`[SchoolStudentService.update] New values (body):`, JSON.stringify({ name: body.name, email: body.email, phone: body.phone, profileImage: profileImageValue }));
+      console.log(`[SchoolStudentService.update] Users rows affected:`, userRowsAffected);
+      console.log(`[SchoolStudentService.update] Students rows affected:`, studentRowsAffected);
+
+      if (userUpdates.length === 0 && studentUpdates.length <= 1) {
+        // Only the documents update was added (always happens) — no real fields changed
+        console.log(`[SchoolStudentService.update] No user-visible fields changed, only documents/parentDetails synced.`);
+      }
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw new BadRequestException(err instanceof Error ? err.message : 'Error updating student profile');
+    } finally {
+      await queryRunner.release();
+    }
+
     return { success: true };
   }
 
@@ -870,7 +1069,7 @@ export class SchoolStudentService {
         }
 
         const enrollmentNo = rec.enrollmentNo || await this.generateEnrollmentNo(instituteId);
-        const hashed = await bcrypt.hash(rec.password, 10);
+        const hashed = await bcrypt.hash(rec.password, 12);
 
         const uRows: any[] = await this.ds.query(
           `INSERT INTO users (institute_id,name,email,password,role,phone,is_active) VALUES ($1,$2,$3,$4,'STUDENT',$5,TRUE) RETURNING id`,
@@ -915,14 +1114,32 @@ export class SchoolStudentService {
     };
   }
 
-  async remove(id: string) {
+  async remove(user: any, id?: string) {
+    let reqUser = user;
+    let targetId = id;
+    if (typeof user === 'string' && !id) {
+      reqUser = null;
+      targetId = user;
+    }
+
+    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && reqUser) {
+      const targetInstRow = await this.ds.query(
+        `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM students WHERE id = $1 LIMIT 1`,
+        [targetId]
+      );
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(reqUser.instituteId)) {
+        throw new ForbiddenException('You do not have permission to delete this student');
+      }
+    }
+
     // 1. Fetch user & student profile to check protections
     const rows: any[] = await this.ds.query(
       `SELECT u.id AS user_id, s.id AS student_id, s.enrollment_no 
        FROM users u 
        LEFT JOIN students s ON u.id = s.user_id 
        WHERE u.id=$1 OR s.id=$1`,
-      [id]
+      [targetId]
     );
 
     if (!rows.length) {
@@ -1043,7 +1260,7 @@ export class SchoolStudentService {
     const loginUrl = body.loginUrl || 'https://odm.eddva.in/login';
     const instituteName = student.institute_name || 'EDDVA School';
 
-    const hashed = await bcrypt.hash(tempPassword, 10);
+    const hashed = await bcrypt.hash(tempPassword, 12);
     const existingParent: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email) = LOWER($1)`, [parentEmail]);
 
     if (existingParent.length > 0) {
@@ -1409,15 +1626,62 @@ export class SchoolStudentService {
     };
   }
 
-  async addPreviousResult(studentId: string, body: any) {
-    const { className, academicYear, assessmentTitle, subjects } = body;
+  async addPreviousResult(user: any, studentId?: string, body?: any) {
+    let reqUser = user;
+    let targetId = studentId;
+    let targetBody = body;
+    if (typeof user === 'string' && !body) {
+      reqUser = null;
+      targetId = user;
+      targetBody = studentId;
+    }
+    body = targetBody;
+
+    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && reqUser) {
+      const targetInstRow = await this.ds.query(
+        `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM students WHERE id = $1 LIMIT 1`,
+        [targetId]
+      );
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(reqUser.instituteId)) {
+        throw new ForbiddenException('You do not have permission to add results for this student');
+      }
+    }
+
+    const { className, academicYear, assessmentTitle, subjects, activeAssessmentTitlesBySubject } = body;
     if (!className || !academicYear || !assessmentTitle || !Array.isArray(subjects) || !subjects.length) {
       throw new BadRequestException('Invalid input. className, academicYear, assessmentTitle and subjects are required.');
     }
 
-    const userRows = await this.ds.query(`SELECT institute_id FROM users WHERE id = $1`, [studentId]);
-    if (!userRows.length) throw new NotFoundException('Student not found');
-    const instituteId = userRows[0].institute_id;
+    const normalizeTitle = (value: any) => String(value || '').trim().toLowerCase();
+    const managedAssessmentTitles = [
+      'T1 Internal',
+      'Half-Yearly',
+      'T2 Internal',
+      'Annual',
+      'Half-Yearly Theory',
+      'Half-Yearly Practical',
+      'Annual Theory',
+      'Annual Practical',
+      'Final Result',
+      'Reading & Phonics',
+      'Writing & Motor Skills',
+      'Numeracy & Shapes',
+      'Communication & Speech',
+      'Creativity & Arts',
+      'Social development & Behaviour'
+    ].map(normalizeTitle);
+
+    const studentRows = await this.ds.query(
+      `SELECT u.id AS student_user_id, s.id AS student_profile_id, u.institute_id 
+       FROM users u 
+       JOIN students s ON s.user_id = u.id 
+       WHERE u.id = $1 OR s.id = $1`,
+      [targetId]
+    );
+    if (!studentRows.length) throw new NotFoundException('Student not found');
+    const instituteId = studentRows[0].institute_id;
+    const studentUserId = studentRows[0].student_user_id;
 
     await this.ds.transaction(async (manager) => {
       let classRows = await manager.query(
@@ -1429,18 +1693,18 @@ export class SchoolStudentService {
         classId = classRows[0].id;
       } else {
         const insertClass = await manager.query(
-          `INSERT INTO classes (name, academic_year, institute_id, status) VALUES ($1, $2, $3, 'active') RETURNING id`,
+          `INSERT INTO classes (name, academic_year, institute_id) VALUES ($1, $2, $3) RETURNING id`,
           [className.trim(), academicYear.trim(), instituteId]
         );
         classId = insertClass[0].id;
       }
 
-      const overallComponents: Record<string, { obtained: number; max: number }> = {
-        theory: { obtained: 0, max: 0 },
-        practical: { obtained: 0, max: 0 },
-        project: { obtained: 0, max: 0 },
-        internal: { obtained: 0, max: 0 },
-        viva: { obtained: 0, max: 0 }
+      const overallComponents: Record<string, { enabled: boolean; obtained: number; max: number }> = {
+        theory: { enabled: true, obtained: 0, max: 0 },
+        practical: { enabled: true, obtained: 0, max: 0 },
+        project: { enabled: true, obtained: 0, max: 0 },
+        internal: { enabled: true, obtained: 0, max: 0 },
+        viva: { enabled: true, obtained: 0, max: 0 }
       };
 
       for (const sub of subjects) {
@@ -1448,7 +1712,7 @@ export class SchoolStudentService {
 
         let marksObtained = 0;
         let totalMarks = 0;
-        const savedComponents: Record<string, { obtained: number; max: number }> = {};
+        const savedComponents: Record<string, { enabled: boolean; obtained: number; max: number }> = {};
 
         if (sub.components) {
           for (const [key, comp] of Object.entries(sub.components) as [string, any][]) {
@@ -1457,7 +1721,7 @@ export class SchoolStudentService {
               const maxVal = Number(comp.max || 0);
               marksObtained += obtVal;
               totalMarks += maxVal;
-              savedComponents[key] = { obtained: obtVal, max: maxVal };
+              savedComponents[key] = { enabled: true, obtained: obtVal, max: maxVal };
               if (overallComponents[key]) {
                 overallComponents[key].obtained += obtVal;
                 overallComponents[key].max += maxVal;
@@ -1467,7 +1731,7 @@ export class SchoolStudentService {
         } else {
           marksObtained = Number(sub.marksObtained || 0);
           totalMarks = Number(sub.totalMarks || 100);
-          savedComponents.theory = { obtained: marksObtained, max: totalMarks };
+          savedComponents.theory = { enabled: true, obtained: marksObtained, max: totalMarks };
           overallComponents.theory.obtained += marksObtained;
           overallComponents.theory.max += totalMarks;
         }
@@ -1475,9 +1739,15 @@ export class SchoolStudentService {
         const percentage = totalMarks > 0 ? Math.round((marksObtained / totalMarks) * 10000) / 100 : 0;
         const grade = sub.grade || (percentage >= 90 ? 'A+' : percentage >= 75 ? 'A' : percentage >= 60 ? 'B' : percentage >= 40 ? 'C' : 'F');
 
+        // Scoped to this institute and matched on the normalised name: without
+        // both, an upload could adopt another school's subject, or create a
+        // second copy that differs only in spelling or case.
+        const normalizedSubject = normalizeSubjectName(subjectName);
         let subjectRows = await manager.query(
-          `SELECT id FROM subjects WHERE LOWER(name) = LOWER($1) AND class_id = $2 LIMIT 1`,
-          [subjectName, classId]
+          `SELECT id FROM subjects
+           WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) AND class_id = $2 AND institute_id = $3
+           LIMIT 1`,
+          [normalizedSubject, classId, instituteId]
         );
         let subjectId: string;
         if (subjectRows.length > 0) {
@@ -1485,17 +1755,50 @@ export class SchoolStudentService {
         } else {
           const insertSubject = await manager.query(
             `INSERT INTO subjects (name, class_id, institute_id) VALUES ($1, $2, $3) RETURNING id`,
-            [subjectName, classId, instituteId]
+            [normalizedSubject, classId, instituteId]
           );
           subjectId = insertSubject[0].id;
         }
 
-        const insertAssessment = await manager.query(
-          `INSERT INTO assessments (title, type, subject_id, class_id, total_marks, status, institute_id)
-           VALUES ($1, 'exam', $2, $3, $4, 'completed', $5) RETURNING id`,
-          [assessmentTitle.trim(), subjectId, classId, totalMarks, instituteId]
+        const activeTitlesForSubjectRaw = activeAssessmentTitlesBySubject?.[normalizeTitle(subjectName)];
+        const activeTitlesForSubject = Array.isArray(activeTitlesForSubjectRaw)
+          ? activeTitlesForSubjectRaw.map(normalizeTitle).filter(Boolean)
+          : [];
+        if (activeTitlesForSubject.length) {
+          await manager.query(
+            `DELETE FROM results r
+             USING assessments a
+             WHERE r.assessment_id = a.id
+               AND r.student_id = $1
+               AND a.subject_id = $2
+               AND a.class_id = $3
+               AND LOWER(a.title) = ANY($4::text[])
+               AND NOT (LOWER(a.title) = ANY($5::text[]))`,
+            [studentUserId, subjectId, classId, managedAssessmentTitles, activeTitlesForSubject]
+          );
+        }
+
+        const existingAssessment = await manager.query(
+          `SELECT id FROM assessments 
+           WHERE LOWER(title) = LOWER($1) AND subject_id = $2 AND class_id = $3 
+           LIMIT 1`,
+          [assessmentTitle.trim(), subjectId, classId]
         );
-        const assessmentId = insertAssessment[0].id;
+        let assessmentId: string;
+        if (existingAssessment.length > 0) {
+          assessmentId = existingAssessment[0].id;
+          await manager.query(
+            `UPDATE assessments SET total_marks = $2, status = 'completed' WHERE id = $1`,
+            [assessmentId, totalMarks]
+          );
+        } else {
+          const insertAssessment = await manager.query(
+            `INSERT INTO assessments (title, type, subject_id, class_id, total_marks, status)
+             VALUES ($1, 'exam', $2, $3, $4, 'completed') RETURNING id`,
+            [assessmentTitle.trim(), subjectId, classId, totalMarks]
+          );
+          assessmentId = insertAssessment[0].id;
+        }
 
         const breakdownRemarks = JSON.stringify({
           type: 'breakdown',
@@ -1503,15 +1806,31 @@ export class SchoolStudentService {
           userRemarks: sub.remarks || ''
         });
 
-        await manager.query(
-          `INSERT INTO results (assessment_id, student_id, total_marks, marks_obtained, percentage, grade, status, remarks)
-           VALUES ($1, $2, $3, $4, $5, $6, 'published', $7)`,
-          [assessmentId, studentId, totalMarks, marksObtained, percentage, grade, breakdownRemarks]
+        const existingResult = await manager.query(
+          `SELECT id FROM results WHERE assessment_id = $1 AND student_id = $2 LIMIT 1`,
+          [assessmentId, studentUserId]
         );
+        if (existingResult.length > 0) {
+          await manager.query(
+            `UPDATE results
+             SET total_marks = $3, marks_obtained = $4, percentage = $5, grade = $6, status = 'published', remarks = $7, updated_at = NOW()
+             WHERE id = $1 AND student_id = $2`,
+            [existingResult[0].id, studentUserId, totalMarks, marksObtained, percentage, grade, breakdownRemarks]
+          );
+        } else {
+          await manager.query(
+            `INSERT INTO results (assessment_id, student_id, total_marks, marks_obtained, percentage, grade, status, remarks)
+             VALUES ($1, $2, $3, $4, $5, $6, 'published', $7)`,
+            [assessmentId, studentUserId, totalMarks, marksObtained, percentage, grade, breakdownRemarks]
+          );
+        }
 
         await manager.query(
           `INSERT INTO assessment_submissions (assessment_id, student_user_id, status)
-           VALUES ($1, $2, 'evaluated')`
+           VALUES ($1, $2, 'evaluated')
+           ON CONFLICT (assessment_id, student_user_id)
+           DO UPDATE SET status = 'evaluated', updated_at = NOW()`,
+          [assessmentId, studentUserId]
         ).catch(() => {});
       }
 
@@ -1520,12 +1839,28 @@ export class SchoolStudentService {
       const overallPercentage = totalMarks > 0 ? Math.round((totalObtained / totalMarks) * 10000) / 100 : 0;
       const overallGrade = overallPercentage >= 90 ? 'A+' : overallPercentage >= 75 ? 'A' : overallPercentage >= 60 ? 'B' : overallPercentage >= 40 ? 'C' : 'F';
 
-      const insertTotalAssessment = await manager.query(
-        `INSERT INTO assessments (title, type, subject_id, class_id, total_marks, status, institute_id)
-         VALUES ($1, 'exam', NULL, $2, $3, 'completed', $4) RETURNING id`,
-        [`${assessmentTitle.trim()} (Total)`, classId, totalMarks, instituteId]
+      const totalAssessmentTitle = `${assessmentTitle.trim()} (Total)`;
+      const existingTotalAssessment = await manager.query(
+        `SELECT id FROM assessments
+         WHERE LOWER(title) = LOWER($1) AND class_id = $2 AND subject_id IS NULL
+         LIMIT 1`,
+        [totalAssessmentTitle, classId]
       );
-      const totalAssessmentId = insertTotalAssessment[0].id;
+      let totalAssessmentId: string;
+      if (existingTotalAssessment.length > 0) {
+        totalAssessmentId = existingTotalAssessment[0].id;
+        await manager.query(
+          `UPDATE assessments SET total_marks = $2, status = 'completed' WHERE id = $1`,
+          [totalAssessmentId, totalMarks]
+        );
+      } else {
+        const insertTotalAssessment = await manager.query(
+          `INSERT INTO assessments (title, type, subject_id, class_id, total_marks, status)
+           VALUES ($1, 'exam', NULL, $2, $3, 'completed') RETURNING id`,
+          [totalAssessmentTitle, classId, totalMarks]
+        );
+        totalAssessmentId = insertTotalAssessment[0].id;
+      }
 
       const overallBreakdownRemarks = JSON.stringify({
         type: 'breakdown',
@@ -1533,19 +1868,49 @@ export class SchoolStudentService {
         userRemarks: 'Overall calculated total'
       });
 
-      await manager.query(
-        `INSERT INTO results (assessment_id, student_id, total_marks, marks_obtained, percentage, grade, status, remarks)
-         VALUES ($1, $2, $3, $4, $5, $6, 'published', $7)`,
-        [totalAssessmentId, studentId, totalMarks, totalObtained, overallPercentage, overallGrade, overallBreakdownRemarks]
+      const existingTotalResult = await manager.query(
+        `SELECT id FROM results WHERE assessment_id = $1 AND student_id = $2 LIMIT 1`,
+        [totalAssessmentId, studentUserId]
       );
+      if (existingTotalResult.length > 0) {
+        await manager.query(
+          `UPDATE results
+           SET total_marks = $3, marks_obtained = $4, percentage = $5, grade = $6, status = 'published', remarks = $7, updated_at = NOW()
+           WHERE id = $1 AND student_id = $2`,
+          [existingTotalResult[0].id, studentUserId, totalMarks, totalObtained, overallPercentage, overallGrade, overallBreakdownRemarks]
+        );
+      } else {
+        await manager.query(
+          `INSERT INTO results (assessment_id, student_id, total_marks, marks_obtained, percentage, grade, status, remarks)
+           VALUES ($1, $2, $3, $4, $5, $6, 'published', $7)`,
+          [totalAssessmentId, studentUserId, totalMarks, totalObtained, overallPercentage, overallGrade, overallBreakdownRemarks]
+        );
+      }
 
       await manager.query(
         `INSERT INTO assessment_submissions (assessment_id, student_user_id, status)
-         VALUES ($1, $2, 'evaluated')`
+         VALUES ($1, $2, 'evaluated')
+         ON CONFLICT (assessment_id, student_user_id)
+         DO UPDATE SET status = 'evaluated', updated_at = NOW()`,
+        [totalAssessmentId, studentUserId]
       ).catch(() => {});
     });
 
     return { success: true };
+  }
+
+  // ── FCM Device Token Registration ──────────────────────────────────────────
+  async registerDeviceToken(user: any, body: { fcmToken: string; platform?: string }) {
+    if (!body.fcmToken) {
+      throw new BadRequestException('fcmToken is required');
+    }
+    await this.ds.query(
+      `INSERT INTO school_device_tokens (user_id, fcm_token, platform, last_active_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id, fcm_token) DO UPDATE SET last_active_at = NOW(), platform = EXCLUDED.platform`,
+      [user.id, body.fcmToken, body.platform || 'web'],
+    );
+    return { success: true, message: 'Device token registered' };
   }
 }
 
