@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ type DoubtStatus = 'open' | 'ai_answered' | 'escalated' | 'teacher_answered';
 
 @Injectable()
 export class SchoolDoubtService implements OnModuleInit {
+  private readonly logger = new Logger(SchoolDoubtService.name);
   private tableReady = false;
 
   constructor(
@@ -437,7 +439,14 @@ export class SchoolDoubtService implements OnModuleInit {
         aiSteps = ai.steps;
         status = 'ai_answered';
         channel = 'ai';
-      } catch {
+      } catch (err) {
+        // Log it. Swallowing this error meant a completely dead vision stack —
+        // Groq had withdrawn the models and every Gemini key was exhausted —
+        // read as a passing blip for days, because the student saw only
+        // "temporarily unavailable" and nothing reached the logs.
+        this.logger.warn(
+          `Doubt AI failed, escalating to teacher: ${(err as Error)?.message ?? err}`,
+        );
         status = 'escalated';
         channel = 'teacher';
         if (!teacherUserId && routingSectionId) {
