@@ -955,6 +955,7 @@ export class SchoolAssessmentService {
     const topicId = body?.topicId || body?.topic_id;
     const chapterId = body?.chapterId || body?.chapter_id;
     const subjectId = body?.subjectId || body?.subject_id;
+    const classId = body?.classId || body?.class_id;
     const CLASS_JOIN = `
       LEFT JOIN sections sec ON sec.id::text = s.section_id::text
       LEFT JOIN classes cl ON cl.id::text = COALESCE(s.class_id, sec.class_id)::text`;
@@ -983,6 +984,13 @@ export class SchoolAssessmentService {
            FROM subjects s ${CLASS_JOIN} WHERE s.id::text = $1::text LIMIT 1`, [subjectId]);
         if (r[0]) Object.assign(out, {
           subjectName: r[0].subject_name, className: r[0].class_name });
+      }
+
+      if (!out.className && classId) {
+        const rClass = await this.ds.query(`SELECT name FROM classes WHERE id::text = $1::text LIMIT 1`, [classId]);
+        if (rClass[0]?.name) {
+          out.className = rClass[0].name;
+        }
       }
     } catch (err) {
       this.logger.warn(`Assessment name resolution failed: ${(err as Error).message}`);
