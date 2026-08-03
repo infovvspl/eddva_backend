@@ -1584,134 +1584,14 @@ export class GamificationService implements OnModuleInit {
 
   private wordMasterSubjectTheme(subject: any) {
     const subjectName = String(subject?.name || 'Subject');
-    const normalized = subjectName.toLowerCase();
     const subjectId = subject?.id;
     const slug = subjectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'subject';
-    const base = {
+    return {
+      key: `${slug}-words`,
+      name: subjectName,
+      description: `Unscramble curious terms from your Class ${subjectName} syllabus!`,
       difficulty: 'medium',
       subjectId,
-    };
-
-    if (normalized.includes('science')) {
-      return {
-        key: 'science-explorers',
-        name: 'Science Explorers',
-        description: 'Unscramble key concepts from Earth, Life, and Physical Sciences!',
-        difficulty: 'easy',
-        subjectId,
-        prompt: 'Generate terms from school science: earth science, life processes, forces, matter, energy, cells, ecosystems, acids, bases, light, sound, and simple experiments.',
-      };
-    }
-
-    if (normalized.includes('math')) {
-      return {
-        key: 'math-vocabulary',
-        name: 'Math Vocabulary',
-        description: 'Unscramble geometry, algebra, number, and coordinate terms!',
-        difficulty: 'medium',
-        subjectId,
-        prompt: 'Generate mathematics vocabulary only: geometry, algebra, number systems, fractions, ratios, graphs, coordinates, data handling, and measurement terms.',
-      };
-    }
-
-    if (normalized.includes('literature')) {
-      return {
-        key: 'advanced-vocabulary',
-        name: 'Advanced Vocabulary',
-        description: 'Tackle high-level NCERT English literature and academic words!',
-        difficulty: 'hard',
-        subjectId,
-        prompt: 'Generate advanced school-level English vocabulary from literature, comprehension, academic writing, emotions, tone, themes, and literary devices.',
-      };
-    }
-
-    if (normalized.includes('english') || normalized.includes('language')) {
-      return {
-        key: 'synonyms-antonyms',
-        name: 'Synonyms & Antonyms',
-        description: 'Crack word-pair vocabulary used in reading and writing!',
-        difficulty: 'medium',
-        subjectId,
-        prompt: 'Generate English vocabulary for synonyms, antonyms, word meanings, prefixes, suffixes, adjectives, and expressive academic words.',
-      };
-    }
-
-    if (normalized.includes('civic') || normalized.includes('political') || normalized.includes('social')) {
-      return {
-        key: 'civics-landmarks',
-        name: 'Civics & Landmarks',
-        description: 'Decode vocabulary about constitutions, empires, maps, and public life!',
-        difficulty: 'hard',
-        subjectId,
-        prompt: 'Generate social science vocabulary from civics, history, geography, constitutions, democracy, landmarks, empires, resources, maps, and public institutions.',
-      };
-    }
-
-    if (normalized.includes('physics')) {
-      return {
-        ...base,
-        key: `${slug}-force-files`,
-        name: 'Force Files',
-        description: 'Unscramble motion, light, electricity, sound, and energy terms!',
-        prompt: 'Generate school physics vocabulary about force, motion, energy, light, sound, electricity, magnetism, pressure, and measurement.',
-      };
-    }
-
-    if (normalized.includes('chem')) {
-      return {
-        ...base,
-        key: `${slug}-element-hunt`,
-        name: 'Element Hunt',
-        description: 'Crack terms from atoms, reactions, acids, bases, and materials!',
-        prompt: 'Generate school chemistry vocabulary about atoms, molecules, elements, compounds, reactions, acids, bases, salts, metals, and materials.',
-      };
-    }
-
-    if (normalized.includes('bio')) {
-      return {
-        ...base,
-        key: `${slug}-life-lab`,
-        name: 'Life Lab',
-        description: 'Unscramble words from cells, organs, nutrition, heredity, and habitats!',
-        prompt: 'Generate school biology vocabulary about cells, tissues, organs, nutrition, respiration, reproduction, heredity, microbes, habitats, and ecosystems.',
-      };
-    }
-
-    if (normalized.includes('history')) {
-      return {
-        ...base,
-        key: `${slug}-time-capsule`,
-        name: 'Time Capsule Terms',
-        description: 'Unearth empires, movements, rulers, revolts, and ancient ideas!',
-        prompt: 'Generate history vocabulary about civilizations, empires, rulers, trade, movements, revolts, sources, monuments, chronology, and historical ideas.',
-      };
-    }
-
-    if (normalized.includes('geo')) {
-      return {
-        ...base,
-        key: `${slug}-map-mysteries`,
-        name: 'Map Mysteries',
-        description: 'Decode landforms, climates, resources, maps, and coordinates!',
-        prompt: 'Generate geography vocabulary about maps, landforms, rivers, climate, resources, settlements, coordinates, regions, population, and environment.',
-      };
-    }
-
-    if (normalized.includes('computer') || normalized.includes('ict')) {
-      return {
-        ...base,
-        key: `${slug}-code-crackers`,
-        name: 'Code Crackers',
-        description: 'Unscramble digital terms from hardware, software, networks, and safety!',
-        prompt: 'Generate school computer science vocabulary about hardware, software, networks, internet, algorithms, data, safety, devices, and coding basics.',
-      };
-    }
-
-    return {
-      ...base,
-      key: `${slug}-mystery-words`,
-      name: `${subjectName} Mystery Words`,
-      description: `Unscramble curious terms from your Class ${subjectName} syllabus!`,
       prompt: `Generate intriguing school-level vocabulary from ${subjectName}, using core syllabus terms, definitions, processes, people, places, concepts, and examples.`,
     };
   }
@@ -1730,86 +1610,14 @@ export class GamificationService implements OnModuleInit {
 
   private memoryMatchSubjectTheme(subject: any) {
     const subjectName = String(subject?.name || 'Subject');
-    const normalized = subjectName.toLowerCase();
     const subjectId = subject?.id;
     const slug = subjectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'subject';
-    const base = { difficulty: 'medium', subjectId };
-
-    if (normalized.includes('science')) {
-      return {
-        ...base,
-        key: `${slug}-discovery-pairs`,
-        name: 'Discovery Pairs',
-        description: 'Match science ideas with the clues that reveal how the world works.',
-        prompt: 'Generate science term-definition pairs from experiments, matter, energy, life, Earth, forces, reactions, and observation skills.',
-      };
-    }
-
-    if (normalized.includes('math')) {
-      return {
-        ...base,
-        key: `${slug}-formula-flip`,
-        name: 'Formula Flip',
-        description: 'Match formulas, shapes, operations, and meanings before the board wins.',
-        prompt: 'Generate mathematics term-definition pairs from formulas, operations, geometry, algebra, data, fractions, ratios, and measurement.',
-      };
-    }
-
-    if (normalized.includes('english') || normalized.includes('language') || normalized.includes('literature')) {
-      return {
-        ...base,
-        key: `${slug}-word-web`,
-        name: 'Word Web',
-        description: 'Match meanings, grammar clues, and literary terms like a word detective.',
-        prompt: 'Generate English term-definition pairs from grammar, vocabulary, synonyms, antonyms, story elements, poetry, tone, and literary devices.',
-      };
-    }
-
-    if (normalized.includes('history')) {
-      return {
-        ...base,
-        key: `${slug}-era-links`,
-        name: 'Era Links',
-        description: 'Match people, events, sources, empires, and turning points.',
-        prompt: 'Generate history match pairs about civilizations, empires, events, rulers, sources, movements, monuments, timelines, and historical terms.',
-      };
-    }
-
-    if (normalized.includes('geo')) {
-      return {
-        ...base,
-        key: `${slug}-map-links`,
-        name: 'Map Links',
-        description: 'Pair landforms, climate clues, map terms, and resource ideas.',
-        prompt: 'Generate geography match pairs about maps, landforms, climate, rivers, resources, coordinates, regions, settlements, and environment.',
-      };
-    }
-
-    if (normalized.includes('civic') || normalized.includes('political')) {
-      return {
-        ...base,
-        key: `${slug}-democracy-deck`,
-        name: 'Democracy Deck',
-        description: 'Match rights, duties, institutions, elections, and constitution clues.',
-        prompt: 'Generate civics match pairs about democracy, constitution, rights, duties, government, parliament, courts, elections, equality, and public institutions.',
-      };
-    }
-
-    if (normalized.includes('computer') || normalized.includes('ict')) {
-      return {
-        ...base,
-        key: `${slug}-digital-pairs`,
-        name: 'Digital Pairs',
-        description: 'Match hardware, software, networks, internet, and safety terms.',
-        prompt: 'Generate computer science match pairs about hardware, software, networks, internet, data, algorithms, coding basics, devices, and cyber safety.',
-      };
-    }
-
     return {
-      ...base,
-      key: `${slug}-brain-links`,
-      name: `${subjectName} Brain Links`,
+      key: `${slug}-deck`,
+      name: subjectName,
       description: `Match curious ${subjectName} ideas with their meanings.`,
+      difficulty: 'medium',
+      subjectId,
       prompt: `Generate matchable term-definition pairs from ${subjectName}, using core syllabus concepts, examples, processes, people, places, and vocabulary.`,
     };
   }
