@@ -56,6 +56,20 @@ export class GamificationService implements OnModuleInit {
       )
     `);
 
+    const profileColumns = [
+      `ADD COLUMN IF NOT EXISTS lifetime_xp INTEGER NOT NULL DEFAULT 0`,
+      `ADD COLUMN IF NOT EXISTS reward_balance_inr NUMERIC(12, 2) NOT NULL DEFAULT 0.00`,
+      `ADD COLUMN IF NOT EXISTS memory_score INTEGER NOT NULL DEFAULT 75`,
+      `ADD COLUMN IF NOT EXISTS learning_score INTEGER NOT NULL DEFAULT 80`,
+      `ADD COLUMN IF NOT EXISTS focus_score INTEGER NOT NULL DEFAULT 85`,
+      `ADD COLUMN IF NOT EXISTS current_difficulty VARCHAR(50) NOT NULL DEFAULT 'Intermediate'`,
+      `ADD COLUMN IF NOT EXISTS rank_tier VARCHAR(50) NOT NULL DEFAULT 'Gold'`,
+      `ADD COLUMN IF NOT EXISTS league_name VARCHAR(50) NOT NULL DEFAULT 'Gold League'`,
+    ];
+    for (const col of profileColumns) {
+      await this.schoolDs.query(`ALTER TABLE gamification_profiles ${col}`).catch(() => {});
+    }
+
     // 2. Gamification History / Logs
     await this.schoolDs.query(`
       CREATE TABLE IF NOT EXISTS gamification_history (
@@ -211,18 +225,23 @@ export class GamificationService implements OnModuleInit {
       )
     `);
 
-    // Seed 100 achievements if achievements_master table is empty
-    const checkCount = await this.schoolDs.query(`SELECT COUNT(*)::int as count FROM achievements_master`);
-    if (checkCount[0]?.count === 0) {
-      console.log('[GamificationService] Seeding 100 default achievements...');
-      for (const ach of SEED_ACHIEVEMENTS) {
-        await this.schoolDs.query(
-          `INSERT INTO achievements_master (id, title, category, description, icon, tier, criteria_type, criteria_target, reward_xp, reward_coins)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-           ON CONFLICT (id) DO NOTHING`,
-          [ach.id, ach.title, ach.category, ach.description, ach.icon, ach.tier, ach.criteria_type, ach.criteria_target, ach.reward_xp, ach.reward_coins]
-        );
-      }
+    // Sync game achievements into achievements_master
+    for (const ach of SEED_ACHIEVEMENTS) {
+      await this.schoolDs.query(
+        `INSERT INTO achievements_master (id, title, category, description, icon, tier, criteria_type, criteria_target, reward_xp, reward_coins)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO UPDATE SET
+           title = EXCLUDED.title,
+           category = EXCLUDED.category,
+           description = EXCLUDED.description,
+           icon = EXCLUDED.icon,
+           tier = EXCLUDED.tier,
+           criteria_type = EXCLUDED.criteria_type,
+           criteria_target = EXCLUDED.criteria_target,
+           reward_xp = EXCLUDED.reward_xp,
+           reward_coins = EXCLUDED.reward_coins`,
+        [ach.id, ach.title, ach.category, ach.description, ach.icon, ach.tier, ach.criteria_type, ach.criteria_target, ach.reward_xp, ach.reward_coins]
+      );
     }
   }
 
@@ -307,8 +326,8 @@ export class GamificationService implements OnModuleInit {
     });
     await this.historyRepo.save(historyEntry);
 
-    // 100 XP = ₹1 calculation (Reward Wallet increment)
-    const inrEarned = Number((xpEarned / 100).toFixed(2));
+    // 10 Coins = ₹1 calculation (Reward Wallet increment)
+    const inrEarned = Number(((coinsEarned || 0) / 10).toFixed(2));
 
     try {
       const exist = await this.schoolDs.query(
@@ -477,11 +496,11 @@ export class GamificationService implements OnModuleInit {
       userId: p.user_id,
       xp,
       lifetimeXp: Number(p.lifetime_xp || xp),
-      coins: Number(p.coins || 0),
+      coins: Number(p.coins || Math.floor(xp / 10)),
       level,
       levelTitle: title,
       levelProgressPercent,
-      rewardBalanceInr: Number(p.reward_balance_inr || (xp / 100).toFixed(2)),
+      rewardBalanceInr: Number((Number(p.coins || Math.floor(xp / 10)) / 10).toFixed(2)),
       memoryScore: Number(p.memory_score || 75),
       learningScore: Number(p.learning_score || 80),
       focusScore: Number(p.focus_score || 85),
@@ -872,42 +891,340 @@ export class GamificationService implements OnModuleInit {
   }
 
   /**
-   * Fetch Achievements (All 100+ master + student unlocked status)
+   * Fetch Game Achievements evaluated dynamically against real student game scores
    */
   async getAchievements(userId: string) {
-    const master = await this.schoolDs.query(`SELECT * FROM achievements_master ORDER BY category, tier`);
-    const unlocked = await this.schoolDs.query(`SELECT achievement_id, unlocked_at, progress FROM user_achievements WHERE user_id = $1`, [userId]);
-    const unlockedMap = new Map(unlocked.map((u: any) => [u.achievement_id, u]));
+    await this.ensureTablesExist().catch(() => {});
 
-    return master.map((a: any) => ({
-      ...a,
-      isUnlocked: unlockedMap.has(a.id),
-      unlockedAt: (unlockedMap.get(a.id) as any)?.unlocked_at || null,
-      progress: unlockedMap.has(a.id) ? 100 : 0,
-    }));
+    // Sync seed definitions into master table
+    for (const ach of SEED_ACHIEVEMENTS) {
+      await this.schoolDs.query(
+        `INSERT INTO achievements_master (id, title, category, description, icon, tier, criteria_type, criteria_target, reward_xp, reward_coins)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO UPDATE SET
+           title = EXCLUDED.title,
+           category = EXCLUDED.category,
+           description = EXCLUDED.description,
+           icon = EXCLUDED.icon,
+           tier = EXCLUDED.tier,
+           criteria_type = EXCLUDED.criteria_type,
+           criteria_target = EXCLUDED.criteria_target,
+           reward_xp = EXCLUDED.reward_xp,
+           reward_coins = EXCLUDED.reward_coins`,
+        [ach.id, ach.title, ach.category, ach.description, ach.icon, ach.tier, ach.criteria_type, ach.criteria_target, ach.reward_xp, ach.reward_coins]
+      ).catch(() => {});
+    }
+
+    // Purge old academic/non-game achievements from achievements_master
+    const validIds = SEED_ACHIEVEMENTS.map((a) => `'${a.id}'`).join(',');
+    await this.schoolDs.query(`DELETE FROM achievements_master WHERE id NOT IN (${validIds})`).catch(() => {});
+
+    const master = await this.schoolDs.query(`SELECT * FROM achievements_master ORDER BY category, criteria_target, tier`);
+    if (!master || master.length === 0) return [];
+
+    // Query real game scores from school_game_scores for this user
+    let s: any = {};
+    try {
+      const statsRows = await this.schoolDs.query(
+        `SELECT
+          COUNT(*)::int AS total_games,
+          COALESCE(SUM(xp_earned), 0)::int AS total_xp,
+          COALESCE(SUM(coins_earned), 0)::int AS total_coins,
+          COALESCE(SUM(correct_answers), 0)::int AS total_correct,
+          COALESCE(MAX(max_streak), 0)::int AS max_answer_streak,
+
+          COUNT(*) FILTER (WHERE game_type = 'quiz_rush')::int AS qr_count,
+          COALESCE(MAX(score) FILTER (WHERE game_type = 'quiz_rush'), 0)::float AS qr_high_score,
+          COALESCE(MAX(max_streak) FILTER (WHERE game_type = 'quiz_rush'), 0)::int AS qr_max_streak,
+
+          COUNT(*) FILTER (WHERE game_type = 'math_sprint')::int AS ms_count,
+          COALESCE(MAX(score) FILTER (WHERE game_type = 'math_sprint'), 0)::float AS ms_high_score,
+          COALESCE(SUM(correct_answers) FILTER (WHERE game_type = 'math_sprint'), 0)::int AS ms_correct,
+
+          COUNT(*) FILTER (WHERE game_type = 'memory_match')::int AS mm_count,
+          COALESCE(MIN(time_taken_seconds) FILTER (WHERE game_type = 'memory_match' AND time_taken_seconds > 0), 9999)::int AS mm_best_time,
+
+          COUNT(*) FILTER (WHERE game_type = 'word_master')::int AS wm_count,
+          COALESCE(MAX(score) FILTER (WHERE game_type = 'word_master'), 0)::float AS wm_high_score,
+          COALESCE(SUM(correct_answers) FILTER (WHERE game_type = 'word_master'), 0)::int AS wm_correct,
+
+          COUNT(*) FILTER (WHERE game_type IN ('treasure_hunt', 'treasure'))::int AS th_count,
+          COALESCE(SUM(score) FILTER (WHERE game_type IN ('treasure_hunt', 'treasure')), 0)::float AS th_total_score,
+
+          COUNT(*) FILTER (WHERE game_type IN ('battle_arena', 'battle'))::int AS ba_count,
+          COUNT(*) FILTER (WHERE game_type IN ('battle_arena', 'battle') AND score > 0)::int AS ba_wins,
+
+          COUNT(DISTINCT game_type)::int AS distinct_games,
+          COUNT(*) FILTER (WHERE total_questions > 0 AND correct_answers = total_questions)::int AS perfect_games
+        FROM school_game_scores
+        WHERE student_user_id::text = $1::text OR student_id::text = $1::text`,
+        [userId]
+      );
+      s = statsRows[0] || {};
+    } catch (err: any) {
+      console.warn(`Could not query school_game_scores stats: ${err?.message}`);
+    }
+
+    const unlocked = await this.schoolDs.query(
+      `SELECT achievement_id, unlocked_at, progress FROM user_achievements WHERE user_id::text = $1::text`,
+      [userId]
+    ).catch(() => []);
+    const unlockedMap = new Map((unlocked || []).map((u: any) => [u.achievement_id, u]));
+
+    const rawList = master.map((a: any) => {
+      let currentValue = 0;
+      const target = Number(a.criteria_target || 1);
+
+      switch (a.criteria_type) {
+        case 'QUIZ_RUSH_PLAY': currentValue = Number(s.qr_count || 0); break;
+        case 'QUIZ_RUSH_SCORE': currentValue = Number(s.qr_high_score || 0); break;
+        case 'QUIZ_RUSH_STREAK': currentValue = Number(s.qr_max_streak || 0); break;
+
+        case 'MATH_SPRINT_PLAY': currentValue = Number(s.ms_count || 0); break;
+        case 'MATH_SPRINT_CORRECT': currentValue = Number(s.ms_correct || 0); break;
+        case 'MATH_SPRINT_SCORE': currentValue = Number(s.ms_high_score || 0); break;
+
+        case 'MEMORY_MATCH_PLAY': currentValue = Number(s.mm_count || 0); break;
+        case 'MEMORY_MATCH_CLEAR': currentValue = Number(s.mm_count || 0); break;
+        case 'MEMORY_MATCH_TIME': {
+          const best = Number(s.mm_best_time || 9999);
+          if (s.mm_count > 0 && best <= target) {
+            currentValue = target;
+          } else {
+            currentValue = 0;
+          }
+          break;
+        }
+
+        case 'WORD_MASTER_PLAY': currentValue = Number(s.wm_count || 0); break;
+        case 'WORD_MASTER_CORRECT': currentValue = Number(s.wm_correct || 0); break;
+        case 'WORD_MASTER_SCORE': currentValue = Number(s.wm_high_score || 0); break;
+
+        case 'TREASURE_PLAY': currentValue = Number(s.th_count || 0); break;
+        case 'TREASURE_STAGES': currentValue = Number(s.th_count || 0); break;
+        case 'TREASURE_SCORE': currentValue = Number(s.th_total_score || 0); break;
+
+        case 'BATTLE_PLAY': currentValue = Number(s.ba_count || 0); break;
+        case 'BATTLE_WIN': currentValue = Number(s.ba_wins || 0); break;
+
+        case 'TOTAL_GAMES': currentValue = Number(s.total_games || 0); break;
+        case 'DISTINCT_GAMES': currentValue = Number(s.distinct_games || 0); break;
+        case 'PERFECT_GAMES': currentValue = Number(s.perfect_games || 0); break;
+        case 'TOTAL_GAME_XP': currentValue = Number(s.total_xp || 0); break;
+
+        default:
+          currentValue = Number(s.total_games || 0);
+          break;
+      }
+
+      const isUnlockedByData = currentValue >= target;
+      const isAlreadyUnlocked = unlockedMap.has(a.id) || isUnlockedByData;
+      const rawProgress = target > 0 ? Math.min(100, Math.round((currentValue / target) * 100)) : 0;
+      return {
+        ...a,
+        isUnlockedByData,
+        isAlreadyUnlocked,
+        rawProgress,
+        currentValue,
+        criteriaTarget: target,
+      };
+    });
+
+    // Calculate Per-Game Tier Unlock Progression (Sequential: BRONZE -> SILVER -> GOLD -> PLATINUM -> DIAMOND -> MYTHIC)
+    const gameCategories = ['QUIZ_RUSH', 'MATH_SPRINT', 'MEMORY_MATCH', 'WORD_MASTER', 'TREASURE_HUNT', 'ARCADE_OVERALL'];
+    const tierOrder = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'MYTHIC'];
+    const prevTierMap: Record<string, string> = {
+      SILVER: 'BRONZE',
+      GOLD: 'SILVER',
+      PLATINUM: 'GOLD',
+      DIAMOND: 'PLATINUM',
+      MYTHIC: 'DIAMOND',
+    };
+
+    const gameTierStatus: Record<string, Record<string, boolean>> = {};
+
+    for (const cat of gameCategories) {
+      gameTierStatus[cat] = { BRONZE: true };
+
+      for (let i = 1; i < tierOrder.length; i++) {
+        const currentTier = tierOrder[i];
+        const prevTier = tierOrder[i - 1];
+
+        const isPrevUnlocked = gameTierStatus[cat][prevTier];
+        const prevTierItems = rawList.filter(a => a.category === cat && a.tier === prevTier);
+        
+        // Tier unlock REQUIRES EVERY achievement in previous tier for THIS game to be 100% completed
+        const isPrevCompleted = prevTierItems.length > 0 && prevTierItems.every(a => Boolean(a.isAlreadyUnlocked));
+
+        gameTierStatus[cat][currentTier] = Boolean(isPrevUnlocked && isPrevCompleted);
+      }
+    }
+
+    const finalAchievements = rawList.map((a: any) => {
+      const isTierUnlocked = gameTierStatus[a.category]?.[a.tier] ?? (a.tier === 'BRONZE');
+
+      if (!isTierUnlocked) {
+        // Locked tier: User cannot view completed state, earn progress, or claim rewards
+        return {
+          ...a,
+          isUnlocked: false,
+          isTierUnlocked: false,
+          progress: 0,
+          currentValue: a.currentValue,
+          criteriaTarget: a.criteriaTarget,
+          prevTierName: prevTierMap[a.tier] || '',
+        };
+      }
+
+      // Tier is unlocked: allow completion & progress
+      if (a.isUnlockedByData && !unlockedMap.has(a.id)) {
+        this.schoolDs.query(
+          `INSERT INTO user_achievements (user_id, achievement_id, progress) VALUES ($1, $2, 100) ON CONFLICT DO NOTHING`,
+          [userId, a.id]
+        ).catch(() => {});
+      }
+
+      const progress = a.isAlreadyUnlocked ? 100 : a.rawProgress;
+
+      return {
+        ...a,
+        isUnlocked: a.isAlreadyUnlocked,
+        isTierUnlocked: true,
+        unlockedAt: (unlockedMap.get(a.id) as any)?.unlocked_at || (a.isUnlockedByData ? new Date().toISOString() : null),
+        progress,
+        currentValue: a.currentValue,
+        criteriaTarget: a.criteriaTarget,
+        prevTierName: prevTierMap[a.tier] || '',
+      };
+    });
+
+    return {
+      achievements: finalAchievements,
+      gameTierStatus,
+    };
   }
 
   /**
    * Multi-Dimensional Leaderboards Fetcher
    */
   async getMultiLeaderboard(scope: string = 'GLOBAL') {
-    const rows = await this.schoolDs.query(
-      `SELECT user_id, xp, coins, level, current_streak, current_difficulty, rank_tier, league_name 
-       FROM gamification_profiles 
-       ORDER BY xp DESC 
-       LIMIT 50`
-    );
+    try {
+      await this.ensureTablesExist().catch(() => {});
 
-    return rows.map((r: any, idx: number) => ({
-      rank: idx + 1,
-      userId: r.user_id,
-      name: r.user_name || r.name || `Student ${String(r.user_id || '0000').slice(-4)}`,
-      xp: Number(r.xp || 0),
-      coins: Number(r.coins || 0),
-      level: Number(r.level || 1),
-      streak: Number(r.current_streak || 0),
-      tier: r.rank_tier || 'Gold',
-      league: r.league_name || 'Gold League',
-    }));
+      let rows: any[] = [];
+      try {
+        rows = await this.schoolDs.query(
+          `SELECT 
+             gp.user_id, 
+             gp.xp, 
+             gp.coins, 
+             gp.level, 
+             gp.current_streak, 
+             gp.current_difficulty, 
+             gp.rank_tier, 
+             gp.league_name,
+             u.name as user_name,
+             u2.name as student_user_name
+           FROM gamification_profiles gp
+           LEFT JOIN users u ON u.id::text = gp.user_id::text
+           LEFT JOIN students s ON (s.id::text = gp.user_id::text OR s.user_id::text = gp.user_id::text)
+           LEFT JOIN users u2 ON u2.id::text = s.user_id::text
+           ORDER BY gp.xp DESC 
+           LIMIT 50`
+        );
+      } catch {
+        rows = await this.schoolDs.query(
+          `SELECT user_id, xp, coins, level, current_streak, current_difficulty, rank_tier, league_name 
+           FROM gamification_profiles 
+           ORDER BY xp DESC 
+           LIMIT 50`
+        ).catch(() => []);
+      }
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        // Fallback: If no gamification_profiles exist yet, query students table
+        const fallbackStudents = await this.schoolDs.query(
+          `SELECT s.id as user_id, u.name as student_name, s.xp_total as xp, s.eddva_coins as coins, s.current_streak
+           FROM students s
+           LEFT JOIN users u ON u.id::text = s.user_id::text
+           ORDER BY s.xp_total DESC
+           LIMIT 50`
+        ).catch(() => []);
+
+        if (Array.isArray(fallbackStudents) && fallbackStudents.length > 0) {
+          return fallbackStudents.map((r: any, idx: number) => ({
+            rank: idx + 1,
+            userId: r.user_id,
+            name: r.student_name || r.name || `Student ${String(r.user_id || '0000').slice(-4)}`,
+            xp: Number(r.xp || 0),
+            coins: Number(r.coins || 0),
+            level: Math.max(1, Math.floor(Number(r.xp || 0) / 100) + 1),
+            streak: Number(r.current_streak || 0),
+            tier: 'Gold',
+            league: 'Gold League',
+          }));
+        }
+
+        return [];
+      }
+
+      // Cross-query Coaching DB for any user names that were missing from School DB
+      const userIdsToLookup = rows
+        .map((r) => r.user_id)
+        .filter(Boolean);
+
+      const coachingNameMap: Record<string, string> = {};
+      if (userIdsToLookup.length > 0) {
+        try {
+          const len = userIdsToLookup.length;
+          const p1 = userIdsToLookup.map((_, i) => `$${i + 1}`).join(',');
+          const p2 = userIdsToLookup.map((_, i) => `$${i + 1 + len}`).join(',');
+          const p3 = userIdsToLookup.map((_, i) => `$${i + 1 + len * 2}`).join(',');
+
+          const coachingUsers = await this.studentRepo.manager.query(
+            `SELECT u.id::text as u_id, s.id::text as s_id, s.user_id::text as s_u_id, u.full_name
+             FROM users u
+             LEFT JOIN students s ON s.user_id::text = u.id::text
+             WHERE u.id::text IN (${p1}) OR s.id::text IN (${p2}) OR s.user_id::text IN (${p3})`,
+            [...userIdsToLookup, ...userIdsToLookup, ...userIdsToLookup],
+          ).catch(() => []);
+          (coachingUsers || []).forEach((u: any) => {
+            if (u?.full_name) {
+              if (u.u_id) coachingNameMap[u.u_id] = u.full_name;
+              if (u.s_id) coachingNameMap[u.s_id] = u.full_name;
+              if (u.s_u_id) coachingNameMap[u.s_u_id] = u.full_name;
+            }
+          });
+        } catch {}
+      }
+
+      return rows.map((r: any, idx: number) => {
+        const uName = r.user_name && r.user_name !== 'null' ? r.user_name : null;
+        const suName = r.student_user_name && r.student_user_name !== 'null' ? r.student_user_name : null;
+        const rName = r.name && r.name !== 'null' ? r.name : null;
+
+        const resolvedName =
+          uName ||
+          suName ||
+          coachingNameMap[r.user_id] ||
+          rName ||
+          `Student ${String(r.user_id || '0000').slice(-4)}`;
+
+        return {
+          rank: idx + 1,
+          userId: r.user_id,
+          name: resolvedName,
+          xp: Number(r.xp || 0),
+          coins: Number(r.coins || 0),
+          level: Number(r.level || 1),
+          streak: Number(r.current_streak || 0),
+          tier: r.rank_tier || 'Gold',
+          league: r.league_name || 'Gold League',
+        };
+      });
+    } catch (err: any) {
+      console.error('[GamificationService] Error in getMultiLeaderboard:', err?.message || err);
+      return [];
+    }
   }
 }

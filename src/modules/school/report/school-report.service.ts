@@ -290,7 +290,7 @@ export class SchoolReportService {
       const subject = row.subject_name || 'General';
       const subjectStat = subjectScores.get(subject) || { subject, scores: [], weakStudents: new Set<string>() };
       subjectStat.scores.push(percentage);
-      if (percentage < 50) subjectStat.weakStudents.add(studentId);
+      if (percentage < 60) subjectStat.weakStudents.add(studentId);
       subjectScores.set(subject, subjectStat);
 
       const month = row.scheduled_date

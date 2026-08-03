@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
+import { normalizeSubjectName } from '../subject/school-subject.service';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { MailService } from '../../mail/mail.service';
@@ -639,8 +640,11 @@ export class SchoolStudentService {
           enrollmentNo: student.enrollment_no,
           currentLevel: gamificationProfile.level,
           eddvaCoins: gamificationProfile.coins,
+          coins: gamificationProfile.coins,
           unlockedBadges: gamificationProfile.badges,
         },
+        eddvaCoins: gamificationProfile.coins,
+        coins: gamificationProfile.coins,
         xpTotal: gamificationProfile.xp,
         currentStreak: gamificationProfile.current_streak,
         longestStreak: gamificationProfile.longest_streak,
@@ -1735,9 +1739,15 @@ export class SchoolStudentService {
         const percentage = totalMarks > 0 ? Math.round((marksObtained / totalMarks) * 10000) / 100 : 0;
         const grade = sub.grade || (percentage >= 90 ? 'A+' : percentage >= 75 ? 'A' : percentage >= 60 ? 'B' : percentage >= 40 ? 'C' : 'F');
 
+        // Scoped to this institute and matched on the normalised name: without
+        // both, an upload could adopt another school's subject, or create a
+        // second copy that differs only in spelling or case.
+        const normalizedSubject = normalizeSubjectName(subjectName);
         let subjectRows = await manager.query(
-          `SELECT id FROM subjects WHERE LOWER(name) = LOWER($1) AND class_id = $2 LIMIT 1`,
-          [subjectName, classId]
+          `SELECT id FROM subjects
+           WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) AND class_id = $2 AND institute_id = $3
+           LIMIT 1`,
+          [normalizedSubject, classId, instituteId]
         );
         let subjectId: string;
         if (subjectRows.length > 0) {
@@ -1745,7 +1755,7 @@ export class SchoolStudentService {
         } else {
           const insertSubject = await manager.query(
             `INSERT INTO subjects (name, class_id, institute_id) VALUES ($1, $2, $3) RETURNING id`,
-            [subjectName, classId, instituteId]
+            [normalizedSubject, classId, instituteId]
           );
           subjectId = insertSubject[0].id;
         }

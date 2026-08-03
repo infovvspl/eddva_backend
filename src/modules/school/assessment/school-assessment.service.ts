@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { recordStudentActivity } from '../common/gamification-helper';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { FcmService } from '../notification-fcm/fcm.service';
 import { isSchoolAiFeatureEnabled } from '../common/ai-features.registry';
 import {
@@ -12,6 +13,7 @@ import {
   fillTemplate,
 } from '../notification-fcm/school-notification-templates';
 import { S3Service } from '../../upload/s3.service';
+import { resolvePublicApiUrl, normalizeAccessibleUrl } from '../../../common/url-helper';
 
 @Injectable()
 export class SchoolAssessmentService {
@@ -26,6 +28,7 @@ export class SchoolAssessmentService {
     private readonly aiBridge: AiBridgeService,
     private readonly fcm: FcmService,
     private readonly s3Service: S3Service,
+    private readonly textbooks: SchoolTextbookService,
   ) { }
 
   private storedUploadPath(file?: Express.Multer.File | null) {
@@ -398,7 +401,13 @@ export class SchoolAssessmentService {
         current.options.push({ id: this.normalizeOptionId(option[1]), label: option[1], text: option[2].trim() });
         continue;
       }
-      const qMatch = line.match(/^\s*(\d+)[.)]\s+(.+)$/);
+      // Accept both "1." and "Q1." numbering. Papers are written by more than
+      // one model and are also pasted in by teachers; a Q-prefixed paper used to
+      // parse to zero questions, which silently disabled rubrics and auto-grading
+      // because there were no questions to attach them to.
+      const qMatch =
+        line.match(/^\s*Q\s*\.?\s*(\d+)\s*[.)]?\s+(.+)$/i) ||
+        line.match(/^\s*(\d+)\s*[.)]\s+(.+)$/);
       if (qMatch) {
         if (!this.sectionLetter(section) || this.isInstructionLikeText(qMatch[2])) continue;
         finishCurrent();
@@ -938,13 +947,69 @@ export class SchoolAssessmentService {
     };
   }
 
+  /** Curriculum names from whichever id the request carries. Best-effort. */
+  private async resolveAssessmentNames(body: any): Promise<{
+    className?: string; subjectName?: string; chapterName?: string; topicName?: string;
+  }> {
+    const out: any = {};
+    const topicId = body?.topicId || body?.topic_id;
+    const chapterId = body?.chapterId || body?.chapter_id;
+    const subjectId = body?.subjectId || body?.subject_id;
+    const classId = body?.classId || body?.class_id;
+    const CLASS_JOIN = `
+      LEFT JOIN sections sec ON sec.id::text = s.section_id::text
+      LEFT JOIN classes cl ON cl.id::text = COALESCE(s.class_id, sec.class_id)::text`;
+    try {
+      if (topicId) {
+        const r = await this.ds.query(
+          `SELECT t.name AS topic_name, c.name AS chapter_name, s.name AS subject_name,
+                  cl.name AS class_name
+           FROM topics t JOIN chapters c ON c.id = t.chapter_id
+           JOIN subjects s ON s.id = c.subject_id ${CLASS_JOIN}
+           WHERE t.id::text = $1::text LIMIT 1`, [topicId]);
+        if (r[0]) Object.assign(out, {
+          topicName: r[0].topic_name, chapterName: r[0].chapter_name,
+          subjectName: r[0].subject_name, className: r[0].class_name });
+      } else if (chapterId) {
+        const r = await this.ds.query(
+          `SELECT c.name AS chapter_name, s.name AS subject_name, cl.name AS class_name
+           FROM chapters c JOIN subjects s ON s.id = c.subject_id ${CLASS_JOIN}
+           WHERE c.id::text = $1::text LIMIT 1`, [chapterId]);
+        if (r[0]) Object.assign(out, {
+          chapterName: r[0].chapter_name, subjectName: r[0].subject_name,
+          className: r[0].class_name });
+      } else if (subjectId) {
+        const r = await this.ds.query(
+          `SELECT s.name AS subject_name, cl.name AS class_name
+           FROM subjects s ${CLASS_JOIN} WHERE s.id::text = $1::text LIMIT 1`, [subjectId]);
+        if (r[0]) Object.assign(out, {
+          subjectName: r[0].subject_name, className: r[0].class_name });
+      }
+
+      if (!out.className && classId) {
+        const rClass = await this.ds.query(`SELECT name FROM classes WHERE id::text = $1::text LIMIT 1`, [classId]);
+        if (rClass[0]?.name) {
+          out.className = rClass[0].name;
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Assessment name resolution failed: ${(err as Error).message}`);
+    }
+    return out;
+  }
+
   async aiGenerateDraft(user: any, body: any) {
     const instituteId = user.instituteId || body.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
-    const subjectName = body.subjectName || 'General';
-    const className = body.className || 'Class';
-    const chapterName = (body.chapterName || '').trim();
-    const topicName = (body.topicName || '').trim();
+    // Names come from the client when it has them, but fall back to the database
+    // rather than to the literals 'General'/'Class'. Those placeholders reached
+    // the paper header and, worse, the prompt — so the AI was setting a paper for
+    // no particular subject at no particular level.
+    const named = await this.resolveAssessmentNames(body);
+    const subjectName = body.subjectName || named.subjectName || 'General';
+    const className = body.className || named.className || 'Class';
+    const chapterName = (body.chapterName || named.chapterName || '').trim();
+    const topicName = (body.topicName || named.topicName || '').trim();
     const testType = body.type || body.assessmentType || 'topic';
     const difficulty = body.difficulty || 'intermediate';
     const totalMarks = body.totalMarks || body.total_marks || 100;
@@ -1010,6 +1075,25 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       `Output ONLY the Markdown question paper.`,
     ].filter(Boolean).join('\n');
 
+    // Ground the paper in the school's own chapter when it has been indexed, so
+    // questions are set from the book the students actually study.
+    // Accept either casing, and fall back to the topic's chapter for a topic
+    // test, which carries a topic but not always a chapter.
+    let groundingChapterId: string | null =
+      body.chapterId || body.chapter_id || null;
+    if (!groundingChapterId && (body.topicId || body.topic_id)) {
+      try {
+        const rows = await this.ds.query(
+          `SELECT chapter_id FROM topics WHERE id::text = $1::text LIMIT 1`,
+          [body.topicId || body.topic_id],
+        );
+        groundingChapterId = rows[0]?.chapter_id ?? null;
+      } catch { /* grounding is best-effort */ }
+    }
+    const sourcePassages = await this.textbooks.getChapterPassages(
+      instituteId, groundingChapterId,
+    );
+
     try {
       const result = await this.aiBridge.generateTopicContent(
         {
@@ -1022,6 +1106,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           difficulty,
           length: 'detailed',
           extraContext,
+          ...(sourcePassages.length ? { sourcePassages } : {}),
         },
         instituteId,
         'school',
@@ -1517,40 +1602,13 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
    * unavailable, just without transcribed text.
    */
   private getRequestHost(req?: any): string {
-    if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
-    
-    const forwardedHost = req?.headers?.['x-forwarded-host'];
-    const forwardedProto = req?.headers?.['x-forwarded-proto'] || 'https';
-    let host = forwardedHost
-      ? `${forwardedProto}://${forwardedHost}`
-      : (req?.protocol && req?.get?.('host')) ? `${req.protocol}://${req.get('host')}` : '';
-
-    const refOrOrigin = String(req?.headers?.['referer'] || req?.headers?.['origin'] || '');
-    
-    if (!host || host.includes('127.0.0.1') || host.includes('localhost') || host.startsWith('http:')) {
-      if (refOrOrigin.includes('dev.eddva.in') || process.env.NODE_ENV === 'production' || !host || host.includes('127.0.0.1')) {
-        host = 'https://dev-api.eddva.in';
-      } else if (refOrOrigin.includes('eddva.in')) {
-        host = 'https://api.eddva.in';
-      }
-    }
-    return host.replace(/\/$/, '');
+    return resolvePublicApiUrl(req);
   }
 
   private async formatAccessibleUrl(url?: string | null, req?: any): Promise<string | null> {
     if (!url) return null;
-    let target = String(url).trim();
-    if (!target) return null;
-
-    if (target.includes('127.0.0.1') || target.includes('localhost')) {
-      target = target.replace(/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?/, 'https://dev-api.eddva.in');
-    } else if (target.startsWith('/uploads/') || target.startsWith('uploads/')) {
-      const host = this.getRequestHost(req);
-      const cleanPath = target.replace(/^\/+/, '');
-      target = host ? `${host}/${cleanPath}` : `https://dev-api.eddva.in/${cleanPath}`;
-    }
-
-    if (target.startsWith('http')) {
+    let target = normalizeAccessibleUrl(url, req);
+    if (target && target.startsWith('http')) {
       try {
         const key = this.s3Service.keyFromUrl(target);
         if (key?.startsWith('tenants/')) {
@@ -1561,11 +1619,12 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     return target;
   }
 
-  private async uploadToS3IfConfigured(file: Express.Multer.File, user: any): Promise<string | null> {
+  private async uploadToS3IfConfigured(file: Express.Multer.File, user: any, preloadedBuffer?: Buffer | null): Promise<string | null> {
     if (!file) return null;
     try {
       const fs = require('fs');
-      const fileBuffer = fs.readFileSync(file.path);
+      const fileBuffer = preloadedBuffer || (file.buffer ?? (file.path && fs.existsSync(file.path) ? fs.readFileSync(file.path) : null));
+      if (!fileBuffer) return null;
       const instituteId = user?.instituteId || 'default';
       const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || 'image.jpeg';
       const key = `tenants/${instituteId}/school-assessments/${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
@@ -1573,7 +1632,9 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       const fileUrl = await this.s3Service.upload(key, fileBuffer, file.mimetype || 'image/jpeg');
       
       // Clean up temp file
-      fs.unlink(file.path, () => {});
+      if (file.path && fs.existsSync(file.path)) {
+        fs.unlink(file.path, () => {});
+      }
       
       return fileUrl;
     } catch (err) {
@@ -1622,14 +1683,29 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
   }
 
   async ocrQuestionImage(user: any, file?: Express.Multer.File, req?: any) {
-    if (!isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting')) {
-      throw new BadRequestException('AI handwriting OCR feature is not enabled for this school/user');
-    }
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
 
-    let rawUrl = await this.uploadToS3IfConfigured(file, user);
+    const language = req?.body?.language || req?.query?.language || '';
+    const aiOcrEnabled = user?.role === 'SUPER_ADMIN' || user?.inst_ai_enabled !== false || isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting');
+
+    // Read file buffer FIRST (before R2 upload which deletes the disk file)
+    // so we can send a base64 data URI directly to the AI service.
+    let fileBuffer: Buffer | null = null;
+    try {
+      const fs = require('fs') as typeof import('fs');
+      if (file.buffer) {
+        fileBuffer = file.buffer;
+      } else if (file.path && fs.existsSync(file.path)) {
+        fileBuffer = fs.readFileSync(file.path);
+      }
+    } catch (e: any) {
+      this.logger.warn(`OCR: failed to read file buffer: ${e?.message}`);
+    }
+
+    // Upload to R2/S3 for persistent storage (this also deletes the temp disk file)
+    let rawUrl = await this.uploadToS3IfConfigured(file, user, fileBuffer);
     if (!rawUrl) {
       const filePath = this.storedUploadPath(file);
       if (!filePath) {
@@ -1638,20 +1714,45 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       const host = this.getRequestHost(req);
       rawUrl = host ? `${host}/${filePath.replace(/^\/+/, '')}` : filePath;
     }
-
-    const language = req?.body?.language || req?.query?.language || '';
     const ocrImageUrl = (await this.formatAccessibleUrl(rawUrl, req)) || rawUrl;
 
+    if (!aiOcrEnabled) {
+      return {
+        success: false,
+        text: '',
+        imageUrl: ocrImageUrl,
+        message: 'AI handwriting OCR feature is not enabled',
+      };
+    }
+
+    // Prefer base64 data URI so the AI service never needs to make an
+    // outbound HTTP fetch (which fails when uploads/ isn't publicly served
+    // or R2 objects are private on staging/production).
+    let imagePayload: string;
+    if (fileBuffer && fileBuffer.length > 0) {
+      const mime = file.mimetype || 'image/jpeg';
+      imagePayload = `data:${mime};base64,${fileBuffer.toString('base64')}`;
+      this.logger.log(`OCR: sending base64 data URI (${fileBuffer.length} bytes) to AI vision`);
+    } else {
+      imagePayload = ocrImageUrl;
+      this.logger.warn(`OCR: file buffer unavailable, falling back to URL: ${ocrImageUrl}`);
+    }
+
     try {
-      const ocr = await this.aiBridge.extractImageText({ imageUrl: ocrImageUrl, purpose: 'grading', language }, user?.instituteId);
+      const ocr = await this.aiBridge.extractImageText({ imageUrl: imagePayload, purpose: 'grading', language }, user?.instituteId);
       return {
         success: true,
         text: String(ocr?.text || '').trim(),
         imageUrl: ocrImageUrl,
       };
     } catch (err: any) {
-      this.logger.warn(`OCR transcription failed for single question: ${err?.message || err}`);
-      throw new BadRequestException(`OCR transcription failed: ${err?.message || err}`);
+      this.logger.warn(`OCR transcription failed: ${err?.message || err}`);
+      return {
+        success: false,
+        text: '',
+        imageUrl: ocrImageUrl,
+        message: err?.message || 'OCR extraction unavailable',
+      };
     }
   }
 
@@ -1667,7 +1768,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     let answerText = String(body.answerText || body.answer_text || body.notes || '').trim();
     const submittedAnswers = body.answersJson || body.answers_json || body.answers;
     let bodyAnswers: Record<string, any> | null = null;
-    if (submittedAnswers) {
+    if (submittedAnswers !== undefined && submittedAnswers !== null) {
       try {
         bodyAnswers = typeof submittedAnswers === 'string' ? JSON.parse(submittedAnswers || '{}') : submittedAnswers;
       } catch {
@@ -1680,7 +1781,8 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       filePath = s3Url || this.storedUploadPath(file);
     }
     const autoSubmit = body.autoSubmit === true || body.autoSubmit === 'true';
-    if (!answerText && !filePath && !bodyAnswers && !autoSubmit) {
+    const hasStructuredQuestions = Array.isArray(assessment?.questions_json) && assessment.questions_json.length > 0;
+    if (!answerText && !filePath && bodyAnswers === null && !autoSubmit && !hasStructuredQuestions) {
       throw new BadRequestException('Write an answer or upload a file');
     }
 
@@ -1984,14 +2086,16 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const gradingDetails = this.normalizeQuestions(subRows[0].grading_details);
 
     for (const update of updates) {
-      const maxMarks = marksByQuestionId.get(update.questionId);
-      if (maxMarks === undefined) throw new BadRequestException(`Unknown question ${update.questionId}`);
+      const maxMarks = marksByQuestionId.get(update.questionId) ?? 100;
       const finalMarks = Number(update.finalMarks);
       if (!Number.isFinite(finalMarks) || finalMarks < 0 || finalMarks > maxMarks) {
         throw new BadRequestException(`finalMarks for ${update.questionId} must be between 0 and ${maxMarks}`);
       }
-      const entry = gradingDetails.find((d: any) => d.questionId === update.questionId);
-      if (!entry) throw new BadRequestException(`No grading entry for question ${update.questionId}`);
+      let entry = gradingDetails.find((d: any) => d.questionId === update.questionId);
+      if (!entry) {
+        entry = { questionId: update.questionId, status: 'pending', marks: 0 };
+        gradingDetails.push(entry);
+      }
 
       const aiTotal = entry.aiGrading ? Number(entry.marks || 0) : null;
       entry.marks = finalMarks;

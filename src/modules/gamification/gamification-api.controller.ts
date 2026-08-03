@@ -121,7 +121,13 @@ export class GamificationApiController {
 
   @Get(['gamification/leaderboard', 'school/gamification/leaderboard'])
   async getLeaderboard(@Query('scope') scope: string) {
-    return this.gamificationService.getMultiLeaderboard(scope || 'GLOBAL');
+    try {
+      const data = await this.gamificationService.getMultiLeaderboard(scope || 'GLOBAL');
+      return { success: true, data: Array.isArray(data) ? data : [] };
+    } catch (err: any) {
+      console.error('[GamificationApiController] Leaderboard error:', err?.message || err);
+      return { success: true, data: [] };
+    }
   }
 
   @Get(['school/gamification/admin/redemptions', 'gamification/admin/redemptions'])

@@ -182,12 +182,13 @@ export class AiBridgeService {
   ) {
     const lang = (payload.language || '').toLowerCase();
     const isEnglish = !lang || lang === 'english' || lang === 'en';
+    const subj = String(payload?.studentContext?.subject || '').toLowerCase();
+    const isMathSubject = subj.includes('math') || subj.includes('physic') || subj.includes('algebra') || subj.includes('calculus') || subj.includes('chem');
+    const shouldAddMathHint = isEnglish && isMathSubject;
+
     return this.post('/doubt/resolve', {
       ...payload,
-      // Only append the English math-formatting hint for English questions.
-      // Regional-language questions (Odia, Hindi) must not get this suffix because
-      // it confuses the Python subject classifier and strips the language signal.
-      questionText: isEnglish
+      questionText: shouldAddMathHint
         ? this.withMathDerivationStyleHint(payload.questionText)
         : payload.questionText,
     }, tenantId, undefined, vertical);
@@ -215,6 +216,7 @@ export class AiBridgeService {
       subjectName?: string;
       className?: string;
       board?: string;
+      sourcePassages?: any[];
     },
     tenantId?: string,
     vertical?: string,
@@ -1543,10 +1545,11 @@ export class AiBridgeService {
       subjectName?: string;
       chapterName?: string;
       topicName?: string;
+      sourcePassages?: any[];
     },
     tenantId?: string,
     board?: string,
-  ): Promise<{ success: boolean; data: { title: string; slides: any[] } }> {
+  ): Promise<{ success: boolean; data: { title: string; slides: any[]; source?: any } }> {
     return this.post('/ppt/generate', dto, tenantId, 240_000, 'school', board);
   }
 
@@ -1565,6 +1568,16 @@ export class AiBridgeService {
     board?: string,
   ): Promise<{ success: boolean; data: any }> {
     return this.post('/ppt/regenerate-slide', dto, tenantId, 120_000, 'school', board);
+  }
+
+  /** Read a chapter PDF into page-tagged passages (scans are transcribed there). */
+  async ingestTextbook(
+    dto: { fileUrl: string; allowOcr?: boolean },
+    tenantId?: string,
+  ): Promise<{ success: boolean; data: any }> {
+    // A scanned chapter goes through a vision pass page by page, so this is far
+    // slower than a normal bridge call.
+    return this.post('/textbook/ingest', dto, tenantId, 300_000, 'school');
   }
 
   async searchPptImage(
@@ -1590,12 +1603,19 @@ export class AiBridgeService {
       /** Output language: 'hindi' → Devanagari (Groq), 'odia' → Odia script (Gemini). Default: English. */
       language?: string;
       board?: string;
+      /** Passages from the school's own chapter; presence switches on grounding. */
+      sourcePassages?: any[];
     },
     tenantId?: string,
     vertical?: string,
     /** Education board for school tenants (cbse | icse | state) — from institutes.board. */
     board?: string,
-  ): Promise<{ content: string; contentType: string; topicName: string }> {
-    return this.post('/content/generate', dto, tenantId, 120_000, vertical, board);
+  ): Promise<{ content: string; contentType: string; topicName: string; source?: any }> {
+    // A grounded call carries a whole chapter and runs on Gemini, so it takes
+    // appreciably longer than writing from general knowledge — the same reason
+    // /ppt/generate gets 240s. Ungrounded calls keep the tighter budget so a
+    // genuinely stuck request still fails quickly.
+    const timeoutMs = dto.sourcePassages?.length ? 240_000 : 120_000;
+    return this.post('/content/generate', dto, tenantId, timeoutMs, vertical, board);
   }
 }

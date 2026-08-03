@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -12,11 +13,13 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
 import { querySectionSubjects } from '../common/section-subjects';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
+import { normalizeAccessibleUrl } from '../../../common/url-helper';
 
 type DoubtStatus = 'open' | 'ai_answered' | 'escalated' | 'teacher_answered';
 
 @Injectable()
 export class SchoolDoubtService implements OnModuleInit {
+  private readonly logger = new Logger(SchoolDoubtService.name);
   private tableReady = false;
 
   constructor(
@@ -32,17 +35,18 @@ export class SchoolDoubtService implements OnModuleInit {
    * so the answer is framed for a school student. Returns a plain-text answer
    * plus extracted step list for the school doubt UI.
    */
-  private async toAccessibleImageUrl(imageUrl?: string): Promise<string | undefined> {
-    const raw = String(imageUrl || '').trim();
-    if (!raw) return undefined;
+  private async toAccessibleImageUrl(imageUrl?: string | null): Promise<string | undefined> {
+    if (!imageUrl) return undefined;
+    const target = normalizeAccessibleUrl(imageUrl);
+    if (!target) return undefined;
     try {
-      const key = this.s3Service.keyFromUrl(raw);
+      const key = this.s3Service.keyFromUrl(target);
       if (key?.startsWith('tenants/')) {
         return await this.s3Service.presignGet(key, 3600);
       }
-      return raw;
+      return target;
     } catch {
-      return raw;
+      return target;
     }
   }
 
@@ -435,7 +439,14 @@ export class SchoolDoubtService implements OnModuleInit {
         aiSteps = ai.steps;
         status = 'ai_answered';
         channel = 'ai';
-      } catch {
+      } catch (err) {
+        // Log it. Swallowing this error meant a completely dead vision stack —
+        // Groq had withdrawn the models and every Gemini key was exhausted —
+        // read as a passing blip for days, because the student saw only
+        // "temporarily unavailable" and nothing reached the logs.
+        this.logger.warn(
+          `Doubt AI failed, escalating to teacher: ${(err as Error)?.message ?? err}`,
+        );
         status = 'escalated';
         channel = 'teacher';
         if (!teacherUserId && routingSectionId) {

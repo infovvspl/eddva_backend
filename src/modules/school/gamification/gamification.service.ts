@@ -10,9 +10,11 @@ type GameType = 'quiz_rush' | 'treasure_hunt' | 'math_sprint' | 'memory_match' |
 @Injectable()
 export class GamificationService implements OnModuleInit {
   private readonly logger = new Logger(GamificationService.name);
+  private readonly _boardCache = new Map<string, { value: string; expiresAt: number }>();
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
+    @InjectDataSource('coaching') private readonly coachingDs: DataSource,
     private readonly aiBridge: AiBridgeService,
   ) {}
 
@@ -345,7 +347,7 @@ export class GamificationService implements OnModuleInit {
       const activityStreak = calculateCurrentStreak(activityDates);
 
       let xp = Math.max(gameXp, userXp, studentXp);
-      let coins = Math.max(gameCoins, studentCoins);
+      let coins = Math.max(gameCoins, studentCoins, Number(rows[0]?.coins || 0));
       let badges: any[] = [];
       let currentStreak = Math.max(userCurrentStreak, studentCurrentStreak, activityStreak);
       let longestStreak = Math.max(userLongestStreak, studentLongestStreak, activityStreak);
@@ -372,7 +374,7 @@ export class GamificationService implements OnModuleInit {
         if (isUuid) {
           await this.ds.query(
             `UPDATE gamification_profiles
-             SET xp = $1, coins = $2, level = $3, current_streak = $4, longest_streak = $5, updated_at = NOW()
+             SET xp = $1, coins = $2, level = $3, current_streak = $4, longest_streak = $5, reward_balance_inr = ROUND(($2 / 10)::numeric, 2), updated_at = NOW()
              WHERE user_id::text = $6::text OR user_id::text = $7::text`,
             [xp, coins, this.computeLevel(xp), currentStreak, longestStreak, userId, studentId || userId],
           ).catch(() => {});
@@ -398,7 +400,7 @@ export class GamificationService implements OnModuleInit {
         level: calculatedLevel,
         levelTitle: this.computeLevelTitle(xp),
         levelProgressPercent: Math.min(100, xp % 100),
-        rewardBalanceInr: Number((xp / 100).toFixed(2)),
+        rewardBalanceInr: Number((coins / 10).toFixed(2)),
         memoryScore,
         learningScore,
         focusScore,
@@ -509,7 +511,7 @@ export class GamificationService implements OnModuleInit {
     }
 
     const xpEarned = cheatFlagged ? 0 : (result.xpEarned + (perfect ? 50 : 0));
-    const coinsEarned = cheatFlagged ? 0 : (result.coinsEarned + (perfect ? 5 : 0));
+    const coinsEarned = cheatFlagged ? -15 : (result.coinsEarned + (perfect ? 5 : 0));
     
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : (result.score + (perfect ? 50 : 0)), xpEarned, coinsEarned, result);
@@ -559,8 +561,8 @@ export class GamificationService implements OnModuleInit {
     });
   }
 
-  async getTreasureChallenge(user: any, subjectId: string, stageOrder = 1, queryMode = 'ranked') {
-    const ctx = await this.resolveContext(user, subjectId, null);
+  async getTreasureChallenge(user: any, questId: string, stageOrder = 1, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
+    const ctx = await this.resolveContext(user, subjectId || questId, chapterId || null);
     const safeStageOrder = Math.max(1, Math.min(5, Number(stageOrder || 1)));
     let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
     if (queryMode === 'ranked') {
@@ -595,7 +597,7 @@ export class GamificationService implements OnModuleInit {
     }
 
     const xpEarned = cheatFlagged ? 0 : (passed ? result.correctAnswers * 20 + 20 : result.correctAnswers * 5);
-    const coinsEarned = cheatFlagged ? 0 : (passed ? 8 : 0);
+    const coinsEarned = cheatFlagged ? -15 : (passed ? 8 : 0);
     
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers, passed, stageOrder }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
@@ -695,7 +697,7 @@ export class GamificationService implements OnModuleInit {
     }
 
     const xpEarned = cheatFlagged ? 0 : result.xpEarned;
-    const coinsEarned = cheatFlagged ? 0 : result.coinsEarned;
+    const coinsEarned = cheatFlagged ? -15 : result.coinsEarned;
 
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : result.score, xpEarned, coinsEarned, result);
@@ -716,6 +718,7 @@ export class GamificationService implements OnModuleInit {
     const subjects = await this.listClassSubjects(user);
     return this.memoryMatchThemes(subjects).map((theme) => ({
       id: this.themeDeckId(theme.key, theme.subjectId),
+      subjectId: theme.subjectId,
       name: theme.name,
       description: theme.description,
       defaultDifficulty: theme.difficulty || 'medium',
@@ -723,13 +726,13 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
-  async startMemoryMatch(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked') {
+  async startMemoryMatch(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
     const subjects = await this.listClassSubjects(user);
     const theme = this.resolveMemoryMatchTheme(deckId, subjects);
     let difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
       ? difficultyParam.toLowerCase()
       : (theme.difficulty || 'medium');
-    const ctx = await this.resolveContext(user, theme.subjectId, null);
+    const ctx = await this.resolveContext(user, subjectId || theme.subjectId, chapterId || null);
     if (queryMode === 'ranked') {
       difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'memory_match');
     }
@@ -774,7 +777,7 @@ export class GamificationService implements OnModuleInit {
     }
 
     const xpEarned = cheatFlagged ? 0 : Math.max(20, pairs * 15 + Math.max(0, 100 - Math.max(0, turns - pairs) * 6));
-    const coinsEarned = cheatFlagged ? 0 : Math.max(1, pairs - Math.min(misses, pairs));
+    const coinsEarned = cheatFlagged ? -15 : Math.max(1, pairs - Math.min(misses, pairs));
     
     const result = { totalQuestions: pairs, correctAnswers: pairs, maxStreak: pairs, timeTakenSeconds: timeTaken, questionsAttempted: pairs, turnsCount: turns, mismatchesCount: misses };
     await this.completeSession(session.id, xpEarned, coinsEarned, result, cheatFlagged, cheatReason || null, tabSwitches);
@@ -797,6 +800,7 @@ export class GamificationService implements OnModuleInit {
     const subjects = await this.listClassSubjects(user);
     return this.wordMasterThemes(subjects).map((theme) => ({
       id: this.themeDeckId(theme.key, theme.subjectId),
+      subjectId: theme.subjectId,
       name: theme.name,
       description: theme.description,
       defaultDifficulty: theme.difficulty || 'medium',
@@ -804,13 +808,13 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
-  async startWordMaster(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked') {
+  async startWordMaster(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
     const subjects = await this.listClassSubjects(user);
     const theme = this.resolveWordMasterTheme(deckId, subjects);
     let difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
       ? difficultyParam.toLowerCase()
       : (theme.difficulty || 'medium');
-    const ctx = await this.resolveContext(user, theme.subjectId, null);
+    const ctx = await this.resolveContext(user, subjectId || theme.subjectId, chapterId || null);
     if (queryMode === 'ranked') {
       difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'word_master');
     }
@@ -896,13 +900,78 @@ export class GamificationService implements OnModuleInit {
       delete (nextWordPublic as any).word;
       return { isCorrect: true, nextWord: nextWordPublic };
     } else {
-      const results = await this.submitWordMaster(user, {
-        sessionId: body.sessionId,
-        answers: body.answers || [],
-        tabSwitchesCount: body.tabSwitchesCount,
-        timeTakenSeconds: body.timeTakenSeconds,
-      });
-      return { isCorrect: false, results };
+      // Let's count how many wrong answers are in body.answers
+      const answers = body.answers || [];
+      let wrongCount = 0;
+      for (const ans of answers) {
+        const idx = Number(ans.index);
+        const wordData = words[idx];
+        const ok = wordData && wordData.word && String(ans.word || '').toUpperCase().trim() === String(wordData.word).toUpperCase().trim();
+        if (!ok) {
+          wrongCount += 1;
+        }
+      }
+
+      if (wrongCount < 3) {
+        // We have lives left! Return the next word.
+        const nextIdx = index + 1;
+        if (nextIdx < words.length) {
+          const nextWordPublic = { ...words[nextIdx] };
+          delete (nextWordPublic as any).word;
+          return { isCorrect: false, nextWord: nextWordPublic, lives: 3 - wrongCount };
+        }
+
+        // generate more words if needed
+        const currentDifficulty = session.metadata.difficulty || 'medium';
+        const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+        const subjects = await this.listClassSubjects(user);
+        const theme = this.resolveWordMasterTheme(session.metadata.themeKey || '', subjects);
+        const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
+        
+        const promptMode = [
+          `Word Master: ${theme.name} (${nextDifficulty})`,
+          theme.description,
+          theme.prompt,
+          this.wordMasterDifficultyPrompt(nextDifficulty),
+          'Choose surprising, student-friendly syllabus vocabulary that feels like a puzzle, but never put the answer word inside the clue.',
+        ].join(' - ');
+        
+        const pairs = await this.generateConceptPairs(ctx, 10, promptMode, nextDifficulty, words);
+        const newWords = pairs.map((pair: any) => {
+          const word = this.toVocabularyWord(pair.term);
+          const hint = this.sanitizeWordHint(pair.definition, pair.term, word);
+          return { word, scrambled: this.scramble(word), hint, length: word.length };
+        }).filter((w: any) => w.word.length >= 4 && w.hint.length >= 12 && !this.hintContainsAnswer(w.hint, w.word));
+        
+        if (!newWords || newWords.length === 0) {
+          throw new BadRequestException('Could not generate more words.');
+        }
+        
+        const updatedWords = [...words, ...newWords];
+        const updatedMetadata = {
+          ...session.metadata,
+          words: updatedWords,
+          difficulty: nextDifficulty,
+        };
+        
+        await this.ds.query(
+          `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+          [body.sessionId, JSON.stringify(updatedMetadata)]
+        );
+        
+        const nextWordPublic = { ...newWords[0] };
+        delete (nextWordPublic as any).word;
+        return { isCorrect: false, nextWord: nextWordPublic, lives: 3 - wrongCount };
+      } else {
+        // No lives left! Submit the game.
+        const results = await this.submitWordMaster(user, {
+          sessionId: body.sessionId,
+          answers: body.answers || [],
+          tabSwitchesCount: body.tabSwitchesCount,
+          timeTakenSeconds: body.timeTakenSeconds,
+        });
+        return { isCorrect: false, results, lives: 0 };
+      }
     }
   }
 
@@ -943,7 +1012,7 @@ export class GamificationService implements OnModuleInit {
 
     const perfect = correctAnswers >= 10;
     const xpEarned = cheatFlagged ? 0 : (correctAnswers * 15 + (perfect ? 50 : 0));
-    const coinsEarned = cheatFlagged ? 0 : (correctAnswers + (perfect ? 5 : 0));
+    const coinsEarned = cheatFlagged ? -15 : (correctAnswers + (perfect ? 5 : 0));
     const result = { totalQuestions: totalQ, correctAnswers, maxStreak, wordsAttempted: totalQ, score: xpEarned };
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers, correctAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
@@ -990,23 +1059,64 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
+  private async resolveBoard(instituteId?: string): Promise<string> {
+    if (!instituteId) return 'CBSE';
+    const cached = this._boardCache.get(instituteId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value || 'CBSE';
+    try {
+      const rows = await this.ds.query(
+        `SELECT board, state FROM institutes WHERE id = $1 LIMIT 1`,
+        [instituteId],
+      );
+      if (!rows || !rows.length) return 'CBSE';
+      const boardVal = String(rows[0].board ?? '').trim();
+      const stateVal = String(rows[0].state ?? '').trim();
+
+      let finalBoard = boardVal;
+      const boardLower = boardVal.toLowerCase();
+      if (boardLower.includes('state') || boardLower === 'state board' || boardLower === 'stateboard') {
+        if (stateVal) {
+          finalBoard = stateVal.toLowerCase().includes('board') ? stateVal : `${stateVal} State Board`;
+        }
+      }
+
+      const boardResult = finalBoard || 'CBSE';
+      this._boardCache.set(instituteId, {
+        value: boardResult,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
+      return boardResult;
+    } catch (err) {
+      this.logger.warn(`Could not resolve board for institute ${instituteId}: ${(err as Error).message}`);
+      return 'CBSE';
+    }
+  }
+
   private async resolveContext(user: any, subjectId?: string | null, chapterId?: string | null) {
     const profile = user.studentProfile || {};
     const instituteId = user.instituteId || profile.instituteId;
     const classId = profile.classId;
     if (!instituteId || !classId) throw new BadRequestException('Student class profile is required for school games.');
 
-    const subject = subjectId && subjectId !== 'any'
-      ? (await this.ds.query(
-        `SELECT * FROM subjects WHERE id::text=$1::text AND institute_id::text=$2::text AND (class_id::text=$3::text OR class_id IS NULL) LIMIT 1`,
-        [subjectId, instituteId, classId],
-      ))[0]
-      : (await this.listClassSubjects(user))[0];
-    if (!subject) throw new BadRequestException('No subject found for this class.');
+    let subject: any = null;
+    if (subjectId && subjectId !== 'any') {
+      const rows = await this.ds.query(
+        `SELECT * FROM subjects WHERE id::text=$1::text LIMIT 1`,
+        [subjectId],
+      );
+      if (rows && rows.length > 0) subject = rows[0];
+    }
+    if (!subject) {
+      const classSubjects = await this.listClassSubjects(user);
+      subject = classSubjects[0];
+    }
+    if (!subject) throw new BadRequestException('No subject found for this student.');
 
     const chapter = chapterId && chapterId !== 'any'
-      ? (await this.ds.query(`SELECT * FROM chapters WHERE id::text=$1::text AND subject_id::text=$2::text LIMIT 1`, [chapterId, subject.id]))[0]
+      ? (await this.ds.query(`SELECT * FROM chapters WHERE id::text=$1::text LIMIT 1`, [chapterId]))[0]
       : null;
+
+    const board = await this.resolveBoard(instituteId);
 
     return {
       instituteId,
@@ -1017,6 +1127,7 @@ export class GamificationService implements OnModuleInit {
       subjectName: subject.name,
       chapterId: chapter?.id || null,
       chapterName: chapter?.name || null,
+      board,
     };
   }
 
@@ -1027,7 +1138,21 @@ export class GamificationService implements OnModuleInit {
     const sectionId = profile.sectionId;
 
     let query = `
-      SELECT s.*
+      SELECT s.*,
+             COALESCE((
+               SELECT json_agg(
+                 json_build_object(
+                   'id', ch.id,
+                   'name', ch.name,
+                   'sortOrder', ch.sort_order,
+                   'subjectId', ch.subject_id
+                 )
+                 ORDER BY ch.sort_order, ch.name
+               )
+               FROM chapters ch
+               WHERE ch.subject_id::text = s.id::text 
+                  OR ch.subject_id::text IN (SELECT sub.id::text FROM subjects sub WHERE LOWER(sub.name) = LOWER(s.name) AND sub.institute_id::text = s.institute_id::text)
+             ), '[]'::json) AS chapters
       FROM subjects s
       WHERE s.institute_id::text=$1::text AND (s.class_id::text=$2::text OR s.class_id IS NULL)
     `;
@@ -1055,7 +1180,9 @@ export class GamificationService implements OnModuleInit {
   }
 
   private async generateMcqs(ctx: any, count: number, difficulty: string, mode: string, excludeQuestions?: any[]) {
+    const boardStr = ctx.board ? `${ctx.board} Board` : 'CBSE Board';
     const topicName = [
+      boardStr,
       `Class ${ctx.className}`,
       ctx.subjectName,
       ctx.chapterName || 'mixed school syllabus',
@@ -1081,11 +1208,11 @@ export class GamificationService implements OnModuleInit {
         count,
         difficulty: difficulty === 'any' ? 'medium' : difficulty,
         type: 'mcq_single',
-        examTarget: 'cbse',
+        examTarget: ctx.board || 'cbse',
         subject: ctx.subjectName,
         chapter: ctx.chapterName || undefined,
         notes,
-      }, ctx.instituteId, 'school');
+      }, ctx.instituteId, 'school', ctx.board);
     } catch (err: any) {
       this.logger.error(`Gamification AI error [${mode}]: ${err?.message || err}`);
       throw new BadRequestException('Could not generate quiz questions. The AI service is temporarily unavailable. Please try again in a moment.');
@@ -1102,10 +1229,13 @@ export class GamificationService implements OnModuleInit {
       const notes = seenTexts.length > 0
         ? `CRITICAL: Do NOT generate expressions identical to these already used: ${seenTexts.slice(0, 30).join(', ')}`
         : undefined;
+      const boardStr = ctx.board ? `${ctx.board} Board` : 'CBSE Board';
       const questions = await this.aiBridge.generateQuestionsFromTopic({
-        topicId: ctx.chapterId || ctx.subjectId,
+        topicId: ctx.subjectId,
         topicName: [
+          boardStr,
           `Class ${ctx.className}`,
+          'Mathematics Complete Syllabus',
           'Math Sprint',
           'Generate rapid mental-maths arithmetic only.',
           'Each question content must be ONLY an expression like "24 + 18", "7 x 8", "96 / 12", or "15% of 80".',
@@ -1115,10 +1245,10 @@ export class GamificationService implements OnModuleInit {
         count: 12,
         difficulty: difficulty === 'any' ? 'medium' : difficulty,
         type: 'mcq_single',
-        examTarget: 'cbse',
+        examTarget: ctx.board || 'cbse',
         subject: 'Mathematics',
         notes,
-      }, ctx.instituteId, 'school');
+      }, ctx.instituteId, 'school', ctx.board);
       const mapped = (questions || [])
         .map((q: any) => this.toGameQuestion(q))
         .map((q: any) => this.toMathSprintQuestion(q))
@@ -1140,10 +1270,12 @@ export class GamificationService implements OnModuleInit {
       : undefined;
 
     let raw: any[];
+    const boardStr = ctx.board ? `${ctx.board} Board` : 'CBSE Board';
     try {
       raw = await this.aiBridge.generateQuestionsFromTopic({
         topicId: ctx.chapterId || ctx.subjectId,
         topicName: [
+          boardStr,
           `Class ${ctx.className}`,
           ctx.subjectName,
           ctx.chapterName || 'mixed school syllabus',
@@ -1156,11 +1288,11 @@ export class GamificationService implements OnModuleInit {
         count,
         difficulty,
         type: 'short_answer',
-        examTarget: 'cbse',
+        examTarget: ctx.board || 'cbse',
         subject: ctx.subjectName,
         chapter: ctx.chapterName || undefined,
         notes,
-      }, ctx.instituteId, 'school');
+      }, ctx.instituteId, 'school', ctx.board);
     } catch (err: any) {
       this.logger.warn(`${mode} AI error: ${err?.message || err}; falling back to subject terms`);
       return this.fallbackConceptPairs(ctx).slice(0, count);
@@ -1393,14 +1525,14 @@ export class GamificationService implements OnModuleInit {
         await this.ds.query(
           `INSERT INTO gamification_profiles (user_id, xp, coins, level, badges, current_streak, longest_streak)
            VALUES ($1, $2, $3, $4, '[]', 0, 0)`,
-          [userId, newXp, coinsInt, newLevel],
+          [userId, newXp, Math.max(0, coinsInt), newLevel],
         );
       } else {
         const newXp = Number(profileRows[0].xp || 0) + xpInt;
         const newLevel = this.computeLevel(newXp);
         await this.ds.query(
           `UPDATE gamification_profiles
-           SET xp = xp + $1, coins = coins + $2, level = $3, updated_at = NOW()
+           SET xp = xp + $1, coins = GREATEST(0, coins + $2), level = $3, updated_at = NOW()
            WHERE user_id = $4`,
           [xpInt, coinsInt, newLevel, userId],
         );
@@ -1452,134 +1584,14 @@ export class GamificationService implements OnModuleInit {
 
   private wordMasterSubjectTheme(subject: any) {
     const subjectName = String(subject?.name || 'Subject');
-    const normalized = subjectName.toLowerCase();
     const subjectId = subject?.id;
     const slug = subjectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'subject';
-    const base = {
+    return {
+      key: `${slug}-words`,
+      name: subjectName,
+      description: `Unscramble curious terms from your Class ${subjectName} syllabus!`,
       difficulty: 'medium',
       subjectId,
-    };
-
-    if (normalized.includes('science')) {
-      return {
-        key: 'science-explorers',
-        name: 'Science Explorers',
-        description: 'Unscramble key concepts from Earth, Life, and Physical Sciences!',
-        difficulty: 'easy',
-        subjectId,
-        prompt: 'Generate terms from school science: earth science, life processes, forces, matter, energy, cells, ecosystems, acids, bases, light, sound, and simple experiments.',
-      };
-    }
-
-    if (normalized.includes('math')) {
-      return {
-        key: 'math-vocabulary',
-        name: 'Math Vocabulary',
-        description: 'Unscramble geometry, algebra, number, and coordinate terms!',
-        difficulty: 'medium',
-        subjectId,
-        prompt: 'Generate mathematics vocabulary only: geometry, algebra, number systems, fractions, ratios, graphs, coordinates, data handling, and measurement terms.',
-      };
-    }
-
-    if (normalized.includes('literature')) {
-      return {
-        key: 'advanced-vocabulary',
-        name: 'Advanced Vocabulary',
-        description: 'Tackle high-level NCERT English literature and academic words!',
-        difficulty: 'hard',
-        subjectId,
-        prompt: 'Generate advanced school-level English vocabulary from literature, comprehension, academic writing, emotions, tone, themes, and literary devices.',
-      };
-    }
-
-    if (normalized.includes('english') || normalized.includes('language')) {
-      return {
-        key: 'synonyms-antonyms',
-        name: 'Synonyms & Antonyms',
-        description: 'Crack word-pair vocabulary used in reading and writing!',
-        difficulty: 'medium',
-        subjectId,
-        prompt: 'Generate English vocabulary for synonyms, antonyms, word meanings, prefixes, suffixes, adjectives, and expressive academic words.',
-      };
-    }
-
-    if (normalized.includes('civic') || normalized.includes('political') || normalized.includes('social')) {
-      return {
-        key: 'civics-landmarks',
-        name: 'Civics & Landmarks',
-        description: 'Decode vocabulary about constitutions, empires, maps, and public life!',
-        difficulty: 'hard',
-        subjectId,
-        prompt: 'Generate social science vocabulary from civics, history, geography, constitutions, democracy, landmarks, empires, resources, maps, and public institutions.',
-      };
-    }
-
-    if (normalized.includes('physics')) {
-      return {
-        ...base,
-        key: `${slug}-force-files`,
-        name: 'Force Files',
-        description: 'Unscramble motion, light, electricity, sound, and energy terms!',
-        prompt: 'Generate school physics vocabulary about force, motion, energy, light, sound, electricity, magnetism, pressure, and measurement.',
-      };
-    }
-
-    if (normalized.includes('chem')) {
-      return {
-        ...base,
-        key: `${slug}-element-hunt`,
-        name: 'Element Hunt',
-        description: 'Crack terms from atoms, reactions, acids, bases, and materials!',
-        prompt: 'Generate school chemistry vocabulary about atoms, molecules, elements, compounds, reactions, acids, bases, salts, metals, and materials.',
-      };
-    }
-
-    if (normalized.includes('bio')) {
-      return {
-        ...base,
-        key: `${slug}-life-lab`,
-        name: 'Life Lab',
-        description: 'Unscramble words from cells, organs, nutrition, heredity, and habitats!',
-        prompt: 'Generate school biology vocabulary about cells, tissues, organs, nutrition, respiration, reproduction, heredity, microbes, habitats, and ecosystems.',
-      };
-    }
-
-    if (normalized.includes('history')) {
-      return {
-        ...base,
-        key: `${slug}-time-capsule`,
-        name: 'Time Capsule Terms',
-        description: 'Unearth empires, movements, rulers, revolts, and ancient ideas!',
-        prompt: 'Generate history vocabulary about civilizations, empires, rulers, trade, movements, revolts, sources, monuments, chronology, and historical ideas.',
-      };
-    }
-
-    if (normalized.includes('geo')) {
-      return {
-        ...base,
-        key: `${slug}-map-mysteries`,
-        name: 'Map Mysteries',
-        description: 'Decode landforms, climates, resources, maps, and coordinates!',
-        prompt: 'Generate geography vocabulary about maps, landforms, rivers, climate, resources, settlements, coordinates, regions, population, and environment.',
-      };
-    }
-
-    if (normalized.includes('computer') || normalized.includes('ict')) {
-      return {
-        ...base,
-        key: `${slug}-code-crackers`,
-        name: 'Code Crackers',
-        description: 'Unscramble digital terms from hardware, software, networks, and safety!',
-        prompt: 'Generate school computer science vocabulary about hardware, software, networks, internet, algorithms, data, safety, devices, and coding basics.',
-      };
-    }
-
-    return {
-      ...base,
-      key: `${slug}-mystery-words`,
-      name: `${subjectName} Mystery Words`,
-      description: `Unscramble curious terms from your Class ${subjectName} syllabus!`,
       prompt: `Generate intriguing school-level vocabulary from ${subjectName}, using core syllabus terms, definitions, processes, people, places, concepts, and examples.`,
     };
   }
@@ -1598,86 +1610,14 @@ export class GamificationService implements OnModuleInit {
 
   private memoryMatchSubjectTheme(subject: any) {
     const subjectName = String(subject?.name || 'Subject');
-    const normalized = subjectName.toLowerCase();
     const subjectId = subject?.id;
     const slug = subjectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'subject';
-    const base = { difficulty: 'medium', subjectId };
-
-    if (normalized.includes('science')) {
-      return {
-        ...base,
-        key: `${slug}-discovery-pairs`,
-        name: 'Discovery Pairs',
-        description: 'Match science ideas with the clues that reveal how the world works.',
-        prompt: 'Generate science term-definition pairs from experiments, matter, energy, life, Earth, forces, reactions, and observation skills.',
-      };
-    }
-
-    if (normalized.includes('math')) {
-      return {
-        ...base,
-        key: `${slug}-formula-flip`,
-        name: 'Formula Flip',
-        description: 'Match formulas, shapes, operations, and meanings before the board wins.',
-        prompt: 'Generate mathematics term-definition pairs from formulas, operations, geometry, algebra, data, fractions, ratios, and measurement.',
-      };
-    }
-
-    if (normalized.includes('english') || normalized.includes('language') || normalized.includes('literature')) {
-      return {
-        ...base,
-        key: `${slug}-word-web`,
-        name: 'Word Web',
-        description: 'Match meanings, grammar clues, and literary terms like a word detective.',
-        prompt: 'Generate English term-definition pairs from grammar, vocabulary, synonyms, antonyms, story elements, poetry, tone, and literary devices.',
-      };
-    }
-
-    if (normalized.includes('history')) {
-      return {
-        ...base,
-        key: `${slug}-era-links`,
-        name: 'Era Links',
-        description: 'Match people, events, sources, empires, and turning points.',
-        prompt: 'Generate history match pairs about civilizations, empires, events, rulers, sources, movements, monuments, timelines, and historical terms.',
-      };
-    }
-
-    if (normalized.includes('geo')) {
-      return {
-        ...base,
-        key: `${slug}-map-links`,
-        name: 'Map Links',
-        description: 'Pair landforms, climate clues, map terms, and resource ideas.',
-        prompt: 'Generate geography match pairs about maps, landforms, climate, rivers, resources, coordinates, regions, settlements, and environment.',
-      };
-    }
-
-    if (normalized.includes('civic') || normalized.includes('political')) {
-      return {
-        ...base,
-        key: `${slug}-democracy-deck`,
-        name: 'Democracy Deck',
-        description: 'Match rights, duties, institutions, elections, and constitution clues.',
-        prompt: 'Generate civics match pairs about democracy, constitution, rights, duties, government, parliament, courts, elections, equality, and public institutions.',
-      };
-    }
-
-    if (normalized.includes('computer') || normalized.includes('ict')) {
-      return {
-        ...base,
-        key: `${slug}-digital-pairs`,
-        name: 'Digital Pairs',
-        description: 'Match hardware, software, networks, internet, and safety terms.',
-        prompt: 'Generate computer science match pairs about hardware, software, networks, internet, data, algorithms, coding basics, devices, and cyber safety.',
-      };
-    }
-
     return {
-      ...base,
-      key: `${slug}-brain-links`,
-      name: `${subjectName} Brain Links`,
+      key: `${slug}-deck`,
+      name: subjectName,
       description: `Match curious ${subjectName} ideas with their meanings.`,
+      difficulty: 'medium',
+      subjectId,
       prompt: `Generate matchable term-definition pairs from ${subjectName}, using core syllabus concepts, examples, processes, people, places, and vocabulary.`,
     };
   }
@@ -2049,5 +1989,127 @@ export class GamificationService implements OnModuleInit {
       { term: 'Compare', definition: 'To identify similarities and differences.' },
       { term: 'Summary', definition: 'A short version of the main points.' },
     ];
+  }
+
+  /**
+   * Multi-Scope Leaderboard query for school gamification.
+   */
+  async getMultiLeaderboard(scope: string = 'GLOBAL') {
+    try {
+      let rows: any[] = [];
+      try {
+        rows = await this.ds.query(
+          `SELECT 
+             gp.user_id, 
+             gp.xp, 
+             gp.coins, 
+             gp.level, 
+             gp.current_streak, 
+             gp.current_difficulty, 
+             gp.rank_tier, 
+             gp.league_name,
+             u.name as user_name,
+             u2.name as student_user_name
+           FROM gamification_profiles gp
+           LEFT JOIN users u ON u.id::text = gp.user_id::text
+           LEFT JOIN students s ON (s.id::text = gp.user_id::text OR s.user_id::text = gp.user_id::text)
+           LEFT JOIN users u2 ON u2.id::text = s.user_id::text
+           ORDER BY gp.xp DESC 
+           LIMIT 50`
+        );
+      } catch {
+        rows = await this.ds.query(
+          `SELECT user_id, xp, coins, level, current_streak, current_difficulty, rank_tier, league_name 
+           FROM gamification_profiles 
+           ORDER BY xp DESC 
+           LIMIT 50`
+        ).catch(() => []);
+      }
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        // Fallback: Query students table directly
+        const fallbackStudents = await this.ds.query(
+          `SELECT s.id as user_id, u.name as student_name, s.xp_total as xp, s.eddva_coins as coins, s.current_streak
+           FROM students s
+           LEFT JOIN users u ON u.id::text = s.user_id::text
+           ORDER BY s.xp_total DESC
+           LIMIT 50`
+        ).catch(() => []);
+
+        if (Array.isArray(fallbackStudents) && fallbackStudents.length > 0) {
+          return fallbackStudents.map((r: any, idx: number) => ({
+            rank: idx + 1,
+            userId: r.user_id,
+            name: r.student_name || r.name || `Student ${String(r.user_id || '0000').slice(-4)}`,
+            xp: Number(r.xp || 0),
+            coins: Number(r.coins || 0),
+            level: Math.max(1, Math.floor(Number(r.xp || 0) / 100) + 1),
+            streak: Number(r.current_streak || 0),
+            tier: 'Gold',
+            league: 'Gold League',
+          }));
+        }
+
+        return [];
+      }
+
+      // Query users from school/coaching database and attempt cross-table resolution
+      const userIdsToLookup = rows
+        .map((r) => r.user_id)
+        .filter(Boolean);
+
+      const fallbackNameMap: Record<string, string> = {};
+      if (userIdsToLookup.length > 0) {
+        try {
+          const len = userIdsToLookup.length;
+          const p1 = userIdsToLookup.map((_, i) => `$${i + 1}`).join(',');
+          const p2 = userIdsToLookup.map((_, i) => `$${i + 1 + len}`).join(',');
+          const p3 = userIdsToLookup.map((_, i) => `$${i + 1 + len * 2}`).join(',');
+
+          const extraUsers = await this.coachingDs.query(
+            `SELECT u.id::text as u_id, s.id::text as s_id, s.user_id::text as s_u_id, u.full_name
+             FROM users u
+             LEFT JOIN students s ON s.user_id::text = u.id::text
+             WHERE u.id::text IN (${p1}) OR s.id::text IN (${p2}) OR s.user_id::text IN (${p3})`,
+            [...userIdsToLookup, ...userIdsToLookup, ...userIdsToLookup],
+          ).catch(() => []);
+          (extraUsers || []).forEach((u: any) => {
+            if (u?.full_name) {
+              if (u.u_id) fallbackNameMap[u.u_id] = u.full_name;
+              if (u.s_id) fallbackNameMap[u.s_id] = u.full_name;
+              if (u.s_u_id) fallbackNameMap[u.s_u_id] = u.full_name;
+            }
+          });
+        } catch {}
+      }
+
+      return rows.map((r: any, idx: number) => {
+        const uName = r.user_name && r.user_name !== 'null' ? r.user_name : null;
+        const suName = r.student_user_name && r.student_user_name !== 'null' ? r.student_user_name : null;
+        const rName = r.name && r.name !== 'null' ? r.name : null;
+
+        const resolvedName =
+          uName ||
+          suName ||
+          fallbackNameMap[r.user_id] ||
+          rName ||
+          `Student ${String(r.user_id || '0000').slice(-4)}`;
+
+        return {
+          rank: idx + 1,
+          userId: r.user_id,
+          name: resolvedName,
+          xp: Number(r.xp || 0),
+          coins: Number(r.coins || 0),
+          level: Number(r.level || 1),
+          streak: Number(r.current_streak || 0),
+          tier: r.rank_tier || 'Gold',
+          league: r.league_name || 'Gold League',
+        };
+      });
+    } catch (err: any) {
+      console.error('[SchoolGamificationService] Error in getMultiLeaderboard:', err?.message || err);
+      return [];
+    }
   }
 }
