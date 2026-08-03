@@ -347,7 +347,7 @@ export class GamificationService implements OnModuleInit {
       const activityStreak = calculateCurrentStreak(activityDates);
 
       let xp = Math.max(gameXp, userXp, studentXp);
-      let coins = Math.max(gameCoins, studentCoins);
+      let coins = Math.max(gameCoins, studentCoins, Number(rows[0]?.coins || 0));
       let badges: any[] = [];
       let currentStreak = Math.max(userCurrentStreak, studentCurrentStreak, activityStreak);
       let longestStreak = Math.max(userLongestStreak, studentLongestStreak, activityStreak);
@@ -374,7 +374,7 @@ export class GamificationService implements OnModuleInit {
         if (isUuid) {
           await this.ds.query(
             `UPDATE gamification_profiles
-             SET xp = $1, coins = $2, level = $3, current_streak = $4, longest_streak = $5, updated_at = NOW()
+             SET xp = $1, coins = $2, level = $3, current_streak = $4, longest_streak = $5, reward_balance_inr = ROUND(($2 / 10)::numeric, 2), updated_at = NOW()
              WHERE user_id::text = $6::text OR user_id::text = $7::text`,
             [xp, coins, this.computeLevel(xp), currentStreak, longestStreak, userId, studentId || userId],
           ).catch(() => {});
@@ -400,7 +400,7 @@ export class GamificationService implements OnModuleInit {
         level: calculatedLevel,
         levelTitle: this.computeLevelTitle(xp),
         levelProgressPercent: Math.min(100, xp % 100),
-        rewardBalanceInr: Number((xp / 100).toFixed(2)),
+        rewardBalanceInr: Number((coins / 10).toFixed(2)),
         memoryScore,
         learningScore,
         focusScore,

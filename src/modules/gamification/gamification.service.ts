@@ -321,8 +321,8 @@ export class GamificationService implements OnModuleInit {
     });
     await this.historyRepo.save(historyEntry);
 
-    // 100 XP = ₹1 calculation (Reward Wallet increment)
-    const inrEarned = Number((xpEarned / 100).toFixed(2));
+    // 10 Coins = ₹1 calculation (Reward Wallet increment)
+    const inrEarned = Number(((coinsEarned || 0) / 10).toFixed(2));
 
     try {
       const exist = await this.schoolDs.query(
@@ -491,11 +491,11 @@ export class GamificationService implements OnModuleInit {
       userId: p.user_id,
       xp,
       lifetimeXp: Number(p.lifetime_xp || xp),
-      coins: Number(p.coins || 0),
+      coins: Number(p.coins || Math.floor(xp / 10)),
       level,
       levelTitle: title,
       levelProgressPercent,
-      rewardBalanceInr: Number(p.reward_balance_inr || (xp / 100).toFixed(2)),
+      rewardBalanceInr: Number((Number(p.coins || Math.floor(xp / 10)) / 10).toFixed(2)),
       memoryScore: Number(p.memory_score || 75),
       learningScore: Number(p.learning_score || 80),
       focusScore: Number(p.focus_score || 85),
