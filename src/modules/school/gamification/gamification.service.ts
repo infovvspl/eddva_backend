@@ -2009,7 +2009,13 @@ export class GamificationService implements OnModuleInit {
              gp.rank_tier, 
              gp.league_name,
              u.name as user_name,
-             u2.name as student_user_name
+             u.profile_image as user_photo,
+             u.avatar_url as user_avatar,
+             u2.name as student_user_name,
+             u2.profile_image as student_user_photo,
+             u2.avatar_url as student_user_avatar,
+             s.photo as student_photo,
+             s.profile_image as student_profile_image
            FROM gamification_profiles gp
            LEFT JOIN users u ON u.id::text = gp.user_id::text
            LEFT JOIN students s ON (s.id::text = gp.user_id::text OR s.user_id::text = gp.user_id::text)
@@ -2029,7 +2035,7 @@ export class GamificationService implements OnModuleInit {
       if (!Array.isArray(rows) || rows.length === 0) {
         // Fallback: Query students table directly
         const fallbackStudents = await this.ds.query(
-          `SELECT s.id as user_id, u.name as student_name, s.xp_total as xp, s.eddva_coins as coins, s.current_streak
+          `SELECT s.id as user_id, u.name as student_name, u.profile_image as user_photo, u.avatar_url as user_avatar, s.photo as student_photo, s.xp_total as xp, s.eddva_coins as coins, s.current_streak
            FROM students s
            LEFT JOIN users u ON u.id::text = s.user_id::text
            ORDER BY s.xp_total DESC
@@ -2041,6 +2047,7 @@ export class GamificationService implements OnModuleInit {
             rank: idx + 1,
             userId: r.user_id,
             name: r.student_name || r.name || `Student ${String(r.user_id || '0000').slice(-4)}`,
+            avatar: r.user_avatar || r.user_photo || r.student_photo || null,
             xp: Number(r.xp || 0),
             coins: Number(r.coins || 0),
             level: Math.max(1, Math.floor(Number(r.xp || 0) / 100) + 1),
@@ -2059,6 +2066,8 @@ export class GamificationService implements OnModuleInit {
         .filter(Boolean);
 
       const fallbackNameMap: Record<string, string> = {};
+      const fallbackAvatarMap: Record<string, string> = {};
+
       if (userIdsToLookup.length > 0) {
         try {
           const len = userIdsToLookup.length;
@@ -2067,17 +2076,24 @@ export class GamificationService implements OnModuleInit {
           const p3 = userIdsToLookup.map((_, i) => `$${i + 1 + len * 2}`).join(',');
 
           const extraUsers = await this.coachingDs.query(
-            `SELECT u.id::text as u_id, s.id::text as s_id, s.user_id::text as s_u_id, u.full_name
+            `SELECT u.id::text as u_id, s.id::text as s_id, s.user_id::text as s_u_id, u.full_name, u.profile_image, u.avatar_url, s.photo
              FROM users u
              LEFT JOIN students s ON s.user_id::text = u.id::text
              WHERE u.id::text IN (${p1}) OR s.id::text IN (${p2}) OR s.user_id::text IN (${p3})`,
             [...userIdsToLookup, ...userIdsToLookup, ...userIdsToLookup],
           ).catch(() => []);
+
           (extraUsers || []).forEach((u: any) => {
+            const avatar = u?.avatar_url || u?.profile_image || u?.photo || null;
             if (u?.full_name) {
               if (u.u_id) fallbackNameMap[u.u_id] = u.full_name;
               if (u.s_id) fallbackNameMap[u.s_id] = u.full_name;
               if (u.s_u_id) fallbackNameMap[u.s_u_id] = u.full_name;
+            }
+            if (avatar) {
+              if (u.u_id) fallbackAvatarMap[u.u_id] = avatar;
+              if (u.s_id) fallbackAvatarMap[u.s_id] = avatar;
+              if (u.s_u_id) fallbackAvatarMap[u.s_u_id] = avatar;
             }
           });
         } catch {}
@@ -2095,10 +2111,21 @@ export class GamificationService implements OnModuleInit {
           rName ||
           `Student ${String(r.user_id || '0000').slice(-4)}`;
 
+        const resolvedAvatar =
+          r.user_avatar ||
+          r.user_photo ||
+          r.student_user_avatar ||
+          r.student_user_photo ||
+          r.student_photo ||
+          r.student_profile_image ||
+          fallbackAvatarMap[r.user_id] ||
+          null;
+
         return {
           rank: idx + 1,
           userId: r.user_id,
           name: resolvedName,
+          avatar: resolvedAvatar,
           xp: Number(r.xp || 0),
           coins: Number(r.coins || 0),
           level: Number(r.level || 1),
