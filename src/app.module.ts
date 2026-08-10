@@ -58,6 +58,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { StudentModule } from './modules/student/student.module';
 import { BattleModule } from './modules/battle/battle.module';
 import { AiBridgeModule } from './modules/ai-bridge/ai-bridge.module';
+import { DocumentGeneratorModule } from './modules/document-generator/document-generator.module';
 import { ContentModule } from './modules/content/content.module';
 import { AssessmentModule } from './modules/assessment/assessment.module';
 import { NotificationModule } from './modules/notification/notification.module';
@@ -246,6 +247,7 @@ const ALL_COACHING_ENTITIES = [
     StudyMaterialModule,
     OtpModule,
     UploadModule,
+    DocumentGeneratorModule,
     GamesModule,
     GamificationModule,
     InternalModule,

@@ -7,6 +7,12 @@ export class SchoolRolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) { }
 
   canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride<boolean>('school_is_public', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
     const roles = this.reflector.getAllAndOverride<string[]>(SCHOOL_ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
