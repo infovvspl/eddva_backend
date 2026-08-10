@@ -580,6 +580,47 @@ export class SchoolReportService {
     };
   }
 
+  private normalizeSubjectName(rawName: string | null | undefined): string {
+    if (!rawName) return 'General';
+    const trimmed = rawName.trim();
+    const lower = trimmed.toLowerCase();
+    if (lower === 'maths' || lower === 'math' || lower === 'mathematics') {
+      return 'Mathematics';
+    }
+    if (
+      lower === 'social science' ||
+      lower === 'social studies' ||
+      lower === 'sst' ||
+      lower === 'ssc' ||
+      lower === 'social sciences' ||
+      lower === 'social-science' ||
+      lower === 'social-studies'
+    ) {
+      return 'Social Science';
+    }
+    if (
+      lower === 'info tech' ||
+      lower === 'information technology' ||
+      lower === 'it' ||
+      lower === 'computer science' ||
+      lower === 'computers' ||
+      lower === 'computer' ||
+      lower === 'cs'
+    ) {
+      return 'Information Technology';
+    }
+    if (lower === 'sci' || lower === 'science') {
+      return 'Science';
+    }
+    if (lower === 'eng' || lower === 'english') {
+      return 'English';
+    }
+    if (lower === 'hin' || lower === 'hindi') {
+      return 'Hindi';
+    }
+    return trimmed;
+  }
+
   async myStudentAnalytics(user: any) {
     await this.ensureResultSchema();
     const profileRows: any[] = await this.ds.query(
@@ -643,7 +684,7 @@ export class SchoolReportService {
     const subjectMap = new Map<string, number[]>();
     resultRows.forEach((row) => {
       if (row.is_absent) return;
-      const subject = row.subject_name || 'General';
+      const subject = this.normalizeSubjectName(row.subject_name);
       const totalMarks = this.toNumber(row.total_marks, 100);
       const percentage = row.percentage !== null && row.percentage !== undefined
         ? this.toNumber(row.percentage)

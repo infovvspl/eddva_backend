@@ -59,7 +59,7 @@ export class AuthController {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly storageService: StorageService,
-  ) {}
+  ) { }
 
   // ── Student Self-Registration ─────────────────────────────────────────────
 

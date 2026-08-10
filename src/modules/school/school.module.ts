@@ -26,6 +26,7 @@ import { SchoolMeetingModule } from './meeting/school-meeting.module';
 import { SchoolReportModule } from './report/school-report.module';
 import { SchoolActivityLogModule } from './activity-log/school-activity-log.module';
 import { SchoolDoubtModule } from './doubt/school-doubt.module';
+import { SchoolAstroModule } from './astro/school-astro.module';
 import { SchoolClassModule } from './class/school-class.module';
 import { SchoolAiUsageModule } from './ai-usage/school-ai-usage.module';
 import { SchoolCalendarModule } from './calendar/school-calendar.module';
@@ -70,6 +71,7 @@ import { SchoolNotificationFcmModule } from './notification-fcm/school-notificat
     SchoolReportModule,
     SchoolActivityLogModule,
     SchoolDoubtModule,
+    SchoolAstroModule,
     SchoolClassModule,
     SchoolAiUsageModule,
     SchoolCalendarModule,

@@ -955,6 +955,7 @@ export class SchoolAssessmentService {
     const topicId = body?.topicId || body?.topic_id;
     const chapterId = body?.chapterId || body?.chapter_id;
     const subjectId = body?.subjectId || body?.subject_id;
+    const classId = body?.classId || body?.class_id;
     const CLASS_JOIN = `
       LEFT JOIN sections sec ON sec.id::text = s.section_id::text
       LEFT JOIN classes cl ON cl.id::text = COALESCE(s.class_id, sec.class_id)::text`;
@@ -983,6 +984,13 @@ export class SchoolAssessmentService {
            FROM subjects s ${CLASS_JOIN} WHERE s.id::text = $1::text LIMIT 1`, [subjectId]);
         if (r[0]) Object.assign(out, {
           subjectName: r[0].subject_name, className: r[0].class_name });
+      }
+
+      if (!out.className && classId) {
+        const rClass = await this.ds.query(`SELECT name FROM classes WHERE id::text = $1::text LIMIT 1`, [classId]);
+        if (rClass[0]?.name) {
+          out.className = rClass[0].name;
+        }
       }
     } catch (err) {
       this.logger.warn(`Assessment name resolution failed: ${(err as Error).message}`);
@@ -2078,14 +2086,16 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const gradingDetails = this.normalizeQuestions(subRows[0].grading_details);
 
     for (const update of updates) {
-      const maxMarks = marksByQuestionId.get(update.questionId);
-      if (maxMarks === undefined) throw new BadRequestException(`Unknown question ${update.questionId}`);
+      const maxMarks = marksByQuestionId.get(update.questionId) ?? 100;
       const finalMarks = Number(update.finalMarks);
       if (!Number.isFinite(finalMarks) || finalMarks < 0 || finalMarks > maxMarks) {
         throw new BadRequestException(`finalMarks for ${update.questionId} must be between 0 and ${maxMarks}`);
       }
-      const entry = gradingDetails.find((d: any) => d.questionId === update.questionId);
-      if (!entry) throw new BadRequestException(`No grading entry for question ${update.questionId}`);
+      let entry = gradingDetails.find((d: any) => d.questionId === update.questionId);
+      if (!entry) {
+        entry = { questionId: update.questionId, status: 'pending', marks: 0 };
+        gradingDetails.push(entry);
+      }
 
       const aiTotal = entry.aiGrading ? Number(entry.marks || 0) : null;
       entry.marks = finalMarks;

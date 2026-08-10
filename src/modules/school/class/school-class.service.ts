@@ -789,22 +789,74 @@ export class SchoolClassService implements OnModuleInit {
     await this.ensureTable();
     const instituteId = this.resolveInstituteId(user);
     const rows = await this.ds.query(
-      `SELECT notes_images FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      `SELECT notes_images, notes FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
       [id, instituteId],
     );
     if (!rows.length) throw new NotFoundException('Recording not found');
-    const imgs: Array<{ s3Url?: string }> = Array.isArray(rows[0].notes_images) ? rows[0].notes_images : [];
-    const images: Record<string, string> = {};
+
+    const rec = rows[0];
+    const candidateUrls = new Set<string>();
+
+    let imgs: Array<{ s3Url?: string; url?: string; imageUrl?: string }> = [];
+    if (Array.isArray(rec.notes_images)) {
+      imgs = rec.notes_images;
+    } else if (typeof rec.notes_images === 'string') {
+      try { imgs = JSON.parse(rec.notes_images); } catch { imgs = []; }
+    }
     for (const img of imgs) {
-      if (!img?.s3Url) continue;
+      const u = img?.s3Url || img?.url || img?.imageUrl;
+      if (u) candidateUrls.add(u);
+    }
+
+    if (rec.notes && typeof rec.notes === 'string') {
+      const markdownImgRegex = /!\[.*?\]\((https?:\/\/[^\)]+)\)/g;
+      let match;
+      while ((match = markdownImgRegex.exec(rec.notes)) !== null) {
+        if (match[1]) candidateUrls.add(match[1]);
+      }
+    }
+
+    const images: Record<string, string> = {};
+    for (const url of candidateUrls) {
       try {
-        const key = this.s3Service.keyFromUrl(img.s3Url);
-        const buffer = await this.s3Service.getBuffer(key);
-        const ext = key.split('.').pop()?.toLowerCase() ?? 'jpg';
-        const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-        images[img.s3Url] = `data:${mime};base64,${buffer.toString('base64')}`;
+        let buffer: Buffer | null = null;
+        let ext = url.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
+
+        // Attempt 1: S3/R2 direct buffer fetch via key
+        try {
+          const key = this.s3Service.keyFromUrl(url);
+          if (key) {
+            buffer = await this.s3Service.getBuffer(key);
+            ext = key.split('.').pop()?.toLowerCase() ?? ext;
+          }
+        } catch {
+          buffer = null;
+        }
+
+        // Attempt 2: Node fetch fallback (bypasses browser CORS)
+        if (!buffer) {
+          const res = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+              Accept: 'image/webp,image/apng,image/jpeg,image/png,image/*,*/*;q=0.8',
+            },
+            signal: AbortSignal.timeout(10000),
+          });
+          if (res.ok) {
+            buffer = Buffer.from(await res.arrayBuffer());
+            const ct = res.headers.get('content-type') || '';
+            if (ct.includes('png')) ext = 'png';
+            else if (ct.includes('webp')) ext = 'webp';
+            else if (ct.includes('jpeg') || ct.includes('jpg')) ext = 'jpg';
+          }
+        }
+
+        if (buffer && buffer.length > 100) {
+          const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+          images[url] = `data:${mime};base64,${buffer.toString('base64')}`;
+        }
       } catch (err: any) {
-        this.logger.warn(`Notes image fetch failed for PDF export (${img.s3Url}): ${err?.message}`);
+        this.logger.warn(`Notes image fetch failed (${url}): ${err?.message}`);
       }
     }
     return { success: true, data: { images } };
