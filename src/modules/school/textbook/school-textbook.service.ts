@@ -73,6 +73,17 @@ export class SchoolTextbookService {
       `CREATE INDEX IF NOT EXISTS idx_textbook_chunks_scope
        ON textbook_chunks (institute_id, chapter_id, chunk_index)`,
     );
+    // Passages indexed before `tokens` was persisted carry NULL, and the AI
+    // service then enforces its source budget against a character estimate —
+    // truncating a chapter at an unpredictable point. Backfill the estimate
+    // once so every row has a number; re-indexing replaces it with the real
+    // count from extraction. Touches only NULL rows, so it is a no-op on every
+    // boot after the first.
+    await this.ds.query(
+      `UPDATE textbook_chunks
+          SET tokens = GREATEST(1, CEIL(LENGTH(content) / 4.0)::INTEGER)
+        WHERE tokens IS NULL`,
+    );
     await this.ds.query(`
       CREATE TABLE IF NOT EXISTS textbook_sources (
         chapter_id    UUID PRIMARY KEY,
@@ -240,22 +251,31 @@ export class SchoolTextbookService {
 
       // Multi-row inserts rather than a statement per passage. Batched because
       // Postgres accepts at most 65535 bind parameters per statement and each
-      // passage binds 8 — a whole-textbook PDF indexed as one chapter would
-      // otherwise fail at around 8,190 passages.
+      // passage binds 9 — a whole-textbook PDF indexed as one chapter would
+      // otherwise fail at around 7,280 passages.
+      //
+      // `tokens` is persisted because the AI service enforces its source budget
+      // against it. The column was being left null, so grounding fell back to a
+      // len(content)/4 character estimate and truncated at an unpredictable
+      // point — a chapter could silently lose passages the teacher expected to
+      // see. The count comes from the AI service, which measured it during
+      // extraction; the COALESCE keeps the old estimate for any passage that
+      // arrives without one.
       for (let start = 0; start < chunks.length; start += _INSERT_BATCH) {
         const batch = chunks.slice(start, start + _INSERT_BATCH);
         const values: any[] = [];
         const tuples = batch.map((c, i) => {
-          const base = i * 8;
+          const base = i * 9;
           values.push(
             instituteId, material.id, material.class_id, material.subject_id,
             material.chapter_id, c.page_no ?? null, c.chunk_index ?? start + i, c.content,
+            c.tokens ?? Math.max(1, Math.ceil(String(c.content ?? '').length / 4)),
           );
-          return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8})`;
+          return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9})`;
         });
         await tx.query(
           `INSERT INTO textbook_chunks
-             (institute_id, material_id, class_id, subject_id, chapter_id, page_no, chunk_index, content)
+             (institute_id, material_id, class_id, subject_id, chapter_id, page_no, chunk_index, content, tokens)
            VALUES ${tuples.join(',')}`,
           values,
         );
