@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { normalizeSubjectName } from '../subject/school-subject.service';
 import { DataSource } from 'typeorm';
@@ -7,11 +7,28 @@ import { MailService } from '../../mail/mail.service';
 import { querySectionSubjects } from '../common/section-subjects';
 
 @Injectable()
-export class SchoolStudentService {
+export class SchoolStudentService implements OnModuleInit {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly mailService: MailService
   ) { }
+
+  async onModuleInit() {
+    try {
+      await this.ds.query(`
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS previous_school_name TEXT;
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS previous_admission_no TEXT;
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS reason_for_transfer TEXT;
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS caste_category TEXT;
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS board_registration_no TEXT;
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS board_name TEXT;
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS document_verification JSONB DEFAULT '{}';
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ACTIVE';
+      `);
+    } catch (e) {
+      console.error('[SchoolStudentService] Column auto-creation error:', e);
+    }
+  }
 
   private parseJsonObject(val: any): any {
     if (!val) return {};
@@ -152,9 +169,12 @@ export class SchoolStudentService {
       };
 
       const sRows: any[] = await queryRunner.query(
-        `INSERT INTO students (user_id,institute_id,enrollment_no,roll_no,section_id,dob,gender,blood_group,national_id,father_name,mother_name,parent_phone,parent_email,parent_occupation,address,city,state,pin_code,admission_date,medical_conditions,allergies,documents)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *`,
-        [u.id, instituteId, enrollmentNo, body.rollNo || null, sectionId, body.dob ? new Date(body.dob) : null, body.gender || null, body.bloodGroup || null, body.nationalId || null, body.fatherName || null, body.motherName || null, body.parentPhone || null, body.parentEmail || null, body.parentOccupation || null, body.address || null, body.city || null, body.state || null, body.pinCode || null, body.admissionDate ? new Date(body.admissionDate) : null, body.medicalConditions || null, body.allergies || null, JSON.stringify(body.documents || {})],
+        `INSERT INTO students (user_id,institute_id,enrollment_no,roll_no,section_id,dob,gender,blood_group,national_id,father_name,mother_name,parent_phone,parent_email,parent_occupation,address,city,state,pin_code,admission_date,medical_conditions,allergies,documents,previous_school_name,previous_admission_no,reason_for_transfer,caste_category,board_registration_no,board_name,document_verification,status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30) RETURNING *`,
+        [
+          u.id, instituteId, enrollmentNo, body.rollNo || null, sectionId, body.dob ? new Date(body.dob) : null, body.gender || null, body.bloodGroup || null, body.nationalId || null, body.fatherName || null, body.motherName || null, body.parentPhone || null, body.parentEmail || null, body.parentOccupation || null, body.address || null, body.city || null, body.state || null, body.pinCode || null, body.admissionDate ? new Date(body.admissionDate) : null, body.medicalConditions || null, body.allergies || null, JSON.stringify(body.documents || {}),
+          body.previousSchoolName || null, body.previousAdmissionNo || null, body.reasonForTransfer || null, body.casteCategory || null, body.boardRegistrationNo || null, body.boardName || null, JSON.stringify(body.documentVerification || {}), body.status || 'ACTIVE'
+        ],
       );
 
       await queryRunner.commitTransaction();
@@ -264,6 +284,7 @@ export class SchoolStudentService {
               s.father_name,s.mother_name,s.parent_phone,s.admission_date,
               s.parent_email,s.parent_occupation,s.address,s.city,s.state,s.pin_code,
               s.medical_conditions,s.allergies,s.documents,s.national_id,
+              s.previous_school_name,s.previous_admission_no,s.reason_for_transfer,s.caste_category,s.board_registration_no,s.board_name,s.document_verification,s.status,
               sec.name AS section_name,c.id AS class_id,c.name AS class_name
        FROM users u JOIN students s ON s.user_id=u.id
        LEFT JOIN institutes i ON i.id=u.institute_id
@@ -309,6 +330,14 @@ export class SchoolStudentService {
           allergies: r.allergies,
           documents: this.parseJsonObject(r.documents),
           nationalId: r.national_id,
+          previousSchoolName: r.previous_school_name,
+          previousAdmissionNo: r.previous_admission_no,
+          reasonForTransfer: r.reason_for_transfer,
+          casteCategory: r.caste_category,
+          boardRegistrationNo: r.board_registration_no,
+          boardName: r.board_name,
+          documentVerification: this.parseJsonObject(r.document_verification),
+          status: r.status || 'ACTIVE',
           section: r.section_id ? {
             id: r.section_id,
             name: r.section_name,
@@ -676,6 +705,7 @@ export class SchoolStudentService {
               s.father_name, s.mother_name, s.parent_phone, s.admission_date,
               s.parent_email, s.parent_occupation, s.address, s.city, s.state, s.pin_code,
               s.medical_conditions, s.allergies, s.documents, s.national_id,
+              s.previous_school_name, s.previous_admission_no, s.reason_for_transfer, s.caste_category, s.board_registration_no, s.board_name, s.document_verification, s.status,
               sec.name AS section_name, c.name AS class_name, c.id AS class_id, c.academic_year
        FROM users u
        LEFT JOIN students s ON s.user_id=u.id
@@ -839,6 +869,14 @@ export class SchoolStudentService {
         allergies: r.allergies,
         documents: this.parseJsonObject(r.documents),
         nationalId: r.national_id,
+        previousSchoolName: r.previous_school_name,
+        previousAdmissionNo: r.previous_admission_no,
+        reasonForTransfer: r.reason_for_transfer,
+        casteCategory: r.caste_category,
+        boardRegistrationNo: r.board_registration_no,
+        boardName: r.board_name,
+        documentVerification: this.parseJsonObject(r.document_verification),
+        status: r.status || 'ACTIVE',
         classId: r.class_id,
         academicYear: r.academic_year,
         subjects: subjectRows.map((s) => s.name),
@@ -947,6 +985,18 @@ export class SchoolStudentService {
     if (body.admissionDate !== undefined || body.admission_date !== undefined) addStudentUpdate('admission_date', (body.admissionDate || body.admission_date) ? new Date(body.admissionDate || body.admission_date) : null);
     if (body.medicalConditions !== undefined || body.medical_conditions !== undefined) addStudentUpdate('medical_conditions', body.medicalConditions || body.medical_conditions || null);
     if (body.allergies !== undefined) addStudentUpdate('allergies', body.allergies || null);
+
+    if (body.previousSchoolName !== undefined) addStudentUpdate('previous_school_name', body.previousSchoolName || null);
+    if (body.previousAdmissionNo !== undefined) addStudentUpdate('previous_admission_no', body.previousAdmissionNo || null);
+    if (body.reasonForTransfer !== undefined) addStudentUpdate('reason_for_transfer', body.reasonForTransfer || null);
+    if (body.casteCategory !== undefined) addStudentUpdate('caste_category', body.casteCategory || null);
+    if (body.boardRegistrationNo !== undefined) addStudentUpdate('board_registration_no', body.boardRegistrationNo || null);
+    if (body.boardName !== undefined) addStudentUpdate('board_name', body.boardName || null);
+    if (body.status !== undefined) addStudentUpdate('status', body.status || 'ACTIVE');
+
+    if (body.documentVerification !== undefined) {
+      addStudentUpdate('document_verification', JSON.stringify(body.documentVerification));
+    }
 
     // ── Documents: merge existing with incoming, always rebuild parentDetails ──
     const existingStudentRows: any[] = await this.ds.query(`SELECT documents FROM students WHERE user_id=$1`, [userId]);

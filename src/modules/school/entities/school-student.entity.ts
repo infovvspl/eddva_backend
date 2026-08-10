@@ -14,4 +14,20 @@ export class SchoolStudent extends SchoolBase {
   @Column({ name: 'parent_name', nullable: true }) parentName: string;
   @Column({ name: 'parent_phone', nullable: true }) parentPhone: string;
   @Column({ name: 'notification_enabled', default: true }) notificationEnabled: boolean;
+  
+  // Joining & Category Fields
+  @Column({ name: 'previous_school_name', nullable: true }) previousSchoolName: string;
+  @Column({ name: 'previous_admission_no', nullable: true }) previousAdmissionNo: string;
+  @Column({ name: 'reason_for_transfer', nullable: true }) reasonForTransfer: string;
+  @Column({ name: 'caste_category', nullable: true }) casteCategory: string;
+  @Column({ name: 'board_registration_no', nullable: true }) boardRegistrationNo: string;
+  @Column({ name: 'board_name', nullable: true }) boardName: string;
+
+  // Document Storage & Verification Status JSON
+  @Column({ type: 'json', nullable: true }) documents: any;
+  @Column({ name: 'document_verification', type: 'json', nullable: true }) documentVerification: any;
+
+  // Student Exit & Status
+  @Column({ default: 'ACTIVE' }) status: string;
 }
+

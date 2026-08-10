@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { SchoolStudentService } from './school-student.service';
+import { SchoolStudentExitService } from './school-student-exit.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
@@ -8,7 +9,10 @@ import { Audit } from '../../audit-log/audit.decorator';
 @Controller('school/students')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolStudentController {
-  constructor(private readonly svc: SchoolStudentService) { }
+  constructor(
+    private readonly svc: SchoolStudentService,
+    private readonly exitSvc: SchoolStudentExitService,
+  ) { }
 
   @Post('bulk-import') bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
 
@@ -24,6 +28,17 @@ export class SchoolStudentController {
   @Get('courses/:classId') courseCurriculum(@SchoolUser() user: any, @Param('classId') classId: string) {
     return this.svc.getCourseDetail(user, classId);
   }
+
+  @Get(':id/exit-record')
+  getExitRecord(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) {
+    return this.exitSvc.getExitRecord(user, id);
+  }
+
+  @Post(':id/exit-record')
+  createOrUpdateExitRecord(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) {
+    return this.exitSvc.createOrUpdateExitRecord(user, id, body);
+  }
+
   @Get(':id') findOne(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.findOne(user, id); }
 
   @Put(':id')
