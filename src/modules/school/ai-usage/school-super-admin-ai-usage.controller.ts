@@ -31,6 +31,7 @@ const AI_FEATURES: Array<{ id: string; label: string; category: string }> = [
   { id: 'doubt_resolver', label: 'Doubt Resolver', category: 'student' },
   { id: 'personalised_study_plan', label: 'Personalised Study Plan', category: 'student' },
   { id: 'career_guidance_report', label: 'Career Guidance Report', category: 'student' },
+  { id: 'ai_astro_profile', label: 'AI Astro Profile', category: 'student' },
   { id: 'resume_analyser', label: 'Resume Analyser', category: 'student' },
   { id: 'interview_prep', label: 'Interview Prep', category: 'student' },
   { id: 'multilingual_translation', label: 'Multilingual Translation', category: 'shared' },

@@ -59,19 +59,19 @@ export class SchoolClassController {
   }
 
   @Get('recordings/:id/progress')
-  @SchoolRoles('STUDENT')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   getRecordingProgress(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.getProgress(user, id);
   }
 
   @Post('recordings/:id/progress')
-  @SchoolRoles('STUDENT')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   upsertRecordingProgress(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
     return this.svc.upsertProgress(user, id, body);
   }
 
   @Post('recordings/:id/quiz-response')
-  @SchoolRoles('STUDENT')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   submitQuizResponse(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
     return this.svc.submitQuizResponse(user, id, body);
   }
@@ -93,13 +93,13 @@ export class SchoolClassController {
   }
 
   @Get('student-notes')
-  @SchoolRoles('STUDENT')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   getStudentNotes(@SchoolUser() user: any, @Query() query: { lectureId?: string; recordingId?: string }) {
     return this.svc.getStudentNotes(user, query);
   }
 
   @Post('student-notes')
-  @SchoolRoles('STUDENT')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   saveStudentNotes(@SchoolUser() user: any, @Body() body: { lectureId?: string; recordingId?: string; notes: string }) {
     return this.svc.saveStudentNotes(user, body);
   }
