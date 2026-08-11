@@ -51,7 +51,7 @@ export class SchoolAcademicService {
   async listClasses(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const academicYear = query.academicYear ? String(query.academicYear).trim() : undefined;
-    const isTeacher = user.role === 'TEACHER';
+    const isTeacher = user.role === 'TEACHER' || (typeof user.role === 'string' && user.role.includes('TEACHER'));
 
     let cacheKey = this.classListKey(instituteId, academicYear);
     if (isTeacher) {
@@ -361,7 +361,7 @@ export class SchoolAcademicService {
 
   async listSections(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
-    const isTeacher = user.role === 'TEACHER';
+    const isTeacher = user.role === 'TEACHER' || (typeof user.role === 'string' && user.role.includes('TEACHER'));
 
     let cacheKey = this.sectionListKey(instituteId, query.classId, query.academicYear);
     if (isTeacher) {

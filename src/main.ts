@@ -320,7 +320,85 @@ async function bootstrap() {
     await schoolDs.query(`UPDATE institutes SET ai_features = ai_features || '{"ai_ocr_handwriting":true,"ai_subjective_grading":true}'::jsonb`);
     await schoolDs.query(`ALTER TABLE institutes ADD COLUMN IF NOT EXISTS modules_permissions JSONB NOT NULL DEFAULT '{"live_classes":true,"assessments":true,"assignments":true,"chat":true}'`);
     await schoolDs.query(`UPDATE institutes SET modules_permissions = '{"live_classes":true,"assessments":true,"assignments":true,"chat":true}'::jsonb WHERE modules_permissions = '{}'::jsonb OR modules_permissions IS NULL`);
-    logger.log('School DB indexes + institute columns ensured');
+    await schoolDs.query(`
+      CREATE TABLE IF NOT EXISTS syllabus_plans (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        institute_id UUID NOT NULL,
+        academic_year VARCHAR(50) NOT NULL,
+        class_id UUID NOT NULL,
+        section_id UUID,
+        subject_id UUID NOT NULL,
+        chapter_id UUID,
+        topic_id UUID,
+        teacher_id UUID,
+        planned_start_date DATE NOT NULL,
+        planned_completion_date DATE NOT NULL,
+        planned_periods INT DEFAULT 1,
+        priority VARCHAR(20) DEFAULT 'NORMAL',
+        term VARCHAR(50),
+        status VARCHAR(50) DEFAULT 'PLANNED',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS lesson_plans (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        institute_id UUID NOT NULL,
+        academic_year VARCHAR(50) NOT NULL,
+        class_id UUID NOT NULL,
+        section_id UUID NOT NULL,
+        subject_id UUID NOT NULL,
+        chapter_id UUID,
+        topic_id UUID,
+        teacher_id UUID NOT NULL,
+        date DATE NOT NULL,
+        duration_periods INT DEFAULT 1,
+        learning_objectives TEXT,
+        previous_knowledge TEXT,
+        teaching_methodology TEXT,
+        teaching_activities TEXT,
+        teaching_resources TEXT,
+        digital_resources TEXT,
+        classroom_activities TEXT,
+        assessment_method TEXT,
+        homework TEXT,
+        expected_learning_outcomes TEXT,
+        teacher_notes TEXT,
+        timetable_id UUID,
+        status VARCHAR(50) DEFAULT 'DRAFT',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS lesson_completions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        lesson_plan_id UUID NOT NULL,
+        actual_date DATE NOT NULL,
+        actual_duration_periods INT DEFAULT 1,
+        topics_covered TEXT,
+        learning_objectives_achieved TEXT,
+        student_understanding_rating INT DEFAULT 4,
+        homework_assigned TEXT,
+        assessment_conducted TEXT,
+        teacher_reflection TEXT,
+        completion_type VARCHAR(50) DEFAULT 'FULLY',
+        delay_reason TEXT,
+        carry_forward_date DATE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS lesson_templates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        institute_id UUID,
+        teacher_id UUID,
+        title VARCHAR(255) NOT NULL,
+        category VARCHAR(100) DEFAULT 'Standard',
+        content_json JSONB DEFAULT '{}',
+        is_global BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `);
+    logger.log('School DB indexes + institute columns + syllabus tables ensured');
     
     // ── Run school DB migrations ───────────────────────────────────────────
     logger.log('Running school DB migrations...');
@@ -340,5 +418,5 @@ async function bootstrap() {
 
 bootstrap();
 
-// Trigger Restart 6
+// Trigger Restart 16 (Complete try/catch resilience across getTeacherTeachingPlan)
 // Force restart

@@ -12,7 +12,6 @@ import { SchoolSyllabusController } from './school-syllabus.controller';
     SchoolStudentController,
     SchoolUserController,
     SchoolStudentExitController,
-    SchoolSyllabusController,
   ],
   providers: [
     SchoolStudentService,

@@ -14,6 +14,11 @@ export class SchoolSyllabusController {
     return this.svc.createSyllabusPlan(user, body);
   }
 
+  @Get('plans')
+  getSyllabusPlans(@SchoolUser() user: any, @Query() query: any) {
+    return this.svc.getSyllabusPlans(user, query);
+  }
+
   @Get('tracker')
   getSyllabusTracker(@SchoolUser() user: any, @Query() query: any) {
     return this.svc.getSyllabusTracker(user, query);

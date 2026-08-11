@@ -147,38 +147,107 @@ export class SchoolSyllabusService implements OnModuleInit {
     return { success: true, count: insertedPlans.length, data: insertedPlans };
   }
 
-  async getSyllabusTracker(user: any, query: any) {
+  async getSyllabusPlans(user: any, query: any) {
     const instituteId = user.instituteId;
-    const { classId, sectionId, subjectId, teacherId } = query;
+    const academicYear = query.academicYear;
 
-    let whereClause = `WHERE c.institute_id = $1`;
+    let sql = `
+      SELECT sp.*, sub.name as subject_name, c.name as class_name, sec.name as section_name,
+             u.name as teacher_name
+      FROM syllabus_plans sp
+      LEFT JOIN subjects sub ON sp.subject_id = sub.id
+      LEFT JOIN classes c ON sp.class_id = c.id
+      LEFT JOIN sections sec ON sp.section_id = sec.id
+      LEFT JOIN teachers t ON (sp.teacher_id = t.id OR sp.teacher_id = t.user_id)
+      LEFT JOIN users u ON (t.user_id = u.id OR sp.teacher_id = u.id)
+      WHERE sp.institute_id = $1
+    `;
     const params: any[] = [instituteId];
 
-    if (classId) {
-      params.push(classId);
-      whereClause += ` AND c.id = $${params.length}`;
-    }
-    if (subjectId) {
-      params.push(subjectId);
-      whereClause += ` AND sub.id = $${params.length}`;
+    if (academicYear) {
+      params.push(academicYear);
+      sql += ` AND sp.academic_year = $${params.length}`;
     }
 
-    // Query Subject & Chapter & Topic Aggregates
-    const subjectRows: any[] = await this.ds.query(
-      `SELECT sub.id as subject_id, sub.name as subject_name, c.name as class_name, c.id as class_id,
-              COUNT(DISTINCT ch.id)::int as total_chapters,
-              COUNT(DISTINCT top.id)::int as total_topics,
-              COUNT(DISTINCT CASE WHEN top.status = 'completed' THEN top.id END)::int as completed_topics,
-              COUNT(DISTINCT CASE WHEN top.status = 'in_progress' THEN top.id END)::int as in_progress_topics
-       FROM subjects sub
-       JOIN classes c ON sub.class_id = c.id
-       LEFT JOIN chapters ch ON ch.subject_id = sub.id
-       LEFT JOIN topics top ON top.chapter_id = ch.id
-       ${whereClause}
-       GROUP BY sub.id, sub.name, c.name, c.id
-       ORDER BY c.name, sub.name`,
-      params
+    sql += ` ORDER BY sp.created_at DESC`;
+    const rows = await this.ds.query(sql, params);
+    return { success: true, data: rows };
+  }
+
+  async updateSyllabusPlan(user: any, id: string, body: any) {
+    const instituteId = user.instituteId;
+    await this.ds.query(
+      `UPDATE syllabus_plans
+       SET teacher_id = COALESCE($2, teacher_id),
+           term = COALESCE($3, term),
+           planned_periods = COALESCE($4, planned_periods),
+           planned_start_date = COALESCE($5, planned_start_date),
+           planned_completion_date = COALESCE($6, planned_completion_date),
+           priority = COALESCE($7, priority),
+           updated_at = NOW()
+       WHERE id = $1 AND institute_id = $8`,
+      [
+        id,
+        body.teacherId || null,
+        body.term || null,
+        body.plannedPeriods || null,
+        body.plannedStartDate || null,
+        body.plannedCompletionDate || null,
+        body.priority || null,
+        instituteId,
+      ]
     );
+    return { success: true, message: 'Syllabus plan updated successfully' };
+  }
+
+  async deleteSyllabusPlan(user: any, id: string) {
+    const instituteId = user.instituteId;
+    await this.ds.query(`DELETE FROM syllabus_plans WHERE id = $1 AND institute_id = $2`, [id, instituteId]);
+    return { success: true, message: 'Syllabus plan removed successfully' };
+  }
+
+  async getSyllabusTracker(user: any, query: any) {
+    const instituteId = user.instituteId;
+
+    let subjectRows: any[] = [];
+    try {
+      subjectRows = await this.ds.query(
+        `SELECT 
+            sp.id as plan_id,
+            sp.subject_id as subject_id,
+            COALESCE(sub.name, 'Subject Plan') as subject_name,
+            c.name as class_name,
+            c.id as class_id,
+            sp.section_id as section_id,
+            sec.name as section_name,
+            COALESCE(u_plan.name, u_assign.name, 'Unassigned') as teacher_name,
+            COALESCE(sp.term, 'Term 1') as term,
+            COALESCE(sp.planned_periods, 0) as planned_periods,
+            COALESCE(sp.priority, 'NORMAL') as priority,
+            COUNT(DISTINCT ch.id)::int as total_chapters,
+            COUNT(DISTINCT top.id)::int as total_topics,
+            COUNT(DISTINCT CASE WHEN top.status = 'completed' THEN top.id END)::int as completed_topics,
+            COUNT(DISTINCT CASE WHEN top.status = 'in_progress' THEN top.id END)::int as in_progress_topics
+         FROM syllabus_plans sp
+         LEFT JOIN subjects sub ON sp.subject_id = sub.id
+         LEFT JOIN classes c ON (sp.class_id = c.id OR (sp.class_id IS NULL AND sub.class_id = c.id))
+         LEFT JOIN sections sec ON sp.section_id = sec.id
+         LEFT JOIN teachers t_plan ON (sp.teacher_id = t_plan.id OR sp.teacher_id = t_plan.user_id)
+         LEFT JOIN users u_plan ON (u_plan.id = t_plan.user_id OR u_plan.id = sp.teacher_id)
+         LEFT JOIN teacher_academic_assignments taa ON taa.subject_id = sub.id AND taa.class_id = c.id
+         LEFT JOIN teachers t_assign ON taa.teacher_id = t_assign.id
+         LEFT JOIN users u_assign ON t_assign.user_id = u_assign.id
+         LEFT JOIN chapters ch ON ch.subject_id = sub.id
+         LEFT JOIN topics top ON top.chapter_id = ch.id
+         WHERE sp.institute_id = $1
+         GROUP BY sp.id, sp.subject_id, sub.name, c.name, c.id, sp.class_id, sp.section_id, sec.name, u_plan.name, u_assign.name, sp.term, sp.planned_periods, sp.priority
+         ORDER BY c.name NULLS LAST, sub.name`,
+        [instituteId]
+      );
+    } catch (e) {
+      console.error('[getSyllabusTracker] Query failed:', e);
+      subjectRows = [];
+    }
 
     // Calculate completion percentages and delayed topics
     const now = new Date();
@@ -191,10 +260,17 @@ export class SchoolSyllabusService implements OnModuleInit {
       if (progress >= 100) status = 'COMPLETED';
 
       return {
+        planId: row.plan_id,
         subjectId: row.subject_id,
         subjectName: row.subject_name,
         classId: row.class_id,
         className: row.class_name,
+        sectionId: row.section_id,
+        sectionName: row.section_name,
+        teacherName: row.teacher_name || 'Unassigned',
+        term: row.term || 'Term 1',
+        plannedPeriods: row.planned_periods || 0,
+        priority: row.priority || 'NORMAL',
         totalChapters: row.total_chapters,
         totalTopics: row.total_topics,
         completedTopics: completed,
@@ -247,38 +323,67 @@ export class SchoolSyllabusService implements OnModuleInit {
     };
   }
 
-  // --- 2. TEACHER LESSON PLANNING & AI STARTER TEMPLATE ---
   async getTeacherTeachingPlan(user: any, query: any) {
     const instituteId = user.instituteId;
     const teacherId = user.id;
 
-    // Fetch Teacher Lessons
-    const lessons: any[] = await this.ds.query(
-      `SELECT l.*, sub.name as subject_name, c.name as class_name, sec.name as section_name,
-              ch.name as chapter_name, top.name as topic_name
-       FROM lesson_plans l
-       LEFT JOIN subjects sub ON l.subject_id = sub.id
-       LEFT JOIN classes c ON l.class_id = c.id
-       LEFT JOIN sections sec ON l.section_id = sec.id
-       LEFT JOIN chapters ch ON l.chapter_id = ch.id
-       LEFT JOIN topics top ON l.topic_id = top.id
-       WHERE l.institute_id = $1 AND l.teacher_id = $2
-       ORDER BY l.date DESC`,
-      [instituteId, teacherId]
-    );
+    let lessons: any[] = [];
+    try {
+      lessons = await this.ds.query(
+        `SELECT l.*, sub.name as subject_name, c.name as class_name, sec.name as section_name,
+                ch.name as chapter_name, top.name as topic_name
+         FROM lesson_plans l
+         LEFT JOIN subjects sub ON l.subject_id = sub.id
+         LEFT JOIN classes c ON l.class_id = c.id
+         LEFT JOIN sections sec ON l.section_id = sec.id
+         LEFT JOIN chapters ch ON l.chapter_id = ch.id
+         LEFT JOIN topics top ON l.topic_id = top.id
+         WHERE l.institute_id = $1 AND l.teacher_id = $2
+         ORDER BY l.date DESC`,
+        [instituteId, teacherId]
+      );
+    } catch (e) {
+      console.error('[getTeacherTeachingPlan.lessons] SQL Error:', e);
+    }
 
-    // Fetch Today's Timetable slots for the teacher
-    const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    const timetableSlots: any[] = await this.ds.query(
-      `SELECT t.*, sub.name as subject_name, sec.name as section_name, c.name as class_name
-       FROM timetables t
-       LEFT JOIN subjects sub ON t.subject_id = sub.id
-       LEFT JOIN sections sec ON t.section_id = sec.id
-       LEFT JOIN classes c ON sec.class_id = c.id
-       WHERE t.institute_id = $1 AND (t.teacher_id = $2 OR t.teacher_id = $3) AND LOWER(t.day_of_week) = LOWER($4)
-       ORDER BY t.start_time ASC`,
-      [instituteId, teacherId, user.user_id || teacherId, todayDayName]
-    );
+    let timetableSlots: any[] = [];
+    try {
+      const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+      timetableSlots = await this.ds.query(
+        `SELECT t.*, sub.name as subject_name, sec.name as section_name, c.name as class_name
+         FROM timetables t
+         LEFT JOIN subjects sub ON t.subject_id = sub.id
+         LEFT JOIN sections sec ON t.section_id = sec.id
+         LEFT JOIN classes c ON sec.class_id = c.id
+         WHERE t.institute_id = $1 AND (t.teacher_id = $2 OR t.teacher_id = $3) AND LOWER(t.day_of_week) = LOWER($4)
+         ORDER BY t.start_time ASC`,
+        [instituteId, teacherId, user.user_id || teacherId, todayDayName]
+      );
+    } catch (e) {
+      console.error('[getTeacherTeachingPlan.timetable] SQL Error:', e);
+    }
+
+    let publishedPlans: any[] = [];
+    try {
+      const teacherProfileRow = await this.ds.query(`SELECT id FROM teachers WHERE user_id = $1`, [user.id]).catch(() => []);
+      const teacherProfileId = teacherProfileRow[0]?.id;
+
+      publishedPlans = await this.ds.query(
+        `SELECT sp.*, sub.name as subject_name, c.name as class_name,
+                COALESCE(sec.name, sec_assign.name) as section_name
+         FROM syllabus_plans sp
+         LEFT JOIN subjects sub ON sp.subject_id = sub.id
+         LEFT JOIN classes c ON sp.class_id = c.id
+         LEFT JOIN sections sec ON sp.section_id = sec.id
+         LEFT JOIN teacher_academic_assignments taa ON taa.subject_id = sp.subject_id AND taa.class_id = sp.class_id
+         LEFT JOIN sections sec_assign ON taa.section_id = sec_assign.id
+         WHERE sp.institute_id = $1 AND (sp.teacher_id = $2 OR sp.teacher_id = $3 OR taa.teacher_id = $3 OR taa.teacher_id = $2)
+         ORDER BY sp.created_at DESC`,
+        [instituteId, teacherId, teacherProfileId || teacherId]
+      );
+    } catch (e) {
+      console.error('[getTeacherTeachingPlan.publishedPlans] SQL Error:', e);
+    }
 
     const completed = lessons.filter(l => l.status === 'COMPLETED').length;
     const total = lessons.length || 1;
@@ -292,6 +397,7 @@ export class SchoolSyllabusService implements OnModuleInit {
         pendingLessons: lessons.filter(l => l.status !== 'COMPLETED').length,
         completionPercentage
       },
+      publishedPlans,
       todayTimetable: timetableSlots,
       lessons
     };

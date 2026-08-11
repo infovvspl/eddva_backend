@@ -98,7 +98,7 @@ export class SchoolSubjectService {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const page = Math.max(1, parseInt(query.page) || 1);
     const limit = Math.max(1, parseInt(query.limit) || 10);
-    const isTeacher = user.role === 'TEACHER';
+    const isTeacher = user.role === 'TEACHER' || (typeof user.role === 'string' && user.role.includes('TEACHER'));
 
     // Only cache general non-search list requests — class or section scoped lists should bypass cache to avoid stale caches
     let cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);

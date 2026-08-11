@@ -43,8 +43,11 @@ import { SchoolSecurityModule } from './security/school-security.module';
 import { RecordingHighlightModule } from './recording-highlight/recording-highlight.module';
 import { SchoolNotificationFcmModule } from './notification-fcm/school-notification-fcm.module';
 
+import { SchoolSyllabusModule } from './syllabus/school-syllabus.module';
+
 @Module({
   imports: [
+    SchoolSyllabusModule,
     SchoolAuthModule,
     SchoolInstituteModule,
     SchoolStudentModule,
