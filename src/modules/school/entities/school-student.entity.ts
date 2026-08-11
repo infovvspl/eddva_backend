@@ -9,9 +9,11 @@ export class SchoolStudent extends SchoolBase {
   @Column({ name: 'enrollment_no', nullable: true }) enrollmentNo: string;
   @Column({ name: 'roll_no', nullable: true }) rollNo: string;
   @Column({ name: 'admission_date', type: 'date', nullable: true }) admissionDate: Date;
-  @Column({ name: 'date_of_birth', type: 'date', nullable: true }) dateOfBirth: Date;
+  @Column({ name: 'dob', type: 'date', nullable: true }) dob: Date;
   @Column({ nullable: true }) gender: string;
-  @Column({ name: 'parent_name', nullable: true }) parentName: string;
+  @Column({ name: 'blood_group', nullable: true }) bloodGroup: string;
+  @Column({ name: 'father_name', nullable: true }) fatherName: string;
+  @Column({ name: 'mother_name', nullable: true }) motherName: string;
   @Column({ name: 'parent_phone', nullable: true }) parentPhone: string;
   @Column({ name: 'notification_enabled', default: true }) notificationEnabled: boolean;
   
