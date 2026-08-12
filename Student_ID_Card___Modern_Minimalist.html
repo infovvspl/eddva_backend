@@ -1,8 +1,4 @@
-import { DataSource } from 'typeorm';
-import * as dotenv from 'dotenv';
-dotenv.config();
 
-const TEMPLATE_HTML_MINIMAL = `
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -208,30 +204,3 @@ const TEMPLATE_HTML_MINIMAL = `
   </div>
 </div>
 {{/each}}
-`;
-
-const AppDataSource = new DataSource({
-  type: 'postgres',
-  url: process.env.SCHOOL_DB_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
-async function addSecondTemplate() {
-  await AppDataSource.initialize();
-  console.log("Connected to SCHOOL_DB.");
-
-  const existing = await AppDataSource.query(`SELECT id FROM school_document_templates WHERE name = 'Student ID Card - Modern Minimalist'`);
-  if (existing.length === 0) {
-    await AppDataSource.query(
-      `INSERT INTO school_document_templates (type, name, html_content, is_active) VALUES ($1, $2, $3, $4)`,
-      ['ID_CARD_STUDENT', 'Student ID Card - Modern Minimalist', TEMPLATE_HTML_MINIMAL, true]
-    );
-    console.log("✅ Added second template.");
-  } else {
-    console.log("⚠️ Second template already exists.");
-  }
-
-  await AppDataSource.destroy();
-}
-
-addSecondTemplate().catch(console.error);
