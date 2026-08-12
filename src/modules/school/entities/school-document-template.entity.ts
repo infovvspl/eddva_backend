@@ -9,7 +9,7 @@ export enum DocumentTemplateType {
 
 @Entity('school_document_templates')
 export class SchoolDocumentTemplate extends SchoolBase {
-  @Column({ type: 'enum', enum: DocumentTemplateType })
+  @Column({ type: 'varchar', length: 255 })
   type: DocumentTemplateType;
 
   @Column({ type: 'varchar', length: 255 })

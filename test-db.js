@@ -1,15 +1,18 @@
-const { Client } = require('pg');
-const client = new Client({
-  connectionString: 'postgresql://postgres:postgres@localhost:5432/eddva'
+const { DataSource } = require('typeorm');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
+const ds = new DataSource({
+  type: 'postgres',
+  url: process.env.SCHOOL_DB_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
-async function test() {
-  await client.connect();
-  const res = await client.query('SELECT page_number, rects FROM school_material_highlights LIMIT 1');
-  console.log('Row:', res.rows[0]);
-  console.log('page_number type:', typeof res.rows[0].page_number);
-  console.log('rects type:', typeof res.rows[0].rects);
-  await client.end();
+async function run() {
+  await ds.initialize();
+  const res = await ds.query('SELECT id, name, type FROM school_document_templates;');
+  console.log(res);
+  await ds.destroy();
 }
-
-test().catch(console.error);
+run();

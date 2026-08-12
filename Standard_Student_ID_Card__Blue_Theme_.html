@@ -1,0 +1,413 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Poppins', sans-serif; background: #f0f0f0; }
+
+  .card-page {
+    width: 340px;
+    min-height: 520px;
+    margin: 20px auto;
+    page-break-after: always;
+    page-break-inside: avoid;
+  }
+
+  /* ═══════════ FRONT CARD ═══════════ */
+  .id-front {
+    width: 340px;
+    min-height: 510px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #0f6b5e 0%, #0a4f44 40%, #073d35 100%);
+    overflow: hidden;
+    position: relative;
+    color: #fff;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  }
+
+  .id-front::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+  }
+
+  .id-front::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; left: -40px;
+    width: 160px; height: 160px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.03);
+  }
+
+  /* ── Header ── */
+  .header-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px 10px;
+    position: relative;
+    z-index: 2;
+  }
+  .header-bar .school-logo-img {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5);
+    object-fit: cover;
+    background: #fff;
+    flex-shrink: 0;
+  }
+  .header-bar .school-logo-placeholder {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .header-text {
+    flex: 1;
+  }
+  .header-text .school-name {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    line-height: 1.2;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .header-text .school-tagline {
+    font-size: 9px;
+    font-style: italic;
+    opacity: 0.8;
+    margin-top: 2px;
+  }
+
+  /* ── Title Strip ── */
+  .title-strip {
+    background: linear-gradient(90deg, #d4a843, #e8c56a, #d4a843);
+    text-align: center;
+    padding: 5px 0;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a1a1a;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* ── Photo Section ── */
+  .photo-info-row {
+    display: flex;
+    padding: 14px 18px 10px;
+    gap: 14px;
+    position: relative;
+    z-index: 2;
+  }
+  .info-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .info-row {
+    display: flex;
+    margin-bottom: 5px;
+    font-size: 10.5px;
+    line-height: 1.4;
+  }
+  .info-label {
+    font-weight: 600;
+    min-width: 88px;
+    color: rgba(255,255,255,0.85);
+  }
+  .info-sep {
+    margin: 0 4px;
+    color: rgba(255,255,255,0.5);
+  }
+  .info-value {
+    font-weight: 500;
+    color: #fff;
+    flex: 1;
+  }
+
+  .photo-box {
+    width: 100px;
+    height: 115px;
+    border-radius: 10px;
+    border: 3px solid rgba(255,255,255,0.4);
+    overflow: hidden;
+    background: rgba(255,255,255,0.1);
+    flex-shrink: 0;
+  }
+  .photo-box img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  .photo-box .no-photo {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: rgba(255,255,255,0.4); text-align: center; padding: 5px;
+  }
+
+  /* ── Address ── */
+  .address-section {
+    padding: 2px 18px 8px;
+    position: relative;
+    z-index: 2;
+  }
+  .address-section .info-row {
+    font-size: 10px;
+    margin-bottom: 3px;
+  }
+
+  /* ── Footer ── */
+  .card-footer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 8px 18px 14px;
+    position: relative;
+    z-index: 2;
+  }
+  .qr-box {
+    width: 65px; height: 65px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    padding: 3px;
+  }
+  .qr-box img { width: 100%; height: 100%; }
+  .signature-block {
+    text-align: center;
+    font-size: 9px;
+    opacity: 0.7;
+  }
+  .signature-line {
+    width: 80px;
+    border-bottom: 1px solid rgba(255,255,255,0.5);
+    margin-bottom: 3px;
+  }
+
+  /* ═══════════ BACK CARD ═══════════ */
+  .id-back {
+    width: 340px;
+    min-height: 510px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #fff 0%, #f6f9f8 100%);
+    overflow: hidden;
+    position: relative;
+    color: #1a2e2a;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    page-break-before: always;
+  }
+
+  .back-header {
+    background: linear-gradient(135deg, #0f6b5e 0%, #0a4f44 100%);
+    text-align: center;
+    padding: 14px 18px;
+    color: #fff;
+  }
+  .back-header .school-name { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .back-header .subtitle { font-size: 9px; opacity: 0.7; margin-top: 2px; }
+
+  .rules-section {
+    padding: 14px 20px;
+  }
+  .rules-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #0f6b5e;
+    border-bottom: 2px solid #0f6b5e;
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .rules-list {
+    list-style: none;
+    padding: 0;
+  }
+  .rules-list li {
+    font-size: 9.5px;
+    line-height: 1.5;
+    margin-bottom: 6px;
+    padding-left: 16px;
+    position: relative;
+    color: #2a3f3a;
+  }
+  .rules-list li::before {
+    content: '●';
+    position: absolute;
+    left: 0;
+    color: #0f6b5e;
+    font-size: 7px;
+    top: 2px;
+  }
+
+  .back-contact {
+    margin-top: 10px;
+    padding: 10px 20px;
+    border-top: 1px solid #e0e8e5;
+  }
+  .back-contact .contact-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #0f6b5e;
+    margin-bottom: 5px;
+  }
+  .back-contact .contact-line {
+    font-size: 9px;
+    color: #4a5e58;
+    line-height: 1.6;
+  }
+
+  .back-footer {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(135deg, #0f6b5e, #0a4f44);
+    text-align: center;
+    padding: 8px;
+    font-size: 8px;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.3px;
+  }
+
+  @media print {
+    body { background: #fff; }
+    .card-page { margin: 10px auto; box-shadow: none; }
+  }
+</style>
+
+{{#each items}}
+<div class="card-page">
+  <!-- ══════ FRONT ══════ -->
+  <div class="id-front">
+    <div class="header-bar">
+      {{#if schoolLogo}}
+        <img class="school-logo-img" src="{{schoolLogo}}" alt="Logo" />
+      {{else}}
+        <div class="school-logo-placeholder">🏫</div>
+      {{/if}}
+      <div class="header-text">
+        <div class="school-name">{{#if schoolName}}{{schoolName}}{{else}}School Name{{/if}}</div>
+        <div class="school-tagline">Nurturing Excellence, Building Futures</div>
+      </div>
+    </div>
+
+    <div class="title-strip">Student ID Card</div>
+
+    <div class="photo-info-row">
+      <div class="info-block">
+        <div class="info-row">
+          <span class="info-label">Name</span>
+          <span class="info-sep">:</span>
+          <span class="info-value">{{fullName}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Father</span>
+          <span class="info-sep">:</span>
+          <span class="info-value">{{fatherName}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Mother</span>
+          <span class="info-sep">:</span>
+          <span class="info-value">{{motherName}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Class / Sec</span>
+          <span class="info-sep">:</span>
+          <span class="info-value">{{className}} - {{section}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Roll No.</span>
+          <span class="info-sep">:</span>
+          <span class="info-value">{{rollNo}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Date of Birth</span>
+          <span class="info-sep">:</span>
+          <span class="info-value">{{dob}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Blood Group</span>
+          <span class="info-sep">:</span>
+          <span class="info-value">{{bloodGroup}}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Phone</span>
+          <span class="info-sep">:</span>
+          <span class="info-value">{{phone}}</span>
+        </div>
+      </div>
+      <div class="photo-box">
+        {{#if profileImage}}
+          <img src="{{profileImage}}" alt="Photo" />
+        {{else}}
+          <div class="no-photo">No Photo</div>
+        {{/if}}
+      </div>
+    </div>
+
+    <div class="address-section">
+      <div class="info-row">
+        <span class="info-label">Address</span>
+        <span class="info-sep">:</span>
+        <span class="info-value">{{address}}</span>
+      </div>
+    </div>
+
+    <div class="card-footer">
+      <div class="qr-box">
+        <img src="{{qrCode}}" alt="QR" />
+      </div>
+      <div class="signature-block">
+        <div class="signature-line"></div>
+        Principal
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card-page">
+  <!-- ══════ BACK ══════ -->
+  <div class="id-back">
+    <div class="back-header">
+      <div class="school-name">{{#if schoolName}}{{schoolName}}{{else}}School Name{{/if}}</div>
+      <div class="subtitle">Identity Card — Terms & Conditions</div>
+    </div>
+
+    <div class="rules-section">
+      <div class="rules-title">School Rules & Conditions</div>
+      <ul class="rules-list">
+        <li>This ID card is the property of the school and must be returned upon leaving.</li>
+        <li>Students must carry this card at all times within the school premises.</li>
+        <li>Loss of this card must be reported immediately to the school office.</li>
+        <li>A duplicate card will be issued on payment of a prescribed fee.</li>
+        <li>This card is non-transferable and must not be used by any other person.</li>
+        <li>Students must maintain discipline, punctuality, and proper uniform at all times.</li>
+        <li>Use of mobile phones is strictly prohibited inside the school campus.</li>
+        <li>Any damage to school property will attract penalty and disciplinary action.</li>
+        <li>Students must respect all teachers, staff members, and fellow students.</li>
+        <li>Ragging in any form is strictly prohibited and will lead to expulsion.</li>
+        <li>In case of emergency, please contact the school office or call the number on this card.</li>
+      </ul>
+    </div>
+
+    <div class="back-contact">
+      <div class="contact-title">📞 Emergency Contact</div>
+      <div class="contact-line">School: {{#if schoolName}}{{schoolName}}{{else}}School Office{{/if}}</div>
+      <div class="contact-line">Address: {{#if schoolAddress}}{{schoolAddress}}{{else}}School Address{{/if}}</div>
+    </div>
+
+    <div class="back-footer">
+      If found, please return to the school office • This card is valid for the current academic session only
+    </div>
+  </div>
+</div>
+{{/each}}

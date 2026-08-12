@@ -5,14 +5,16 @@ import { DocumentTemplateType } from './school-document-template.entity';
 export enum DocumentGenerationTarget {
   CLASS = 'CLASS',
   INDIVIDUAL = 'INDIVIDUAL',
+  STAFF = 'STAFF',
+  STAFF_INDIVIDUAL = 'STAFF_INDIVIDUAL',
 }
 
 @Entity('school_document_generation_history')
 export class SchoolDocumentGenerationHistory extends SchoolBase {
-  @Column({ type: 'enum', enum: DocumentTemplateType, name: 'document_type' })
+  @Column({ type: 'varchar', name: 'document_type' })
   documentType: DocumentTemplateType;
 
-  @Column({ type: 'enum', enum: DocumentGenerationTarget, name: 'generated_for' })
+  @Column({ type: 'varchar', name: 'generated_for' })
   generatedFor: DocumentGenerationTarget;
 
   @Column({ type: 'uuid', name: 'target_id' })

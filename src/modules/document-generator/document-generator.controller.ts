@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Res, StreamableFile } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, UseGuards, Res, StreamableFile } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { SchoolJwtGuard } from '../school/guards/school-jwt.guard';
@@ -8,7 +8,7 @@ import { SchoolUser } from '../school/decorators/school-user.decorator';
 import { SchoolPublic } from '../school/decorators/school-public.decorator';
 
 import { DocumentGeneratorService } from './document-generator.service';
-import { CreateDocumentTemplateDto, GenerateIdCardDto, GenerateAdmitCardDto } from './dto/document-generator.dto';
+import { CreateDocumentTemplateDto, UpdateDocumentTemplateDto, GenerateIdCardDto, GenerateAdmitCardDto } from './dto/document-generator.dto';
 import { DocumentTemplateType } from '../school/entities/school-document-template.entity';
 
 @ApiTags('School - Document Generator')
@@ -25,6 +25,12 @@ export class DocumentGeneratorController {
     return this.documentGeneratorService.createTemplate(dto);
   }
 
+  @Put('template/:id')
+  @ApiOperation({ summary: 'Update a document template (e.g. HTML content)' })
+  updateTemplate(@Param('id') id: string, @Body() dto: UpdateDocumentTemplateDto) {
+    return this.documentGeneratorService.updateTemplate(id, dto);
+  }
+
   @Get('template/:type')
   @ApiOperation({ summary: 'Get templates by type' })
   getTemplates(@Param('type') type: DocumentTemplateType) {
@@ -34,10 +40,17 @@ export class DocumentGeneratorController {
   @Post('generate/id-card')
   @ApiOperation({ summary: 'Generate ID Cards for a class or student' })
   async generateIdCard(@Body() dto: GenerateIdCardDto, @SchoolUser() user: any) {
-    const instituteId = user.instituteId || user.tenantId || user.institute_id;
-    const adminId = user.id || user.sub;
-    const pdfBuffer = await this.documentGeneratorService.generateIdCard(dto, instituteId, adminId);
-    return { pdfBase64: pdfBuffer.toString('base64') };
+    console.log('[API POST] generate/id-card received:', dto);
+    try {
+      const instituteId = user.instituteId || user.tenantId || user.institute_id;
+      const adminId = user.id || user.sub;
+      const pdfBuffer = await this.documentGeneratorService.generateIdCard(dto, instituteId, adminId);
+      console.log('[API POST] generate/id-card SUCCESS');
+      return { pdfBase64: pdfBuffer.toString('base64') };
+    } catch (e: any) {
+      console.error('[API POST] generate/id-card ERROR:', e.message);
+      throw e;
+    }
   }
 
   @Post('generate/admit-card')

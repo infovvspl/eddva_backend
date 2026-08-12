@@ -26,6 +26,28 @@ export class CreateDocumentTemplateDto {
   isActive?: boolean;
 }
 
+export class UpdateDocumentTemplateDto {
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  htmlContent?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  dimensions?: { width: number; height: number };
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+
 export class GenerateIdCardDto {
   @ApiProperty({ enum: DocumentGenerationTarget })
   @IsEnum(DocumentGenerationTarget)
@@ -48,11 +70,13 @@ export class GenerateIdCardDto {
 
   @ApiPropertyOptional()
   @IsArray()
+  @IsString({ each: true })
   @IsOptional()
   studentIds?: string[];
 
   @ApiPropertyOptional()
   @IsArray()
+  @IsString({ each: true })
   @IsOptional()
   staffIds?: string[];
 

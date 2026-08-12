@@ -15,25 +15,25 @@ export enum IdCardStatus {
 
 @Entity('id_card_records')
 export class IdCardRecord extends SchoolBase {
-  @Column({ name: 'target_type', type: 'enum', enum: IdCardTargetType })
+  @Column({ name: 'target_type', type: 'varchar', length: 255 })
   targetType: IdCardTargetType;
 
   @Column({ name: 'target_id', type: 'uuid' })
   targetId: string; // Refers to Student or TeacherProfile ID
 
-  @Column({ name: 'document_type', type: 'enum', enum: DocumentTemplateType })
+  @Column({ name: 'document_type', type: 'varchar', length: 255 })
   documentType: DocumentTemplateType; // Usually ID_CARD_STUDENT or ID_CARD_STAFF
 
   @Column({ name: 'qr_code_hash', type: 'varchar', length: 128, unique: true })
   qrCodeHash: string; // The unique hash embedded in the QR Code URL
 
-  @Column({ type: 'enum', enum: IdCardStatus, default: IdCardStatus.ACTIVE })
+  @Column({ name: 'status', type: 'varchar', length: 255, default: 'ACTIVE' })
   status: IdCardStatus;
 
-  @Column({ name: 'issued_at', type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ name: 'issued_at', type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   issuedAt: Date;
 
-  @Column({ name: 'reissued_at', type: 'timestamptz', nullable: true })
+  @Column({ name: 'reissued_at', type: 'timestamp', nullable: true })
   reissuedAt: Date;
   
   @Column({ name: 'file_url', type: 'varchar', length: 1024, nullable: true })
