@@ -31,7 +31,15 @@ export class SchoolSyllabusController {
 
   @Get('tracker')
   getSyllabusTracker(@SchoolUser() user: any, @Query() query: any) {
+    if (query?.planId) {
+      return this.svc.getDetailedPlanTracker(user, query.planId);
+    }
     return this.svc.getSyllabusTracker(user, query);
+  }
+
+  @Get('tracker-details/:planId')
+  getDetailedPlanTracker(@SchoolUser() user: any, @Param('planId') planId: string) {
+    return this.svc.getDetailedPlanTracker(user, planId);
   }
 
   @Get('analytics')

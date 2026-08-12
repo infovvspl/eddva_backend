@@ -11,23 +11,23 @@ export class SchoolTopicController {
   constructor(private readonly svc: SchoolTopicService) {}
 
   @Get()
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'SCHOOL_ADMIN', 'ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'STAFF', 'PRINCIPAL')
   listTopics(@Query() query: any) { return this.svc.listTopics(query); }
 
   @Post()
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'SCHOOL_ADMIN', 'ADMIN', 'TEACHER')
   createTopic(@SchoolUser() user: any, @Body() body: any) { return this.svc.createTopic(user, body); }
 
   @Put(':id')
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'SCHOOL_ADMIN', 'ADMIN', 'TEACHER')
   updateTopic(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) { return this.svc.updateTopic(user, id, body); }
 
   @Delete(':id')
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'SCHOOL_ADMIN', 'ADMIN', 'TEACHER')
   deleteTopic(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.deleteTopic(user, id); }
 
   @Get('chapters')
-  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'SCHOOL_ADMIN', 'ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'STAFF', 'PRINCIPAL')
   listChapters(@Query() query: any) { return this.svc.listChapters(query); }
 
   @Post('bulk-import')
