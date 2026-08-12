@@ -52,10 +52,36 @@ export class SchoolTopicService {
   }
 
   async listTopics(query: any) {
-    let sql = `SELECT * FROM topics WHERE 1=1`;
-    const params: any[] = [];
-    if (query.chapterId) { params.push(query.chapterId); sql += ` AND chapter_id=$${params.length}`; }
-    const rows: any[] = await this.ds.query(sql + ` ORDER BY sort_order, name`, params);
+    const chapterId = query.chapterId;
+    let rows: any[] = [];
+    try {
+      let sql = `
+        SELECT DISTINCT ON (t.name) t.id, t.name, COALESCE(t.sort_order, 0) as sort_order, t.created_at
+        FROM topics t
+        WHERE 1=1
+        ${chapterId ? `AND t.chapter_id = $1` : ''}
+        ORDER BY t.name, t.sort_order, t.created_at
+      `;
+
+      const params: any[] = [];
+      if (chapterId) params.push(chapterId);
+
+      const rawRows: any[] = await this.ds.query(sql, params);
+
+      // Preserve natural curriculum topic order: sort by sort_order first, then creation timestamp
+      rows = rawRows.sort((a, b) => {
+        if (a.sort_order !== b.sort_order) {
+          return (a.sort_order || 0) - (b.sort_order || 0);
+        }
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeA - timeB;
+      });
+    } catch (e) {
+      console.error('[listTopics] Error:', e);
+      rows = [];
+    }
+
     return { success: true, data: rows };
   }
 
@@ -100,11 +126,53 @@ export class SchoolTopicService {
   }
 
   async listChapters(query: any) {
-    let sql = `SELECT * FROM chapters WHERE 1=1`;
-    const params: any[] = [];
-    if (query.subjectId) { params.push(query.subjectId); sql += ` AND subject_id=$${params.length}`; }
-    if (query.instituteId) { params.push(query.instituteId); sql += ` AND institute_id=$${params.length}`; }
-    const rows: any[] = await this.ds.query(sql + ` ORDER BY sort_order, name`, params);
+    const subjectId = query.subjectId;
+    const subjectName = query.subjectName;
+    const classId = query.classId;
+    const sectionId = query.sectionId;
+
+    let rows: any[] = [];
+    try {
+      let sql = `
+        SELECT DISTINCT ON (name) id, name, sort_order, created_at FROM (
+          SELECT c.id, c.name, COALESCE(c.sort_order, 0) as sort_order, c.created_at
+          FROM chapters c
+          JOIN subjects s ON c.subject_id = s.id
+          WHERE 1=1
+          ${subjectId ? `AND c.subject_id = $1` : ''}
+          ${classId ? `AND (s.class_id = '${classId}' OR s.class_id IS NULL)` : ''}
+
+          UNION ALL
+
+          SELECT COALESCE(chapter_id, gen_random_uuid()) as id, chapter as name, COALESCE(sort_order, 0) as sort_order, created_at
+          FROM study_materials
+          WHERE chapter IS NOT NULL AND TRIM(chapter) != ''
+          ${subjectId ? `AND subject_id_fk = $1` : ''}
+          ${classId ? `AND (class_id = '${classId}' OR class_id IS NULL)` : ''}
+          ${sectionId ? `AND (section_id = '${sectionId}' OR section_id IS NULL)` : ''}
+        ) combined
+        ORDER BY name, sort_order, created_at
+      `;
+
+      const params: any[] = [];
+      if (subjectId) params.push(subjectId);
+
+      const rawRows: any[] = await this.ds.query(sql, params);
+
+      // Preserve textbook chapter order: sort by sort_order first, then creation timestamp
+      rows = rawRows.sort((a, b) => {
+        if (a.sort_order !== b.sort_order) {
+          return (a.sort_order || 0) - (b.sort_order || 0);
+        }
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeA - timeB;
+      });
+    } catch (e) {
+      console.error('[listChapters UNION] Error:', e);
+      rows = [];
+    }
+
     return { success: true, data: rows };
   }
 

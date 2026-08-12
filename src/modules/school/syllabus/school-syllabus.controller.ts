@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { SchoolSyllabusService } from './school-syllabus.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -24,6 +24,11 @@ export class SchoolSyllabusController {
     return this.svc.updateSyllabusPlan(user, id, body);
   }
 
+  @Patch('plans/:id/progress')
+  updateSyllabusPlanProgress(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.updateSyllabusPlanProgress(user, id, body);
+  }
+
   @Delete('plans/:id')
   deleteSyllabusPlan(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.deleteSyllabusPlan(user, id);
@@ -31,7 +36,15 @@ export class SchoolSyllabusController {
 
   @Get('tracker')
   getSyllabusTracker(@SchoolUser() user: any, @Query() query: any) {
+    if (query?.planId) {
+      return this.svc.getDetailedPlanTracker(user, query.planId);
+    }
     return this.svc.getSyllabusTracker(user, query);
+  }
+
+  @Get('tracker-details/:planId')
+  getDetailedPlanTracker(@SchoolUser() user: any, @Param('planId') planId: string) {
+    return this.svc.getDetailedPlanTracker(user, planId);
   }
 
   @Get('analytics')
