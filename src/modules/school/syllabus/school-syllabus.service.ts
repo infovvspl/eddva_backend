@@ -297,12 +297,23 @@ export class SchoolSyllabusService implements OnModuleInit {
       }
     } else if (topicId) {
       // Update specific topic status inside chapter allocations array
+      let foundMatch = false;
       currentAllocations = currentAllocations.map((ch: any) => {
         const topics = Array.isArray(ch.topics) ? ch.topics : [];
         const updatedTopics = topics.map((t: any) => {
-          if (String(t.topicId || t.id) === String(topicId)) {
+          const tId = String(t.topicId || t.id || '').trim();
+          const tName = String(t.topicName || t.name || '').trim().toLowerCase();
+          const targetId = String(topicId || '').trim();
+          const targetName = String(body.topicName || '').trim().toLowerCase();
+
+          const isMatch = (tId && targetId && tId === targetId) || (tName && targetName && tName === targetName) || (tName && targetId && tName === targetId.toLowerCase());
+
+          if (isMatch) {
+            foundMatch = true;
             return {
               ...t,
+              topicId: t.topicId || topicId,
+              topicName: t.topicName || body.topicName,
               status: status || t.status || (progress >= 100 ? 'completed' : 'in_progress'),
               progress: progress !== undefined ? progress : (status === 'completed' ? 100 : 50),
               actualPeriods: actualPeriods || t.actualPeriods || 1,
@@ -316,6 +327,31 @@ export class SchoolSyllabusService implements OnModuleInit {
         });
         return { ...ch, topics: updatedTopics };
       });
+
+      // If topic wasn't pre-existing in the JSON allocations (e.g. pulled from topics DB), append it to matching chapter
+      if (!foundMatch && currentAllocations.length > 0) {
+        let parentCh = currentAllocations.find((c: any) => 
+          (body.chapterId && String(c.chapterId || '').toLowerCase() === String(body.chapterId).toLowerCase()) ||
+          (body.chapterName && String(c.chapterName || '').toLowerCase() === String(body.chapterName).toLowerCase())
+        );
+        if (!parentCh) parentCh = currentAllocations[0];
+        
+        const existingTopics = Array.isArray(parentCh.topics) ? parentCh.topics : [];
+        parentCh.topics = [
+          ...existingTopics,
+          {
+            topicId,
+            topicName: body.topicName || 'Topic',
+            status: status || (progress >= 100 ? 'completed' : 'in_progress'),
+            progress: progress !== undefined ? progress : 100,
+            actualPeriods: actualPeriods || 1,
+            remarks: body.remarks || '',
+            delayReason: body.delayReason || null,
+            carryForwardDate: body.carryForwardDate || null,
+            completedAt: status === 'completed' || progress >= 100 ? new Date().toISOString() : null
+          }
+        ];
+      }
 
       // Also sync topic_progress table if topic exists
       try {
@@ -620,12 +656,12 @@ export class SchoolSyllabusService implements OnModuleInit {
         const plannedStart = new Date(startDate.getTime() + (chIdx * 5 + tIdx) * 86400000);
         const plannedEnd = new Date(startDate.getTime() + (chIdx * 5 + tIdx + 4) * 86400000);
 
-        let isCompleted = topicDb?.db_status === 'completed' || (topicDb?.db_progress >= 100) || lesson?.status === 'COMPLETED';
-        let isInProgress = !isCompleted && (topicDb?.db_status === 'in_progress' || (topicDb?.db_progress > 0));
+        let isCompleted = t.status === 'completed' || t.progress >= 100 || topicDb?.db_status === 'completed' || (topicDb?.db_progress >= 100) || lesson?.status === 'COMPLETED';
+        let isInProgress = !isCompleted && (t.status === 'in_progress' || (t.progress > 0) || topicDb?.db_status === 'in_progress' || (topicDb?.db_progress > 0));
 
         let status = 'Not Started';
         let actualStartDate = lesson?.planned_date ? new Date(lesson.planned_date).toISOString().split('T')[0] : null;
-        let actualCompletionDate = topicDb?.completed_at ? new Date(topicDb.completed_at).toISOString().split('T')[0] : (lesson?.completed_at ? new Date(lesson.completed_at).toISOString().split('T')[0] : null);
+        let actualCompletionDate = t.completedAt ? new Date(t.completedAt).toISOString().split('T')[0] : (topicDb?.completed_at ? new Date(topicDb.completed_at).toISOString().split('T')[0] : (lesson?.completed_at ? new Date(lesson.completed_at).toISOString().split('T')[0] : null));
 
         if (isCompleted) {
           status = 'Completed';
@@ -639,10 +675,10 @@ export class SchoolSyllabusService implements OnModuleInit {
           status = now > plannedEnd ? 'Delayed' : (now < plannedStart ? 'Scheduled' : 'Planned');
         }
 
-        const plannedPeriods = lesson?.periods_allocated || 2;
-        const actualPeriods = lesson?.actual_periods || (isCompleted ? plannedPeriods : (isInProgress ? 1 : 0));
+        const plannedPeriods = lesson?.periods_allocated || t.periods || 2;
+        const actualPeriods = t.actualPeriods || lesson?.actual_periods || (isCompleted ? plannedPeriods : (isInProgress ? 1 : 0));
         const plannedProgress = Math.min(100, Math.round(((chIdx + 1) / chapterAllocations.length) * 100));
-        const actualProgress = isCompleted ? 100 : (isInProgress ? (topicDb?.db_progress || 50) : 0);
+        const actualProgress = isCompleted ? 100 : (isInProgress ? (t.progress || topicDb?.db_progress || 50) : 0);
 
         let delayInDays = 0;
         if (status === 'Delayed') {
