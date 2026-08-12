@@ -244,6 +244,106 @@ export class SchoolSyllabusService implements OnModuleInit {
     return { success: true, message: 'Syllabus plan removed successfully' };
   }
 
+  async updateSyllabusPlanProgress(user: any, id: string, body: any) {
+    const instituteId = user.instituteId;
+    const { chapterAllocations, topicId, status, progress, actualPeriods } = body;
+
+    const existingRows = await this.ds.query(
+      `SELECT id, chapter_allocations, subject_id FROM syllabus_plans WHERE id = $1 AND institute_id = $2`,
+      [id, instituteId]
+    );
+
+    if (existingRows.length === 0) {
+      throw new NotFoundException('Syllabus plan not found');
+    }
+
+    let currentAllocations = Array.isArray(existingRows[0].chapter_allocations) 
+      ? existingRows[0].chapter_allocations 
+      : [];
+
+    if (Array.isArray(chapterAllocations)) {
+      currentAllocations = chapterAllocations;
+    } else if (body.newTopicName && body.chapterId) {
+      // Add custom teacher topic to chapter allocation
+      const newTopicId = `custom-top-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      let foundCh = false;
+      currentAllocations = currentAllocations.map((ch: any) => {
+        if (String(ch.chapterId) === String(body.chapterId) || String(ch.chapterName).toLowerCase() === String(body.chapterId).toLowerCase()) {
+          foundCh = true;
+          const topics = Array.isArray(ch.topics) ? ch.topics : [];
+          const newTopicObj = {
+            topicId: newTopicId,
+            topicName: body.newTopicName.trim(),
+            status: 'pending',
+            progress: 0,
+            actualPeriods: body.periods || 2,
+            addedByTeacher: true
+          };
+          return { ...ch, topics: [...topics, newTopicObj] };
+        }
+        return ch;
+      });
+
+      if (!foundCh && currentAllocations.length > 0) {
+        const topics = Array.isArray(currentAllocations[0].topics) ? currentAllocations[0].topics : [];
+        currentAllocations[0].topics = [...topics, {
+          topicId: newTopicId,
+          topicName: body.newTopicName.trim(),
+          status: 'pending',
+          progress: 0,
+          actualPeriods: body.periods || 2,
+          addedByTeacher: true
+        }];
+      }
+    } else if (topicId) {
+      // Update specific topic status inside chapter allocations array
+      currentAllocations = currentAllocations.map((ch: any) => {
+        const topics = Array.isArray(ch.topics) ? ch.topics : [];
+        const updatedTopics = topics.map((t: any) => {
+          if (String(t.topicId || t.id) === String(topicId)) {
+            return {
+              ...t,
+              status: status || t.status || (progress >= 100 ? 'completed' : 'in_progress'),
+              progress: progress !== undefined ? progress : (status === 'completed' ? 100 : 50),
+              actualPeriods: actualPeriods || t.actualPeriods || 1,
+              remarks: body.remarks !== undefined ? body.remarks : t.remarks,
+              delayReason: body.delayReason !== undefined ? body.delayReason : t.delayReason,
+              carryForwardDate: body.carryForwardDate !== undefined ? body.carryForwardDate : t.carryForwardDate,
+              completedAt: status === 'completed' || progress >= 100 ? new Date().toISOString() : t.completedAt
+            };
+          }
+          return t;
+        });
+        return { ...ch, topics: updatedTopics };
+      });
+
+      // Also sync topic_progress table if topic exists
+      try {
+        await this.ds.query(
+          `INSERT INTO topic_progress (topic_id, user_id, status, progress, completed_at, updated_at)
+           VALUES ($1, $2, $3, $4, NOW(), NOW())
+           ON CONFLICT (topic_id, user_id) 
+           DO UPDATE SET status = EXCLUDED.status, progress = EXCLUDED.progress, updated_at = NOW()`,
+          [topicId, user.id, status || 'completed', progress !== undefined ? progress : 100]
+        ).catch(() => {});
+      } catch (e) {
+        console.error('[updateSyllabusPlanProgress] topic_progress sync warning:', e);
+      }
+    }
+
+    const chapterAllocationsJson = JSON.stringify(currentAllocations);
+
+    await this.ds.query(
+      `UPDATE syllabus_plans
+       SET chapter_allocations = $2,
+           updated_at = NOW()
+       WHERE id = $1 AND institute_id = $3`,
+      [id, chapterAllocationsJson, instituteId]
+    );
+
+    return { success: true, message: 'Syllabus plan progress updated successfully', chapterAllocations: currentAllocations };
+  }
+
   async getSyllabusTracker(user: any, query: any) {
     const instituteId = user.instituteId;
 
@@ -253,6 +353,7 @@ export class SchoolSyllabusService implements OnModuleInit {
         `SELECT 
             sp.id as plan_id,
             sp.subject_id as subject_id,
+            sp.chapter_allocations,
             COALESCE(sub.name, 'Subject Plan') as subject_name,
             c.name as class_name,
             c.id as class_id,
@@ -294,7 +395,7 @@ export class SchoolSyllabusService implements OnModuleInit {
            AND (lp.section_id = sp.section_id OR sp.section_id IS NULL)
          )
          WHERE sp.institute_id = $1
-         GROUP BY sp.id, sp.subject_id, sub.name, c.name, c.id, sp.class_id, sp.section_id, sec.name, sp.term, sp.planned_periods, sp.priority, sp.planned_start_date, sp.planned_completion_date
+         GROUP BY sp.id, sp.subject_id, sp.chapter_allocations, sub.name, c.name, c.id, sp.class_id, sp.section_id, sec.name, sp.term, sp.planned_periods, sp.priority, sp.planned_start_date, sp.planned_completion_date
          ORDER BY c.name NULLS LAST, sub.name`,
         [instituteId]
       );
@@ -303,11 +404,28 @@ export class SchoolSyllabusService implements OnModuleInit {
       subjectRows = [];
     }
 
-    // Calculate completion percentages and delayed topics
+    // Calculate completion percentages and delayed topics automatically across JSON chapter allocations and topics DB
     const now = new Date();
     const trackerData = subjectRows.map(row => {
-      const totalUnits = Math.max(row.total_topics || 0, row.total_lesson_plans || 1, 1);
-      const completedUnits = Math.max(row.completed_topics || 0, row.completed_lesson_plans || 0);
+      let jsonTotalTopics = 0;
+      let jsonCompletedTopics = 0;
+      let jsonInProgressTopics = 0;
+
+      const allocs = Array.isArray(row.chapter_allocations) ? row.chapter_allocations : [];
+      allocs.forEach((ch: any) => {
+        const topics = Array.isArray(ch.topics) ? ch.topics : [];
+        topics.forEach((t: any) => {
+          jsonTotalTopics++;
+          if (t.status === 'completed' || t.progress >= 100) {
+            jsonCompletedTopics++;
+          } else if (t.status === 'in_progress' || (t.progress > 0 && t.progress < 100)) {
+            jsonInProgressTopics++;
+          }
+        });
+      });
+
+      const totalUnits = Math.max(jsonTotalTopics, row.total_topics || 0, row.total_lesson_plans || 1, 1);
+      const completedUnits = Math.max(jsonCompletedTopics, row.completed_topics || 0, row.completed_lesson_plans || 0);
       const progress = Math.round((completedUnits / totalUnits) * 100);
 
       const completionDate = row.planned_completion_date ? new Date(row.planned_completion_date) : null;
@@ -334,10 +452,10 @@ export class SchoolSyllabusService implements OnModuleInit {
         term: row.term || 'Term 1',
         plannedPeriods: row.planned_periods || 0,
         priority: row.priority || 'NORMAL',
-        totalChapters: row.total_chapters,
-        totalTopics: Math.max(row.total_topics || 0, row.total_lesson_plans || 0),
+        totalChapters: Math.max(allocs.length, row.total_chapters || 0),
+        totalTopics: totalUnits,
         completedTopics: completedUnits,
-        inProgressTopics: row.in_progress_topics,
+        inProgressTopics: Math.max(jsonInProgressTopics, row.in_progress_topics || 0),
         pendingTopics: Math.max(0, totalUnits - completedUnits),
         progressPercentage: progress,
         status
@@ -947,8 +1065,46 @@ export class SchoolSyllabusService implements OnModuleInit {
       ).catch(() => {});
     }
 
-    // STAGE 4: Subject Progress Updated
+    // STAGE 4: Subject & Admin Syllabus Plan Progress Updated
     if (l.subject_id) {
+      // Sync syllabus_plans chapter_allocations for this subject & class
+      try {
+        const plans = await this.ds.query(
+          `SELECT id, chapter_allocations FROM syllabus_plans WHERE subject_id = $1 AND (class_id = $2 OR class_id IS NULL)`,
+          [l.subject_id, l.class_id]
+        );
+        for (const sp of plans) {
+          let allocs = Array.isArray(sp.chapter_allocations) ? sp.chapter_allocations : [];
+          let updated = false;
+          allocs = allocs.map((ch: any) => {
+            const topics = Array.isArray(ch.topics) ? ch.topics : [];
+            const updatedTopics = topics.map((t: any) => {
+              if (
+                (l.topic_id && String(t.topicId || t.id) === String(l.topic_id)) ||
+                (l.topic_name && (t.topicName || t.name || '').toLowerCase() === l.topic_name.toLowerCase())
+              ) {
+                updated = true;
+                return {
+                  ...t,
+                  status: isFull ? 'completed' : 'in_progress',
+                  progress: isFull ? 100 : 50,
+                  completedAt: isFull ? new Date().toISOString() : t.completedAt
+                };
+              }
+              return t;
+            });
+            return { ...ch, topics: updatedTopics };
+          });
+          if (updated) {
+            await this.ds.query(
+              `UPDATE syllabus_plans SET chapter_allocations = $1, updated_at = NOW() WHERE id = $2`,
+              [JSON.stringify(allocs), sp.id]
+            );
+          }
+        }
+      } catch (err) {
+        console.error('[completeLessonPlan.syllabusPlanSync] Warning:', err);
+      }
       const subStats: any[] = await this.ds.query(
         `SELECT COUNT(DISTINCT t.id)::int as total_topics,
                 COUNT(DISTINCT CASE WHEN t.status = 'completed' OR t.progress >= 100 THEN t.id END)::int as done_topics

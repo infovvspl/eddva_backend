@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { SchoolSyllabusService } from './school-syllabus.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -22,6 +22,11 @@ export class SchoolSyllabusController {
   @Put('plans/:id')
   updateSyllabusPlan(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
     return this.svc.updateSyllabusPlan(user, id, body);
+  }
+
+  @Patch('plans/:id/progress')
+  updateSyllabusPlanProgress(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.updateSyllabusPlanProgress(user, id, body);
   }
 
   @Delete('plans/:id')
