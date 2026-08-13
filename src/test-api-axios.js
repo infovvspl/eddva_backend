@@ -3,8 +3,8 @@ const { Client } = require('pg');
 
 async function run() {
   const client = new Client({
-    connectionString: 'postgresql://postgres:eddva-dev@eddva-dev.cpo2kqqgu55d.ap-south-1.rds.amazonaws.com:5432/eddva_school',
-    ssl: { rejectUnauthorized: false }
+    connectionString: process.env.DATABASE_URL || process.env.SCHOOL_DB_URL,
+    ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }
   });
 
   try {

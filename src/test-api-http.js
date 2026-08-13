@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 
 async function testApi() {
   const teacherId = '3d0eabde-0695-4935-9dd9-da21ae1dced8';
-  const secret = 'your-super-secret-jwt-key-change-in-production';
+  const secret = process.env.JWT_SECRET || 'test_jwt_secret';
 
   // The payload format needed for SchoolJwtGuard
   const payload = { id: teacherId, sub: teacherId, role: 'TEACHER' };

@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const { Client } = require('pg');
 const axios = require('axios');
 
-const JWT_SECRET = 'your-super-secret-jwt-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret';
 const COACHING_DB_URL = 'postgresql://postgres:postgres@localhost:5432/eddva_coaching';
 const SCHOOL_DB_URL = 'postgresql://postgres:postgres@localhost:5432/eddva_school';
 
