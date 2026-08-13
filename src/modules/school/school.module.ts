@@ -44,6 +44,8 @@ import { RecordingHighlightModule } from './recording-highlight/recording-highli
 import { SchoolNotificationFcmModule } from './notification-fcm/school-notification-fcm.module';
 
 import { SchoolSyllabusModule } from './syllabus/school-syllabus.module';
+import { SchoolStaffModule } from './staff/school-staff.module';
+import { SchoolRolesModule } from './roles/school-roles.module';
 
 @Module({
   imports: [
@@ -87,6 +89,8 @@ import { SchoolSyllabusModule } from './syllabus/school-syllabus.module';
     SchoolSecurityModule,
     RecordingHighlightModule,
     SchoolNotificationFcmModule,
+    SchoolStaffModule,
+    SchoolRolesModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
   providers: [SchoolJwtGuard, SchoolRolesGuard],

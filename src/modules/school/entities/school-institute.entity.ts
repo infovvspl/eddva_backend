@@ -33,4 +33,8 @@ export class SchoolInstitute extends SchoolBase {
   @Column({ name: 'plan_expires_at', type: 'timestamptz', nullable: true }) planExpiresAt: Date;
   @Column({ name: 'is_suspended', default: false }) isSuspended: boolean;
   @Column({ name: 'suspension_reason', nullable: true }) suspensionReason: string;
+  @Column({ name: 'ai_enabled', default: false }) aiEnabled: boolean;
+  @Column({ name: 'ai_features', type: 'jsonb', nullable: true, default: {} }) aiFeatures: any;
+  @Column({ name: 'modules_permissions', type: 'jsonb', nullable: true, default: {} }) modulesPermissions: any;
+  @Column({ name: 'active_modules', type: 'jsonb', nullable: true, default: [] }) activeModules: string[];
 }

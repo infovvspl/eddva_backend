@@ -8,7 +8,7 @@ import { SchoolUser } from '../school/decorators/school-user.decorator';
 import { SchoolPublic } from '../school/decorators/school-public.decorator';
 
 import { DocumentGeneratorService } from './document-generator.service';
-import { CreateDocumentTemplateDto, UpdateDocumentTemplateDto, GenerateIdCardDto, GenerateAdmitCardDto } from './dto/document-generator.dto';
+import { CreateDocumentTemplateDto, UpdateDocumentTemplateDto, GenerateIdCardDto, GenerateAdmitCardDto, GenerateCertificateDto } from './dto/document-generator.dto';
 import { DocumentTemplateType } from '../school/entities/school-document-template.entity';
 
 @ApiTags('School - Document Generator')
@@ -59,6 +59,15 @@ export class DocumentGeneratorController {
     const instituteId = user.instituteId || user.tenantId || user.institute_id;
     const adminId = user.id || user.sub;
     const pdfBuffer = await this.documentGeneratorService.generateAdmitCard(dto, instituteId, adminId);
+    return { pdfBase64: pdfBuffer.toString('base64') };
+  }
+
+  @Post('generate/certificate')
+  @ApiOperation({ summary: 'Generate Certificates for a class or student' })
+  async generateCertificate(@Body() dto: GenerateCertificateDto, @SchoolUser() user: any) {
+    const instituteId = user.instituteId || user.tenantId || user.institute_id;
+    const adminId = user.id || user.sub;
+    const pdfBuffer = await this.documentGeneratorService.generateCertificate(dto, instituteId, adminId);
     return { pdfBase64: pdfBuffer.toString('base64') };
   }
 

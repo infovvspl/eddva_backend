@@ -109,3 +109,24 @@ export class GenerateAdmitCardDto {
   @IsString()
   templateId: string;
 }
+
+export class GenerateCertificateDto {
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  classId?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  sectionId?: string;
+
+  @ApiPropertyOptional()
+  @IsArray()
+  @IsOptional()
+  studentIds?: string[];
+
+  @ApiProperty()
+  @IsString()
+  templateId: string;
+}

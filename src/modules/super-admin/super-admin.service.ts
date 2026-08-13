@@ -198,6 +198,7 @@ export class SuperAdminService {
           trialEndsAt: null,
           aiEnabled: dto.aiEnabled ?? false,
           aiFeatures: dto.aiFeatures ?? [],
+          activeModules: dto.activeModules ?? [],
           operationalModel: dto.operationalModel ?? 'TEACHER_BASED',
           adminPortalEnabled: dto.adminPortalEnabled !== false,
           teacherPortalEnabled: dto.teacherPortalEnabled !== false,
@@ -368,6 +369,7 @@ export class SuperAdminService {
 
     Object.assign(tenant, {
       ...restDto,
+      activeModules: restDto.activeModules ?? tenant.activeModules,
       trialEndsAt: restDto.trialEndsAt ? new Date(restDto.trialEndsAt) : tenant.trialEndsAt,
     });
 

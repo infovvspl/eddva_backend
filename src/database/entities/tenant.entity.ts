@@ -63,6 +63,9 @@ export class Tenant extends Base {
   @Column({ name: 'ai_features', type: 'jsonb', default: [] })
   aiFeatures: AiFeatureKey[];
 
+  @Column({ name: 'active_modules', type: 'jsonb', default: [] })
+  activeModules: string[];
+
   @Column({ name: 'logo_url', nullable: true })
   logoUrl: string;
 
