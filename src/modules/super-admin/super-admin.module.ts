@@ -10,6 +10,8 @@ import { PlatformSuperAdminController } from './platform-super-admin.controller'
 import { PlatformSuperAdminService } from './platform-super-admin.service';
 import { SchoolSuperAdminController } from './school-super-admin.controller';
 import { SchoolSuperAdminService } from './school-super-admin.service';
+import { SchoolErpModulesController, InstituteErpModulesController } from './school-erp-modules.controller';
+import { SchoolErpModulesService } from './school-erp-modules.service';
 import { AiUsageAdminController } from './ai-usage-admin.controller';
 import { CoachingAiUsageAdminController } from './coaching-ai-usage-admin.controller';
 import { AiUsageAdminService } from './ai-usage-admin.service';
@@ -49,7 +51,7 @@ import { SchoolComplaintModule } from '../school/complaint/school-complaint.modu
     }),
     TypeOrmModule.forFeature([Tenant, User, Student, Batch, Enrollment, Lecture, TestSession, Announcement, StudyMaterial, PlatformConfig, PaymentTransaction], 'coaching'),
   ],
-  controllers: [SuperAdminController, PublicTenantController, PlatformSuperAdminController, SchoolSuperAdminController, AiUsageAdminController, CoachingAiUsageAdminController],
-  providers: [SuperAdminService, PlatformSuperAdminService, SchoolSuperAdminService, AiUsageAdminService, SchoolJwtGuard, SchoolRolesGuard],
+  controllers: [SuperAdminController, PublicTenantController, PlatformSuperAdminController, SchoolSuperAdminController, SchoolErpModulesController, InstituteErpModulesController, AiUsageAdminController, CoachingAiUsageAdminController],
+  providers: [SuperAdminService, PlatformSuperAdminService, SchoolSuperAdminService, SchoolErpModulesService, AiUsageAdminService, SchoolJwtGuard, SchoolRolesGuard],
 })
 export class SuperAdminModule {}
