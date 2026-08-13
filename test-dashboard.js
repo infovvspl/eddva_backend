@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const axios = require('axios');
 
 async function test() {
-  const secret = 'your-super-secret-jwt-key-change-in-production';
+  const secret = process.env.JWT_SECRET || 'test_jwt_secret';
   // Payload for a student user. Usually it has id, role.
   const payload = {
     id: 'b49ee8d3-4c33-448c-aa06-30dc8bfbee54',
