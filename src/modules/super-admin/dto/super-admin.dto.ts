@@ -85,6 +85,12 @@ export class CreateTenantDto {
   @IsString({ each: true })
   aiFeatures?: AiFeatureKey[];
 
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  activeModules?: string[];
+
   @ApiPropertyOptional({ example: 'TEACHER_BASED' })
   @IsOptional()
   @IsString()
@@ -197,6 +203,12 @@ export class UpdateTenantDto {
   @IsArray()
   @IsString({ each: true })
   aiFeatures?: AiFeatureKey[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  activeModules?: string[];
 
   @ApiPropertyOptional({ example: 'TEACHER_BASED' })
   @IsOptional()

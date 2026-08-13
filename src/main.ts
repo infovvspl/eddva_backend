@@ -181,6 +181,7 @@ async function bootstrap() {
       `ADD COLUMN IF NOT EXISTS admin_portal_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
       `ADD COLUMN IF NOT EXISTS student_portal_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
       `ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`,
+      `ADD COLUMN IF NOT EXISTS active_modules JSONB NOT NULL DEFAULT '[]'`,
     ];
     for (const col of tenantCols) {
       await coachingDs.query(`ALTER TABLE tenants ${col}`);
@@ -304,6 +305,7 @@ async function bootstrap() {
       `ADD COLUMN IF NOT EXISTS modules_permissions JSONB DEFAULT '{}'`,
       `ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
       `ADD COLUMN IF NOT EXISTS ai_features JSONB NOT NULL DEFAULT '{}'`,
+      `ADD COLUMN IF NOT EXISTS active_modules JSONB NOT NULL DEFAULT '[]'`,
     ];
     for (const col of instituteCols) {
       await schoolDs.query(`ALTER TABLE institutes ${col}`);

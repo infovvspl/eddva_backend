@@ -341,6 +341,101 @@ export class DocumentGeneratorService {
     }
   }
 
+  async generateCertificate(dto: any, instituteId: string, adminId: string): Promise<Buffer> {
+    try {
+      const template = await this.templateRepo.findOne({ where: { id: dto.templateId } });
+      if (!template) throw new NotFoundException('Template not found');
+
+      let studentsQuery = this.schoolStudentRepo.createQueryBuilder('student')
+        .where('student.instituteId = :instituteId', { instituteId });
+
+      if (dto.studentIds && dto.studentIds.length > 0) {
+        studentsQuery = studentsQuery.andWhere('student.userId IN (:...studentIds)', { studentIds: dto.studentIds });
+      } else if (dto.classId) {
+        studentsQuery = studentsQuery.innerJoin('sections', 'sec', 'sec.id = student.section_id')
+                                     .andWhere('sec.class_id = :classId', { classId: dto.classId });
+        if (dto.sectionId) {
+          studentsQuery = studentsQuery.andWhere('student.sectionId = :sectionId', { sectionId: dto.sectionId });
+        }
+      } else {
+        throw new BadRequestException('Must provide classId or studentIds');
+      }
+
+      const students = await studentsQuery.getMany();
+      if (!students.length) throw new NotFoundException('No students found for given criteria');
+
+      const institute = await this.templateRepo.manager.findOne(SchoolInstitute, { where: { id: instituteId } });
+      const schoolName = institute?.name || 'Your School Name';
+      const schoolLogo = institute?.logo || '';
+      const schoolAddress = institute?.address || 'School Address';
+
+      const dataList = [];
+      for (const student of students) {
+        const user = await this.userRepo.findOne({ where: { id: student.userId } });
+        if (!user) continue;
+
+        let sectionName = student.sectionId || 'A';
+        let className = 'N/A';
+        if (student.sectionId) {
+          const section = await this.templateRepo.manager.findOne(SchoolSection, { where: { id: student.sectionId } });
+          if (section) {
+            sectionName = section.name;
+            try {
+              const classResult = await this.templateRepo.manager.query(
+                `SELECT c.name FROM classes c JOIN sections s ON s.class_id = c.id WHERE s.id = $1 LIMIT 1`,
+                [student.sectionId]
+              );
+              if (classResult?.[0]?.name) className = classResult[0].name;
+            } catch (e) { /* ignore */ }
+          }
+        }
+
+        dataList.push({
+          fullName: user.name || '',
+          firstName: user.name?.split(' ')[0] || '',
+          lastName: user.name?.split(' ').slice(1).join(' ') || '',
+          rollNo: student.rollNo || student.enrollmentNo || '',
+          className,
+          section: sectionName,
+          fatherName: student.fatherName || 'N/A',
+          parentName: student.fatherName || student.motherName || 'N/A',
+          dob: student.dob ? new Date(student.dob).toLocaleDateString() : 'N/A',
+          profileImage: user.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'Student')}&background=f1f5f9&color=64748b&size=256`,
+          schoolName,
+          schoolLogo,
+          schoolAddress,
+          issueDate: new Date().toLocaleDateString(),
+          reasonForTransfer: student.reasonForTransfer || 'Graduation / Passed out',
+        });
+      }
+
+      let htmlContent = template.htmlContent;
+      if (htmlContent.includes('{{#each items}}') || htmlContent.includes('{{#each this.items}}') || htmlContent.includes('{{#each this}}')) {
+        htmlContent = this.compileTemplate(htmlContent, dataList);
+      } else {
+        const compiled = Handlebars.compile(htmlContent);
+        htmlContent = dataList.map(data => compiled(data)).join('\n<div style="page-break-after: always;"></div>\n');
+      }
+
+      const dimensions = template.dimensions || { width: 794, height: 1123, margin: 0 };
+      const pdfBuffer = await this.renderPdf(htmlContent, dimensions as any);
+
+      const history = this.historyRepo.create({
+        documentType: template.type,
+        generatedFor: dto.studentIds?.length ? DocumentGenerationTarget.INDIVIDUAL : DocumentGenerationTarget.CLASS,
+        targetId: dto.classId || '00000000-0000-0000-0000-000000000000',
+        generatedBy: adminId,
+        fileUrl: 'downloaded_directly',
+      });
+      await this.historyRepo.save(history);
+
+      return pdfBuffer;
+    } catch (err: any) {
+      console.error('Certificate Generation Error:', err);
+      throw new BadRequestException('Certificate Generation failed: ' + err.message);
+    }
+  }
+
   async getIdCardHistory() {
     return this.idCardRecordRepo.find({ order: { issuedAt: 'DESC' } });
   }
@@ -409,10 +504,16 @@ export class DocumentGeneratorService {
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'load' });
-    const pdfOptions: any = { printBackground: true };
+    const pdfOptions: any = { 
+      printBackground: true,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 }
+    };
     if (dimensions && dimensions.width && dimensions.height) {
-        pdfOptions.width = `${dimensions.width}mm`;
-        pdfOptions.height = `${dimensions.height}mm`;
+        // If dimensions > 300, it's likely pixels (e.g. A4 794x1123), otherwise assume mm (e.g. ID Card 54x86)
+        const unitWidth = dimensions.width > 300 ? 'px' : 'mm';
+        const unitHeight = dimensions.height > 300 ? 'px' : 'mm';
+        pdfOptions.width = `${dimensions.width}${unitWidth}`;
+        pdfOptions.height = `${dimensions.height}${unitHeight}`;
     } else {
         pdfOptions.format = 'A4';
     }

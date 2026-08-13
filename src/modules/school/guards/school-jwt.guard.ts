@@ -124,7 +124,7 @@ export class SchoolJwtGuard implements CanActivate {
       `SELECT u.id, u.email, u.name, u.role, u.profile_image, u.institute_id, u.is_active, 
               i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status,
               i.logo AS inst_logo, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address,
-              i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features, i.modules_permissions AS inst_modules_permissions
+              i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features, i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE u.id = $1`,
@@ -177,6 +177,7 @@ export class SchoolJwtGuard implements CanActivate {
       isActive: row.is_active,
       inst_ai_enabled: row.inst_ai_enabled,
       inst_ai_features: typeof row.inst_ai_features === 'string' ? JSON.parse(row.inst_ai_features) : row.inst_ai_features,
+      inst_active_modules: typeof row.inst_active_modules === 'string' ? JSON.parse(row.inst_active_modules) : (row.inst_active_modules ?? []),
       inst_modules_permissions: typeof row.inst_modules_permissions === 'string' ? JSON.parse(row.inst_modules_permissions) : row.inst_modules_permissions,
       studentProfile,
       institute: row.inst_id
@@ -191,6 +192,7 @@ export class SchoolJwtGuard implements CanActivate {
           location: row.inst_address,
           aiEnabled: row.inst_ai_enabled,
           aiFeatures: typeof row.inst_ai_features === 'string' ? JSON.parse(row.inst_ai_features) : row.inst_ai_features,
+          activeModules: typeof row.inst_active_modules === 'string' ? JSON.parse(row.inst_active_modules) : (row.inst_active_modules ?? []),
           modulesPermissions: typeof row.inst_modules_permissions === 'string' ? JSON.parse(row.inst_modules_permissions) : row.inst_modules_permissions,
         }
         : null,

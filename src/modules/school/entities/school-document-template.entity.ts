@@ -5,6 +5,7 @@ export enum DocumentTemplateType {
   ID_CARD_STUDENT = 'ID_CARD_STUDENT',
   ID_CARD_STAFF = 'ID_CARD_STAFF',
   ADMIT_CARD = 'ADMIT_CARD',
+  CERTIFICATE = 'CERTIFICATE',
 }
 
 @Entity('school_document_templates')

@@ -51,11 +51,11 @@ export class SchoolInstituteService {
           name, email, phone, address, city, state, pin_code, logo, tenant_domain, status,
           alternate_phone, principal_name, registration_no, plot_no, street_name, land_mark, district,
           website, school_type, board, established_year, affiliation_no, total_classes,
-          total_students, total_teachers, ai_enabled, ai_features
+          total_students, total_teachers, ai_enabled, ai_features, active_modules
          )
          VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
+          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
          ) RETURNING *`,
         [
           name.trim(),
@@ -85,6 +85,7 @@ export class SchoolInstituteService {
           body.totalTeachers || body.total_teachers || null,
           body.aiEnabled ?? body.ai_enabled ?? false,
           JSON.stringify(body.aiFeatures || body.ai_features || {}),
+          JSON.stringify(body.activeModules || body.active_modules || []),
         ],
       );
       institute = rows[0];
@@ -359,6 +360,7 @@ export class SchoolInstituteService {
 
     const aiEnabled = body.aiEnabled ?? body.ai_enabled;
     const aiFeatures = body.aiFeatures ?? body.ai_features;
+    const activeModules = body.activeModules ?? body.active_modules;
     const modulesPermissions = body.modulesPermissions ?? body.modules_permissions;
 
     console.log('UPDATE INSTITUTE - BODY:', JSON.stringify({ aiEnabled, aiFeatures, modulesPermissions }));
@@ -384,6 +386,7 @@ export class SchoolInstituteService {
        ai_enabled=COALESCE($18::boolean,ai_enabled),
        ai_features=CASE WHEN $19::jsonb IS NOT NULL THEN COALESCE(ai_features,'{}'::jsonb) || $19::jsonb ELSE ai_features END,
        modules_permissions=CASE WHEN $20::jsonb IS NOT NULL THEN COALESCE(modules_permissions,'{}'::jsonb) || $20::jsonb ELSE modules_permissions END,
+       active_modules=CASE WHEN $22::jsonb IS NOT NULL THEN $22::jsonb ELSE active_modules END,
        board=COALESCE($21,board),
        updated_at=NOW() WHERE id=$1`,
       [
@@ -408,6 +411,7 @@ export class SchoolInstituteService {
         aiFeatures !== undefined ? JSON.stringify(aiFeatures) : null,
         modulesPermissions !== undefined ? JSON.stringify(modulesPermissions) : null,
         body.board || null,
+        activeModules !== undefined ? JSON.stringify(activeModules) : null,
       ],
     );
 
