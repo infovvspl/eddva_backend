@@ -7,6 +7,7 @@ import { R2Module } from '../../storage/r2.module';
 import { SchoolClassModule } from '../class/school-class.module';
 import { SchoolLiveController, SchoolLiveStreamHookController, SchoolLiveHlsController } from './school-live.controller';
 import { SchoolLiveGateway } from './school-live.gateway';
+import { SchoolBroadcastRelayGateway } from './school-broadcast-relay.gateway';
 import { SchoolLiveRedis } from './school-live.redis';
 import { SchoolLiveService } from './school-live.service';
 
@@ -16,7 +17,7 @@ import { SchoolNotificationFcmModule } from '../notification-fcm/school-notifica
 @Module({
   imports: [ConfigModule, R2Module, BullModule.registerQueue({ name: RECORDINGS_QUEUE }), SchoolClassModule, SchoolNotificationModule, SchoolNotificationFcmModule],
   controllers: [SchoolLiveController, SchoolLiveStreamHookController, SchoolLiveHlsController],
-  providers: [SchoolLiveService, SchoolLiveRedis, SchoolLiveGateway],
+  providers: [SchoolLiveService, SchoolLiveRedis, SchoolLiveGateway, SchoolBroadcastRelayGateway],
   exports: [SchoolLiveService],
 })
 export class SchoolLiveModule {}
