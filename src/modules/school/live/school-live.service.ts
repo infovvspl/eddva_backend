@@ -196,6 +196,27 @@ export class SchoolLiveService implements OnModuleInit {
     return `${this.cdnBase}/${streamKey}/index.m3u8`;
   }
 
+  /** RTMP ingest base — the same endpoint OBS pushes to. Used by the browser relay gateway. */
+  get rtmpIngestBase(): string {
+    return `rtmp://${this.config.get<string>('streaming.serverIp')}/live`;
+  }
+
+  /**
+   * Confirm a stream key exists and belongs to the caller's institute before the
+   * browser relay is allowed to push RTMP to it. Prevents a teacher from relaying
+   * into another institute's stream key. nginx `validateStream` also gates publish,
+   * but we check ownership here too since the relay bypasses OBS entirely.
+   */
+  async verifyStreamOwnership(streamKey: string, instituteId: string | null): Promise<boolean> {
+    if (!streamKey || !instituteId) return false;
+    if (!/^[a-f0-9]{16,64}$/i.test(streamKey)) return false;
+    const rows = await this.ds.query(
+      `SELECT 1 FROM school_live_lectures WHERE stream_key = $1 AND institute_id = $2 LIMIT 1`,
+      [streamKey, instituteId],
+    );
+    return rows.length > 0;
+  }
+
   // ── teacher: create a live lecture ──────────────────────────────────────
   async createLecture(
     user: SchoolUser,
