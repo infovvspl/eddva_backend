@@ -107,15 +107,31 @@ export class SchoolBroadcastRelayGateway implements OnGatewayDisconnect {
 
     // ── Auth: must be a teacher/admin whose institute owns this stream key ──
     const user = this.verify(token);
-    if (!user || !this.isTeacher(user.role)) {
-      client.emit('broadcast:relay-error', { message: 'Unauthorized' });
+    if (!user) {
+      this.logger.warn(`[relay] auth failed — token ${token ? `present(len=${token.length}) but invalid/expired` : 'MISSING'}`);
+      client.emit('broadcast:relay-error', {
+        message: token
+          ? 'Your session is invalid or expired. Refresh the page and log in again.'
+          : 'No login token was received. Refresh the page and try again.',
+      });
+      return;
+    }
+    if (!this.isTeacher(user.role)) {
+      this.logger.warn(`[relay] role rejected: role="${user.role}" user=${user.id}`);
+      client.emit('broadcast:relay-error', {
+        message: `This account cannot broadcast (role: ${user.role || 'unknown'}). A teacher or admin account is required.`,
+      });
       return;
     }
     const owns = await this.svc.verifyStreamOwnership(streamKey, user.instituteId);
     if (!owns) {
-      client.emit('broadcast:relay-error', { message: 'Stream key not found for your institute' });
+      this.logger.warn(`[relay] ownership failed: key=${streamKey} institute=${user.instituteId}`);
+      client.emit('broadcast:relay-error', {
+        message: 'This live class does not belong to your institute (or the stream key is invalid).',
+      });
       return;
     }
+    this.logger.log(`[relay] authorized: user=${user.id} role=${user.role} institute=${user.instituteId} key=${streamKey}`);
 
     // Kill any existing relay for this client before starting a new one
     this.terminateSession(client.id, 'restart');
