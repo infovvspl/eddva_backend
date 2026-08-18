@@ -100,9 +100,9 @@ export class SchoolBroadcastRelayGateway implements OnGatewayDisconnect {
   @SubscribeMessage('broadcast:start')
   async handleStart(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { token: string; sessionId: string; streamKey: string },
+    @MessageBody() data: { token: string; sessionId: string; streamKey: string; width?: number; height?: number },
   ) {
-    const { token, sessionId, streamKey } = data ?? ({} as any);
+    const { token, sessionId, streamKey, width, height } = data ?? ({} as any);
     if (!sessionId || !streamKey) {
       client.emit('broadcast:relay-error', { message: 'Missing sessionId or streamKey' });
       return;
@@ -140,7 +140,15 @@ export class SchoolBroadcastRelayGateway implements OnGatewayDisconnect {
     this.terminateSession(client.id, 'restart');
 
     const pushUrl = `${this.svc.rtmpIngestBase}/${streamKey}`;
-    this.logger.log(`Starting school browser relay: session=${sessionId} key=${streamKey}`);
+
+    // Encode to the resolution the browser sent so we never upscale. Screen
+    // content is detail-heavy, so bitrate scales with resolution: 1080p→6Mbps,
+    // anything smaller (720p) → 3Mbps. Defaults to 1080p when unspecified.
+    const targetH = Number(height) && Number(height) <= 720 ? 720 : 1080;
+    const targetW = targetH === 720 ? 1280 : 1920;
+    const vBitrate = targetH >= 1080 ? '6000k' : '3000k';
+    const vBufsize = targetH >= 1080 ? '12000k' : '6000k';
+    this.logger.log(`Starting school browser relay: session=${sessionId} key=${streamKey} @ ${targetW}x${targetH} (in=${width}x${height})`);
 
     const ffmpegArgs = [
       // Input: read WebM from stdin
@@ -150,19 +158,18 @@ export class SchoolBroadcastRelayGateway implements OnGatewayDisconnect {
       '-probesize', '32',
       '-i', 'pipe:0',
 
-      // Video: re-encode to H.264 (required for RTMP/FLV). 1080p + high bitrate
-      // so shared screens (small text/code) stay legible. Screen content is
-      // detail-heavy, so we give it far more bits than a talking-head stream.
+      // Video: re-encode to H.264 (required for RTMP/FLV) at the browser's
+      // resolution so shared screens (small text/code) stay legible.
       '-c:v', 'libx264',
       '-preset', 'veryfast',
       '-tune', 'zerolatency',
       '-g', '48',
       '-bf', '0',
-      '-b:v', '6000k',
-      '-maxrate', '6000k',
-      '-bufsize', '12000k',
+      '-b:v', vBitrate,
+      '-maxrate', vBitrate,
+      '-bufsize', vBufsize,
       '-pix_fmt', 'yuv420p',
-      '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
+      '-vf', `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease,pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2`,
 
       // Audio: re-encode to AAC (required for RTMP/FLV)
       '-c:a', 'aac',
