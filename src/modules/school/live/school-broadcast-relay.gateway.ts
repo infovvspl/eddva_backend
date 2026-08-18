@@ -150,17 +150,19 @@ export class SchoolBroadcastRelayGateway implements OnGatewayDisconnect {
       '-probesize', '32',
       '-i', 'pipe:0',
 
-      // Video: re-encode to H.264 (required for RTMP/FLV)
+      // Video: re-encode to H.264 (required for RTMP/FLV). 1080p + high bitrate
+      // so shared screens (small text/code) stay legible. Screen content is
+      // detail-heavy, so we give it far more bits than a talking-head stream.
       '-c:v', 'libx264',
       '-preset', 'veryfast',
       '-tune', 'zerolatency',
-      '-g', '30',
+      '-g', '48',
       '-bf', '0',
-      '-b:v', '2000k',
-      '-maxrate', '2000k',
-      '-bufsize', '4000k',
+      '-b:v', '6000k',
+      '-maxrate', '6000k',
+      '-bufsize', '12000k',
       '-pix_fmt', 'yuv420p',
-      '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2',
+      '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
 
       // Audio: re-encode to AAC (required for RTMP/FLV)
       '-c:a', 'aac',
