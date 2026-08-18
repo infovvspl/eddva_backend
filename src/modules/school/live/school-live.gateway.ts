@@ -105,7 +105,10 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
   }
 
   private isTeacher(role: string) {
-    return role === 'TEACHER' || role === 'INSTITUTE_ADMIN' || role === 'SUPER_ADMIN';
+    // Accounts can carry multiple roles as a comma/space-separated string
+    // (e.g. "TEACHER,INSTITUTE_ADMIN"), so match on any single role.
+    const roles = String(role || '').toUpperCase().split(/[,\s]+/).filter(Boolean);
+    return roles.some((r) => r === 'TEACHER' || r === 'INSTITUTE_ADMIN' || r === 'SUPER_ADMIN');
   }
 
   private getActiveStudents(lectureId: string): LiveParticipant[] {
