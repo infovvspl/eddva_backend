@@ -102,8 +102,11 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { RtmpHooksModule } from './modules/rtmp-hooks/rtmp-hooks.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { Lead } from './database/entities/lead.entity';
 
 const ALL_COACHING_ENTITIES = [
+  Lead,
   Tenant, User, Student, AuditLog, Role,
   Subject, Chapter, Topic, TopicResource,
   Question, QuestionOption,
@@ -259,6 +262,7 @@ const ALL_COACHING_ENTITIES = [
     // ── School Module ─────────────────────────────────────────────────────────
     SchoolModule,
     RtmpHooksModule,
+    LeadsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

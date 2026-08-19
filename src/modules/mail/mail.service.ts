@@ -240,4 +240,70 @@ export class MailService {
       return { sent: false, error: err.message };
     }
   }
+
+  /** Notify the sales inbox of a new "Request a Demo" lead. */
+  async sendLeadNotification(to: string, lead: {
+    name: string; email: string; phone?: string; organization?: string;
+    role?: string; vertical?: string; interestedFeature?: string; message?: string; source?: string;
+  }): Promise<{ sent: boolean; devMode?: boolean; error?: string }> {
+    const subject = `New demo request — ${lead.name}${lead.organization ? ` (${lead.organization})` : ''}`;
+    const row = (label: string, value?: string) =>
+      value ? `<tr><td style="padding:6px 0;font-size:13px;color:#64748b;width:150px;">${label}</td><td style="padding:6px 0;font-size:14px;color:#0f172a;font-weight:600;">${value}</td></tr>` : '';
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+        <h2 style="color:#6366f1;margin:0 0 4px;">New demo request</h2>
+        <p style="margin:0 0 20px;color:#64748b;font-size:13px;">A visitor asked to see EDVA. Follow up soon.</p>
+        <table cellpadding="0" cellspacing="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:8px 16px;">
+          ${row('Name', lead.name)}
+          ${row('Email', `<a href="mailto:${lead.email}" style="color:#6366f1;">${lead.email}</a>`)}
+          ${row('Phone', lead.phone)}
+          ${row('Organization', lead.organization)}
+          ${row('Role', lead.role)}
+          ${row('Interested in', lead.vertical)}
+          ${row('Feature', lead.interestedFeature)}
+          ${row('Source', lead.source)}
+        </table>
+        ${lead.message ? `<p style="margin:16px 0 0;font-size:14px;color:#0f172a;"><strong>Message:</strong><br>${lead.message}</p>` : ''}
+      </div>`;
+
+    if (this.devMode) {
+      this.logger.debug(`[DEV MODE] Lead notification → ${to}: ${lead.name} <${lead.email}>`);
+      return { sent: false, devMode: true };
+    }
+    try {
+      await this.transporter.sendMail({ from: this.config.get('mail.from'), to, subject, html, replyTo: lead.email });
+      this.logger.log(`Lead notification email sent to ${to} for ${lead.email}`);
+      return { sent: true };
+    } catch (err) {
+      this.logger.error(`Failed to send lead notification to ${to}: ${err.message}`);
+      return { sent: false, error: err.message };
+    }
+  }
+
+  /** Thank-you confirmation to the prospect who submitted a demo request. */
+  async sendLeadConfirmation(to: string, name: string): Promise<{ sent: boolean; devMode?: boolean; error?: string }> {
+    const subject = 'Thanks for your interest in EDVA';
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:24px;">
+        <h2 style="color:#6366f1;margin:0 0 8px;">Thanks, ${name}!</h2>
+        <p style="font-size:15px;color:#475569;line-height:1.6;">
+          We received your request to see EDVA. Our team will reach out shortly to schedule your demo
+          and answer any questions. If it's urgent, just reply to this email.
+        </p>
+        <p style="margin-top:24px;color:#94a3b8;font-size:12px;">— The EDVA Team</p>
+      </div>`;
+
+    if (this.devMode) {
+      this.logger.debug(`[DEV MODE] Lead confirmation email → ${to}`);
+      return { sent: false, devMode: true };
+    }
+    try {
+      await this.transporter.sendMail({ from: this.config.get('mail.from'), to, subject, html });
+      this.logger.log(`Lead confirmation email sent to ${to}`);
+      return { sent: true };
+    } catch (err) {
+      this.logger.error(`Failed to send lead confirmation to ${to}: ${err.message}`);
+      return { sent: false, error: err.message };
+    }
+  }
 }
