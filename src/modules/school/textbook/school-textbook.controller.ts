@@ -74,6 +74,14 @@ export class SchoolTextbookController {
     return this.svc.ingestRunStatus(req.user, instituteId);
   }
 
+  /** Cancel the in-progress indexing run. Chapters already indexed are kept. */
+  @Post('ingest-cancel')
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  ingestCancel(@Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.svc.cancelBulkIngest(req.user, body?.instituteId);
+  }
+
   /** Which chapters have a usable textbook behind them. */
   @Get('coverage')
   @UseGuards(SchoolJwtGuard, SchoolRolesGuard)

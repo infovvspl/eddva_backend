@@ -517,6 +517,29 @@ export class SchoolTextbookService {
     return { runId, queued: targets.length };
   }
 
+  /**
+   * Cancel the institute's in-progress indexing run. The background workers
+   * check the run status between chapters and stop once it is no longer
+   * 'running'; chapters already indexed are kept.
+   */
+  async cancelBulkIngest(user: any, forInstituteId?: string) {
+    const instituteId = this.resolveInstitute(user, forInstituteId);
+    await this.ensureSchema();
+    const res = await this.ds.query(
+      `UPDATE textbook_ingest_runs
+         SET status='cancelled', finished_at=NOW(), updated_at=NOW()
+       WHERE institute_id::text = $1::text AND status='running'
+       RETURNING id, done, total`,
+      [instituteId],
+    );
+    if (!res.length) {
+      return { cancelled: false, message: 'No indexing run is in progress.' };
+    }
+    const r = res[0];
+    this.logger.log(`Bulk ingest cancelled for institute ${instituteId} at ${r.done}/${r.total}`);
+    return { cancelled: true, done: r.done, total: r.total };
+  }
+
   /** Chapters worth indexing: has a PDF, known reachable, and not already done. */
   private async pendingMaterials(instituteId: string, opts: { reindex?: boolean; limit?: number }) {
     const skipIndexed = opts.reindex
@@ -558,6 +581,12 @@ export class SchoolTextbookService {
 
     const worker = async () => {
       while (cursor < targets.length) {
+        // Stop early if the run was cancelled from the dashboard. Chapters
+        // already indexed stay indexed; the rest are simply skipped.
+        const st = await this.ds.query(
+          `SELECT status FROM textbook_ingest_runs WHERE id=$1`, [runId],
+        );
+        if (st[0]?.status !== 'running') break;
         const t = targets[cursor++];
         let error: string | null = null;
         let indexed = false;
@@ -589,9 +618,11 @@ export class SchoolTextbookService {
 
     await Promise.all(Array.from({ length: workers }, worker));
 
+    // Only mark 'finished' if the run wasn't cancelled mid-way.
     const final = await this.ds.query(
       `UPDATE textbook_ingest_runs
-       SET status='finished', finished_at=NOW(), updated_at=NOW()
+       SET status = CASE WHEN status='running' THEN 'finished' ELSE status END,
+           finished_at = COALESCE(finished_at, NOW()), updated_at=NOW()
        WHERE id=$1 RETURNING succeeded, failed`,
       [runId],
     );
