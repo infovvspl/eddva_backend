@@ -76,6 +76,18 @@ export class SchoolClassController {
     return this.svc.submitQuizResponse(user, id, body);
   }
 
+  @Patch('recordings/:id')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  updateRecording(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.update(user, id, body);
+  }
+
+  @Put('recordings/:id')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  putRecording(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.update(user, id, body);
+  }
+
   @Delete('recordings/:id')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   removeRecording(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.remove(user, id); }

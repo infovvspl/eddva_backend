@@ -1485,4 +1485,72 @@ export class SchoolClassService implements OnModuleInit {
 
     return { success: true, notes };
   }
+
+  async update(user: any, id: string, body: any) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const recs = await this.ds.query(
+      `SELECT id FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!recs.length) throw new NotFoundException('Recording not found');
+
+    const sets: string[] = [];
+    const params: any[] = [id];
+    let idx = 2;
+
+    if (body.title !== undefined && body.title !== null) {
+      if (!body.title.trim()) throw new BadRequestException('Title cannot be empty');
+      sets.push(`title = $${idx}`);
+      params.push(body.title.trim());
+      idx++;
+    }
+    if (body.description !== undefined) {
+      sets.push(`description = $${idx}`);
+      params.push(body.description || null);
+      idx++;
+    }
+    if (body.classId !== undefined) {
+      sets.push(`class_id = $${idx}`);
+      params.push(body.classId || null);
+      idx++;
+    }
+    if (body.sectionId !== undefined) {
+      sets.push(`section_id = $${idx}`);
+      params.push(body.sectionId || null);
+      idx++;
+    }
+    if (body.subjectId !== undefined) {
+      sets.push(`subject_id = $${idx}`);
+      params.push(body.subjectId || null);
+      idx++;
+    }
+    if (body.chapterId !== undefined) {
+      sets.push(`chapter_id = $${idx}`);
+      params.push(body.chapterId || null);
+      idx++;
+    }
+    if (body.topicId !== undefined) {
+      sets.push(`topic_id = $${idx}`);
+      params.push(body.topicId || null);
+      idx++;
+    }
+
+    if (sets.length > 0) {
+      sets.push(`updated_at = NOW()`);
+      await this.ds.query(`UPDATE class_recordings SET ${sets.join(', ')} WHERE id = $1`, params);
+    }
+
+    return { success: true, message: 'Recording updated' };
+  }
+
+  async remove(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    await this.ds.query(
+      `DELETE FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    return { success: true, message: 'Recording deleted' };
+  }
 }
