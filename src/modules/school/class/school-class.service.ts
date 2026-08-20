@@ -1208,10 +1208,15 @@ export class SchoolClassService implements OnModuleInit {
     }
   }
 
-  async remove(_user: any, id: string) {
+  async remove(user: any, id: string) {
     await this.ensureTable();
-    await this.ds.query(`DELETE FROM class_recordings WHERE id = $1`, [id]);
-    return { success: true };
+    const instituteId = this.resolveInstituteId(user);
+    if (instituteId) {
+      await this.ds.query(`DELETE FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`, [id, instituteId]);
+    } else {
+      await this.ds.query(`DELETE FROM class_recordings WHERE id = $1`, [id]);
+    }
+    return { success: true, message: 'Recording deleted' };
   }
 
   async getProgress(user: any, recordingId: string) {
@@ -1542,15 +1547,5 @@ export class SchoolClassService implements OnModuleInit {
     }
 
     return { success: true, message: 'Recording updated' };
-  }
-
-  async remove(user: any, id: string) {
-    await this.ensureTable();
-    const instituteId = this.resolveInstituteId(user);
-    await this.ds.query(
-      `DELETE FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
-      [id, instituteId],
-    );
-    return { success: true, message: 'Recording deleted' };
   }
 }
