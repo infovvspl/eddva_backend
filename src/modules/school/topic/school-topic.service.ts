@@ -50,17 +50,45 @@ export class SchoolTopicService {
       throw new ForbiddenException('Teacher is not assigned to this subject');
     }
   }
-
   async listTopics(query: any) {
     const chapterId = query.chapterId;
     let rows: any[] = [];
     try {
+      if (chapterId) {
+        // Auto-heal duplicate topics under the same chapter
+        const dups = await this.ds.query(`
+          SELECT LOWER(TRIM(name)) as norm_name, COUNT(*) as cnt
+          FROM topics
+          WHERE chapter_id = $1
+          GROUP BY LOWER(TRIM(name))
+          HAVING COUNT(*) > 1
+        `, [chapterId]);
+
+        for (const d of dups) {
+          const tRows = await this.ds.query(`
+            SELECT id, name, sort_order, created_at, updated_at
+            FROM topics
+            WHERE chapter_id = $1 AND LOWER(TRIM(name)) = $2
+            ORDER BY COALESCE(sort_order,0) ASC, updated_at DESC NULLS LAST, created_at ASC
+          `, [chapterId, d.norm_name]);
+
+          const keepId = tRows[0].id;
+          const keepName = tRows[0].name;
+          const removeIds = tRows.slice(1).map((r) => r.id);
+
+          for (const remId of removeIds) {
+            await this.ds.query(`UPDATE study_materials SET topic_id = $1, topic = $2 WHERE topic_id = $3`, [keepId, keepName, remId]);
+            await this.ds.query(`DELETE FROM topics WHERE id = $1`, [remId]);
+          }
+        }
+      }
+
       let sql = `
-        SELECT DISTINCT ON (t.name) t.id, t.name, COALESCE(t.sort_order, 0) as sort_order, t.created_at
+        SELECT DISTINCT ON (LOWER(TRIM(t.name))) t.id, t.name, COALESCE(t.sort_order, 0) as sort_order, t.created_at, t.updated_at
         FROM topics t
         WHERE 1=1
         ${chapterId ? `AND t.chapter_id = $1` : ''}
-        ORDER BY t.name, t.sort_order, t.created_at
+        ORDER BY LOWER(TRIM(t.name)), t.updated_at DESC NULLS LAST, t.created_at ASC
       `;
 
       const params: any[] = [];
@@ -68,10 +96,17 @@ export class SchoolTopicService {
 
       const rawRows: any[] = await this.ds.query(sql, params);
 
-      // Preserve natural curriculum topic order: sort by sort_order first, then creation timestamp
+      // Preserve natural curriculum topic order: sort by sort_order first, then update time, then creation timestamp
       rows = rawRows.sort((a, b) => {
-        if (a.sort_order !== b.sort_order) {
-          return (a.sort_order || 0) - (b.sort_order || 0);
+        const orderA = Number(a.sort_order || 0);
+        const orderB = Number(b.sort_order || 0);
+        if (orderA !== orderB) {
+          return orderA - orderB;
+        }
+        const updatedA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const updatedB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        if (updatedA !== updatedB) {
+          return updatedB - updatedA;
         }
         const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -93,23 +128,82 @@ export class SchoolTopicService {
     this.logger.log(`[TRACE] createTopic | body.chapterId=${body.chapterId} | resolvedSubjectId=${resolvedSubjectId} | user.id=${user?.id}`);
     await this.validateTeacherAssignment(user, resolvedSubjectId, 'CREATE_TOPIC_DENIED');
 
+    const rawOrder = body.orderIndex ?? body.order;
+    const parsedOrder = rawOrder !== undefined && rawOrder !== null ? Number(rawOrder) : 0;
+
     const rows: any[] = await this.ds.query(
       `INSERT INTO topics (chapter_id,institute_id,name,sort_order) VALUES ($1,$2,$3,$4) RETURNING *`,
-      [body.chapterId, resolvedInstituteId, body.name, body.orderIndex || 0]
+      [body.chapterId, resolvedInstituteId, body.name, isNaN(parsedOrder) ? 0 : parsedOrder]
     );
     return { success: true, data: rows[0] };
   }
 
   async updateTopic(user: any, id: string, body: any) {
     // Resolve: topic -> chapter -> subject_id
-    const topRows = await this.ds.query(`SELECT c.subject_id FROM topics t JOIN chapters c ON t.chapter_id = c.id WHERE t.id=$1`, [id]);
+    let topRows = await this.ds.query(`SELECT t.id, t.name, t.chapter_id, c.subject_id FROM topics t JOIN chapters c ON t.chapter_id = c.id WHERE t.id=$1`, [id]);
+    if (topRows.length === 0 && body.chapterId && body.name) {
+      topRows = await this.ds.query(
+        `SELECT t.id, t.name, t.chapter_id, c.subject_id FROM topics t JOIN chapters c ON t.chapter_id = c.id WHERE t.chapter_id=$1 AND LOWER(TRIM(t.name))=LOWER(TRIM($2))`,
+        [body.chapterId, body.name]
+      );
+    }
+    const targetId = topRows.length > 0 ? topRows[0].id : id;
+    const oldTopicName = topRows.length > 0 ? topRows[0].name : null;
+    const chapterId = topRows.length > 0 ? topRows[0].chapter_id : body.chapterId;
     const resolvedSubjectId = topRows.length > 0 ? topRows[0].subject_id : null;
     await this.validateTeacherAssignment(user, resolvedSubjectId, 'UPDATE_TOPIC_DENIED');
 
-    await this.ds.query(
-      `UPDATE topics SET name=COALESCE($2,name),sort_order=COALESCE($3,sort_order),updated_at=NOW() WHERE id=$1`,
-      [id, body.name, body.orderIndex]
-    );
+    const newTopicName = body.name ? body.name.trim() : null;
+    const rawOrder = body.orderIndex ?? body.order;
+    const parsedOrder = rawOrder !== undefined && rawOrder !== null ? Number(rawOrder) : null;
+
+    if (parsedOrder !== null && !isNaN(parsedOrder) && chapterId) {
+      const currentTopics: any[] = await this.ds.query(
+        `SELECT id, sort_order FROM topics WHERE chapter_id=$1 ORDER BY COALESCE(sort_order,0) ASC, updated_at DESC NULLS LAST, created_at ASC`,
+        [chapterId]
+      );
+
+      const otherTopics = currentTopics.filter((t) => t.id !== targetId);
+      const targetPos = Math.max(1, Math.min(parsedOrder, otherTopics.length + 1));
+      otherTopics.splice(targetPos - 1, 0, { id: targetId });
+
+      for (let i = 0; i < otherTopics.length; i++) {
+        const top = otherTopics[i];
+        const newOrder = i + 1;
+        if (top.id === targetId) {
+          await this.ds.query(
+            `UPDATE topics SET name=COALESCE($2,name), sort_order=$3, updated_at=NOW() WHERE id=$1`,
+            [targetId, newTopicName, newOrder]
+          );
+        } else {
+          await this.ds.query(
+            `UPDATE topics SET sort_order=$2 WHERE id=$1`,
+            [top.id, newOrder]
+          );
+        }
+      }
+    } else {
+      await this.ds.query(
+        `UPDATE topics SET name=COALESCE($2,name), updated_at=NOW() WHERE id=$1`,
+        [targetId, newTopicName]
+      );
+    }
+
+    // Sync study_materials topic strings & IDs
+    if (newTopicName) {
+      if (oldTopicName) {
+        await this.ds.query(
+          `UPDATE study_materials SET topic=$2, topic_id=$1 WHERE topic_id=$1 OR (chapter_id=$3 AND LOWER(TRIM(topic))=LOWER(TRIM($4)))`,
+          [targetId, newTopicName, chapterId, oldTopicName]
+        );
+      } else {
+        await this.ds.query(
+          `UPDATE study_materials SET topic=$2, topic_id=$1 WHERE topic_id=$1`,
+          [targetId, newTopicName]
+        );
+      }
+    }
+
     return { success: true };
   }
 
@@ -133,9 +227,53 @@ export class SchoolTopicService {
 
     let rows: any[] = [];
     try {
+      if (subjectId) {
+        // Auto-heal duplicate chapter records in chapters table
+        const dups = await this.ds.query(`
+          SELECT LOWER(TRIM(name)) as norm_name, COUNT(*) as cnt
+          FROM chapters
+          WHERE subject_id = $1
+          GROUP BY LOWER(TRIM(name))
+          HAVING COUNT(*) > 1
+        `, [subjectId]);
+
+        for (const d of dups) {
+          const cRows = await this.ds.query(`
+            SELECT id, name, sort_order, created_at, updated_at
+            FROM chapters
+            WHERE subject_id = $1 AND LOWER(TRIM(name)) = $2
+            ORDER BY COALESCE(sort_order,0) ASC, updated_at DESC NULLS LAST, created_at ASC
+          `, [subjectId, d.norm_name]);
+
+          const keepId = cRows[0].id;
+          const keepName = normalizeChapterName(cRows[0].name);
+
+          await this.ds.query(`UPDATE chapters SET name = $2 WHERE id = $1`, [keepId, keepName]);
+
+          const removeIds = cRows.slice(1).map((r) => r.id);
+          for (const remId of removeIds) {
+            await this.ds.query(`UPDATE topics SET chapter_id = $1 WHERE chapter_id = $2`, [keepId, remId]);
+            await this.ds.query(`UPDATE study_materials SET chapter_id = $1, chapter = $2 WHERE chapter_id = $3`, [keepId, keepName, remId]);
+            await this.ds.query(`DELETE FROM chapters WHERE id = $1`, [remId]);
+          }
+        }
+
+        // Auto-heal / sync linked study_materials
+        await this.ds.query(
+          `UPDATE study_materials sm
+           SET chapter_id = c.id, chapter = c.name
+           FROM chapters c
+           WHERE sm.chapter_id IS NULL
+             AND sm.subject_id_fk = $1
+             AND c.subject_id = $1
+             AND LOWER(TRIM(sm.chapter)) = LOWER(TRIM(c.name))`,
+          [subjectId]
+        );
+      }
+
       let sql = `
-        SELECT DISTINCT ON (name) id, name, sort_order, created_at FROM (
-          SELECT c.id, c.name, COALESCE(c.sort_order, 0) as sort_order, c.created_at
+        SELECT DISTINCT ON (LOWER(TRIM(name))) id, name, sort_order, created_at, updated_at FROM (
+          SELECT c.id, c.name, COALESCE(c.sort_order, 0) as sort_order, c.created_at, c.updated_at, 1 as source_priority
           FROM chapters c
           JOIN subjects s ON c.subject_id = s.id
           WHERE 1=1
@@ -144,14 +282,20 @@ export class SchoolTopicService {
 
           UNION ALL
 
-          SELECT COALESCE(chapter_id, gen_random_uuid()) as id, chapter as name, COALESCE(sort_order, 0) as sort_order, created_at
-          FROM study_materials
-          WHERE chapter IS NOT NULL AND TRIM(chapter) != ''
-          ${subjectId ? `AND subject_id_fk = $1` : ''}
-          ${classId ? `AND (class_id = '${classId}' OR class_id IS NULL)` : ''}
-          ${sectionId ? `AND (section_id = '${sectionId}' OR section_id IS NULL)` : ''}
+          SELECT COALESCE(sm.chapter_id, sm.id) as id, sm.chapter as name, COALESCE(sm.sort_order, 0) as sort_order, sm.created_at, sm.created_at as updated_at, 2 as source_priority
+          FROM study_materials sm
+          WHERE sm.chapter IS NOT NULL AND TRIM(sm.chapter) != ''
+            AND sm.chapter_id IS NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM chapters c2
+              WHERE c2.subject_id = sm.subject_id_fk
+                AND LOWER(TRIM(c2.name)) = LOWER(TRIM(sm.chapter))
+            )
+          ${subjectId ? `AND sm.subject_id_fk = $1` : ''}
+          ${classId ? `AND (sm.class_id = '${classId}' OR sm.class_id IS NULL)` : ''}
+          ${sectionId ? `AND (sm.section_id = '${sectionId}' OR sm.section_id IS NULL)` : ''}
         ) combined
-        ORDER BY name, sort_order, created_at
+        ORDER BY LOWER(TRIM(name)), source_priority ASC, created_at ASC
       `;
 
       const params: any[] = [];
@@ -159,10 +303,17 @@ export class SchoolTopicService {
 
       const rawRows: any[] = await this.ds.query(sql, params);
 
-      // Preserve textbook chapter order: sort by sort_order first, then creation timestamp
+      // Preserve textbook chapter order: sort by sort_order first, then update time, then creation timestamp
       rows = rawRows.sort((a, b) => {
-        if (a.sort_order !== b.sort_order) {
-          return (a.sort_order || 0) - (b.sort_order || 0);
+        const orderA = Number(a.sort_order || 0);
+        const orderB = Number(b.sort_order || 0);
+        if (orderA !== orderB) {
+          return orderA - orderB;
+        }
+        const updatedA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const updatedB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        if (updatedA !== updatedB) {
+          return updatedB - updatedA;
         }
         const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -180,16 +331,12 @@ export class SchoolTopicService {
     // payload contains: subjectId
     await this.validateTeacherAssignment(user, body.subjectId, 'CREATE_CHAPTER_DENIED');
 
-    // Resolve institute_id: prefer body, then look up from subject, then fall back to user
     let instituteId = body.instituteId || null;
     if (!instituteId) {
       const subRows = await this.ds.query(`SELECT institute_id FROM subjects WHERE id=$1`, [body.subjectId]);
       instituteId = subRows.length > 0 ? subRows[0].institute_id : (user.instituteId || null);
     }
 
-    // Normalise and reject a name this subject already has. bulkImport has
-    // always done this; createChapter did not, so "DEVELOPMENT" and
-    // "Development" could both be inserted and then show as separate chapters.
     const name = normalizeChapterName(body.name);
     if (!name) throw new BadRequestException('Chapter name is required');
 
@@ -201,9 +348,12 @@ export class SchoolTopicService {
       throw new BadRequestException('A chapter with this name already exists for this subject.');
     }
 
+    const rawOrder = body.orderIndex ?? body.order;
+    const parsedOrder = rawOrder !== undefined && rawOrder !== null ? Number(rawOrder) : 0;
+
     const rows: any[] = await this.ds.query(
       `INSERT INTO chapters (subject_id,institute_id,name,sort_order) VALUES ($1,$2,$3,$4) RETURNING *`,
-      [body.subjectId, instituteId, name, body.orderIndex || 0]
+      [body.subjectId, instituteId, name, isNaN(parsedOrder) ? 0 : parsedOrder]
     );
     return { success: true, data: rows[0] };
   }
@@ -228,7 +378,6 @@ export class SchoolTopicService {
     if (!subRows.length) throw new BadRequestException('Subject not found');
     const instituteId = subRows[0].institute_id || user.instituteId || null;
 
-    // Group rows by chapter, preserving first-seen order; split comma-separated topics & dedupe per chapter.
     const chapterOrder: string[] = [];
     const grouped = new Map<string, string[]>();
     for (const r of rawRows) {
@@ -237,7 +386,6 @@ export class SchoolTopicService {
       if (!grouped.has(chapter)) { grouped.set(chapter, []); chapterOrder.push(chapter); }
       const topicRaw = String(r?.topic ?? '').trim();
       if (!topicRaw) continue;
-      // Split on commas — handles both pre-split single topics and "Topic A, Topic B" values
       const parts = topicRaw.split(',');
       const list = grouped.get(chapter)!;
       for (const part of parts) {
@@ -258,7 +406,7 @@ export class SchoolTopicService {
       let nextChapterOrder = Number(maxRows[0]?.m) || 0;
 
       for (const rawChapterName of chapterOrder) {
-    const chapterName = normalizeChapterName(rawChapterName);
+        const chapterName = normalizeChapterName(rawChapterName);
         let chapterId: string;
         const existing = await qr.query(
           `SELECT id FROM chapters WHERE subject_id=$1 AND LOWER(name)=LOWER($2) LIMIT 1`,
@@ -307,14 +455,113 @@ export class SchoolTopicService {
 
   async updateChapter(user: any, id: string, body: any) {
     // Resolve: chapter -> subject_id
-    const chapRows = await this.ds.query(`SELECT subject_id FROM chapters WHERE id=$1`, [id]);
-    const resolvedSubjectId = chapRows.length > 0 ? chapRows[0].subject_id : null;
+    let chapRows = await this.ds.query(`SELECT id, name, subject_id FROM chapters WHERE id=$1`, [id]);
+    let oldChapterName: string | null = chapRows.length > 0 ? chapRows[0].name : null;
+
+    if (chapRows.length === 0) {
+      // If virtual ID from study_materials, resolve string chapter & subject
+      const smRows = await this.ds.query(
+        `SELECT chapter, subject_id_fk FROM study_materials WHERE (chapter_id=$1 OR id::text=$1) AND chapter IS NOT NULL LIMIT 1`,
+        [id]
+      );
+      if (smRows.length > 0) {
+        const smChapter = smRows[0].chapter;
+        const smSubjectId = smRows[0].subject_id_fk || body.subjectId;
+        oldChapterName = smChapter;
+        chapRows = await this.ds.query(
+          `SELECT id, name, subject_id FROM chapters WHERE subject_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2))`,
+          [smSubjectId, smChapter]
+        );
+      }
+    }
+
+    const resolvedSubjectId = chapRows.length > 0 ? chapRows[0].subject_id : (body.subjectId || null);
+    if (chapRows.length === 0 && resolvedSubjectId && body.name) {
+      chapRows = await this.ds.query(
+        `SELECT id, name, subject_id FROM chapters WHERE subject_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2))`,
+        [resolvedSubjectId, body.name]
+      );
+    }
+
     await this.validateTeacherAssignment(user, resolvedSubjectId, 'UPDATE_CHAPTER_DENIED');
 
-    await this.ds.query(
-      `UPDATE chapters SET name=COALESCE($2,name),sort_order=COALESCE($3,sort_order),updated_at=NOW() WHERE id=$1`,
-      [id, body.name ? normalizeChapterName(body.name) : null, body.orderIndex]
-    );
+    const newChapterName = body.name ? normalizeChapterName(body.name) : null;
+    const rawOrder = body.orderIndex ?? body.order;
+    const parsedOrder = rawOrder !== undefined && rawOrder !== null ? Number(rawOrder) : null;
+
+    let targetId = chapRows.length > 0 ? chapRows[0].id : null;
+
+    // If target chapter does not exist in chapters table yet, insert or locate it
+    if (!targetId && resolvedSubjectId && (newChapterName || oldChapterName)) {
+      const createName = newChapterName || oldChapterName!;
+      const subRows = await this.ds.query(`SELECT institute_id FROM subjects WHERE id=$1`, [resolvedSubjectId]);
+      const instituteId = subRows.length > 0 ? subRows[0].institute_id : (user.instituteId || null);
+      
+      const existingChap = await this.ds.query(
+        `SELECT id FROM chapters WHERE subject_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2)) LIMIT 1`,
+        [resolvedSubjectId, createName]
+      );
+      if (existingChap.length > 0) {
+        targetId = existingChap[0].id;
+      } else {
+        const ins = await this.ds.query(
+          `INSERT INTO chapters (subject_id, institute_id, name, sort_order) VALUES ($1, $2, $3, $4) RETURNING id`,
+          [resolvedSubjectId, instituteId, createName, parsedOrder || 1]
+        );
+        targetId = ins[0].id;
+      }
+    }
+
+    if (targetId) {
+      if (parsedOrder !== null && !isNaN(parsedOrder) && resolvedSubjectId) {
+        const currentChapters: any[] = await this.ds.query(
+          `SELECT id, sort_order FROM chapters WHERE subject_id=$1 ORDER BY COALESCE(sort_order,0) ASC, updated_at DESC NULLS LAST, created_at ASC`,
+          [resolvedSubjectId]
+        );
+
+        const otherChapters = currentChapters.filter((c) => c.id !== targetId);
+        const targetPos = Math.max(1, Math.min(parsedOrder, otherChapters.length + 1));
+        otherChapters.splice(targetPos - 1, 0, { id: targetId });
+
+        for (let i = 0; i < otherChapters.length; i++) {
+          const ch = otherChapters[i];
+          const newOrder = i + 1;
+          if (ch.id === targetId) {
+            await this.ds.query(
+              `UPDATE chapters SET name=COALESCE($2,name), sort_order=$3, updated_at=NOW() WHERE id=$1`,
+              [targetId, newChapterName, newOrder]
+            );
+          } else {
+            await this.ds.query(
+              `UPDATE chapters SET sort_order=$2 WHERE id=$1`,
+              [ch.id, newOrder]
+            );
+          }
+        }
+      } else if (newChapterName) {
+        await this.ds.query(
+          `UPDATE chapters SET name=$2, updated_at=NOW() WHERE id=$1`,
+          [targetId, newChapterName]
+        );
+      }
+
+      // Sync study_materials chapter strings & chapter_id references
+      const syncName = newChapterName || oldChapterName;
+      if (syncName) {
+        if (oldChapterName) {
+          await this.ds.query(
+            `UPDATE study_materials SET chapter=$2, chapter_id=$1 WHERE chapter_id=$1 OR (subject_id_fk=$3 AND LOWER(TRIM(chapter))=LOWER(TRIM($4)))`,
+            [targetId, syncName, resolvedSubjectId, oldChapterName]
+          );
+        } else {
+          await this.ds.query(
+            `UPDATE study_materials SET chapter=$2, chapter_id=$1 WHERE chapter_id=$1`,
+            [targetId, syncName]
+          );
+        }
+      }
+    }
+
     return { success: true };
   }
 
