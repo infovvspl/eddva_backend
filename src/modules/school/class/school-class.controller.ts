@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards, Req } from '@nestjs/common';
 import { SchoolClassService } from './school-class.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -74,6 +74,18 @@ export class SchoolClassController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   submitQuizResponse(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
     return this.svc.submitQuizResponse(user, id, body);
+  }
+
+  @Patch('recordings/:id')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  updateRecording(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.update(user, id, body);
+  }
+
+  @Put('recordings/:id')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  putRecording(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.update(user, id, body);
   }
 
   @Delete('recordings/:id')
