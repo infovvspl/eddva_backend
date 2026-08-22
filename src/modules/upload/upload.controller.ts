@@ -163,10 +163,15 @@ export class UploadController {
     @Query('contentType') contentType: string,
     @Req() req: any,
   ) {
-    const MAX_PROXY_BYTES = 100 * 1024 * 1024; // 100 MB
+    // 2 GB — matches the presigned-upload cap for lecture videos
+    // (school-class.service.ts) and the "Max 2 GB" shown in the UI. The request
+    // is streamed straight through to S3 below, so a large file is not buffered
+    // in server memory. NOTE: the fronting nginx must allow this too
+    // (`client_max_body_size 2g;` on the /api location) or it 413s first.
+    const MAX_PROXY_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
     const contentLength = parseInt(req.headers['content-length'] || '0', 10);
     if (contentLength > MAX_PROXY_BYTES) {
-      throw new BadRequestException('File too large. Maximum upload size is 100 MB.');
+      throw new BadRequestException('File too large. Maximum upload size is 2 GB.');
     }
     if (!s3Url) {
       throw new BadRequestException('url query parameter is required');
