@@ -60,6 +60,10 @@ export class SchoolAssessmentService {
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS content_source VARCHAR NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS file_path VARCHAR NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS chapter_id UUID NULL`);
+    // Multi-chapter tests store the full selected set here (ordered ids). The
+    // scalar chapter_id above stays populated with the first chapter for
+    // backward compatibility with the single-chapter LEFT JOIN in list().
+    await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS chapter_ids JSONB NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS topic_id UUID NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS answer_key TEXT NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS language VARCHAR NULL DEFAULT 'en'`);
@@ -998,6 +1002,40 @@ export class SchoolAssessmentService {
     return out;
   }
 
+  /**
+   * Selected chapters for a test, as a de-duplicated list of ids. Accepts a
+   * `chapterIds` array or CSV string, and falls back to the single `chapterId`
+   * so single-chapter and topic tests keep working unchanged.
+   */
+  private normalizeChapterIds(body: any): string[] {
+    const raw = body?.chapterIds ?? body?.chapter_ids;
+    let ids: string[] = [];
+    if (Array.isArray(raw)) ids = raw.map((x) => String(x).trim()).filter(Boolean);
+    else if (typeof raw === 'string' && raw.trim()) ids = raw.split(',').map((x) => x.trim()).filter(Boolean);
+    if (!ids.length) {
+      const single = body?.chapterId || body?.chapter_id;
+      if (single) ids = [String(single).trim()];
+    }
+    return Array.from(new Set(ids));
+  }
+
+  /** Resolve chapter ids to {id, name}, ordered by curriculum sort_order. */
+  private async resolveChapterList(chapterIds: string[]): Promise<Array<{ id: string; name: string }>> {
+    if (!chapterIds.length) return [];
+    try {
+      const rows = await this.ds.query(
+        `SELECT id, name FROM chapters
+         WHERE id::text = ANY($1::text[])
+         ORDER BY COALESCE(sort_order,0) ASC, name ASC`,
+        [chapterIds],
+      );
+      return rows.map((r: any) => ({ id: String(r.id), name: r.name }));
+    } catch (err) {
+      this.logger.warn(`Chapter list resolution failed: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
   async aiGenerateDraft(user: any, body: any) {
     const instituteId = user.instituteId || body.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
@@ -1040,11 +1078,21 @@ export class SchoolAssessmentService {
     if (longAns > 0) sections.push(`- Section E — Long Answer: exactly ${longAns} questions. 5 marks each.`);
     if (sections.length === 0) sections.push(`- Section A — Multiple Choice Questions: exactly 10 questions, four options (a)-(d), one correct. 1 mark each.`);
 
+    // Resolve the selected chapters (supports a multi-chapter range, e.g. 1–10).
+    // Ordered by curriculum sort_order so the scope reads in teaching sequence.
+    const chapterIds = this.normalizeChapterIds(body);
+    const chapterList = await this.resolveChapterList(chapterIds);
+    const multiChapter = chapterList.length > 1;
+    // For a single-chapter test whose name the client didn't send, fill it in.
+    const effChapterName = chapterName || (chapterList.length === 1 ? chapterList[0].name : '');
+
     const scopeLine = topicName
-      ? `IMPORTANT SCOPE: Generate questions ONLY about the topic "${topicName}"${chapterName ? ` (from chapter "${chapterName}")` : ''}. Every question must relate to this topic.`
-      : chapterName
-        ? `IMPORTANT SCOPE: Generate questions ONLY from the chapter "${chapterName}". Every question must relate to this chapter.`
-        : '';
+      ? `IMPORTANT SCOPE: Generate questions ONLY about the topic "${topicName}"${effChapterName ? ` (from chapter "${effChapterName}")` : ''}. Every question must relate to this topic.`
+      : multiChapter
+        ? `IMPORTANT SCOPE: Generate questions ONLY from these chapters of ${subjectName}: ${chapterList.map((c, i) => `${i + 1}) "${c.name}"`).join(', ')}. Distribute the questions across ALL of these chapters so every listed chapter is represented in the paper. Do NOT include content from any other chapter.`
+        : effChapterName
+          ? `IMPORTANT SCOPE: Generate questions ONLY from the chapter "${effChapterName}". Every question must relate to this chapter.`
+          : '';
 
     const extraContext = [
       `LANGUAGE: Write the ENTIRE question paper in English. Every word — questions, instructions, options, section headings, and the answer key — must be in English only.`,
@@ -1079,27 +1127,41 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     // questions are set from the book the students actually study.
     // Accept either casing, and fall back to the topic's chapter for a topic
     // test, which carries a topic but not always a chapter.
-    let groundingChapterId: string | null =
-      body.chapterId || body.chapter_id || null;
-    if (!groundingChapterId && (body.topicId || body.topic_id)) {
-      try {
-        const rows = await this.ds.query(
-          `SELECT chapter_id FROM topics WHERE id::text = $1::text LIMIT 1`,
-          [body.topicId || body.topic_id],
-        );
-        groundingChapterId = rows[0]?.chapter_id ?? null;
-      } catch { /* grounding is best-effort */ }
+    // For a multi-chapter test, merge passages from every selected chapter,
+    // capped per chapter so no single chapter dominates the shared 30k-token
+    // grounding budget and every chapter gets represented. One AI call still.
+    let sourcePassages: any[] = [];
+    if (multiChapter) {
+      const perChapterCap = Math.max(3, Math.floor(40 / chapterList.length));
+      for (const ch of chapterList) {
+        const passages = await this.textbooks.getChapterPassages(instituteId, ch.id);
+        if (passages.length) sourcePassages.push(...passages.slice(0, perChapterCap));
+      }
+    } else {
+      let groundingChapterId: string | null =
+        chapterList[0]?.id || body.chapterId || body.chapter_id || null;
+      if (!groundingChapterId && (body.topicId || body.topic_id)) {
+        try {
+          const rows = await this.ds.query(
+            `SELECT chapter_id FROM topics WHERE id::text = $1::text LIMIT 1`,
+            [body.topicId || body.topic_id],
+          );
+          groundingChapterId = rows[0]?.chapter_id ?? null;
+        } catch { /* grounding is best-effort */ }
+      }
+      sourcePassages = await this.textbooks.getChapterPassages(
+        instituteId, groundingChapterId,
+      );
     }
-    const sourcePassages = await this.textbooks.getChapterPassages(
-      instituteId, groundingChapterId,
-    );
 
     try {
       const result = await this.aiBridge.generateTopicContent(
         {
           topicName: topicName || `${subjectName} ${testType} assessment`,
           subjectName,
-          chapterName: chapterName || className,
+          chapterName: multiChapter
+            ? `${chapterList.length} chapters`
+            : (effChapterName || className),
           // Unknown content type → falls back to the generic template; the
           // detailed extraContext above fully drives the exam-paper structure.
           contentType: 'assessment_paper',
@@ -1159,6 +1221,9 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     await this.ensureAssessmentContentColumns();
     const classId = body.classId || body.class_id || null;
     const sectionId = body.sectionId || body.section_id || null;
+    // Selected chapters (multi-chapter tests). chapter_id keeps the first for
+    // the single-chapter LEFT JOIN in list(); chapter_ids holds the full set.
+    const chapterIds = this.normalizeChapterIds(body);
     const rawContentText = body.contentText || body.content_text || body.instructions || null;
     const rawAnswerKey = body.answerKey || body.answer_key || null;
     const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
@@ -1182,8 +1247,8 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     return await this.ds.transaction(async (manager) => {
       const rows: any[] = await manager.query(
         `INSERT INTO assessments
-          (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, topic_id, answer_key, language, questions_json)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb) RETURNING *`,
+          (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, chapter_ids, topic_id, answer_key, language, questions_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17::jsonb) RETURNING *`,
         [
           title,
           body.assessmentType || body.type || 'exam',
@@ -1198,7 +1263,8 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           contentText,
           contentSource,
           filePath,
-          body.chapterId || body.chapter_id || null,
+          chapterIds[0] || body.chapterId || body.chapter_id || null,
+          chapterIds.length ? JSON.stringify(chapterIds) : null,
           body.topicId || body.topic_id || null,
           answerKey,
           body.language || 'en',
