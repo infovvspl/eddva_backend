@@ -1131,11 +1131,21 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     // capped per chapter so no single chapter dominates the shared 30k-token
     // grounding budget and every chapter gets represented. One AI call still.
     let sourcePassages: any[] = [];
+    // Track, for the teacher-facing warning, which selected chapters actually
+    // had an indexed textbook (grounded) and which fell back to general
+    // knowledge (not indexed).
+    const groundedChapters: string[] = [];
+    const ungroundedChapters: string[] = [];
     if (multiChapter) {
       const perChapterCap = Math.max(3, Math.floor(40 / chapterList.length));
       for (const ch of chapterList) {
         const passages = await this.textbooks.getChapterPassages(instituteId, ch.id);
-        if (passages.length) sourcePassages.push(...passages.slice(0, perChapterCap));
+        if (passages.length) {
+          sourcePassages.push(...passages.slice(0, perChapterCap));
+          groundedChapters.push(ch.name);
+        } else {
+          ungroundedChapters.push(ch.name);
+        }
       }
     } else {
       let groundingChapterId: string | null =
@@ -1152,7 +1162,16 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       sourcePassages = await this.textbooks.getChapterPassages(
         instituteId, groundingChapterId,
       );
+      const singleName = effChapterName || chapterList[0]?.name || chapterName;
+      if (singleName) (sourcePassages.length ? groundedChapters : ungroundedChapters).push(singleName);
     }
+    const grounded = sourcePassages.length > 0;
+    // Reinforce the book-only rule in the paper prompt itself (belt-and-suspenders
+    // with the grounding system prompt the AI service applies). Only when we have
+    // passages — never tell the model to cite a book it wasn't given.
+    const strictSourceRule = grounded
+      ? '\nSTRICT SOURCE RULE: Every question, every option and every correct answer MUST be built ONLY from the textbook passages supplied as the source below. Do NOT use any knowledge beyond those passages. If they do not contain enough material for the requested number of questions, produce FEWER questions rather than adding anything from outside the book.'
+      : '';
 
     try {
       const result = await this.aiBridge.generateTopicContent(
@@ -1167,7 +1186,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           contentType: 'assessment_paper',
           difficulty,
           length: 'detailed',
-          extraContext,
+          extraContext: extraContext + strictSourceRule,
           ...(sourcePassages.length ? { sourcePassages } : {}),
         },
         instituteId,
@@ -1210,6 +1229,15 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           title: body.title?.trim() || this.deriveTitle(questionsPart, `${subjectName} ${testType} test`),
           contentText: questionsPart,
           answerKey: answerKeyPart,
+          // Grounding transparency: whether the paper was built strictly from the
+          // school's indexed textbook, and which selected chapters were not
+          // indexed (so the UI can warn those questions used general knowledge).
+          source: (result as any).source ?? {
+            grounded,
+            reason: grounded ? undefined : 'not_indexed',
+          },
+          groundedChapters,
+          ungroundedChapters,
         },
       };
     } catch {
