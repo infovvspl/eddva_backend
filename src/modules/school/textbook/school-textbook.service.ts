@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
@@ -215,7 +215,31 @@ export class SchoolTextbookService {
       throw new BadRequestException('Only PDF chapters can be indexed');
     }
 
-    const res = await this.aiBridge.ingestTextbook({ fileUrl: material.s3_key }, instituteId);
+    // Map the AI-service failures a large PDF hits to clear, actionable errors
+    // instead of the generic 500 the raw axios error would become.
+    let res: any;
+    try {
+      res = await this.aiBridge.ingestTextbook({ fileUrl: material.s3_key }, instituteId);
+    } catch (err: any) {
+      const upstreamStatus = err?.response?.status;
+      const upstreamMsg = err?.response?.data?.error || err?.response?.data?.message;
+      if (upstreamStatus === 413) {
+        throw new BadRequestException(
+          upstreamMsg || 'This PDF is too large to index. Split it into smaller chapters and upload them separately.',
+        );
+      }
+      if (err?.code === 'ECONNABORTED' || /timeout/i.test(err?.message || '')) {
+        throw new HttpException(
+          'Indexing timed out — the PDF is large or has many scanned pages. Split it into smaller parts and try again.',
+          HttpStatus.GATEWAY_TIMEOUT,
+        );
+      }
+      this.logger.error(`Textbook ingest upstream error (status=${upstreamStatus ?? 'n/a'}): ${err?.message}`);
+      throw new HttpException(
+        upstreamMsg || 'Could not index this PDF. Check the file is a readable, non-protected PDF and try again.',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
     const data: any = res?.data ?? res;
     const chunks: any[] = data?.chunks ?? [];
 
