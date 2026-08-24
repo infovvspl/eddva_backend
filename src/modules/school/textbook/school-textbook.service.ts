@@ -542,6 +542,64 @@ export class SchoolTextbookService {
   }
 
   /**
+   * Index one chapter in the background and return a run id immediately.
+   *
+   * A large or scanned PDF can take minutes, which cannot sit on a single HTTP
+   * request (nginx/browser time out → the 500 teachers hit). This reuses the
+   * bulk run machinery with a single target, so the coverage screen polls
+   * ingest-status for progress exactly as it does for a full run.
+   */
+  async ingestMaterialAsync(user: any, materialId: string, forInstituteId?: string) {
+    if (!materialId) throw new BadRequestException('materialId is required');
+    const instituteId = this.resolveInstitute(user, forInstituteId);
+    await this.ensureSchema();
+    await this.reapStaleRuns(instituteId);
+
+    const running = await this.ds.query(
+      `SELECT id, done, total FROM textbook_ingest_runs
+       WHERE institute_id::text = $1::text AND status = 'running' LIMIT 1`,
+      [instituteId],
+    );
+    if (running.length) {
+      const r = running[0];
+      throw new BadRequestException(
+        `An indexing run is already in progress for this institute (${r.done}/${r.total} done). ` +
+        `Wait for it to finish or cancel it first.`,
+      );
+    }
+
+    // Resolve the target under the caller's institute (same guard as ingestMaterial).
+    const rows = await this.ds.query(
+      `SELECT sm.id AS material_id, c.id AS chapter_id, c.name AS chapter_name, sm.s3_key
+       FROM study_materials sm
+       JOIN chapters c ON c.id = sm.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN classes cl ON cl.id = s.class_id
+       WHERE sm.id::text = $1::text AND cl.institute_id::text = $2::text
+       LIMIT 1`,
+      [materialId, instituteId],
+    );
+    const target = rows[0];
+    if (!target) throw new NotFoundException('Study material not found');
+    if (!target.chapter_id) {
+      throw new BadRequestException('This material is not linked to a chapter, so it cannot be indexed');
+    }
+    if (!/\.pdf(\?|$)/i.test(target.s3_key || '')) {
+      throw new BadRequestException('Only PDF chapters can be indexed');
+    }
+
+    const run = await this.ds.query(
+      `INSERT INTO textbook_ingest_runs (institute_id, total) VALUES ($1, 1) RETURNING id`,
+      [instituteId],
+    );
+    const runId = run[0].id;
+    void this.processBulk(runId, instituteId, [target]).catch((err) =>
+      this.logger.error(`Single ingest run ${runId} crashed: ${(err as Error).message}`),
+    );
+    return { runId, queued: 1, chapterId: target.chapter_id, chapterName: target.chapter_name };
+  }
+
+  /**
    * Cancel the institute's in-progress indexing run. The background workers
    * check the run status between chapters and stop once it is no longer
    * 'running'; chapters already indexed are kept.

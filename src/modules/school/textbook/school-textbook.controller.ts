@@ -21,7 +21,9 @@ export class SchoolTextbookController {
   @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   ingest(@Body() body: any, @Req() req: Request & { user?: any }) {
-    return this.svc.ingestMaterial(req.user, body?.materialId, body?.instituteId);
+    // Runs in the background and returns a run id immediately; the client polls
+    // ingest-status. Keeps large/scanned PDFs off a single (timing-out) request.
+    return this.svc.ingestMaterialAsync(req.user, body?.materialId, body?.instituteId);
   }
 
   /**
@@ -33,7 +35,9 @@ export class SchoolTextbookController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   @UseInterceptors(FileInterceptor('file', {
     storage: memoryStorage(),
-    limits: { fileSize: 60 * 1024 * 1024 },
+    // Match the AI service's PDF cap (TEXTBOOK_MAX_PDF_MB, default 250 MB). The
+    // fronting nginx must also allow this (client_max_body_size) for /api.
+    limits: { fileSize: 250 * 1024 * 1024 },
   }))
   uploadAndIndex(
     @Body() body: any,

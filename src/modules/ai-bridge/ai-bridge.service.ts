@@ -1576,8 +1576,9 @@ export class AiBridgeService {
     tenantId?: string,
   ): Promise<{ success: boolean; data: any }> {
     // A scanned chapter goes through a vision pass page by page, so this is far
-    // slower than a normal bridge call.
-    return this.post('/textbook/ingest', dto, tenantId, 300_000, 'school');
+    // slower than a normal bridge call. Callers run it in the background (see
+    // ingestMaterialAsync), so a generous 10-minute ceiling is safe.
+    return this.post('/textbook/ingest', dto, tenantId, 600_000, 'school');
   }
 
   async searchPptImage(
