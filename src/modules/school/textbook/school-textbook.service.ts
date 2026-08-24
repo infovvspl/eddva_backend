@@ -435,8 +435,25 @@ export class SchoolTextbookService {
       [materialId, instituteId, chapter.id, fileUrl],
     );
 
-    const result = await this.ingestMaterial(user, materialId, instituteId);
-    return { ...result, materialId, fileUrl, fileName: file.originalname };
+    // Index in the background so a large/scanned upload doesn't block the request
+    // (which would time out). The client polls ingest-status for progress. If a
+    // run is already in progress the upload still succeeds; the chapter can be
+    // indexed once that run finishes.
+    let run: { runId: string; queued: number } | null = null;
+    try {
+      run = await this.ingestMaterialAsync(user, materialId, instituteId);
+    } catch (err) {
+      this.logger.warn(`Uploaded but indexing deferred: ${(err as Error).message}`);
+    }
+    return {
+      materialId,
+      fileUrl,
+      fileName: file.originalname,
+      chapterId: chapter.id,
+      chapterName: chapter.chapter_name,
+      indexing: !!run,
+      runId: run?.runId ?? null,
+    };
   }
 
   /**
