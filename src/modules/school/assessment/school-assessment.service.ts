@@ -173,20 +173,26 @@ export class SchoolAssessmentService {
   private isInstructionLikeText(text: string) {
     const normalized = String(text || '').trim().toLowerCase();
     if (!normalized) return true;
-    return /^(read|write|use|do not|answer|attempt|follow|choose|fill|tick|select)\b/.test(normalized)
-      || normalized.includes('general instruction')
-      || normalized.includes('question paper consists')
-      || normalized.includes('follow the instructions')
-      || normalized.includes('space provided');
+    return (
+      /^(general\s+instructions?|instructions?|note|guidelines?|directions?)\b/i.test(normalized) ||
+      /\b(compulsory|instruction|instructions|question paper|paper contains|paper consists|contains \d+ questions|consists of \d+ questions|divided into|comprises?|comprising|space provided|calculator|calculators|not permitted|not allowed|figures to the right|all questions|marks each|option[s]? provided)\b/i.test(normalized) ||
+      (/^(read|write|use|do not|answer|attempt|follow|choose|fill|tick|select|please|all|there|this|each|section)\b/i.test(normalized) &&
+        /\b(questions?|sections?|compulsory|paper|instructions?|marks?|minutes?|hours?|comprises?|contains?)\b/i.test(normalized))
+    );
   }
 
   private parsedQuestionsNeedRefresh(questions: any[]) {
     return this.normalizeQuestions(questions).some((question: any) => {
-      const type = question.type || 'short_answer';
-      const sectionLetter = this.sectionLetter(question.sectionTitle || question.section || '');
-      return this.isInstructionLikeText(question.text)
-        || (sectionLetter === 'A' && type !== 'mcq_single')
-        || (type !== 'mcq_single' && this.hasInlineMcqOptions(question.text));
+      const text = String(question?.text || '').trim();
+      const sectionTitle = String(question?.sectionTitle || question?.section || '').trim();
+      const type = question?.type || 'short_answer';
+      const sectionLetter = this.sectionLetter(sectionTitle);
+      return (
+        this.isInstructionLikeText(text) ||
+        /instruction|guideline|note|direction/i.test(sectionTitle) ||
+        (sectionLetter === 'A' && type !== 'mcq_single') ||
+        (type !== 'mcq_single' && this.hasInlineMcqOptions(text))
+      );
     });
   }
 
@@ -228,7 +234,7 @@ export class SchoolAssessmentService {
     if (parsed.length && row.id) {
       try {
         await this.ds.query(
-          `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text AND questions_json IS NULL`,
+          `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text AND (questions_json IS NULL OR questions_json::text = '[]' OR questions_json::text = 'null')`,
           [row.id, JSON.stringify(parsed)],
         );
       } catch {
@@ -354,9 +360,23 @@ export class SchoolAssessmentService {
     }
 
     const questionText = answerKeyStart >= 0 ? text.slice(0, answerKeyStart) : text;
+    const lineQuestions = this.parseLineByLineQuestionPaper(questionText, answerMap, answerDetailMap);
     const inlineQuestions = this.parseInlineQuestionPaper(questionText, answerMap, answerDetailMap);
-    if (inlineQuestions.length >= 2) return inlineQuestions;
 
+    if (lineQuestions.length >= inlineQuestions.length && lineQuestions.length > 0) {
+      return lineQuestions;
+    }
+    if (inlineQuestions.length > 0) {
+      return inlineQuestions;
+    }
+    return lineQuestions;
+  }
+
+  private parseLineByLineQuestionPaper(
+    questionText: string,
+    answerMap: Map<number, string>,
+    answerDetailMap: Map<number, { answer: string; explanation?: string }>,
+  ): any[] {
     const lines = questionText.split(/\r?\n/);
     const questions: any[] = [];
     let section = '';
@@ -395,7 +415,7 @@ export class SchoolAssessmentService {
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (!line) continue;
-      if (/^#{1,4}\s*/.test(line) || /^section\s+[a-z]/i.test(line)) {
+      if (/^#{1,4}\s*/.test(line) || /^section\s+[a-z]/i.test(line) || /^(general\s+instructions?|instructions?|note|guidelines?|directions?)\b/i.test(line)) {
         finishCurrent();
         section = line.replace(/^#+\s*/, '');
         continue;
@@ -413,7 +433,12 @@ export class SchoolAssessmentService {
         line.match(/^\s*Q\s*\.?\s*(\d+)\s*[.)]?\s+(.+)$/i) ||
         line.match(/^\s*(\d+)\s*[.)]\s+(.+)$/);
       if (qMatch) {
-        if (!this.sectionLetter(section) || this.isInstructionLikeText(qMatch[2])) continue;
+        // Only skip genuine instruction lines — do NOT require a section header.
+        // Papers without Section A/B/C headings (e.g. plain Q1. Q2. lists) must
+        // still be parsed; the default type falls through to sectionType() which
+        // returns short_answer when section is empty.
+        const isInstructionSection = /instruction|guideline|note|direction/i.test(section);
+        if (isInstructionSection || this.isInstructionLikeText(qMatch[2])) continue;
         finishCurrent();
         const spec = sectionType();
         const displayNumber = Number(qMatch[1]);
@@ -506,7 +531,7 @@ export class SchoolAssessmentService {
     for (const section of sections) {
       const body = normalized.slice(section.start, section.end).replace(section.title, ' ').trim();
       const spec = sectionSpec(section.title);
-      const matches = Array.from(body.matchAll(/(?:^|\s)(\d{1,2})[.)]\s+/g));
+      const matches = Array.from(body.matchAll(/(?:^|\s)(?:Q\s*\.?)?(\d{1,2})[.)]\s+/gi));
       if (!matches.length) continue;
 
       matches.forEach((match, index) => {
@@ -1612,12 +1637,28 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     await this.ensureAssessmentSubmissionSchema();
 
     const assessmentRows: any[] = await this.ds.query(
-      `SELECT id,title,duration_minutes,content_text,answer_key,questions_json FROM assessments WHERE id::text=$1::text`,
+      `SELECT id,title,duration_minutes,scheduled_date,status,content_text,answer_key,questions_json FROM assessments WHERE id::text=$1::text`,
       [assessmentId],
     );
     if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
     const assessment = await this.hydrateQuestions(assessmentRows[0]);
     const durationMinutes = Math.max(1, Number(assessment.duration_minutes || 60));
+
+    // Validate start time and end time windows
+    const now = new Date();
+    if (assessment.scheduled_date) {
+      const startTime = new Date(assessment.scheduled_date);
+      if (!isNaN(startTime.getTime())) {
+        if (now < startTime) {
+          const formattedStart = startTime.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+          throw new BadRequestException(`Assessment has not started yet. Scheduled to start at ${formattedStart}`);
+        }
+        const windowEndTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+        if (now > windowEndTime) {
+          throw new BadRequestException('Assessment window has ended. Test is now closed.');
+        }
+      }
+    }
 
     const existingRows: any[] = await this.ds.query(
       `SELECT * FROM assessment_submissions
@@ -1630,10 +1671,16 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       return { success: true, data: existing };
     }
 
+    // Calculate attempt expires_at (bounded by scheduled window end time if present)
+    const startTimeObj = assessment.scheduled_date ? new Date(assessment.scheduled_date) : null;
+    const windowEndObj = (startTimeObj && !isNaN(startTimeObj.getTime()))
+      ? new Date(startTimeObj.getTime() + durationMinutes * 60 * 1000)
+      : null;
+
     const rows: any[] = await this.ds.query(
       `INSERT INTO assessment_submissions
         (assessment_id, student_user_id, status, started_at, expires_at, submitted_at)
-       VALUES ($1,$2,'in_progress',NOW(),NOW() + ($3::int * INTERVAL '1 minute'),NOW())
+       VALUES ($1,$2,'in_progress',NOW(),LEAST(NOW() + ($3::int * INTERVAL '1 minute'), COALESCE($4::timestamptz, NOW() + ($3::int * INTERVAL '1 minute'))),NOW())
        ON CONFLICT (assessment_id, student_user_id)
        DO UPDATE SET
         status=CASE
@@ -1641,10 +1688,10 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           ELSE 'in_progress'
         END,
         started_at=COALESCE(assessment_submissions.started_at, NOW()),
-        expires_at=COALESCE(assessment_submissions.expires_at, assessment_submissions.started_at + ($3::int * INTERVAL '1 minute'), NOW() + ($3::int * INTERVAL '1 minute')),
+        expires_at=COALESCE(assessment_submissions.expires_at, LEAST(assessment_submissions.started_at + ($3::int * INTERVAL '1 minute'), COALESCE($4::timestamptz, assessment_submissions.started_at + ($3::int * INTERVAL '1 minute')))),
         updated_at=NOW()
        RETURNING *`,
-      [assessmentId, user.id, durationMinutes],
+      [assessmentId, user.id, durationMinutes, windowEndObj],
     );
     return { success: true, data: { ...rows[0], questions: this.stripCorrectAnswersFromQuestions(assessment.questions_json || []) } };
   }

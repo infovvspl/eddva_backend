@@ -761,7 +761,7 @@ export class SchoolTextbookService {
   async coverage(user: any, forInstituteId?: string) {
     const instituteId = this.resolveInstitute(user, forInstituteId);
     await this.ensureSchema();
-    return this.ds.query(
+    const rows = await this.ds.query(
       `SELECT c.id AS "chapterId", c.name AS "chapterName",
               s.name AS "subjectName", cl.name AS "className",
               ts.pages, ts.chunk_count AS "passages", ts.method, ts.quality,
@@ -795,5 +795,14 @@ export class SchoolTextbookService {
        ORDER BY cl.name, s.name, c.sort_order NULLS LAST, c.name`,
       [instituteId],
     );
+
+    const norm = (s: string) => (s || '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ');
+    return rows.sort((a: any, b: any) => {
+      const clsCompare = norm(a.className).localeCompare(norm(b.className), undefined, { numeric: true, sensitivity: 'base' });
+      if (clsCompare !== 0) return clsCompare;
+      const subCompare = norm(a.subjectName).localeCompare(norm(b.subjectName), undefined, { numeric: true, sensitivity: 'base' });
+      if (subCompare !== 0) return subCompare;
+      return 0;
+    });
   }
 }
