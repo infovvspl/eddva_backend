@@ -79,7 +79,7 @@ export class SchoolMaterialController {
     return { success: true };
   }
 
-  @Post('migrations/ai-tags')
+  @Post('ai-slide-image')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   aiSlideImage(@SchoolUser() user: any, @Body() body: any) { return this.svc.generateSlideImage(user, body); }
 
