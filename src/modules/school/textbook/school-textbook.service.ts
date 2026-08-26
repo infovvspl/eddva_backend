@@ -360,13 +360,35 @@ export class SchoolTextbookService {
     if (!instituteId || !chapterId) return [];
     try {
       await this.ensureSchema();
-      return await this.ds.query(
+      const direct = await this.ds.query(
         `SELECT page_no, chunk_index, content, tokens
          FROM textbook_chunks
          WHERE institute_id::text = $1::text AND chapter_id::text = $2::text
          ORDER BY page_no NULLS LAST, chunk_index`,
         [instituteId, chapterId],
       );
+      if (direct.length) return direct;
+
+      // Fallback by chapter NAME. Duplicate chapter rows (same name, different id)
+      // are a known curriculum-dedup artifact: a PDF gets indexed under one "The
+      // Cell" row while a deck/paper is generated for another, so an exact
+      // chapter_id match finds nothing even though the book IS indexed — the
+      // teacher then sees "General knowledge" on an indexed chapter. Match any
+      // chapter of the same name in this institute that actually has chunks.
+      const byName = await this.ds.query(
+        `SELECT tc.page_no, tc.chunk_index, tc.content, tc.tokens
+         FROM textbook_chunks tc
+         JOIN chapters c_idx ON c_idx.id::text = tc.chapter_id::text
+         JOIN chapters c_sel ON c_sel.id::text = $2::text
+         WHERE tc.institute_id::text = $1::text
+           AND LOWER(TRIM(c_idx.name)) = LOWER(TRIM(c_sel.name))
+         ORDER BY tc.page_no NULLS LAST, tc.chunk_index`,
+        [instituteId, chapterId],
+      );
+      if (byName.length) {
+        this.logger.log(`Passages matched by chapter name (id mismatch) for chapter ${chapterId}`);
+      }
+      return byName;
     } catch (err) {
       // Grounding is an enhancement; never let a lookup failure block generation.
       this.logger.warn(`Textbook passage lookup failed: ${(err as Error).message}`);
