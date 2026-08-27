@@ -719,7 +719,20 @@ export class SchoolClassService implements OnModuleInit {
     language: 'en' | 'hi' | 'hinglish' | 'od' = 'en',
   ): Promise<void> {
     if (!transcript || transcript.trim().length < 20) return;
-    await this.ds.query(`UPDATE class_recordings SET notes_status='processing', updated_at=NOW() WHERE id=$1`, [recordingId]);
+    // Atomic claim: only proceed if no other run already has this recording marked
+    // 'processing'. Without this, two overlapping triggers (double-click on
+    // "Regenerate notes", or a retranscribe + auto-kickoff racing) both run the
+    // full generation pipeline and the slower one's result silently overwrites
+    // the other's — sometimes clobbering a good result with a partial one.
+    const claimed = await this.ds.query(
+      `UPDATE class_recordings SET notes_status='processing', updated_at=NOW()
+       WHERE id=$1 AND notes_status IS DISTINCT FROM 'processing' RETURNING id`,
+      [recordingId],
+    );
+    if (!claimed || claimed.length === 0) {
+      this.logger.warn(`Notes generation already in progress for recording ${recordingId} — skipping duplicate trigger`);
+      return;
+    }
     try {
       const result: any = await this.aiBridgeService.generateNotesFromTranscript(
         { transcript, topicId: topicId ?? '', language },
