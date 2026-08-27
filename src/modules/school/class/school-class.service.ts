@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
+import { TranscodeService } from './transcode.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { ThumbnailService } from './thumbnail.service';
 import { R2Service } from '../../storage/r2.service';
@@ -25,6 +26,7 @@ export class SchoolClassService implements OnModuleInit {
     private readonly s3Service: S3Service,
     private readonly aiBridgeService: AiBridgeService,
     private readonly thumbnailService: ThumbnailService,
+    private readonly transcodeService: TranscodeService,
     private readonly r2Service: R2Service,
   ) {}
 
@@ -78,6 +80,12 @@ export class SchoolClassService implements OnModuleInit {
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_started_at TIMESTAMPTZ`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS thumbnail_completed_at TIMESTAMPTZ`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+    // Web-optimised transcode: original_video_url keeps the raw upload; video_url is
+    // swapped to the compressed MP4 once ready so playback serves the small file.
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS transcode_status VARCHAR(16)`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS transcode_error TEXT`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS original_video_url TEXT`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS original_video_key TEXT`);
 
     // Progress and In-Video Quiz Segment Responses tracking
     await this.ds.query(`
@@ -512,6 +520,11 @@ export class SchoolClassService implements OnModuleInit {
         this.s3Service.setCacheControl(cacheKey)
           .catch((err) => this.logger.warn(`Cache-Control stamp failed for ${recording.id}: ${err?.message}`));
       }
+
+      // Compress the raw upload to a web-friendly MP4 (non-blocking). Big uploads
+      // stream/play slowly at their native bitrate; the transcode is the real fix.
+      this.processTranscode(recording.id, recording.video_url, recording.video_key, instituteId)
+        .catch((err) => this.logger.warn(`Transcode kickoff failed for ${recording.id}: ${err?.message}`));
     }
 
     return { success: true, data: recording };
@@ -566,6 +579,49 @@ export class SchoolClassService implements OnModuleInit {
       }
     } catch (err: any) {
       this.logger.warn(`Failed to create class_recording from live broadcast: ${err?.message}`);
+    }
+  }
+
+  /**
+   * Background transcode: compress the raw upload to a web-friendly MP4 and swap
+   * video_url to it, keeping the original. Serving the small file is the actual
+   * fix for slow, buffering playback of large uploads. Best-effort — on failure
+   * the recording keeps playing the original.
+   */
+  private async processTranscode(
+    recordingId: string,
+    videoUrl: string,
+    videoKey: string | null,
+    instituteId: string,
+  ): Promise<void> {
+    await this.ds.query(
+      `UPDATE class_recordings SET transcode_status='processing', transcode_error=NULL, updated_at=NOW() WHERE id=$1`,
+      [recordingId],
+    );
+    try {
+      const result = await this.transcodeService.transcode(videoUrl, videoKey, instituteId);
+      if (!result) {
+        // Skipped (no ffmpeg, or compression not worthwhile) — leave the original in place.
+        await this.ds.query(`UPDATE class_recordings SET transcode_status='skipped' WHERE id=$1`, [recordingId]);
+        return;
+      }
+      // Preserve the original, then point playback at the compressed file.
+      await this.ds.query(
+        `UPDATE class_recordings
+            SET original_video_url = COALESCE(original_video_url, video_url),
+                original_video_key = COALESCE(original_video_key, video_key),
+                video_url = $2, video_key = $3, video_size = $4,
+                transcode_status = 'done', updated_at = NOW()
+          WHERE id = $1`,
+        [recordingId, result.webUrl, result.webKey, result.sizeBytes],
+      );
+      this.logger.log(`Transcode done for recording ${recordingId} (${(result.sizeBytes / 1e6).toFixed(1)}MB)`);
+    } catch (err: any) {
+      this.logger.warn(`Transcode failed for recording ${recordingId}: ${err?.message}`);
+      await this.ds.query(
+        `UPDATE class_recordings SET transcode_status='failed', transcode_error=$2 WHERE id=$1`,
+        [recordingId, String(err?.message || 'transcode failed').slice(0, 500)],
+      );
     }
   }
 

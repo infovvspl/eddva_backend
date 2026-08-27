@@ -4,12 +4,13 @@ import { AiBridgeModule } from '../../ai-bridge/ai-bridge.module';
 import { SchoolClassService } from './school-class.service';
 import { SchoolClassController } from './school-class.controller';
 import { ThumbnailService } from './thumbnail.service';
+import { TranscodeService } from './transcode.service';
 import { R2Module } from '../../storage/r2.module';
 
 @Module({
   imports: [UploadModule, AiBridgeModule, R2Module],
   controllers: [SchoolClassController],
-  providers: [SchoolClassService, ThumbnailService],
+  providers: [SchoolClassService, ThumbnailService, TranscodeService],
   exports: [SchoolClassService],
 })
 export class SchoolClassModule {}
