@@ -324,6 +324,37 @@ export class SchoolTopicService {
       rows = [];
     }
 
+    // Annotate each chapter with whether its textbook has been indexed, so the
+    // teacher panel can show an "Indexed" badge. A chapter counts as indexed
+    // when a textbook_sources row for it carries chunks — matched by id OR by
+    // name within the subject, because duplicate chapter rows (same name,
+    // different id) can split the indexed id from the one shown here (the same
+    // fallback getChapterPassages uses for grounding).
+    if (rows.length) {
+      try {
+        const idxRows: any[] = await this.ds.query(
+          `SELECT c.id::text AS id, LOWER(TRIM(c.name)) AS norm_name
+           FROM textbook_sources ts
+           JOIN chapters c ON c.id::text = ts.chapter_id::text
+           WHERE COALESCE(ts.chunk_count, 0) > 0
+             ${subjectId ? 'AND c.subject_id = $1' : ''}`,
+          subjectId ? [subjectId] : [],
+        );
+        const indexedIds = new Set(idxRows.map((r) => String(r.id)));
+        const indexedNames = new Set(idxRows.map((r) => String(r.norm_name || '')));
+        rows = rows.map((r) => ({
+          ...r,
+          indexed:
+            indexedIds.has(String(r.id)) ||
+            indexedNames.has(String(r.name || '').trim().toLowerCase()),
+        }));
+      } catch (e) {
+        // Textbook tables may not exist yet (nothing indexed); the badge just
+        // won't show. Never let this break the chapter list.
+        rows = rows.map((r) => ({ ...r, indexed: false }));
+      }
+    }
+
     return { success: true, data: rows };
   }
 
