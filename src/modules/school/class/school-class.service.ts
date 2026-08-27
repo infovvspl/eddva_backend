@@ -503,6 +503,15 @@ export class SchoolClassService implements OnModuleInit {
     if (source === 'upload') {
       this.processTranscription(recording.id, recording.video_url, effectiveTopicId || null, instituteId, language)
         .catch((err) => this.logger.warn(`Transcription kickoff failed for ${recording.id}: ${err?.message}`));
+
+      // Stamp a long Cache-Control on the uploaded video so the CDN/browser can
+      // cache it — uploads land with no cache header, so every play re-pulls the
+      // whole file from origin (slow start + buffering). Non-blocking, best-effort.
+      const cacheKey = recording.video_key || this.s3Service.keyFromUrl(recording.video_url);
+      if (cacheKey) {
+        this.s3Service.setCacheControl(cacheKey)
+          .catch((err) => this.logger.warn(`Cache-Control stamp failed for ${recording.id}: ${err?.message}`));
+      }
     }
 
     return { success: true, data: recording };

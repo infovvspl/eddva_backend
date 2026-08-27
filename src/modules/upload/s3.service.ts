@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Readable } from 'stream';
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
@@ -208,6 +209,39 @@ export class S3Service implements OnModuleInit {
   async delete(key: string): Promise<void> {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
     this.logger.log(`Deleted S3 object: ${key}`);
+  }
+
+  /**
+   * Stamp a Cache-Control (and preserve Content-Type) on an existing object via a
+   * server-side self-copy — no bytes leave the store. Uploaded videos land with no
+   * cache header, so Cloudflare/browsers refuse to cache them and every play re-pulls
+   * the whole file from the R2 origin (slow start + buffering). This lets the CDN and
+   * the browser cache the file, which is the other half of enabling edge caching.
+   * Best-effort: never throw into the caller (playback works regardless).
+   */
+  async setCacheControl(
+    key: string,
+    cacheControl = 'public, max-age=31536000, immutable',
+    contentType = 'video/mp4',
+  ): Promise<boolean> {
+    if (!key) return false;
+    try {
+      await this.client.send(
+        new CopyObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          CopySource: `${this.bucket}/${key}`,
+          MetadataDirective: 'REPLACE',
+          CacheControl: cacheControl,
+          ContentType: contentType,
+        }),
+      );
+      this.logger.log(`Set Cache-Control on ${key}`);
+      return true;
+    } catch (err) {
+      this.logger.warn(`Could not set Cache-Control on ${key}: ${(err as Error).message}`);
+      return false;
+    }
   }
 
   toPublicUrl(key: string): string {
