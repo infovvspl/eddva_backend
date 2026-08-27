@@ -294,14 +294,18 @@ export class SchoolClassService implements OnModuleInit {
           this.logger.warn(`Failed to sign live recording ${row.id}: ${err?.message}`);
         }
       }
-      if (row.source === 'upload' && row.video_key) {
-        try {
-          return {
-            ...row,
-            video_url: await this.s3Service.presignGet(row.video_key, 3600),
-          };
-        } catch (err: any) {
-          this.logger.warn(`Failed to sign recording video ${row.id}: ${err?.message}`);
+      if (row.source === 'upload') {
+        // Public R2 bucket → the stored video_url is already browser-loadable.
+        // Only presign when we somehow have a key but no public URL; never rewrite
+        // a public URL into an S3-endpoint presigned URL (no CORS → won't play).
+        const pub = typeof row.video_url === 'string' ? row.video_url : '';
+        const isPublic = /^https?:\/\//i.test(pub) && !/\.r2\.cloudflarestorage\.com/i.test(pub);
+        if (!isPublic && row.video_key) {
+          try {
+            return { ...row, video_url: await this.s3Service.presignGet(row.video_key, 3600) };
+          } catch (err: any) {
+            this.logger.warn(`Failed to sign recording video ${row.id}: ${err?.message}`);
+          }
         }
       }
       return row;
@@ -339,6 +343,18 @@ export class SchoolClassService implements OnModuleInit {
           source: 'live_stream',
         },
       };
+    }
+
+    // Uploaded videos live in a PUBLIC R2 bucket, so video_url is already a
+    // browser-loadable public URL (pub-*.r2.dev or the custom domain). Serve it
+    // directly. A presigned S3-endpoint URL (*.r2.cloudflarestorage.com) carries
+    // NO CORS headers, so the browser <video> refuses to load it even though
+    // server-side fetches succeed — which is exactly the "could not be loaded"
+    // failure. The public URL is browser-loadable and CDN-cacheable; presigning
+    // is only a fallback for the rare object we can key but have no public URL for.
+    const publicUrl = typeof rec.video_url === 'string' ? rec.video_url : '';
+    if (/^https?:\/\//i.test(publicUrl) && !/\.r2\.cloudflarestorage\.com/i.test(publicUrl)) {
+      return { success: true, data: { videoUrl: publicUrl, source: 'upload' } };
     }
 
     let key = rec.video_key;
