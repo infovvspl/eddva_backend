@@ -495,6 +495,16 @@ export class SchoolClassService implements OnModuleInit {
         .catch((err) => this.logger.warn(`Thumbnail generation failed for ${recording.id}: ${err?.message}`));
     }
 
+    // Kick off background transcription for uploaded media (non-blocking). YouTube
+    // links have no downloadable media file, so they are not transcribed. Without
+    // this, an upload sits with transcript_status=null forever — no transcript, no
+    // notes, and "generate quiz" 400s with "no transcript or notes available".
+    // (This was silently dropped in a refactor; restored here.)
+    if (source === 'upload') {
+      this.processTranscription(recording.id, recording.video_url, effectiveTopicId || null, instituteId, language)
+        .catch((err) => this.logger.warn(`Transcription kickoff failed for ${recording.id}: ${err?.message}`));
+    }
+
     return { success: true, data: recording };
   }
 
@@ -532,6 +542,19 @@ export class SchoolClassService implements OnModuleInit {
       const recording = rows[0];
       this.logger.log(`Live broadcast ${lecture.id} published to class_recordings as ${recording.id}`);
 
+      // Kick off transcription so a live recording gets a transcript, notes and a
+      // quiz — the whole point of publishing it here (see the method doc). Without
+      // this it sits at transcript_status=null exactly like an untranscribed upload.
+      const liveInstituteId = lecture.institute_id || lecture.instituteId;
+      if (liveInstituteId && data.recordingUrl) {
+        this.processTranscription(
+          recording.id,
+          data.recordingUrl,
+          lecture.topic_id || lecture.topicId || null,
+          liveInstituteId,
+          'en',
+        ).catch((err) => this.logger.warn(`Transcription kickoff failed for live ${recording.id}: ${err?.message}`));
+      }
     } catch (err: any) {
       this.logger.warn(`Failed to create class_recording from live broadcast: ${err?.message}`);
     }
