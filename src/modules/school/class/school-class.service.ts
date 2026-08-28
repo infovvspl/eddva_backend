@@ -537,10 +537,16 @@ export class SchoolClassService implements OnModuleInit {
           .catch((err) => this.logger.warn(`Cache-Control stamp failed for ${recording.id}: ${err?.message}`));
       }
 
-      // Compress the raw upload to a web-friendly MP4 (non-blocking). Big uploads
-      // stream/play slowly at their native bitrate; the transcode is the real fix.
-      this.processTranscode(recording.id, recording.video_url, recording.video_key, instituteId)
-        .catch((err) => this.logger.warn(`Transcode kickoff failed for ${recording.id}: ${err?.message}`));
+      // Compress the raw upload to a web-friendly MP4 (non-blocking). Off by
+      // default: transcoding pegs ~2 cores for minutes per file, which on a
+      // burstable/credit-limited box drains CPU credits and degrades the live
+      // app and AI service. Enable with TRANSCODE_ON_UPLOAD=true once running on
+      // an instance with real CPU headroom. Delivery is handled by the CDN
+      // regardless, so an un-transcoded upload still plays (just larger).
+      if (process.env.TRANSCODE_ON_UPLOAD === 'true') {
+        this.processTranscode(recording.id, recording.video_url, recording.video_key, instituteId)
+          .catch((err) => this.logger.warn(`Transcode kickoff failed for ${recording.id}: ${err?.message}`));
+      }
     }
 
     return { success: true, data: recording };
