@@ -4,8 +4,10 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { randomUUID } from 'crypto';
-import { pipeline } from 'stream/promises';
-import { Readable } from 'stream';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileP = promisify(execFile);
 import ffmpegPath from 'ffmpeg-static';
 import * as ffprobeInstaller from '@ffprobe-installer/ffprobe';
 // fluent-ffmpeg is an `export =` module whose value is itself callable
@@ -87,16 +89,13 @@ export class TranscodeService {
    */
   private async isFaststart(videoUrl: string, key: string): Promise<boolean> {
     try {
-      // Public CDN URL first (resolvable + cached); presign only as a fallback —
-      // the S3 API endpoint fails DNS resolution on this box.
+      // Public CDN URL first (resolvable + cached); presign only as a fallback.
       let url = (typeof videoUrl === 'string' && /^https?:\/\//i.test(videoUrl)) ? videoUrl : '';
       if (!url) { try { url = await this.s3Service.presignGet(key, 600); } catch { /* none */ } }
-      const res = await fetch(url, { headers: { Range: 'bytes=0-1048575' }, signal: AbortSignal.timeout(20_000) });
-      if (!res.ok) {
-        this.logger.warn(`Faststart probe got HTTP ${res.status} for ${key} — will attempt remux`);
-        return false; // attempt remux rather than skipping silently
-      }
-      const buf = Buffer.from(await res.arrayBuffer());
+      // curl, not fetch — see download(): undici fails Cloudflare TLS on this box.
+      const { stdout } = await execFileP('curl', ['-fsS', '--max-time', '25', '-r', '0-1048575', url],
+        { maxBuffer: 4 * 1024 * 1024, encoding: 'buffer' } as any);
+      const buf = stdout as unknown as Buffer;
       // Walk the top-level MP4 boxes ([uint32 size][4-char type]) rather than
       // string-searching, which false-positives on random bytes in padding.
       let off = 0;
@@ -234,10 +233,13 @@ export class TranscodeService {
     if (!url) {
       try { url = await this.s3Service.presignGet(key, 1800); } catch { /* no source */ }
     }
-    const res = await fetch(url, { signal: AbortSignal.timeout(30 * 60 * 1000) });
-    if (!res.ok || !res.body) throw new Error(`Download failed: HTTP ${res.status}`);
-    await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(destPath));
-    if (fs.statSync(destPath).size < 1024) throw new Error('Downloaded video is too small');
+    // Download with curl, not Node fetch: this box's undici fails the Cloudflare
+    // TLS handshake (SSL alert 40) while curl (system OpenSSL) succeeds. curl
+    // streams straight to disk, so memory stays flat.
+    await execFileP('curl', ['-fsSL', '--max-time', '2400', '-o', destPath, url], { maxBuffer: 1024 * 1024 });
+    if (!fs.existsSync(destPath) || fs.statSync(destPath).size < 1024) {
+      throw new Error('Downloaded video is too small or missing');
+    }
   }
 
   private runFfmpeg(inPath: string, outPath: string): Promise<void> {
