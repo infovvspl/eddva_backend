@@ -143,8 +143,8 @@ export class TranscodeService {
       const size = fs.statSync(outPath).size;
       if (size < 1024) throw new Error(`Faststart output too small (${size}B)`);
       // Stream from disk (never buffer the whole file — would OOM a small process).
-      const url = await this.s3Service.uploadFile(fsKey, outPath, 'video/mp4');
-      await this.s3Service.setCacheControl(fsKey).catch(() => undefined);
+      const url = await this.uploadViaCurl(fsKey, outPath);
+      await this.s3Service.setCacheControl(fsKey).catch(() => undefined); // best-effort; cache rule covers it
       this.logger.log(`Faststart remuxed ${key} -> ${fsKey} (${(size / 1e6).toFixed(1)}MB)`);
       return { webUrl: url, webKey: fsKey, sizeBytes: size };
     } finally {
@@ -209,10 +209,8 @@ export class TranscodeService {
         return null;
       }
 
-      // Output is small (~tens of MB); a single PUT is fine here.
-      const buffer = fs.readFileSync(outPath);
-      const webUrl = await this.s3Service.upload(webKey, buffer, 'video/mp4');
-      await this.s3Service.setCacheControl(webKey).catch(() => undefined);
+      const webUrl = await this.uploadViaCurl(webKey, outPath);
+      await this.s3Service.setCacheControl(webKey).catch(() => undefined); // best-effort; cache rule covers it
 
       this.logger.log(
         `Transcoded ${key}: ${(inSize / 1e6).toFixed(1)}MB -> ${(outSize / 1e6).toFixed(1)}MB`,
@@ -222,6 +220,23 @@ export class TranscodeService {
       this.release();
       this.cleanup(tmpDir);
     }
+  }
+
+  /**
+   * Upload a local file to R2 via curl PUT to a presigned URL. Node's TLS (both
+   * undici fetch and the AWS SDK) fails the Cloudflare handshake on this box,
+   * while curl (system OpenSSL) works — and presign() is a local signing op, so
+   * it is unaffected by the network. Returns the object's public URL.
+   */
+  private async uploadViaCurl(key: string, filePath: string, contentType = 'video/mp4'): Promise<string> {
+    const { uploadUrl, fileUrl } = await this.s3Service.presign(key, contentType);
+    await execFileP(
+      'curl',
+      ['-fsS', '--max-time', '2400', '-X', 'PUT', '-H', `Content-Type: ${contentType}`,
+        '--upload-file', filePath, uploadUrl],
+      { maxBuffer: 1024 * 1024 },
+    );
+    return fileUrl;
   }
 
   private async download(videoUrl: string, key: string, destPath: string): Promise<void> {
