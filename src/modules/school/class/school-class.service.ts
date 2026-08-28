@@ -1259,6 +1259,33 @@ export class SchoolClassService implements OnModuleInit {
     return { success: true, message: 'Transcription started' };
   }
 
+  /**
+   * (Re)compress an existing recording to a web-friendly MP4 (teacher-triggered).
+   * Backfills videos uploaded before auto-transcode existed — the over-bitrate
+   * originals (e.g. 30s at 31 Mbps) that stream too slowly to play. Uses the
+   * ORIGINAL if one was already kept, so re-runs don't compress an already
+   * compressed file.
+   */
+  async retranscode(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT id, video_url, video_key, original_video_url, original_video_key, source
+         FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const rec = rows[0];
+    if (rec.source === 'youtube') {
+      throw new BadRequestException('Transcoding is only available for uploaded videos, not YouTube links');
+    }
+    const srcUrl = rec.original_video_url || rec.video_url;
+    const srcKey = rec.original_video_key || rec.video_key;
+    this.processTranscode(rec.id, srcUrl, srcKey, instituteId)
+      .catch((err) => this.logger.warn(`Re-transcode failed for ${id}: ${err?.message}`));
+    return { success: true, message: 'Transcode started' };
+  }
+
   /** (Re)generate AI notes from the stored transcript (teacher-triggered). */
   async regenerateNotes(user: any, id: string) {
     await this.ensureTable();
