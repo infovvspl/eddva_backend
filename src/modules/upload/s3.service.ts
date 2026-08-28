@@ -107,6 +107,27 @@ export class S3Service implements OnModuleInit {
     return this.toPublicUrl(key);
   }
 
+  /**
+   * Upload a local file by streaming it from disk with an explicit ContentLength,
+   * so a large video is never read wholly into memory (which would OOM a small
+   * process). Used by the faststart remux / transcode output paths.
+   */
+  async uploadFile(key: string, filePath: string, contentType: string): Promise<string> {
+    // Local import to avoid adding fs to the module's top-level surface.
+    const fs = await import('fs');
+    const { size } = fs.statSync(filePath);
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: fs.createReadStream(filePath),
+        ContentType: contentType,
+        ContentLength: size,
+      }),
+    );
+    return this.toPublicUrl(key);
+  }
+
   /** Stream upload (e.g. from multer diskStorage) — avoids loading large videos into memory. */
   async uploadStream(key: string, body: Readable, contentType: string): Promise<string> {
     try {

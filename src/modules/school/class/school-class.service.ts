@@ -564,6 +564,13 @@ export class SchoolClassService implements OnModuleInit {
         // handled by the CDN regardless, so an un-transcoded upload still plays.
         this.processTranscode(recording.id, recording.video_url, recording.video_key, instituteId)
           .catch((err) => this.logger.warn(`Transcode kickoff failed for ${recording.id}: ${err?.message}`));
+      } else {
+        // Default: ensure the MP4 is faststart (moov at the front) so playback
+        // starts immediately. This is a container rewrite (no re-encode) — CPU
+        // light, unlike transcode — and is the real fix for "takes time to play"
+        // on videos whose moov atom sits at the end. No-ops if already faststart.
+        this.processFaststart(recording.id, recording.video_url, recording.video_key, instituteId)
+          .catch((err) => this.logger.warn(`Faststart kickoff failed for ${recording.id}: ${err?.message}`));
       }
     }
 
@@ -672,6 +679,35 @@ export class SchoolClassService implements OnModuleInit {
       await this.ds.query(
         `UPDATE class_recordings SET stream_status='failed' WHERE id=$1`, [recordingId],
       );
+    }
+  }
+
+  /**
+   * Background faststart remux: move the moov atom to the front so playback
+   * starts immediately, then swap video_url to the faststart copy (keeping the
+   * original). No re-encode, so it's cheap. No-ops when the file is already
+   * faststart. Best-effort — on failure the recording keeps playing the original.
+   */
+  private async processFaststart(
+    recordingId: string,
+    videoUrl: string,
+    videoKey: string | null,
+    instituteId: string,
+  ): Promise<void> {
+    try {
+      const result = await this.transcodeService.remuxFaststart(videoUrl, videoKey);
+      if (!result) return; // already faststart, or ffmpeg unavailable — nothing to do
+      await this.ds.query(
+        `UPDATE class_recordings
+            SET original_video_url = COALESCE(original_video_url, video_url),
+                original_video_key = COALESCE(original_video_key, video_key),
+                video_url = $2, video_key = $3, video_size = $4, updated_at = NOW()
+          WHERE id = $1`,
+        [recordingId, result.webUrl, result.webKey, result.sizeBytes],
+      );
+      this.logger.log(`Faststart remuxed recording ${recordingId}`);
+    } catch (err: any) {
+      this.logger.warn(`Faststart failed for recording ${recordingId}: ${err?.message}`);
     }
   }
 
@@ -1361,6 +1397,28 @@ export class SchoolClassService implements OnModuleInit {
     this.processTranscode(rec.id, srcUrl, srcKey, instituteId)
       .catch((err) => this.logger.warn(`Re-transcode failed for ${id}: ${err?.message}`));
     return { success: true, message: 'Transcode started' };
+  }
+
+  /**
+   * Faststart-remux an existing recording (teacher-triggered). Cheap container
+   * rewrite (no re-encode) that fixes slow-to-start playback on videos whose moov
+   * atom is at the end. No-ops if the file is already faststart.
+   */
+  async refaststart(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT id, video_url, video_key, source FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const rec = rows[0];
+    if (rec.source === 'youtube') {
+      throw new BadRequestException('Faststart is only available for uploaded videos, not YouTube links');
+    }
+    this.processFaststart(rec.id, rec.video_url, rec.video_key, instituteId)
+      .catch((err) => this.logger.warn(`Re-faststart failed for ${id}: ${err?.message}`));
+    return { success: true, message: 'Faststart started' };
   }
 
   /**

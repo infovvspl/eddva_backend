@@ -75,6 +75,83 @@ export class TranscodeService {
     return originalKey.replace(/\.[^./]+$/, '') + '-web.mp4';
   }
 
+  private fsKeyFor(originalKey: string): string {
+    return originalKey.replace(/\.[^./]+$/, '') + '-fs.mp4';
+  }
+
+  /**
+   * Is the moov atom near the front (faststart)? Reads only the first 256 KB, so
+   * an already-optimised file is detected without downloading it. A non-faststart
+   * MP4 keeps its moov index at the very end, forcing the browser to fetch almost
+   * the whole file before playback starts — the real cause of "takes time to play".
+   */
+  private async isFaststart(videoUrl: string, key: string): Promise<boolean> {
+    try {
+      let url = videoUrl;
+      try { url = await this.s3Service.presignGet(key, 600); } catch { /* use as-is */ }
+      const res = await fetch(url, { headers: { Range: 'bytes=0-262143' }, signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) return true; // can't tell → don't churn
+      const buf = Buffer.from(await res.arrayBuffer());
+      const moov = buf.indexOf('moov');
+      const mdat = buf.indexOf('mdat');
+      if (moov === -1) return false;                 // moov not in first 256 KB → it's at the end
+      return mdat === -1 || moov < mdat;             // moov before mdat → already faststart
+    } catch {
+      return true;                                   // on error, assume ok (don't reprocess)
+    }
+  }
+
+  /**
+   * Relocate the moov atom to the front (-c copy -movflags +faststart) so playback
+   * starts immediately. No re-encoding — it's a container rewrite, so it's CPU-light
+   * (fine on a burstable box, unlike full transcode). Returns the new key/url/size,
+   * or null when the file is already faststart (skipped) or ffmpeg is unavailable.
+   */
+  async remuxFaststart(videoUrl: string, videoKey: string | null): Promise<TranscodeResult | null> {
+    if (!(await this.ffmpegAvailable())) return null;
+    const key = videoKey || this.s3Service.keyFromUrl(videoUrl);
+    if (!key) return null;
+    if (await this.isFaststart(videoUrl, key)) return null;
+
+    const fsKey = this.fsKeyFor(key);
+    const tmpDir = path.join(os.tmpdir(), `eddva-faststart-${randomUUID()}`);
+    const inPath = path.join(tmpDir, 'in.mp4');
+    const outPath = path.join(tmpDir, 'out.mp4');
+
+    await this.acquire();
+    try {
+      fs.mkdirSync(tmpDir, { recursive: true });
+      await this.download(videoUrl, key, inPath);
+      await this.runRemux(inPath, outPath);
+      if (!fs.existsSync(outPath)) throw new Error('Faststart output was not produced');
+      const size = fs.statSync(outPath).size;
+      if (size < 1024) throw new Error(`Faststart output too small (${size}B)`);
+      // Stream from disk (never buffer the whole file — would OOM a small process).
+      const url = await this.s3Service.uploadFile(fsKey, outPath, 'video/mp4');
+      await this.s3Service.setCacheControl(fsKey).catch(() => undefined);
+      this.logger.log(`Faststart remuxed ${key} -> ${fsKey} (${(size / 1e6).toFixed(1)}MB)`);
+      return { webUrl: url, webKey: fsKey, sizeBytes: size };
+    } finally {
+      this.release();
+      this.cleanup(tmpDir);
+    }
+  }
+
+  private runRemux(inPath: string, outPath: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const cmd = ffmpeg(inPath)
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
+        .on('end', () => resolve())
+        .on('error', (err: any) => reject(new Error(`ffmpeg remux failed: ${err?.message}`)));
+      const timer = setTimeout(() => {
+        try { cmd.kill('SIGKILL'); } catch { /* gone */ }
+        reject(new Error('ffmpeg remux timed out'));
+      }, 10 * 60 * 1000);
+      cmd.on('end', () => clearTimeout(timer)).on('error', () => clearTimeout(timer));
+      cmd.save(outPath);
+    });
+  }
+
   /**
    * Download → transcode → upload. Returns the web MP4's key/url/size, or null
    * when transcoding is unavailable or not worthwhile. Throws only on real

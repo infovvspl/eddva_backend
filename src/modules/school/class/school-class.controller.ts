@@ -41,6 +41,10 @@ export class SchoolClassController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   restream(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.restream(user, id); }
 
+  @Post('recordings/:id/refaststart')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  refaststart(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.refaststart(user, id); }
+
   @Post('recordings/:id/regenerate-notes')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   @SchoolFeature('ai', 'ai_notes_generator')
