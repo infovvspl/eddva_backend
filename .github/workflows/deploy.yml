@@ -34,7 +34,9 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 10m
+          # npm ci + nest build (+ migrations) runs close to 10m on this box; a
+          # slightly slower run trips "Run Command Timeout". Give real headroom.
+          command_timeout: 25m
           script: |
             set -e
             cd /home/ubuntu/eddva_backend
