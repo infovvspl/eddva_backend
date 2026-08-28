@@ -87,8 +87,10 @@ export class TranscodeService {
    */
   private async isFaststart(videoUrl: string, key: string): Promise<boolean> {
     try {
-      let url = videoUrl;
-      try { url = await this.s3Service.presignGet(key, 600); } catch { /* use as-is */ }
+      // Public CDN URL first (resolvable + cached); presign only as a fallback —
+      // the S3 API endpoint fails DNS resolution on this box.
+      let url = (typeof videoUrl === 'string' && /^https?:\/\//i.test(videoUrl)) ? videoUrl : '';
+      if (!url) { try { url = await this.s3Service.presignGet(key, 600); } catch { /* none */ } }
       const res = await fetch(url, { headers: { Range: 'bytes=0-1048575' }, signal: AbortSignal.timeout(20_000) });
       if (!res.ok) {
         this.logger.warn(`Faststart probe got HTTP ${res.status} for ${key} — will attempt remux`);
@@ -224,13 +226,13 @@ export class TranscodeService {
   }
 
   private async download(videoUrl: string, key: string, destPath: string): Promise<void> {
-    // Prefer a fresh presigned GET from the key (public URLs may be uncached/rate
-    // limited); fall back to the stored URL if it is already a full URL.
-    let url = videoUrl;
-    try {
-      url = await this.s3Service.presignGet(key, 1800);
-    } catch {
-      /* fall back to videoUrl */
+    // Fetch from the PUBLIC CDN URL (media.eddva.in), which the server resolves
+    // and which is cached. The R2 S3 API endpoint (*.r2.cloudflarestorage.com)
+    // that presignGet targets fails DNS resolution on this box (EAI_AGAIN), so it
+    // is only a fallback for objects with no usable public URL.
+    let url = (typeof videoUrl === 'string' && /^https?:\/\//i.test(videoUrl)) ? videoUrl : '';
+    if (!url) {
+      try { url = await this.s3Service.presignGet(key, 1800); } catch { /* no source */ }
     }
     const res = await fetch(url, { signal: AbortSignal.timeout(30 * 60 * 1000) });
     if (!res.ok || !res.body) throw new Error(`Download failed: HTTP ${res.status}`);
