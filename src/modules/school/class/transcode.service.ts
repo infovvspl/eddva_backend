@@ -89,15 +89,27 @@ export class TranscodeService {
     try {
       let url = videoUrl;
       try { url = await this.s3Service.presignGet(key, 600); } catch { /* use as-is */ }
-      const res = await fetch(url, { headers: { Range: 'bytes=0-262143' }, signal: AbortSignal.timeout(20_000) });
-      if (!res.ok) return true; // can't tell → don't churn
+      const res = await fetch(url, { headers: { Range: 'bytes=0-1048575' }, signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) {
+        this.logger.warn(`Faststart probe got HTTP ${res.status} for ${key} — will attempt remux`);
+        return false; // attempt remux rather than skipping silently
+      }
       const buf = Buffer.from(await res.arrayBuffer());
-      const moov = buf.indexOf('moov');
-      const mdat = buf.indexOf('mdat');
-      if (moov === -1) return false;                 // moov not in first 256 KB → it's at the end
-      return mdat === -1 || moov < mdat;             // moov before mdat → already faststart
-    } catch {
-      return true;                                   // on error, assume ok (don't reprocess)
+      // Walk the top-level MP4 boxes ([uint32 size][4-char type]) rather than
+      // string-searching, which false-positives on random bytes in padding.
+      let off = 0;
+      while (off + 8 <= buf.length) {
+        const size = buf.readUInt32BE(off);
+        const type = buf.toString('latin1', off + 4, off + 8);
+        if (type === 'moov') return true;  // moov reached before mdat → faststart
+        if (type === 'mdat') return false; // mdat first → moov is at the end → NOT faststart
+        if (size < 8) break;               // size 0 (to EOF) or 1 (64-bit) — stop walking
+        off += size;
+      }
+      return false; // no moov before mdat in the probed window → treat as not faststart
+    } catch (e: any) {
+      this.logger.warn(`Faststart probe error for ${key}: ${e?.message} — will attempt remux`);
+      return false;
     }
   }
 
@@ -110,8 +122,11 @@ export class TranscodeService {
   async remuxFaststart(videoUrl: string, videoKey: string | null): Promise<TranscodeResult | null> {
     if (!(await this.ffmpegAvailable())) return null;
     const key = videoKey || this.s3Service.keyFromUrl(videoUrl);
-    if (!key) return null;
-    if (await this.isFaststart(videoUrl, key)) return null;
+    if (!key) { this.logger.warn('Faststart skipped: no object key'); return null; }
+    if (await this.isFaststart(videoUrl, key)) {
+      this.logger.log(`Faststart skipped for ${key}: already faststart`);
+      return null;
+    }
 
     const fsKey = this.fsKeyFor(key);
     const tmpDir = path.join(os.tmpdir(), `eddva-faststart-${randomUUID()}`);
