@@ -1572,13 +1572,41 @@ export class AiBridgeService {
 
   /** Read a chapter PDF into page-tagged passages (scans are transcribed there). */
   async ingestTextbook(
-    dto: { fileUrl: string; allowOcr?: boolean },
+    dto: { fileUrl: string; allowOcr?: boolean; progressKey?: string },
     tenantId?: string,
   ): Promise<{ success: boolean; data: any }> {
     // A scanned chapter goes through a vision pass page by page, so this is far
     // slower than a normal bridge call. Callers run it in the background (see
     // ingestMaterialAsync), so a generous 10-minute ceiling is safe.
     return this.post('/textbook/ingest', dto, tenantId, 600_000, 'school');
+  }
+
+  /**
+   * Live page progress for one in-flight ingestTextbook call, keyed by the
+   * same progressKey passed to it. Polled from ingestRunStatus while a run is
+   * active. Deliberately does not go through post(): this is a status peek,
+   * not a billed AI feature, so it skips quota checks and usage recording,
+   * and — being polled every few seconds — must never throw. A transient
+   * failure or a Redis miss both just mean "no progress to show yet".
+   */
+  async getTextbookIngestProgress(
+    progressKey: string,
+    tenantId?: string,
+  ): Promise<{ pagesDone?: number; pagesTotal?: number; stage?: string } | null> {
+    if (!progressKey) return null;
+    try {
+      const res: AxiosResponse<{ success: boolean; data: any }> = await firstValueFrom(
+        this.http.get(`${this.baseUrl}/textbook/ingest-progress`, {
+          params: { key: progressKey },
+          headers: this.headers(tenantId, 'school'),
+          timeout: 5_000,
+        }),
+      );
+      const data = res.data?.data;
+      return data && Object.keys(data).length ? data : null;
+    } catch {
+      return null;
+    }
   }
 
   async searchPptImage(

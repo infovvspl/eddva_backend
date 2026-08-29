@@ -133,6 +133,21 @@ export class SchoolTextbookService {
       `ALTER TABLE textbook_ingest_runs
        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`,
     );
+    // Which chapter a worker is reading *right now*, as opposed to last_chapter
+    // (the most recently *finished* one). Needed to know which Redis progress
+    // key to poll for live page-level progress while a chapter is still being
+    // transcribed — see ingestRunStatus and AiBridgeService.getTextbookIngestProgress.
+    // With several bulk workers this is last-write-wins, same simplification
+    // last_chapter already makes: one representative in-progress chapter, not
+    // a per-worker list.
+    await this.ds.query(
+      `ALTER TABLE textbook_ingest_runs
+       ADD COLUMN IF NOT EXISTS current_material_id UUID`,
+    );
+    await this.ds.query(
+      `ALTER TABLE textbook_ingest_runs
+       ADD COLUMN IF NOT EXISTS current_chapter TEXT`,
+    );
     this.schemaReady = true;
   }
 
@@ -183,7 +198,7 @@ export class SchoolTextbookService {
    * Re-ingesting a chapter replaces what was there: a school correcting a bad
    * scan must not end up with both versions feeding the same slide deck.
    */
-  async ingestMaterial(user: any, materialId: string, forInstituteId?: string) {
+  async ingestMaterial(user: any, materialId: string, forInstituteId?: string, progressKey?: string) {
     if (!materialId) throw new BadRequestException('materialId is required');
     const instituteId = this.resolveInstitute(user, forInstituteId);
     await this.ensureSchema();
@@ -219,7 +234,7 @@ export class SchoolTextbookService {
     // instead of the generic 500 the raw axios error would become.
     let res: any;
     try {
-      res = await this.aiBridge.ingestTextbook({ fileUrl: material.s3_key }, instituteId);
+      res = await this.aiBridge.ingestTextbook({ fileUrl: material.s3_key, progressKey }, instituteId);
     } catch (err: any) {
       const upstreamStatus = err?.response?.status;
       const upstreamMsg = err?.response?.data?.error || err?.response?.data?.message;
@@ -711,8 +726,15 @@ export class SchoolTextbookService {
         const t = targets[cursor++];
         let error: string | null = null;
         let indexed = false;
+        // Recorded before the (potentially minutes-long) OCR pass, not after —
+        // this is what ingestRunStatus reads to know which chapter to poll live
+        // page progress for while it's still in flight.
+        await this.ds.query(
+          `UPDATE textbook_ingest_runs SET current_material_id = $2, current_chapter = $3, updated_at = NOW() WHERE id = $1`,
+          [runId, t.material_id, t.chapter_name],
+        );
         try {
-          const res = await this.ingestMaterial({ instituteId }, t.material_id);
+          const res = await this.ingestMaterial({ instituteId }, t.material_id, undefined, t.material_id);
           indexed = res.indexed;
           if (!indexed) error = res.message ?? 'No readable text';
         } catch (err) {
@@ -763,13 +785,28 @@ export class SchoolTextbookService {
     await this.reapStaleRuns(instituteId);
     const rows = await this.ds.query(
       `SELECT id, status, total, done, succeeded, failed, last_chapter AS "lastChapter",
-              last_error AS "lastError", started_at AS "startedAt", finished_at AS "finishedAt"
+              last_error AS "lastError", started_at AS "startedAt", finished_at AS "finishedAt",
+              current_material_id AS "currentMaterialId", current_chapter AS "currentChapter"
        FROM textbook_ingest_runs
        WHERE institute_id::text = $1::text
        ORDER BY started_at DESC LIMIT 1`,
       [instituteId],
     );
-    return rows[0] ?? null;
+    const run = rows[0] ?? null;
+    if (!run) return null;
+
+    // Live page progress for whichever chapter is being read right now — only
+    // meaningful while the run is still going, and only if that chapter needed
+    // the (slow) OCR path. A miss just means "nothing to show yet", not an
+    // error, since most chapters have a text layer and never publish this.
+    if (run.status === 'running' && run.currentMaterialId) {
+      const progress = await this.aiBridge.getTextbookIngestProgress(run.currentMaterialId, instituteId);
+      if (progress) {
+        run.currentPagesDone = progress.pagesDone ?? null;
+        run.currentPagesTotal = progress.pagesTotal ?? null;
+      }
+    }
+    return run;
   }
 
   /**
