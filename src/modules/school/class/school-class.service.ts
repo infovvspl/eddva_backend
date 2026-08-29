@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { TranscodeService } from './transcode.service';
+import { CloudflareStreamService } from './stream.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { ThumbnailService } from './thumbnail.service';
 import { R2Service } from '../../storage/r2.service';
@@ -27,6 +28,7 @@ export class SchoolClassService implements OnModuleInit {
     private readonly aiBridgeService: AiBridgeService,
     private readonly thumbnailService: ThumbnailService,
     private readonly transcodeService: TranscodeService,
+    private readonly streamService: CloudflareStreamService,
     private readonly r2Service: R2Service,
   ) {}
 
@@ -86,6 +88,12 @@ export class SchoolClassService implements OnModuleInit {
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS transcode_error TEXT`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS original_video_url TEXT`);
     await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS original_video_key TEXT`);
+    // Cloudflare Stream: off-infra transcode + adaptive-HLS delivery. stream_uid is
+    // the Stream video id; stream_hls its HLS manifest URL; stream_status tracks
+    // ingest (processing/ready/error). Playback prefers stream_hls once ready.
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS stream_uid TEXT`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS stream_hls TEXT`);
+    await this.ds.query(`ALTER TABLE class_recordings ADD COLUMN IF NOT EXISTS stream_status VARCHAR(16)`);
 
     // Progress and In-Video Quiz Segment Responses tracking
     await this.ds.query(`
@@ -318,7 +326,7 @@ export class SchoolClassService implements OnModuleInit {
     await this.assertStudentCanAccessRecording(user, id);
     const instituteId = user.role === 'SUPER_ADMIN' ? user.instituteId : user.instituteId;
     const params: any[] = [id];
-    let sql = `SELECT id, video_url, video_key, source FROM class_recordings WHERE id=$1`;
+    let sql = `SELECT id, video_url, video_key, source, stream_hls, stream_status FROM class_recordings WHERE id=$1`;
     if (instituteId) {
       params.push(instituteId);
       sql += ` AND institute_id=$${params.length}::uuid`;
@@ -327,6 +335,13 @@ export class SchoolClassService implements OnModuleInit {
     if (!rows.length) throw new NotFoundException('Recording not found');
 
     const rec = rows[0];
+
+    // Prefer Cloudflare Stream's adaptive HLS once the video is transcoded and
+    // ready — it streams from Stream's own CDN, so it supersedes the R2 URL.
+    if (rec.stream_status === 'ready' && rec.stream_hls) {
+      return { success: true, data: { videoUrl: rec.stream_hls, source: 'stream' } };
+    }
+
     if (rec.source === 'youtube') {
       return { success: true, data: { videoUrl: rec.video_url, source: 'youtube' } };
     }
@@ -537,10 +552,26 @@ export class SchoolClassService implements OnModuleInit {
           .catch((err) => this.logger.warn(`Cache-Control stamp failed for ${recording.id}: ${err?.message}`));
       }
 
-      // Compress the raw upload to a web-friendly MP4 (non-blocking). Big uploads
-      // stream/play slowly at their native bitrate; the transcode is the real fix.
-      this.processTranscode(recording.id, recording.video_url, recording.video_key, instituteId)
-        .catch((err) => this.logger.warn(`Transcode kickoff failed for ${recording.id}: ${err?.message}`));
+      // Preferred path: hand the video to Cloudflare Stream, which transcodes it
+      // off our box and serves adaptive HLS from its CDN. Falls back to the
+      // (opt-in) on-box transcode only when Stream is not configured.
+      if (this.streamService.isConfigured()) {
+        this.processStream(recording.id, recording.video_url, recording.title)
+          .catch((err) => this.logger.warn(`Stream kickoff failed for ${recording.id}: ${err?.message}`));
+      } else if (process.env.TRANSCODE_ON_UPLOAD === 'true') {
+        // On-box compression. Off by default: transcoding pegs ~2 cores for
+        // minutes per file, draining CPU credits on a burstable box. Delivery is
+        // handled by the CDN regardless, so an un-transcoded upload still plays.
+        this.processTranscode(recording.id, recording.video_url, recording.video_key, instituteId)
+          .catch((err) => this.logger.warn(`Transcode kickoff failed for ${recording.id}: ${err?.message}`));
+      } else {
+        // Default: ensure the MP4 is faststart (moov at the front) so playback
+        // starts immediately. This is a container rewrite (no re-encode) — CPU
+        // light, unlike transcode — and is the real fix for "takes time to play"
+        // on videos whose moov atom sits at the end. No-ops if already faststart.
+        this.processFaststart(recording.id, recording.video_url, recording.video_key, instituteId)
+          .catch((err) => this.logger.warn(`Faststart kickoff failed for ${recording.id}: ${err?.message}`));
+      }
     }
 
     return { success: true, data: recording };
@@ -595,6 +626,88 @@ export class SchoolClassService implements OnModuleInit {
       }
     } catch (err: any) {
       this.logger.warn(`Failed to create class_recording from live broadcast: ${err?.message}`);
+    }
+  }
+
+  /**
+   * Background: hand the uploaded video to Cloudflare Stream (copy-from-URL),
+   * then poll until it is transcoded and ready, storing the HLS URL. Playback
+   * (getPlayUrl) prefers the Stream HLS once ready; until then the original R2
+   * file still plays, so there is never a gap. Best-effort — on failure the
+   * recording simply keeps playing from R2.
+   */
+  private async processStream(recordingId: string, sourceUrl: string, title: string): Promise<void> {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    await this.ds.query(
+      `UPDATE class_recordings SET stream_status='processing', updated_at=NOW() WHERE id=$1`,
+      [recordingId],
+    );
+    try {
+      let result = await this.streamService.copyFromUrl(sourceUrl, title);
+      await this.ds.query(
+        `UPDATE class_recordings SET stream_uid=$2, stream_hls=$3 WHERE id=$1`,
+        [recordingId, result.uid, result.hls],
+      );
+      // Stream ingests then transcodes; poll up to ~15 min (webhooks would be
+      // nicer but polling needs no public callback URL). Ready state may lag the
+      // copy call, so keep checking until readyToStream or an error.
+      for (let i = 0; i < 60 && !result.readyToStream; i++) {
+        await sleep(15_000);
+        result = await this.streamService.getStatus(result.uid);
+        if (result.state === 'error') throw new Error('Stream reported an error state');
+      }
+      if (result.readyToStream && result.hls) {
+        await this.ds.query(
+          `UPDATE class_recordings
+              SET stream_hls=$2, stream_status='ready',
+                  thumbnail_url=COALESCE(NULLIF(thumbnail_url,''), $3),
+                  updated_at=NOW()
+            WHERE id=$1`,
+          [recordingId, result.hls, result.thumbnail],
+        );
+        this.logger.log(`Stream ready for recording ${recordingId} (uid=${result.uid})`);
+      } else {
+        // Still transcoding on Stream's side past our poll window — leave the uid
+        // stored; getPlayUrl can pick up the HLS on a later request via re-poll.
+        await this.ds.query(
+          `UPDATE class_recordings SET stream_status='processing' WHERE id=$1`, [recordingId],
+        );
+        this.logger.warn(`Stream not ready within poll window for ${recordingId} (uid=${result.uid})`);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Stream processing failed for recording ${recordingId}: ${err?.message}`);
+      await this.ds.query(
+        `UPDATE class_recordings SET stream_status='failed' WHERE id=$1`, [recordingId],
+      );
+    }
+  }
+
+  /**
+   * Background faststart remux: move the moov atom to the front so playback
+   * starts immediately, then swap video_url to the faststart copy (keeping the
+   * original). No re-encode, so it's cheap. No-ops when the file is already
+   * faststart. Best-effort — on failure the recording keeps playing the original.
+   */
+  private async processFaststart(
+    recordingId: string,
+    videoUrl: string,
+    videoKey: string | null,
+    instituteId: string,
+  ): Promise<void> {
+    try {
+      const result = await this.transcodeService.remuxFaststart(videoUrl, videoKey);
+      if (!result) return; // already faststart, or ffmpeg unavailable — nothing to do
+      await this.ds.query(
+        `UPDATE class_recordings
+            SET original_video_url = COALESCE(original_video_url, video_url),
+                original_video_key = COALESCE(original_video_key, video_key),
+                video_url = $2, video_key = $3, video_size = $4, updated_at = NOW()
+          WHERE id = $1`,
+        [recordingId, result.webUrl, result.webKey, result.sizeBytes],
+      );
+      this.logger.log(`Faststart remuxed recording ${recordingId}`);
+    } catch (err: any) {
+      this.logger.warn(`Faststart failed for recording ${recordingId}: ${err?.message}`);
     }
   }
 
@@ -1257,6 +1370,84 @@ export class SchoolClassService implements OnModuleInit {
     this.processTranscription(rec.id, rec.video_url, rec.topic_id || null, instituteId, this.normalizeLanguage(rec.language))
       .catch((err) => this.logger.warn(`Re-transcribe failed for ${id}: ${err?.message}`));
     return { success: true, message: 'Transcription started' };
+  }
+
+  /**
+   * (Re)compress an existing recording to a web-friendly MP4 (teacher-triggered).
+   * Backfills videos uploaded before auto-transcode existed — the over-bitrate
+   * originals (e.g. 30s at 31 Mbps) that stream too slowly to play. Uses the
+   * ORIGINAL if one was already kept, so re-runs don't compress an already
+   * compressed file.
+   */
+  async retranscode(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT id, video_url, video_key, original_video_url, original_video_key, source
+         FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const rec = rows[0];
+    if (rec.source === 'youtube') {
+      throw new BadRequestException('Transcoding is only available for uploaded videos, not YouTube links');
+    }
+    const srcUrl = rec.original_video_url || rec.video_url;
+    const srcKey = rec.original_video_key || rec.video_key;
+    this.processTranscode(rec.id, srcUrl, srcKey, instituteId)
+      .catch((err) => this.logger.warn(`Re-transcode failed for ${id}: ${err?.message}`));
+    return { success: true, message: 'Transcode started' };
+  }
+
+  /**
+   * Faststart-remux an existing recording (teacher-triggered). Cheap container
+   * rewrite (no re-encode) that fixes slow-to-start playback on videos whose moov
+   * atom is at the end. No-ops if the file is already faststart.
+   */
+  async refaststart(user: any, id: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT id, video_url, video_key, source FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const rec = rows[0];
+    if (rec.source === 'youtube') {
+      throw new BadRequestException('Faststart is only available for uploaded videos, not YouTube links');
+    }
+    this.processFaststart(rec.id, rec.video_url, rec.video_key, instituteId)
+      .catch((err) => this.logger.warn(`Re-faststart failed for ${id}: ${err?.message}`));
+    return { success: true, message: 'Faststart started' };
+  }
+
+  /**
+   * Send an existing recording to Cloudflare Stream (teacher-triggered). Used to
+   * migrate the back-catalogue: Stream pulls each video from its public R2 URL and
+   * transcodes it off our box. Safe to bulk-run — the heavy work happens on
+   * Stream's side, not ours.
+   */
+  async restream(user: any, id: string) {
+    await this.ensureTable();
+    if (!this.streamService.isConfigured()) {
+      throw new BadRequestException('Cloudflare Stream is not configured on this server');
+    }
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT id, title, source, video_url, original_video_url
+         FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [id, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('Recording not found');
+    const rec = rows[0];
+    if (rec.source === 'youtube') {
+      throw new BadRequestException('Streaming is only available for uploaded videos, not YouTube links');
+    }
+    // Prefer the original (pre-transcode) if we kept one; else the current URL.
+    const srcUrl = rec.original_video_url || rec.video_url;
+    this.processStream(rec.id, srcUrl, rec.title)
+      .catch((err) => this.logger.warn(`Re-stream failed for ${id}: ${err?.message}`));
+    return { success: true, message: 'Stream ingest started' };
   }
 
   /** (Re)generate AI notes from the stored transcript (teacher-triggered). */

@@ -33,6 +33,18 @@ export class SchoolClassController {
   @SchoolFeature('ai', 'ai_notes_generator')
   retranscribe(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.retranscribe(user, id); }
 
+  @Post('recordings/:id/retranscode')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  retranscode(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.retranscode(user, id); }
+
+  @Post('recordings/:id/restream')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  restream(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.restream(user, id); }
+
+  @Post('recordings/:id/refaststart')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  refaststart(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.refaststart(user, id); }
+
   @Post('recordings/:id/regenerate-notes')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   @SchoolFeature('ai', 'ai_notes_generator')
