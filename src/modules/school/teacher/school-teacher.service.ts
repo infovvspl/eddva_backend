@@ -1108,6 +1108,48 @@ export class SchoolTeacherService {
     return { success: true };
   }
 
+  /**
+   * Grant or revoke the INSTITUTE_ADMIN system role on a teacher's user record.
+   *
+   * Deliberately its own endpoint rather than folded into update(): that method
+   * already treats `body.role` as the teacher's designation (job title) and
+   * writes it to teachers.designation, for the teacher-edit form. The admin
+   * toggle on the Administrators page needs the actual users.role column
+   * instead — reusing the same field name there would either silently do
+   * nothing to users.role (leaving admin access ungranted) or, if `update()`
+   * were changed to special-case it, risk clobbering a real designation with
+   * "TEACHER,INSTITUTE_ADMIN". A dedicated route keeps both meanings intact.
+   */
+  async setAdminRole(user: any, id: string, isAdmin: boolean) {
+    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    if (!isSuperAdmin && user) {
+      const targetInstRow = await this.ds.query(`SELECT institute_id FROM users WHERE id=$1`, [id]);
+      if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(user.instituteId)) {
+        throw new ForbiddenException('You do not have permission to update this teacher');
+      }
+    }
+
+    const rows = await this.ds.query(`SELECT role FROM users WHERE id=$1`, [id]);
+    if (rows.length === 0) throw new BadRequestException('Teacher user record not found');
+
+    const rolesList = String(rows[0].role || '')
+      .split(',')
+      .map((r: string) => r.trim().toUpperCase())
+      .filter(Boolean);
+
+    let newRolesList: string[];
+    if (isAdmin) {
+      newRolesList = rolesList.includes('INSTITUTE_ADMIN') ? rolesList : [...rolesList, 'INSTITUTE_ADMIN'];
+    } else {
+      newRolesList = rolesList.filter((r) => r !== 'INSTITUTE_ADMIN');
+      if (newRolesList.length === 0) newRolesList = ['TEACHER'];
+    }
+    const newRole = newRolesList.join(',');
+
+    await this.ds.query(`UPDATE users SET role=$2, updated_at=NOW() WHERE id=$1`, [id, newRole]);
+    return { success: true, data: { id, role: newRole } };
+  }
+
   async bulkImport(user: any, body: any) {
     const instituteId = await this.resolveInstituteId(user, body.instituteId);
     const records = body.records;
