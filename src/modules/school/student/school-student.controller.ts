@@ -4,6 +4,7 @@ import { SchoolStudentExitService } from './school-student-exit.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
+import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { Audit } from '../../audit-log/audit.decorator';
 
 @Controller('school/students')
@@ -14,9 +15,12 @@ export class SchoolStudentController {
     private readonly exitSvc: SchoolStudentExitService,
   ) { }
 
-  @Post('bulk-import') bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
+  @Post('bulk-import')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
 
   @Post()
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
   @Audit({ module: 'Users', action: 'Student Create', description: 'Created student {body.name}' })
   create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
 
@@ -42,19 +46,23 @@ export class SchoolStudentController {
   @Get(':id') findOne(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.findOne(user, id); }
 
   @Put(':id')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
   @Audit({ module: 'Users', action: 'Student Edit', description: 'Updated student ID {params.id}' })
   update(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) { return this.svc.update(user, id, body); }
 
   @Delete(':id')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
   @Audit({ module: 'Users', action: 'Student Delete', description: 'Deleted student ID {params.id}' })
   remove(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(user, id); }
 
   @Post(':id/send-credentials')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
   sendParentCredentials(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) {
     return this.svc.sendParentCredentials(user, id, body);
   }
 
   @Post(':id/previous-results')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
   addPreviousResult(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) {
     return this.svc.addPreviousResult(user, id, body);
   }
