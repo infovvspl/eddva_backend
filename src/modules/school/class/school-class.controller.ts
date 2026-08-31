@@ -43,7 +43,9 @@ export class SchoolClassController {
 
   @Post('recordings/:id/refaststart')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
-  refaststart(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.refaststart(user, id); }
+  refaststart(@SchoolUser() user: any, @Param('id') id: string, @Query('force') force?: string) {
+    return this.svc.refaststart(user, id, force === '1' || force === 'true');
+  }
 
   @Post('recordings/:id/regenerate-notes')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
