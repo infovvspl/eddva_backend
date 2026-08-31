@@ -693,9 +693,10 @@ export class SchoolClassService implements OnModuleInit {
     videoUrl: string,
     videoKey: string | null,
     instituteId: string,
+    force = false,
   ): Promise<void> {
     try {
-      const result = await this.transcodeService.remuxFaststart(videoUrl, videoKey);
+      const result = await this.transcodeService.remuxFaststart(videoUrl, videoKey, force);
       if (!result) return; // already faststart, or ffmpeg unavailable — nothing to do
       await this.ds.query(
         `UPDATE class_recordings
@@ -1404,7 +1405,7 @@ export class SchoolClassService implements OnModuleInit {
    * rewrite (no re-encode) that fixes slow-to-start playback on videos whose moov
    * atom is at the end. No-ops if the file is already faststart.
    */
-  async refaststart(user: any, id: string) {
+  async refaststart(user: any, id: string, force = false) {
     await this.ensureTable();
     const instituteId = this.resolveInstituteId(user);
     const rows = await this.ds.query(
@@ -1416,7 +1417,7 @@ export class SchoolClassService implements OnModuleInit {
     if (rec.source === 'youtube') {
       throw new BadRequestException('Faststart is only available for uploaded videos, not YouTube links');
     }
-    this.processFaststart(rec.id, rec.video_url, rec.video_key, instituteId)
+    this.processFaststart(rec.id, rec.video_url, rec.video_key, instituteId, force)
       .catch((err) => this.logger.warn(`Re-faststart failed for ${id}: ${err?.message}`));
     return { success: true, message: 'Faststart started' };
   }

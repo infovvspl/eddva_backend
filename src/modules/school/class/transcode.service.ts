@@ -120,11 +120,13 @@ export class TranscodeService {
    * (fine on a burstable box, unlike full transcode). Returns the new key/url/size,
    * or null when the file is already faststart (skipped) or ffmpeg is unavailable.
    */
-  async remuxFaststart(videoUrl: string, videoKey: string | null): Promise<TranscodeResult | null> {
+  async remuxFaststart(videoUrl: string, videoKey: string | null, force = false): Promise<TranscodeResult | null> {
     if (!(await this.ffmpegAvailable())) return null;
     const key = videoKey || this.s3Service.keyFromUrl(videoUrl);
     if (!key) { this.logger.warn('Faststart skipped: no object key'); return null; }
-    if (await this.isFaststart(videoUrl, key)) {
+    // `force` re-uploads even an already-faststart file — used to re-create an
+    // object via the curl-PUT path when the original upload isn't edge-cacheable.
+    if (!force && await this.isFaststart(videoUrl, key)) {
       this.logger.log(`Faststart skipped for ${key}: already faststart`);
       return null;
     }
