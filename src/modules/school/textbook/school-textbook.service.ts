@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
@@ -133,6 +133,21 @@ export class SchoolTextbookService {
       `ALTER TABLE textbook_ingest_runs
        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`,
     );
+    // Which chapter a worker is reading *right now*, as opposed to last_chapter
+    // (the most recently *finished* one). Needed to know which Redis progress
+    // key to poll for live page-level progress while a chapter is still being
+    // transcribed — see ingestRunStatus and AiBridgeService.getTextbookIngestProgress.
+    // With several bulk workers this is last-write-wins, same simplification
+    // last_chapter already makes: one representative in-progress chapter, not
+    // a per-worker list.
+    await this.ds.query(
+      `ALTER TABLE textbook_ingest_runs
+       ADD COLUMN IF NOT EXISTS current_material_id UUID`,
+    );
+    await this.ds.query(
+      `ALTER TABLE textbook_ingest_runs
+       ADD COLUMN IF NOT EXISTS current_chapter TEXT`,
+    );
     this.schemaReady = true;
   }
 
@@ -183,7 +198,7 @@ export class SchoolTextbookService {
    * Re-ingesting a chapter replaces what was there: a school correcting a bad
    * scan must not end up with both versions feeding the same slide deck.
    */
-  async ingestMaterial(user: any, materialId: string, forInstituteId?: string) {
+  async ingestMaterial(user: any, materialId: string, forInstituteId?: string, progressKey?: string) {
     if (!materialId) throw new BadRequestException('materialId is required');
     const instituteId = this.resolveInstitute(user, forInstituteId);
     await this.ensureSchema();
@@ -215,7 +230,31 @@ export class SchoolTextbookService {
       throw new BadRequestException('Only PDF chapters can be indexed');
     }
 
-    const res = await this.aiBridge.ingestTextbook({ fileUrl: material.s3_key }, instituteId);
+    // Map the AI-service failures a large PDF hits to clear, actionable errors
+    // instead of the generic 500 the raw axios error would become.
+    let res: any;
+    try {
+      res = await this.aiBridge.ingestTextbook({ fileUrl: material.s3_key, progressKey }, instituteId);
+    } catch (err: any) {
+      const upstreamStatus = err?.response?.status;
+      const upstreamMsg = err?.response?.data?.error || err?.response?.data?.message;
+      if (upstreamStatus === 413) {
+        throw new BadRequestException(
+          upstreamMsg || 'This PDF is too large to index. Split it into smaller chapters and upload them separately.',
+        );
+      }
+      if (err?.code === 'ECONNABORTED' || /timeout/i.test(err?.message || '')) {
+        throw new HttpException(
+          'Indexing timed out — the PDF is large or has many scanned pages. Split it into smaller parts and try again.',
+          HttpStatus.GATEWAY_TIMEOUT,
+        );
+      }
+      this.logger.error(`Textbook ingest upstream error (status=${upstreamStatus ?? 'n/a'}): ${err?.message}`);
+      throw new HttpException(
+        upstreamMsg || 'Could not index this PDF. Check the file is a readable, non-protected PDF and try again.',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
     const data: any = res?.data ?? res;
     const chunks: any[] = data?.chunks ?? [];
 
@@ -336,13 +375,35 @@ export class SchoolTextbookService {
     if (!instituteId || !chapterId) return [];
     try {
       await this.ensureSchema();
-      return await this.ds.query(
+      const direct = await this.ds.query(
         `SELECT page_no, chunk_index, content, tokens
          FROM textbook_chunks
          WHERE institute_id::text = $1::text AND chapter_id::text = $2::text
          ORDER BY page_no NULLS LAST, chunk_index`,
         [instituteId, chapterId],
       );
+      if (direct.length) return direct;
+
+      // Fallback by chapter NAME. Duplicate chapter rows (same name, different id)
+      // are a known curriculum-dedup artifact: a PDF gets indexed under one "The
+      // Cell" row while a deck/paper is generated for another, so an exact
+      // chapter_id match finds nothing even though the book IS indexed — the
+      // teacher then sees "General knowledge" on an indexed chapter. Match any
+      // chapter of the same name in this institute that actually has chunks.
+      const byName = await this.ds.query(
+        `SELECT tc.page_no, tc.chunk_index, tc.content, tc.tokens
+         FROM textbook_chunks tc
+         JOIN chapters c_idx ON c_idx.id::text = tc.chapter_id::text
+         JOIN chapters c_sel ON c_sel.id::text = $2::text
+         WHERE tc.institute_id::text = $1::text
+           AND LOWER(TRIM(c_idx.name)) = LOWER(TRIM(c_sel.name))
+         ORDER BY tc.page_no NULLS LAST, tc.chunk_index`,
+        [instituteId, chapterId],
+      );
+      if (byName.length) {
+        this.logger.log(`Passages matched by chapter name (id mismatch) for chapter ${chapterId}`);
+      }
+      return byName;
     } catch (err) {
       // Grounding is an enhancement; never let a lookup failure block generation.
       this.logger.warn(`Textbook passage lookup failed: ${(err as Error).message}`);
@@ -411,8 +472,25 @@ export class SchoolTextbookService {
       [materialId, instituteId, chapter.id, fileUrl],
     );
 
-    const result = await this.ingestMaterial(user, materialId, instituteId);
-    return { ...result, materialId, fileUrl, fileName: file.originalname };
+    // Index in the background so a large/scanned upload doesn't block the request
+    // (which would time out). The client polls ingest-status for progress. If a
+    // run is already in progress the upload still succeeds; the chapter can be
+    // indexed once that run finishes.
+    let run: { runId: string; queued: number } | null = null;
+    try {
+      run = await this.ingestMaterialAsync(user, materialId, instituteId);
+    } catch (err) {
+      this.logger.warn(`Uploaded but indexing deferred: ${(err as Error).message}`);
+    }
+    return {
+      materialId,
+      fileUrl,
+      fileName: file.originalname,
+      chapterId: chapter.id,
+      chapterName: chapter.chapter_name,
+      indexing: !!run,
+      runId: run?.runId ?? null,
+    };
   }
 
   /**
@@ -518,6 +596,64 @@ export class SchoolTextbookService {
   }
 
   /**
+   * Index one chapter in the background and return a run id immediately.
+   *
+   * A large or scanned PDF can take minutes, which cannot sit on a single HTTP
+   * request (nginx/browser time out → the 500 teachers hit). This reuses the
+   * bulk run machinery with a single target, so the coverage screen polls
+   * ingest-status for progress exactly as it does for a full run.
+   */
+  async ingestMaterialAsync(user: any, materialId: string, forInstituteId?: string) {
+    if (!materialId) throw new BadRequestException('materialId is required');
+    const instituteId = this.resolveInstitute(user, forInstituteId);
+    await this.ensureSchema();
+    await this.reapStaleRuns(instituteId);
+
+    const running = await this.ds.query(
+      `SELECT id, done, total FROM textbook_ingest_runs
+       WHERE institute_id::text = $1::text AND status = 'running' LIMIT 1`,
+      [instituteId],
+    );
+    if (running.length) {
+      const r = running[0];
+      throw new BadRequestException(
+        `An indexing run is already in progress for this institute (${r.done}/${r.total} done). ` +
+        `Wait for it to finish or cancel it first.`,
+      );
+    }
+
+    // Resolve the target under the caller's institute (same guard as ingestMaterial).
+    const rows = await this.ds.query(
+      `SELECT sm.id AS material_id, c.id AS chapter_id, c.name AS chapter_name, sm.s3_key
+       FROM study_materials sm
+       JOIN chapters c ON c.id = sm.chapter_id
+       JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN classes cl ON cl.id = s.class_id
+       WHERE sm.id::text = $1::text AND cl.institute_id::text = $2::text
+       LIMIT 1`,
+      [materialId, instituteId],
+    );
+    const target = rows[0];
+    if (!target) throw new NotFoundException('Study material not found');
+    if (!target.chapter_id) {
+      throw new BadRequestException('This material is not linked to a chapter, so it cannot be indexed');
+    }
+    if (!/\.pdf(\?|$)/i.test(target.s3_key || '')) {
+      throw new BadRequestException('Only PDF chapters can be indexed');
+    }
+
+    const run = await this.ds.query(
+      `INSERT INTO textbook_ingest_runs (institute_id, total) VALUES ($1, 1) RETURNING id`,
+      [instituteId],
+    );
+    const runId = run[0].id;
+    void this.processBulk(runId, instituteId, [target]).catch((err) =>
+      this.logger.error(`Single ingest run ${runId} crashed: ${(err as Error).message}`),
+    );
+    return { runId, queued: 1, chapterId: target.chapter_id, chapterName: target.chapter_name };
+  }
+
+  /**
    * Cancel the institute's in-progress indexing run. The background workers
    * check the run status between chapters and stop once it is no longer
    * 'running'; chapters already indexed are kept.
@@ -590,8 +726,15 @@ export class SchoolTextbookService {
         const t = targets[cursor++];
         let error: string | null = null;
         let indexed = false;
+        // Recorded before the (potentially minutes-long) OCR pass, not after —
+        // this is what ingestRunStatus reads to know which chapter to poll live
+        // page progress for while it's still in flight.
+        await this.ds.query(
+          `UPDATE textbook_ingest_runs SET current_material_id = $2, current_chapter = $3, updated_at = NOW() WHERE id = $1`,
+          [runId, t.material_id, t.chapter_name],
+        );
         try {
-          const res = await this.ingestMaterial({ instituteId }, t.material_id);
+          const res = await this.ingestMaterial({ instituteId }, t.material_id, undefined, t.material_id);
           indexed = res.indexed;
           if (!indexed) error = res.message ?? 'No readable text';
         } catch (err) {
@@ -642,13 +785,28 @@ export class SchoolTextbookService {
     await this.reapStaleRuns(instituteId);
     const rows = await this.ds.query(
       `SELECT id, status, total, done, succeeded, failed, last_chapter AS "lastChapter",
-              last_error AS "lastError", started_at AS "startedAt", finished_at AS "finishedAt"
+              last_error AS "lastError", started_at AS "startedAt", finished_at AS "finishedAt",
+              current_material_id AS "currentMaterialId", current_chapter AS "currentChapter"
        FROM textbook_ingest_runs
        WHERE institute_id::text = $1::text
        ORDER BY started_at DESC LIMIT 1`,
       [instituteId],
     );
-    return rows[0] ?? null;
+    const run = rows[0] ?? null;
+    if (!run) return null;
+
+    // Live page progress for whichever chapter is being read right now — only
+    // meaningful while the run is still going, and only if that chapter needed
+    // the (slow) OCR path. A miss just means "nothing to show yet", not an
+    // error, since most chapters have a text layer and never publish this.
+    if (run.status === 'running' && run.currentMaterialId) {
+      const progress = await this.aiBridge.getTextbookIngestProgress(run.currentMaterialId, instituteId);
+      if (progress) {
+        run.currentPagesDone = progress.pagesDone ?? null;
+        run.currentPagesTotal = progress.pagesTotal ?? null;
+      }
+    }
+    return run;
   }
 
   /**
@@ -662,7 +820,7 @@ export class SchoolTextbookService {
   async coverage(user: any, forInstituteId?: string) {
     const instituteId = this.resolveInstitute(user, forInstituteId);
     await this.ensureSchema();
-    return this.ds.query(
+    const rows = await this.ds.query(
       `SELECT c.id AS "chapterId", c.name AS "chapterName",
               s.name AS "subjectName", cl.name AS "className",
               ts.pages, ts.chunk_count AS "passages", ts.method, ts.quality,
@@ -696,5 +854,14 @@ export class SchoolTextbookService {
        ORDER BY cl.name, s.name, c.sort_order NULLS LAST, c.name`,
       [instituteId],
     );
+
+    const norm = (s: string) => (s || '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ');
+    return rows.sort((a: any, b: any) => {
+      const clsCompare = norm(a.className).localeCompare(norm(b.className), undefined, { numeric: true, sensitivity: 'base' });
+      if (clsCompare !== 0) return clsCompare;
+      const subCompare = norm(a.subjectName).localeCompare(norm(b.subjectName), undefined, { numeric: true, sensitivity: 'base' });
+      if (subCompare !== 0) return subCompare;
+      return 0;
+    });
   }
 }

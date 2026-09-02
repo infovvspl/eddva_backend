@@ -222,6 +222,16 @@ export class SchoolPptService {
     if (!data.source) {
       data.source = { grounded: false, reason: sourcePassages.length ? 'unavailable' : 'not_indexed' };
     }
+    // Surface WHY an indexed chapter still came back ungrounded. Without this the
+    // only signal is a teacher's screenshot of a "General knowledge" badge; here
+    // the precise reason (gemini_exhausted / gemini_key_rejected / …) lands in the
+    // service logs the moment it happens.
+    if (sourcePassages.length && !data.source?.grounded) {
+      this.logger.warn(
+        `PPT ungrounded despite ${sourcePassages.length} indexed passages ` +
+          `(chapter=${chapterId ?? 'n/a'}): reason=${data.source?.reason ?? 'unknown'}`,
+      );
+    }
     return result;
   }
 

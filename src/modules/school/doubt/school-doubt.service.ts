@@ -492,7 +492,10 @@ export class SchoolDoubtService implements OnModuleInit {
       );
     }
 
-    return { success: true, data: this.mapRow(rows[0]) };
+    // mapRow is async — without await this returned an unresolved Promise that
+    // serialized to {}, so the freshly-asked doubt showed no aiExplanation and
+    // the panel fell back to "couldn't generate" even though the answer was saved.
+    return { success: true, data: await this.mapRow(rows[0]) };
   }
 
   async list(user: any, query: any) {

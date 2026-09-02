@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards, Req } from '@nestjs/common';
 import { SchoolClassService } from './school-class.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -32,6 +32,20 @@ export class SchoolClassController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   @SchoolFeature('ai', 'ai_notes_generator')
   retranscribe(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.retranscribe(user, id); }
+
+  @Post('recordings/:id/retranscode')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  retranscode(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.retranscode(user, id); }
+
+  @Post('recordings/:id/restream')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  restream(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.restream(user, id); }
+
+  @Post('recordings/:id/refaststart')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  refaststart(@SchoolUser() user: any, @Param('id') id: string, @Query('force') force?: string) {
+    return this.svc.refaststart(user, id, force === '1' || force === 'true');
+  }
 
   @Post('recordings/:id/regenerate-notes')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
@@ -74,6 +88,18 @@ export class SchoolClassController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   submitQuizResponse(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
     return this.svc.submitQuizResponse(user, id, body);
+  }
+
+  @Patch('recordings/:id')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  updateRecording(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.update(user, id, body);
+  }
+
+  @Put('recordings/:id')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  putRecording(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.update(user, id, body);
   }
 
   @Delete('recordings/:id')

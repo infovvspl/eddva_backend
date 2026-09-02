@@ -80,17 +80,32 @@ export class ThumbnailService {
       // Step 2: Probe the video for metadata
       const metadata = await this.probeVideo(tmpVideoPath);
 
-      // Step 3: Extract a frame at ~5 seconds and convert to WebP
-      await this.extractFrame(tmpVideoPath, tmpThumbPath, 5);
-
-      // Step 4: Read the thumbnail and upload to S3
-      if (!fs.existsSync(tmpThumbPath)) {
-        throw new Error('Thumbnail file was not created');
+      // Step 3: Extract a frame and convert to WebP. A fixed t=5s can land on
+      // a blank/black frame (short recording, or one that opens with a blank
+      // screen) which compresses to a near-empty file — try a few other
+      // timestamps spread across the video before giving up, instead of
+      // failing on a single unlucky frame.
+      const candidateTimestamps = this.buildCandidateTimestamps(metadata.durationSeconds);
+      let thumbBuffer: Buffer | null = null;
+      let lastAttemptSize = 0;
+      for (const timestamp of candidateTimestamps) {
+        await this.extractFrame(tmpVideoPath, tmpThumbPath, timestamp);
+        if (!fs.existsSync(tmpThumbPath)) continue;
+        const buffer = fs.readFileSync(tmpThumbPath);
+        lastAttemptSize = buffer.length;
+        if (buffer.length >= 1024) {
+          thumbBuffer = buffer;
+          break;
+        }
+        fs.unlinkSync(tmpThumbPath);
       }
 
-      const thumbBuffer = fs.readFileSync(tmpThumbPath);
-      if (thumbBuffer.length < 1024) {
-        throw new Error(`Thumbnail too small (${thumbBuffer.length}B)`);
+      // Step 4: Upload the thumbnail to S3
+      if (!thumbBuffer) {
+        throw new Error(
+          `Thumbnail too small after trying ${candidateTimestamps.length} timestamp(s) ` +
+          `(${candidateTimestamps.join('s, ')}s) — last attempt ${lastAttemptSize}B`,
+        );
       }
 
       const s3Key = `tenants/${instituteId}/class-recording-thumbnails/${recordingId}.webp`;
@@ -118,6 +133,32 @@ export class ThumbnailService {
       // Cleanup temp files
       this.cleanupTmp(tmpDir);
     }
+  }
+
+  /**
+   * Pick a small, ordered set of timestamps to try frame extraction at.
+   * Spread across the video (not clustered near the start) so a blank
+   * opening screen or a very short clip doesn't exhaust every candidate on
+   * the same blank moment. Deduplicated and capped to the video's length.
+   */
+  private buildCandidateTimestamps(durationSeconds: number | null): number[] {
+    const duration = durationSeconds && durationSeconds > 0 ? durationSeconds : null;
+    const raw = duration
+      ? [5, duration * 0.25, duration * 0.1, duration * 0.5, 1]
+      : [5, 10, 1, 15];
+
+    const seen = new Set<number>();
+    const candidates: number[] = [];
+    for (const t of raw) {
+      // Leave a small margin before the end so -vframes 1 doesn't seek past EOF.
+      const bounded = duration ? Math.min(t, Math.max(duration - 0.5, 0.1)) : t;
+      const rounded = Math.round(bounded * 10) / 10;
+      if (rounded >= 0 && !seen.has(rounded)) {
+        seen.add(rounded);
+        candidates.push(rounded);
+      }
+    }
+    return candidates;
   }
 
   /**

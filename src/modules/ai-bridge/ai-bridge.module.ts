@@ -16,6 +16,11 @@ import { AiUsageModule } from '../ai-usage/ai-usage.module';
       useFactory: (cfg: ConfigService) => ({
         timeout: cfg.get<number>('ai.timeoutMs'),
         maxRedirects: 3,
+        // A large textbook ingest returns many passages in one JSON response;
+        // the default axios content limit would reject it. These calls are to our
+        // own AI service, so lifting the caps is safe.
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
       }),
     }),
     TypeOrmModule.forFeature([Tenant], 'coaching'),

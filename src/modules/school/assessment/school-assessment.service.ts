@@ -60,6 +60,10 @@ export class SchoolAssessmentService {
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS content_source VARCHAR NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS file_path VARCHAR NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS chapter_id UUID NULL`);
+    // Multi-chapter tests store the full selected set here (ordered ids). The
+    // scalar chapter_id above stays populated with the first chapter for
+    // backward compatibility with the single-chapter LEFT JOIN in list().
+    await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS chapter_ids JSONB NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS topic_id UUID NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS answer_key TEXT NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS language VARCHAR NULL DEFAULT 'en'`);
@@ -169,20 +173,26 @@ export class SchoolAssessmentService {
   private isInstructionLikeText(text: string) {
     const normalized = String(text || '').trim().toLowerCase();
     if (!normalized) return true;
-    return /^(read|write|use|do not|answer|attempt|follow|choose|fill|tick|select)\b/.test(normalized)
-      || normalized.includes('general instruction')
-      || normalized.includes('question paper consists')
-      || normalized.includes('follow the instructions')
-      || normalized.includes('space provided');
+    return (
+      /^(general\s+instructions?|instructions?|note|guidelines?|directions?)\b/i.test(normalized) ||
+      /\b(compulsory|instruction|instructions|question paper|paper contains|paper consists|contains \d+ questions|consists of \d+ questions|divided into|comprises?|comprising|space provided|calculator|calculators|not permitted|not allowed|figures to the right|all questions|marks each|option[s]? provided)\b/i.test(normalized) ||
+      (/^(read|write|use|do not|answer|attempt|follow|choose|fill|tick|select|please|all|there|this|each|section)\b/i.test(normalized) &&
+        /\b(questions?|sections?|compulsory|paper|instructions?|marks?|minutes?|hours?|comprises?|contains?)\b/i.test(normalized))
+    );
   }
 
   private parsedQuestionsNeedRefresh(questions: any[]) {
     return this.normalizeQuestions(questions).some((question: any) => {
-      const type = question.type || 'short_answer';
-      const sectionLetter = this.sectionLetter(question.sectionTitle || question.section || '');
-      return this.isInstructionLikeText(question.text)
-        || (sectionLetter === 'A' && type !== 'mcq_single')
-        || (type !== 'mcq_single' && this.hasInlineMcqOptions(question.text));
+      const text = String(question?.text || '').trim();
+      const sectionTitle = String(question?.sectionTitle || question?.section || '').trim();
+      const type = question?.type || 'short_answer';
+      const sectionLetter = this.sectionLetter(sectionTitle);
+      return (
+        this.isInstructionLikeText(text) ||
+        /instruction|guideline|note|direction/i.test(sectionTitle) ||
+        (sectionLetter === 'A' && type !== 'mcq_single') ||
+        (type !== 'mcq_single' && this.hasInlineMcqOptions(text))
+      );
     });
   }
 
@@ -224,7 +234,7 @@ export class SchoolAssessmentService {
     if (parsed.length && row.id) {
       try {
         await this.ds.query(
-          `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text AND questions_json IS NULL`,
+          `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text AND (questions_json IS NULL OR questions_json::text = '[]' OR questions_json::text = 'null')`,
           [row.id, JSON.stringify(parsed)],
         );
       } catch {
@@ -350,9 +360,23 @@ export class SchoolAssessmentService {
     }
 
     const questionText = answerKeyStart >= 0 ? text.slice(0, answerKeyStart) : text;
+    const lineQuestions = this.parseLineByLineQuestionPaper(questionText, answerMap, answerDetailMap);
     const inlineQuestions = this.parseInlineQuestionPaper(questionText, answerMap, answerDetailMap);
-    if (inlineQuestions.length >= 2) return inlineQuestions;
 
+    if (lineQuestions.length >= inlineQuestions.length && lineQuestions.length > 0) {
+      return lineQuestions;
+    }
+    if (inlineQuestions.length > 0) {
+      return inlineQuestions;
+    }
+    return lineQuestions;
+  }
+
+  private parseLineByLineQuestionPaper(
+    questionText: string,
+    answerMap: Map<number, string>,
+    answerDetailMap: Map<number, { answer: string; explanation?: string }>,
+  ): any[] {
     const lines = questionText.split(/\r?\n/);
     const questions: any[] = [];
     let section = '';
@@ -391,7 +415,7 @@ export class SchoolAssessmentService {
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (!line) continue;
-      if (/^#{1,4}\s*/.test(line) || /^section\s+[a-z]/i.test(line)) {
+      if (/^#{1,4}\s*/.test(line) || /^section\s+[a-z]/i.test(line) || /^(general\s+instructions?|instructions?|note|guidelines?|directions?)\b/i.test(line)) {
         finishCurrent();
         section = line.replace(/^#+\s*/, '');
         continue;
@@ -409,7 +433,12 @@ export class SchoolAssessmentService {
         line.match(/^\s*Q\s*\.?\s*(\d+)\s*[.)]?\s+(.+)$/i) ||
         line.match(/^\s*(\d+)\s*[.)]\s+(.+)$/);
       if (qMatch) {
-        if (!this.sectionLetter(section) || this.isInstructionLikeText(qMatch[2])) continue;
+        // Only skip genuine instruction lines — do NOT require a section header.
+        // Papers without Section A/B/C headings (e.g. plain Q1. Q2. lists) must
+        // still be parsed; the default type falls through to sectionType() which
+        // returns short_answer when section is empty.
+        const isInstructionSection = /instruction|guideline|note|direction/i.test(section);
+        if (isInstructionSection || this.isInstructionLikeText(qMatch[2])) continue;
         finishCurrent();
         const spec = sectionType();
         const displayNumber = Number(qMatch[1]);
@@ -502,7 +531,7 @@ export class SchoolAssessmentService {
     for (const section of sections) {
       const body = normalized.slice(section.start, section.end).replace(section.title, ' ').trim();
       const spec = sectionSpec(section.title);
-      const matches = Array.from(body.matchAll(/(?:^|\s)(\d{1,2})[.)]\s+/g));
+      const matches = Array.from(body.matchAll(/(?:^|\s)(?:Q\s*\.?)?(\d{1,2})[.)]\s+/gi));
       if (!matches.length) continue;
 
       matches.forEach((match, index) => {
@@ -998,6 +1027,40 @@ export class SchoolAssessmentService {
     return out;
   }
 
+  /**
+   * Selected chapters for a test, as a de-duplicated list of ids. Accepts a
+   * `chapterIds` array or CSV string, and falls back to the single `chapterId`
+   * so single-chapter and topic tests keep working unchanged.
+   */
+  private normalizeChapterIds(body: any): string[] {
+    const raw = body?.chapterIds ?? body?.chapter_ids;
+    let ids: string[] = [];
+    if (Array.isArray(raw)) ids = raw.map((x) => String(x).trim()).filter(Boolean);
+    else if (typeof raw === 'string' && raw.trim()) ids = raw.split(',').map((x) => x.trim()).filter(Boolean);
+    if (!ids.length) {
+      const single = body?.chapterId || body?.chapter_id;
+      if (single) ids = [String(single).trim()];
+    }
+    return Array.from(new Set(ids));
+  }
+
+  /** Resolve chapter ids to {id, name}, ordered by curriculum sort_order. */
+  private async resolveChapterList(chapterIds: string[]): Promise<Array<{ id: string; name: string }>> {
+    if (!chapterIds.length) return [];
+    try {
+      const rows = await this.ds.query(
+        `SELECT id, name FROM chapters
+         WHERE id::text = ANY($1::text[])
+         ORDER BY COALESCE(sort_order,0) ASC, name ASC`,
+        [chapterIds],
+      );
+      return rows.map((r: any) => ({ id: String(r.id), name: r.name }));
+    } catch (err) {
+      this.logger.warn(`Chapter list resolution failed: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
   async aiGenerateDraft(user: any, body: any) {
     const instituteId = user.instituteId || body.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
@@ -1040,11 +1103,21 @@ export class SchoolAssessmentService {
     if (longAns > 0) sections.push(`- Section E — Long Answer: exactly ${longAns} questions. 5 marks each.`);
     if (sections.length === 0) sections.push(`- Section A — Multiple Choice Questions: exactly 10 questions, four options (a)-(d), one correct. 1 mark each.`);
 
+    // Resolve the selected chapters (supports a multi-chapter range, e.g. 1–10).
+    // Ordered by curriculum sort_order so the scope reads in teaching sequence.
+    const chapterIds = this.normalizeChapterIds(body);
+    const chapterList = await this.resolveChapterList(chapterIds);
+    const multiChapter = chapterList.length > 1;
+    // For a single-chapter test whose name the client didn't send, fill it in.
+    const effChapterName = chapterName || (chapterList.length === 1 ? chapterList[0].name : '');
+
     const scopeLine = topicName
-      ? `IMPORTANT SCOPE: Generate questions ONLY about the topic "${topicName}"${chapterName ? ` (from chapter "${chapterName}")` : ''}. Every question must relate to this topic.`
-      : chapterName
-        ? `IMPORTANT SCOPE: Generate questions ONLY from the chapter "${chapterName}". Every question must relate to this chapter.`
-        : '';
+      ? `IMPORTANT SCOPE: Generate questions ONLY about the topic "${topicName}"${effChapterName ? ` (from chapter "${effChapterName}")` : ''}. Every question must relate to this topic.`
+      : multiChapter
+        ? `IMPORTANT SCOPE: Generate questions ONLY from these chapters of ${subjectName}: ${chapterList.map((c, i) => `${i + 1}) "${c.name}"`).join(', ')}. Distribute the questions across ALL of these chapters so every listed chapter is represented in the paper. Do NOT include content from any other chapter.`
+        : effChapterName
+          ? `IMPORTANT SCOPE: Generate questions ONLY from the chapter "${effChapterName}". Every question must relate to this chapter.`
+          : '';
 
     const extraContext = [
       `LANGUAGE: Write the ENTIRE question paper in English. Every word — questions, instructions, options, section headings, and the answer key — must be in English only.`,
@@ -1079,33 +1152,66 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     // questions are set from the book the students actually study.
     // Accept either casing, and fall back to the topic's chapter for a topic
     // test, which carries a topic but not always a chapter.
-    let groundingChapterId: string | null =
-      body.chapterId || body.chapter_id || null;
-    if (!groundingChapterId && (body.topicId || body.topic_id)) {
-      try {
-        const rows = await this.ds.query(
-          `SELECT chapter_id FROM topics WHERE id::text = $1::text LIMIT 1`,
-          [body.topicId || body.topic_id],
-        );
-        groundingChapterId = rows[0]?.chapter_id ?? null;
-      } catch { /* grounding is best-effort */ }
+    // For a multi-chapter test, merge passages from every selected chapter,
+    // capped per chapter so no single chapter dominates the shared 30k-token
+    // grounding budget and every chapter gets represented. One AI call still.
+    let sourcePassages: any[] = [];
+    // Track, for the teacher-facing warning, which selected chapters actually
+    // had an indexed textbook (grounded) and which fell back to general
+    // knowledge (not indexed).
+    const groundedChapters: string[] = [];
+    const ungroundedChapters: string[] = [];
+    if (multiChapter) {
+      const perChapterCap = Math.max(3, Math.floor(40 / chapterList.length));
+      for (const ch of chapterList) {
+        const passages = await this.textbooks.getChapterPassages(instituteId, ch.id);
+        if (passages.length) {
+          sourcePassages.push(...passages.slice(0, perChapterCap));
+          groundedChapters.push(ch.name);
+        } else {
+          ungroundedChapters.push(ch.name);
+        }
+      }
+    } else {
+      let groundingChapterId: string | null =
+        chapterList[0]?.id || body.chapterId || body.chapter_id || null;
+      if (!groundingChapterId && (body.topicId || body.topic_id)) {
+        try {
+          const rows = await this.ds.query(
+            `SELECT chapter_id FROM topics WHERE id::text = $1::text LIMIT 1`,
+            [body.topicId || body.topic_id],
+          );
+          groundingChapterId = rows[0]?.chapter_id ?? null;
+        } catch { /* grounding is best-effort */ }
+      }
+      sourcePassages = await this.textbooks.getChapterPassages(
+        instituteId, groundingChapterId,
+      );
+      const singleName = effChapterName || chapterList[0]?.name || chapterName;
+      if (singleName) (sourcePassages.length ? groundedChapters : ungroundedChapters).push(singleName);
     }
-    const sourcePassages = await this.textbooks.getChapterPassages(
-      instituteId, groundingChapterId,
-    );
+    const grounded = sourcePassages.length > 0;
+    // Reinforce the book-only rule in the paper prompt itself (belt-and-suspenders
+    // with the grounding system prompt the AI service applies). Only when we have
+    // passages — never tell the model to cite a book it wasn't given.
+    const strictSourceRule = grounded
+      ? '\nSTRICT SOURCE RULE: Every question, every option and every correct answer MUST be built ONLY from the textbook passages supplied as the source below. Do NOT use any knowledge beyond those passages. If they do not contain enough material for the requested number of questions, produce FEWER questions rather than adding anything from outside the book.'
+      : '';
 
     try {
       const result = await this.aiBridge.generateTopicContent(
         {
           topicName: topicName || `${subjectName} ${testType} assessment`,
           subjectName,
-          chapterName: chapterName || className,
+          chapterName: multiChapter
+            ? `${chapterList.length} chapters`
+            : (effChapterName || className),
           // Unknown content type → falls back to the generic template; the
           // detailed extraContext above fully drives the exam-paper structure.
           contentType: 'assessment_paper',
           difficulty,
           length: 'detailed',
-          extraContext,
+          extraContext: extraContext + strictSourceRule,
           ...(sourcePassages.length ? { sourcePassages } : {}),
         },
         instituteId,
@@ -1148,6 +1254,15 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           title: body.title?.trim() || this.deriveTitle(questionsPart, `${subjectName} ${testType} test`),
           contentText: questionsPart,
           answerKey: answerKeyPart,
+          // Grounding transparency: whether the paper was built strictly from the
+          // school's indexed textbook, and which selected chapters were not
+          // indexed (so the UI can warn those questions used general knowledge).
+          source: (result as any).source ?? {
+            grounded,
+            reason: grounded ? undefined : 'not_indexed',
+          },
+          groundedChapters,
+          ungroundedChapters,
         },
       };
     } catch {
@@ -1159,6 +1274,9 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     await this.ensureAssessmentContentColumns();
     const classId = body.classId || body.class_id || null;
     const sectionId = body.sectionId || body.section_id || null;
+    // Selected chapters (multi-chapter tests). chapter_id keeps the first for
+    // the single-chapter LEFT JOIN in list(); chapter_ids holds the full set.
+    const chapterIds = this.normalizeChapterIds(body);
     const rawContentText = body.contentText || body.content_text || body.instructions || null;
     const rawAnswerKey = body.answerKey || body.answer_key || null;
     const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
@@ -1182,8 +1300,8 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     return await this.ds.transaction(async (manager) => {
       const rows: any[] = await manager.query(
         `INSERT INTO assessments
-          (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, topic_id, answer_key, language, questions_json)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb) RETURNING *`,
+          (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, chapter_ids, topic_id, answer_key, language, questions_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17::jsonb) RETURNING *`,
         [
           title,
           body.assessmentType || body.type || 'exam',
@@ -1198,7 +1316,8 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           contentText,
           contentSource,
           filePath,
-          body.chapterId || body.chapter_id || null,
+          chapterIds[0] || body.chapterId || body.chapter_id || null,
+          chapterIds.length ? JSON.stringify(chapterIds) : null,
           body.topicId || body.topic_id || null,
           answerKey,
           body.language || 'en',
@@ -1518,12 +1637,28 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     await this.ensureAssessmentSubmissionSchema();
 
     const assessmentRows: any[] = await this.ds.query(
-      `SELECT id,title,duration_minutes,content_text,answer_key,questions_json FROM assessments WHERE id::text=$1::text`,
+      `SELECT id,title,duration_minutes,scheduled_date,status,content_text,answer_key,questions_json FROM assessments WHERE id::text=$1::text`,
       [assessmentId],
     );
     if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
     const assessment = await this.hydrateQuestions(assessmentRows[0]);
     const durationMinutes = Math.max(1, Number(assessment.duration_minutes || 60));
+
+    // Validate start time and end time windows
+    const now = new Date();
+    if (assessment.scheduled_date) {
+      const startTime = new Date(assessment.scheduled_date);
+      if (!isNaN(startTime.getTime())) {
+        if (now < startTime) {
+          const formattedStart = startTime.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+          throw new BadRequestException(`Assessment has not started yet. Scheduled to start at ${formattedStart}`);
+        }
+        const windowEndTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+        if (now > windowEndTime) {
+          throw new BadRequestException('Assessment window has ended. Test is now closed.');
+        }
+      }
+    }
 
     const existingRows: any[] = await this.ds.query(
       `SELECT * FROM assessment_submissions
@@ -1536,10 +1671,16 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       return { success: true, data: existing };
     }
 
+    // Calculate attempt expires_at (bounded by scheduled window end time if present)
+    const startTimeObj = assessment.scheduled_date ? new Date(assessment.scheduled_date) : null;
+    const windowEndObj = (startTimeObj && !isNaN(startTimeObj.getTime()))
+      ? new Date(startTimeObj.getTime() + durationMinutes * 60 * 1000)
+      : null;
+
     const rows: any[] = await this.ds.query(
       `INSERT INTO assessment_submissions
         (assessment_id, student_user_id, status, started_at, expires_at, submitted_at)
-       VALUES ($1,$2,'in_progress',NOW(),NOW() + ($3::int * INTERVAL '1 minute'),NOW())
+       VALUES ($1,$2,'in_progress',NOW(),LEAST(NOW() + ($3::int * INTERVAL '1 minute'), COALESCE($4::timestamptz, NOW() + ($3::int * INTERVAL '1 minute'))),NOW())
        ON CONFLICT (assessment_id, student_user_id)
        DO UPDATE SET
         status=CASE
@@ -1547,10 +1688,10 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           ELSE 'in_progress'
         END,
         started_at=COALESCE(assessment_submissions.started_at, NOW()),
-        expires_at=COALESCE(assessment_submissions.expires_at, assessment_submissions.started_at + ($3::int * INTERVAL '1 minute'), NOW() + ($3::int * INTERVAL '1 minute')),
+        expires_at=COALESCE(assessment_submissions.expires_at, LEAST(assessment_submissions.started_at + ($3::int * INTERVAL '1 minute'), COALESCE($4::timestamptz, assessment_submissions.started_at + ($3::int * INTERVAL '1 minute')))),
         updated_at=NOW()
        RETURNING *`,
-      [assessmentId, user.id, durationMinutes],
+      [assessmentId, user.id, durationMinutes, windowEndObj],
     );
     return { success: true, data: { ...rows[0], questions: this.stripCorrectAnswersFromQuestions(assessment.questions_json || []) } };
   }

@@ -37,11 +37,14 @@ export class AiUsageService implements OnModuleInit {
 
   // Accurate cost rates (USD). Token-based for LLMs; flat per-request
   // for audio/char features where token counts aren't returned.
+  // Fallback rates (only used when the AI service didn't send an est cost).
+  // groq = gpt-oss-120b default ($0.15/$0.60 per 1M); groq_vision = Llama-4
+  // ($0.11/$0.34 per 1M); gemini = gemini-2.5-flash ($0.075/$0.30 per 1M).
   private static readonly INPUT_RATE_PER_1K: Record<string, number> = {
-    groq: 0.00005, groq_gemini: 0.000075, gemini: 0.000075, groq_vision: 0.00005, whisper_llm: 0.00005,
+    groq: 0.00015, groq_gemini: 0.000075, gemini: 0.000075, groq_vision: 0.00011, whisper_llm: 0.00015,
   };
   private static readonly OUTPUT_RATE_PER_1K: Record<string, number> = {
-    groq: 0.00008, groq_gemini: 0.000300, gemini: 0.000300, groq_vision: 0.00008, whisper_llm: 0.00008,
+    groq: 0.00060, groq_gemini: 0.000300, gemini: 0.000300, groq_vision: 0.00034, whisper_llm: 0.00060,
   };
   private static readonly REQUEST_RATE: Record<string, number> = {
     whisper_sarvam: 0.02, whisper_llm: 0.02, sarvam: 0.001, groq_vision: 0.001,
