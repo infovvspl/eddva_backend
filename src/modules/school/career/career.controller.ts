@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { CareerService } from './career.service';
-import { SubmitQuizDto } from './dto/career.dto';
+import { SubmitCareerFeedbackDto, SubmitQuizDto } from './dto/career.dto';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
@@ -53,6 +53,12 @@ export class CareerController {
   @SchoolRoles('STUDENT')
   report(@SchoolUser() user: SchoolUserCtx) {
     return this.svc.getCareerReport(user.id);
+  }
+
+  @Post('report/feedback')
+  @SchoolRoles('STUDENT')
+  submitFeedback(@SchoolUser() user: SchoolUserCtx, @Body() dto: SubmitCareerFeedbackDto) {
+    return this.svc.submitReportFeedback(user.id, dto);
   }
 
   @Get('explore')

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsString, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
 
 export class QuizAnswerDto {
   @IsString()
@@ -15,4 +15,14 @@ export class SubmitQuizDto {
   @ValidateNested({ each: true })
   @Type(() => QuizAnswerDto)
   answers: QuizAnswerDto[];
+}
+
+export class SubmitCareerFeedbackDto {
+  @IsIn(['up', 'down'])
+  rating: 'up' | 'down';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  comment?: string;
 }
