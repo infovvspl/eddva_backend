@@ -3,7 +3,9 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
+import { randomUUID } from 'crypto';
 import { AiUsageService } from '../ai-usage/ai-usage.service';
+import { getAiRequestContext } from '../../common/context/ai-request-context';
 
 /**
  * AiBridgeService
@@ -74,13 +76,36 @@ export class AiBridgeService {
     return Number.isFinite(Number(total)) ? Number(total) : null;
   }
 
-  private headers(tenantId?: string, vertical?: string, board?: string) {
+  private headers(
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+    requestId?: string,
+    userId?: string,
+    userRole?: string,
+  ) {
     const h: Record<string, string> = {
       'X-API-Key': this.apiKey,
       'Content-Type': 'application/json',
     };
     if (tenantId) {
       h['X-Tenant-ID'] = tenantId;
+    }
+    // Correlation id (P0-5/P1-6): the AI service echoes this back on its usage +
+    // provider-event webhooks, so one logical request can be stitched across the
+    // bridge, the AI service, and every provider retry it triggered.
+    if (requestId) {
+      h['X-Request-Id'] = requestId;
+    }
+    // Authenticated identity (P1-6). These come from the request's ALS context,
+    // which the global AiContextInterceptor fills ONLY from the guard-verified
+    // request.user — never from a client header. Forwarded to the AI service
+    // (trusted internal hop, authenticated by X-API-Key) for cost attribution.
+    if (userId) {
+      h['X-User-Id'] = userId;
+    }
+    if (userRole) {
+      h['X-User-Role'] = userRole;
     }
     // Per-request product vertical (e.g. 'school'). When omitted, the AI service
     // falls back to the tenant's configured vertical (coaching by default).
@@ -120,10 +145,17 @@ export class AiBridgeService {
     }
 
     const startedAt = Date.now();
+    // Attribution + correlation from the authenticated request (P1-6). Empty for
+    // system/background AI calls made outside any HTTP request — a legitimately
+    // null user, not a failure. Never sourced from client input.
+    const ctx = getAiRequestContext();
+    const requestId = ctx.requestId || randomUUID();
+    const userId = ctx.userId || undefined;
+    const userRole = ctx.userRole || undefined;
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
-          headers: this.headers(tenantId, vertical, board),
+          headers: this.headers(tenantId, vertical, board, requestId, userId, userRole),
           timeout: timeoutMs ?? this.timeout,
         }),
       );
@@ -153,6 +185,25 @@ export class AiBridgeService {
           success: false,
           statusCode: status ?? null,
           latencyMs: Date.now() - startedAt,
+          requestId,
+          userId: userId ?? null,
+          userRole: userRole ?? null,
+        });
+        // A transport-level 429/5xx/timeout on the bridge itself is a provider
+        // event too — record it so failures that never reached the AI service's
+        // own rotation loop still show up in rate-limit-pressure dashboards.
+        const et = status === 429 ? '429'
+          : status && status >= 500 ? '5xx'
+          : err?.code === 'ECONNABORTED' ? 'timeout'
+          : 'provider_error';
+        void this.aiUsage.recordProviderEvent({
+          requestId,
+          instituteId: tenantId,
+          feature: mapped.feature,
+          provider: mapped.provider,
+          eventType: et,
+          statusCode: status ?? null,
+          attemptNumber: 1,
         });
       }
       throw err;
