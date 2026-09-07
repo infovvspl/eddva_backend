@@ -345,3 +345,71 @@ describe('P0-4.4 — AiAdmissionService', () => {
     await expect(acquire(off, AdmissionPool.INTERACTIVE, T_A)).resolves.toBeNull();
   });
 });
+
+// ── P0-4.5 (G2): same-tenant background self-contention ──────────────────────
+describe('P0-4.5 (G2) — serialised background calls for one tenant', () => {
+  let fake: FakeRedis;
+  let svc: AiAdmissionService;
+
+  beforeEach(() => {
+    fake = new FakeRedis();
+    svc = makeService(fake);
+    jest.spyOn(svc['logger'], 'log').mockImplementation(() => undefined);
+    jest.spyOn(svc['logger'], 'warn').mockImplementation(() => undefined);
+    jest.spyOn(svc['logger'], 'error').mockImplementation(() => undefined);
+  });
+
+  it('reproduces the defect: two PARALLEL background calls for one tenant — only one is admitted', async () => {
+    const results = await Promise.allSettled([
+      acquire(svc, AdmissionPool.BACKGROUND, T_A),
+      acquire(svc, AdmissionPool.BACKGROUND, T_A),
+    ]);
+    const admitted = results.filter((r) => r.status === 'fulfilled' && r.value).length;
+    const rejected = results.filter((r) => r.status === 'rejected').length;
+    expect(admitted).toBe(1);
+    expect(rejected).toBe(1); // this was the silent 60s wait + 429 in battle.service
+  });
+
+  it('the fix: SERIALISED background calls for one tenant both succeed', async () => {
+    const first = await acquire(svc, AdmissionPool.BACKGROUND, T_A);
+    expect(first).toBeTruthy();
+    await svc.release(first, 'req-1');
+
+    const second = await acquire(svc, AdmissionPool.BACKGROUND, T_A);
+    expect(second).toBeTruthy();
+    expect(second!.token).not.toBe(first!.token);
+    await svc.release(second, 'req-2');
+  });
+
+  it('serialised calls never wait for admission — the slot is free each time', async () => {
+    const a = await acquire(svc, AdmissionPool.BACKGROUND, T_A);
+    expect(a!.waitedMs).toBeLessThan(50);
+    await svc.release(a, 'r');
+    const b = await acquire(svc, AdmissionPool.BACKGROUND, T_A);
+    expect(b!.waitedMs).toBeLessThan(50); // no 60s admission wait
+  });
+
+  it('a failure in the first call does not consume the slot for the second', async () => {
+    const a = await acquire(svc, AdmissionPool.BACKGROUND, T_A);
+    // caller throws -> post()'s finally still releases
+    await svc.release(a, 'r-failed');
+    await expect(acquire(svc, AdmissionPool.BACKGROUND, T_A)).resolves.toBeTruthy();
+  });
+
+  it('battle.service.ts serialises its two background AI calls (source guard)', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'modules', 'battle', 'battle.service.ts'), 'utf8');
+    const start = src.indexOf('const seed = Math.floor(Math.random() * 1000000);');
+    expect(start).toBeGreaterThan(-1);
+    const block = src.slice(start, start + 3000);
+    // the two AI calls must no longer be launched together
+    expect(block).not.toContain('Promise.allSettled([');
+    expect(block).toContain('const notesResult = await settle(');
+    expect(block).toContain('const topicResult = await settle(');
+    // graceful degradation must be preserved
+    expect(block).toContain("notesResult.status === 'fulfilled'");
+    expect(block).toContain("topicResult.status === 'fulfilled'");
+  });
+});

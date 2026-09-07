@@ -11,6 +11,7 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { ThumbnailService } from './thumbnail.service';
 import { R2Service } from '../../storage/r2.service';
 import { aiRequestStorage, getAiRequestContext } from '../../../common/context/ai-request-context';
+import { AdmissionPool } from '../../../common/services/ai-admission.constants';
 import {
   LECTURE_JOB,
   LECTURE_QUEUE,
@@ -1366,9 +1367,14 @@ export class SchoolClassService implements OnModuleInit {
       if (language === 'od' && hasOdiaChars) {
         try {
           this.logger.log(`[Serper Search] Odia script detected. Translating search term: "${searchTerm}"`);
+          // P0-4.5 (G1): this runs inside lecture note-image enrichment, which is
+          // BACKGROUND work. /translate is interactive by default, so without an
+          // explicit pool a lecture would consume one of the two interactive slots
+          // that exist to keep student doubts responsive.
           const translated: any = await this.aiBridgeService.translateText(
             { text: searchTerm, targetLanguage: 'en' },
             instituteId,
+            { pool: AdmissionPool.BACKGROUND },
           );
           const translatedText = String(
             translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,

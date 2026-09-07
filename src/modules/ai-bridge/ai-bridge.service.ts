@@ -125,7 +125,16 @@ export class AiBridgeService {
     return h;
   }
 
-  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string): Promise<T> {
+  /**
+   * @param poolOverride P0-4.5 (G1): force the admission pool for this call.
+   *   A TypeScript argument, so it is reachable only from server-side callers —
+   *   there is deliberately no request header or body field that can select a
+   *   pool, which would let a client route its own traffic into the interactive
+   *   pool. Used when the PATH alone misclassifies the workload: lecture note
+   *   enrichment translates search terms via /translate (interactive by default)
+   *   while running as background work.
+   */
+  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string, poolOverride?: AdmissionPool): Promise<T> {
     const mapped = AiBridgeService.FEATURE_MAP[path];
     const v = vertical || 'coaching';
 
@@ -162,7 +171,7 @@ export class AiBridgeService {
     // workers) — never the `tenantId` parameter, which upstream may have resolved
     // from client-supplied tenant headers.
     const effectiveTimeoutMs = timeoutMs ?? this.timeout;
-    const pool: AdmissionPool = classifyPath(path);
+    const pool: AdmissionPool = poolOverride ?? classifyPath(path);
     let ticket: AdmissionTicket | null = null;
     if (!ADMISSION_EXEMPT_PATHS.has(path)) {
       ticket = await this.admission.acquire(
@@ -376,8 +385,12 @@ export class AiBridgeService {
   async translateText(
     payload: { text: string; targetLanguage: string },
     tenantId?: string,
+    opts?: { pool?: AdmissionPool },
   ) {
-    return this.post('/translate', payload, tenantId, 60_000);
+    // Interactive by default (a user is waiting on a translation). Background
+    // callers — currently lecture note-image enrichment — pass the pool
+    // explicitly so long-running content work cannot occupy interactive capacity.
+    return this.post('/translate', payload, tenantId, 60_000, undefined, undefined, opts?.pool);
   }
 
   // ── AI #7 — Speech-to-Text Notes ─────────────────────────────────────────

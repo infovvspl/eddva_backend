@@ -1,6 +1,7 @@
 import { of } from 'rxjs';
 import { AiBridgeService } from './ai-bridge.service';
 import { aiRequestStorage } from '../../common/context/ai-request-context';
+import { AdmissionPool } from '../../common/services/ai-admission.constants';
 
 /**
  * P1-6: AiBridgeService forwards the authenticated identity from the request
@@ -105,5 +106,44 @@ describe('AiBridgeService — attribution forwarding', () => {
       svc.getContentRecommendations({ studentId: 's', context: 'dashboard' }, 'inst-1'),
     ).rejects.toThrow('django down');
     expect(admission.release).toHaveBeenCalledTimes(1);
+  });
+
+  // ── P0-4.5 (G1): background lecture work must not take an interactive slot ──
+  it('G1: a normal /translate call stays INTERACTIVE', async () => {
+    await svc.translateText({ text: 'hola', targetLanguage: 'en' }, 'inst-1');
+    expect(admission.acquire).toHaveBeenCalledTimes(1);
+    const [pool] = admission.acquire.mock.calls[0];
+    expect(pool).toBe(AdmissionPool.INTERACTIVE);
+  });
+
+  it('G1: lecture enrichment translate is routed to BACKGROUND', async () => {
+    await svc.translateText(
+      { text: 'ଓଡ଼ିଆ', targetLanguage: 'en' },
+      'inst-1',
+      { pool: AdmissionPool.BACKGROUND },
+    );
+    const [pool] = admission.acquire.mock.calls[0];
+    expect(pool).toBe(AdmissionPool.BACKGROUND);
+    expect(pool).not.toBe(AdmissionPool.INTERACTIVE);
+  });
+
+  it('G1: the pool override is a server-side argument, never taken from body or headers', async () => {
+    // A client-supplied "pool" in the request body must be inert.
+    await svc.translateText({ text: 'x', targetLanguage: 'en', pool: 'interactive' } as any, 'inst-1');
+    const [pool] = admission.acquire.mock.calls[0];
+    expect(pool).toBe(AdmissionPool.INTERACTIVE); // from classifyPath, not from the body
+    // and the body value cannot force BACKGROUND -> INTERACTIVE either
+    admission.acquire.mockClear();
+    await svc.translateText(
+      { text: 'x', targetLanguage: 'en', pool: 'interactive' } as any,
+      'inst-1',
+      { pool: AdmissionPool.BACKGROUND },
+    );
+    expect(admission.acquire.mock.calls[0][0]).toBe(AdmissionPool.BACKGROUND);
+  });
+
+  it('G1: interactive paths are unaffected by the override plumbing', async () => {
+    await svc.resolveDoubt({ questionText: 'q' } as any, 'inst-1');
+    expect(admission.acquire.mock.calls[0][0]).toBe(AdmissionPool.INTERACTIVE);
   });
 });
