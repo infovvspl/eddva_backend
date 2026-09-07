@@ -6,6 +6,8 @@ import { firstValueFrom } from 'rxjs';
 import { randomUUID } from 'crypto';
 import { AiUsageService } from '../ai-usage/ai-usage.service';
 import { getAiRequestContext } from '../../common/context/ai-request-context';
+import { AiAdmissionService, AdmissionTicket } from '../../common/services/ai-admission.service';
+import { AdmissionPool, classifyPath, ADMISSION_EXEMPT_PATHS } from '../../common/services/ai-admission.constants';
 
 /**
  * AiBridgeService
@@ -29,6 +31,7 @@ export class AiBridgeService {
     private readonly http: HttpService,
     config: ConfigService,
     private readonly aiUsage: AiUsageService,
+    private readonly admission: AiAdmissionService,
   ) {
     this.baseUrl = config.get<string>('ai.baseUrl');
     this.apiKey = config.get<string>('ai.apiKey');
@@ -152,11 +155,26 @@ export class AiBridgeService {
     const requestId = ctx.requestId || randomUUID();
     const userId = ctx.userId || undefined;
     const userRole = ctx.userRole || undefined;
+    // ── P0-4.4 admission control ──────────────────────────────────────────────
+    // Bounded, Redis-backed slot per pool so background work can never occupy every
+    // Django sync worker and stall interactive traffic. Identity is the TRUSTED
+    // instituteId from AiRequestContext (JWT for HTTP, persisted job data for
+    // workers) — never the `tenantId` parameter, which upstream may have resolved
+    // from client-supplied tenant headers.
+    const effectiveTimeoutMs = timeoutMs ?? this.timeout;
+    const pool: AdmissionPool = classifyPath(path);
+    let ticket: AdmissionTicket | null = null;
+    if (!ADMISSION_EXEMPT_PATHS.has(path)) {
+      ticket = await this.admission.acquire(
+        pool, ctx.instituteId ?? null, effectiveTimeoutMs, requestId, mapped?.feature ?? path,
+      );
+    }
+
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
           headers: this.headers(tenantId, vertical, board, requestId, userId, userRole),
-          timeout: timeoutMs ?? this.timeout,
+          timeout: effectiveTimeoutMs,
         }),
       );
       // We do NOT call this.aiUsage.record() here for successful requests to avoid double-counting.
@@ -207,6 +225,11 @@ export class AiBridgeService {
         });
       }
       throw err;
+    } finally {
+      // Guarantees the slot is freed on success, throw, Django error, timeout and
+      // cancellation alike. The Redis lease is the second line of defence for the
+      // one case this cannot cover: the process being SIGKILLed mid-request.
+      await this.admission.release(ticket, requestId);
     }
   }
 

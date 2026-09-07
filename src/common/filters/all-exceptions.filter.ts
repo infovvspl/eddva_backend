@@ -20,6 +20,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let errors: any = null;
+    let errorCode: string | null = null;
+    let retryAfterSeconds: number | null = null;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -32,6 +34,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = res.message || message;
         errors = Array.isArray(res.message) ? res.message : null;
         if (errors) message = 'Validation failed';
+        // P0-4.4: preserve the machine-readable code so callers and dashboards can
+        // tell EDVA admission control (ai_admission_rejected / _unavailable) apart
+        // from a monthly quota 429 (ai_quota_exceeded) and from a provider 429.
+        if (typeof res.error === 'string') errorCode = res.error;
+        if (typeof res.retryAfterSeconds === 'number') retryAfterSeconds = res.retryAfterSeconds;
       }
     } else if (exception instanceof Error) {
       // Never expose raw error messages to clients — they may contain table names,
@@ -51,10 +58,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
       // ignore log failures
     }
 
+    // P0-4.4: a retryable rejection must tell the client WHEN to come back.
+    if (retryAfterSeconds !== null) {
+      try { response.setHeader('Retry-After', String(retryAfterSeconds)); } catch { /* headers sent */ }
+    }
+
     response.status(status).json({
       success: false,
       statusCode: status,
       message,
+      ...(errorCode ? { error: errorCode } : {}),
+      ...(retryAfterSeconds !== null ? { retryAfterSeconds } : {}),
       errors,
       path: request.url,
       timestamp: new Date().toISOString(),

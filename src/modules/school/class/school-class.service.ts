@@ -1680,7 +1680,10 @@ export class SchoolClassService implements OnModuleInit {
     await this.setLectureJob(data.recordingId, LectureJobStatus.TRANSCRIBING, { started: true, attempt });
 
     await aiRequestStorage.run(
-      { userId: data.userId, userRole: data.userRole, requestId: data.requestId },
+      // P0-4.4: instituteId comes from the job row persisted at enqueue time, which
+      // enqueueLectureJob took from resolveInstituteId(user) on the guard-verified
+      // user — never reconstructed from client input at execution time.
+      { userId: data.userId, userRole: data.userRole, requestId: data.requestId, instituteId: data.instituteId },
       async () => {
         try {
           // Stage 1 — transcription (skip when already done unless forcing full re-run)

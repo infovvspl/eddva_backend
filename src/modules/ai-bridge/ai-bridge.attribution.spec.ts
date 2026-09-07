@@ -10,6 +10,7 @@ import { aiRequestStorage } from '../../common/context/ai-request-context';
 describe('AiBridgeService — attribution forwarding', () => {
   let http: { post: jest.Mock };
   let aiUsage: { checkQuota: jest.Mock; record: jest.Mock; recordProviderEvent: jest.Mock };
+  let admission: { acquire: jest.Mock; release: jest.Mock };
   let svc: AiBridgeService;
 
   const cfg = { get: (k: string) => ({ 'ai.baseUrl': 'http://ai', 'ai.apiKey': 'K', 'ai.timeoutMs': 1000 }[k]) };
@@ -22,7 +23,11 @@ describe('AiBridgeService — attribution forwarding', () => {
       record: jest.fn(),
       recordProviderEvent: jest.fn(),
     };
-    svc = new AiBridgeService(http as any, cfg as any, aiUsage as any);
+    // P0-4.4: admission is stubbed out here so this suite keeps testing exactly
+    // one thing — attribution header forwarding. Admission itself is covered by
+    // ai-admission.service.spec.ts.
+    admission = { acquire: jest.fn().mockResolvedValue(null), release: jest.fn().mockResolvedValue(undefined) };
+    svc = new AiBridgeService(http as any, cfg as any, aiUsage as any, admission as any);
   });
 
   it('forwards X-User-Id / X-User-Role / X-Request-Id from the request context', async () => {
@@ -64,5 +69,41 @@ describe('AiBridgeService — attribution forwarding', () => {
     expect(aiUsage.recordProviderEvent).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: '429', requestId: 'req-err' }),
     );
+  });
+
+  // ── P0-4.4: admission uses the TRUSTED context identity, and always releases ──
+  it('P0-4.4: passes the trusted instituteId from the ALS context to admission', async () => {
+    await aiRequestStorage.run(
+      { userId: 'teacher-9', userRole: 'TEACHER', requestId: 'req-42', instituteId: 'inst-trusted-1' },
+      () => svc.getContentRecommendations({ studentId: 's', context: 'dashboard' }, 'tenant-param-DIFFERENT'),
+    );
+    expect(admission.acquire).toHaveBeenCalledTimes(1);
+    const [, tenantArg] = admission.acquire.mock.calls[0];
+    // The trusted ALS value wins over the tenantId PARAMETER, which upstream may
+    // have resolved from a client-supplied x-tenant-id header.
+    expect(tenantArg).toBe('inst-trusted-1');
+    expect(tenantArg).not.toBe('tenant-param-DIFFERENT');
+  });
+
+  it('P0-4.4: no trusted identity in context yields null, so the service fails closed', async () => {
+    await aiRequestStorage.run(
+      { userId: 'u', userRole: 'TEACHER', requestId: 'r' },
+      () => svc.getContentRecommendations({ studentId: 's', context: 'dashboard' }, 'tenant-param-DIFFERENT'),
+    );
+    const [, tenantArg] = admission.acquire.mock.calls[0];
+    expect(tenantArg).toBeNull();
+  });
+
+  it('P0-4.4: releases the slot on success', async () => {
+    await svc.getContentRecommendations({ studentId: 's', context: 'dashboard' }, 'inst-1');
+    expect(admission.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('P0-4.4: releases the slot when the upstream call throws', async () => {
+    http.post.mockImplementation(() => { throw new Error('django down'); });
+    await expect(
+      svc.getContentRecommendations({ studentId: 's', context: 'dashboard' }, 'inst-1'),
+    ).rejects.toThrow('django down');
+    expect(admission.release).toHaveBeenCalledTimes(1);
   });
 });
