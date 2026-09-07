@@ -8,6 +8,7 @@ import { S3Service } from '../../upload/s3.service';
 import { TranscodeService } from './transcode.service';
 import { CloudflareStreamService } from './stream.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { ThumbnailService } from './thumbnail.service';
 import { R2Service } from '../../storage/r2.service';
 import { aiRequestStorage, getAiRequestContext } from '../../../common/context/ai-request-context';
@@ -36,6 +37,7 @@ export class SchoolClassService implements OnModuleInit {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly s3Service: S3Service,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly textbooks: SchoolTextbookService,
     private readonly thumbnailService: ThumbnailService,
     private readonly transcodeService: TranscodeService,
     private readonly streamService: CloudflareStreamService,
@@ -577,7 +579,18 @@ export class SchoolClassService implements OnModuleInit {
       // capturing the authenticated identity now so the worker can attribute usage.
       // Replaces the previous fire-and-forget processTranscription kickoff (an
       // upload that isn't queued sits with transcript_status=null forever).
-      await this.enqueueLectureJob(recording, user, instituteId);
+      //
+      // Fire-and-forget, like every other post-insert step below: the response
+      // never reads its result, and enqueueLectureJob's own Redis calls (queue
+      // dedupe lookup, then the enqueue itself) can hang indefinitely while
+      // Redis is unreachable — ioredis retries forever and queues commands
+      // offline by default, so neither ever rejects for the try/catch inside
+      // enqueueLectureJob to catch. Awaiting it here meant a Redis outage held
+      // the whole "save recording" response open, so the upload UI never saw
+      // its response and sat on "Saving…" forever despite the row already
+      // being committed above.
+      this.enqueueLectureJob(recording, user, instituteId)
+        .catch((err) => this.logger.warn(`Lecture job enqueue failed for ${recording.id}: ${err?.message}`));
 
       // Stamp a long Cache-Control on the uploaded video so the CDN/browser can
       // cache it — uploads land with no cache header, so every play re-pulls the
@@ -951,6 +964,11 @@ export class SchoolClassService implements OnModuleInit {
         [recordingId, transcript],
       );
       this.logger.log(`Transcript saved (${transcript.length} chars) for recording ${recordingId}`);
+      // Best-effort: chunk the transcript for grounded generation (content/DPP/
+      // PPT/assessment can then optionally cite this lecture alongside, or
+      // instead of, the chapter's ebook). Never blocks the transcript pipeline.
+      this.textbooks.indexLectureTranscript(instituteId, recordingId, transcript)
+        .catch((err) => this.logger.warn(`Lecture transcript indexing failed for ${recordingId}: ${err?.message}`));
       return transcript;
     } catch (err: any) {
       this.logger.warn(`Transcription failed for recording ${recordingId}: ${err?.message}`);
@@ -1817,6 +1835,9 @@ export class SchoolClassService implements OnModuleInit {
     } else {
       await this.ds.query(`DELETE FROM class_recordings WHERE id = $1`, [id]);
     }
+    // Best-effort: a deleted recording must not keep surfacing as an AI
+    // grounding source via its already-indexed transcript chunks.
+    this.textbooks.deleteLectureChunks(id).catch((err) => this.logger.warn(`Lecture chunk cleanup failed for ${id}: ${err?.message}`));
     return { success: true, message: 'Recording deleted' };
   }
 

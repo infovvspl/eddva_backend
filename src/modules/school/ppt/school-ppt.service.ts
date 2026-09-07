@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { SchoolTextbookService } from '../textbook/school-textbook.service';
+import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 const AdmZip = require('adm-zip');
 
 /** Keep in step with _MAX_SLIDES in the AI service's ppt.py. */
@@ -22,7 +23,27 @@ export class SchoolPptService {
     private readonly aiBridge: AiBridgeService,
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly textbooks: SchoolTextbookService,
+    private readonly featureFlagService: AiFeatureFlagService,
   ) {}
+
+  /** What can this deck's scope be generated from right now (before the teacher generates). */
+  async getSourceAvailability(instituteId: string, query: { chapterId?: string; topicId?: string }) {
+    const chapterId = query.chapterId || (await this.chapterIdForTopic(query.topicId));
+    const lectureGroundingEnabled = await this.featureFlagService.isFeatureEnabled(
+      instituteId, 'school', 'content_lecture_grounding',
+    );
+    const [ebookPassages, lecturePassages] = await Promise.all([
+      this.textbooks.getChapterPassages(instituteId, chapterId),
+      lectureGroundingEnabled
+        ? this.textbooks.getLectureTranscriptPassages(instituteId, { topicId: query.topicId, chapterId })
+        : Promise.resolve([]),
+    ]);
+    return {
+      ebookAvailable: ebookPassages.length > 0,
+      lectureAvailable: lecturePassages.length > 0,
+      lectureGroundingEnabled,
+    };
+  }
 
   /**
    * Curriculum names for the deck's scope, resolved from IDs.
@@ -204,7 +225,21 @@ export class SchoolPptService {
     // book itself. Otherwise generation proceeds from general knowledge, and the
     // response says so, so the two are never presented as the same thing.
     const chapterId = body?.chapterId || (await this.chapterIdForTopic(body?.topicId));
-    const sourcePassages = await this.textbooks.getChapterPassages(instituteId!, chapterId);
+
+    // 'ebook' (default, unchanged behaviour), 'lecture' or 'both' — same
+    // institute-level gate and degrade-gracefully behaviour as material
+    // generation (see school-material.service.ts#generateAiContent).
+    const requestedSourceMode = String(body?.sourceMode || 'ebook').trim().toLowerCase();
+    const sourceMode: 'ebook' | 'lecture' | 'both' =
+      requestedSourceMode === 'lecture' || requestedSourceMode === 'both' ? requestedSourceMode : 'ebook';
+    const lectureGroundingAllowed = sourceMode === 'ebook'
+      ? true
+      : await this.featureFlagService.isFeatureEnabled(instituteId!, 'school', 'content_lecture_grounding');
+    const effectiveSourceMode: 'ebook' | 'lecture' | 'both' = lectureGroundingAllowed ? sourceMode : 'ebook';
+
+    const { passages: sourcePassages } = await this.textbooks.getGroundingPassages(
+      instituteId!, { chapterId, topicId: body?.topicId }, effectiveSourceMode,
+    );
 
     const result = await this.aiBridge.generatePpt(
       {
@@ -220,7 +255,15 @@ export class SchoolPptService {
 
     const data: any = result?.data ?? {};
     if (!data.source) {
-      data.source = { grounded: false, reason: sourcePassages.length ? 'unavailable' : 'not_indexed' };
+      data.source = {
+        grounded: false,
+        reason: sourcePassages.length ? 'unavailable' : (effectiveSourceMode === 'ebook' ? 'not_indexed' : 'no_source_available'),
+      };
+    }
+    data.sourceMode = effectiveSourceMode;
+    if (effectiveSourceMode !== sourceMode) {
+      data.requestedSourceMode = sourceMode;
+      data.sourceModeDowngraded = true;
     }
     // Surface WHY an indexed chapter still came back ungrounded. Without this the
     // only signal is a teacher's screenshot of a "General knowledge" badge; here

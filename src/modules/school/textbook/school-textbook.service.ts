@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, HttpException, HttpStatus, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
@@ -39,9 +39,19 @@ const _BULK_WORKERS = Number(process.env.TEXTBOOK_BULK_WORKERS || 3);
  * the school database has a single writer by design.
  */
 @Injectable()
-export class SchoolTextbookService {
+export class SchoolTextbookService implements OnModuleInit {
   private readonly logger = new Logger(SchoolTextbookService.name);
   private schemaReady = false;
+
+  onModuleInit() {
+    // Fire-and-forget: catches up any recording whose transcript finished
+    // before lecture grounding shipped (or any lecture_chunks row lost since).
+    // Never blocks boot — chunking is plain-text work, so this is cheap enough
+    // to just run on every startup rather than needing a one-off migration.
+    void this.backfillLectureTranscriptIndex().catch((err) => {
+      this.logger.warn(`Lecture-transcript backfill failed: ${(err as Error).message}`);
+    });
+  }
 
   constructor(
     private readonly aiBridge: AiBridgeService,
@@ -83,6 +93,39 @@ export class SchoolTextbookService {
       `UPDATE textbook_chunks
           SET tokens = GREATEST(1, CEIL(LENGTH(content) / 4.0)::INTEGER)
         WHERE tokens IS NULL`,
+    );
+    // Lecture transcript passages — the same page-tagged-passage idea as
+    // textbook_chunks, but chunked from a recorded lecture's Whisper transcript
+    // instead of a chapter PDF. Populated by indexLectureTranscript once a
+    // recording's transcript_status flips to 'done' (see school-class.service.ts).
+    // A recording carries both a chapter_id and a topic_id, the same curriculum
+    // keys textbook_chunks uses, so retrieval mirrors getChapterPassages exactly.
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS lecture_chunks (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        institute_id  UUID NOT NULL,
+        recording_id  UUID NOT NULL,
+        chapter_id    UUID,
+        topic_id      UUID,
+        chunk_index   INTEGER NOT NULL,
+        content       TEXT NOT NULL,
+        tokens        INTEGER,
+        source_title  TEXT,
+        recorded_at   TIMESTAMP,
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.ds.query(
+      `CREATE INDEX IF NOT EXISTS idx_lecture_chunks_topic
+       ON lecture_chunks (institute_id, topic_id, chunk_index)`,
+    );
+    await this.ds.query(
+      `CREATE INDEX IF NOT EXISTS idx_lecture_chunks_chapter
+       ON lecture_chunks (institute_id, chapter_id, chunk_index)`,
+    );
+    await this.ds.query(
+      `CREATE INDEX IF NOT EXISTS idx_lecture_chunks_recording
+       ON lecture_chunks (recording_id)`,
     );
     await this.ds.query(`
       CREATE TABLE IF NOT EXISTS textbook_sources (
@@ -409,6 +452,214 @@ export class SchoolTextbookService {
       this.logger.warn(`Textbook passage lookup failed: ${(err as Error).message}`);
       return [];
     }
+  }
+
+  // Same sizing as the textbook chunker (ai_services/core/textbook.py) so a
+  // mixed ebook+lecture source set behaves predictably under one token budget.
+  private static readonly _TRANSCRIPT_TARGET_CHARS = 2400;
+  private static readonly _TRANSCRIPT_MIN_CHARS = 120;
+
+  /**
+   * Split a raw Whisper transcript into ~600-token passages.
+   *
+   * Unlike a chapter PDF, a transcript has no page or paragraph structure — it's
+   * one long run of speech-to-text — so chunking falls back to sentence
+   * boundaries only, packing sentences up to the target size the same way
+   * _split_long does for an over-long textbook page.
+   */
+  private chunkTranscriptText(text: string): Array<{ chunk_index: number; content: string; tokens: number }> {
+    const clean = (text || '').replace(/\s+/g, ' ').trim();
+    if (clean.length < SchoolTextbookService._TRANSCRIPT_MIN_CHARS) return [];
+
+    const sentences = clean.split(/(?<=[.!?])\s+/).filter(Boolean);
+    const target = SchoolTextbookService._TRANSCRIPT_TARGET_CHARS;
+    const chunks: string[] = [];
+    let buf = '';
+    for (const s of sentences) {
+      if (buf && buf.length + s.length + 1 > target) {
+        chunks.push(buf.trim());
+        buf = s;
+      } else {
+        buf = buf ? `${buf} ${s}` : s;
+      }
+    }
+    if (buf.trim()) chunks.push(buf.trim());
+
+    return chunks
+      .filter((c) => c.length >= SchoolTextbookService._TRANSCRIPT_MIN_CHARS)
+      .map((content, i) => ({
+        chunk_index: i,
+        content,
+        tokens: Math.max(1, Math.ceil(content.length / 4)),
+      }));
+  }
+
+  /**
+   * Chunk and persist a recording's transcript for grounded generation.
+   *
+   * Called once transcript_status flips to 'done' (see processTranscription in
+   * school-class.service.ts). Best-effort and silent on failure, same as
+   * getChapterPassages below: a lecture that fails to index simply isn't
+   * offered as a source, it never blocks the transcript/notes pipeline that
+   * already succeeded.
+   */
+  async indexLectureTranscript(instituteId: string, recordingId: string, transcript: string): Promise<void> {
+    if (!instituteId || !recordingId || !transcript) return;
+    try {
+      await this.ensureSchema();
+      const rows = await this.ds.query(
+        `SELECT chapter_id, topic_id, title, recorded_date
+         FROM class_recordings WHERE id::text = $1::text AND institute_id::text = $2::text LIMIT 1`,
+        [recordingId, instituteId],
+      );
+      if (!rows.length) return;
+      const rec = rows[0];
+      if (!rec.chapter_id && !rec.topic_id) return; // nothing to ground against
+
+      const chunks = this.chunkTranscriptText(transcript);
+      await this.ds.query(`DELETE FROM lecture_chunks WHERE recording_id::text = $1::text`, [recordingId]);
+      if (!chunks.length) return;
+
+      const values: string[] = [];
+      const params: any[] = [];
+      chunks.forEach((c, i) => {
+        const base = i * 8;
+        values.push(`($${base + 1}::uuid, $${base + 2}::uuid, $${base + 3}::uuid, $${base + 4}::uuid, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`);
+        params.push(
+          instituteId, recordingId, rec.chapter_id, rec.topic_id,
+          c.chunk_index, c.content, c.tokens, rec.title,
+        );
+      });
+      await this.ds.query(
+        `INSERT INTO lecture_chunks
+           (institute_id, recording_id, chapter_id, topic_id, chunk_index, content, tokens, source_title)
+         VALUES ${values.join(',')}`,
+        params,
+      );
+      this.logger.log(`Indexed ${chunks.length} transcript passage(s) for recording ${recordingId}`);
+    } catch (err) {
+      this.logger.warn(`Lecture transcript indexing failed for recording ${recordingId}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Catch up any recording whose transcript finished before lecture grounding
+   * shipped (or any lecture_chunks row lost since) — otherwise a transcript
+   * that already says transcript_status='done' would silently never become a
+   * usable source, since indexLectureTranscript only runs at the moment a
+   * transcription job completes. Idempotent (skips recordings that already
+   * have chunks) and cheap (plain-text chunking, no external calls), so this
+   * runs on every boot rather than needing a one-off migration.
+   */
+  private async backfillLectureTranscriptIndex(): Promise<void> {
+    await this.ensureSchema();
+    const rows: Array<{ id: string; institute_id: string; transcript: string }> = await this.ds.query(
+      `SELECT cr.id, cr.institute_id, cr.transcript
+       FROM class_recordings cr
+       WHERE cr.transcript_status = 'done' AND cr.transcript IS NOT NULL
+         AND length(cr.transcript) >= $1
+         AND (cr.chapter_id IS NOT NULL OR cr.topic_id IS NOT NULL)
+         AND NOT EXISTS (SELECT 1 FROM lecture_chunks lc WHERE lc.recording_id = cr.id)
+       ORDER BY cr.created_at DESC
+       LIMIT 500`,
+      [SchoolTextbookService._TRANSCRIPT_MIN_CHARS],
+    );
+    if (!rows.length) return;
+    this.logger.log(`Backfilling lecture-transcript grounding index for ${rows.length} recording(s)`);
+    for (const r of rows) {
+      await this.indexLectureTranscript(r.institute_id, r.id, r.transcript);
+    }
+  }
+
+  /**
+   * Passages from indexed lecture transcripts for a scope.
+   *
+   * Deliberately strict, unlike getChapterPassages' by-name fallback: when a
+   * specific topic is requested, only that topic's own recording(s) are used.
+   * A topic with no lecture is not widened to "any lecture in this chapter" —
+   * a recording from a different topic in the same chapter is not this
+   * topic's lecture, and silently citing it would misattribute the source.
+   * The chapter-scoped query below only fires when the caller genuinely asked
+   * for the chapter (no topicId at all — e.g. a chapter-wide deck), not as a
+   * fallback from an empty topic.
+   */
+  async getLectureTranscriptPassages(
+    instituteId: string,
+    scope: { topicId?: string | null; chapterId?: string | null },
+  ): Promise<any[]> {
+    if (!instituteId || (!scope.topicId && !scope.chapterId)) return [];
+    try {
+      await this.ensureSchema();
+      if (scope.topicId) {
+        return await this.ds.query(
+          `SELECT lc.chunk_index, lc.content, lc.tokens, lc.source_title
+           FROM lecture_chunks lc
+           WHERE lc.institute_id::text = $1::text AND lc.topic_id::text = $2::text
+           ORDER BY lc.recorded_at NULLS LAST, lc.created_at, lc.chunk_index`,
+          [instituteId, scope.topicId],
+        );
+      }
+      if (!scope.chapterId) return [];
+      return await this.ds.query(
+        `SELECT lc.chunk_index, lc.content, lc.tokens, lc.source_title
+         FROM lecture_chunks lc
+         WHERE lc.institute_id::text = $1::text AND lc.chapter_id::text = $2::text
+         ORDER BY lc.recorded_at NULLS LAST, lc.created_at, lc.chunk_index`,
+        [instituteId, scope.chapterId],
+      );
+    } catch (err) {
+      this.logger.warn(`Lecture passage lookup failed: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Remove a recording's indexed transcript passages.
+   *
+   * Called when the recording itself is deleted (see SchoolClassService#remove)
+   * — without this, a deleted lecture's chunks stay in lecture_chunks forever
+   * and keep surfacing as an AI source for a recording that no longer exists.
+   */
+  async deleteLectureChunks(recordingId: string): Promise<void> {
+    if (!recordingId) return;
+    try {
+      await this.ensureSchema();
+      await this.ds.query(`DELETE FROM lecture_chunks WHERE recording_id::text = $1::text`, [recordingId]);
+    } catch (err) {
+      this.logger.warn(`Could not remove lecture chunks for recording ${recordingId}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Merge ebook and/or lecture-transcript passages for grounded generation.
+   *
+   * The single entry point content/assessment/ppt generation should call
+   * instead of getChapterPassages directly, so "which source(s) is this
+   * institute/teacher allowed to ground on" is decided in one place. Each
+   * passage is tagged with `source` so the AI service can cite it correctly
+   * and describe a mixed source set accurately.
+   */
+  async getGroundingPassages(
+    instituteId: string,
+    scope: { chapterId?: string | null; topicId?: string | null },
+    sourceMode: 'ebook' | 'lecture' | 'both' = 'ebook',
+  ): Promise<{ passages: any[]; ebookAvailable: boolean; lectureAvailable: boolean }> {
+    const wantEbook = sourceMode === 'ebook' || sourceMode === 'both';
+    const wantLecture = sourceMode === 'lecture' || sourceMode === 'both';
+
+    const [ebookRaw, lectureRaw] = await Promise.all([
+      wantEbook ? this.getChapterPassages(instituteId, scope.chapterId) : Promise.resolve([]),
+      wantLecture ? this.getLectureTranscriptPassages(instituteId, scope) : Promise.resolve([]),
+    ]);
+
+    const ebookPassages = ebookRaw.map((p: any) => ({ ...p, source: 'ebook' }));
+    const lecturePassages = lectureRaw.map((p: any) => ({ ...p, source: 'lecture' }));
+
+    return {
+      passages: [...ebookPassages, ...lecturePassages],
+      ebookAvailable: ebookPassages.length > 0,
+      lectureAvailable: lecturePassages.length > 0,
+    };
   }
 
   /**

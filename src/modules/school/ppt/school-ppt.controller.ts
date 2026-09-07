@@ -11,6 +11,14 @@ import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 export class SchoolPptController {
   constructor(private readonly svc: SchoolPptService) {}
 
+  @Get('source-availability')
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_ppt_generator')
+  sourceAvailability(@Query() query: any, @Req() req: Request & { user?: any }) {
+    return this.svc.getSourceAvailability(req.user?.instituteId, query);
+  }
+
   @Post('generate')
   @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')

@@ -28,6 +28,7 @@ const AI_FEATURES: Array<{ id: string; label: string; category: string }> = [
   { id: 'content_flashcard', label: 'Flashcards', category: 'content' },
   { id: 'content_revision_checklist', label: 'Revision Checklist', category: 'content' },
   { id: 'content_faq', label: 'FAQ', category: 'content' },
+  { id: 'content_lecture_grounding', label: 'Generate from Lecture Transcripts', category: 'content' },
   { id: 'doubt_resolver', label: 'Doubt Resolver', category: 'student' },
   { id: 'personalised_study_plan', label: 'Personalised Study Plan', category: 'student' },
   { id: 'career_guidance_report', label: 'Career Guidance Report', category: 'student' },
