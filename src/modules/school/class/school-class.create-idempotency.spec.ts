@@ -88,6 +88,7 @@ describe('SchoolClassService — P0-3 create() idempotency', () => {
       ds as any,
       { setCacheControl: jest.fn().mockResolvedValue(undefined), keyFromUrl: jest.fn(() => null) } as any,
       {} as any,
+      {} as any, // textbooks (4th slot, added upstream) — unreachable here: enqueueLectureJob is mocked
       {} as any,
       {} as any,
       { isConfigured: () => false } as any,

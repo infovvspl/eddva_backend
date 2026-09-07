@@ -43,9 +43,13 @@ describe('SchoolClassService — durable lecture queue', () => {
       transcribeAudio: jest.fn().mockResolvedValue({ rawTranscript: 'x'.repeat(60) }),
       generateNotesFromTranscript: jest.fn().mockResolvedValue({ notes: 'y'.repeat(60) }),
     };
-    // Constructor order: ds, s3, aiBridge, thumbnail, transcode, stream, r2, lectureQueue
+    // Constructor order: ds, s3, aiBridge, textbooks, thumbnail, transcode, stream, r2, lectureQueue.
+    // `textbooks` gained a 4th-position slot upstream; processTranscription calls
+    // textbooks.indexLectureTranscript(), so it needs a callable mock rather than {}.
     svc = new SchoolClassService(
-      ds as any, {} as any, aiBridge as any, {} as any, {} as any, {} as any, {} as any, queue as any,
+      ds as any, {} as any, aiBridge as any,
+      { indexLectureTranscript: jest.fn().mockResolvedValue(undefined) } as any,
+      {} as any, {} as any, {} as any, {} as any, queue as any,
     );
     // keep the decorative image pipeline out of these tests
     (svc as any).enrichNotesWithImages = jest.fn().mockResolvedValue({ notes: 'n', images: [] });
