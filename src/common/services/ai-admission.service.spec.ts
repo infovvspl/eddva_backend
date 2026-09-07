@@ -413,3 +413,78 @@ describe('P0-4.5 (G2) — serialised background calls for one tenant', () => {
     expect(block).toContain("topicResult.status === 'fulfilled'");
   });
 });
+
+// ── P0-4.5 (R1): content.service background translations ─────────────────────
+// The BEHAVIOUR of the override (passing { pool } routes to that pool, and a
+// body-supplied pool is inert) is proven in ai-bridge.attribution.spec.ts.
+// What is verified here is that content.service actually PASSES the override at
+// both background call sites. content.service is not directly instantiable in a
+// unit test without broad integration scaffolding, so this is a source guard —
+// the same approach already used for battle.service.ts above.
+describe('P0-4.5 (R1) — content.service background translations use the BACKGROUND pool', () => {
+  const src = (): string => {
+    const fs = require('fs');
+    const path = require('path');
+    return fs.readFileSync(
+      path.join(__dirname, '..', '..', 'modules', 'content', 'content.service.ts'), 'utf8');
+  };
+  const block = (marker: string, len = 1400): string => {
+    const body = src();
+    const i = body.indexOf(marker);
+    expect(i).toBeGreaterThan(-1);
+    return body.slice(i, i + len);
+  };
+
+  it('imports AdmissionPool', () => {
+    expect(src()).toContain("import { AdmissionPool } from '../../common/services/ai-admission.constants';");
+  });
+
+  it('A+C. _searchNoteImage translates with BACKGROUND and still passes tenantId', () => {
+    const b = block('private async _searchNoteImage(');
+    expect(b).toContain('this.aiBridgeService.translateText(');
+    expect(b).toContain('{ pool: AdmissionPool.BACKGROUND }');
+    // tenantId must still be the 2nd argument, before the options object
+    expect(b).toMatch(/translateText\(\s*\{[^}]*targetLanguage:\s*'en'[^}]*\},\s*tenantId,\s*\{ pool: AdmissionPool\.BACKGROUND \}/);
+  });
+
+  it('B+C. ensureEnglishLectureNotes translates with BACKGROUND and still passes tenantId', () => {
+    const b = block('private async ensureEnglishLectureNotes(');
+    expect(b).toContain('this.aiBridgeService.translateText(');
+    expect(b).toContain('{ pool: AdmissionPool.BACKGROUND }');
+    expect(b).toMatch(/translateText\(\s*\{[^}]*targetLanguage:\s*'en'[^}]*\},\s*tenantId,\s*\{ pool: AdmissionPool\.BACKGROUND \}/);
+  });
+
+  it('D. best-effort behaviour is preserved at both sites', () => {
+    const s1 = block('private async _searchNoteImage(');
+    // feature gate + fallback to the original term on a failed/empty translation
+    expect(s1).toContain("checkFeature(tenantId, 'ai_lecture_processing')");
+    expect(s1).toContain('?? searchTerm');
+    const s2 = block('private async ensureEnglishLectureNotes(');
+    expect(s2).toContain('catch');
+    expect(s2).toContain('return cleaned;'); // original notes retained on failure
+  });
+
+  it('E. /translate itself is still classified INTERACTIVE (not globally reclassified)', () => {
+    expect(classifyPath('/translate')).toBe(AdmissionPool.INTERACTIVE);
+  });
+
+  it('exactly the two BACKGROUND callers are overridden — and no others', () => {
+    const body = src();
+    const calls = (body.match(/this\.aiBridgeService\.translateText\(/g) || []).length;
+    const overrides = (body.match(/\{ pool: AdmissionPool\.BACKGROUND \}/g) || []).length;
+    // 4 call sites: 2 background (overridden) + 2 genuinely interactive (not).
+    expect(calls).toBe(4);
+    expect(overrides).toBe(2);
+  });
+
+  it('E. user-facing translate endpoints keep the INTERACTIVE pool (no override)', () => {
+    // translateLectureTranscript / translateLectureNotes are reached from
+    // content.controller.ts (a user clicks translate and waits), so overriding
+    // them to BACKGROUND would degrade a genuinely interactive request.
+    for (const fn of ['async translateLectureTranscript(', 'async translateLectureNotes(']) {
+      const b = block(fn, 2600);
+      expect(b).toContain('this.aiBridgeService.translateText(');
+      expect(b).not.toContain('AdmissionPool.BACKGROUND');
+    }
+  });
+});

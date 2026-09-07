@@ -34,6 +34,7 @@ import { Student } from '../../database/entities/student.entity';
 import { StudyMaterial, StudyMaterialExam, StudyMaterialType } from '../study-material/study-material.entity';
 
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
+import { AdmissionPool } from '../../common/services/ai-admission.constants';
 import { NotificationService } from '../notification/notification.service';
 import { StudyPlanService } from '../study-plan/study-plan.service';
 import { TenantAiFeatureService } from '../../common/services/tenant-ai-feature.service';
@@ -139,9 +140,15 @@ ${notes.slice(0, 4000)}`,
             let englishTerm = searchTerm;
             if (language === 'od' && /[\u0B00-\u0B7F]/.test(searchTerm)) {
                 if (await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing')) {
+                    // P0-4.5 (R1): note-image enrichment is BACKGROUND content work
+                    // (reached fire-and-forget from _enrichCoachingNotesWithImageSearch).
+                    // /translate is INTERACTIVE by default, so without this override a
+                    // background enrichment would occupy one of the two interactive
+                    // slots reserved for student doubts.
                     const translated = await this.aiBridgeService.translateText(
                         { text: searchTerm, targetLanguage: 'en' },
                         tenantId,
+                        { pool: AdmissionPool.BACKGROUND },
                     ) as any;
                     englishTerm = String(
                         translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
@@ -386,9 +393,13 @@ ${notes.slice(0, 4000)}`,
                 return cleaned;
             }
 
+            // P0-4.5 (R1): lecture-notes normalisation is BACKGROUND work. This
+            // method has no callers today, so the override is defensive — it keeps
+            // the leak from reappearing the moment it is wired up.
             const result = await this.aiBridgeService.translateText(
                 { text: cleaned, targetLanguage: 'en' },
                 tenantId,
+                { pool: AdmissionPool.BACKGROUND },
             ) as any;
 
             const translated: string = result?.translatedText ?? result?.text ?? result?.translation ?? '';
