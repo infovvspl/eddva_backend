@@ -8,7 +8,7 @@ import { BullModule } from '@nestjs/bull';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { redisStore } from 'cache-manager-redis-yet';
 
-import appConfig, { jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig, streamingConfig } from './config/app.config';
+import appConfig, { jwtConfig, redisConfig, aiConfig, aiAdmissionConfig, otpConfig, mailConfig, storageConfig, streamingConfig } from './config/app.config';
 import { coachingDbConfig, schoolDbConfig } from './config/database.config';
 import { TenantAiFeatureModule } from './common/services/tenant-ai-feature.module';
 
@@ -139,7 +139,7 @@ const ALL_COACHING_ENTITIES = [
     // ── Config ───────────────────────────────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig, streamingConfig],
+      load: [appConfig, jwtConfig, redisConfig, aiConfig, aiAdmissionConfig, otpConfig, mailConfig, storageConfig, streamingConfig],
       envFilePath: ['.env.local', '.env'],
     }),
 

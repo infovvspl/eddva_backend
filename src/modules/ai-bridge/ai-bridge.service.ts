@@ -6,6 +6,8 @@ import { firstValueFrom } from 'rxjs';
 import { randomUUID } from 'crypto';
 import { AiUsageService } from '../ai-usage/ai-usage.service';
 import { getAiRequestContext } from '../../common/context/ai-request-context';
+import { AiAdmissionService, AdmissionTicket } from '../../common/services/ai-admission.service';
+import { AdmissionPool, classifyPath, ADMISSION_EXEMPT_PATHS } from '../../common/services/ai-admission.constants';
 
 /**
  * AiBridgeService
@@ -29,6 +31,7 @@ export class AiBridgeService {
     private readonly http: HttpService,
     config: ConfigService,
     private readonly aiUsage: AiUsageService,
+    private readonly admission: AiAdmissionService,
   ) {
     this.baseUrl = config.get<string>('ai.baseUrl');
     this.apiKey = config.get<string>('ai.apiKey');
@@ -122,7 +125,16 @@ export class AiBridgeService {
     return h;
   }
 
-  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string): Promise<T> {
+  /**
+   * @param poolOverride P0-4.5 (G1): force the admission pool for this call.
+   *   A TypeScript argument, so it is reachable only from server-side callers —
+   *   there is deliberately no request header or body field that can select a
+   *   pool, which would let a client route its own traffic into the interactive
+   *   pool. Used when the PATH alone misclassifies the workload: lecture note
+   *   enrichment translates search terms via /translate (interactive by default)
+   *   while running as background work.
+   */
+  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string, poolOverride?: AdmissionPool): Promise<T> {
     const mapped = AiBridgeService.FEATURE_MAP[path];
     const v = vertical || 'coaching';
 
@@ -152,11 +164,26 @@ export class AiBridgeService {
     const requestId = ctx.requestId || randomUUID();
     const userId = ctx.userId || undefined;
     const userRole = ctx.userRole || undefined;
+    // ── P0-4.4 admission control ──────────────────────────────────────────────
+    // Bounded, Redis-backed slot per pool so background work can never occupy every
+    // Django sync worker and stall interactive traffic. Identity is the TRUSTED
+    // instituteId from AiRequestContext (JWT for HTTP, persisted job data for
+    // workers) — never the `tenantId` parameter, which upstream may have resolved
+    // from client-supplied tenant headers.
+    const effectiveTimeoutMs = timeoutMs ?? this.timeout;
+    const pool: AdmissionPool = poolOverride ?? classifyPath(path);
+    let ticket: AdmissionTicket | null = null;
+    if (!ADMISSION_EXEMPT_PATHS.has(path)) {
+      ticket = await this.admission.acquire(
+        pool, ctx.instituteId ?? null, effectiveTimeoutMs, requestId, mapped?.feature ?? path,
+      );
+    }
+
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
           headers: this.headers(tenantId, vertical, board, requestId, userId, userRole),
-          timeout: timeoutMs ?? this.timeout,
+          timeout: effectiveTimeoutMs,
         }),
       );
       // We do NOT call this.aiUsage.record() here for successful requests to avoid double-counting.
@@ -207,6 +234,11 @@ export class AiBridgeService {
         });
       }
       throw err;
+    } finally {
+      // Guarantees the slot is freed on success, throw, Django error, timeout and
+      // cancellation alike. The Redis lease is the second line of defence for the
+      // one case this cannot cover: the process being SIGKILLed mid-request.
+      await this.admission.release(ticket, requestId);
     }
   }
 
@@ -353,8 +385,12 @@ export class AiBridgeService {
   async translateText(
     payload: { text: string; targetLanguage: string },
     tenantId?: string,
+    opts?: { pool?: AdmissionPool },
   ) {
-    return this.post('/translate', payload, tenantId, 60_000);
+    // Interactive by default (a user is waiting on a translation). Background
+    // callers — currently lecture note-image enrichment — pass the pool
+    // explicitly so long-running content work cannot occupy interactive capacity.
+    return this.post('/translate', payload, tenantId, 60_000, undefined, undefined, opts?.pool);
   }
 
   // ── AI #7 — Speech-to-Text Notes ─────────────────────────────────────────

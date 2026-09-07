@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { InjectQueue } from '@nestjs/bull';
@@ -12,6 +12,7 @@ import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { ThumbnailService } from './thumbnail.service';
 import { R2Service } from '../../storage/r2.service';
 import { aiRequestStorage, getAiRequestContext } from '../../../common/context/ai-request-context';
+import { AdmissionPool } from '../../../common/services/ai-admission.constants';
 import {
   LECTURE_JOB,
   LECTURE_QUEUE,
@@ -30,6 +31,13 @@ import {
 export class SchoolClassService implements OnModuleInit {
   private readonly logger = new Logger(SchoolClassService.name);
   private tableReady = false;
+  /**
+   * P0-3: whether uq_class_recordings_institute_video_key exists. `create()` may
+   * only use ON CONFLICT once it does — Postgres rejects an ON CONFLICT target
+   * with no matching unique index, which would take the upload endpoint down.
+   * When false we fall back to the previous plain INSERT (no dedupe, but working).
+   */
+  private recordingKeyIndexReady = false;
 
   private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
@@ -152,7 +160,83 @@ export class SchoolClassService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS idx_lecture_jobs_institute ON lecture_jobs(institute_id);
       CREATE INDEX IF NOT EXISTS idx_lecture_jobs_status ON lecture_jobs(status);
     `);
+
+    await this.ensureRecordingUploadKeyIndex();
     this.tableReady = true;
+  }
+
+  /**
+   * P0-3 (B1) — partial unique index backing duplicate-upload protection.
+   *
+   * `video_key` is minted per presign as
+   * `tenants/<institute>/class-recordings/<Date.now()>-<uuid>-<name>`, so it is
+   * unique per upload intent and stable across a replay of the same request —
+   * which makes (institute_id, video_key) a natural idempotency identity.
+   * The index is PARTIAL because live_stream/youtube recordings legitimately
+   * carry no key, and multiple NULLs must stay allowed.
+   *
+   * Safe and idempotent: IF NOT EXISTS, and it refuses to run at all while
+   * duplicates exist rather than touching a single row. If it cannot be created
+   * the service keeps working without dedupe (see recordingKeyIndexReady).
+   */
+  private async ensureRecordingUploadKeyIndex(): Promise<void> {
+    try {
+      const duplicates = await this.ds.query(
+        `SELECT institute_id, video_key, COUNT(*)::int AS n
+           FROM class_recordings
+          WHERE video_key IS NOT NULL
+          GROUP BY institute_id, video_key
+         HAVING COUNT(*) > 1
+          LIMIT 5`,
+      );
+      if (duplicates.length) {
+        // Never merge or delete data to force an index through — surface it loudly
+        // and leave the rows exactly as they are for a human to resolve.
+        this.recordingKeyIndexReady = false;
+        this.logger.error(
+          `P0-3: duplicate (institute_id, video_key) rows exist — uq_class_recordings_institute_video_key ` +
+          `was NOT created and duplicate-upload protection is INACTIVE. No rows were modified. ` +
+          `Example: institute=${duplicates[0].institute_id} key=${duplicates[0].video_key} count=${duplicates[0].n}`,
+        );
+        return;
+      }
+      await this.ds.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_class_recordings_institute_video_key
+           ON class_recordings (institute_id, video_key)
+           WHERE video_key IS NOT NULL`,
+      );
+      // Confirm rather than assume: create() keys its ON CONFLICT off this flag.
+      this.recordingKeyIndexReady = await this.uploadKeyIndexExists();
+      if (!this.recordingKeyIndexReady) {
+        this.logger.error('P0-3: uq_class_recordings_institute_video_key missing after creation — dedupe INACTIVE');
+      }
+    } catch (err: any) {
+      this.logger.error(`P0-3: could not ensure uq_class_recordings_institute_video_key: ${err?.message}`);
+      // N1: ensureTable() is already marked ready and never runs again, so giving
+      // up here would leave dedupe off for the LIFETIME of the process. The CREATE
+      // can fail while the index is in fact present (a transient blip, or another
+      // process having created it), so re-check once before falling back.
+      try {
+        this.recordingKeyIndexReady = await this.uploadKeyIndexExists();
+      } catch {
+        this.recordingKeyIndexReady = false; // keep the safe fallback
+      }
+      this.logger.log(
+        this.recordingKeyIndexReady
+          ? 'P0-3: index is present despite the error — duplicate-upload protection ACTIVE'
+          : 'P0-3: index absent — duplicate-upload protection INACTIVE until restart',
+      );
+    }
+  }
+
+  /** Read-only: is the P0-3 partial unique index actually present? */
+  private async uploadKeyIndexExists(): Promise<boolean> {
+    const present = await this.ds.query(
+      `SELECT 1 FROM pg_indexes
+        WHERE tablename = 'class_recordings'
+          AND indexname = 'uq_class_recordings_institute_video_key'`,
+    );
+    return present.length > 0;
   }
 
   private async migrateLiveRecordings() {
@@ -432,6 +516,25 @@ export class SchoolClassService implements OnModuleInit {
     return { success: true, data: { videoUrl: rec.video_url, source: rec.source || 'upload' } };
   }
 
+  /**
+   * P0-3 (B2) — may this caller be handed a recording that already exists under
+   * the video_key they submitted?
+   *
+   * The tenant boundary is enforced by construction: the lookup is scoped to the
+   * caller's resolved institute, so a cross-tenant row can never be returned.
+   * Within an institute the owner may always have their own recording back (that
+   * is the replay this feature exists for), and admins already see every
+   * recording in the institute via list(). Any other teacher presenting someone
+   * else's key gets a bare 409 — the key is taken, and we disclose nothing about
+   * the recording behind it.
+   */
+  private assertCanReuseRecording(user: any, recording: any): void {
+    const isOwner = !!user?.id && String(recording.teacher_user_id) === String(user.id);
+    const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'INSTITUTE_ADMIN';
+    if (isOwner || isAdmin) return;
+    throw new ConflictException('This video has already been uploaded');
+  }
+
   async create(user: any, body: any) {
     await this.ensureTable();
     if (!body.title?.trim()) throw new BadRequestException('Title is required');
@@ -442,6 +545,17 @@ export class SchoolClassService implements OnModuleInit {
     const instituteId = this.resolveInstituteId(user, body.instituteId);
     const source = body.source === 'youtube' ? 'youtube' : 'upload';
     const language = this.normalizeLanguage(body.language);
+    // P0-3 (B3): an upload MUST carry the presigned key. It is the identity that
+    // makes a replayed submission recognisable, so allowing it to be omitted would
+    // let any client opt out of duplicate protection — and a duplicate here costs a
+    // second full transcription + notes run. YouTube (and live_stream, inserted
+    // elsewhere) have no uploaded object and legitimately keep a NULL key.
+    const videoKey: string | null = typeof body.videoKey === 'string' && body.videoKey.trim()
+      ? body.videoKey.trim()
+      : null;
+    if (source === 'upload' && !videoKey) {
+      throw new BadRequestException('videoKey is required for uploaded recordings');
+    }
     let effectiveSubjectId = body.subjectId;
     let effectiveChapterId = body.chapterId || null;
     let effectiveTopicId = body.topicId || null;
@@ -540,31 +654,90 @@ export class SchoolClassService implements OnModuleInit {
         throw new BadRequestException('You are not assigned to this class, section, and subject');
       }
     }
-    const rows = await this.ds.query(
+    // P0-3 (B2): dedupe a replayed submission on (institute_id, video_key).
+    //
+    // The lecture queue dedupes on recording_id, which cannot help here: every
+    // create previously minted a fresh id, so a replayed POST produced a second
+    // recording and a second full AI pipeline. Conflict semantics move the guard
+    // upstream to where identity actually is. ON CONFLICT is only usable once the
+    // backing partial index exists, so fall back to a plain insert when it does not.
+    const insertParams = [
+      instituteId,
+      body.classId || null,
+      body.sectionId || null,
+      effectiveSubjectId || null,
+      effectiveChapterId || null,
+      effectiveTopicId || null,
+      user.id,
+      body.title.trim(),
+      body.description || null,
+      body.videoUrl.trim(),
+      videoKey,
+      body.thumbnailUrl || null,
+      source,
+      body.recordedDate ? new Date(body.recordedDate) : new Date(),
+      body.duration || null,
+      language,
+    ];
+    const conflictClause = this.recordingKeyIndexReady && videoKey
+      ? `ON CONFLICT (institute_id, video_key) WHERE video_key IS NOT NULL DO NOTHING`
+      : '';
+    const insertSql =
       `INSERT INTO class_recordings
          (institute_id, class_id, section_id, subject_id, chapter_id, topic_id, teacher_user_id, title, description,
           video_url, video_key, thumbnail_url, source, recorded_date, duration, transcript_status, language)
        VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,null,$16)
-       RETURNING *`,
-      [
-        instituteId,
-        body.classId || null,
-        body.sectionId || null,
-        effectiveSubjectId || null,
-        effectiveChapterId || null,
-        effectiveTopicId || null,
-        user.id,
-        body.title.trim(),
-        body.description || null,
-        body.videoUrl.trim(),
-        body.videoKey || null,
-        body.thumbnailUrl || null,
-        source,
-        body.recordedDate ? new Date(body.recordedDate) : new Date(),
-        body.duration || null,
-        language,
-      ],
+       ${conflictClause}
+       RETURNING *`;
+    const findByUploadKey = () => this.ds.query(
+      `SELECT * FROM class_recordings WHERE institute_id = $1::uuid AND video_key = $2 LIMIT 1`,
+      [instituteId, videoKey],
     );
+
+    let rows = await this.ds.query(insertSql, insertParams);
+    if (!rows.length) {
+      // Someone else holds this key. Normally their row is committed and visible.
+      let prior = (await findByUploadKey())[0];
+      if (!prior) {
+        // R2: the conflicting transaction ABORTED, so DO NOTHING suppressed our
+        // insert but left no winner. A zero-row insert does not prove the row
+        // exists — retry once before giving up.
+        rows = await this.ds.query(insertSql, insertParams);
+        if (!rows.length) {
+          prior = (await findByUploadKey())[0];
+          if (!prior) {
+            throw new InternalServerErrorException('Could not create the recording. Please try again.');
+          }
+        }
+      }
+      if (prior) {
+        this.assertCanReuseRecording(user, prior);
+        // Idempotent replay: return the recording the first request created and
+        // deliberately run NONE of the side effects below — no second lecture
+        // job, no duplicate thumbnail/stream/transcode work.
+        //
+        // One exception, so this guard does not become a new orphaning path:
+        // create-then-enqueue is not atomic (separate auto-commit statements), so
+        // if the first request died in between, its recording exists with nothing
+        // queued and the short-circuit would strand it forever. Queue the MISSING
+        // job — never a second one; a recording that already has a job row is left
+        // strictly alone.
+        if (prior.source === 'upload') {
+          const existingJob = await this.ds.query(
+            `SELECT 1 FROM lecture_jobs WHERE recording_id = $1`,
+            [prior.id],
+          );
+          if (!existingJob.length) {
+            this.logger.warn(`P0-3: recording ${prior.id} had no lecture job — queueing the missing one`);
+            await this.enqueueLectureJob(prior, user, instituteId);
+          }
+        }
+        this.logger.log(
+          `P0-3: duplicate upload suppressed for institute=${instituteId} key=${videoKey} -> recording=${prior.id}`,
+        );
+        return { success: true, data: prior };
+      }
+    }
     const recording = rows[0];
     // Auto-generate thumbnail if none was manually provided (non-blocking).
     if (source === 'upload' && !body.thumbnailUrl) {
@@ -1212,9 +1385,14 @@ export class SchoolClassService implements OnModuleInit {
       if (language === 'od' && hasOdiaChars) {
         try {
           this.logger.log(`[Serper Search] Odia script detected. Translating search term: "${searchTerm}"`);
+          // P0-4.5 (G1): this runs inside lecture note-image enrichment, which is
+          // BACKGROUND work. /translate is interactive by default, so without an
+          // explicit pool a lecture would consume one of the two interactive slots
+          // that exist to keep student doubts responsive.
           const translated: any = await this.aiBridgeService.translateText(
             { text: searchTerm, targetLanguage: 'en' },
             instituteId,
+            { pool: AdmissionPool.BACKGROUND },
           );
           const translatedText = String(
             translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
@@ -1526,7 +1704,10 @@ export class SchoolClassService implements OnModuleInit {
     await this.setLectureJob(data.recordingId, LectureJobStatus.TRANSCRIBING, { started: true, attempt });
 
     await aiRequestStorage.run(
-      { userId: data.userId, userRole: data.userRole, requestId: data.requestId },
+      // P0-4.4: instituteId comes from the job row persisted at enqueue time, which
+      // enqueueLectureJob took from resolveInstituteId(user) on the guard-verified
+      // user — never reconstructed from client input at execution time.
+      { userId: data.userId, userRole: data.userRole, requestId: data.requestId, instituteId: data.instituteId },
       async () => {
         try {
           // Stage 1 — transcription (skip when already done unless forcing full re-run)

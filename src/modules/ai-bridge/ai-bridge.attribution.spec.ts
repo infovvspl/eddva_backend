@@ -1,6 +1,7 @@
 import { of } from 'rxjs';
 import { AiBridgeService } from './ai-bridge.service';
 import { aiRequestStorage } from '../../common/context/ai-request-context';
+import { AdmissionPool } from '../../common/services/ai-admission.constants';
 
 /**
  * P1-6: AiBridgeService forwards the authenticated identity from the request
@@ -10,6 +11,7 @@ import { aiRequestStorage } from '../../common/context/ai-request-context';
 describe('AiBridgeService — attribution forwarding', () => {
   let http: { post: jest.Mock };
   let aiUsage: { checkQuota: jest.Mock; record: jest.Mock; recordProviderEvent: jest.Mock };
+  let admission: { acquire: jest.Mock; release: jest.Mock };
   let svc: AiBridgeService;
 
   const cfg = { get: (k: string) => ({ 'ai.baseUrl': 'http://ai', 'ai.apiKey': 'K', 'ai.timeoutMs': 1000 }[k]) };
@@ -22,7 +24,11 @@ describe('AiBridgeService — attribution forwarding', () => {
       record: jest.fn(),
       recordProviderEvent: jest.fn(),
     };
-    svc = new AiBridgeService(http as any, cfg as any, aiUsage as any);
+    // P0-4.4: admission is stubbed out here so this suite keeps testing exactly
+    // one thing — attribution header forwarding. Admission itself is covered by
+    // ai-admission.service.spec.ts.
+    admission = { acquire: jest.fn().mockResolvedValue(null), release: jest.fn().mockResolvedValue(undefined) };
+    svc = new AiBridgeService(http as any, cfg as any, aiUsage as any, admission as any);
   });
 
   it('forwards X-User-Id / X-User-Role / X-Request-Id from the request context', async () => {
@@ -64,5 +70,80 @@ describe('AiBridgeService — attribution forwarding', () => {
     expect(aiUsage.recordProviderEvent).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: '429', requestId: 'req-err' }),
     );
+  });
+
+  // ── P0-4.4: admission uses the TRUSTED context identity, and always releases ──
+  it('P0-4.4: passes the trusted instituteId from the ALS context to admission', async () => {
+    await aiRequestStorage.run(
+      { userId: 'teacher-9', userRole: 'TEACHER', requestId: 'req-42', instituteId: 'inst-trusted-1' },
+      () => svc.getContentRecommendations({ studentId: 's', context: 'dashboard' }, 'tenant-param-DIFFERENT'),
+    );
+    expect(admission.acquire).toHaveBeenCalledTimes(1);
+    const [, tenantArg] = admission.acquire.mock.calls[0];
+    // The trusted ALS value wins over the tenantId PARAMETER, which upstream may
+    // have resolved from a client-supplied x-tenant-id header.
+    expect(tenantArg).toBe('inst-trusted-1');
+    expect(tenantArg).not.toBe('tenant-param-DIFFERENT');
+  });
+
+  it('P0-4.4: no trusted identity in context yields null, so the service fails closed', async () => {
+    await aiRequestStorage.run(
+      { userId: 'u', userRole: 'TEACHER', requestId: 'r' },
+      () => svc.getContentRecommendations({ studentId: 's', context: 'dashboard' }, 'tenant-param-DIFFERENT'),
+    );
+    const [, tenantArg] = admission.acquire.mock.calls[0];
+    expect(tenantArg).toBeNull();
+  });
+
+  it('P0-4.4: releases the slot on success', async () => {
+    await svc.getContentRecommendations({ studentId: 's', context: 'dashboard' }, 'inst-1');
+    expect(admission.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('P0-4.4: releases the slot when the upstream call throws', async () => {
+    http.post.mockImplementation(() => { throw new Error('django down'); });
+    await expect(
+      svc.getContentRecommendations({ studentId: 's', context: 'dashboard' }, 'inst-1'),
+    ).rejects.toThrow('django down');
+    expect(admission.release).toHaveBeenCalledTimes(1);
+  });
+
+  // ── P0-4.5 (G1): background lecture work must not take an interactive slot ──
+  it('G1: a normal /translate call stays INTERACTIVE', async () => {
+    await svc.translateText({ text: 'hola', targetLanguage: 'en' }, 'inst-1');
+    expect(admission.acquire).toHaveBeenCalledTimes(1);
+    const [pool] = admission.acquire.mock.calls[0];
+    expect(pool).toBe(AdmissionPool.INTERACTIVE);
+  });
+
+  it('G1: lecture enrichment translate is routed to BACKGROUND', async () => {
+    await svc.translateText(
+      { text: 'ଓଡ଼ିଆ', targetLanguage: 'en' },
+      'inst-1',
+      { pool: AdmissionPool.BACKGROUND },
+    );
+    const [pool] = admission.acquire.mock.calls[0];
+    expect(pool).toBe(AdmissionPool.BACKGROUND);
+    expect(pool).not.toBe(AdmissionPool.INTERACTIVE);
+  });
+
+  it('G1: the pool override is a server-side argument, never taken from body or headers', async () => {
+    // A client-supplied "pool" in the request body must be inert.
+    await svc.translateText({ text: 'x', targetLanguage: 'en', pool: 'interactive' } as any, 'inst-1');
+    const [pool] = admission.acquire.mock.calls[0];
+    expect(pool).toBe(AdmissionPool.INTERACTIVE); // from classifyPath, not from the body
+    // and the body value cannot force BACKGROUND -> INTERACTIVE either
+    admission.acquire.mockClear();
+    await svc.translateText(
+      { text: 'x', targetLanguage: 'en', pool: 'interactive' } as any,
+      'inst-1',
+      { pool: AdmissionPool.BACKGROUND },
+    );
+    expect(admission.acquire.mock.calls[0][0]).toBe(AdmissionPool.BACKGROUND);
+  });
+
+  it('G1: interactive paths are unaffected by the override plumbing', async () => {
+    await svc.resolveDoubt({ questionText: 'q' } as any, 'inst-1');
+    expect(admission.acquire.mock.calls[0][0]).toBe(AdmissionPool.INTERACTIVE);
   });
 });
