@@ -39,8 +39,6 @@ export class SchoolClassService implements OnModuleInit {
    */
   private recordingKeyIndexReady = false;
 
-  private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly s3Service: S3Service,

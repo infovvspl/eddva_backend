@@ -77,13 +77,6 @@ export class SchoolMaterialController {
   //   return this.svc.auditMaterialData();
   // }
 
-  @Post('dump')
-  dumpData(@Body() body: any) {
-    const fs = require('fs');
-    fs.writeFileSync('C:\\EDDVA SCHOOL\\eddva_backend\\frontend-dump.json', JSON.stringify(body, null, 2));
-    return { success: true };
-  }
-
   @Post('ai-slide-image')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   aiSlideImage(@SchoolUser() user: any, @Body() body: any) { return this.svc.generateSlideImage(user, body); }
