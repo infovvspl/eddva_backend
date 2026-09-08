@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
 import { randomUUID } from 'crypto';
+import { aiRequestStorage, getAiRequestContext } from '../../../common/context/ai-request-context';
 
 /** Anything that can run raw SQL — a DataSource, or a transaction's manager. */
 type SqlExecutor = { query(sql: string, params?: any[]): Promise<any> };
@@ -963,6 +964,27 @@ export class SchoolTextbookService implements OnModuleInit {
    * errors and the queue simply moves on.
    */
   private async processBulk(runId: string, instituteId: string, targets: any[]) {
+    // P0-4.4: pin the resolved institute into the AI request context for the whole
+    // run. AiContextInterceptor stamps `instituteId` from the JWT, and a
+    // SUPER_ADMIN has none — they name the school in the request body instead,
+    // which resolveInstitute honours for the DB lookup but which never reached
+    // the ALS store. Admission then failed closed on "no trusted tenant identity"
+    // before any HTTP call, so every super-admin-triggered ingest died in
+    // milliseconds and surfaced as "Could not index this PDF".
+    //
+    // instituteId here is the already-resolved, guard-verified id (SUPER_ADMIN,
+    // or the caller's own), never raw client input — the same rule the lecture
+    // queue follows in school-class.service.
+    //
+    // The surrounding user/role/requestId are preserved so attribution still
+    // names the person who started the run.
+    return aiRequestStorage.run(
+      { ...getAiRequestContext(), instituteId },
+      () => this.processBulkInner(runId, instituteId, targets),
+    );
+  }
+
+  private async processBulkInner(runId: string, instituteId: string, targets: any[]) {
     let cursor = 0;
     const workers = Math.max(1, Math.min(_BULK_WORKERS, targets.length));
 
