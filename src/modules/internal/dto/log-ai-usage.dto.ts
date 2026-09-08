@@ -37,4 +37,10 @@ export class LogAiUsageDto {
 
   @IsOptional() @IsString()
   userId?: string;
+
+  @IsOptional() @IsString()
+  userRole?: string;
+
+  @IsOptional() @IsString()
+  requestId?: string;
 }

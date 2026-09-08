@@ -8,7 +8,7 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 import { InterestQuizResult } from './entities/interest-quiz-result.entity';
 import { CareerReport, CareerReportData } from './entities/career-report.entity';
-import { SubmitQuizDto } from './dto/career.dto';
+import { SubmitCareerFeedbackDto, SubmitQuizDto } from './dto/career.dto';
 import { INTEREST_QUIZ_QUESTIONS, HollandLetter } from './data/quiz-questions';
 import { CAREER_PATHS, CareerPath } from './data/career-mappings';
 import { CAREER_REPORT_JOB, CAREER_REPORT_QUEUE } from './career.constants';
@@ -125,6 +125,9 @@ export class CareerService implements OnModuleInit {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_career_reports_student ON school_career_reports (student_id, generated_at);
+        ALTER TABLE school_career_reports ADD COLUMN IF NOT EXISTS feedback_rating VARCHAR;
+        ALTER TABLE school_career_reports ADD COLUMN IF NOT EXISTS feedback_comment TEXT;
+        ALTER TABLE school_career_reports ADD COLUMN IF NOT EXISTS feedback_at TIMESTAMPTZ;
 
         -- ── Single unified career paths table (static + AI-generated) ───────
         CREATE TABLE IF NOT EXISTS school_career_paths (
@@ -249,37 +252,82 @@ export class CareerService implements OnModuleInit {
   }
 
   /**
+   * Resolves an AI-generated career (title + the id the model made up) to the id
+   * it will actually be reachable at: a static id if it fuzzy-matches a known
+   * career, otherwise the same institute-scoped id saveAiCareers() persists it
+   * under. Single source of truth so the id saved in a CareerReport and the id
+   * saveAiCareers() writes to school_career_paths always agree — previously the
+   * frontend re-derived this id from a second, drifted copy of the regex list,
+   * which could point "Explore this career" at an id the table never got.
+   */
+  private resolveCareerId(title: string, rawId: string, instituteId: string): { id: string; isStatic: boolean } {
+    const slug = this.slugify(title);
+    const combined = `${title} ${rawId || ''}`.toLowerCase();
+    const staticId = this.fuzzyMatchId(combined) || this.fuzzyMatchId(slug);
+    if (staticId) return { id: staticId, isStatic: true };
+    // Institute-scoped id so the same AI career can exist per-institute without conflict.
+    return { id: `${slug}_${instituteId.replace(/-/g, '').slice(0, 8)}`, isStatic: false };
+  }
+
+  /**
    * Saves AI-generated careers that don't already exist in school_career_paths.
-   * All careers — static and AI-generated — live in the same table.
+   * All careers — static and AI-generated — live in the same table. Callers
+   * pass only non-static entries (see resolveCareerId), already carrying the
+   * final careerId to insert under.
    */
   private async saveAiCareers(
-    topCareers: Array<{ careerId?: string; title?: string; reasoning?: string; focusAreas?: string[] }>,
+    customCareers: Array<{
+      careerId: string;
+      title?: string;
+      reasoning?: string;
+      focusAreas?: string[];
+      exams?: string[];
+      topColleges?: string[];
+      salaryRange?: string;
+      duration?: string;
+      educationPath?: string[];
+      keySkills?: string[];
+      jobRoles?: string[];
+      prosCons?: { pros: string[]; cons: string[] };
+    }>,
     instituteId: string,
   ): Promise<void> {
-    for (const item of topCareers) {
+    for (const item of customCareers) {
       const title = (item.title || '').trim();
-      if (!title) continue;
-      // Try to fuzzy-match to an existing id — if it matches, the career is already in the table
-      const slug = this.slugify(title);
-      const combined = `${title} ${item.careerId || ''}`.toLowerCase();
-      if (this.fuzzyMatchId(combined) || this.fuzzyMatchId(slug)) continue;
+      if (!title || !item.careerId) continue;
       const focusAreas: string[] = Array.isArray(item.focusAreas) ? item.focusAreas : [];
       const stream = this.inferStream(title, focusAreas);
       const description = (item.reasoning || '').trim() || `Explore a career in ${title}.`;
-      // Use institute-scoped id so the same AI career can exist per-institute without conflict
-      const scopedId = `${slug}_${instituteId.replace(/-/g, '').slice(0, 8)}`;
+      // The AI fills these in alongside the report (see CAREER_GUIDANCE_USER) so a
+      // custom career is a complete catalog entry from the first save, not an
+      // empty stub every later student sees on the detail page.
+      const exams = Array.isArray(item.exams) ? item.exams : [];
+      const topColleges = Array.isArray(item.topColleges) ? item.topColleges : [];
+      const salaryRange = (item.salaryRange || '').trim();
+      const duration = (item.duration || '').trim();
+      const educationPath = Array.isArray(item.educationPath) ? item.educationPath : [];
+      const keySkills = Array.isArray(item.keySkills) ? item.keySkills : [];
+      const jobRoles = Array.isArray(item.jobRoles) ? item.jobRoles : [];
+      const prosCons = item.prosCons && Array.isArray(item.prosCons.pros) && Array.isArray(item.prosCons.cons)
+        ? item.prosCons
+        : { pros: [], cons: [] };
       try {
         await this.ds.query(
           `INSERT INTO school_career_paths
              (id, title, stream, description, exams, top_colleges, salary_range,
               required_subjects, holland_match, grade_relevance, is_custom,
               duration, education_path, key_skills, job_roles, pros_cons, focus_areas, institute_id)
-           VALUES ($1, $2, $3, $4, '[]'::jsonb, '[]'::jsonb, '', '{}'::jsonb, '[]'::jsonb, '[9,10,11,12]'::jsonb, true,
-                   '', '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '{"pros":[], "cons":[]}'::jsonb, $5::jsonb, $6)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, '{}'::jsonb, '[]'::jsonb, '[9,10,11,12]'::jsonb, true,
+                   $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14)
            ON CONFLICT (id) DO NOTHING`,
-          [scopedId, title, stream, description, JSON.stringify(focusAreas), instituteId],
+          [
+            item.careerId, title, stream, description,
+            JSON.stringify(exams), JSON.stringify(topColleges), salaryRange,
+            duration, JSON.stringify(educationPath), JSON.stringify(keySkills),
+            JSON.stringify(jobRoles), JSON.stringify(prosCons), JSON.stringify(focusAreas), instituteId,
+          ],
         );
-        this.logger.log(`Saved new AI career to school_career_paths: ${title} (${scopedId})`);
+        this.logger.log(`Saved new AI career to school_career_paths: ${title} (${item.careerId})`);
       } catch (err) {
         this.logger.warn(`saveAiCareers failed for "${title}": ${(err as Error)?.message}`);
       }
@@ -292,7 +340,34 @@ export class CareerService implements OnModuleInit {
 
   async getQuizQuestions(studentId: string) {
     const status = await this.getQuizStatus(studentId);
-    return { success: true, data: { questions: INTEREST_QUIZ_QUESTIONS, status } };
+    // Every question lists R/I/A/S/E/C in the same order — a student who
+    // straight-lines (always picks the same position) would otherwise land on
+    // a single, meaningless Holland letter every time. Shuffling per student
+    // per question (deterministic, so an in-progress attempt doesn't reorder
+    // itself on reload) breaks that shortcut without touching the scoring,
+    // which reads the letter `value` submitted, not its position.
+    const questions = INTEREST_QUIZ_QUESTIONS.map((q) => ({
+      ...q,
+      options: this.seededShuffle(q.options, `${studentId}:${q.id}`),
+    }));
+    return { success: true, data: { questions, status } };
+  }
+
+  /** Deterministic Fisher-Yates: same seed always produces the same order. */
+  private seededShuffle<T>(items: T[], seed: string): T[] {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (Math.imul(31, h) + seed.charCodeAt(i)) | 0;
+    const rand = () => {
+      h = Math.imul(h ^ (h >>> 15), h | 1);
+      h ^= h + Math.imul(h ^ (h >>> 7), h | 61);
+      return ((h ^ (h >>> 14)) >>> 0) / 4294967296;
+    };
+    const result = [...items];
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
   }
 
   async getQuizStatus(studentId: string) {
@@ -407,7 +482,7 @@ export class CareerService implements OnModuleInit {
     const attendancePercentage = await this.getAttendancePercentage(studentId);
     const homeworkRate = await this.getHomeworkRate(profile);
 
-    const topCareerMatches = this.scoreCareers(quiz.hollandCode, strongSubjects, grade).slice(0, 5);
+    const topCareerMatches = this.scoreCareers(quiz.scores, strongSubjects, grade).slice(0, 5);
 
     const aiResponse = await this.aiBridge.generateCareerGuidance(
       {
@@ -431,8 +506,18 @@ export class CareerService implements OnModuleInit {
       instituteId,
     );
     const report = (aiResponse?.report ?? {}) as Partial<CareerReportData>;
+
+    // Resolve each AI-suggested career to the id it will actually be reachable
+    // at (static known career, or the institute-scoped id it'll be persisted
+    // under) — the report stores that final id directly so navigating to it
+    // never depends on the frontend re-guessing the same match.
+    const resolvedCareers = (Array.isArray(report.topCareers) ? report.topCareers : []).map((c) => {
+      const { id, isStatic } = this.resolveCareerId(c?.title || '', c?.careerId || '', instituteId);
+      return { ...c, careerId: id, isStatic };
+    });
+
     const reportData: CareerReportData = {
-      topCareers: Array.isArray(report.topCareers) ? report.topCareers : [],
+      topCareers: resolvedCareers.map(({ isStatic, ...c }) => c),
       overallAnalysis: report.overallAnalysis ?? '',
       streamRecommendation: report.streamRecommendation ?? null,
       immediateActions: Array.isArray(report.immediateActions) ? report.immediateActions : [],
@@ -448,7 +533,8 @@ export class CareerService implements OnModuleInit {
       this.reportRepo.create({ studentId, instituteId, reportData, generatedAt: now, validUntil }),
     );
 
-    void this.saveAiCareers(reportData.topCareers, instituteId).catch((e) =>
+    const customCareers = resolvedCareers.filter((c) => !c.isStatic);
+    void this.saveAiCareers(customCareers, instituteId).catch((e) =>
       this.logger.warn(`saveAiCareers error: ${(e as Error)?.message}`),
     );
   }
@@ -463,11 +549,33 @@ export class CareerService implements OnModuleInit {
     return {
       success: true,
       data: {
+        id: latest.id,
         report: latest.reportData,
         generatedAt: latest.generatedAt,
         validUntil: latest.validUntil,
+        feedbackRating: latest.feedbackRating,
       },
     };
+  }
+
+  /**
+   * Records a thumbs-up/down (+ optional comment) on the student's latest
+   * report. One feedback slot per report — resubmitting overwrites it rather
+   * than accumulating, since the UI only ever shows the current report.
+   */
+  async submitReportFeedback(studentId: string, dto: SubmitCareerFeedbackDto) {
+    await this.ensureTables();
+    const latest = await this.reportRepo.findOne({
+      where: { studentId },
+      order: { generatedAt: 'DESC' },
+    });
+    if (!latest) throw new BadRequestException('No career report to give feedback on.');
+
+    latest.feedbackRating = dto.rating;
+    latest.feedbackComment = dto.comment?.trim() || null;
+    latest.feedbackAt = new Date();
+    await this.reportRepo.save(latest);
+    return { success: true };
   }
 
   // ── Explore ───────────────────────────────────────────────────────────────
@@ -601,14 +709,23 @@ export class CareerService implements OnModuleInit {
 
   // ── Local scoring ───────────────────────────────────────────────────────────
 
-  private scoreCareers(hollandCode: string, strongSubjects: string[], grade: number): CareerMatch[] {
-    const codeLetters = hollandCode.toUpperCase().split('');
+  private scoreCareers(hollandScores: Record<string, number>, strongSubjects: string[], grade: number): CareerMatch[] {
+    // Student's own strongest letter, used to normalise the others relative to
+    // it (0-1) rather than comparing raw counts across students.
+    const maxScore = Math.max(...HOLLAND_LETTERS.map((l) => hollandScores[l] || 0), 1);
     const strongLower = strongSubjects.map((s) => s.toLowerCase());
 
     return CAREER_PATHS.map((career: CareerPath) => {
-      // Holland fit (max 60): how many of the career's types the student shares.
-      const overlap = career.hollandMatch.filter((l) => codeLetters.includes(l)).length;
-      const hollandFit = (overlap / Math.max(career.hollandMatch.length, 1)) * 60;
+      // Holland fit (max 60): average, across the career's Holland letters, of how
+      // strongly the student favoured that letter relative to their own top pick.
+      // Continuous rather than binary-in/out-of-top-2 — two students who land on
+      // the same top-2 code but differ in the underlying answer distribution (e.g.
+      // 8/7/0/0/0/0 vs. 3/3/3/3/2/1) no longer get identical fit scores.
+      const letterWeights = career.hollandMatch.map((l) => (hollandScores[l] || 0) / maxScore);
+      const avgWeight = letterWeights.length > 0
+        ? letterWeights.reduce((sum, w) => sum + w, 0) / letterWeights.length
+        : 0;
+      const hollandFit = avgWeight * 60;
 
       // Subject fit (max 30): strong subjects matching the career's required subjects.
       const required = Object.keys(career.requiredSubjects);

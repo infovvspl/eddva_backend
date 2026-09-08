@@ -56,6 +56,11 @@ export class SchoolMaterialController {
     return this.svc.uploadFile(user, file.buffer, file.originalname, file.mimetype || 'application/octet-stream');
   }
 
+  @Get('ai-generate/source-availability')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_content_generator_materials')
+  aiSourceAvailability(@SchoolUser() user: any, @Query() query: any) { return this.svc.getSourceAvailability(user, query); }
+
   @Post('ai-generate')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   @SchoolFeature('ai', 'ai_content_generator_materials')
@@ -71,13 +76,6 @@ export class SchoolMaterialController {
   // async auditMaterialData() {
   //   return this.svc.auditMaterialData();
   // }
-
-  @Post('dump')
-  dumpData(@Body() body: any) {
-    const fs = require('fs');
-    fs.writeFileSync('C:\\EDDVA SCHOOL\\eddva_backend\\frontend-dump.json', JSON.stringify(body, null, 2));
-    return { success: true };
-  }
 
   @Post('ai-slide-image')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')

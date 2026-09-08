@@ -240,6 +240,32 @@ export class SchoolMaterialService implements OnModuleInit {
     }
   }
 
+  /**
+   * What can this topic/chapter be generated from right now?
+   *
+   * Drives the Ebook / Lecture / Both selector in the generator UI: the teacher
+   * should only be offered a source that is both feature-enabled for their
+   * institute and actually has something indexed, rather than discovering
+   * "no source available" after a generation attempt.
+   */
+  async getSourceAvailability(user: any, query: any) {
+    const ctx = await this.resolveContentContext(query);
+    const lectureGroundingEnabled = await this.featureFlagService.isFeatureEnabled(
+      user.instituteId, 'school', 'content_lecture_grounding',
+    );
+    const [ebookPassages, lecturePassages] = await Promise.all([
+      this.textbooks.getChapterPassages(user.instituteId, ctx.chapter_id),
+      lectureGroundingEnabled
+        ? this.textbooks.getLectureTranscriptPassages(user.instituteId, { topicId: ctx.topic_id, chapterId: ctx.chapter_id })
+        : Promise.resolve([]),
+    ]);
+    return {
+      ebookAvailable: ebookPassages.length > 0,
+      lectureAvailable: lecturePassages.length > 0,
+      lectureGroundingEnabled,
+    };
+  }
+
   /** Generate AI study content for a topic or chapter (does NOT persist). */
   async generateAiContent(user: any, body: any) {
     const ctx = await this.resolveContentContext(body);
@@ -275,8 +301,21 @@ export class SchoolMaterialService implements OnModuleInit {
       (body.extraContext || '').trim(),
     ].filter(Boolean).join('. ') || undefined;
 
-    const sourcePassages = await this.textbooks.getChapterPassages(
-      user.instituteId, ctx.chapter_id,
+    // 'ebook' (default, unchanged behaviour), 'lecture' (indexed recorded-lecture
+    // transcripts only), or 'both'. Lecture grounding is an institute-level
+    // feature — a teacher requesting it against a disabled institute silently
+    // gets the ebook (or general knowledge), same degrade-gracefully behaviour
+    // 'not_indexed'/'unavailable' already use, reported back via source.reason.
+    const requestedSourceMode = String(body.sourceMode || 'ebook').trim().toLowerCase();
+    const sourceMode: 'ebook' | 'lecture' | 'both' =
+      requestedSourceMode === 'lecture' || requestedSourceMode === 'both' ? requestedSourceMode : 'ebook';
+    const lectureGroundingAllowed = sourceMode === 'ebook'
+      ? true
+      : await this.featureFlagService.isFeatureEnabled(user.instituteId, 'school', 'content_lecture_grounding');
+    const effectiveSourceMode: 'ebook' | 'lecture' | 'both' = lectureGroundingAllowed ? sourceMode : 'ebook';
+
+    const { passages: sourcePassages, ebookAvailable, lectureAvailable } = await this.textbooks.getGroundingPassages(
+      user.instituteId, { chapterId: ctx.chapter_id, topicId: ctx.topic_id }, effectiveSourceMode,
     );
 
     const result = await this.aiBridgeService.generateTopicContent(
@@ -292,9 +331,9 @@ export class SchoolMaterialService implements OnModuleInit {
         extraContext,
         language: body.language || undefined,
         board: board,
-        // When this chapter's textbook has been indexed, every content type here
-        // is written from the book and cites its pages instead of drawing on the
-        // model's general knowledge.
+        // When the chapter's textbook and/or an indexed lecture transcript is
+        // available for this scope, content is written from those sources and
+        // cites them instead of drawing on the model's general knowledge.
         ...(sourcePassages.length ? { sourcePassages } : {}),
       },
       user.instituteId ?? undefined,
@@ -307,8 +346,14 @@ export class SchoolMaterialService implements OnModuleInit {
       topicName: ctx.topic_name,
       source: (result as any).source ?? {
         grounded: false,
-        reason: sourcePassages.length ? 'unavailable' : 'not_indexed',
+        reason: sourcePassages.length ? 'unavailable' : (effectiveSourceMode === 'ebook' ? 'not_indexed' : 'no_source_available'),
       },
+      sourceMode: effectiveSourceMode,
+      sourceAvailability: { ebook: ebookAvailable, lecture: lectureAvailable },
+      // Set only when the teacher's request was downgraded (feature disabled
+      // for this institute), so the UI can tell "you asked for X, got Y" apart
+      // from "X and Y look the same because nothing changed".
+      ...(effectiveSourceMode !== sourceMode ? { requestedSourceMode: sourceMode, sourceModeDowngraded: true } : {}),
     };
   }
 

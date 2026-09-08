@@ -1,13 +1,25 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { randomUUID } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { TranscodeService } from './transcode.service';
 import { CloudflareStreamService } from './stream.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { ThumbnailService } from './thumbnail.service';
 import { R2Service } from '../../storage/r2.service';
+import { aiRequestStorage, getAiRequestContext } from '../../../common/context/ai-request-context';
+import { AdmissionPool } from '../../../common/services/ai-admission.constants';
+import {
+  LECTURE_JOB,
+  LECTURE_QUEUE,
+  LectureJobStatus,
+  LECTURE_STAGE_PROGRESS,
+  type LectureJobData,
+} from './lecture-queue.constants';
 
 /**
  * Class recordings (uploaded recorded lectures) for the school vertical.
@@ -19,17 +31,24 @@ import { R2Service } from '../../storage/r2.service';
 export class SchoolClassService implements OnModuleInit {
   private readonly logger = new Logger(SchoolClassService.name);
   private tableReady = false;
-
-  private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+  /**
+   * P0-3: whether uq_class_recordings_institute_video_key exists. `create()` may
+   * only use ON CONFLICT once it does — Postgres rejects an ON CONFLICT target
+   * with no matching unique index, which would take the upload endpoint down.
+   * When false we fall back to the previous plain INSERT (no dedupe, but working).
+   */
+  private recordingKeyIndexReady = false;
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly s3Service: S3Service,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly textbooks: SchoolTextbookService,
     private readonly thumbnailService: ThumbnailService,
     private readonly transcodeService: TranscodeService,
     private readonly streamService: CloudflareStreamService,
     private readonly r2Service: R2Service,
+    @InjectQueue(LECTURE_QUEUE) private readonly lectureQueue: Queue<LectureJobData>,
   ) {}
 
   async onModuleInit() {
@@ -114,7 +133,108 @@ export class SchoolClassService implements OnModuleInit {
       DROP TABLE IF EXISTS school_student_lecture_notes;
       ALTER TABLE class_recording_progress ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
     `);
+
+    // P0-2 durable lecture jobs. Additive; one row per recording (idempotency).
+    // Holds the authenticated context so the background worker can attribute all
+    // downstream AI usage without relying on request-scoped state.
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS lecture_jobs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        recording_id UUID NOT NULL UNIQUE REFERENCES class_recordings(id) ON DELETE CASCADE,
+        institute_id UUID NOT NULL,
+        user_id UUID NULL,
+        user_role VARCHAR(24) NULL,
+        request_id VARCHAR(64) NULL,
+        status VARCHAR(24) NOT NULL DEFAULT 'QUEUED',
+        current_stage VARCHAR(24) NULL,
+        attempt_count INT NOT NULL DEFAULT 0,
+        error_category VARCHAR(32) NULL,
+        last_error TEXT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        started_at TIMESTAMPTZ NULL,
+        completed_at TIMESTAMPTZ NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_lecture_jobs_institute ON lecture_jobs(institute_id);
+      CREATE INDEX IF NOT EXISTS idx_lecture_jobs_status ON lecture_jobs(status);
+    `);
+
+    await this.ensureRecordingUploadKeyIndex();
     this.tableReady = true;
+  }
+
+  /**
+   * P0-3 (B1) — partial unique index backing duplicate-upload protection.
+   *
+   * `video_key` is minted per presign as
+   * `tenants/<institute>/class-recordings/<Date.now()>-<uuid>-<name>`, so it is
+   * unique per upload intent and stable across a replay of the same request —
+   * which makes (institute_id, video_key) a natural idempotency identity.
+   * The index is PARTIAL because live_stream/youtube recordings legitimately
+   * carry no key, and multiple NULLs must stay allowed.
+   *
+   * Safe and idempotent: IF NOT EXISTS, and it refuses to run at all while
+   * duplicates exist rather than touching a single row. If it cannot be created
+   * the service keeps working without dedupe (see recordingKeyIndexReady).
+   */
+  private async ensureRecordingUploadKeyIndex(): Promise<void> {
+    try {
+      const duplicates = await this.ds.query(
+        `SELECT institute_id, video_key, COUNT(*)::int AS n
+           FROM class_recordings
+          WHERE video_key IS NOT NULL
+          GROUP BY institute_id, video_key
+         HAVING COUNT(*) > 1
+          LIMIT 5`,
+      );
+      if (duplicates.length) {
+        // Never merge or delete data to force an index through — surface it loudly
+        // and leave the rows exactly as they are for a human to resolve.
+        this.recordingKeyIndexReady = false;
+        this.logger.error(
+          `P0-3: duplicate (institute_id, video_key) rows exist — uq_class_recordings_institute_video_key ` +
+          `was NOT created and duplicate-upload protection is INACTIVE. No rows were modified. ` +
+          `Example: institute=${duplicates[0].institute_id} key=${duplicates[0].video_key} count=${duplicates[0].n}`,
+        );
+        return;
+      }
+      await this.ds.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_class_recordings_institute_video_key
+           ON class_recordings (institute_id, video_key)
+           WHERE video_key IS NOT NULL`,
+      );
+      // Confirm rather than assume: create() keys its ON CONFLICT off this flag.
+      this.recordingKeyIndexReady = await this.uploadKeyIndexExists();
+      if (!this.recordingKeyIndexReady) {
+        this.logger.error('P0-3: uq_class_recordings_institute_video_key missing after creation — dedupe INACTIVE');
+      }
+    } catch (err: any) {
+      this.logger.error(`P0-3: could not ensure uq_class_recordings_institute_video_key: ${err?.message}`);
+      // N1: ensureTable() is already marked ready and never runs again, so giving
+      // up here would leave dedupe off for the LIFETIME of the process. The CREATE
+      // can fail while the index is in fact present (a transient blip, or another
+      // process having created it), so re-check once before falling back.
+      try {
+        this.recordingKeyIndexReady = await this.uploadKeyIndexExists();
+      } catch {
+        this.recordingKeyIndexReady = false; // keep the safe fallback
+      }
+      this.logger.log(
+        this.recordingKeyIndexReady
+          ? 'P0-3: index is present despite the error — duplicate-upload protection ACTIVE'
+          : 'P0-3: index absent — duplicate-upload protection INACTIVE until restart',
+      );
+    }
+  }
+
+  /** Read-only: is the P0-3 partial unique index actually present? */
+  private async uploadKeyIndexExists(): Promise<boolean> {
+    const present = await this.ds.query(
+      `SELECT 1 FROM pg_indexes
+        WHERE tablename = 'class_recordings'
+          AND indexname = 'uq_class_recordings_institute_video_key'`,
+    );
+    return present.length > 0;
   }
 
   private async migrateLiveRecordings() {
@@ -394,6 +514,25 @@ export class SchoolClassService implements OnModuleInit {
     return { success: true, data: { videoUrl: rec.video_url, source: rec.source || 'upload' } };
   }
 
+  /**
+   * P0-3 (B2) — may this caller be handed a recording that already exists under
+   * the video_key they submitted?
+   *
+   * The tenant boundary is enforced by construction: the lookup is scoped to the
+   * caller's resolved institute, so a cross-tenant row can never be returned.
+   * Within an institute the owner may always have their own recording back (that
+   * is the replay this feature exists for), and admins already see every
+   * recording in the institute via list(). Any other teacher presenting someone
+   * else's key gets a bare 409 — the key is taken, and we disclose nothing about
+   * the recording behind it.
+   */
+  private assertCanReuseRecording(user: any, recording: any): void {
+    const isOwner = !!user?.id && String(recording.teacher_user_id) === String(user.id);
+    const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'INSTITUTE_ADMIN';
+    if (isOwner || isAdmin) return;
+    throw new ConflictException('This video has already been uploaded');
+  }
+
   async create(user: any, body: any) {
     await this.ensureTable();
     if (!body.title?.trim()) throw new BadRequestException('Title is required');
@@ -404,6 +543,17 @@ export class SchoolClassService implements OnModuleInit {
     const instituteId = this.resolveInstituteId(user, body.instituteId);
     const source = body.source === 'youtube' ? 'youtube' : 'upload';
     const language = this.normalizeLanguage(body.language);
+    // P0-3 (B3): an upload MUST carry the presigned key. It is the identity that
+    // makes a replayed submission recognisable, so allowing it to be omitted would
+    // let any client opt out of duplicate protection — and a duplicate here costs a
+    // second full transcription + notes run. YouTube (and live_stream, inserted
+    // elsewhere) have no uploaded object and legitimately keep a NULL key.
+    const videoKey: string | null = typeof body.videoKey === 'string' && body.videoKey.trim()
+      ? body.videoKey.trim()
+      : null;
+    if (source === 'upload' && !videoKey) {
+      throw new BadRequestException('videoKey is required for uploaded recordings');
+    }
     let effectiveSubjectId = body.subjectId;
     let effectiveChapterId = body.chapterId || null;
     let effectiveTopicId = body.topicId || null;
@@ -502,31 +652,90 @@ export class SchoolClassService implements OnModuleInit {
         throw new BadRequestException('You are not assigned to this class, section, and subject');
       }
     }
-    const rows = await this.ds.query(
+    // P0-3 (B2): dedupe a replayed submission on (institute_id, video_key).
+    //
+    // The lecture queue dedupes on recording_id, which cannot help here: every
+    // create previously minted a fresh id, so a replayed POST produced a second
+    // recording and a second full AI pipeline. Conflict semantics move the guard
+    // upstream to where identity actually is. ON CONFLICT is only usable once the
+    // backing partial index exists, so fall back to a plain insert when it does not.
+    const insertParams = [
+      instituteId,
+      body.classId || null,
+      body.sectionId || null,
+      effectiveSubjectId || null,
+      effectiveChapterId || null,
+      effectiveTopicId || null,
+      user.id,
+      body.title.trim(),
+      body.description || null,
+      body.videoUrl.trim(),
+      videoKey,
+      body.thumbnailUrl || null,
+      source,
+      body.recordedDate ? new Date(body.recordedDate) : new Date(),
+      body.duration || null,
+      language,
+    ];
+    const conflictClause = this.recordingKeyIndexReady && videoKey
+      ? `ON CONFLICT (institute_id, video_key) WHERE video_key IS NOT NULL DO NOTHING`
+      : '';
+    const insertSql =
       `INSERT INTO class_recordings
          (institute_id, class_id, section_id, subject_id, chapter_id, topic_id, teacher_user_id, title, description,
           video_url, video_key, thumbnail_url, source, recorded_date, duration, transcript_status, language)
        VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,null,$16)
-       RETURNING *`,
-      [
-        instituteId,
-        body.classId || null,
-        body.sectionId || null,
-        effectiveSubjectId || null,
-        effectiveChapterId || null,
-        effectiveTopicId || null,
-        user.id,
-        body.title.trim(),
-        body.description || null,
-        body.videoUrl.trim(),
-        body.videoKey || null,
-        body.thumbnailUrl || null,
-        source,
-        body.recordedDate ? new Date(body.recordedDate) : new Date(),
-        body.duration || null,
-        language,
-      ],
+       ${conflictClause}
+       RETURNING *`;
+    const findByUploadKey = () => this.ds.query(
+      `SELECT * FROM class_recordings WHERE institute_id = $1::uuid AND video_key = $2 LIMIT 1`,
+      [instituteId, videoKey],
     );
+
+    let rows = await this.ds.query(insertSql, insertParams);
+    if (!rows.length) {
+      // Someone else holds this key. Normally their row is committed and visible.
+      let prior = (await findByUploadKey())[0];
+      if (!prior) {
+        // R2: the conflicting transaction ABORTED, so DO NOTHING suppressed our
+        // insert but left no winner. A zero-row insert does not prove the row
+        // exists — retry once before giving up.
+        rows = await this.ds.query(insertSql, insertParams);
+        if (!rows.length) {
+          prior = (await findByUploadKey())[0];
+          if (!prior) {
+            throw new InternalServerErrorException('Could not create the recording. Please try again.');
+          }
+        }
+      }
+      if (prior) {
+        this.assertCanReuseRecording(user, prior);
+        // Idempotent replay: return the recording the first request created and
+        // deliberately run NONE of the side effects below — no second lecture
+        // job, no duplicate thumbnail/stream/transcode work.
+        //
+        // One exception, so this guard does not become a new orphaning path:
+        // create-then-enqueue is not atomic (separate auto-commit statements), so
+        // if the first request died in between, its recording exists with nothing
+        // queued and the short-circuit would strand it forever. Queue the MISSING
+        // job — never a second one; a recording that already has a job row is left
+        // strictly alone.
+        if (prior.source === 'upload') {
+          const existingJob = await this.ds.query(
+            `SELECT 1 FROM lecture_jobs WHERE recording_id = $1`,
+            [prior.id],
+          );
+          if (!existingJob.length) {
+            this.logger.warn(`P0-3: recording ${prior.id} had no lecture job — queueing the missing one`);
+            await this.enqueueLectureJob(prior, user, instituteId);
+          }
+        }
+        this.logger.log(
+          `P0-3: duplicate upload suppressed for institute=${instituteId} key=${videoKey} -> recording=${prior.id}`,
+        );
+        return { success: true, data: prior };
+      }
+    }
     const recording = rows[0];
     // Auto-generate thumbnail if none was manually provided (non-blocking).
     if (source === 'upload' && !body.thumbnailUrl) {
@@ -534,14 +743,25 @@ export class SchoolClassService implements OnModuleInit {
         .catch((err) => this.logger.warn(`Thumbnail generation failed for ${recording.id}: ${err?.message}`));
     }
 
-    // Kick off background transcription for uploaded media (non-blocking). YouTube
-    // links have no downloadable media file, so they are not transcribed. Without
-    // this, an upload sits with transcript_status=null forever — no transcript, no
-    // notes, and "generate quiz" 400s with "no transcript or notes available".
-    // (This was silently dropped in a refactor; restored here.)
+    // Uploaded media: start the durable AI pipeline + delivery prep. YouTube links
+    // have no downloadable media file, so they are not transcribed here.
     if (source === 'upload') {
-      this.processTranscription(recording.id, recording.video_url, effectiveTopicId || null, instituteId, language)
-        .catch((err) => this.logger.warn(`Transcription kickoff failed for ${recording.id}: ${err?.message}`));
+      // P0-2: durable, resumable transcription→notes via the lecture queue,
+      // capturing the authenticated identity now so the worker can attribute usage.
+      // Replaces the previous fire-and-forget processTranscription kickoff (an
+      // upload that isn't queued sits with transcript_status=null forever).
+      //
+      // Fire-and-forget, like every other post-insert step below: the response
+      // never reads its result, and enqueueLectureJob's own Redis calls (queue
+      // dedupe lookup, then the enqueue itself) can hang indefinitely while
+      // Redis is unreachable — ioredis retries forever and queues commands
+      // offline by default, so neither ever rejects for the try/catch inside
+      // enqueueLectureJob to catch. Awaiting it here meant a Redis outage held
+      // the whole "save recording" response open, so the upload UI never saw
+      // its response and sat on "Saving…" forever despite the row already
+      // being committed above.
+      this.enqueueLectureJob(recording, user, instituteId)
+        .catch((err) => this.logger.warn(`Lecture job enqueue failed for ${recording.id}: ${err?.message}`));
 
       // Stamp a long Cache-Control on the uploaded video so the CDN/browser can
       // cache it — uploads land with no cache header, so every play re-pulls the
@@ -898,7 +1118,7 @@ export class SchoolClassService implements OnModuleInit {
     topicId: string | null,
     instituteId: string,
     language: 'en' | 'hi' | 'hinglish' | 'od' = 'en',
-  ): Promise<void> {
+  ): Promise<string> {
     await this.ds.query(`UPDATE class_recordings SET transcript_status='processing', updated_at=NOW() WHERE id=$1`, [recordingId]);
     try {
       const result: any = await this.aiBridgeService.transcribeAudio(
@@ -915,13 +1135,18 @@ export class SchoolClassService implements OnModuleInit {
         [recordingId, transcript],
       );
       this.logger.log(`Transcript saved (${transcript.length} chars) for recording ${recordingId}`);
-
-      // Phase 2: generate AI notes from the transcript (non-blocking — transcript is already saved).
-      this.generateNotes(recordingId, transcript, topicId, instituteId, language)
-        .catch((err) => this.logger.warn(`Notes kickoff failed for ${recordingId}: ${err?.message}`));
+      // Best-effort: chunk the transcript for grounded generation (content/DPP/
+      // PPT/assessment can then optionally cite this lecture alongside, or
+      // instead of, the chapter's ebook). Never blocks the transcript pipeline.
+      this.textbooks.indexLectureTranscript(instituteId, recordingId, transcript)
+        .catch((err) => this.logger.warn(`Lecture transcript indexing failed for ${recordingId}: ${err?.message}`));
+      return transcript;
     } catch (err: any) {
       this.logger.warn(`Transcription failed for recording ${recordingId}: ${err?.message}`);
       await this.ds.query(`UPDATE class_recordings SET transcript_status='failed' WHERE id=$1`, [recordingId]);
+      // Propagate so the durable job (runLectureJob) can classify + decide retry.
+      // The generateNotes stage is now sequenced by the worker, not chained here.
+      throw err;
     }
   }
 
@@ -936,20 +1161,22 @@ export class SchoolClassService implements OnModuleInit {
     instituteId: string,
     language: 'en' | 'hi' | 'hinglish' | 'od' = 'en',
   ): Promise<void> {
-    if (!transcript || transcript.trim().length < 20) return;
+    // Empty transcript can't produce notes — propagate so the durable job (P0-2)
+    // classifies it rather than silently "succeeding" with no notes.
+    if (!transcript || transcript.trim().length < 20) {
+      throw new Error('Empty or too-short transcript for notes');
+    }
     // Atomic claim: only proceed if no other run already has this recording marked
-    // 'processing'. Without this, two overlapping triggers (double-click on
-    // "Regenerate notes", or a retranscribe + auto-kickoff racing) both run the
-    // full generation pipeline and the slower one's result silently overwrites
-    // the other's — sometimes clobbering a good result with a partial one.
+    // 'processing'. Guards against overlapping triggers clobbering each other.
     const claimed = await this.ds.query(
       `UPDATE class_recordings SET notes_status='processing', updated_at=NOW()
        WHERE id=$1 AND notes_status IS DISTINCT FROM 'processing' RETURNING id`,
       [recordingId],
     );
     if (!claimed || claimed.length === 0) {
-      this.logger.warn(`Notes generation already in progress for recording ${recordingId} — skipping duplicate trigger`);
-      return;
+      // Another run holds the claim. Signal a retryable condition so the durable
+      // job retries later instead of falsely completing without notes.
+      throw new Error('Notes generation already in progress for this recording');
     }
     try {
       const result: any = await this.aiBridgeService.generateNotesFromTranscript(
@@ -980,6 +1207,7 @@ export class SchoolClassService implements OnModuleInit {
     } catch (err: any) {
       this.logger.warn(`Notes generation failed for recording ${recordingId}: ${err?.message}`);
       await this.ds.query(`UPDATE class_recordings SET notes_status='failed' WHERE id=$1`, [recordingId]);
+      throw err; // propagate to the durable job for classification + stage retry
     }
   }
 
@@ -1155,9 +1383,14 @@ export class SchoolClassService implements OnModuleInit {
       if (language === 'od' && hasOdiaChars) {
         try {
           this.logger.log(`[Serper Search] Odia script detected. Translating search term: "${searchTerm}"`);
+          // P0-4.5 (G1): this runs inside lecture note-image enrichment, which is
+          // BACKGROUND work. /translate is interactive by default, so without an
+          // explicit pool a lecture would consume one of the two interactive slots
+          // that exist to keep student doubts responsive.
           const translated: any = await this.aiBridgeService.translateText(
             { text: searchTerm, targetLanguage: 'en' },
             instituteId,
+            { pool: AdmissionPool.BACKGROUND },
           );
           const translatedText = String(
             translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
@@ -1355,6 +1588,262 @@ export class SchoolClassService implements OnModuleInit {
     return { notes: enrichedNotes, images };
   }
 
+  // ── P0-2 durable lecture pipeline ──────────────────────────────────────────
+
+  /**
+   * Enqueue (or de-dupe) a durable lecture-processing job. Captures the trusted
+   * authenticated identity NOW and persists it in lecture_jobs so the worker can
+   * attribute all downstream AI usage. Idempotent: one active job per recording.
+   */
+  private async enqueueLectureJob(
+    recording: any,
+    user: any,
+    instituteId: string,
+    opts: { force?: boolean; only?: 'transcript' | 'notes' } = {},
+  ): Promise<{ jobId: string; status: string }> {
+    await this.ensureTable();
+    const recordingId = recording.id;
+    // Correlation id: reuse the originating request's id when created inside a
+    // request; otherwise mint one. Identity comes ONLY from the guard-verified
+    // user object — never from the request body.
+    const requestId = getAiRequestContext().requestId || randomUUID();
+    const userId = user?.id || null;
+    const userRole = user?.role || null;
+
+    // DB idempotency guard (source of truth).
+    const existing = await this.ds.query(
+      `SELECT status FROM lecture_jobs WHERE recording_id=$1`,
+      [recordingId],
+    );
+    if (existing.length && !opts.force) {
+      const st = existing[0].status;
+      if (st === 'QUEUED' || st === 'TRANSCRIBING' || st === 'GENERATING_NOTES') {
+        return { jobId: recordingId, status: st }; // already in flight — no duplicate
+      }
+      if (st === 'COMPLETED') {
+        return { jobId: recordingId, status: 'COMPLETED' }; // done — do not reprocess
+      }
+    }
+
+    // Free the Bull jobId if a finished job with this id lingers (removeOnFail
+    // keeps failed jobs), so a forced re-run / retry-after-fail can enqueue again.
+    try {
+      const prev = await this.lectureQueue.getJob(recordingId);
+      if (prev) {
+        const state = await prev.getState();
+        if (state === 'completed' || state === 'failed') {
+          await prev.remove();
+        } else if (!opts.force) {
+          return { jobId: recordingId, status: 'QUEUED' }; // still active — dedupe
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`Could not inspect existing lecture job ${recordingId}: ${e?.message}`);
+    }
+
+    await this.ds.query(
+      `INSERT INTO lecture_jobs
+         (recording_id, institute_id, user_id, user_role, request_id, status, current_stage, updated_at)
+       VALUES ($1,$2::uuid,$3,$4,$5,'QUEUED','QUEUED',NOW())
+       ON CONFLICT (recording_id) DO UPDATE SET
+         status='QUEUED', current_stage='QUEUED', error_category=NULL, last_error=NULL,
+         user_id=EXCLUDED.user_id, user_role=EXCLUDED.user_role, request_id=EXCLUDED.request_id,
+         completed_at=NULL, updated_at=NOW()`,
+      [recordingId, instituteId, userId, userRole, requestId],
+    );
+
+    const data: LectureJobData = {
+      recordingId, instituteId, userId, userRole, requestId,
+      force: opts.force, only: opts.only,
+    };
+    try {
+      await this.lectureQueue.add(LECTURE_JOB, data, {
+        jobId: recordingId,                 // Bull-level dedupe: one active job/recording
+        attempts: 4,
+        backoff: { type: 'exponential', delay: 30000 },
+        removeOnComplete: true,
+        removeOnFail: false,                // keep failed jobs for diagnosis
+      });
+    } catch (e: any) {
+      // Redis/queue unavailable: the recording is still saved. Surface, don't crash.
+      this.logger.error(`Failed to enqueue lecture job ${recordingId}: ${e?.message}`);
+      await this.markLectureJobFailed(recordingId, 'enqueue_failed', e?.message);
+      return { jobId: recordingId, status: 'FAILED' };
+    }
+    return { jobId: recordingId, status: 'QUEUED' };
+  }
+
+  /**
+   * Worker entry point — runs the durable state machine for one recording.
+   * Re-establishes the authenticated context from PERSISTED job data (ALS does
+   * not survive into a worker) so AI usage is attributed correctly. Skips stages
+   * already marked done in class_recordings, so a notes failure retries notes
+   * only — never re-transcribes.
+   *
+   * Throws on a RETRYABLE failure (Bull retries with backoff); resolves on
+   * success or on a PERMANENT failure it has already recorded as FAILED.
+   */
+  async runLectureJob(data: LectureJobData, attempt = 1): Promise<void> {
+    await this.ensureTable();
+    const rows = await this.ds.query(
+      `SELECT id, video_url, transcript, transcript_status, notes_status, topic_id, language
+       FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      [data.recordingId, data.instituteId],
+    );
+    if (!rows.length) {
+      // Recording deleted (or wrong tenant): nothing to do, not retryable.
+      await this.markLectureJobFailed(data.recordingId, 'recording_missing', 'Recording not found for job');
+      return;
+    }
+    const rec = rows[0];
+    const language = this.normalizeLanguage(rec.language);
+    const topicId = rec.topic_id || null;
+
+    await this.setLectureJob(data.recordingId, LectureJobStatus.TRANSCRIBING, { started: true, attempt });
+
+    await aiRequestStorage.run(
+      // P0-4.4: instituteId comes from the job row persisted at enqueue time, which
+      // enqueueLectureJob took from resolveInstituteId(user) on the guard-verified
+      // user — never reconstructed from client input at execution time.
+      { userId: data.userId, userRole: data.userRole, requestId: data.requestId, instituteId: data.instituteId },
+      async () => {
+        try {
+          // Stage 1 — transcription (skip when already done unless forcing full re-run)
+          let transcript: string = rec.transcript || '';
+          const needTranscript =
+            data.only !== 'notes' && (data.force || rec.transcript_status !== 'done' || !transcript);
+          if (needTranscript) {
+            await this.setLectureJob(data.recordingId, LectureJobStatus.TRANSCRIBING);
+            transcript = await this.processTranscription(
+              rec.id, rec.video_url, topicId, data.instituteId, language,
+            );
+          }
+
+          // Stage 2 — notes (skip when already done unless forcing)
+          const needNotes = data.force || rec.notes_status !== 'done';
+          if (needNotes) {
+            if (!transcript || transcript.trim().length < 20) {
+              const t = await this.ds.query(`SELECT transcript FROM class_recordings WHERE id=$1`, [rec.id]);
+              transcript = t[0]?.transcript || transcript;
+            }
+            await this.setLectureJob(data.recordingId, LectureJobStatus.GENERATING_NOTES);
+            await this.generateNotes(rec.id, transcript, topicId, data.instituteId, language);
+          }
+
+          await this.setLectureJob(data.recordingId, LectureJobStatus.COMPLETED, { completed: true });
+          this.logger.log(`Lecture job COMPLETED recording=${data.recordingId}`);
+        } catch (err: any) {
+          const { category, retryable } = this.classifyLectureError(err);
+          await this.recordLectureAttempt(data.recordingId, attempt, category, err?.message);
+          if (retryable) {
+            this.logger.warn(`Lecture stage retryable failure (${category}) recording=${data.recordingId}: ${err?.message}`);
+            throw err; // Bull retries; done stages are skipped on the next attempt
+          }
+          this.logger.warn(`Lecture stage PERMANENT failure (${category}) recording=${data.recordingId}: ${err?.message}`);
+          await this.markLectureJobFailed(data.recordingId, category, err?.message);
+        }
+      },
+    );
+  }
+
+  /** Decide whether a stage error should be retried by the queue. */
+  private classifyLectureError(err: any): { category: string; retryable: boolean } {
+    const status = err?.response?.status ?? err?.status;
+    const msg = String(err?.message || '').toLowerCase();
+    if (status === 429) return { category: 'provider_429', retryable: true };
+    if (typeof status === 'number' && status >= 500) return { category: 'provider_5xx', retryable: true };
+    if (err?.code === 'ECONNABORTED' || msg.includes('timeout') || msg.includes('etimedout')) {
+      return { category: 'timeout', retryable: true };
+    }
+    // Permanent client/validation errors — retrying cannot help.
+    if (typeof status === 'number' && status >= 400 && status < 500) {
+      return { category: 'provider_validation', retryable: false };
+    }
+    if (msg.includes('econnrefused') || msg.includes('database') || msg.includes('connection terminated')) {
+      return { category: 'transient_db', retryable: true };
+    }
+    // Empty/short output and unknown errors: allow BOUNDED retry (Bull attempts cap it).
+    return { category: 'application_error', retryable: true };
+  }
+
+  /** Persist a job-lifecycle transition. */
+  private async setLectureJob(
+    recordingId: string,
+    status: LectureJobStatus,
+    extra: { started?: boolean; completed?: boolean; attempt?: number } = {},
+  ): Promise<void> {
+    await this.ds.query(
+      `UPDATE lecture_jobs SET status=$2, current_stage=$2,
+         started_at = CASE WHEN $3 THEN COALESCE(started_at, NOW()) ELSE started_at END,
+         completed_at = CASE WHEN $4 THEN NOW() ELSE completed_at END,
+         attempt_count = GREATEST(attempt_count, $5),
+         updated_at = NOW()
+       WHERE recording_id=$1`,
+      [recordingId, status, !!extra.started, !!extra.completed, extra.attempt ?? 0],
+    );
+  }
+
+  private async recordLectureAttempt(recordingId: string, attempt: number, category: string, message?: string): Promise<void> {
+    try {
+      await this.ds.query(
+        `UPDATE lecture_jobs SET attempt_count=GREATEST(attempt_count,$2), error_category=$3, last_error=$4, updated_at=NOW()
+         WHERE recording_id=$1`,
+        [recordingId, attempt, category, (message || '').slice(0, 2000)],
+      );
+    } catch (e: any) {
+      this.logger.error(`recordLectureAttempt failed for ${recordingId}: ${e?.message}`);
+    }
+  }
+
+  /** Terminal FAILED state (called by the processor once Bull exhausts retries, or for permanent errors). */
+  async markLectureJobFailed(recordingId: string, category: string, message?: string): Promise<void> {
+    try {
+      await this.ensureTable();
+      await this.ds.query(
+        `UPDATE lecture_jobs SET status='FAILED', current_stage='FAILED', error_category=$2,
+           last_error=$3, completed_at=NOW(), updated_at=NOW() WHERE recording_id=$1`,
+        [recordingId, category || 'error', (message || '').slice(0, 2000)],
+      );
+    } catch (e: any) {
+      this.logger.error(`markLectureJobFailed failed for ${recordingId}: ${e?.message}`);
+    }
+  }
+
+  /** Job status for the frontend. Ownership-checked by institute (tenant isolation). */
+  async getJobStatus(user: any, recordingId: string) {
+    await this.ensureTable();
+    const instituteId = this.resolveInstituteId(user);
+    const rows = await this.ds.query(
+      `SELECT j.recording_id, j.status, j.current_stage, j.attempt_count, j.error_category, j.last_error,
+              j.created_at, j.started_at, j.completed_at, j.updated_at,
+              r.transcript_status, r.notes_status
+       FROM lecture_jobs j
+       JOIN class_recordings r ON r.id = j.recording_id
+       WHERE j.recording_id=$1 AND j.institute_id=$2::uuid`,
+      [recordingId, instituteId],
+    );
+    if (!rows.length) throw new NotFoundException('No processing job for this recording');
+    const r = rows[0];
+    return {
+      success: true,
+      data: {
+        recordingId: r.recording_id,
+        status: r.status,
+        stage: r.current_stage,
+        progress: LECTURE_STAGE_PROGRESS[r.status] ?? 0,
+        attemptCount: r.attempt_count,
+        errorCategory: r.error_category,
+        lastError: r.last_error,
+        transcriptStatus: r.transcript_status,
+        notesStatus: r.notes_status,
+        createdAt: r.created_at,
+        startedAt: r.started_at,
+        completedAt: r.completed_at,
+        updatedAt: r.updated_at,
+      },
+    };
+  }
+
   /** Re-run transcription for a recording (teacher-triggered). */
   async retranscribe(user: any, id: string) {
     await this.ensureTable();
@@ -1368,9 +1857,9 @@ export class SchoolClassService implements OnModuleInit {
     if (rec.source === 'youtube') {
       throw new BadRequestException('Transcription is only available for uploaded videos, not YouTube links');
     }
-    this.processTranscription(rec.id, rec.video_url, rec.topic_id || null, instituteId, this.normalizeLanguage(rec.language))
-      .catch((err) => this.logger.warn(`Re-transcribe failed for ${id}: ${err?.message}`));
-    return { success: true, message: 'Transcription started' };
+    // Force a full re-run (transcript + notes) through the durable queue.
+    const job = await this.enqueueLectureJob(rec, user, instituteId, { force: true });
+    return { success: true, message: 'Transcription started', job };
   }
 
   /**
@@ -1464,9 +1953,9 @@ export class SchoolClassService implements OnModuleInit {
     if (!rec.transcript || rec.transcript.trim().length < 20) {
       throw new BadRequestException('No transcript available yet — wait for transcription to finish first');
     }
-    this.generateNotes(rec.id, rec.transcript, rec.topic_id || null, instituteId, this.normalizeLanguage(rec.language))
-      .catch((err) => this.logger.warn(`Re-generate notes failed for ${id}: ${err?.message}`));
-    return { success: true, message: 'Notes generation started' };
+    // Force a notes-only re-run through the durable queue (transcript is reused).
+    const job = await this.enqueueLectureJob(rec, user, instituteId, { force: true, only: 'notes' });
+    return { success: true, message: 'Notes generation started', job };
   }
 
   /** (Re)generate an in-video quiz from the transcript/notes (teacher-triggered). */
@@ -1525,6 +2014,9 @@ export class SchoolClassService implements OnModuleInit {
     } else {
       await this.ds.query(`DELETE FROM class_recordings WHERE id = $1`, [id]);
     }
+    // Best-effort: a deleted recording must not keep surfacing as an AI
+    // grounding source via its already-indexed transcript chunks.
+    this.textbooks.deleteLectureChunks(id).catch((err) => this.logger.warn(`Lecture chunk cleanup failed for ${id}: ${err?.message}`));
     return { success: true, message: 'Recording deleted' };
   }
 

@@ -165,11 +165,20 @@ export class SchoolStudyPlanService implements OnModuleInit {
       await this.clearPlan(user, targetClassId);
     } else {
       const existing = await this.ds.query(
-        `SELECT id FROM school_study_plans WHERE student_id = $1 AND class_id = $2`,
+        `SELECT id, valid_until, is_valid FROM school_study_plans WHERE student_id = $1 AND class_id = $2`,
         [student.student_id, targetClassId]
       );
-      if (existing.length) {
+      const activePlan = existing.find(
+        (p: any) => p.is_valid && (!p.valid_until || new Date(p.valid_until) > new Date())
+      );
+      if (activePlan) {
         return { message: 'Plan already exists.' };
+      }
+      if (existing.length) {
+        // Every existing plan row has expired (past its 30-day window) or was
+        // invalidated — clear it out so a fresh plan can be generated instead
+        // of silently no-oping against a stale row forever.
+        await this.clearPlan(user, targetClassId);
       }
     }
 
@@ -264,54 +273,59 @@ export class SchoolStudyPlanService implements OnModuleInit {
     const todayStr = this.todayIst();
     const startDate = new Date(todayStr);
 
-    const planRows = await this.ds.query(
-      `INSERT INTO school_study_plans (student_id, class_id, valid_until)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [student.student_id, targetClassId, new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)]
-    );
-    const planId = planRows[0].id;
+    // Run the plan + item creation atomically so a failure partway through
+    // (e.g. a bad row) can't leave behind an empty plan that would then
+    // permanently block regeneration via the "already exists" check above.
+    await this.ds.transaction(async (manager) => {
+      const planRows = await manager.query(
+        `INSERT INTO school_study_plans (student_id, class_id, valid_until)
+         VALUES ($1, $2, $3) RETURNING id`,
+        [student.student_id, targetClassId, new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000)]
+      );
+      const planId = planRows[0].id;
 
-    for (let day = 0; day < 30; day++) {
-      const currentDay = new Date(startDate);
-      currentDay.setDate(startDate.getDate() + day);
-      const dateStr = currentDay.toISOString().split('T')[0];
+      for (let day = 0; day < 30; day++) {
+        const currentDay = new Date(startDate);
+        currentDay.setDate(startDate.getDate() + day);
+        const dateStr = currentDay.toISOString().split('T')[0];
 
-      // Schedule one topic for every subject daily
-      for (const [subjectId, info] of subjectsMap.entries()) {
-        const topicIndex = day % info.topicsToSchedule.length;
-        const topic = info.topicsToSchedule[topicIndex];
-        const isRevision = info.isRevision;
+        // Schedule one topic for every subject daily
+        for (const [subjectId, info] of subjectsMap.entries()) {
+          const topicIndex = day % info.topicsToSchedule.length;
+          const topic = info.topicsToSchedule[topicIndex];
+          const isRevision = info.isRevision;
 
-        const studyTitle = isRevision ? `Revision: ${topic.topic_name}` : `Study: ${topic.topic_name}`;
-        const practiceTitle = isRevision ? `Practice (Revision): ${topic.topic_name}` : `Practice: ${topic.topic_name}`;
+          const studyTitle = isRevision ? `Revision: ${topic.topic_name}` : `Study: ${topic.topic_name}`;
+          const practiceTitle = isRevision ? `Practice (Revision): ${topic.topic_name}` : `Practice: ${topic.topic_name}`;
 
-        // Lecture / study task
-        await this.ds.query(
-          `INSERT INTO school_plan_items (study_plan_id, scheduled_date, type, title, duration_minutes, xp_reward, subject_name, content_json)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [planId, dateStr, 'lecture', studyTitle, 30, 10, topic.subject_name, JSON.stringify({
-            topicId: topic.topic_id,
-            topicName: topic.topic_name,
-            chapterName: topic.chapter_name,
-            subjectId: topic.subject_id,
-            subjectName: topic.subject_name
-          })]
-        );
+          // Lecture / study task
+          await manager.query(
+            `INSERT INTO school_plan_items (study_plan_id, scheduled_date, type, title, duration_minutes, xp_reward, subject_name, content_json)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [planId, dateStr, 'lecture', studyTitle, 30, 10, topic.subject_name, JSON.stringify({
+              topicId: topic.topic_id,
+              topicName: topic.topic_name,
+              chapterName: topic.chapter_name,
+              subjectId: topic.subject_id,
+              subjectName: topic.subject_name
+            })]
+          );
 
-        // Practice task
-        await this.ds.query(
-          `INSERT INTO school_plan_items (study_plan_id, scheduled_date, type, title, duration_minutes, xp_reward, subject_name, content_json)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [planId, dateStr, 'practice', practiceTitle, 30, 15, topic.subject_name, JSON.stringify({
-            topicId: topic.topic_id,
-            topicName: topic.topic_name,
-            chapterName: topic.chapter_name,
-            subjectId: topic.subject_id,
-            subjectName: topic.subject_name
-          })]
-        );
+          // Practice task
+          await manager.query(
+            `INSERT INTO school_plan_items (study_plan_id, scheduled_date, type, title, duration_minutes, xp_reward, subject_name, content_json)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [planId, dateStr, 'practice', practiceTitle, 30, 15, topic.subject_name, JSON.stringify({
+              topicId: topic.topic_id,
+              topicName: topic.topic_name,
+              chapterName: topic.chapter_name,
+              subjectId: topic.subject_id,
+              subjectName: topic.subject_name
+            })]
+          );
+        }
       }
-    }
+    });
 
     return { message: 'Plan generated successfully!' };
   }

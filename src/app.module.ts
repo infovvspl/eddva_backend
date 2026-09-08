@@ -8,7 +8,7 @@ import { BullModule } from '@nestjs/bull';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { redisStore } from 'cache-manager-redis-yet';
 
-import appConfig, { jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig, streamingConfig } from './config/app.config';
+import appConfig, { jwtConfig, redisConfig, aiConfig, aiAdmissionConfig, otpConfig, mailConfig, storageConfig, streamingConfig } from './config/app.config';
 import { coachingDbConfig, schoolDbConfig } from './config/database.config';
 import { TenantAiFeatureModule } from './common/services/tenant-ai-feature.module';
 
@@ -101,6 +101,7 @@ import { SchoolModule } from './modules/school/school.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { AiContextInterceptor } from './common/interceptors/ai-context.interceptor';
 import { RtmpHooksModule } from './modules/rtmp-hooks/rtmp-hooks.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { Lead } from './database/entities/lead.entity';
@@ -138,7 +139,7 @@ const ALL_COACHING_ENTITIES = [
     // ── Config ───────────────────────────────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig, streamingConfig],
+      load: [appConfig, jwtConfig, redisConfig, aiConfig, aiAdmissionConfig, otpConfig, mailConfig, storageConfig, streamingConfig],
       envFilePath: ['.env.local', '.env'],
     }),
 
@@ -266,6 +267,9 @@ const ALL_COACHING_ENTITIES = [
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    // Outermost interceptor: opens the AI attribution ALS scope (P1-6) before
+    // anything else runs, so downstream AI calls see the authenticated identity.
+    { provide: APP_INTERCEPTOR, useClass: AiContextInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],

@@ -28,6 +28,10 @@ export class SchoolClassController {
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   createRecording(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
 
+  @Get('recordings/:id/job-status')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
+  getLectureJobStatus(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.getJobStatus(user, id); }
+
   @Post('recordings/:id/retranscribe')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
   @SchoolFeature('ai', 'ai_notes_generator')

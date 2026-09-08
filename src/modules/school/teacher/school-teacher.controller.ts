@@ -52,6 +52,13 @@ export class SchoolTeacherController {
   @Audit({ module: 'Users', action: 'Teacher Edit', description: 'Updated teacher ID {params.id}' })
   update(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) { return this.svc.update(user, id, body); }
 
+  @Put(':id/admin-role')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  @Audit({ module: 'Users', action: 'Teacher Admin Role', description: 'Changed admin access for teacher ID {params.id}' })
+  setAdminRole(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: { isAdmin: boolean }) {
+    return this.svc.setAdminRole(user, id, !!body?.isAdmin);
+  }
+
   @Delete(':id')
   @Audit({ module: 'Users', action: 'Teacher Delete', description: 'Deleted teacher ID {params.id}' })
   remove(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(user, id); }

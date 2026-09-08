@@ -25,6 +25,31 @@ export interface AiUsageEvent {
   units?: number | null;       // provider-specific: audio seconds / chars
   unitType?: string | null;    // 'tokens' | 'audio_seconds' | 'chars' | 'request'
   estCost?: number | null;
+  // Attribution (P1-6). Sourced from the authenticated identity upstream, never
+  // from the client body. All nullable so historical/anonymous rows stay valid.
+  userId?: string | null;      // authenticated user UUID (teacher/student)
+  userRole?: string | null;    // 'teacher' | 'student' | 'admin' | ...
+  requestId?: string | null;   // correlation id shared across bridge → AI service
+}
+
+/**
+ * A single provider-level attempt outcome (P0-5). Distinct from AiUsageEvent,
+ * which records the *logical* request result: one logical request can produce
+ * several provider events (a 429 that rotates keys and then succeeds emits a
+ * `retry`/`429` here but a single successful AiUsageEvent). This is what lets us
+ * tell "no 429s" apart from "429s that key rotation silently recovered".
+ */
+export interface AiProviderEvent {
+  requestId?: string | null;
+  instituteId?: string | null;
+  feature?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  eventType: string;           // '429' | '5xx' | 'timeout' | 'provider_error' | 'retry' | 'failover'
+  statusCode?: number | null;
+  retryAfterMs?: number | null;
+  attemptNumber?: number | null;
+  keyHash?: string | null;     // sha256(key)[:12] — NEVER a raw key
 }
 
 @Injectable()
@@ -109,6 +134,34 @@ export class AiUsageService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS idx_ai_usage_events_inst_time ON ai_usage_events(institute_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_ai_usage_events_feat_time ON ai_usage_events(feature, created_at);
 
+      -- P1-6 attribution. Additive + nullable so every existing row stays valid
+      -- and the INSERT below is backward compatible.
+      ALTER TABLE ai_usage_events ADD COLUMN IF NOT EXISTS user_id UUID NULL;
+      ALTER TABLE ai_usage_events ADD COLUMN IF NOT EXISTS user_role VARCHAR(24) NULL;
+      ALTER TABLE ai_usage_events ADD COLUMN IF NOT EXISTS request_id VARCHAR(64) NULL;
+      CREATE INDEX IF NOT EXISTS idx_ai_usage_events_user_time ON ai_usage_events(user_id, created_at);
+
+      -- P0-5 provider-attempt telemetry. Separate table so ai_usage_events keeps
+      -- its "one row per logical request" meaning; this captures the retries and
+      -- failovers that key rotation would otherwise hide. No raw keys are stored.
+      CREATE TABLE IF NOT EXISTS ai_provider_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        request_id VARCHAR(64) NULL,
+        institute_id UUID NULL,
+        feature VARCHAR(48) NULL,
+        provider VARCHAR(24) NULL,
+        model VARCHAR(80) NULL,
+        event_type VARCHAR(24) NOT NULL,
+        status_code INT NULL,
+        retry_after_ms INT NULL,
+        attempt_number INT NULL,
+        key_hash VARCHAR(16) NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_ai_provider_events_time ON ai_provider_events(created_at);
+      CREATE INDEX IF NOT EXISTS idx_ai_provider_events_type_time ON ai_provider_events(event_type, created_at);
+      CREATE INDEX IF NOT EXISTS idx_ai_provider_events_prov_time ON ai_provider_events(provider, created_at);
+
       CREATE TABLE IF NOT EXISTS ai_usage_daily (
         institute_id UUID NOT NULL,
         vertical VARCHAR(16) NOT NULL DEFAULT 'coaching',
@@ -160,11 +213,17 @@ export class AiUsageService implements OnModuleInit {
         this.logger.warn(`[record] non-UUID instituteId="${ev.instituteId}" feature=${ev.feature} — event stored with null institute_id, daily upsert skipped`);
       }
 
+      // user_id is a UUID column — guard it the same way as institute_id so a
+      // stray non-UUID (e.g. a legacy numeric id) never aborts the insert.
+      const validUserId = ev.userId && AiUsageService.UUID_RE.test(ev.userId)
+        ? ev.userId : null;
+
       await this.ds.query(
         `INSERT INTO ai_usage_events
            (institute_id, vertical, feature, provider, model, success, status_code,
-            latency_ms, prompt_tokens, completion_tokens, total_tokens, units, unit_type, est_cost)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+            latency_ms, prompt_tokens, completion_tokens, total_tokens, units, unit_type, est_cost,
+            user_id, user_role, request_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
         [
           validUuid,
           ev.vertical || null,
@@ -180,6 +239,9 @@ export class AiUsageService implements OnModuleInit {
           ev.units ?? null,
           ev.unitType || null,
           ev.estCost ?? null,
+          validUserId,
+          ev.userRole || null,
+          ev.requestId || null,
         ],
       );
 
@@ -190,6 +252,41 @@ export class AiUsageService implements OnModuleInit {
       }
     } catch (err: any) {
       this.logger.error(`AI usage record failed: ${err?.message}`);
+    }
+  }
+
+  /**
+   * Persist one provider-attempt event (429/retry/timeout/failover). Best-effort;
+   * never throws — telemetry must never break generation. No rollup: these are
+   * raw diagnostic rows queried on demand for rate-limit-pressure dashboards.
+   */
+  async recordProviderEvent(ev: AiProviderEvent): Promise<void> {
+    try {
+      await this.ensureTables();
+      const validInst = ev.instituteId && AiUsageService.UUID_RE.test(ev.instituteId)
+        ? ev.instituteId : null;
+      // Defensive: only ever store a short hash, never anything key-shaped.
+      const keyHash = ev.keyHash ? String(ev.keyHash).slice(0, 16) : null;
+      await this.ds.query(
+        `INSERT INTO ai_provider_events
+           (request_id, institute_id, feature, provider, model, event_type,
+            status_code, retry_after_ms, attempt_number, key_hash)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [
+          ev.requestId || null,
+          validInst,
+          ev.feature || null,
+          ev.provider || null,
+          ev.model || null,
+          ev.eventType,
+          ev.statusCode ?? null,
+          ev.retryAfterMs ?? null,
+          ev.attemptNumber ?? null,
+          keyHash,
+        ],
+      );
+    } catch (err: any) {
+      this.logger.error(`AI provider-event record failed: ${err?.message}`);
     }
   }
 

@@ -1164,7 +1164,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     if (multiChapter) {
       const perChapterCap = Math.max(3, Math.floor(40 / chapterList.length));
       for (const ch of chapterList) {
-        const passages = await this.textbooks.getChapterPassages(instituteId, ch.id);
+        const { passages } = await this.textbooks.getGroundingPassages(instituteId, { chapterId: ch.id }, 'ebook');
         if (passages.length) {
           sourcePassages.push(...passages.slice(0, perChapterCap));
           groundedChapters.push(ch.name);
@@ -1184,9 +1184,9 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           groundingChapterId = rows[0]?.chapter_id ?? null;
         } catch { /* grounding is best-effort */ }
       }
-      sourcePassages = await this.textbooks.getChapterPassages(
-        instituteId, groundingChapterId,
-      );
+      ({ passages: sourcePassages } = await this.textbooks.getGroundingPassages(
+        instituteId, { chapterId: groundingChapterId, topicId: body.topicId || body.topic_id }, 'ebook',
+      ));
       const singleName = effChapterName || chapterList[0]?.name || chapterName;
       if (singleName) (sourcePassages.length ? groundedChapters : ungroundedChapters).push(singleName);
     }
