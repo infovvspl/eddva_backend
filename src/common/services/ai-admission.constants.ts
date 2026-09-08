@@ -61,6 +61,11 @@ export const ADMISSION_POOL_BY_PATH: Readonly<Record<string, AdmissionPool>> = {
   '/resume/analyze': AdmissionPool.BACKGROUND,
   '/interview/start': AdmissionPool.BACKGROUND,
   '/memorization/generate': AdmissionPool.BACKGROUND,
+  // Teacher recording analysis: an admin triggers it and does not sit
+  // watching, and it runs a full-transcript LLM pass. Unclassified paths
+  // already default to BACKGROUND, but this is an audited production AI
+  // path (G3 Class-B), so the policy is stated rather than inherited.
+  '/teacher/analyze-recording': AdmissionPool.BACKGROUND,
 };
 
 /**

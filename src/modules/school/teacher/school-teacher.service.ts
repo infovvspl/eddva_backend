@@ -2,10 +2,16 @@ import { BadRequestException, Injectable, NotFoundException, ForbiddenException,
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 
 @Injectable()
 export class SchoolTeacherService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) { }
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly aiBridgeService: AiBridgeService,
+  ) { }
+
+  private readonly logger = new Logger(SchoolTeacherService.name);
 
   private parseJsonArray(val: any): any[] {
     if (!val) return [];
@@ -1232,7 +1238,6 @@ export class SchoolTeacherService {
 
   // ── Teacher Video Performance Analysis ────────────────────────────────────
 
-  private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
   private analysisColumnsReady = false;
 
   private async ensureAnalysisColumns() {
@@ -1350,49 +1355,37 @@ export class SchoolTeacherService {
       [recordingId],
     );
 
-    const groqKey = process.env.GROQ_API_KEY ?? '';
-    if (!groqKey) {
-      await this.ds.query(`UPDATE class_recordings SET ai_teaching_analysis_status = 'failed' WHERE id = $1`, [recordingId]);
-      throw new BadRequestException('AI service not configured (GROQ_API_KEY missing).');
-    }
-
+    // The 8000-char cap predates this migration (it was applied to the same
+    // slice before the direct Groq call) and is preserved exactly. It is also
+    // load-bearing: Groq's on-demand tier hard-413s when prompt + max_tokens
+    // exceeds the per-request budget, and that failure is not retryable. See
+    // the matching cap in the Django endpoint.
     const transcript = rec.transcript.slice(0, 8000);
-    const prompt = `You are an expert education coach. Analyze this classroom teaching transcript and return structured JSON feedback.
-
-Transcript:
-"""
-${transcript}
-"""
-
-Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
-{
-  "overallScore": <integer 1-10>,
-  "summary": "<2-3 sentence holistic assessment>",
-  "clarity": { "score": <1-10>, "feedback": "<specific observation about explanation clarity and structure>" },
-  "pacing": { "score": <1-10>, "feedback": "<observation about lesson pacing, time allocation>" },
-  "contentCoverage": { "score": <1-10>, "feedback": "<observation about topic depth, examples, accuracy>" },
-  "studentEngagement": { "score": <1-10>, "feedback": "<observation about questions asked, interaction, energy>" },
-  "languageQuality": { "score": <1-10>, "feedback": "<observation about vocabulary, analogies, simplicity>" },
-  "suggestions": ["<concrete improvement 1>", "<concrete improvement 2>", "<concrete improvement 3>"],
-  "strengths": ["<identified strength 1>", "<identified strength 2>"]
-}`;
 
     let analysis: any;
     try {
-      const res = await fetch(this.GROQ_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.3,
-          max_tokens: 1024,
-        }),
-      });
-      const data: any = await res.json();
-      const content: string = data?.choices?.[0]?.message?.content ?? '{}';
-      analysis = JSON.parse(content.replace(/```json\n?|\n?```/g, '').trim());
-    } catch {
+      // instituteId is the guard-verified value resolved above, never a
+      // client-supplied tenant header. The bridge additionally keys admission
+      // on AiRequestContext, so attribution does not depend on this argument.
+      const res = await this.aiBridgeService.analyzeTeachingRecording(
+        { transcript, title: rec.title ?? undefined },
+        instituteId,
+      );
+      // _meta is the bridge envelope (model, latency, usage). The stored rubric
+      // predates it, and TeacherProfile.jsx renders the stored shape, so strip
+      // it rather than widening what gets persisted.
+      const { _meta, ...rubric } = (res ?? {}) as Record<string, any>;
+      if (!rubric || typeof rubric.overallScore !== 'number') {
+        // A malformed body would otherwise be persisted as a completed
+        // analysis and shown to an admin as real feedback.
+        throw new Error('AI bridge returned no usable analysis');
+      }
+      analysis = rubric;
+    } catch (err: any) {
+      // Never leave the row stuck in 'processing' — that state has no UI escape.
+      this.logger.error(
+        `Teacher recording analysis failed: recording=${recordingId} institute=${instituteId}: ${err?.message ?? err}`,
+      );
       await this.ds.query(`UPDATE class_recordings SET ai_teaching_analysis_status = 'failed' WHERE id = $1`, [recordingId]);
       throw new BadRequestException('AI analysis failed. Please try again.');
     }

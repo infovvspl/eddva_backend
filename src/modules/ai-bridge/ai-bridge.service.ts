@@ -20,6 +20,31 @@ import { AdmissionPool, classifyPath, ADMISSION_EXEMPT_PATHS } from '../../commo
  *   - API key is sent via Authorization: Bearer (validated by Django middleware)
  *   - Django middleware resolves the tenant and applies per-tenant rate limits + caching
  */
+/**
+ * The nine-field teaching rubric returned by Django's /teacher/analyze-recording.
+ * Shape is unchanged from the direct-Groq prompt it replaces, because it is
+ * persisted verbatim into class_recordings.ai_teaching_analysis and rendered by
+ * TeacherProfile.jsx.
+ */
+export interface TeacherRecordingRubric {
+  score: number;
+  feedback: string;
+}
+
+export interface TeacherRecordingAnalysis {
+  overallScore: number;
+  summary: string;
+  clarity: TeacherRecordingRubric;
+  pacing: TeacherRecordingRubric;
+  contentCoverage: TeacherRecordingRubric;
+  studentEngagement: TeacherRecordingRubric;
+  languageQuality: TeacherRecordingRubric;
+  suggestions: string[];
+  strengths: string[];
+  /** Bridge envelope added by ai_call(); not part of the persisted rubric. */
+  _meta?: Record<string, any>;
+}
+
 @Injectable()
 export class AiBridgeService {
   private readonly logger = new Logger(AiBridgeService.name);
@@ -558,6 +583,24 @@ export class AiBridgeService {
     tenantId?: string,
   ) {
     return this.post('/resume/analyze', payload, tenantId);
+  }
+
+  // ── Teacher recording analysis (G3 Class-B) ───────────────────────────────
+  // Replaces a direct api.groq.com fetch in SchoolTeacherService that named
+  // llama-3.3-70b-versatile — a model Groq decommissioned on 2026-08-16 — and
+  // that bypassed admission control, attribution and central key rotation.
+  //
+  // The caller passes the transcript already capped at 8000 chars; Django caps
+  // again on its own side rather than trusting the client.
+  async analyzeTeachingRecording(
+    payload: { transcript: string; title?: string },
+    tenantId?: string,
+  ): Promise<TeacherRecordingAnalysis> {
+    // 60s rather than the 240s default: this is a single ~1024-token completion
+    // over at most 8000 chars, and the BACKGROUND pool admits one call at a
+    // time — a longer timeout would hold that one slot far past any plausible
+    // response. The call it replaces had no timeout at all.
+    return this.post('/teacher/analyze-recording', payload, tenantId, 60_000, 'school');
   }
 
   // ── AI #11 — Interview Prep ────────────────────────────────────────────────
