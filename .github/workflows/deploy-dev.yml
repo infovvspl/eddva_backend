@@ -65,6 +65,15 @@ jobs:
             grep -q '^INTERNAL_API_KEY=' .env \
               && sed -i 's|^INTERNAL_API_KEY=.*|INTERNAL_API_KEY=edva_internal_ai_log_2026|' .env \
               || echo 'INTERNAL_API_KEY=edva_internal_ai_log_2026' >> .env
+            # P0 SSRF: /school/materials/proxy-pdf fetches a caller-supplied URL,
+            # so it may only reach these exact hosts. Derived from the DEV school
+            # material inventory (study_materials.s3_key). Hostnames are not
+            # secrets. Unset means "allow nothing" and the endpoint fails closed,
+            # so this must be written before the hardened build starts.
+            PROXY_HOSTS='pub-22354a2b0e694b93bcce0d5fb28e22a2.r2.dev,eddva-dev-media-871545.s3.ap-south-1.amazonaws.com,eddva.s3.ap-south-1.amazonaws.com,media.eddva.in'
+            grep -q '^SCHOOL_PROXY_PDF_ALLOWED_HOSTS=' .env \
+              && sed -i "s|^SCHOOL_PROXY_PDF_ALLOWED_HOSTS=.*|SCHOOL_PROXY_PDF_ALLOWED_HOSTS=${PROXY_HOSTS}|" .env \
+              || echo "SCHOOL_PROXY_PDF_ALLOWED_HOSTS=${PROXY_HOSTS}" >> .env
             if pm2 list | grep -q eddva-backend-dev; then
               pm2 restart eddva-backend-dev --update-env
             else

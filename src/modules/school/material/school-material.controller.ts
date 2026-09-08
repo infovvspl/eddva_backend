@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, UseGuards, Patch, Res, BadRequestException, HttpCode, HttpStatus, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, UseGuards, Patch, Res, BadRequestException, BadGatewayException, ServiceUnavailableException, Logger, HttpCode, HttpStatus, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Response } from 'express';
@@ -7,29 +7,87 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
-import { SchoolPublic } from '../decorators/school-public.decorator';
 import { SchoolFeature } from '../decorators/school-feature.decorator';
 import { SchoolFeatureGuard } from '../guards/school-feature.guard';
+import {
+  assertAllowedPdfUrl,
+  getProxyPdfAllowedHosts,
+  isPdfContentType,
+  readBoundedBody,
+  resolveMaxBytes,
+  PROXY_PDF_GENERIC_ERROR,
+  PROXY_PDF_MAX_BYTES_ENV,
+  PROXY_PDF_TIMEOUT_MS,
+} from './proxy-pdf.policy';
 
 @Controller('school/materials')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
 export class SchoolMaterialController {
+  private readonly logger = new Logger(SchoolMaterialController.name);
+
   constructor(private readonly svc: SchoolMaterialService) { }
 
+  /**
+   * Fetch a stored PDF server-side so the viewer can render it as a blob.
+   *
+   * This is an SSRF-shaped endpoint by nature — it fetches a URL the caller
+   * supplies — so it is deliberately narrow: authenticated, https only, an exact
+   * hostname allowlist from configuration, no redirects, a hard timeout, and a
+   * bounded body. It was previously @SchoolPublic() with none of that, which
+   * made it a full unauthenticated read SSRF against the VPC.
+   *
+   * Every external failure returns the same message; the reason is logged
+   * server-side only, so this cannot be used as a probe oracle.
+   */
   @Get('proxy-pdf')
-  @SchoolPublic()
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   async proxyPdf(@Query('url') targetUrl: string, @Res() res: Response) {
-    if (!targetUrl) throw new BadRequestException('url is required');
+    if (!targetUrl) throw new BadRequestException(PROXY_PDF_GENERIC_ERROR);
+
+    let url: URL;
     try {
-      const resp = await fetch(targetUrl);
-      if (!resp.ok) throw new BadRequestException(`S3 returned ${resp.status}`);
-      const arrayBuf = await resp.arrayBuffer();
-      const buffer = Buffer.from(arrayBuf);
+      url = assertAllowedPdfUrl(targetUrl, getProxyPdfAllowedHosts());
+    } catch (err: any) {
+      // Hostname only — never the path or query, which carry presigned signatures.
+      this.logger.warn(`proxy-pdf rejected: ${err?.reason ?? 'invalid'}`);
+      if (err?.reason === 'not_configured') {
+        // Fail closed: no allowlist configured means nothing is proxied.
+        throw new ServiceUnavailableException(PROXY_PDF_GENERIC_ERROR);
+      }
+      throw new BadRequestException(PROXY_PDF_GENERIC_ERROR);
+    }
+
+    try {
+      const upstream = await fetch(url, {
+        // An allowlisted host can still 302 to an internal address, so a
+        // followed redirect would defeat the allowlist entirely.
+        redirect: 'manual',
+        signal: AbortSignal.timeout(PROXY_PDF_TIMEOUT_MS),
+      });
+
+      if (upstream.status >= 300 && upstream.status < 400) {
+        throw new Error('proxy_pdf_redirect');
+      }
+      if (!upstream.ok) throw new Error(`proxy_pdf_upstream_${upstream.status}`);
+      if (!isPdfContentType(upstream.headers.get('content-type'))) {
+        // Do not relabel arbitrary bytes as a PDF.
+        throw new Error('proxy_pdf_content_type');
+      }
+
+      const buffer = await readBoundedBody(
+        upstream.body as any,
+        upstream.headers.get('content-length'),
+        resolveMaxBytes(process.env[PROXY_PDF_MAX_BYTES_ENV]),
+      );
+
+      // No ACAO header here: global CORS in main.ts already allows the app
+      // origins, and the previous wildcard let any site read tenant PDFs.
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Length', String(buffer.length));
       res.send(buffer);
     } catch (err: any) {
-      throw new BadRequestException(err.message || 'Failed to proxy PDF');
+      this.logger.warn(`proxy-pdf upstream failure host=${url.hostname}: ${err?.message ?? 'unknown'}`);
+      throw new BadGatewayException(PROXY_PDF_GENERIC_ERROR);
     }
   }
 
