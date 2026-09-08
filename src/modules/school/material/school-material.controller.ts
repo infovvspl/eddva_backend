@@ -135,8 +135,12 @@ export class SchoolMaterialController {
   //   return this.svc.auditMaterialData();
   // }
 
+  // Same AI entitlement as ai-save: image generation is paid provider work, and
+  // without this the route was reachable by institutes that have AI disabled
+  // (SchoolFeatureGuard allows any handler that declares no requirement).
   @Post('ai-slide-image')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_content_generator_materials')
   aiSlideImage(@SchoolUser() user: any, @Body() body: any) { return this.svc.generateSlideImage(user, body); }
 
   @Post()

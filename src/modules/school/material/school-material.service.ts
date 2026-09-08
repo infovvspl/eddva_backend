@@ -4,6 +4,8 @@ import { DataSource } from 'typeorm';
 import { randomUUID, createHash } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { AiUsageService } from '../../ai-usage/ai-usage.service';
+import { getAiRequestContext } from '../../../common/context/ai-request-context';
 import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
@@ -25,6 +27,25 @@ const ALLOWED_MATERIAL_TYPES = [
 ];
 const UUID_TEXT_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 
+/** Why a slide-image generation failed, for telemetry only. */
+type SlideImageFailure =
+  | 'timeout'
+  | 'http_503'
+  | 'http_4xx'
+  | 'http_5xx'
+  | 'network_error'
+  | 'invalid_response'
+  | 'not_configured';
+
+/** Result of one logical Hugging Face generation, including its retry. */
+interface SlideImageOutcome {
+  buffer: Buffer | null;
+  statusCode: number | null;
+  category: SlideImageFailure | null;
+  providerLatencyMs: number;
+  attempts: number;
+}
+
 @Injectable()
 export class SchoolMaterialService implements OnModuleInit {
   private readonly logger = new Logger(SchoolMaterialService.name);
@@ -36,6 +57,7 @@ export class SchoolMaterialService implements OnModuleInit {
     private readonly notificationService: SchoolNotificationService,
     private readonly featureFlagService: AiFeatureFlagService,
     private readonly textbooks: SchoolTextbookService,
+    private readonly aiUsageService: AiUsageService,
   ) { }
 
   /** Ensure newer material types exist on the study_materials.type enum. */
@@ -409,6 +431,16 @@ export class SchoolMaterialService implements OnModuleInit {
     return { success: true, data: rows[0] };
   }
 
+  /** Upper bound on the caller-supplied slide prompt, before styling. */
+  private static readonly MAX_SLIDE_IMAGE_PROMPT_CHARS = 500;
+
+  /** Per-attempt ceiling for one Hugging Face image generation. */
+  private static readonly HF_IMAGE_TIMEOUT_MS = 60_000;
+
+  /** Telemetry identity for this path, matching the ai_usage_events contract. */
+  private static readonly SLIDE_IMAGE_FEATURE = 'slide_image_generation';
+  private static readonly SLIDE_IMAGE_PROVIDER = 'huggingface';
+
   /**
    * Generate (or fetch from cache) an AI image for a single presentation slide
    * via the Hugging Face Inference API, store it in S3, and return its URL.
@@ -417,14 +449,30 @@ export class SchoolMaterialService implements OnModuleInit {
   async generateSlideImage(user: any, body: { prompt?: string }) {
     const prompt = String(body?.prompt || '').trim();
     if (!prompt) throw new BadRequestException('prompt is required');
+    // Prompts are machine-built from a slide title plus three bullets, so this
+    // ceiling is far above anything the UI produces; it exists to stop an
+    // arbitrarily large body being forwarded to a paid provider. Rejecting
+    // rather than truncating matches the blank-prompt check above, and the
+    // caller already degrades to its own image fallback on an error.
+    if (prompt.length > SchoolMaterialService.MAX_SLIDE_IMAGE_PROMPT_CHARS) {
+      throw new BadRequestException(
+        `prompt must be ${SchoolMaterialService.MAX_SLIDE_IMAGE_PROMPT_CHARS} characters or fewer`,
+      );
+    }
     const instituteId = user.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
 
     const token = process.env.HF_TOKEN;
+    const model = process.env.HF_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
     if (!token) {
+      // Not a provider attempt, but recorded so a misconfigured environment is
+      // visible in the same place as provider failures rather than silent.
+      this.recordSlideImageUsage(model, false, {
+        buffer: null, statusCode: null, category: 'not_configured',
+        providerLatencyMs: 0, attempts: 0,
+      });
       throw new BadRequestException('Image generation is not configured (missing HF_TOKEN)');
     }
-    const model = process.env.HF_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
 
     const styled = `${prompt}. Clean modern flat educational illustration, infographic / textbook diagram style, vector art, vibrant colors, plain white background, highly detailed, sharp, no text, no words, no captions, no watermark`;
     const hash = createHash('sha1').update(`${model}|${styled}`).digest('hex').slice(0, 24);
@@ -436,12 +484,14 @@ export class SchoolMaterialService implements OnModuleInit {
     }
 
     // Generate via Hugging Face (retry once if the model is cold-loading).
-    const buffer = await this.callHuggingFace(model, styled, token);
-    if (!buffer) {
+    const outcome = await this.callHuggingFace(model, styled, token);
+    if (!outcome.buffer) {
+      this.recordSlideImageUsage(model, false, outcome);
       throw new BadRequestException('Image generation failed or timed out. Try again.');
     }
 
-    await this.s3Service.upload(key, buffer, 'image/png');
+    await this.s3Service.upload(key, outcome.buffer, 'image/png');
+    this.recordSlideImageUsage(model, true, outcome);
     return { success: true, data: { url: this.s3Service.toPublicUrl(key), cached: false } };
   }
 
@@ -449,9 +499,18 @@ export class SchoolMaterialService implements OnModuleInit {
     model: string,
     prompt: string,
     token: string,
-  ): Promise<Buffer | null> {
+  ): Promise<SlideImageOutcome> {
     const url = `https://router.huggingface.co/hf-inference/models/${model}`;
+    // Provider time only: the deliberate cold-start sleep between attempts is
+    // our wait, not the provider's, so it is excluded from latency.
+    let providerLatencyMs = 0;
+    let statusCode: number | null = null;
+    let category: SlideImageFailure | null = null;
+    let attempts = 0;
+
     for (let attempt = 0; attempt < 2; attempt++) {
+      attempts = attempt + 1;
+      const startedAt = Date.now();
       try {
         const res = await fetch(url, {
           method: 'POST',
@@ -461,11 +520,20 @@ export class SchoolMaterialService implements OnModuleInit {
             Accept: 'image/png',
           },
           body: JSON.stringify({ inputs: prompt, parameters: { width: 1024, height: 768, num_inference_steps: 6 } }),
+          // Diffusion is slow but not unbounded. Without this a stalled socket
+          // held a Node request forever. Fresh per attempt, so the 503 retry
+          // below still gets its own full budget; an abort lands in the catch
+          // and returns null like any other failure, adding no extra retry.
+          signal: AbortSignal.timeout(SchoolMaterialService.HF_IMAGE_TIMEOUT_MS),
         });
+
+        providerLatencyMs += Date.now() - startedAt;
+        statusCode = res.status;
 
         const contentType = res.headers.get('content-type') || '';
         if (res.ok && contentType.startsWith('image/')) {
-          return Buffer.from(await res.arrayBuffer());
+          const buffer = Buffer.from(await res.arrayBuffer());
+          return { buffer, statusCode, category: null, providerLatencyMs, attempts };
         }
 
         // Model still loading → HF returns 503 with an estimated_time; wait & retry.
@@ -476,19 +544,89 @@ export class SchoolMaterialService implements OnModuleInit {
             if (j?.estimated_time) waitMs = Math.min(20000, Math.ceil(j.estimated_time * 1000));
           } catch { /* ignore */ }
           this.logger.log(`HF model ${model} loading; retrying in ${waitMs}ms`);
+          // Attempt-level visibility, so the retry is never hidden behind the
+          // single request-level usage row recorded by the caller.
+          this.recordSlideImageProviderEvent(model, '5xx', 503, attempts);
+          category = 'http_503';
           await new Promise((r) => setTimeout(r, waitMs));
           continue;
         }
 
         const errText = await res.text().catch(() => '');
         this.logger.warn(`HF image gen failed (${res.status}): ${errText.slice(0, 200)}`);
-        return null;
+        category = res.ok
+          ? 'invalid_response'                       // 200 that was not an image
+          : res.status === 503 ? 'http_503'
+          : res.status >= 500 ? 'http_5xx'
+          : 'http_4xx';
+        this.recordSlideImageProviderEvent(
+          model, res.status === 429 ? '429' : res.status >= 500 ? '5xx' : 'provider_error',
+          res.status, attempts,
+        );
+        return { buffer: null, statusCode, category, providerLatencyMs, attempts };
       } catch (err) {
+        providerLatencyMs += Date.now() - startedAt;
+        // AbortSignal.timeout() rejects with a TimeoutError; everything else here
+        // is a transport failure. The message is logged, never the token.
+        const timedOut = (err as Error)?.name === 'TimeoutError';
+        category = timedOut ? 'timeout' : 'network_error';
         this.logger.warn(`HF image gen error: ${(err as Error).message}`);
-        return null;
+        this.recordSlideImageProviderEvent(model, timedOut ? 'timeout' : 'provider_error', null, attempts);
+        return { buffer: null, statusCode, category, providerLatencyMs, attempts };
       }
     }
-    return null;
+    // Both attempts were 503 (the cold-start retry also failed).
+    return { buffer: null, statusCode, category: category ?? 'http_503', providerLatencyMs, attempts };
+  }
+
+  /**
+   * One usage row per logical request, matching the convention AiBridgeService
+   * uses: request-level rows in ai_usage_events, attempt-level detail in
+   * ai_provider_events. Best-effort — telemetry must never fail a generation.
+   */
+  private recordSlideImageUsage(model: string, success: boolean, outcome: SlideImageOutcome) {
+    const ctx = getAiRequestContext();
+    void this.aiUsageService.record({
+      instituteId: ctx.instituteId ?? null,
+      vertical: 'school',
+      feature: SchoolMaterialService.SLIDE_IMAGE_FEATURE,
+      provider: SchoolMaterialService.SLIDE_IMAGE_PROVIDER,
+      model,
+      success,
+      statusCode: outcome.statusCode,
+      latencyMs: outcome.providerLatencyMs,
+      // Image generation has no tokens. `units`/`unitType` is the schema's
+      // existing non-token dimension; inventing token counts would corrupt
+      // every token-based rollup that reads this table.
+      units: 1,
+      unitType: 'request',
+      // Explicit null = price unknown. huggingface has no rate-table entry, and
+      // estimateCost()'s catch-all would otherwise invent a per-request price.
+      estCost: null,
+      userId: ctx.userId ?? null,
+      userRole: ctx.userRole ?? null,
+      requestId: ctx.requestId ?? null,
+    });
+  }
+
+  /** Attempt-level provider event (retry/timeout/error). Never carries a key. */
+  private recordSlideImageProviderEvent(
+    model: string,
+    eventType: string,
+    statusCode: number | null,
+    attemptNumber: number,
+  ) {
+    const ctx = getAiRequestContext();
+    void this.aiUsageService.recordProviderEvent({
+      requestId: ctx.requestId ?? null,
+      instituteId: ctx.instituteId ?? null,
+      feature: SchoolMaterialService.SLIDE_IMAGE_FEATURE,
+      provider: SchoolMaterialService.SLIDE_IMAGE_PROVIDER,
+      model,
+      eventType,
+      statusCode,
+      attemptNumber,
+    });
   }
 
   /** Generate a tenant-scoped presigned S3 PUT URL for a school material file. */

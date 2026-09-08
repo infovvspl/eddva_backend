@@ -199,7 +199,13 @@ export class AiUsageService implements OnModuleInit {
   async record(ev: AiUsageEvent): Promise<void> {
     try {
       await this.ensureTables();
-      if ((ev.estCost === undefined || ev.estCost === null) && ev.success) {
+      // Estimate only when the caller expressed no opinion. A caller that passes
+      // estCost: null is asserting "price unknown" — image providers have no
+      // entry in the rate tables, and estimateCost()'s catch-all would otherwise
+      // invent a per-request price for them. Callers that omit the key entirely
+      // (every existing one) keep the previous behaviour exactly.
+      const costSupplied = Object.prototype.hasOwnProperty.call(ev, 'estCost');
+      if (!costSupplied && ev.success) {
         ev.estCost = this.estimateCost(ev.provider, ev.totalTokens, ev.promptTokens, ev.completionTokens);
       }
       if ((ev.totalTokens === undefined || ev.totalTokens === null) && ev.promptTokens != null && ev.completionTokens != null) {
