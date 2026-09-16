@@ -52,6 +52,7 @@ export class SchoolTopicService {
   }
   async listTopics(query: any) {
     const chapterId = query.chapterId;
+    const subjectId = query.subjectId;
     let rows: any[] = [];
     try {
       if (chapterId) {
@@ -83,16 +84,38 @@ export class SchoolTopicService {
         }
       }
 
-      let sql = `
-        SELECT DISTINCT ON (LOWER(TRIM(t.name))) t.id, t.name, COALESCE(t.sort_order, 0) as sort_order, t.created_at, t.updated_at
-        FROM topics t
-        WHERE 1=1
-        ${chapterId ? `AND t.chapter_id = $1` : ''}
-        ORDER BY LOWER(TRIM(t.name)), t.updated_at DESC NULLS LAST, t.created_at ASC
-      `;
-
+      let sql: string;
       const params: any[] = [];
-      if (chapterId) params.push(chapterId);
+      if (chapterId) {
+        sql = `
+          SELECT DISTINCT ON (LOWER(TRIM(t.name))) t.id, t.name, t.chapter_id, COALESCE(t.sort_order, 0) as sort_order, t.created_at, t.updated_at
+          FROM topics t
+          WHERE t.chapter_id = $1
+          ORDER BY LOWER(TRIM(t.name)), t.updated_at DESC NULLS LAST, t.created_at ASC
+        `;
+        params.push(chapterId);
+      } else if (subjectId) {
+        // All topics across every chapter of this subject in one call — filter dropdowns
+        // and similar "full curriculum list" views need this instead of one chapter at a
+        // time. Dedup is per (chapter, name) so the same topic name in different chapters
+        // isn't incorrectly collapsed into one row.
+        sql = `
+          SELECT DISTINCT ON (t.chapter_id, LOWER(TRIM(t.name))) t.id, t.name, t.chapter_id, c.name as chapter_name,
+                 COALESCE(t.sort_order, 0) as sort_order, t.created_at, t.updated_at
+          FROM topics t
+          JOIN chapters c ON t.chapter_id = c.id
+          WHERE c.subject_id = $1
+          ORDER BY t.chapter_id, LOWER(TRIM(t.name)), t.updated_at DESC NULLS LAST, t.created_at ASC
+        `;
+        params.push(subjectId);
+      } else {
+        sql = `
+          SELECT DISTINCT ON (LOWER(TRIM(t.name))) t.id, t.name, t.chapter_id, COALESCE(t.sort_order, 0) as sort_order, t.created_at, t.updated_at
+          FROM topics t
+          WHERE 1=1
+          ORDER BY LOWER(TRIM(t.name)), t.updated_at DESC NULLS LAST, t.created_at ASC
+        `;
+      }
 
       const rawRows: any[] = await this.ds.query(sql, params);
 

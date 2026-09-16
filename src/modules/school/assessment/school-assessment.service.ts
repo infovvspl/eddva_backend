@@ -2364,7 +2364,11 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       [body.assessmentId],
     );
     const totalMarks = Number(body.totalMarks || body.total_marks || assessmentRows[0]?.total_marks || 100);
-    const marksObtained = body.isAbsent ? 0 : Number(body.marksObtained || 0);
+    // Defense in depth: the UI already clamps to [0, totalMarks], but this is the
+    // one write path for marks_obtained (manual entry and both auto-grading call
+    // sites), so clamp here too rather than trusting every caller.
+    const rawMarks = body.isAbsent ? 0 : Number(body.marksObtained || 0);
+    const marksObtained = Math.min(Math.max(Number.isFinite(rawMarks) ? rawMarks : 0, 0), totalMarks);
     const percentage = totalMarks ? Math.round((marksObtained / totalMarks) * 10000) / 100 : 0;
     const rows: any[] = await this.ds.query(
       `INSERT INTO results

@@ -643,10 +643,22 @@ export class SchoolDoubtService implements OnModuleInit {
       doubt.subjectName,
       doubt.instituteId || user.instituteId,
     );
+
+    // ai.answer is just the flattened top-level field, which for a structured
+    // response is the short final answer (e.g. "Correct Option: B") — the worked
+    // explanation lives separately in raw.explanation / raw.detailed.solution.
+    // Stitch both together so the drafted reply actually teaches the student
+    // instead of just stating the answer.
+    const explanation = String(ai.raw?.explanation || ai.raw?.detailed?.solution || '').trim();
+    const finalAnswer = String(ai.answer || '').trim();
+    const suggestion = finalAnswer && finalAnswer !== explanation
+      ? (explanation ? `${explanation}\n\n**Final Answer:** ${finalAnswer}` : finalAnswer)
+      : explanation || finalAnswer;
+
     return {
       success: true,
       data: {
-        suggestion: ai.answer,
+        suggestion,
         steps: ai.steps,
         note: 'Review and edit before sending to the student.',
       },
