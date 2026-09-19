@@ -282,11 +282,14 @@ export class AiBridgeService {
       questionImageUrl?: string;
       topicId?: string;
       mode: 'short' | 'detailed';
+      /** subject, className, chapterName, board, level — curriculum context the
+       *  AI service uses for syllabus framing AND for priming image transcription. */
       studentContext?: any;
       language?: string;
     },
     tenantId?: string,
     vertical?: string,
+    board?: string,
   ) {
     const lang = (payload.language || '').toLowerCase();
     const isEnglish = !lang || lang === 'english' || lang === 'en';
@@ -299,7 +302,10 @@ export class AiBridgeService {
       questionText: shouldAddMathHint
         ? this.withMathDerivationStyleHint(payload.questionText)
         : payload.questionText,
-    }, tenantId, undefined, vertical);
+      // board reaches Django as X-Board; without it _build_solver_system_prompt()
+      // always framed answers generically, because getattr(request,'board','') was
+      // empty for every school doubt.
+    }, tenantId, undefined, vertical, board);
   }
 
   /**

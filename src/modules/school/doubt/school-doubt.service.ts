@@ -50,6 +50,18 @@ export class SchoolDoubtService implements OnModuleInit {
     }
   }
 
+  /**
+   * Curriculum context is what makes a doubt answerable.
+   *
+   * "Why was Horace arrested?" is unanswerable in the abstract, and the model
+   * correctly said so. With "Class 10, CBSE, English Communicative" it resolves to
+   * a specific prescribed chapter. The class and board were already loaded a few
+   * lines above this call and simply were not forwarded, so the AI was asked to
+   * answer a syllabus question with the syllabus withheld.
+   *
+   * It also feeds image transcription: a vision model told the subject and class
+   * reads a handwritten proper noun far more reliably than one given no priors.
+   */
   private async resolveWithAi(
     questionText: string,
     questionImageUrl: string | null | undefined,
@@ -57,8 +69,10 @@ export class SchoolDoubtService implements OnModuleInit {
     instituteId: string,
     mode: 'short' | 'detailed' = 'detailed',
     language?: string,
+    curriculum?: { className?: string | null; chapterName?: string | null },
   ): Promise<{ answer: string; steps: string[]; raw: any }> {
     const aiImageUrl = await this.toAccessibleImageUrl(questionImageUrl || undefined);
+    const board = await this.resolveBoard(instituteId);
     const aiResult: any = await this.aiBridgeService.resolveDoubt(
       {
         questionText:
@@ -66,14 +80,43 @@ export class SchoolDoubtService implements OnModuleInit {
           (aiImageUrl ? 'Explain and solve the question shown in the attached image.' : ''),
         questionImageUrl: aiImageUrl || undefined,
         mode,
-        studentContext: { subject: subjectName || undefined, level: 'school' },
+        studentContext: {
+          subject: subjectName || undefined,
+          className: curriculum?.className || undefined,
+          chapterName: curriculum?.chapterName || undefined,
+          board: board || undefined,
+          level: 'school',
+        },
         language,
       },
       instituteId,
       'school',
+      board,
     );
     const answer = this.aiAnswerText(aiResult);
     return { answer, steps: this.extractSteps(answer), raw: aiResult };
+  }
+
+  /**
+   * Institute's education board (cbse | icse | state), cached for 5 minutes.
+   * Mirrors SchoolAssessmentService.resolveBoard so an ICSE school is never
+   * given CBSE-framed answers. Failure is non-fatal: an unknown board simply
+   * means the AI falls back to generic framing, which is today's behaviour.
+   */
+  private static readonly _boardCache = new Map<string, { value: string; expiresAt: number }>();
+
+  private async resolveBoard(instituteId?: string): Promise<string | undefined> {
+    if (!instituteId) return undefined;
+    const cached = SchoolDoubtService._boardCache.get(instituteId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value || undefined;
+    try {
+      const rows = await this.ds.query(`SELECT board FROM institutes WHERE id = $1 LIMIT 1`, [instituteId]);
+      const value = String(rows?.[0]?.board ?? '').trim().toLowerCase();
+      SchoolDoubtService._boardCache.set(instituteId, { value, expiresAt: Date.now() + 5 * 60 * 1000 });
+      return value || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /** Flatten the AI bridge doubt response into a single markdown answer string. */
@@ -423,6 +466,9 @@ export class SchoolDoubtService implements OnModuleInit {
           instituteId,
           (body.explanationMode as 'short' | 'detailed') || 'detailed',
           body.language,
+          // class_name comes from loadStudentProfile's join on classes; chapter is
+          // only known when the doubt was raised from a lecture recording.
+          { className: profile.class_name, chapterName: (body.chapterName || null) },
         );
         if (!ai.answer) throw new Error('Empty AI response');
         
