@@ -1707,8 +1707,30 @@ export class AiBridgeService {
   }
 
   /** Read a chapter PDF into page-tagged passages (scans are transcribed there). */
+  /**
+   * Draw one figure a question needs that the textbook does not contain.
+   *
+   * The AI service writes matplotlib code from `spec` and runs it in an
+   * isolated process. Called once per figure while a paper is being drafted, so
+   * the timeout is short: a figure that cannot be drawn quickly is dropped and
+   * the paper goes on without it.
+   *
+   * Pool: left unclassified on purpose, so classifyPath() defaults it to
+   * BACKGROUND. That is the correct pool — this runs inside teacher paper
+   * generation, which is itself BACKGROUND — and it keeps the admission
+   * constants file untouched.
+   */
+  async renderDiagram(
+    dto: { spec: string; subjectName?: string; className?: string; board?: string },
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+  ): Promise<{ success: boolean; data?: { imageBase64: string; attempts: number } }> {
+    return this.post('/diagram/render', dto, tenantId, 60_000, vertical || 'school', board);
+  }
+
   async ingestTextbook(
-    dto: { fileUrl: string; allowOcr?: boolean; progressKey?: string },
+    dto: { fileUrl: string; allowOcr?: boolean; progressKey?: string; wantFigures?: boolean },
     tenantId?: string,
   ): Promise<{ success: boolean; data: any }> {
     // A scanned chapter goes through a vision pass page by page, so this is far

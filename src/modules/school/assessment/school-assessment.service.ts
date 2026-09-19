@@ -13,8 +13,42 @@ import {
   SCHOOL_NOTIFICATION_TEMPLATES,
   fillTemplate,
 } from '../notification-fcm/school-notification-templates';
+import { createHash } from 'crypto';
 import { S3Service } from '../../upload/s3.service';
 import { resolvePublicApiUrl, normalizeAccessibleUrl } from '../../../common/url-helper';
+
+/**
+ * Ceiling on how many chapter figures are offered to one paper. Only captions
+ * go into the prompt, but a multi-chapter test can span hundreds of figures and
+ * an unbounded catalogue would crowd out the textbook passages it competes with
+ * for the same context budget.
+ */
+const _MAX_PAPER_FIGURES = 24;
+
+/**
+ * [FIGURE: F3] — how the model asks for one of the offered figures. Tolerant
+ * about spacing and case because papers come back from more than one model, and
+ * a marker that fails to match would be printed to a student verbatim.
+ */
+const _FIGURE_MARKER_RE = /\[\s*FIGURE\s*:\s*(F\d{1,3})\s*\]/gi;
+
+/**
+ * [PLOT: right-angled triangle with vertices A(1,1), B(4,1), C(4,5)] — how the
+ * model asks for a figure the textbook does not contain but the question's own
+ * data determines. The spec stops at the first `]` so a marker cannot swallow
+ * the rest of the paper.
+ */
+const _PLOT_MARKER_RE = /\[\s*PLOT\s*:\s*([^\]\n]{1,400})\]/gi;
+
+/**
+ * Ceiling on drawn diagrams per paper. Each one is a model call plus a
+ * sandboxed subprocess, so this bounds both the wall-clock cost of drafting a
+ * paper and the damage a runaway generation can do.
+ */
+const _MAX_PAPER_PLOTS = 4;
+
+/** A Markdown image on its own line, as resolveFigureMarkers emits it. */
+const _MARKDOWN_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)\)/;
 
 @Injectable()
 export class SchoolAssessmentService {
@@ -474,7 +508,18 @@ export class SchoolAssessmentService {
         };
         continue;
       }
-      if (current) current.text = `${current.text}\n${line}`;
+      if (current) {
+        // A chapter figure resolved into the paper as a Markdown image. It stays
+        // inline in the question text — that is what renders it in both the
+        // whole-paper view and the per-question test engine — and is ALSO
+        // recorded structurally, so rubric generation and grading can be told
+        // the question carries a diagram instead of silently marking it blind.
+        const image = line.match(_MARKDOWN_IMAGE_RE);
+        if (image && !current.image) {
+          current.image = { url: image[2], alt: image[1] || '' };
+        }
+        current.text = `${current.text}\n${line}`;
+      }
     }
     finishCurrent();
 
@@ -488,6 +533,7 @@ export class SchoolAssessmentService {
       text: q.text,
       marks: Number(q.marks || 1),
       options: Array.isArray(q.options) && q.options.length ? q.options : undefined,
+      image: q.image || undefined,
       correctAnswer: q.correctAnswer,
       explanation: this.objectiveTypes.has(q.type || 'short_answer') ? q.explanation : undefined,
     }));
@@ -672,6 +718,25 @@ export class SchoolAssessmentService {
    * or the feature is disabled; questions simply keep no `rubric` field, and the
    * grading step (Phase 2) falls back to inferring criteria on the fly for those.
    */
+  /**
+   * A question as the rubric writer and the grader should see it.
+   *
+   * Both of them take text only, so a question with a diagram used to arrive
+   * stripped of the one thing it was really asking about — the marking scheme
+   * was written blind and the answer was then graded against it. The raw
+   * Markdown image is useless to a text model (it is a URL), so it is replaced
+   * by what the textbook calls that diagram.
+   */
+  private questionTextForMarking(question: any): string {
+    const text = String(question?.text || '');
+    const alt = String(question?.image?.alt || '').trim();
+    const withoutImage = text.replace(new RegExp(_MARKDOWN_IMAGE_RE.source, 'g'), '').trim();
+    if (!question?.image) return text;
+    return alt
+      ? `${withoutImage}\n\n[This question is accompanied by a diagram from the textbook: ${alt}]`
+      : `${withoutImage}\n\n[This question is accompanied by a diagram from the textbook.]`;
+  }
+
   private async generateSubjectiveRubrics(
     questions: any[],
     ctx: { subjectId?: string; classId?: string; instituteId?: string },
@@ -688,7 +753,17 @@ export class SchoolAssessmentService {
       ]);
       const result = await this.aiBridge.generateSubjectiveRubrics(
         {
-          questions: needsRubric.map((q: any) => ({ questionId: q.id, text: q.text, marks: Number(q.marks || 1), type: q.type })),
+          questions: needsRubric.map((q: any) => ({
+            questionId: q.id,
+            // A question carrying a figure was previously sent as text alone,
+            // so the marking scheme was written without knowing a diagram was
+            // part of the question at all. The figure's caption is sent, not
+            // the image: it is what the textbook itself calls the diagram, and
+            // it costs no vision call.
+            text: this.questionTextForMarking(q),
+            marks: Number(q.marks || 1),
+            type: q.type,
+          })),
           subjectName,
           className,
           board,
@@ -1062,6 +1137,196 @@ export class SchoolAssessmentService {
     }
   }
 
+  /**
+   * The figures available to a paper, as a short catalogue the model can pick
+   * from by reference.
+   *
+   * Only captions and descriptions go into the prompt — never the images — so
+   * offering figures costs a few hundred tokens rather than a vision call per
+   * paper. The `ref` is positional (F1, F2, …) and lives only for this one
+   * generation; the stable identity is the row id carried alongside it.
+   */
+  private async collectChapterFigures(
+    instituteId: string,
+    chapterList: Array<{ id: string; name: string }>,
+    body: any,
+  ): Promise<Array<{ ref: string; id: string; label: string; caption: string; description: string; imageUrl: string }>> {
+    const chapterIds = chapterList.length
+      ? chapterList.map((c) => c.id)
+      : [body?.chapterId || body?.chapter_id].filter(Boolean);
+    if (!chapterIds.length) return [];
+
+    const collected: any[] = [];
+    for (const chapterId of chapterIds) {
+      try {
+        const figures = await this.textbooks.getChapterFigures(instituteId, chapterId);
+        collected.push(...figures);
+      } catch (err: any) {
+        // Consistent with grounding everywhere else here: best-effort.
+        this.logger.warn(`Figure lookup failed for chapter ${chapterId}: ${err?.message || err}`);
+      }
+      if (collected.length >= _MAX_PAPER_FIGURES) break;
+    }
+
+    return collected.slice(0, _MAX_PAPER_FIGURES).map((figure, index) => ({
+      ref: `F${index + 1}`,
+      id: String(figure.id),
+      label: String(figure.label || ''),
+      caption: String(figure.caption || ''),
+      description: String(figure.description || ''),
+      imageUrl: String(figure.imageUrl || ''),
+    }));
+  }
+
+  /**
+   * Turn [FIGURE: Fn] markers into Markdown images.
+   *
+   * Unknown references are REMOVED rather than left in place: a model that
+   * invents "F9" must not put the literal text "[FIGURE: F9]" in front of a
+   * student. The same applies to a figure whose image never got a URL.
+   *
+   * A figure is used at most once even if the model repeats the reference, so a
+   * paper cannot show the same diagram against four different questions.
+   */
+  private resolveFigureMarkers(
+    text: string,
+    catalogue: Array<{ ref: string; label: string; caption: string; imageUrl: string }>,
+  ): { text: string; used: string[]; unresolved: string[] } {
+    const source = String(text || '');
+    if (!source || !catalogue.length) {
+      return { text: this.stripFigureMarkers(source), used: [], unresolved: [] };
+    }
+    const byRef = new Map(catalogue.map((f) => [f.ref.toUpperCase(), f]));
+    const used: string[] = [];
+    const unresolved: string[] = [];
+
+    const resolved = source.replace(_FIGURE_MARKER_RE, (_match, ref: string) => {
+      const key = String(ref || '').toUpperCase();
+      const figure = byRef.get(key);
+      if (!figure || !figure.imageUrl || used.includes(key)) {
+        if (!figure) unresolved.push(key);
+        return '';
+      }
+      used.push(key);
+      // Alt text is the caption, so the paper still reads correctly if the
+      // image fails to load, and a screen reader has something to announce.
+      const alt = [figure.label, figure.caption].filter(Boolean).join(' ').replace(/[\[\]]/g, '').trim();
+      return `\n\n![${alt || 'Figure'}](${figure.imageUrl})\n\n`;
+    });
+
+    return { text: resolved.replace(/\n{3,}/g, '\n\n'), used, unresolved };
+  }
+
+  /** Remove every figure marker, resolved or not. */
+  private stripFigureMarkers(text: string): string {
+    return String(text || '')
+      .replace(_FIGURE_MARKER_RE, '')
+      .replace(_PLOT_MARKER_RE, '')
+      .replace(/\n{3,}/g, '\n\n');
+  }
+
+  /**
+   * Draw the [PLOT: ...] figures a paper asked for and inline them.
+   *
+   * Each spec goes to the AI service, which writes matplotlib code and runs it
+   * in an isolated process; the PNG comes back and is stored in R2 like any
+   * other figure. Storage keys are a hash of the spec, so regenerating a draft
+   * with the same question reuses the same object instead of filling the bucket
+   * with copies.
+   *
+   * A figure that cannot be drawn leaves a VISIBLE note for the teacher rather
+   * than silently vanishing. Dropping the marker quietly would leave the
+   * question saying "study the figure below" with nothing below it — the exact
+   * orphan reference the prompt rules exist to prevent. This output is a draft
+   * a teacher reviews before publishing, so telling them what to fix is worth
+   * more than a tidy-looking paper that is quietly wrong.
+   */
+  private async resolvePlotMarkers(
+    text: string,
+    instituteId: string,
+    context: { subjectName?: string; className?: string; board?: string },
+  ): Promise<{ text: string; drawn: number; failed: number }> {
+    const source = String(text || '');
+    const markers = Array.from(source.matchAll(_PLOT_MARKER_RE));
+    if (!markers.length) return { text: source, drawn: 0, failed: 0 };
+
+    // Identical specs are drawn once, and only a bounded number of distinct
+    // ones: each is a sandboxed subprocess plus a model call, and a runaway
+    // paper must not be able to queue dozens of them.
+    const specs: string[] = [];
+    for (const match of markers) {
+      const spec = String(match[1] || '').trim();
+      if (spec && !specs.includes(spec) && specs.length < _MAX_PAPER_PLOTS) specs.push(spec);
+    }
+
+    const rendered = new Map<string, string>();
+    for (const spec of specs) {
+      try {
+        const res: any = await this.aiBridge.renderDiagram(
+          {
+            spec,
+            subjectName: context.subjectName,
+            className: context.className,
+            board: context.board,
+          },
+          instituteId,
+          'school',
+          context.board,
+        );
+        const dataUri = String(res?.data?.imageBase64 || '');
+        if (!dataUri.startsWith('data:image/png;base64,')) continue;
+        const url = await this.storeGeneratedFigure(instituteId, spec, dataUri);
+        if (url) rendered.set(spec, url);
+      } catch (err: any) {
+        // A 422 here means "this could not be drawn", which is an ordinary
+        // outcome, not a failure of paper generation.
+        this.logger.warn(`Diagram not drawn (${spec.slice(0, 60)}): ${err?.message || err}`);
+      }
+    }
+
+    let drawn = 0;
+    let failed = 0;
+    const out = source.replace(_PLOT_MARKER_RE, (_match, rawSpec: string) => {
+      const spec = String(rawSpec || '').trim();
+      const url = rendered.get(spec);
+      if (!url) {
+        failed += 1;
+        return '\n\n_[Diagram could not be generated for this question. '
+          + 'Please add a figure or replace the question before publishing.]_\n\n';
+      }
+      drawn += 1;
+      const alt = spec.replace(/[\[\]]/g, '').slice(0, 160);
+      return `\n\n![${alt}](${url})\n\n`;
+    });
+
+    return { text: out.replace(/\n{3,}/g, '\n\n'), drawn, failed };
+  }
+
+  /**
+   * Persist a generated figure and return its URL.
+   *
+   * Keyed by a hash of the spec so the same figure regenerated across drafts
+   * overwrites one object rather than accumulating copies, and scoped by
+   * institute like every other tenant asset.
+   */
+  private async storeGeneratedFigure(
+    instituteId: string,
+    spec: string,
+    dataUri: string,
+  ): Promise<string | null> {
+    try {
+      const comma = dataUri.indexOf(',');
+      const buffer = Buffer.from(dataUri.slice(comma + 1), 'base64');
+      if (!buffer.length) return null;
+      const hash = createHash('sha256').update(spec).digest('hex').slice(0, 32);
+      const key = `tenants/${instituteId}/assessment-figures/${hash}.png`;
+      return await this.s3Service.upload(key, buffer, 'image/png');
+    } catch (err: any) {
+      this.logger.warn(`Generated figure upload failed: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   async aiGenerateDraft(user: any, body: any) {
     const instituteId = user.instituteId || body.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
@@ -1192,6 +1457,62 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       if (singleName) (sourcePassages.length ? groundedChapters : ungroundedChapters).push(singleName);
     }
     const grounded = sourcePassages.length > 0;
+
+    // Figures cropped from the school's own chapter PDF. Offered to the model as
+    // a short catalogue of captions — the images themselves never go to the
+    // model, so a paper with ten diagrams costs exactly the same as one without.
+    // The model asks for one by writing [FIGURE: Fn], which resolveFigureMarkers
+    // turns back into the stored image after generation.
+    const figureCatalogue = await this.collectChapterFigures(instituteId, chapterList, body);
+    const figureRule = figureCatalogue.length
+      ? '\nFIGURES AVAILABLE — these diagrams come from the students\' own textbook chapter:\n'
+        + figureCatalogue
+          .map((f) => `  ${f.ref} — ${[f.label, f.caption || f.description].filter(Boolean).join(' ')}`)
+          .join('\n')
+        + '\nWhen a question genuinely needs one of these diagrams to be answerable, put the '
+        + 'marker [FIGURE: Fn] on its OWN line immediately after that question\'s text, using '
+        + 'the exact reference above. Use a figure ONLY when the question cannot be answered '
+        + 'without it, use each figure at most once, and never invent a reference that is not '
+        + 'listed. Do not describe the figure in words as well — the image will be shown.'
+      : '';
+
+    // Figures the textbook does not contain, but the question's own data fully
+    // determines — a triangle on named coordinates, a graph of a stated
+    // function, a number line, a bar chart of given data. These are drawn from
+    // the question rather than found in a book, which is the only way to serve
+    // the most common diagram question in a maths or physics paper.
+    const plotRule =
+      '\nDRAWN DIAGRAMS: For a question whose figure is fully determined by the '
+      + 'question\'s own data — coordinate geometry, a graph of a stated function, a '
+      + 'distance-time or velocity-time graph, a number line, a bar chart or histogram '
+      + 'of given values, an angle or triangle construction — you may have the figure '
+      + 'drawn. Put [PLOT: <description>] on its OWN line immediately after that '
+      + 'question. Describe only what is GIVEN in the question, never the answer: '
+      + 'write [PLOT: right-angled triangle with vertices A(1,1), B(4,1), C(4,5) on a '
+      + 'coordinate grid from 0 to 6], not the lengths the student must compute. '
+      + `Use at most ${_MAX_PAPER_PLOTS} drawn diagrams in the whole paper, and only `
+      + 'where the question truly cannot be answered without one. Never use [PLOT: ...] '
+      + 'for a photograph, a map, a biological specimen or anything that must be '
+      + 'observed rather than constructed from given values.';
+
+    // A question may only mention a diagram if one is actually attached to it.
+    //
+    // Without this the model writes "Study the figure below and find the area"
+    // with no figure at all — an unanswerable question on a student's paper.
+    // It applies hardest when NO figures are available, which is exactly when
+    // the offer above is silent, so the rule is stated unconditionally.
+    const noOrphanDiagramRule =
+      '\nDIAGRAM RULE: Never refer to a diagram, figure, graph, map, circuit or image '
+      + '("the figure below", "the given graph", "as shown in the diagram", "study the map") '
+      + 'unless you attach one with a marker on the line after that question. '
+      + (figureCatalogue.length
+        ? 'The only diagrams you may refer to are the figures listed above attached with '
+          + '[FIGURE: Fn], or one you have drawn with [PLOT: ...]. '
+        : 'The only diagram you may refer to is one you have drawn with [PLOT: ...]. ')
+      + 'If a question would need a diagram you cannot attach, rewrite it so it is fully '
+      + 'answerable from its own words, or set a different question instead. Every question '
+      + 'must be answerable by a student who sees only what is printed on this paper.';
+
     // Reinforce the book-only rule in the paper prompt itself (belt-and-suspenders
     // with the grounding system prompt the AI service applies). Only when we have
     // passages — never tell the model to cite a book it wasn't given.
@@ -1212,7 +1533,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           contentType: 'assessment_paper',
           difficulty,
           length: 'detailed',
-          extraContext: extraContext + strictSourceRule,
+          extraContext: extraContext + strictSourceRule + figureRule + plotRule + noOrphanDiagramRule,
           ...(sourcePassages.length ? { sourcePassages } : {}),
         },
         instituteId,
@@ -1225,6 +1546,36 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       const splitResult = this.splitContentAndAnswerKey(content, '');
       let questionsPart = splitResult.contentText || content;
       let answerKeyPart = splitResult.answerKey || '';
+
+      // Resolve [FIGURE: Fn] into real images before anything else touches the
+      // text — in particular before translation, which would otherwise try to
+      // translate the marker and could mangle it.
+      const figureResolution = this.resolveFigureMarkers(questionsPart, figureCatalogue);
+      questionsPart = figureResolution.text;
+      // A marker must never survive into a paper a student sees. Any that could
+      // not be resolved (a reference the model invented) is stripped by
+      // resolveFigureMarkers; this only records that it happened.
+      if (figureResolution.unresolved.length) {
+        this.logger.warn(
+          `AI paper referenced unknown figures: ${figureResolution.unresolved.join(', ')}`,
+        );
+      }
+      // Then the figures that had to be drawn because no textbook holds them.
+      // After [FIGURE: ...] so a paper can carry both, and still before
+      // translation, which must never see a marker.
+      const plotResolution = await this.resolvePlotMarkers(questionsPart, instituteId, {
+        subjectName, className, board: await this.resolveBoard(instituteId),
+      });
+      questionsPart = plotResolution.text;
+      if (plotResolution.drawn || plotResolution.failed) {
+        this.logger.log(
+          `Paper diagrams drawn=${plotResolution.drawn} failed=${plotResolution.failed}`,
+        );
+      }
+
+      // The answer key never carries figures — it mirrors the paper's numbering,
+      // and a duplicated image there would just bloat it.
+      answerKeyPart = this.stripFigureMarkers(answerKeyPart);
 
       if (language !== 'en') {
         try {
@@ -2049,7 +2400,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         this.aiBridge
           .gradeSubjectiveAnswer(
             {
-              questionText: question.text,
+              questionText: this.questionTextForMarking(question),
               maxMarks: Number(question.marks || 1),
               studentAnswer: answerText,
               criteria: question.rubric?.criteria,
