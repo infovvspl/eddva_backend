@@ -46,6 +46,34 @@ export const aiConfig = registerAs('ai', () => ({
   timeoutMs: parseInt(process.env.AI_TIMEOUT_MS) || 240000,
 }));
 
+/**
+ * P0-4.4 — AI admission control.
+ *
+ * Defaults are the PRODUCTION values and are deliberately conservative:
+ * Django runs 2 SYNC gunicorn workers on PROD, so background must be capped at 1
+ * to guarantee at least one worker stays free for interactive traffic. Raise only
+ * with evidence; never silently.
+ */
+export const aiAdmissionConfig = registerAs('aiAdmission', () => ({
+  enabled: process.env.AI_ADMISSION_ENABLED !== 'false',
+  // DEV and PROD must never share admission state. Port differs between the two
+  // deployments, so nodeEnv+port separates them without extra configuration.
+  namespace:
+    process.env.AI_ADMISSION_NAMESPACE ||
+    `${process.env.NODE_ENV || 'development'}-${parseInt(process.env.PORT) || 3000}`,
+  interactiveGlobal: parseInt(process.env.AI_ADMISSION_INTERACTIVE_GLOBAL) || 2,
+  backgroundGlobal: parseInt(process.env.AI_ADMISSION_BACKGROUND_GLOBAL) || 1,
+  interactiveTenant: parseInt(process.env.AI_ADMISSION_INTERACTIVE_TENANT) || 1,
+  backgroundTenant: parseInt(process.env.AI_ADMISSION_BACKGROUND_TENANT) || 1,
+  // Interactive fails fast — a doubt that waits 30s has already failed as UX.
+  // Background is async and can afford to wait for a slot.
+  interactiveWaitMs: parseInt(process.env.AI_ADMISSION_INTERACTIVE_WAIT_MS) || 2_000,
+  backgroundWaitMs: parseInt(process.env.AI_ADMISSION_BACKGROUND_WAIT_MS) || 60_000,
+  interactiveRetryAfterSec: parseInt(process.env.AI_ADMISSION_INTERACTIVE_RETRY_AFTER_SEC) || 3,
+  backgroundRetryAfterSec: parseInt(process.env.AI_ADMISSION_BACKGROUND_RETRY_AFTER_SEC) || 15,
+  redisOpTimeoutMs: parseInt(process.env.AI_ADMISSION_REDIS_TIMEOUT_MS) || 200,
+}));
+
 export const otpConfig = registerAs('otp', () => ({
   expiresInSeconds: parseInt(process.env.OTP_EXPIRES_IN_SECONDS) || 300,
   length: parseInt(process.env.OTP_LENGTH) || 6,

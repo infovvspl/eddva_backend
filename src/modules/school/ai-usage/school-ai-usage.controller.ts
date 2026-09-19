@@ -4,6 +4,7 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { hasSchoolRole } from '../common/role-helper';
 
 /**
  * AI usage + quota endpoints.
@@ -17,7 +18,7 @@ export class SchoolAiUsageController {
 
   /** Resolve query scope based on role: super-admin = anything; others = own institute. */
   private scope(user: any, q: any) {
-    if (user.role === 'SUPER_ADMIN') {
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       return { instituteId: q.instituteId || undefined, vertical: q.vertical || undefined, from: q.from, to: q.to };
     }
     return { instituteId: user.instituteId, vertical: 'school', from: q.from, to: q.to };
@@ -51,8 +52,8 @@ export class SchoolAiUsageController {
   @Get('me')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
   async me(@SchoolUser() user: any, @Query() q: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? q.instituteId : user.instituteId;
-    const vertical = user.role === 'SUPER_ADMIN' ? (q.vertical || 'school') : 'school';
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? q.instituteId : user.instituteId;
+    const vertical = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (q.vertical || 'school') : 'school';
     if (!instituteId) throw new BadRequestException('instituteId is required');
     return { success: true, data: await this.svc.getForInstitute(instituteId, vertical, { from: q.from, to: q.to }) };
   }

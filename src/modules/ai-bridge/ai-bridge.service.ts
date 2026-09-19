@@ -3,7 +3,11 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
+import { randomUUID } from 'crypto';
 import { AiUsageService } from '../ai-usage/ai-usage.service';
+import { getAiRequestContext } from '../../common/context/ai-request-context';
+import { AiAdmissionService, AdmissionTicket } from '../../common/services/ai-admission.service';
+import { AdmissionPool, classifyPath, ADMISSION_EXEMPT_PATHS } from '../../common/services/ai-admission.constants';
 
 /**
  * AiBridgeService
@@ -16,6 +20,31 @@ import { AiUsageService } from '../ai-usage/ai-usage.service';
  *   - API key is sent via Authorization: Bearer (validated by Django middleware)
  *   - Django middleware resolves the tenant and applies per-tenant rate limits + caching
  */
+/**
+ * The nine-field teaching rubric returned by Django's /teacher/analyze-recording.
+ * Shape is unchanged from the direct-Groq prompt it replaces, because it is
+ * persisted verbatim into class_recordings.ai_teaching_analysis and rendered by
+ * TeacherProfile.jsx.
+ */
+export interface TeacherRecordingRubric {
+  score: number;
+  feedback: string;
+}
+
+export interface TeacherRecordingAnalysis {
+  overallScore: number;
+  summary: string;
+  clarity: TeacherRecordingRubric;
+  pacing: TeacherRecordingRubric;
+  contentCoverage: TeacherRecordingRubric;
+  studentEngagement: TeacherRecordingRubric;
+  languageQuality: TeacherRecordingRubric;
+  suggestions: string[];
+  strengths: string[];
+  /** Bridge envelope added by ai_call(); not part of the persisted rubric. */
+  _meta?: Record<string, any>;
+}
+
 @Injectable()
 export class AiBridgeService {
   private readonly logger = new Logger(AiBridgeService.name);
@@ -27,6 +56,7 @@ export class AiBridgeService {
     private readonly http: HttpService,
     config: ConfigService,
     private readonly aiUsage: AiUsageService,
+    private readonly admission: AiAdmissionService,
   ) {
     this.baseUrl = config.get<string>('ai.baseUrl');
     this.apiKey = config.get<string>('ai.apiKey');
@@ -74,13 +104,36 @@ export class AiBridgeService {
     return Number.isFinite(Number(total)) ? Number(total) : null;
   }
 
-  private headers(tenantId?: string, vertical?: string, board?: string) {
+  private headers(
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+    requestId?: string,
+    userId?: string,
+    userRole?: string,
+  ) {
     const h: Record<string, string> = {
       'X-API-Key': this.apiKey,
       'Content-Type': 'application/json',
     };
     if (tenantId) {
       h['X-Tenant-ID'] = tenantId;
+    }
+    // Correlation id (P0-5/P1-6): the AI service echoes this back on its usage +
+    // provider-event webhooks, so one logical request can be stitched across the
+    // bridge, the AI service, and every provider retry it triggered.
+    if (requestId) {
+      h['X-Request-Id'] = requestId;
+    }
+    // Authenticated identity (P1-6). These come from the request's ALS context,
+    // which the global AiContextInterceptor fills ONLY from the guard-verified
+    // request.user — never from a client header. Forwarded to the AI service
+    // (trusted internal hop, authenticated by X-API-Key) for cost attribution.
+    if (userId) {
+      h['X-User-Id'] = userId;
+    }
+    if (userRole) {
+      h['X-User-Role'] = userRole;
     }
     // Per-request product vertical (e.g. 'school'). When omitted, the AI service
     // falls back to the tenant's configured vertical (coaching by default).
@@ -97,7 +150,16 @@ export class AiBridgeService {
     return h;
   }
 
-  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string): Promise<T> {
+  /**
+   * @param poolOverride P0-4.5 (G1): force the admission pool for this call.
+   *   A TypeScript argument, so it is reachable only from server-side callers —
+   *   there is deliberately no request header or body field that can select a
+   *   pool, which would let a client route its own traffic into the interactive
+   *   pool. Used when the PATH alone misclassifies the workload: lecture note
+   *   enrichment translates search terms via /translate (interactive by default)
+   *   while running as background work.
+   */
+  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string, poolOverride?: AdmissionPool): Promise<T> {
     const mapped = AiBridgeService.FEATURE_MAP[path];
     const v = vertical || 'coaching';
 
@@ -120,11 +182,33 @@ export class AiBridgeService {
     }
 
     const startedAt = Date.now();
+    // Attribution + correlation from the authenticated request (P1-6). Empty for
+    // system/background AI calls made outside any HTTP request — a legitimately
+    // null user, not a failure. Never sourced from client input.
+    const ctx = getAiRequestContext();
+    const requestId = ctx.requestId || randomUUID();
+    const userId = ctx.userId || undefined;
+    const userRole = ctx.userRole || undefined;
+    // ── P0-4.4 admission control ──────────────────────────────────────────────
+    // Bounded, Redis-backed slot per pool so background work can never occupy every
+    // Django sync worker and stall interactive traffic. Identity is the TRUSTED
+    // instituteId from AiRequestContext (JWT for HTTP, persisted job data for
+    // workers) — never the `tenantId` parameter, which upstream may have resolved
+    // from client-supplied tenant headers.
+    const effectiveTimeoutMs = timeoutMs ?? this.timeout;
+    const pool: AdmissionPool = poolOverride ?? classifyPath(path);
+    let ticket: AdmissionTicket | null = null;
+    if (!ADMISSION_EXEMPT_PATHS.has(path)) {
+      ticket = await this.admission.acquire(
+        pool, ctx.instituteId ?? null, effectiveTimeoutMs, requestId, mapped?.feature ?? path,
+      );
+    }
+
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
-          headers: this.headers(tenantId, vertical, board),
-          timeout: timeoutMs ?? this.timeout,
+          headers: this.headers(tenantId, vertical, board, requestId, userId, userRole),
+          timeout: effectiveTimeoutMs,
         }),
       );
       // We do NOT call this.aiUsage.record() here for successful requests to avoid double-counting.
@@ -153,9 +237,33 @@ export class AiBridgeService {
           success: false,
           statusCode: status ?? null,
           latencyMs: Date.now() - startedAt,
+          requestId,
+          userId: userId ?? null,
+          userRole: userRole ?? null,
+        });
+        // A transport-level 429/5xx/timeout on the bridge itself is a provider
+        // event too — record it so failures that never reached the AI service's
+        // own rotation loop still show up in rate-limit-pressure dashboards.
+        const et = status === 429 ? '429'
+          : status && status >= 500 ? '5xx'
+          : err?.code === 'ECONNABORTED' ? 'timeout'
+          : 'provider_error';
+        void this.aiUsage.recordProviderEvent({
+          requestId,
+          instituteId: tenantId,
+          feature: mapped.feature,
+          provider: mapped.provider,
+          eventType: et,
+          statusCode: status ?? null,
+          attemptNumber: 1,
         });
       }
       throw err;
+    } finally {
+      // Guarantees the slot is freed on success, throw, Django error, timeout and
+      // cancellation alike. The Redis lease is the second line of defence for the
+      // one case this cannot cover: the process being SIGKILLed mid-request.
+      await this.admission.release(ticket, requestId);
     }
   }
 
@@ -174,11 +282,14 @@ export class AiBridgeService {
       questionImageUrl?: string;
       topicId?: string;
       mode: 'short' | 'detailed';
+      /** subject, className, chapterName, board, level — curriculum context the
+       *  AI service uses for syllabus framing AND for priming image transcription. */
       studentContext?: any;
       language?: string;
     },
     tenantId?: string,
     vertical?: string,
+    board?: string,
   ) {
     const lang = (payload.language || '').toLowerCase();
     const isEnglish = !lang || lang === 'english' || lang === 'en';
@@ -191,7 +302,10 @@ export class AiBridgeService {
       questionText: shouldAddMathHint
         ? this.withMathDerivationStyleHint(payload.questionText)
         : payload.questionText,
-    }, tenantId, undefined, vertical);
+      // board reaches Django as X-Board; without it _build_solver_system_prompt()
+      // always framed answers generically, because getattr(request,'board','') was
+      // empty for every school doubt.
+    }, tenantId, undefined, vertical, board);
   }
 
   /**
@@ -302,8 +416,12 @@ export class AiBridgeService {
   async translateText(
     payload: { text: string; targetLanguage: string },
     tenantId?: string,
+    opts?: { pool?: AdmissionPool },
   ) {
-    return this.post('/translate', payload, tenantId, 60_000);
+    // Interactive by default (a user is waiting on a translation). Background
+    // callers — currently lecture note-image enrichment — pass the pool
+    // explicitly so long-running content work cannot occupy interactive capacity.
+    return this.post('/translate', payload, tenantId, 60_000, undefined, undefined, opts?.pool);
   }
 
   // ── AI #7 — Speech-to-Text Notes ─────────────────────────────────────────
@@ -471,6 +589,24 @@ export class AiBridgeService {
     tenantId?: string,
   ) {
     return this.post('/resume/analyze', payload, tenantId);
+  }
+
+  // ── Teacher recording analysis (G3 Class-B) ───────────────────────────────
+  // Replaces a direct api.groq.com fetch in SchoolTeacherService that named
+  // llama-3.3-70b-versatile — a model Groq decommissioned on 2026-08-16 — and
+  // that bypassed admission control, attribution and central key rotation.
+  //
+  // The caller passes the transcript already capped at 8000 chars; Django caps
+  // again on its own side rather than trusting the client.
+  async analyzeTeachingRecording(
+    payload: { transcript: string; title?: string },
+    tenantId?: string,
+  ): Promise<TeacherRecordingAnalysis> {
+    // 60s rather than the 240s default: this is a single ~1024-token completion
+    // over at most 8000 chars, and the BACKGROUND pool admits one call at a
+    // time — a longer timeout would hold that one slot far past any plausible
+    // response. The call it replaces had no timeout at all.
+    return this.post('/teacher/analyze-recording', payload, tenantId, 60_000, 'school');
   }
 
   // ── AI #11 — Interview Prep ────────────────────────────────────────────────

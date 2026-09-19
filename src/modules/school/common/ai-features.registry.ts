@@ -1,3 +1,5 @@
+import { hasSchoolRole } from './role-helper';
+
 export const AI_FEATURES_REGISTRY = [
   { key: 'ai_doubt_solver', name: 'AI Doubt Solver', defaultEnabled: true },
   { key: 'ai_study_planner', name: 'AI Study Planner', defaultEnabled: true },
@@ -23,7 +25,7 @@ export const AI_FEATURE_DEFAULT_ON = new Set<string>(
  * keeps the guard and inline checks from drifting apart.
  */
 export function isSchoolAiFeatureEnabled(user: any, key: string): boolean {
-  if (user?.role === 'SUPER_ADMIN') return true;
+  if (hasSchoolRole(user?.role, 'SUPER_ADMIN')) return true;
   if (user?.inst_ai_enabled === false) return false;
   const aiFeatures = user?.inst_ai_features || {};
   const val = aiFeatures[key];

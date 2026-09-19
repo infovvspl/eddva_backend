@@ -6,6 +6,7 @@ import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 
 import { AuditLogService } from '../../audit-log/audit-log.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Controller('school/admin/audit-logs')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
@@ -18,7 +19,7 @@ export class SchoolActivityLogController {
   @Get('actors')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
   async getActors(@SchoolUser() user: any, @Query('instituteId') queryInstituteId?: string) {
-    const isSuperAdmin = user.role?.toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user.role, 'SUPER_ADMIN');
     let instituteId: string | undefined;
 
     if (isSuperAdmin) {
@@ -36,7 +37,7 @@ export class SchoolActivityLogController {
   @Get()
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
   list(@SchoolUser() user: any, @Query() query: any) {
-    const isSuperAdmin = user.role?.toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user.role, 'SUPER_ADMIN');
     let instituteId: string | undefined;
 
     if (isSuperAdmin) {

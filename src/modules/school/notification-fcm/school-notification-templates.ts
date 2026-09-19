@@ -36,7 +36,10 @@ export enum SchoolFcmNotificationType {
   FEE_COLLECTION_SUMMARY = 'FEE_COLLECTION_SUMMARY',
   RESULT_PUBLISHED_ADMIN_SUMMARY = 'RESULT_PUBLISHED_ADMIN_SUMMARY',
   LOW_ATTENDANCE_ALERT = 'LOW_ATTENDANCE_ALERT',
-  
+  SYLLABUS_PLAN_DELAYED = 'SYLLABUS_PLAN_DELAYED',
+  SYLLABUS_PLAN_DELAYED_ADMIN = 'SYLLABUS_PLAN_DELAYED_ADMIN',
+  SYLLABUS_TOPIC_DELAYED = 'SYLLABUS_TOPIC_DELAYED',
+
   // Super Admin
   NEW_INSTITUTE_SIGNUP = 'NEW_INSTITUTE_SIGNUP',
   SECURITY_LOGIN_ANOMALY = 'SECURITY_LOGIN_ANOMALY',
@@ -127,6 +130,18 @@ export const SCHOOL_NOTIFICATION_TEMPLATES: Record<SchoolFcmNotificationType, No
   [SchoolFcmNotificationType.LOW_ATTENDANCE_ALERT]: {
     title: 'Low attendance alert ⚠️',
     body: '{sectionName} ({className}) had {attendancePct}% attendance this week — below the 75% threshold.',
+  },
+  [SchoolFcmNotificationType.SYLLABUS_PLAN_DELAYED]: {
+    title: 'Syllabus behind schedule ⚠️',
+    body: '{subjectName} ({className}) is behind schedule — {progress}% complete, was due {dueDate}.',
+  },
+  [SchoolFcmNotificationType.SYLLABUS_PLAN_DELAYED_ADMIN]: {
+    title: 'Syllabus behind schedule ⚠️',
+    body: '{teacherName}\'s {subjectName} ({className}) plan is behind schedule — {progress}% complete, was due {dueDate}.',
+  },
+  [SchoolFcmNotificationType.SYLLABUS_TOPIC_DELAYED]: {
+    title: 'Topic still in progress ⚠️',
+    body: '{topicName} in {subjectName} is still in progress and the plan is now overdue.',
   },
   [SchoolFcmNotificationType.NEW_INSTITUTE_SIGNUP]: {
     title: 'New school signup registered 🚀',

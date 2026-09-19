@@ -10,6 +10,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { recordStudentActivity } from '../common/gamification-helper';
+import { hasSchoolRole } from '../common/role-helper';
 import { randomUUID } from 'crypto';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
@@ -37,7 +38,7 @@ export class SchoolAssignmentService {
   /** assignments.tenant_id stores the school institute id (not coaching tenants.id). */
   private resolveInstituteId(user: any, override?: string): string {
     const instituteId =
-      user.role === 'SUPER_ADMIN'
+      hasSchoolRole(user.role, 'SUPER_ADMIN')
         ? override || user.instituteId
         : user.instituteId;
     if (!instituteId) {
@@ -99,7 +100,7 @@ export class SchoolAssignmentService {
     const submission = rows[0];
 
     // Students may only view their own submission
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const profile = await this.getStudentProfile(user);
       if (String(submission.student_id) !== String(profile.student_id)) {
         throw new ForbiddenException('You can only view your own submission');
@@ -278,7 +279,7 @@ export class SchoolAssignmentService {
     let filter = 'a.tenant_id::text=$1::text';
     let studentId: string | null = null;
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const profile = await this.getStudentProfile(user);
       studentId = profile.student_id;
       let classId = profile.class_id || null;
@@ -298,7 +299,7 @@ export class SchoolAssignmentService {
       } else {
         filter += ` AND a.section_id IS NULL`;
       }
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id = $1 AND (
           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
@@ -313,7 +314,7 @@ export class SchoolAssignmentService {
         filter += ` AND 1=0`;
       }
     } else {
-      if (user.role === 'TEACHER') {
+      if (hasSchoolRole(user.role, 'TEACHER')) {
         params.push(user.id);
         filter += ` AND (
           a.teacher_id::text=$${params.length}::text
@@ -687,7 +688,7 @@ export class SchoolAssignmentService {
     file?: Express.Multer.File,
     body?: { notes?: string },
   ) {
-    if (user.role !== 'STUDENT') {
+    if (!hasSchoolRole(user.role, 'STUDENT')) {
       throw new ForbiddenException('Only students can submit assignments');
     }
     const instituteId = user.instituteId || user.studentProfile?.instituteId;
@@ -944,20 +945,20 @@ export class SchoolAssignmentService {
     if (!rows.length) throw new NotFoundException('Assignment not found');
     const assignment = rows[0];
 
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     if (isSuperAdmin) return assignment;
 
     if (String(assignment.tenant_id) !== String(user.instituteId)) {
       throw new ForbiddenException('You do not have access to this assignment');
     }
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
       const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
       if (assignment.section_id && sectionId && String(assignment.section_id) !== String(sectionId)) {
         throw new ForbiddenException('You do not have access to this assignment');
       }
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id = $1 AND (
           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
@@ -968,7 +969,7 @@ export class SchoolAssignmentService {
       if (!sectionIds.includes(assignment.section_id)) {
         throw new ForbiddenException('You do not have access to this assignment');
       }
-    } else if (user.role === 'TEACHER') {
+    } else if (hasSchoolRole(user.role, 'TEACHER')) {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {

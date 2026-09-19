@@ -34,6 +34,7 @@ import { Student } from '../../database/entities/student.entity';
 import { StudyMaterial, StudyMaterialExam, StudyMaterialType } from '../study-material/study-material.entity';
 
 import { AiBridgeService } from '../ai-bridge/ai-bridge.service';
+import { AdmissionPool } from '../../common/services/ai-admission.constants';
 import { NotificationService } from '../notification/notification.service';
 import { StudyPlanService } from '../study-plan/study-plan.service';
 import { TenantAiFeatureService } from '../../common/services/tenant-ai-feature.service';
@@ -64,57 +65,41 @@ type YoutubeTranscriptApi = {
 @Injectable()
 export class ContentService {
     private readonly logger = new Logger(ContentService.name);
-    private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
     private static readonly presetExamTargets = new Set(['jee', 'neet', 'both']);
     private static readonly hindiLikeLectureLanguages = new Set(['hi', 'hinglish', 'hi-in']);
     private static readonly odiaLectureLanguages = new Set(['od', 'odia', 'od-in', 'or', 'or-in']);
 
+    /**
+     * Plan which note sections deserve an illustrative image.
+     *
+     * Routed through AiBridgeService rather than calling Groq directly, so the
+     * call is admission-controlled, attributed and covered by centralised key
+     * rotation. /stt/extract-image-terms is unclassified, so classifyPath()
+     * resolves it to the BACKGROUND pool — correct here, and the reason no
+     * explicit pool override is passed.
+     *
+     * Best-effort by contract: this only enriches notes with images, so any
+     * failure returns [] and the caller emits the notes unchanged. The bridge
+     * throws where the previous raw fetch returned [] on a non-2xx, so the
+     * catch is what preserves the old behaviour.
+     */
     private async _extractNoteImageSearchTerms(
         notes: string,
         language = 'en',
+        tenantId?: string,
     ): Promise<Array<{ heading: string; searchTerm: string; caption: string }>> {
-        const groqKey = process.env.GROQ_API_KEY || '';
-        if (!groqKey) return [];
-
         try {
-            const response = await fetch(this.GROQ_URL, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${groqKey}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
-                    response_format: { type: 'json_object' },
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'You are a JSON-only API that returns {"sections": [...]}.',
-                        },
-                        {
-                            role: 'user',
-                            content: `Given these lecture notes (Markdown), identify 3-4 major section headings (## or ###) that would benefit from an illustrative educational image.
+            const result = await this.aiBridgeService.extractImageSearchTerms(
+                { notes: notes.slice(0, 4000), language },
+                tenantId,
+            );
 
-For each section:
-- "heading": copy the exact heading line from the notes (include the ## or ### prefix).
-- "searchTerm": 4-7 English words, specific to that sub-topic, including a visual hint such as diagram, photograph, chart, illustration, map, microscope, or experiment.
-- "caption": one sentence describing what the image shows and how it supports the section. ${language === 'od' ? 'Write the caption in Odia.' : ''}
-
-Return ONLY: {"sections": [{"heading": "## Exact Heading", "searchTerm": "...", "caption": "..."}]}
-
-NOTES:
-${notes.slice(0, 4000)}`,
-                        },
-                    ],
-                    temperature: 0.3,
-                    max_tokens: 1024,
-                }),
-            });
-            if (!response.ok) return [];
-            const data: any = await response.json();
-            const parsed = JSON.parse(data?.choices?.[0]?.message?.content || '{}');
-            const sections = parsed.sections || parsed;
+            const sections = result?.sections;
             if (!Array.isArray(sections)) return [];
+
+            // Kept from the previous implementation: the caller makes one image
+            // search per section, so the cap bounds outbound work, and the filter
+            // stops a malformed entry reaching that loop.
             return sections
                 .slice(0, 4)
                 .filter((section: any) =>
@@ -139,9 +124,15 @@ ${notes.slice(0, 4000)}`,
             let englishTerm = searchTerm;
             if (language === 'od' && /[\u0B00-\u0B7F]/.test(searchTerm)) {
                 if (await this.tenantAiFeatureService.checkFeature(tenantId, 'ai_lecture_processing')) {
+                    // P0-4.5 (R1): note-image enrichment is BACKGROUND content work
+                    // (reached fire-and-forget from _enrichCoachingNotesWithImageSearch).
+                    // /translate is INTERACTIVE by default, so without this override a
+                    // background enrichment would occupy one of the two interactive
+                    // slots reserved for student doubts.
                     const translated = await this.aiBridgeService.translateText(
                         { text: searchTerm, targetLanguage: 'en' },
                         tenantId,
+                        { pool: AdmissionPool.BACKGROUND },
                     ) as any;
                     englishTerm = String(
                         translated?.translatedText ?? translated?.text ?? translated?.translation ?? searchTerm,
@@ -249,7 +240,7 @@ ${notes.slice(0, 4000)}`,
         tenantId: string,
         language = 'en',
     ): Promise<{ notes: string; images: AiNoteImage[] }> {
-        const sections = await this._extractNoteImageSearchTerms(notes, language);
+        const sections = await this._extractNoteImageSearchTerms(notes, language, tenantId);
         if (!sections.length) return { notes, images: [] };
 
         let enrichedNotes = notes;
@@ -386,9 +377,13 @@ ${notes.slice(0, 4000)}`,
                 return cleaned;
             }
 
+            // P0-4.5 (R1): lecture-notes normalisation is BACKGROUND work. This
+            // method has no callers today, so the override is defensive — it keeps
+            // the leak from reappearing the moment it is wired up.
             const result = await this.aiBridgeService.translateText(
                 { text: cleaned, targetLanguage: 'en' },
                 tenantId,
+                { pool: AdmissionPool.BACKGROUND },
             ) as any;
 
             const translated: string = result?.translatedText ?? result?.text ?? result?.translation ?? '';

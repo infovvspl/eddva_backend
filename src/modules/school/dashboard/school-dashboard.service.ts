@@ -3,6 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import type { Cache } from 'cache-manager';
+import { hasSchoolRole } from '../common/role-helper';
 
 const TEACHER_TTL = 5 * 60 * 1000;   // 5 min — upcoming classes & attendance change intra-day
 const ADMIN_TTL   = 5 * 60 * 1000;   // 5 min — today's attendance figures update frequently
@@ -611,7 +612,7 @@ export class SchoolDashboardService {
   }
 
   async adminStats(user: any) {
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     const instituteId = isSuperAdmin ? null : user?.instituteId;
 
     if (!isSuperAdmin) {
@@ -785,9 +786,9 @@ export class SchoolDashboardService {
     }
 
     const term = `%${qTrim}%`;
-    const isSuperAdmin = user.role === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user.role, 'SUPER_ADMIN');
     const instituteId = user.instituteId;
-    const isTeacher = user.role === 'TEACHER';
+    const isTeacher = hasSchoolRole(user.role, 'TEACHER');
 
     let teacherProfileId: string | null = null;
     if (isTeacher) {

@@ -9,6 +9,7 @@ import * as jwt from 'jsonwebtoken';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { IS_PUBLIC_KEY } from '../decorators/school-public.decorator';
+import { hasSchoolRole } from '../common/role-helper';
 
 // The guard resolves the user from the DB on every authenticated request.
 // A short-lived cache absorbs request bursts (e.g. a chat panel firing several
@@ -84,7 +85,7 @@ export class SchoolJwtGuard implements CanActivate {
     const tokenInstituteId = decoded.instituteId || decoded.institute_id || decoded.tenantId || null;
     const sessionId = decoded.sessionId || decoded.session_id;
 
-    if (userId === 'demo-super-admin' || (!userId && userRole?.toUpperCase() === 'SUPER_ADMIN')) {
+    if (userId === 'demo-super-admin' || (!userId && hasSchoolRole(userRole, 'SUPER_ADMIN'))) {
       req.user = {
         id: userId || 'demo-super-admin',
         email: decoded.email || 'admin@gmail.com',
@@ -132,7 +133,7 @@ export class SchoolJwtGuard implements CanActivate {
     );
 
     if (!rows.length) {
-      if (userRole?.toUpperCase() === 'SUPER_ADMIN') {
+      if (hasSchoolRole(userRole, 'SUPER_ADMIN')) {
         req.user = {
           id: userId,
           email: decoded.email || 'admin@gmail.com',
@@ -150,14 +151,14 @@ export class SchoolJwtGuard implements CanActivate {
     if (!row.is_active) throw new UnauthorizedException('This user account is inactive');
 
     const studentProfile =
-      String(row.role || '').toUpperCase() === 'STUDENT'
+      hasSchoolRole(row.role, 'STUDENT')
         ? await loadStudentProfile(this.ds, row.id)
         : null;
 
     // If the teacher's users.institute_id is null (e.g. created via registerUser which
     // doesn't set institute_id), look it up from the teachers table as a fallback.
     let resolvedInstituteId: string | null = row.institute_id || tokenInstituteId || null;
-    if (!resolvedInstituteId && String(row.role || '').toUpperCase() === 'TEACHER') {
+    if (!resolvedInstituteId && hasSchoolRole(row.role, 'TEACHER')) {
       try {
         const tRows: any[] = await this.ds.query(
           `SELECT institute_id FROM teachers WHERE user_id = $1 LIMIT 1`,

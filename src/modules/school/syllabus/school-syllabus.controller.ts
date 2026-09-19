@@ -3,6 +3,15 @@ import { SchoolSyllabusService } from './school-syllabus.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
+import {
+  CompleteLessonPlanDto,
+  CreateLessonPlanDto,
+  CreateLessonTemplateDto,
+  CreateSyllabusPlanDto,
+  GenerateAiLessonTemplateDto,
+  UpdateSyllabusPlanDto,
+  UpdateSyllabusPlanProgressDto,
+} from './dto/school-syllabus.dto';
 
 @Controller('school/syllabus')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
@@ -10,7 +19,7 @@ export class SchoolSyllabusController {
   constructor(private readonly svc: SchoolSyllabusService) {}
 
   @Post('plans')
-  createSyllabusPlan(@SchoolUser() user: any, @Body() body: any) {
+  createSyllabusPlan(@SchoolUser() user: any, @Body() body: CreateSyllabusPlanDto) {
     return this.svc.createSyllabusPlan(user, body);
   }
 
@@ -19,13 +28,18 @@ export class SchoolSyllabusController {
     return this.svc.getSyllabusPlans(user, query);
   }
 
+  @Get('plans/:id')
+  getSyllabusPlanById(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getSyllabusPlanById(user, id);
+  }
+
   @Put('plans/:id')
-  updateSyllabusPlan(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+  updateSyllabusPlan(@SchoolUser() user: any, @Param('id') id: string, @Body() body: UpdateSyllabusPlanDto) {
     return this.svc.updateSyllabusPlan(user, id, body);
   }
 
   @Patch('plans/:id/progress')
-  updateSyllabusPlanProgress(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+  updateSyllabusPlanProgress(@SchoolUser() user: any, @Param('id') id: string, @Body() body: UpdateSyllabusPlanProgressDto) {
     return this.svc.updateSyllabusPlanProgress(user, id, body);
   }
 
@@ -47,28 +61,28 @@ export class SchoolSyllabusController {
     return this.svc.getDetailedPlanTracker(user, planId);
   }
 
-  @Get('analytics')
-  getSyllabusAnalytics(@SchoolUser() user: any, @Query() query: any) {
-    return this.svc.getSyllabusAnalytics(user, query);
-  }
-
   @Get('teaching-plan')
   getTeacherTeachingPlan(@SchoolUser() user: any, @Query() query: any) {
     return this.svc.getTeacherTeachingPlan(user, query);
   }
 
   @Post('lessons')
-  createLessonPlan(@SchoolUser() user: any, @Body() body: any) {
+  createLessonPlan(@SchoolUser() user: any, @Body() body: CreateLessonPlanDto) {
     return this.svc.createLessonPlan(user, body);
   }
 
+  @Get('lessons/:id')
+  getLessonPlanById(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getLessonPlanById(user, id);
+  }
+
   @Post('lessons/ai-template')
-  generateAiLessonTemplate(@SchoolUser() user: any, @Body() body: any) {
+  generateAiLessonTemplate(@SchoolUser() user: any, @Body() body: GenerateAiLessonTemplateDto) {
     return this.svc.generateAiLessonTemplate(user, body);
   }
 
   @Post('lessons/:id/complete')
-  completeLessonPlan(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+  completeLessonPlan(@SchoolUser() user: any, @Param('id') id: string, @Body() body: CompleteLessonPlanDto) {
     return this.svc.completeLessonPlan(user, id, body);
   }
 
@@ -78,7 +92,7 @@ export class SchoolSyllabusController {
   }
 
   @Post('templates')
-  createLessonTemplate(@SchoolUser() user: any, @Body() body: any) {
+  createLessonTemplate(@SchoolUser() user: any, @Body() body: CreateLessonTemplateDto) {
     return this.svc.createLessonTemplate(user, body);
   }
 

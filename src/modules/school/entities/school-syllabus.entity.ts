@@ -1,5 +1,6 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { SchoolBase } from './school-base.entity';
+import { SchoolTopic, SchoolChapter } from './school-topic.entity';
 
 @Entity('syllabus_plans')
 export class SchoolSyllabusPlan extends SchoolBase {
@@ -17,6 +18,41 @@ export class SchoolSyllabusPlan extends SchoolBase {
   @Column({ default: 'NORMAL' }) priority: string;
   @Column({ nullable: true }) term: string;
   @Column({ default: 'PLANNED' }) status: string;
+  // Planning structure only (topic/chapter grouping, term bucketing, planned dates).
+  // Per-topic progress lives in SyllabusTopicProgress, not in this JSON blob.
+  @Column({ name: 'chapter_allocations', type: 'jsonb', default: () => "'[]'" }) chapterAllocations: any[];
+}
+
+// Single source of truth for a topic's completion status within a specific
+// syllabus plan. Replaces ad hoc mutation of chapter_allocations JSON and
+// direct writes to topics.status/progress from multiple call sites.
+@Entity('syllabus_topic_progress')
+export class SchoolSyllabusTopicProgress extends SchoolBase {
+  @Column({ name: 'syllabus_plan_id' }) syllabusPlanId: string;
+  @ManyToOne(() => SchoolSyllabusPlan)
+  @JoinColumn({ name: 'syllabus_plan_id' })
+  syllabusPlan: SchoolSyllabusPlan;
+
+  @Column({ name: 'topic_id', nullable: true }) topicId: string;
+  @ManyToOne(() => SchoolTopic)
+  @JoinColumn({ name: 'topic_id' })
+  topic: SchoolTopic;
+
+  @Column({ name: 'chapter_id', nullable: true }) chapterId: string;
+  @ManyToOne(() => SchoolChapter)
+  @JoinColumn({ name: 'chapter_id' })
+  chapter: SchoolChapter;
+
+  @Column({ name: 'topic_name', nullable: true }) topicName: string;
+  @Column({ default: 'PLANNED' }) status: string;
+  @Column({ name: 'planned_periods', type: 'int', default: 1 }) plannedPeriods: number;
+  @Column({ name: 'actual_periods', type: 'int', default: 0 }) actualPeriods: number;
+  @Column({ default: 0 }) progress: number;
+  @Column({ type: 'text', nullable: true }) remarks: string;
+  @Column({ name: 'delay_reason', type: 'text', nullable: true }) delayReason: string;
+  @Column({ name: 'carry_forward_date', type: 'date', nullable: true }) carryForwardDate: Date;
+  @Column({ name: 'completed_at', type: 'timestamptz', nullable: true }) completedAt: Date;
+  @Column({ name: 'updated_by', nullable: true }) updatedBy: string;
 }
 
 @Entity('lesson_plans')
@@ -27,7 +63,20 @@ export class SchoolLessonPlan extends SchoolBase {
   @Column({ name: 'section_id' }) sectionId: string;
   @Column({ name: 'subject_id' }) subjectId: string;
   @Column({ name: 'chapter_id', nullable: true }) chapterId: string;
+  @ManyToOne(() => SchoolChapter)
+  @JoinColumn({ name: 'chapter_id' })
+  chapter: SchoolChapter;
+
   @Column({ name: 'topic_id', nullable: true }) topicId: string;
+  @ManyToOne(() => SchoolTopic)
+  @JoinColumn({ name: 'topic_id' })
+  topic: SchoolTopic;
+
+  @Column({ name: 'syllabus_plan_id', nullable: true }) syllabusPlanId: string;
+  @ManyToOne(() => SchoolSyllabusPlan)
+  @JoinColumn({ name: 'syllabus_plan_id' })
+  syllabusPlan: SchoolSyllabusPlan;
+
   @Column({ name: 'teacher_id' }) teacherId: string;
   @Column({ type: 'date' }) date: Date;
   @Column({ name: 'duration_periods', type: 'int', default: 1 }) durationPeriods: number;
@@ -49,6 +98,10 @@ export class SchoolLessonPlan extends SchoolBase {
 @Entity('lesson_completions')
 export class SchoolLessonCompletion extends SchoolBase {
   @Column({ name: 'lesson_plan_id' }) lessonPlanId: string;
+  @ManyToOne(() => SchoolLessonPlan)
+  @JoinColumn({ name: 'lesson_plan_id' })
+  lessonPlan: SchoolLessonPlan;
+
   @Column({ name: 'actual_date', type: 'date' }) actualDate: Date;
   @Column({ name: 'actual_duration_periods', type: 'int', default: 1 }) actualDurationPeriods: number;
   @Column({ name: 'topics_covered', type: 'text', nullable: true }) topicsCovered: string;

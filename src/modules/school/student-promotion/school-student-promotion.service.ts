@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { hasSchoolRole } from '../common/role-helper';
 
 function getClassRank(className: string): number {
   if (!className) return 0;
@@ -36,7 +37,7 @@ export class SchoolStudentPromotionService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
 
   private resolveInstituteId(user: any, explicitInstituteId?: string): string {
-    if (user.role === 'SUPER_ADMIN') {
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       if (!explicitInstituteId && !user.instituteId) {
         throw new BadRequestException('instituteId is required');
       }
