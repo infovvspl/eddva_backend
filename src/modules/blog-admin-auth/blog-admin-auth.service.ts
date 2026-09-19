@@ -4,7 +4,6 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
-import { randomBytes } from 'crypto';
 import { BlogAdmin } from '../../database/entities/blog-admin.entity';
 import { BlogAdminChangePasswordDto, BlogAdminLoginDto } from './dto/blog-admin-auth.dto';
 
@@ -15,6 +14,14 @@ export interface BlogAdminJwtPayload {
 }
 
 const TOKEN_TTL = '12h';
+
+// Hardcoded so the panel works the same on every deployment regardless of
+// that server's own environment config — BLOG_ADMIN_JWT_SECRET /
+// BLOG_ADMIN_DEFAULT_USERNAME / BLOG_ADMIN_DEFAULT_PASSWORD in .env still
+// override these if set, but nothing needs to be configured for this to work.
+const HARDCODED_JWT_SECRET = 'eddva-blog-admin-2026-do-not-share';
+const HARDCODED_USERNAME = 'eddva@gmail.com';
+const HARDCODED_PASSWORD = 'Eddva@123';
 
 @Injectable()
 export class BlogAdminAuthService implements OnModuleInit {
@@ -27,21 +34,10 @@ export class BlogAdminAuthService implements OnModuleInit {
     private readonly config: ConfigService,
   ) {}
 
-  // Generated once per process if BLOG_ADMIN_JWT_SECRET is unset — never a
-  // fixed literal. Dev-only: every restart invalidates existing sessions, and
-  // production refuses to boot without a configured secret (see below).
-  private readonly fallbackSecret = randomBytes(32).toString('hex');
-
   /** Deliberately separate from the LMS's JWT_SECRET — a blog-admin token
    *  must never verify against, or be verifiable by, the LMS's own guard. */
   private get secret(): string {
-    const configured = this.config.get<string>('BLOG_ADMIN_JWT_SECRET');
-    if (configured) return configured;
-
-    if (this.config.get<string>('app.nodeEnv') === 'production') {
-      throw new Error('BLOG_ADMIN_JWT_SECRET environment variable is required in production');
-    }
-    return this.fallbackSecret;
+    return this.config.get<string>('BLOG_ADMIN_JWT_SECRET') || HARDCODED_JWT_SECRET;
   }
 
   async onModuleInit() {
@@ -69,26 +65,13 @@ export class BlogAdminAuthService implements OnModuleInit {
     await this.seedDefaultAdmin();
   }
 
-  /** Ensures the account named by BLOG_ADMIN_DEFAULT_USERNAME/PASSWORD exists
-   *  with that exact password, every boot — never a guessable built-in
-   *  default, and never silently skipped just because some other account
-   *  already exists in the table. If the env vars aren't set, this is a
-   *  no-op (other accounts, e.g. ones created and rotated by hand, are left
-   *  untouched either way). */
+  /** Ensures this account exists with this exact password, every boot —
+   *  BLOG_ADMIN_DEFAULT_USERNAME/PASSWORD in .env override the hardcoded
+   *  values below if set, but nothing needs to be configured for login to
+   *  work on a fresh deployment. */
   private async seedDefaultAdmin() {
-    const username = this.config.get<string>('BLOG_ADMIN_DEFAULT_USERNAME');
-    const password = this.config.get<string>('BLOG_ADMIN_DEFAULT_PASSWORD');
-
-    if (!username || !password) {
-      const existing = await this.adminRepo.count();
-      if (existing === 0) {
-        this.logger.warn(
-          'No blog admin account exists and BLOG_ADMIN_DEFAULT_USERNAME / ' +
-            'BLOG_ADMIN_DEFAULT_PASSWORD are not set — set both in .env and restart to create one.',
-        );
-      }
-      return;
-    }
+    const username = this.config.get<string>('BLOG_ADMIN_DEFAULT_USERNAME') || HARDCODED_USERNAME;
+    const password = this.config.get<string>('BLOG_ADMIN_DEFAULT_PASSWORD') || HARDCODED_PASSWORD;
 
     const passwordHash = await bcrypt.hash(password, 12);
     const existing = await this.adminRepo.findOne({ where: { username } });
