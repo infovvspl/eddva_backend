@@ -7,6 +7,7 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { FcmService } from '../notification-fcm/fcm.service';
 import { isSchoolAiFeatureEnabled } from '../common/ai-features.registry';
+import { hasSchoolRole } from '../common/role-helper';
 import {
   SchoolFcmNotificationType,
   SCHOOL_NOTIFICATION_TEMPLATES,
@@ -724,15 +725,15 @@ export class SchoolAssessmentService {
     const params: any[] = [];
     const filters: string[] = [];
 
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
-    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
+    const isInstituteAdmin = hasSchoolRole(user?.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user?.role, 'ADMIN');
 
     if (!isSuperAdmin) {
       params.push(user.instituteId);
       filters.push(`c.institute_id=$${params.length}`);
     }
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const profileRows: any[] = await this.ds.query(
         `SELECT sec.class_id
          FROM students s
@@ -744,7 +745,7 @@ export class SchoolAssessmentService {
       if (!classId) return { success: true, data: [] };
       params.push(classId);
       filters.push(`a.class_id::text=$${params.length}::text`);
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id = $1 AND (
           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
@@ -767,7 +768,7 @@ export class SchoolAssessmentService {
       } else {
         filters.push(`1=0`);
       }
-    } else if (user.role === 'TEACHER') {
+    } else if (hasSchoolRole(user.role, 'TEACHER')) {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
@@ -810,7 +811,7 @@ export class SchoolAssessmentService {
     `;
     const rows: any[] = await this.ds.query(sql, params);
     rows.forEach((row: any) => this.parseAndSplitLegacyAssessment(row));
-    if (user.role === 'STUDENT' && rows.length) {
+    if (hasSchoolRole(user.role, 'STUDENT') && rows.length) {
       const submissionRows: any[] = await this.ds.query(
         `SELECT * FROM assessment_submissions WHERE student_user_id::text=$1::text`,
         [user.id],
@@ -824,7 +825,7 @@ export class SchoolAssessmentService {
   }
 
   private stripAnswerKeyForStudent(user: any, row: any) {
-    if (user?.role === 'STUDENT') {
+    if (hasSchoolRole(user?.role, 'STUDENT')) {
       const { answer_key: _ak, ...rest } = row;
       if (rest.questions_json) {
         rest.questions_json = this.stripCorrectAnswersFromQuestions(rest.questions_json);
@@ -1829,7 +1830,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     }
 
     const language = req?.body?.language || req?.query?.language || '';
-    const aiOcrEnabled = user?.role === 'SUPER_ADMIN' || user?.inst_ai_enabled !== false || isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting');
+    const aiOcrEnabled = hasSchoolRole(user?.role, 'SUPER_ADMIN') || user?.inst_ai_enabled !== false || isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting');
 
     // Read file buffer FIRST (before R2 upload which deletes the disk file)
     // so we can send a base64 data URI directly to the AI service.
@@ -2147,7 +2148,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       const detail = gradingDetails.find((d: any) => String(d.questionId) === String(q.id));
       return detail && detail.status === 'pending';
     });
-    const aiEnabled = user?.role === 'SUPER_ADMIN' || isSchoolAiFeatureEnabled(user, 'ai_subjective_grading');
+    const aiEnabled = hasSchoolRole(user?.role, 'SUPER_ADMIN') || isSchoolAiFeatureEnabled(user, 'ai_subjective_grading');
     if (subjectivePending && aiEnabled && instituteId) {
       try {
         await this.runAiSubjectiveGrading(assessmentId, studentUserId, questions, answers || {}, instituteId);

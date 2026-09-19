@@ -5,6 +5,7 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { S3Service } from '../../upload/s3.service';
 import { randomUUID } from 'crypto';
 import { aiRequestStorage, getAiRequestContext } from '../../../common/context/ai-request-context';
+import { hasSchoolRole } from '../common/role-helper';
 
 /** Anything that can run raw SQL — a DataSource, or a transaction's manager. */
 type SqlExecutor = { query(sql: string, params?: any[]): Promise<any> };
@@ -226,7 +227,7 @@ export class SchoolTextbookService implements OnModuleInit {
    * and must name one, which is how the school-detail screen drives this.
    */
   private resolveInstitute(user: any, requestedId?: string | null): string {
-    const isSuper = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuper = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     const id = isSuper ? (requestedId || user?.instituteId) : user?.instituteId;
     if (!id) {
       throw new BadRequestException(

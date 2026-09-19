@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { hasSchoolRole } from '../common/role-helper';
 
 /**
  * Tidy a chapter name so case alone cannot create a second chapter.
@@ -32,7 +33,7 @@ export class SchoolTopicService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) { }
 
   private async validateTeacherAssignment(user: any, subjectId: string | null, action: string) {
-    if (user.role !== 'TEACHER') return;
+    if (!hasSchoolRole(user.role, 'TEACHER')) return;
     if (!subjectId) {
       this.logger.warn(`[AUDIT] Action: ${action} | Role: ${user.role} | Teacher: ${user.id} | Status: DENIED | Reason: Missing subject context`);
       throw new ForbiddenException('Subject context is required for teacher actions');

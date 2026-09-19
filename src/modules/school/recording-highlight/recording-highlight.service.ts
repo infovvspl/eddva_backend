@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException,
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { CreateHighlightDto } from './recording-highlight.dto';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class RecordingHighlightService {
@@ -14,8 +15,8 @@ export class RecordingHighlightService {
    * Also verifies if the teacher is the one who created it (for write actions).
    */
   async verifyRecordingAccess(recordingId: string, user: any, requireTeacherOwnership: boolean = false): Promise<void> {
-    const isStudent = user.role === 'STUDENT';
-    const isTeacher = user.role === 'TEACHER';
+    const isStudent = hasSchoolRole(user.role, 'STUDENT');
+    const isTeacher = hasSchoolRole(user.role, 'TEACHER');
 
     // Check if recording exists in the tenant
     const rows = await this.ds.query(

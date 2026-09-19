@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { MailService } from '../../mail/mail.service';
 import { querySectionSubjects } from '../common/section-subjects';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolStudentService implements OnModuleInit {
@@ -93,9 +94,8 @@ export class SchoolStudentService implements OnModuleInit {
   }
 
   private async resolveInstituteId(user: any, bodyInstituteId?: string): Promise<string> {
-    const role = String(user.role || '').toUpperCase();
     const userInstituteId = user.instituteId || user.institute_id || null;
-    if (role === 'SUPER_ADMIN') {
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       if (userInstituteId) {
         if (bodyInstituteId && bodyInstituteId !== userInstituteId) {
           throw new BadRequestException('Unauthorized institute access');
@@ -109,9 +109,8 @@ export class SchoolStudentService implements OnModuleInit {
   }
 
   private async resolveOptionalInstituteId(user: any, requestedInstituteId?: string): Promise<string | null> {
-    const role = String(user.role || '').toUpperCase();
     const userInstituteId = user.instituteId || user.institute_id || null;
-    if (role === 'SUPER_ADMIN') {
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       if (userInstituteId) {
         if (requestedInstituteId && requestedInstituteId !== 'ALL' && requestedInstituteId !== userInstituteId) {
           throw new BadRequestException('Unauthorized institute access');
@@ -207,17 +206,17 @@ export class SchoolStudentService implements OnModuleInit {
       filter += ` AND u.institute_id=$${params.length}`;
     }
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       params.push(user.id);
       filter += ` AND u.id=$${params.length}`;
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       params.push(user.email);
       params.push(user.phone);
       filter += ` AND (
         (s.parent_email IS NOT NULL AND $${params.length - 1}::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($${params.length - 1}))
         OR (s.parent_phone IS NOT NULL AND $${params.length}::text IS NOT NULL AND s.parent_phone = $${params.length})
       )`;
-    } else if (user.role === 'TEACHER') {
+    } else if (hasSchoolRole(user.role, 'TEACHER')) {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
@@ -718,15 +717,15 @@ export class SchoolStudentService implements OnModuleInit {
     if (!rows.length) throw new NotFoundException('Student not found');
     const r = rows[0];
 
-    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(reqUser?.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && reqUser) {
       if (String(r.institute_id) !== String(reqUser.instituteId)) {
         throw new ForbiddenException('You do not have access to this student profile');
       }
-      if (reqUser.role === 'STUDENT' && String(r.user_id) !== String(reqUser.id)) {
+      if (hasSchoolRole(reqUser.role, 'STUDENT') && String(r.user_id) !== String(reqUser.id)) {
         throw new ForbiddenException('You do not have access to this student profile');
       }
-      if (reqUser.role === 'PARENT') {
+      if (hasSchoolRole(reqUser.role, 'PARENT')) {
         const parentEmail = r.parent_email;
         const parentPhone = r.parent_phone;
         const isMatched = (parentEmail && reqUser.email && parentEmail.toLowerCase() === reqUser.email.toLowerCase()) ||
@@ -735,7 +734,7 @@ export class SchoolStudentService implements OnModuleInit {
           throw new ForbiddenException('You do not have access to this student profile');
         }
       }
-      if (reqUser.role === 'TEACHER') {
+      if (hasSchoolRole(reqUser.role, 'TEACHER')) {
         const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [reqUser.id]);
         const teacherId = tRows[0]?.id;
         if (!teacherId) {
@@ -831,6 +830,79 @@ export class SchoolStudentService implements OnModuleInit {
         ? await querySectionSubjects(this.ds, r.institute_id, r.section_id, r.class_id)
         : [];
 
+    // Every assessment set for the student's current class, whether or not
+    // they've attempted it — `performance`/testSessions above only carries
+    // submitted ones, which hides "never attempted" as if it never existed.
+    const allAssessmentRows = r.user_id && r.class_id
+      ? await this.ds.query(`
+          SELECT
+            a.id AS "assessmentId",
+            a.title,
+            a.type,
+            a.scheduled_date AS "scheduledDate",
+            a.total_marks AS "assessmentTotalMarks",
+            sub.name AS "subjectName",
+            res.marks_obtained AS "marksObtained",
+            res.total_marks AS "resultTotalMarks",
+            res.percentage AS "percentage",
+            res.is_absent AS "isAbsent",
+            asub.status AS "submissionStatus",
+            asub.submitted_at AS "submittedAt"
+          FROM assessments a
+          LEFT JOIN subjects sub ON sub.id::text = a.subject_id::text
+          LEFT JOIN assessment_submissions asub ON asub.assessment_id::text = a.id::text AND asub.student_user_id::text = $1::text
+          LEFT JOIN results res ON res.assessment_id::text = a.id::text AND res.student_id::text = $1::text
+          WHERE a.class_id::text = $2::text
+            AND (a.status IS NULL OR a.status != 'draft')
+          ORDER BY a.scheduled_date DESC NULLS LAST, a.created_at DESC
+        `, [r.user_id, r.class_id])
+      : [];
+    const allAssessments = allAssessmentRows.map((row: any) => {
+      let status: 'evaluated' | 'pending_evaluation' | 'absent' | 'not_attempted';
+      if (row.isAbsent) status = 'absent';
+      else if (row.marksObtained !== null && row.marksObtained !== undefined) status = 'evaluated';
+      else if (['submitted', 'auto_submitted', 'evaluated'].includes(row.submissionStatus)) status = 'pending_evaluation';
+      else status = 'not_attempted';
+      return { ...row, status };
+    });
+
+    // Same idea as allAssessments, for assignments/homework — every assignment
+    // set for the student's class+section, whether submitted or not.
+    // assignment_submissions keys on the student PROFILE id, not the user id
+    // (unlike results/assessment_submissions), so this joins on r.profile_id.
+    const allAssignmentRows = r.profile_id && r.class_id
+      ? await this.ds.query(`
+          SELECT
+            a.id AS "assignmentId",
+            a.title,
+            a.type,
+            a.due_date AS "dueDate",
+            sub.name AS "subjectName",
+            asub.id AS "submissionId",
+            asub.status AS "submissionStatus",
+            asub.marks AS "marksObtained",
+            COALESCE(asub.feedback_summary, asub.teacher_remarks) AS "feedback",
+            asub.submitted_at AS "submittedAt"
+          FROM assignments a
+          LEFT JOIN subjects sub ON sub.id::text = a.subject_id::text
+          LEFT JOIN assignment_submissions asub ON asub.assignment_id::text = a.id::text AND asub.student_id::text = $1::text
+          WHERE a.class_id::text = $2::text
+            AND (a.section_id IS NULL OR a.section_id::text = $3::text)
+          ORDER BY a.due_date DESC NULLS LAST, a.created_at DESC
+        `, [r.profile_id, r.class_id, r.section_id])
+      : [];
+    const allAssignments = allAssignmentRows.map((row: any) => {
+      let status: 'evaluated' | 'submitted' | 'not_attempted';
+      if (row.submissionStatus === 'graded' || row.marksObtained !== null && row.marksObtained !== undefined || row.feedback) {
+        status = 'evaluated';
+      } else if (row.submissionId) {
+        status = 'submitted';
+      } else {
+        status = 'not_attempted';
+      }
+      return { ...row, status };
+    });
+
     const mappedData = {
       id: r.user_id,
       name: r.name,
@@ -843,6 +915,8 @@ export class SchoolStudentService implements OnModuleInit {
       instituteName: r.institute_name,
       instituteLogo: r.institute_logo,
       performance: testSessions,
+      allAssessments,
+      allAssignments,
       parentDetails,
       attendancePercentage,
       previousResults,
@@ -905,7 +979,7 @@ export class SchoolStudentService implements OnModuleInit {
     }
     body = targetBody;
 
-    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(reqUser?.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && reqUser) {
       const targetInstRow = await this.ds.query(
         `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM students WHERE id = $1 LIMIT 1`,
@@ -1172,7 +1246,7 @@ export class SchoolStudentService implements OnModuleInit {
       targetId = user;
     }
 
-    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(reqUser?.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && reqUser) {
       const targetInstRow = await this.ds.query(
         `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM students WHERE id = $1 LIMIT 1`,
@@ -1687,7 +1761,7 @@ export class SchoolStudentService implements OnModuleInit {
     }
     body = targetBody;
 
-    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(reqUser?.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && reqUser) {
       const targetInstRow = await this.ds.query(
         `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM students WHERE id = $1 LIMIT 1`,

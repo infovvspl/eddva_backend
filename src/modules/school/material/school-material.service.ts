@@ -9,6 +9,7 @@ import { getAiRequestContext } from '../../../common/context/ai-request-context'
 import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 /** Material types accepted by the study_materials.type enum (school). */
 const ALLOWED_MATERIAL_TYPES = [
@@ -384,7 +385,7 @@ export class SchoolMaterialService implements OnModuleInit {
     if (!body.content) throw new BadRequestException('content is required');
     const ctx = await this.resolveContentContext(body);
     await this.validateTeacherAssignment(user, ctx.subject_id, 'AI_SAVE_DENIED');
-    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (body.instituteId || user.instituteId) : user.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
     const scope = await this.resolveSubjectScope(ctx.subject_id, user);
 
@@ -631,7 +632,7 @@ export class SchoolMaterialService implements OnModuleInit {
 
   /** Generate a tenant-scoped presigned S3 PUT URL for a school material file. */
   async presignUpload(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (body as any).instituteId || user.instituteId : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (body as any).instituteId || user.instituteId : user.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
     if (!body.contentType) throw new BadRequestException('contentType is required');
     const MAX = 100 * 1024 * 1024;
@@ -644,7 +645,7 @@ export class SchoolMaterialService implements OnModuleInit {
 
   /** Direct multipart upload — receives file buffer from NestJS, pushes to R2. Avoids browser PUT proxy. */
   async uploadFile(user: any, buffer: Buffer, originalName: string, contentType: string) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? user.instituteId : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? user.instituteId : user.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
     const MAX = 100 * 1024 * 1024;
     if (buffer.length > MAX) throw new BadRequestException('File must be ≤ 100 MB');
@@ -655,7 +656,7 @@ export class SchoolMaterialService implements OnModuleInit {
   }
 
   private async validateTeacherAssignment(user: any, subjectId: string | null, action: string) {
-    if (user.role !== 'TEACHER') return;
+    if (!hasSchoolRole(user.role, 'TEACHER')) return;
     if (!subjectId) {
       this.logger.warn(`[AUDIT] Action: ${action} | Role: ${user.role} | Teacher: ${user.id} | Status: DENIED | Reason: Missing subject context`);
       throw new ForbiddenException('Subject context is required for teacher actions');
@@ -684,7 +685,7 @@ export class SchoolMaterialService implements OnModuleInit {
         sectionId: rows[0]?.section_id ?? null,
       };
     }
-    if (user?.role === 'TEACHER') {
+    if (hasSchoolRole(user?.role, 'TEACHER')) {
       const assignmentRows = await this.ds.query(
         `SELECT taa.class_id, taa.section_id
          FROM teacher_academic_assignments taa
@@ -714,7 +715,7 @@ export class SchoolMaterialService implements OnModuleInit {
   }
 
   private async assertStudentCanAccessMaterial(user: any, materialId: string) {
-    if (user.role !== 'STUDENT') return;
+    if (!hasSchoolRole(user.role, 'STUDENT')) return;
 
     const rows = await this.ds.query(
       `SELECT 1
@@ -807,7 +808,7 @@ export class SchoolMaterialService implements OnModuleInit {
   }
 
   async list(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.instituteId || user.instituteId) : user.instituteId;
     if (!instituteId) {
       return { success: true, data: [] };
     }
@@ -853,7 +854,7 @@ export class SchoolMaterialService implements OnModuleInit {
     `;
     const params: any[] = [instituteId];
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const studentRows = await this.ds.query(
         `SELECT s.section_id, sec.class_id 
          FROM students s
@@ -975,7 +976,7 @@ export class SchoolMaterialService implements OnModuleInit {
   async create(user: any, body: any) {
     await this.validateTeacherAssignment(user, body.subjectIdFk || body.subjectId, 'CREATE_MATERIAL_DENIED');
 
-    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (body.instituteId || user.instituteId) : user.instituteId;
 
     if (!instituteId) {
       throw new NotFoundException('Institute ID is required to upload materials');
@@ -1264,8 +1265,8 @@ export class SchoolMaterialService implements OnModuleInit {
     );
     if (!topRows.length) throw new NotFoundException('Material not found');
     const currentSubjectId = topRows[0].subject_id;
-    const isTeacherOwner = user.role === 'TEACHER' && String(topRows[0].uploaded_by || '') === String(user.id);
-    const isLegacyOrphanPpt = user.role === 'TEACHER' && topRows[0].type === 'ppt' && !currentSubjectId;
+    const isTeacherOwner = hasSchoolRole(user.role, 'TEACHER') && String(topRows[0].uploaded_by || '') === String(user.id);
+    const isLegacyOrphanPpt = hasSchoolRole(user.role, 'TEACHER') && topRows[0].type === 'ppt' && !currentSubjectId;
     if (!isTeacherOwner && !isLegacyOrphanPpt) {
       await this.validateTeacherAssignment(user, currentSubjectId, 'DELETE_MATERIAL_DENIED');
     }
@@ -1289,7 +1290,7 @@ export class SchoolMaterialService implements OnModuleInit {
     if (!matRows.length) throw new NotFoundException('Material not found');
 
     const rows = await this.ds.query(
-      String(user.role || '').toUpperCase() === 'STUDENT'
+      hasSchoolRole(user.role, 'STUDENT')
         ? `SELECT h.id, h.material_id AS "materialId", h.topic_id AS "topicId", h.created_by AS "createdBy",
                   creator.role AS "createdByRole",
                   h.page_number AS "pageNumber", h.selected_text AS "selectedText", h.rects, h.color, h.category, h.note,

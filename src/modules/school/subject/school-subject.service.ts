@@ -3,6 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import type { Cache } from 'cache-manager';
+import { hasSchoolRole } from '../common/role-helper';
 
 const SUBJECT_TTL = 30 * 60 * 1000; // 30 min — curriculum changes are admin-initiated
 
@@ -52,7 +53,7 @@ export class SchoolSubjectService {
   ) { }
 
   private async resolveInstituteId(user: any, id?: string) {
-    return user.role === 'SUPER_ADMIN' ? (id || user.instituteId) : user.instituteId;
+    return hasSchoolRole(user.role, 'SUPER_ADMIN') ? (id || user.instituteId) : user.instituteId;
   }
 
   private subjectListKey(instituteId: string, classId?: string, sectionId?: string, page = 1, limit = 10) {
@@ -98,7 +99,7 @@ export class SchoolSubjectService {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const page = Math.max(1, parseInt(query.page) || 1);
     const limit = Math.max(1, parseInt(query.limit) || 10);
-    const isTeacher = user.role === 'TEACHER' || (typeof user.role === 'string' && user.role.includes('TEACHER'));
+    const isTeacher = hasSchoolRole(user.role, 'TEACHER');
 
     // Only cache general non-search list requests — class or section scoped lists should bypass cache to avoid stale caches
     let cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);

@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { FcmService } from '../notification-fcm/fcm.service';
+import { hasSchoolRole } from '../common/role-helper';
 import {
   SchoolFcmNotificationType,
   SCHOOL_NOTIFICATION_TEMPLATES,
@@ -196,13 +197,13 @@ export class SchoolAttendanceService {
   async get(user: any, query: any) {
     const instituteId = user.instituteId;
 
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
-    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
+    const isInstituteAdmin = hasSchoolRole(user?.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user?.role, 'ADMIN');
 
     if (!isSuperAdmin && !isInstituteAdmin && user) {
-      if (user.role === 'STUDENT') {
+      if (hasSchoolRole(user.role, 'STUDENT')) {
         query.userId = user.id;
-      } else if (user.role === 'PARENT') {
+      } else if (hasSchoolRole(user.role, 'PARENT')) {
         const children = await this.ds.query(`
           SELECT u.id FROM students s JOIN users u ON u.id = s.user_id WHERE s.institute_id = $1 AND (
             (s.parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($2))
@@ -217,7 +218,7 @@ export class SchoolAttendanceService {
         } else {
           query.userIds = childUserIds;
         }
-      } else if (user.role === 'TEACHER') {
+      } else if (hasSchoolRole(user.role, 'TEACHER')) {
         if (query.userId && query.userId !== user.id) {
           const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
           const teacherId = tRows[0]?.id;
@@ -378,7 +379,7 @@ export class SchoolAttendanceService {
       filter += ` AND a.user_id = ANY($${params.length}::uuid[])`;
     }
 
-    if (user.role === 'TEACHER' && !isSuperAdmin && !isInstituteAdmin) {
+    if (hasSchoolRole(user.role, 'TEACHER') && !isSuperAdmin && !isInstituteAdmin) {
       if (query.role === 'STUDENT' || !query.role) {
         const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
         const teacherId = tRows[0]?.id;
@@ -479,7 +480,7 @@ export class SchoolAttendanceService {
         name: r.user_name,
         email: r.email,
         role: r.role,
-        studentProfile: r.role === 'STUDENT' ? {
+        studentProfile: hasSchoolRole(r.role, 'STUDENT') ? {
           id: r.student_profile_id,
           section: r.section_id ? {
             id: r.section_id,

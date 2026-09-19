@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolActivityLogService } from '../activity-log/school-activity-log.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolSecurityService {
@@ -15,7 +16,7 @@ export class SchoolSecurityService {
     const params: any[] = [];
     
     // Super Admin sees all sessions. School Admin sees only their school's sessions.
-    if (user.role !== 'SUPER_ADMIN') {
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       sql += ` AND user_id IN (SELECT id FROM users WHERE institute_id = $1)`;
       params.push(user.instituteId);
     }
@@ -44,7 +45,7 @@ export class SchoolSecurityService {
     `;
     const params: any[] = [];
 
-    if (user.role !== 'SUPER_ADMIN') {
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       params.push(user.instituteId);
       sql += ` AND u.institute_id = $${params.length}`;
     }
@@ -65,7 +66,7 @@ export class SchoolSecurityService {
     `;
     const params: any[] = [sessionId];
     
-    if (user.role !== 'SUPER_ADMIN') {
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       params.push(user.instituteId);
       selectSql += ` AND u.institute_id = $${params.length}`;
     }

@@ -301,7 +301,7 @@ describe('G3 Class-B B2 — teacher recording analysis via the AI bridge', () =>
       expect(block).not.toContain('x-tenant-id');
       expect(block).not.toContain('headers');
       // instituteId comes from the JWT unless the caller is SUPER_ADMIN.
-      expect(block).toContain("user.role === 'SUPER_ADMIN'");
+      expect(block).toContain("hasSchoolRole(user.role, 'SUPER_ADMIN')");
       expect(block).toContain('user.instituteId');
     });
   });

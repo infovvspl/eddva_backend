@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolTeacherService {
@@ -84,9 +85,8 @@ export class SchoolTeacherService {
   }
 
   private async resolveInstituteId(user: any, bodyId?: string): Promise<string> {
-    const role = String(user.role || '').toUpperCase();
     const userInstituteId = user.instituteId || user.institute_id || null;
-    if (role === 'SUPER_ADMIN') {
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       if (userInstituteId) {
         if (bodyId && bodyId !== userInstituteId) throw new BadRequestException('Unauthorized institute access');
         return userInstituteId;
@@ -98,9 +98,8 @@ export class SchoolTeacherService {
   }
 
   private async resolveOptionalInstituteId(user: any, requestedInstituteId?: string): Promise<string | null> {
-    const role = String(user.role || '').toUpperCase();
     const userInstituteId = user.instituteId || user.institute_id || null;
-    if (role === 'SUPER_ADMIN') {
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       if (userInstituteId) {
         if (requestedInstituteId && requestedInstituteId !== 'ALL' && requestedInstituteId !== userInstituteId) {
           throw new BadRequestException('Unauthorized institute access');
@@ -493,7 +492,7 @@ export class SchoolTeacherService {
       filter += ` AND u.institute_id=$${params.length}`;
     }
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
       const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
       if (sectionId) {
@@ -505,7 +504,7 @@ export class SchoolTeacherService {
       } else {
         filter += ` AND 1=0`;
       }
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id = $1 AND (
           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
@@ -699,7 +698,7 @@ export class SchoolTeacherService {
   }
 
   async findOne(user: any, id: string) {
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     const instituteId = isSuperAdmin ? null : user?.instituteId;
 
     let queryStr = `SELECT u.*,
@@ -792,7 +791,7 @@ export class SchoolTeacherService {
       totalStudents = studentsRow[0]?.c || 0;
       assignmentsCreated = assignsRow[0]?.c || 0;
       assessmentsConducted = assessRow[0]?.c || 0;
-    } else if (r.role === 'INSTITUTE_ADMIN') {
+    } else if (hasSchoolRole(r.role, 'INSTITUTE_ADMIN')) {
       const joinDate = new Date(r.created_at);
       const today = new Date();
       const diffTime = Math.abs(today.getTime() - joinDate.getTime());
@@ -887,7 +886,7 @@ export class SchoolTeacherService {
   }
 
   async update(user: any, id: string, body: any) {
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && user) {
       const targetInstRow = await this.ds.query(
         `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM teachers WHERE id = $1 LIMIT 1`,
@@ -1127,7 +1126,7 @@ export class SchoolTeacherService {
    * "TEACHER,INSTITUTE_ADMIN". A dedicated route keeps both meanings intact.
    */
   async setAdminRole(user: any, id: string, isAdmin: boolean) {
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && user) {
       const targetInstRow = await this.ds.query(`SELECT institute_id FROM users WHERE id=$1`, [id]);
       if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(user.instituteId)) {
@@ -1221,7 +1220,7 @@ export class SchoolTeacherService {
       targetId = user;
     }
 
-    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(reqUser?.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && reqUser) {
       const targetInstRow = await this.ds.query(
         `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM teachers WHERE id = $1 LIMIT 1`,
@@ -1261,7 +1260,7 @@ export class SchoolTeacherService {
 
   async getTeacherRecordings(user: any, teacherId: string, query: any) {
     await this.ensureAnalysisColumns();
-    const instituteId = user.role === 'SUPER_ADMIN'
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN')
       ? (query.instituteId ?? (() => { throw new BadRequestException('instituteId required'); })())
       : user.instituteId;
     const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
@@ -1303,7 +1302,7 @@ export class SchoolTeacherService {
 
   async getTeacherRecordingsSummary(user: any, teacherId: string, query: any) {
     await this.ensureAnalysisColumns();
-    const instituteId = user.role === 'SUPER_ADMIN'
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN')
       ? (query.instituteId ?? (() => { throw new BadRequestException('instituteId required'); })())
       : user.instituteId;
     const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
@@ -1332,7 +1331,7 @@ export class SchoolTeacherService {
   }
 
   async analyzeTeacherRecording(user: any, teacherId: string, recordingId: string, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN'
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN')
       ? (query.instituteId ?? (() => { throw new BadRequestException('instituteId required'); })())
       : user.instituteId;
     const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
