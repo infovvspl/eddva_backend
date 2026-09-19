@@ -63,6 +63,12 @@ export class TenantMiddleware implements NestMiddleware {
       return next();
     }
 
+    // The blog admin panel is its own platform-level login, unrelated to any
+    // tenant — same reasoning as the admin/* bypass above.
+    if (normalizedPath.startsWith('blog-admin/')) {
+      return next();
+    }
+
     // Public tenant config endpoints (e.g. maintenance mode polling) are truly global
     // and should bypass tenant scoping so they work from any subdomain host.
     if (normalizedPath.startsWith('tenants/public/')) {
