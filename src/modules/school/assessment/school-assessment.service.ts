@@ -1154,7 +1154,31 @@ export class SchoolAssessmentService {
     const chapterIds = chapterList.length
       ? chapterList.map((c) => c.id)
       : [body?.chapterId || body?.chapter_id].filter(Boolean);
-    if (!chapterIds.length) return [];
+
+    // No chapter in scope means a subject, mock or final paper: the teacher
+    // picked a subject and the paper covers the year. Fall back to the whole
+    // subject, spread across its chapters, instead of returning nothing —
+    // these are the papers that most need diagrams.
+    if (!chapterIds.length) {
+      const subjectId = body?.subjectId || body?.subject_id;
+      if (!subjectId) return [];
+      try {
+        const figures = await this.textbooks.getSubjectFigures(
+          instituteId, subjectId, _MAX_PAPER_FIGURES,
+        );
+        return figures.slice(0, _MAX_PAPER_FIGURES).map((figure: any, index: number) => ({
+          ref: `F${index + 1}`,
+          id: String(figure.id),
+          label: String(figure.label || ''),
+          caption: String(figure.caption || ''),
+          description: String(figure.description || ''),
+          imageUrl: String(figure.imageUrl || ''),
+        }));
+      } catch (err: any) {
+        this.logger.warn(`Subject-wide figure lookup failed: ${err?.message || err}`);
+        return [];
+      }
+    }
 
     const collected: any[] = [];
     for (const chapterId of chapterIds) {
@@ -1215,6 +1239,57 @@ export class SchoolAssessmentService {
     });
 
     return { text: resolved.replace(/\n{3,}/g, '\n\n'), used, unresolved };
+  }
+
+  /**
+   * Hide images from the translator, then put them back.
+   *
+   * The whole paper — resolved images included — goes to translateText for a
+   * Hindi or Odia paper. A translation model handed
+   * `![Fig. 2.3 Graph of a polynomial](https://…/p8-0.png)` will translate the
+   * alt text and can just as easily rewrite or drop the URL, so a translated
+   * paper lost its figures. Resolving markers before translation (which the
+   * earlier comment here claimed was enough) only swapped a short marker for a
+   * long URL — strictly worse.
+   *
+   * The placeholder is plain uppercase ASCII with no punctuation, which a
+   * translator carries through unchanged far more reliably than a URL.
+   */
+  private maskImagesForTranslation(text: string): { text: string; images: string[] } {
+    const images: string[] = [];
+    const masked = String(text || '').replace(
+      new RegExp(_MARKDOWN_IMAGE_RE.source, 'g'),
+      (match) => {
+        images.push(match);
+        return `\n\nXFIGX${images.length - 1}XENDX\n\n`;
+      },
+    );
+    return { text: masked, images };
+  }
+
+  private restoreImagesAfterTranslation(text: string, images: string[]): string {
+    if (!images.length) return String(text || '');
+    const seen = new Set<number>();
+    const restored = String(text || '').replace(
+      /X\s*FIGX\s*(\d+)\s*X\s*ENDX/gi,
+      (whole, index: string) => {
+        const image = images[Number(index)];
+        if (!image) return whole;
+        seen.add(Number(index));
+        return `\n\n${image}\n\n`;
+      },
+    );
+    // A translator that dropped a placeholder entirely would silently lose the
+    // figure. Saying so beats a paper that is quietly missing a diagram.
+    if (seen.size < images.length) {
+      this.logger.warn(
+        `Translation lost ${images.length - seen.size} of ${images.length} figure(s); ` +
+        'they are appended at the end of the paper rather than dropped.',
+      );
+      const lost = images.filter((_img, i) => !seen.has(i));
+      return `${restored}\n\n${lost.join('\n\n')}`.replace(/\n{3,}/g, '\n\n');
+    }
+    return restored.replace(/\n{3,}/g, '\n\n');
   }
 
   /** Remove every figure marker, resolved or not. */
@@ -1580,11 +1655,16 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       if (language !== 'en') {
         try {
           if (questionsPart.trim()) {
+            // Images are masked out for the round trip — see
+            // maskImagesForTranslation. A translator handed a URL rewrites it.
+            const masked = this.maskImagesForTranslation(questionsPart);
             const transQ = (await this.aiBridge.translateText(
-              { text: questionsPart, targetLanguage: language },
+              { text: masked.text, targetLanguage: language },
               instituteId,
             )) as any;
-            questionsPart = transQ?.translatedText ?? transQ?.text ?? transQ?.translation ?? questionsPart;
+            const translated =
+              transQ?.translatedText ?? transQ?.text ?? transQ?.translation ?? masked.text;
+            questionsPart = this.restoreImagesAfterTranslation(translated, masked.images);
           }
           if (answerKeyPart.trim()) {
             const transA = (await this.aiBridge.translateText(

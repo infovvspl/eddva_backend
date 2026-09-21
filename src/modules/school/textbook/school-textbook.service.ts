@@ -530,6 +530,65 @@ export class SchoolTextbookService implements OnModuleInit {
   }
 
   /**
+   * Figures from every chapter of a subject, spread evenly across them.
+   *
+   * A subject, mock or final paper carries no chapter scope at all — the
+   * teacher picks a subject and the paper covers the year — so the
+   * chapter-scoped lookup returned nothing and exactly the papers that most
+   * need diagrams got none.
+   *
+   * Spread rather than "first N": ordering by chapter would hand the whole
+   * budget to chapter 1 and leave an annual paper illustrated entirely from the
+   * first few pages of the book. Taking a few from each chapter in turn keeps
+   * the catalogue representative of the year.
+   */
+  async getSubjectFigures(
+    instituteId: string,
+    subjectId?: string | null,
+    limit = 24,
+  ): Promise<any[]> {
+    if (!instituteId || !subjectId) return [];
+    await this.ensureSchema();
+    const capped = Math.min(Math.max(Number(limit) || 24, 1), 100);
+    try {
+      const rows: any[] = await this.ds.query(
+        `SELECT id, page_no, figure_index, label, caption, description,
+                detector, width, height, image_key
+           FROM (
+             SELECT tf.*,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY tf.chapter_id
+                      ORDER BY tf.page_no NULLS LAST, tf.figure_index
+                    ) AS rank_in_chapter
+               FROM textbook_figures tf
+               JOIN chapters c ON c.id = tf.chapter_id
+              WHERE tf.institute_id::text = $1::text
+                AND c.subject_id::text = $2::text
+           ) ranked
+          WHERE rank_in_chapter <= 3
+          ORDER BY rank_in_chapter, page_no NULLS LAST, figure_index
+          LIMIT $3`,
+        [instituteId, subjectId, capped],
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        pageNo: row.page_no,
+        figureIndex: row.figure_index,
+        label: row.label || '',
+        caption: row.caption || '',
+        description: row.description || '',
+        detector: row.detector || '',
+        width: row.width,
+        height: row.height,
+        imageUrl: this.s3Service.toPublicUrl(row.image_key),
+      }));
+    } catch (err: any) {
+      this.logger.warn(`Subject figure lookup failed: ${err?.message || err}`);
+      return [];
+    }
+  }
+
+  /**
    * Extract figures for chapters that were indexed before figures existed.
    *
    * Deliberately NOT a re-index. The passages for these chapters are already
@@ -1360,6 +1419,13 @@ export class SchoolTextbookService implements OnModuleInit {
               ts.pages, ts.chunk_count AS "passages", ts.method, ts.quality,
               ts.ingested_at AS "ingestedAt",
               (ts.chapter_id IS NOT NULL AND ts.chunk_count > 0) AS "indexed",
+              -- How many diagrams were cropped from this chapter. Surfaced so a
+              -- teacher can tell "the book has no figures" from "this chapter
+              -- was indexed before figures existed" — both of which otherwise
+              -- look identical: a green Ready tick and a paper with no images.
+              (SELECT count(*)::int FROM textbook_figures tf
+                WHERE tf.chapter_id = c.id
+                  AND tf.institute_id::text = cl.institute_id::text) AS "figures",
               m.material_id AS "materialId",
               (m.material_id IS NOT NULL) AS "hasPdf",
               m.reachable AS "linkReachable",

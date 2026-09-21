@@ -15,10 +15,14 @@ import { SchoolAssessmentService } from './school-assessment.service';
 
 const INSTITUTE = 'e9f3592d-851a-43be-9361-574e57722703';
 
-function makeService(figuresByChapter: Record<string, any[]> = {}) {
+function makeService(
+  figuresByChapter: Record<string, any[]> = {},
+  subjectFigures: any[] = [],
+) {
   const ds = { query: jest.fn(async () => []) };
   const textbooks = {
     getChapterFigures: jest.fn(async (_inst: string, chapterId: string) => figuresByChapter[chapterId] || []),
+    getSubjectFigures: jest.fn(async (_inst: string, _subjectId: string, _limit?: number) => subjectFigures),
   };
   // Constructor order is (ds, notificationService, aiBridge, fcm, s3Service, textbooks).
   const svc: any = new SchoolAssessmentService(
@@ -154,6 +158,97 @@ describe('stripFigureMarkers', () => {
     expect(out).not.toContain('FIGURE');
     expect(out).toContain('Q1. Answer: a');
     expect(out).toContain('Q2. Answer: b');
+  });
+});
+
+describe('subject-wide scope — subject, mock and final papers', () => {
+  it('38. falls back to the whole subject when no chapter is in scope', async () => {
+    // These papers carry no chapter at all: the teacher picks a subject and the
+    // paper covers the year. They used to get no figures whatsoever, which made
+    // the annual exam the least illustrated paper of the lot.
+    const { svc, textbooks } = makeService({}, [figure({ id: 'a' }), figure({ id: 'b' })]);
+    const out = await svc.collectChapterFigures(INSTITUTE, [], { subjectId: 'sub-1' });
+    expect(textbooks.getSubjectFigures).toHaveBeenCalledWith(INSTITUTE, 'sub-1', 24);
+    expect(out.map((f: any) => f.ref)).toEqual(['F1', 'F2']);
+  });
+
+  it('39. still prefers chapter scope when a chapter IS selected', async () => {
+    const { svc, textbooks } = makeService({ 'ch-1': [figure({ id: 'x' })] }, [figure({ id: 'y' })]);
+    const out = await svc.collectChapterFigures(
+      INSTITUTE, [{ id: 'ch-1', name: 'Polynomials' }], { subjectId: 'sub-1' },
+    );
+    expect(textbooks.getSubjectFigures).not.toHaveBeenCalled();
+    expect(out[0].id).toBe('x');
+  });
+
+  it('40. returns nothing when there is no subject either', async () => {
+    const { svc, textbooks } = makeService({}, [figure()]);
+    expect(await svc.collectChapterFigures(INSTITUTE, [], {})).toEqual([]);
+    expect(textbooks.getSubjectFigures).not.toHaveBeenCalled();
+  });
+
+  it('41. a subject-wide lookup failure never breaks generation', async () => {
+    const { svc, textbooks } = makeService({}, []);
+    textbooks.getSubjectFigures.mockRejectedValueOnce(new Error('db down'));
+    await expect(
+      svc.collectChapterFigures(INSTITUTE, [], { subjectId: 'sub-1' }),
+    ).resolves.toEqual([]);
+  });
+});
+
+describe('images across translation', () => {
+  const IMAGE = '![Fig. 2.3 Graph of a polynomial](https://media.example/p8-0.png)';
+
+  it('42. hides the image from the translator and puts it back', async () => {
+    // A translation model handed a URL translates the alt text and can rewrite
+    // or drop the URL, so a Hindi or Odia paper lost its figures entirely.
+    const { svc } = makeService();
+    const masked = svc.maskImagesForTranslation(`1. Study the graph.\n\n${IMAGE}\n`);
+    expect(masked.text).not.toContain('https://');
+    expect(masked.text).not.toContain('![');
+    expect(masked.images).toEqual([IMAGE]);
+
+    const restored = svc.restoreImagesAfterTranslation(masked.text, masked.images);
+    expect(restored).toContain(IMAGE);
+  });
+
+  it('43. survives a translator that reformats around the placeholder', async () => {
+    const { svc } = makeService();
+    const masked = svc.maskImagesForTranslation(`1. q\n\n${IMAGE}\n`);
+    // Simulates a translated body with the placeholder spaced/cased differently.
+    const translated = masked.text
+      .replace('1. q', '१. प्रश्न')
+      .replace(/XFIGX(\d+)XENDX/, 'X FIGX $1 X ENDX');
+    const restored = svc.restoreImagesAfterTranslation(translated, masked.images);
+    expect(restored).toContain(IMAGE);
+    expect(restored).toContain('१. प्रश्न');
+  });
+
+  it('44. a dropped placeholder appends the figure rather than losing it', async () => {
+    const { svc } = makeService();
+    const masked = svc.maskImagesForTranslation(`1. q\n\n${IMAGE}\n`);
+    const translated = masked.text.replace(/XFIGX\d+XENDX/, '');   // translator ate it
+    const restored = svc.restoreImagesAfterTranslation(translated, masked.images);
+    expect(restored).toContain(IMAGE);
+  });
+
+  it('45. handles several images and keeps their order', async () => {
+    const { svc } = makeService();
+    const a = '![A](https://media.example/a.png)';
+    const b = '![B](https://media.example/b.png)';
+    const masked = svc.maskImagesForTranslation(`1. x\n${a}\n2. y\n${b}\n`);
+    expect(masked.images).toEqual([a, b]);
+    const restored = svc.restoreImagesAfterTranslation(masked.text, masked.images);
+    expect(restored.indexOf(a)).toBeLessThan(restored.indexOf(b));
+  });
+
+  it('46. a paper with no images is untouched both ways', async () => {
+    const { svc } = makeService();
+    const paper = '## Section A\n\n1. What is a polynomial?';
+    const masked = svc.maskImagesForTranslation(paper);
+    expect(masked.text).toBe(paper);
+    expect(masked.images).toEqual([]);
+    expect(svc.restoreImagesAfterTranslation(paper, [])).toBe(paper);
   });
 });
 

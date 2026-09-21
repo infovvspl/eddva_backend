@@ -175,6 +175,62 @@ describe('persistFigures', () => {
   });
 });
 
+describe('getSubjectFigures', () => {
+  const ROW = {
+    id: 'fig-1', page_no: 8, figure_index: 0, label: 'Fig. 2.3',
+    caption: 'Graph of a polynomial', description: '', detector: 'vector',
+    width: 900, height: 260, image_key: 'tenants/x/textbook-figures/ch-1/p8-0.png',
+  };
+
+  it('22. spreads the budget across chapters instead of draining the first', async () => {
+    // Ordering by chapter alone would illustrate a whole annual paper from the
+    // opening pages of the book.
+    const { svc, ds } = makeService();
+    ds.query.mockResolvedValueOnce([ROW]);
+    await svc.getSubjectFigures(INSTITUTE, 'sub-1', 24);
+    const sql = ds.query.mock.calls[0][0];
+    expect(sql).toContain('PARTITION BY');
+    expect(sql).toContain('rank_in_chapter');
+  });
+
+  it('23. is scoped by institute and subject', async () => {
+    const { svc, ds } = makeService();
+    ds.query.mockResolvedValueOnce([]);
+    await svc.getSubjectFigures(INSTITUTE, 'sub-1', 24);
+    const [sql, params] = ds.query.mock.calls[0];
+    expect(sql).toContain('institute_id');
+    expect(sql).toContain('subject_id');
+    expect(params).toEqual([INSTITUTE, 'sub-1', 24]);
+  });
+
+  it('24. clamps the limit to a sane range', async () => {
+    for (const [given, expected] of [[0, 24], [9999, 100], [10, 10]] as const) {
+      const { svc, ds } = makeService();
+      ds.query.mockResolvedValueOnce([]);
+      await svc.getSubjectFigures(INSTITUTE, 'sub-1', given);
+      expect(ds.query.mock.calls[0][1][2]).toBe(expected);
+    }
+  });
+
+  it('25. returns nothing without an institute or subject', async () => {
+    const { svc, ds } = makeService();
+    expect(await svc.getSubjectFigures(INSTITUTE, null)).toEqual([]);
+    expect(await svc.getSubjectFigures('', 'sub-1')).toEqual([]);
+    expect(ds.query).not.toHaveBeenCalled();
+  });
+
+  it('26. resolves the image URL and degrades on failure', async () => {
+    const { svc, ds } = makeService();
+    ds.query.mockResolvedValueOnce([ROW]);
+    const out = await svc.getSubjectFigures(INSTITUTE, 'sub-1');
+    expect(out[0].imageUrl).toBe(`https://media.example/${ROW.image_key}`);
+
+    const broken = makeService();
+    broken.ds.query.mockRejectedValueOnce(new Error('relation does not exist'));
+    await expect(broken.svc.getSubjectFigures(INSTITUTE, 'sub-1')).resolves.toEqual([]);
+  });
+});
+
 describe('backfillFigures', () => {
   function makeBackfillService(rows: any[], ingest?: jest.Mock) {
     const { svc, ds, s3 } = makeService();
