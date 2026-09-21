@@ -108,16 +108,67 @@ function diagramScale(spec: GeometrySpec, byId: Map<string, Vec>): number {
 }
 
 /**
+ * What this module does NOT check, stated per kind.
+ *
+ * Only `geometry` has constructions that can be false — a chord whose
+ * endpoints are not on its circle. Every other kind is drawn directly from its
+ * numbers, or computed by the renderer, so it cannot contradict itself. That
+ * is a real guarantee, and it is a narrow one: it says the picture matches the
+ * specification, not that the specification matches the question.
+ *
+ * Returning nothing for those kinds made the narrow guarantee look like the
+ * broad one. An empty result is indistinguishable from "checked and correct",
+ * and a teacher reading no warnings reasonably concludes the diagram was
+ * verified. These notes say exactly where the machine stops and the teacher
+ * starts. None of them is a failure: `consistent` stays true, and nothing that
+ * was accepted before is rejected now.
+ */
+const UNCHECKED_KIND_NOTES: Record<string, string> = {
+  cartesian:
+    'cartesian: the axes, grid and plotted functions are drawn from the coefficients given. '
+    + 'Nothing checks that those coefficients are the ones your question is about, or that the '
+    + 'window shows the part of the curve you meant to show.',
+  bar_chart:
+    'bar_chart: the bars are drawn to the values given, so the picture cannot disagree with them. '
+    + 'Nothing checks the values themselves against any source.',
+  line_graph:
+    'line_graph: the series are drawn through the points given. Nothing checks those points '
+    + 'against any source, or that the axis labels describe what is plotted.',
+  ray_diagram:
+    'ray_diagram: the image position and size are computed from the mirror/lens equation, so the '
+    + 'optics in the drawing follow from the device, focal length and object distance you gave — '
+    + 'they are not taken on trust. What is NOT checked is whether those three numbers, and the '
+    + 'sign convention they imply, describe the situation your question asks about.',
+  force_diagram:
+    'force_diagram: each arrow is drawn to its own magnitude and angle, and the resultant is '
+    + 'computed from them. Nothing requires the system to be in equilibrium, and nothing checks '
+    + 'that the forces shown are the complete set acting on the body.',
+  template:
+    'template: the artwork is fixed and correct; only the labels vary. Nothing checks that a '
+    + 'label names the part it points at — a mislabelled slot renders exactly as cleanly as a '
+    + 'correct one.',
+};
+
+/** The note for a kind this module does not verify. */
+function uncheckedKindNote(kind: string): string {
+  return UNCHECKED_KIND_NOTES[kind]
+    ?? `${kind}: this kind has no geometric constructions to verify. The drawing follows the `
+      + 'specification, but nothing checks the specification against your question.';
+}
+
+/**
  * Check the geometry of a VALIDATED specification.
  *
- * Non-geometry kinds have no constructions to verify and are reported
- * consistent; their correctness is enforced structurally (a bar chart cannot
- * be geometrically wrong) or computed by the renderer (an optical image
- * position comes from the lens equation, never from the specification).
+ * Only `geometry` is verified. Every other kind is reported consistent with an
+ * explicit note saying what was and was not established — see
+ * UNCHECKED_KIND_NOTES above for why silence was the wrong answer.
  */
 export function checkGeometricConsistency(spec: DiagramSpec): ConsistencyResult {
-  if (!spec || spec.kind !== 'geometry') {
+  if (!spec) {
     return { consistent: true, errors: [], unverifiable: [] };
+  }
+  if (spec.kind !== 'geometry') {
+    return { consistent: true, errors: [], unverifiable: [uncheckedKindNote(spec.kind)] };
   }
 
   const errors: string[] = [];

@@ -52,7 +52,7 @@ function makeService(seed: any[] = []) {
   const ds = {
     query: jest.fn(async (sql: string, params: any[] = []) => {
       if (/INSERT INTO assessment_diagrams/i.test(sql)) {
-        const [institute_id, assessment_id, marker_key, diagram_type, spec, renderer_version, image_key, alt_text] = params;
+        const [institute_id, assessment_id, marker_key, diagram_type, spec, renderer_version, image_key, alt_text, warnings] = params;
         if (rows.some((r) => r.institute_id === institute_id && r.marker_key === marker_key)) {
           throw new Error('duplicate key value violates unique constraint');
         }
@@ -60,6 +60,7 @@ function makeService(seed: any[] = []) {
           id: `row-${rows.length + 1}`, institute_id, assessment_id, marker_key,
           diagram_type, spec: JSON.parse(spec), renderer_version, image_key,
           alt_text, approved: false, approved_by: null, approved_at: null,
+          consistency_warnings: warnings == null ? null : JSON.parse(warnings),
           detached_at: null, created_at: new Date(), updated_at: new Date(),
         });
         return [];
@@ -75,12 +76,13 @@ function makeService(seed: any[] = []) {
           && String(r.assessment_id) === String(assessment));
       }
       if (/UPDATE assessment_diagrams/i.test(sql) && /SET diagram_type/i.test(sql)) {
-        const [id, kind, spec, version, key, alt, unchanged] = params;
+        const [id, kind, spec, version, key, alt, unchanged, warnings] = params;
         const row = rows.find((r) => r.id === id);
         if (row) {
           Object.assign(row, {
             diagram_type: kind, spec: JSON.parse(spec), renderer_version: version,
             image_key: key, alt_text: alt, updated_at: new Date(),
+            consistency_warnings: warnings == null ? null : JSON.parse(warnings),
           });
           if (!unchanged) { row.approved = false; row.approved_by = null; row.approved_at = null; }
         }
@@ -441,5 +443,143 @@ describe('list', () => {
     }]);
     const { data } = await svc.list(TEACHER, ASSESSMENT);
     expect(data[0].url).toBeNull();
+  });
+});
+
+// ── Warnings survive until approval (Phase 9.4) ─────────────────────────────
+
+describe('consistency warnings are stored, not just shown once', () => {
+  /**
+   * Warnings used to exist only in the editor session that produced them.
+   * Approval — the act that actually puts a figure in front of students — can
+   * happen days later from a list, and that teacher saw nothing. So they are
+   * persisted with the row and returned wherever the diagram is.
+   */
+  const BAR_CHART = {
+    kind: 'bar_chart', title: 'Rainfall', categories: ['Jan', 'Feb'], values: [3, 5],
+  };
+
+  const CLEAN_GEOMETRY = {
+    kind: 'geometry',
+    points: [{ id: 'P', x: 0, y: 0 }],
+    shapes: [{ type: 'circle', center: 'P', radius: 5 }],
+  };
+
+  it('29. creating a diagram stores what could not be verified about it', async () => {
+    const { svc, rows } = makeService();
+    const created = await svc.create(TEACHER, ASSESSMENT, { spec: BAR_CHART });
+
+    expect(created.warnings.length).toBeGreaterThan(0);
+    expect(rows[0].consistency_warnings).toEqual(created.warnings);
+    expect(String(rows[0].consistency_warnings[0])).toContain('bar_chart:');
+  });
+
+  it('30. listing returns them, so the approver sees what the author saw', async () => {
+    const { svc } = makeService();
+    await svc.create(TEACHER, ASSESSMENT, { spec: BAR_CHART });
+
+    const listed = await svc.list(TEACHER, ASSESSMENT);
+    expect(listed.data[0].warnings.length).toBeGreaterThan(0);
+    expect(listed.data[0].warnings[0]).toContain('bar_chart:');
+  });
+
+  it('31. a diagram with nothing to flag stores and reports none', async () => {
+    const { svc, rows } = makeService();
+    await svc.create(TEACHER, ASSESSMENT, { spec: CLEAN_GEOMETRY });
+
+    expect(rows[0].consistency_warnings).toBeNull();
+    const listed = await svc.list(TEACHER, ASSESSMENT);
+    expect(listed.data[0].warnings).toEqual([]);
+  });
+
+  it('32. editing rewrites them, so a caveat cannot outlive the drawing it described', async () => {
+    const { svc, rows } = makeService();
+    const created = await svc.create(TEACHER, ASSESSMENT, { spec: BAR_CHART });
+    expect(rows[0].consistency_warnings).not.toBeNull();
+
+    await svc.update(TEACHER, ASSESSMENT, created.markerKey, { spec: CLEAN_GEOMETRY });
+    expect(rows[0].consistency_warnings).toBeNull();
+    const listed = await svc.list(TEACHER, ASSESSMENT);
+    expect(listed.data[0].warnings).toEqual([]);
+  });
+
+  it('33. editing INTO a warned state records the new caveats', async () => {
+    const { svc, rows } = makeService();
+    const created = await svc.create(TEACHER, ASSESSMENT, { spec: CLEAN_GEOMETRY });
+    expect(rows[0].consistency_warnings).toBeNull();
+
+    await svc.update(TEACHER, ASSESSMENT, created.markerKey, { spec: BAR_CHART });
+    expect(rows[0].consistency_warnings[0]).toContain('bar_chart:');
+  });
+
+  it('34. a row written before this column existed reports an empty list, not a crash', async () => {
+    // Every pre-existing diagram has NULL here. It must read as "nothing
+    // recorded" — which is not the same claim as "nothing to worry about".
+    const { svc } = makeService([{
+      id: 'row-legacy', institute_id: INSTITUTE, assessment_id: ASSESSMENT,
+      marker_key: 'old11111', diagram_type: 'geometry', spec: {}, renderer_version: 'v1',
+      image_key: 'k/old.svg', alt_text: 'Older diagram', approved: true,
+      approved_by: null, approved_at: null, detached_at: null,
+      created_at: new Date(), updated_at: new Date(),
+    }]);
+    const listed = await svc.list(TEACHER, ASSESSMENT);
+    expect(listed.data[0].warnings).toEqual([]);
+    expect(listed.data[0].markerKey).toBe('old11111');
+  });
+});
+
+// ── The superseded object is recorded, never deleted (Phase 9.9) ────────────
+
+describe('superseded image keys', () => {
+  /**
+   * Editing a diagram writes a new content-addressed object and repoints the
+   * row. The old object stays — deletion is irreversible and an SVG is a few
+   * KB — but it becomes unreferenced, and nothing previously said so. The log
+   * line is what makes a cleanup writable later without guessing.
+   */
+  const OTHER = {
+    kind: 'geometry',
+    points: [{ id: 'P', x: 0, y: 0 }],
+    shapes: [{ type: 'circle', center: 'P', radius: 9 }],
+  };
+
+  it('35. changing a diagram logs the key it stopped using', async () => {
+    const { svc } = makeService();
+    const log = jest.spyOn((svc as any).logger, 'log').mockImplementation(() => undefined);
+
+    const created = await svc.create(TEACHER, ASSESSMENT, { spec: GIANT_WHEEL });
+    const oldKey = diagramStorageKey(INSTITUTE, diagramContentHash(GIANT_WHEEL as any, RENDERER_VERSION), RENDERER_VERSION);
+
+    log.mockClear();
+    await svc.update(TEACHER, ASSESSMENT, created.markerKey, { spec: OTHER });
+
+    const superseded = log.mock.calls.map(String).find((line) => /superseded/i.test(line));
+    expect(superseded).toBeDefined();
+    expect(superseded).toContain(oldKey);
+    expect(superseded).toMatch(/object retained/i);
+    log.mockRestore();
+  });
+
+  it('36. an unchanged re-save logs no superseded key', async () => {
+    const { svc } = makeService();
+    const created = await svc.create(TEACHER, ASSESSMENT, { spec: GIANT_WHEEL });
+
+    const log = jest.spyOn((svc as any).logger, 'log').mockImplementation(() => undefined);
+    await svc.update(TEACHER, ASSESSMENT, created.markerKey, { spec: GIANT_WHEEL });
+
+    expect(log.mock.calls.map(String).some((line) => /superseded/i.test(line))).toBe(false);
+    log.mockRestore();
+  });
+
+  it('37. nothing is ever deleted from storage', async () => {
+    const { svc, s3, uploads } = makeService();
+    const created = await svc.create(TEACHER, ASSESSMENT, { spec: GIANT_WHEEL });
+    await svc.update(TEACHER, ASSESSMENT, created.markerKey, { spec: OTHER });
+
+    // Both objects were written and both still exist as far as this service
+    // is concerned: it has no delete call at all.
+    expect(uploads).toHaveLength(2);
+    expect(uploads[0].key).not.toBe(uploads[1].key);
+    expect((s3 as any).delete).toBeUndefined();
   });
 });

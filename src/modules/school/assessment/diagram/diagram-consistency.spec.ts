@@ -512,3 +512,82 @@ describe('regression — existing valid specifications', () => {
     });
   });
 });
+
+// ── Saying what was NOT checked (Phase 9.5) ─────────────────────────────────
+
+describe('kinds this module does not verify say so', () => {
+  /**
+   * The failure mode being closed: returning nothing for these kinds made
+   * "there is no geometry to check here" indistinguishable from "checked and
+   * correct". A teacher reading no warnings concluded the diagram had been
+   * verified.
+   *
+   * Every note must therefore be present, name its kind, and claim nothing
+   * that was not done — while not inventing doubt about the parts the renderer
+   * genuinely computes (the lens equation, the resultant force).
+   */
+  const NON_GEOMETRY: Array<[string, any]> = [
+    ['cartesian', {
+      kind: 'cartesian', xRange: [-5, 5], yRange: [-5, 5], grid: true,
+      functions: [{ form: 'linear', coefficients: [2, 1] }],
+    }],
+    ['bar_chart', {
+      kind: 'bar_chart', categories: ['A', 'B'], values: [3, 5], showValues: true,
+    }],
+    ['line_graph', {
+      kind: 'line_graph', series: [{ points: [{ x: 0, y: 0 }, { x: 5, y: 10 }] }],
+    }],
+    ['ray_diagram', {
+      kind: 'ray_diagram', device: 'convex_lens',
+      focalLength: 10, objectDistance: 30, objectHeight: 5,
+    }],
+    ['force_diagram', {
+      kind: 'force_diagram', body: { shape: 'block', label: 'M' },
+      forces: [{ label: 'W', magnitude: 10, angleDeg: 270 }],
+    }],
+    ['template', { kind: 'template', template: 'plant_cell', labels: {} }],
+  ];
+
+  it.each(NON_GEOMETRY)('35+. %s passes, with an explicit note about what was not checked', (kind, spec) => {
+    const result = check(spec);
+    // Unchanged behaviour: nothing that passed before fails now.
+    expect(result.consistent).toBe(true);
+    expect(result.errors).toEqual([]);
+
+    expect(result.unverifiable).toHaveLength(1);
+    const note = result.unverifiable[0];
+    expect(note.startsWith(`${kind}:`)).toBe(true);
+    expect(note.length).toBeGreaterThan(40);
+    // It must not claim a check that does not exist.
+    expect(note).not.toMatch(/\bverified\b|\bwe checked\b|\bis correct\b/i);
+  });
+
+  it('41. the optics note credits the lens equation rather than casting doubt on it', () => {
+    // The renderer derives the image from the mirror/lens equation, so the
+    // drawing cannot contradict the physics. The note must say that, or a
+    // teacher will distrust a figure that is in fact computed.
+    const note = check(NON_GEOMETRY[3][1]).unverifiable[0];
+    expect(note).toContain('computed from the mirror/lens equation');
+    expect(note).toMatch(/not checked/i);
+  });
+
+  it('42. the force note is clear that equilibrium is not required', () => {
+    const note = check(NON_GEOMETRY[4][1]).unverifiable[0];
+    expect(note).toContain('equilibrium');
+  });
+
+  it('43. a geometry spec still returns no kind-note, only real findings', () => {
+    const result = check({
+      kind: 'geometry',
+      points: [{ id: 'P', x: 1, y: 1 }],
+      shapes: [{ type: 'circle', center: 'P', radius: 2 }],
+    });
+    expect(result.consistent).toBe(true);
+    expect(result.unverifiable).toEqual([]);
+  });
+
+  it('44. a null specification is handled without a note', () => {
+    const result = checkGeometricConsistency(null as any);
+    expect(result).toEqual({ consistent: true, errors: [], unverifiable: [] });
+  });
+});

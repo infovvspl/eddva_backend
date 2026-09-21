@@ -63,9 +63,11 @@ function makeStore(seed: any[] = []) {
         return [];
       }
       if (/SET detached_at = NOW\(\)/i.test(sql)) {
-        const [assessmentId, kept] = params;
+        // Both scopes applied, exactly as the statement declares them.
+        const [instituteId, assessmentId, kept] = params;
         for (const r of rows) {
-          if (String(r.assessment_id) === String(assessmentId)
+          if (String(r.institute_id) === String(instituteId)
+              && String(r.assessment_id) === String(assessmentId)
               && !r.detached_at && !(kept || []).includes(r.marker_key)) {
             r.detached_at = new Date();
           }
@@ -456,5 +458,66 @@ describe('attachDiagrams', () => {
     const out = await svc.attachDiagrams(row, INSTITUTE);
     expect(out.content_text).not.toContain('DIAGRAM');
     expect(out.diagrams).toEqual({});
+  });
+});
+
+// ── Detach is bounded by its tenant (Phase 9.8) ─────────────────────────────
+
+describe('detaching stays inside one institute', () => {
+  it('31. the detach statement carries BOTH scopes', async () => {
+    const { svc } = makeService();
+    const { exec } = makeStore([{ marker_key: 'aaaa1111' }]);
+
+    await svc.reconcileDiagramMarkers(
+      INSTITUTE, PAPER, `${Q(1, 'no markers any more')}`, exec, '[DIAGRAM: aaaa1111]',
+    );
+
+    const detach = exec.query.mock.calls.find(
+      ([sql]: any[]) => /SET detached_at = NOW\(\)/i.test(sql),
+    );
+    expect(detach).toBeDefined();
+    expect(detach[0]).toMatch(/institute_id::text = \$1::text/);
+    expect(detach[0]).toMatch(/assessment_id::text = \$2::text/);
+    expect(detach[1][0]).toBe(INSTITUTE);
+    expect(detach[1][1]).toBe(PAPER);
+  });
+
+  it('32. removing the last marker still detaches its diagram', async () => {
+    // The behaviour the added predicate must not break.
+    const { svc } = makeService();
+    const { rows, exec } = makeStore([{ marker_key: 'aaaa1111' }]);
+
+    await svc.reconcileDiagramMarkers(
+      INSTITUTE, PAPER, `${Q(1, 'the figure is gone')}`, exec, '[DIAGRAM: aaaa1111]',
+    );
+    expect(rows[0].detached_at).toBeTruthy();
+  });
+
+  it('33. a diagram still on the paper is left attached', async () => {
+    const { svc } = makeService();
+    const { rows, exec } = makeStore([{ marker_key: 'aaaa1111' }, { marker_key: 'bbbb2222' }]);
+
+    await svc.reconcileDiagramMarkers(
+      INSTITUTE, PAPER, `${Q(1, 'kept')}\n[DIAGRAM: aaaa1111]`, exec, '[DIAGRAM: aaaa1111]',
+    );
+    expect(rows[0].detached_at).toBeFalsy();   // still referenced
+    expect(rows[1].detached_at).toBeTruthy();  // no longer referenced
+  });
+
+  it('34. another institute\'s row on the same assessment id is untouched', async () => {
+    // Impossible through the API — a row's institute always comes from its
+    // assessment — but it is what the predicate exists to guarantee.
+    const { svc } = makeService();
+    const { rows, exec } = makeStore([
+      { marker_key: 'aaaa1111' },
+      { marker_key: 'cccc3333', institute_id: 'someone-else' },
+    ]);
+
+    await svc.reconcileDiagramMarkers(
+      INSTITUTE, PAPER, `${Q(1, 'all markers removed')}`, exec, '[DIAGRAM: aaaa1111]',
+    );
+
+    expect(rows[0].detached_at).toBeTruthy();
+    expect(rows[1].detached_at).toBeNull();
   });
 });

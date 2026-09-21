@@ -486,3 +486,101 @@ describe('degrading safely', () => {
     expect(res.data.questions).toEqual([]);
   });
 });
+
+// ── One page, more than one tenant (Phase 9.2) ──────────────────────────────
+
+describe('a list page resolves each paper under its own institute', () => {
+  const OTHER_MARKER = 'bbbb2222';
+  const OTHER_CONTENT = [
+    '## Section A',
+    '',
+    '1. Name the parts of the cell shown. [3]',
+    `[DIAGRAM: ${OTHER_MARKER}]`,
+  ].join('\n');
+
+  const otherRow = () => listRow({
+    id: OTHER_PAPER, institute_id: OTHER_INSTITUTE, content_text: OTHER_CONTENT,
+  });
+
+  const otherDiagram = () => diagramRow({
+    id: 'dia-0002', institute_id: OTHER_INSTITUTE, assessment_id: OTHER_PAPER,
+    marker_key: OTHER_MARKER, diagram_type: 'template',
+    image_key: 'tenants/y/assessment-diagrams/v1/def.svg', alt_text: 'Plant cell',
+  });
+
+  it('25. a super-admin page spanning two institutes expands BOTH papers', async () => {
+    // The bug this pins: resolving the whole page under one institute left
+    // every paper from the other one silently figureless.
+    const { svc, diagramQueries } = makeService({
+      diagrams: [diagramRow(), otherDiagram()],
+    });
+    const rows = [listRow(), otherRow()];
+    await svc.attachDiagramsToRows(rows, undefined);
+
+    expect(rows[0].content_text).toContain('![Triangle ABC with AB marked](https://media.eddva.in/');
+    expect(rows[1].content_text).toContain('![Plant cell](https://media.eddva.in/');
+    expect(rows[0].content_text).not.toContain('[DIAGRAM:');
+    expect(rows[1].content_text).not.toContain('[DIAGRAM:');
+
+    // One query per distinct institute, each carrying only its own papers.
+    expect(diagramQueries).toHaveLength(2);
+    const issued = diagramQueries.map((p) => [p[0], p[1]]).sort();
+    expect(issued).toEqual([[INSTITUTE, [PAPER]], [OTHER_INSTITUTE, [OTHER_PAPER]]].sort());
+  });
+
+  it('26. neither paper can pick up the other institute\'s diagram', async () => {
+    // Same marker key present in both institutes. Each must resolve to its own
+    // row, and a paper whose institute has no such row gets nothing.
+    const { svc } = makeService({
+      diagrams: [diagramRow({ alt_text: 'Mine' })],
+    });
+    const rows = [listRow(), otherRow()];
+    await svc.attachDiagramsToRows(rows, undefined);
+
+    expect(rows[0].content_text).toContain('![Mine](');
+    expect(rows[1].content_text).not.toContain('![');
+    expect(JSON.stringify(rows[1].diagrams)).not.toContain('media.eddva.in');
+  });
+
+  it('27. an ordinary single-institute page is still exactly ONE query', async () => {
+    const { svc, diagramQueries } = makeService({ diagrams: [diagramRow()] });
+    const second = listRow({ id: 'cc44dd55-0000-4000-8000-000000000004' });
+    const rows = [listRow(), second];
+    await svc.attachDiagramsToRows(rows, INSTITUTE);
+
+    expect(diagramQueries).toHaveLength(1);
+    expect(diagramQueries[0][0]).toBe(INSTITUTE);
+    expect(diagramQueries[0][1]).toEqual([PAPER, second.id]);
+  });
+
+  it('28. a page where no paper carries a marker issues NO query', async () => {
+    const { svc, diagramQueries } = makeService({ diagrams: [diagramRow()] });
+    const rows = [
+      listRow({ content_text: '## Section A\n\n1. Define a rational number. [1]' }),
+      listRow({ id: OTHER_PAPER, content_text: '1. State Ohm\'s law. [2]' }),
+    ];
+    await svc.attachDiagramsToRows(rows, INSTITUTE);
+    expect(diagramQueries).toHaveLength(0);
+    expect(rows[0].diagrams).toBeUndefined();
+  });
+
+  it('29. a paper with no institute of its own falls back to the caller\'s', async () => {
+    const { svc, diagramQueries } = makeService({ diagrams: [diagramRow()] });
+    const rows = [listRow({ institute_id: null })];
+    await svc.attachDiagramsToRows(rows, INSTITUTE);
+
+    expect(diagramQueries[0][0]).toBe(INSTITUTE);
+    expect(rows[0].content_text).toContain('![Triangle ABC with AB marked](');
+  });
+
+  it('30. with no institute anywhere, the paper is left alone rather than guessed at', async () => {
+    const { svc, diagramQueries } = makeService({ diagrams: [diagramRow()] });
+    const rows = [listRow({ institute_id: null })];
+    await svc.attachDiagramsToRows(rows, undefined);
+
+    expect(diagramQueries).toHaveLength(0);
+    // Untouched: the marker is still there, nothing was resolved or stripped.
+    expect(rows[0].content_text).toContain('[DIAGRAM:');
+    expect(rows[0].diagrams).toBeUndefined();
+  });
+});

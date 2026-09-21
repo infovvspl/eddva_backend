@@ -253,6 +253,9 @@ export class SchoolDiagramService {
     // depend on reading a row after mutating it — the answer would then vary
     // with whether the driver hands back a detached copy or a live reference.
     const wasApproved = existing.approved === true;
+    const supersededKey = existing.image_key && existing.image_key !== key
+      ? String(existing.image_key)
+      : null;
 
     try {
       await this.ds.query(
@@ -262,16 +265,34 @@ export class SchoolDiagramService {
                 approved   = CASE WHEN $7::boolean THEN approved   ELSE false END,
                 approved_by = CASE WHEN $7::boolean THEN approved_by ELSE NULL END,
                 approved_at = CASE WHEN $7::boolean THEN approved_at ELSE NULL END,
+                consistency_warnings = $8::jsonb,
                 updated_at = NOW()
           WHERE id::text = $1::text`,
         [
           existing.id, spec.kind, JSON.stringify(spec), rendered.rendererVersion,
           key, this.altTextFor(spec, body), unchanged,
+          // Always rewritten from this render, so caveats that no longer apply
+          // to the new drawing do not linger against it.
+          warnings.length ? JSON.stringify(warnings) : null,
         ],
       );
     } catch (err: any) {
       this.logger.error(`Diagram row update failed (${markerKey}): ${err?.message || err}`);
       this.reject('storage', [`spec: the diagram could not be saved (${err?.message || 'database error'})`], warnings);
+    }
+
+    // The object the row used to point at is now unreferenced. NOTHING IS
+    // DELETED HERE — an SVG is a few KB, content addressing bounds how many
+    // distinct ones can exist, and removing storage is the one mistake in this
+    // feature that cannot be undone. This line is what makes a future cleanup
+    // possible without one: the superseded keys are recoverable from the log,
+    // so a sweep can be written and reviewed against real data rather than
+    // needing a bucket listing this codebase cannot currently do.
+    if (supersededKey) {
+      this.logger.log(
+        `Diagram image superseded, object retained (marker=${markerKey} `
+        + `old=${supersededKey} new=${key})`,
+      );
     }
 
     this.logger.log(
@@ -345,7 +366,7 @@ export class SchoolDiagramService {
     const rows: any[] = await this.ds.query(
       `SELECT id, marker_key, diagram_type, spec, renderer_version, image_key,
               alt_text, approved, approved_by, approved_at, detached_at,
-              created_at, updated_at
+              consistency_warnings, created_at, updated_at
          FROM assessment_diagrams
         WHERE institute_id::text = $1::text AND assessment_id::text = $2::text
         ORDER BY created_at`,
@@ -366,6 +387,12 @@ export class SchoolDiagramService {
         approvedBy: row.approved_by ?? null,
         approvedAt: row.approved_at ?? null,
         detached: !!row.detached_at,
+        // What the checker could not verify. An older row recorded none and
+        // reports an empty list, which is not the same claim as "verified" —
+        // see the note the checker itself returns for unchecked kinds.
+        warnings: Array.isArray(row.consistency_warnings)
+          ? row.consistency_warnings.map(String)
+          : [],
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       })),
@@ -451,12 +478,15 @@ export class SchoolDiagramService {
         await this.ds.query(
           `INSERT INTO assessment_diagrams
              (institute_id, assessment_id, marker_key, diagram_type, spec,
-              renderer_version, image_key, alt_text, approved)
-           VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,false)`,
+              renderer_version, image_key, alt_text, approved, consistency_warnings)
+           VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,false,$9::jsonb)`,
           [
             input.instituteId, input.assessmentId, markerKey, input.spec.kind,
             JSON.stringify(input.spec), input.rendered.rendererVersion,
             input.key, input.altText,
+            // Stored so the teacher who approves this later — possibly from a
+            // list, days from now — sees what could not be verified about it.
+            input.warnings.length ? JSON.stringify(input.warnings) : null,
           ],
         );
         return markerKey;

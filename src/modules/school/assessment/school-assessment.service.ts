@@ -172,6 +172,15 @@ export class SchoolAssessmentService {
     await this.ds.query(
       `ALTER TABLE assessment_diagrams ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ NULL`,
     );
+    // What the consistency checker could NOT verify about this drawing, kept
+    // from the moment it was rendered. These reach a teacher at creation
+    // already, but approval is the act that puts the figure in front of
+    // students, and it can happen days later from a list — so the caveats have
+    // to survive until then rather than living only in one editor session.
+    // NULL on every pre-existing row, which reads as "nothing recorded".
+    await this.ds.query(
+      `ALTER TABLE assessment_diagrams ADD COLUMN IF NOT EXISTS consistency_warnings JSONB NULL`,
+    );
     await this.ds.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_assessment_diagrams_key
        ON assessment_diagrams (institute_id, marker_key)`,
@@ -355,13 +364,19 @@ export class SchoolAssessmentService {
     // Anything this paper owns whose marker is no longer present. Flagged, not
     // deleted: a teacher who cuts a question and pastes it back gets it back.
     const keptKeys = bound;
+    // Scoped by institute as well as assessment. An assessment id is globally
+    // unique, so this changes no outcome today — it is the invariant that
+    // matters: every statement in this feature that touches a diagram is
+    // bounded by its tenant, with no exception a future change could copy.
+    // It also lets the (institute_id, assessment_id) index serve this write.
     await exec.query(
       `UPDATE assessment_diagrams
           SET detached_at = NOW(), updated_at = NOW()
-        WHERE assessment_id::text = $1::text
+        WHERE institute_id::text = $1::text
+          AND assessment_id::text = $2::text
           AND detached_at IS NULL
-          AND NOT (marker_key = ANY($2::text[]))`,
-      [assessmentId, keptKeys],
+          AND NOT (marker_key = ANY($3::text[]))`,
+      [instituteId, assessmentId, keptKeys],
     );
 
     return { text, changed: text !== original, warnings };
@@ -393,8 +408,9 @@ export class SchoolAssessmentService {
         await exec.query(
           `INSERT INTO assessment_diagrams
              (institute_id, assessment_id, marker_key, diagram_type, spec,
-              renderer_version, image_key, alt_text, approved, approved_by, approved_at)
-           VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11)`,
+              renderer_version, image_key, alt_text, approved, approved_by, approved_at,
+              consistency_warnings)
+           VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12::jsonb)`,
           [
             instituteId, assessmentId, newKey, row.diagram_type,
             typeof row.spec === 'string' ? row.spec : JSON.stringify(row.spec ?? {}),
@@ -403,6 +419,13 @@ export class SchoolAssessmentService {
             // The copy is the same approved drawing, so the approval's
             // provenance travels with it rather than being reattributed.
             row.approved_by ?? null, row.approved_at ?? null,
+            // The same drawing carries the same caveats. A copy that silently
+            // dropped them would look better verified than its original.
+            row.consistency_warnings == null
+              ? null
+              : (typeof row.consistency_warnings === 'string'
+                ? row.consistency_warnings
+                : JSON.stringify(row.consistency_warnings)),
           ],
         );
         return newKey;
@@ -492,6 +515,19 @@ export class SchoolAssessmentService {
    * `content_text`. Without this a student would see the literal text
    * "[DIAGRAM: a3f91c04]" where a figure belongs.
    *
+   * EACH PAPER RESOLVES AGAINST ITS OWN INSTITUTE. One page of results is not
+   * necessarily one tenant: list() filters by the caller's institute for every
+   * role except SUPER_ADMIN, who sees every institute at once. Resolving such
+   * a page under a single institute would silently drop the figures from every
+   * paper belonging to a different one — the markers would strip to nothing
+   * and the diagrams would simply be missing, with no error anywhere.
+   *
+   * So rows are grouped by their own `institute_id` and each group is looked
+   * up under its own tenant. The caller's institute is a per-row fallback for
+   * a paper that has none of its own; it is never applied to a paper that
+   * carries a different one. A page from one institute — which is every page
+   * except a super-admin's — is still exactly one query.
+   *
    * Rows with no marker are left completely untouched and cost nothing.
    */
   private async attachDiagramsToRows(rows: any[], instituteId?: string) {
@@ -503,12 +539,26 @@ export class SchoolAssessmentService {
     });
     if (!withMarkers.length) return list;
 
-    const tenant = instituteId || withMarkers[0]?.institute_id;
-    if (!tenant) return list;
-    const maps = await this.loadDiagramMaps(tenant, withMarkers.map((row) => row.id));
+    const byTenant = new Map<string, any[]>();
     for (const row of withMarkers) {
-      this.applyDiagramMap(row, maps[String(row.id).toLowerCase()] || {});
+      const tenant = String(row?.institute_id || instituteId || '');
+      // A paper with no institute of its own and a caller with none either has
+      // no tenant to resolve against. Skipped rather than guessed at.
+      if (!tenant) continue;
+      const bucket = byTenant.get(tenant);
+      if (bucket) bucket.push(row);
+      else byTenant.set(tenant, [row]);
     }
+    if (!byTenant.size) return list;
+
+    await Promise.all(
+      Array.from(byTenant.entries()).map(async ([tenant, tenantRows]) => {
+        const maps = await this.loadDiagramMaps(tenant, tenantRows.map((row) => row.id));
+        for (const row of tenantRows) {
+          this.applyDiagramMap(row, maps[String(row.id).toLowerCase()] || {});
+        }
+      }),
+    );
     return list;
   }
 
