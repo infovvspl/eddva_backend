@@ -7,13 +7,63 @@ import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { FcmService } from '../notification-fcm/fcm.service';
 import { isSchoolAiFeatureEnabled } from '../common/ai-features.registry';
+import { hasSchoolRole } from '../common/role-helper';
 import {
   SchoolFcmNotificationType,
   SCHOOL_NOTIFICATION_TEMPLATES,
   fillTemplate,
 } from '../notification-fcm/school-notification-templates';
+import { createHash } from 'crypto';
+import {
+  DIAGRAM_MARKER_RE,
+  extractDiagramMarkers,
+  hasDiagramMarkers,
+  replaceMarkerAt,
+  removeMarkerAt,
+  expandDiagramMarkers,
+  generateMarkerKey,
+} from './assessment-diagram-anchor';
 import { S3Service } from '../../upload/s3.service';
 import { resolvePublicApiUrl, normalizeAccessibleUrl } from '../../../common/url-helper';
+
+/**
+ * Ceiling on how many chapter figures are offered to one paper. Only captions
+ * go into the prompt, but a multi-chapter test can span hundreds of figures and
+ * an unbounded catalogue would crowd out the textbook passages it competes with
+ * for the same context budget.
+ */
+const _MAX_PAPER_FIGURES = 24;
+
+/**
+ * [FIGURE: F3] — how the model asks for one of the offered figures. Tolerant
+ * about spacing and case because papers come back from more than one model, and
+ * a marker that fails to match would be printed to a student verbatim.
+ */
+const _FIGURE_MARKER_RE = /\[\s*FIGURE\s*:\s*(F\d{1,3})\s*\]/gi;
+
+/**
+ * [PLOT: right-angled triangle with vertices A(1,1), B(4,1), C(4,5)] — how the
+ * model asks for a figure the textbook does not contain but the question's own
+ * data determines. The spec stops at the first `]` so a marker cannot swallow
+ * the rest of the paper.
+ */
+const _PLOT_MARKER_RE = /\[\s*PLOT\s*:\s*([^\]\n]{1,400})\]/gi;
+
+/**
+ * Ceiling on drawn diagrams per paper. Each one is a model call plus a
+ * sandboxed subprocess, so this bounds both the wall-clock cost of drafting a
+ * paper and the damage a runaway generation can do.
+ */
+const _MAX_PAPER_PLOTS = 4;
+
+/**
+ * Ceiling on diagrams in one paper. Also bounds the reconciler's rewrite loop,
+ * which re-extracts markers after each rewrite because offsets shift.
+ */
+const _MAX_DIAGRAMS_PER_PAPER = 40;
+
+/** A Markdown image on its own line, as resolveFigureMarkers emits it. */
+const _MARKDOWN_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)\)/;
 
 @Injectable()
 export class SchoolAssessmentService {
@@ -75,7 +125,70 @@ export class SchoolAssessmentService {
     // widened explicitly.
     await this.ds.query(`ALTER TABLE assessments ALTER COLUMN total_marks TYPE NUMERIC(7,2) USING total_marks::numeric`);
     await this.ds.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_events_linked_id ON events (linked_id) WHERE linked_id IS NOT NULL`);
+    await this.ensureDiagramSchema();
     this.schemaReady = true;
+  }
+
+  /**
+   * Diagrams attached to individual questions.
+   *
+   * A table of its own rather than a field on `questions_json`, because that
+   * column is derived: `update()` reparses it from the Markdown after every
+   * edit and `hydrateQuestions()` rewrites it during a plain read, so anything
+   * kept there can be destroyed by a GET.
+   *
+   * Idempotent DDL in the service, matching how every other table in the school
+   * module is provisioned (`src/migrations/` is empty by convention here).
+   */
+  private async ensureDiagramSchema() {
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS assessment_diagrams (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        institute_id     UUID NOT NULL,
+        assessment_id    UUID NOT NULL,
+        marker_key       VARCHAR(16) NOT NULL,
+        diagram_type     VARCHAR(40) NOT NULL,
+        spec             JSONB NOT NULL,
+        renderer_version VARCHAR(16) NOT NULL,
+        image_key        TEXT NULL,
+        alt_text         TEXT NULL,
+        approved         BOOLEAN NOT NULL DEFAULT false,
+        detached_at      TIMESTAMPTZ NULL,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    // Unique per INSTITUTE, not per assessment. A marker pasted from another
+    // paper has to resolve to exactly one source diagram so it can be copied
+    // into this one; scoped per assessment the lookup would be ambiguous.
+    // The institute in that lookup always comes from the trusted JWT context,
+    // never from the request, so a key guessed from another school resolves to
+    // nothing and is stripped.
+    // Who approved a diagram and when. Approval puts a figure in front of
+    // students, so it is recorded rather than reduced to a boolean.
+    await this.ds.query(
+      `ALTER TABLE assessment_diagrams ADD COLUMN IF NOT EXISTS approved_by UUID NULL`,
+    );
+    await this.ds.query(
+      `ALTER TABLE assessment_diagrams ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ NULL`,
+    );
+    // What the consistency checker could NOT verify about this drawing, kept
+    // from the moment it was rendered. These reach a teacher at creation
+    // already, but approval is the act that puts the figure in front of
+    // students, and it can happen days later from a list — so the caveats have
+    // to survive until then rather than living only in one editor session.
+    // NULL on every pre-existing row, which reads as "nothing recorded".
+    await this.ds.query(
+      `ALTER TABLE assessment_diagrams ADD COLUMN IF NOT EXISTS consistency_warnings JSONB NULL`,
+    );
+    await this.ds.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_assessment_diagrams_key
+       ON assessment_diagrams (institute_id, marker_key)`,
+    );
+    await this.ds.query(
+      `CREATE INDEX IF NOT EXISTS idx_assessment_diagrams_scope
+       ON assessment_diagrams (institute_id, assessment_id)`,
+    );
   }
 
   private async ensureAssessmentSubmissionSchema() {
@@ -146,6 +259,407 @@ export class SchoolAssessmentService {
     return [];
   }
 
+  /**
+   * Bind every diagram marker in a paper to a row, and report what changed.
+   *
+   * Runs on save. Five outcomes per marker, in document order:
+   *
+   *   bind   - the key belongs to this assessment: clear any detached flag.
+   *   clone  - the key already appeared earlier in THIS paper (a duplicated
+   *            question): give this occurrence its own copy, so editing one
+   *            question's diagram cannot silently change another's.
+   *   copy   - the key belongs to another paper in the same institute (a
+   *            pasted question): copy the diagram in under a fresh key.
+   *   strip  - the key resolves to nothing: remove it, never print it.
+   *   detach - a row of this assessment whose marker is gone: flagged, never
+   *            deleted, and its stored image is left alone, so re-pasting the
+   *            question restores it.
+   *
+   * Returns the (possibly rewritten) text. Clone and copy rewrite the single
+   * occurrence they act on, which is why markers carry their offsets.
+   *
+   * A paper with no markers returns immediately having issued NO query at all —
+   * that is what keeps existing diagram-free assessments byte-identical.
+   */
+  private async reconcileDiagramMarkers(
+    instituteId: string,
+    assessmentId: string,
+    contentText: string,
+    exec: { query: (sql: string, params?: any[]) => Promise<any> } = this.ds,
+    previousText = '',
+  ): Promise<{ text: string; changed: boolean; warnings: string[] }> {
+    const original = String(contentText || '');
+    // The fast path needs BOTH texts. Looking only at the new one meant that
+    // deleting the last diagram-bearing question left the paper marker-free,
+    // so this returned early and the row was never marked detached. A paper
+    // that had no markers before and has none now is genuinely nothing to do,
+    // and costs no query — which is what keeps diagram-free papers untouched.
+    if (
+      !instituteId || !assessmentId
+      || (!hasDiagramMarkers(original) && !hasDiagramMarkers(String(previousText || '')))
+    ) {
+      return { text: original, changed: false, warnings: [] };
+    }
+
+    const warnings: string[] = [];
+    let text = original;
+    const bound: string[] = [];
+
+    // Walked by ORDINAL position, re-extracting each pass because a rewrite
+    // shifts the offsets of everything after it. Settling markers strictly
+    // left to right is what makes "the first occurrence keeps its key" true:
+    // an earlier attempt tracked processed markers by key+offset and lost that
+    // bookkeeping on every rewrite, which re-keyed the first occurrence
+    // instead of the duplicate.
+    for (let index = 0; index < _MAX_DIAGRAMS_PER_PAPER; index += 1) {
+      const markers = extractDiagramMarkers(text);
+      if (index >= markers.length) break;
+      const marker = markers[index];
+
+      const rows: any[] = await exec.query(
+        `SELECT * FROM assessment_diagrams
+          WHERE institute_id::text = $1::text AND marker_key = $2 LIMIT 1`,
+        [instituteId, marker.key],
+      );
+      const row = rows[0];
+
+      if (!row) {
+        text = removeMarkerAt(text, marker);
+        warnings.push(`unknown diagram marker removed: ${marker.key}`);
+        index -= 1;                       // this ordinal now holds the next marker
+        continue;
+      }
+
+      const isForeign = String(row.assessment_id) !== String(assessmentId);
+      const isDuplicate = bound.includes(marker.key);
+
+      if (isForeign || isDuplicate) {
+        const newKey = await this.cloneDiagramRow(instituteId, assessmentId, row, exec);
+        if (!newKey) {
+          text = removeMarkerAt(text, marker);
+          warnings.push(`diagram could not be copied: ${marker.key}`);
+          index -= 1;
+          continue;
+        }
+        text = replaceMarkerAt(text, marker, newKey);
+        bound.push(newKey);
+        warnings.push(
+          isForeign
+            ? `diagram copied from another paper: ${marker.key} -> ${newKey}`
+            : `duplicated diagram cloned: ${marker.key} -> ${newKey}`,
+        );
+        continue;
+      }
+
+      bound.push(marker.key);
+      if (row.detached_at) {
+        await exec.query(
+          `UPDATE assessment_diagrams SET detached_at = NULL, updated_at = NOW()
+            WHERE id::text = $1::text`,
+          [row.id],
+        );
+      }
+    }
+
+    // Anything this paper owns whose marker is no longer present. Flagged, not
+    // deleted: a teacher who cuts a question and pastes it back gets it back.
+    const keptKeys = bound;
+    // Scoped by institute as well as assessment. An assessment id is globally
+    // unique, so this changes no outcome today — it is the invariant that
+    // matters: every statement in this feature that touches a diagram is
+    // bounded by its tenant, with no exception a future change could copy.
+    // It also lets the (institute_id, assessment_id) index serve this write.
+    await exec.query(
+      `UPDATE assessment_diagrams
+          SET detached_at = NOW(), updated_at = NOW()
+        WHERE institute_id::text = $1::text
+          AND assessment_id::text = $2::text
+          AND detached_at IS NULL
+          AND NOT (marker_key = ANY($3::text[]))`,
+      [instituteId, assessmentId, keptKeys],
+    );
+
+    return { text, changed: text !== original, warnings };
+  }
+
+  /**
+   * Copy a diagram into an assessment under a fresh key.
+   *
+   * Serves both the duplicate-question and the pasted-from-another-paper cases,
+   * so there is one code path for "make an independent copy".
+   *
+   * The rendered image is NOT duplicated: `image_key` is content-addressed on
+   * the spec, so the copy points at the same stored object. A copy therefore
+   * costs one row and no storage.
+   *
+   * Approval carries over deliberately. It is the same validated spec in the
+   * same institute, and resetting it would blank a figure the teacher had
+   * already approved until they approved it again.
+   */
+  private async cloneDiagramRow(
+    instituteId: string,
+    assessmentId: string,
+    row: any,
+    exec: { query: (sql: string, params?: any[]) => Promise<any> } = this.ds,
+  ): Promise<string | null> {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const newKey = generateMarkerKey();
+      try {
+        await exec.query(
+          `INSERT INTO assessment_diagrams
+             (institute_id, assessment_id, marker_key, diagram_type, spec,
+              renderer_version, image_key, alt_text, approved, approved_by, approved_at,
+              consistency_warnings)
+           VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12::jsonb)`,
+          [
+            instituteId, assessmentId, newKey, row.diagram_type,
+            typeof row.spec === 'string' ? row.spec : JSON.stringify(row.spec ?? {}),
+            row.renderer_version, row.image_key ?? null,
+            row.alt_text ?? null, row.approved === true,
+            // The copy is the same approved drawing, so the approval's
+            // provenance travels with it rather than being reattributed.
+            row.approved_by ?? null, row.approved_at ?? null,
+            // The same drawing carries the same caveats. A copy that silently
+            // dropped them would look better verified than its original.
+            row.consistency_warnings == null
+              ? null
+              : (typeof row.consistency_warnings === 'string'
+                ? row.consistency_warnings
+                : JSON.stringify(row.consistency_warnings)),
+          ],
+        );
+        return newKey;
+      } catch (err: any) {
+        // Only a key collision is worth retrying; anything else is real.
+        if (!/duplicate key|unique/i.test(String(err?.message || ''))) {
+          this.logger.warn(`Diagram copy failed: ${err?.message || err}`);
+          return null;
+        }
+      }
+    }
+    this.logger.warn('Diagram copy failed: could not allocate a unique marker key');
+    return null;
+  }
+
+  /**
+   * The diagrams a paper can display, keyed by marker.
+   *
+   * Every diagram of the assessment is returned, including ones still awaiting
+   * approval, so a teacher-facing screen can list them. Marker EXPANSION is
+   * gated on approval separately — see expandDiagramMarkers.
+   */
+  private async loadDiagramMap(
+    instituteId: string,
+    assessmentId: string,
+  ): Promise<Record<string, any>> {
+    const maps = await this.loadDiagramMaps(instituteId, [assessmentId]);
+    return maps[String(assessmentId).toLowerCase()] || {};
+  }
+
+  /**
+   * Diagram maps for several assessments in ONE query, keyed by assessment.
+   *
+   * The student list renders the paper of every assessment it returns, so a
+   * per-row lookup would add a query per assessment to a hot path. Batching
+   * keeps that at one.
+   *
+   * Both scoping keys are applied in SQL — institute AND assessment — so a
+   * marker can only ever resolve against diagrams belonging to the same
+   * assessment in the same tenant. There is no code path that could resolve
+   * one institute's diagram inside another's paper.
+   */
+  private async loadDiagramMaps(
+    instituteId: string,
+    assessmentIds: string[],
+  ): Promise<Record<string, Record<string, any>>> {
+    const ids = Array.from(new Set((assessmentIds || []).filter(Boolean).map(String)));
+    if (!instituteId || !ids.length) return {};
+    try {
+      const rows: any[] = await this.ds.query(
+        `SELECT id, assessment_id, marker_key, diagram_type, image_key, alt_text,
+                approved, detached_at
+           FROM assessment_diagrams
+          WHERE institute_id::text = $1::text
+            AND assessment_id::text = ANY($2::text[])`,
+        [instituteId, ids],
+      );
+      const maps: Record<string, Record<string, any>> = {};
+      for (const row of rows) {
+        // Lower-cased on both sides so the bucket a row lands in cannot miss
+        // the assessment that asked for it over UUID letter-case alone.
+        const key = String(row.assessment_id).toLowerCase();
+        if (!maps[key]) maps[key] = {};
+        maps[key][String(row.marker_key).toLowerCase()] = {
+          id: row.id,
+          type: row.diagram_type,
+          url: row.image_key ? this.s3Service.toPublicUrl(row.image_key) : null,
+          alt: row.alt_text || '',
+          approved: row.approved === true,
+          detached: !!row.detached_at,
+        };
+      }
+      return maps;
+    } catch (err: any) {
+      // A paper must still render if the diagram store is unavailable; markers
+      // then expand to nothing, exactly as an unknown key does. Losing a
+      // figure is bad; failing to open the exam is worse.
+      this.logger.warn(`Diagram map lookup failed: ${err?.message || err}`);
+      return {};
+    }
+  }
+
+  /**
+   * Expand approved diagrams across a list of assessment rows.
+   *
+   * Used by the student list, whose submit dialog renders each paper's
+   * `content_text`. Without this a student would see the literal text
+   * "[DIAGRAM: a3f91c04]" where a figure belongs.
+   *
+   * EACH PAPER RESOLVES AGAINST ITS OWN INSTITUTE. One page of results is not
+   * necessarily one tenant: list() filters by the caller's institute for every
+   * role except SUPER_ADMIN, who sees every institute at once. Resolving such
+   * a page under a single institute would silently drop the figures from every
+   * paper belonging to a different one — the markers would strip to nothing
+   * and the diagrams would simply be missing, with no error anywhere.
+   *
+   * So rows are grouped by their own `institute_id` and each group is looked
+   * up under its own tenant. The caller's institute is a per-row fallback for
+   * a paper that has none of its own; it is never applied to a paper that
+   * carries a different one. A page from one institute — which is every page
+   * except a super-admin's — is still exactly one query.
+   *
+   * Rows with no marker are left completely untouched and cost nothing.
+   */
+  private async attachDiagramsToRows(rows: any[], instituteId?: string) {
+    const list = Array.isArray(rows) ? rows : [];
+    const withMarkers = list.filter((row) => {
+      const questions = this.normalizeQuestions(row?.questions_json);
+      return hasDiagramMarkers(String(row?.content_text || ''))
+        || questions.some((q: any) => q?.diagram?.key);
+    });
+    if (!withMarkers.length) return list;
+
+    const byTenant = new Map<string, any[]>();
+    for (const row of withMarkers) {
+      const tenant = String(row?.institute_id || instituteId || '');
+      // A paper with no institute of its own and a caller with none either has
+      // no tenant to resolve against. Skipped rather than guessed at.
+      if (!tenant) continue;
+      const bucket = byTenant.get(tenant);
+      if (bucket) bucket.push(row);
+      else byTenant.set(tenant, [row]);
+    }
+    if (!byTenant.size) return list;
+
+    await Promise.all(
+      Array.from(byTenant.entries()).map(async ([tenant, tenantRows]) => {
+        const maps = await this.loadDiagramMaps(tenant, tenantRows.map((row) => row.id));
+        for (const row of tenantRows) {
+          this.applyDiagramMap(row, maps[String(row.id).toLowerCase()] || {});
+        }
+      }),
+    );
+    return list;
+  }
+
+  /**
+   * Attach diagram URLs to a row for display.
+   *
+   * Expands the markers in `content_text` into Markdown images and inlines the
+   * same image into each question's text, which is what makes the student view
+   * work without touching it: TestEngine already renders `q.text` as Markdown,
+   * and the paper renderer already handles images.
+   *
+   * Only APPROVED diagrams are expanded. The full set still reaches the caller
+   * on `row.diagrams`, so a teacher screen can show the ones awaiting approval.
+   *
+   * A row with no markers is returned untouched, having issued no query.
+   */
+  private async attachDiagrams(row: any, instituteId?: string) {
+    if (!row) return row;
+    const questions = this.normalizeQuestions(row.questions_json);
+    const anyAnchor = hasDiagramMarkers(String(row.content_text || ''))
+      || questions.some((q: any) => q?.diagram?.key);
+    if (!anyAnchor) return row;
+
+    const tenant = instituteId || row.institute_id;
+    const map = await this.loadDiagramMap(tenant, row.id);
+    return this.applyDiagramMap(row, map);
+  }
+
+  /**
+   * Put the diagrams of one map into a row: markers become images in the
+   * paper, and the image is inlined into each question's own text.
+   *
+   * Inlining into `q.text` is what makes the student view work without
+   * touching it — TestEngine already renders a question as Markdown, and the
+   * renderer already handles images.
+   *
+   * THREE CONDITIONS GATE EVERY EXPANSION, and all three are enforced here
+   * rather than by the caller, so no future read path can forget one:
+   *
+   *   approved   - an unapproved diagram has not been reviewed, and only a
+   *                teacher's explicit approval puts a figure in front of a
+   *                student.
+   *   rendered   - a row with no image_key has nothing to show.
+   *   attached   - a detached diagram is one whose marker the teacher removed
+   *                from the paper. Its marker should not be in the text at
+   *                all, so this is belt-and-braces; it is stated explicitly
+   *                because "students never see a detached diagram" is a
+   *                guarantee worth enforcing rather than inferring.
+   *
+   * The full map still reaches the caller on `row.diagrams`, so a teacher
+   * screen can list what is pending. Callers that serve students strip that.
+   */
+  private applyDiagramMap(row: any, map: Record<string, any>) {
+    const visible: Record<string, any> = {};
+    for (const [key, entry] of Object.entries(map)) {
+      if (entry?.approved && entry?.url && !entry?.detached) visible[key] = entry;
+    }
+
+    row.diagrams = map;
+    row.content_text = expandDiagramMarkers(String(row.content_text || ''), visible);
+
+    const questions = this.normalizeQuestions(row.questions_json);
+    if (questions.length) {
+      row.questions_json = questions.map((question: any) => {
+        const key = question?.diagram?.key;
+        const entry = key ? map[String(key).toLowerCase()] : null;
+        if (!entry) return question;
+        const shown = visible[String(key).toLowerCase()];
+        const enriched = {
+          ...question,
+          diagram: {
+            key,
+            id: entry.id,
+            type: entry.type,
+            url: shown ? entry.url : null,
+            alt: entry.alt,
+            approved: entry.approved,
+          },
+        };
+        if (shown) {
+          const alt = String(entry.alt || 'Diagram').replace(/[\[\]]/g, '').trim() || 'Diagram';
+          enriched.text = `${String(question.text || '')}
+
+![${alt}](${entry.url})`;
+        }
+        return enriched;
+      });
+    }
+    return row;
+  }
+
+  /**
+   * The student projection of a question.
+   *
+   * `diagram` goes with the answer key and the rubric. It is authoring
+   * metadata — the row id, the diagram kind, and whether a teacher has
+   * approved it yet — and an unapproved or detached diagram must not be
+   * advertised to a student even as a name. A student loses nothing: an
+   * approved diagram is already inlined into `text` as an image by
+   * applyDiagramMap, which is the only form a student needs.
+   */
   private stripCorrectAnswersFromQuestions(questions: any[]) {
     return this.normalizeQuestions(questions).map((question: any) => {
       const {
@@ -153,6 +667,7 @@ export class SchoolAssessmentService {
         correct_answer: _correct_answer,
         explanation: _explanation,
         rubric: _rubric,
+        diagram: _diagram,
         ...safeQuestion
       } = question;
       return safeQuestion;
@@ -473,7 +988,34 @@ export class SchoolAssessmentService {
         };
         continue;
       }
-      if (current) current.text = `${current.text}\n${line}`;
+      if (current) {
+        // A diagram anchor. The marker is CONSUMED rather than appended to the
+        // question text — leaving it in would print "[DIAGRAM: a3f91c04]" to a
+        // student. Only the key is recorded here; the URL and alt text are
+        // added later by enrichQuestionDiagrams, which has the row to hand.
+        // This is what derives the question<->diagram association purely from
+        // the marker's position, with nothing stored that could go stale.
+        const anchors = extractDiagramMarkers(line);
+        if (anchors.length) {
+          if (!current.diagram) current.diagram = { key: anchors[0].key };
+          const remainder = line.replace(
+            new RegExp(DIAGRAM_MARKER_RE.source, 'gi'), '',
+          ).trim();
+          if (!remainder) continue;
+          current.text = `${current.text}\n${remainder}`;
+          continue;
+        }
+        // A chapter figure resolved into the paper as a Markdown image. It stays
+        // inline in the question text — that is what renders it in both the
+        // whole-paper view and the per-question test engine — and is ALSO
+        // recorded structurally, so rubric generation and grading can be told
+        // the question carries a diagram instead of silently marking it blind.
+        const image = line.match(_MARKDOWN_IMAGE_RE);
+        if (image && !current.image) {
+          current.image = { url: image[2], alt: image[1] || '' };
+        }
+        current.text = `${current.text}\n${line}`;
+      }
     }
     finishCurrent();
 
@@ -487,6 +1029,8 @@ export class SchoolAssessmentService {
       text: q.text,
       marks: Number(q.marks || 1),
       options: Array.isArray(q.options) && q.options.length ? q.options : undefined,
+      image: q.image || undefined,
+      diagram: q.diagram || undefined,
       correctAnswer: q.correctAnswer,
       explanation: this.objectiveTypes.has(q.type || 'short_answer') ? q.explanation : undefined,
     }));
@@ -671,6 +1215,25 @@ export class SchoolAssessmentService {
    * or the feature is disabled; questions simply keep no `rubric` field, and the
    * grading step (Phase 2) falls back to inferring criteria on the fly for those.
    */
+  /**
+   * A question as the rubric writer and the grader should see it.
+   *
+   * Both of them take text only, so a question with a diagram used to arrive
+   * stripped of the one thing it was really asking about — the marking scheme
+   * was written blind and the answer was then graded against it. The raw
+   * Markdown image is useless to a text model (it is a URL), so it is replaced
+   * by what the textbook calls that diagram.
+   */
+  private questionTextForMarking(question: any): string {
+    const text = String(question?.text || '');
+    const alt = String(question?.image?.alt || '').trim();
+    const withoutImage = text.replace(new RegExp(_MARKDOWN_IMAGE_RE.source, 'g'), '').trim();
+    if (!question?.image) return text;
+    return alt
+      ? `${withoutImage}\n\n[This question is accompanied by a diagram from the textbook: ${alt}]`
+      : `${withoutImage}\n\n[This question is accompanied by a diagram from the textbook.]`;
+  }
+
   private async generateSubjectiveRubrics(
     questions: any[],
     ctx: { subjectId?: string; classId?: string; instituteId?: string },
@@ -687,7 +1250,17 @@ export class SchoolAssessmentService {
       ]);
       const result = await this.aiBridge.generateSubjectiveRubrics(
         {
-          questions: needsRubric.map((q: any) => ({ questionId: q.id, text: q.text, marks: Number(q.marks || 1), type: q.type })),
+          questions: needsRubric.map((q: any) => ({
+            questionId: q.id,
+            // A question carrying a figure was previously sent as text alone,
+            // so the marking scheme was written without knowing a diagram was
+            // part of the question at all. The figure's caption is sent, not
+            // the image: it is what the textbook itself calls the diagram, and
+            // it costs no vision call.
+            text: this.questionTextForMarking(q),
+            marks: Number(q.marks || 1),
+            type: q.type,
+          })),
           subjectName,
           className,
           board,
@@ -724,15 +1297,15 @@ export class SchoolAssessmentService {
     const params: any[] = [];
     const filters: string[] = [];
 
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
-    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
+    const isInstituteAdmin = hasSchoolRole(user?.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user?.role, 'ADMIN');
 
     if (!isSuperAdmin) {
       params.push(user.instituteId);
       filters.push(`c.institute_id=$${params.length}`);
     }
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const profileRows: any[] = await this.ds.query(
         `SELECT sec.class_id
          FROM students s
@@ -744,7 +1317,7 @@ export class SchoolAssessmentService {
       if (!classId) return { success: true, data: [] };
       params.push(classId);
       filters.push(`a.class_id::text=$${params.length}::text`);
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id = $1 AND (
           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
@@ -767,7 +1340,7 @@ export class SchoolAssessmentService {
       } else {
         filters.push(`1=0`);
       }
-    } else if (user.role === 'TEACHER') {
+    } else if (hasSchoolRole(user.role, 'TEACHER')) {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
@@ -810,7 +1383,7 @@ export class SchoolAssessmentService {
     `;
     const rows: any[] = await this.ds.query(sql, params);
     rows.forEach((row: any) => this.parseAndSplitLegacyAssessment(row));
-    if (user.role === 'STUDENT' && rows.length) {
+    if (hasSchoolRole(user.role, 'STUDENT') && rows.length) {
       const submissionRows: any[] = await this.ds.query(
         `SELECT * FROM assessment_submissions WHERE student_user_id::text=$1::text`,
         [user.id],
@@ -820,12 +1393,23 @@ export class SchoolAssessmentService {
         row.mySubmission = submissionMap.get(String(row.id)) || null;
       });
     }
+    // The student submit dialog renders each paper's content_text, so markers
+    // must be expanded here as well or a student sees "[DIAGRAM: ...]" where a
+    // figure belongs. Batched: one query for the whole page of results, and
+    // nothing at all when no paper carries a marker.
+    await this.attachDiagramsToRows(rows, user?.instituteId);
     return { success: true, data: rows.map((row: any) => this.stripAnswerKeyForStudent(user, row)) };
   }
 
   private stripAnswerKeyForStudent(user: any, row: any) {
-    if (user?.role === 'STUDENT') {
-      const { answer_key: _ak, ...rest } = row;
+    if (hasSchoolRole(user?.role, 'STUDENT')) {
+      // `diagrams` is the AUTHORING map: it lists every diagram on the paper,
+      // including ones awaiting approval and ones the teacher detached, each
+      // with its stored URL. A student must not receive any of that — only
+      // approved diagrams reach them, and they reach them already expanded
+      // into the text. Dropping the map is what makes that true of the
+      // response and not only of the rendered content.
+      const { answer_key: _ak, diagrams: _diagrams, ...rest } = row;
       if (rest.questions_json) {
         rest.questions_json = this.stripCorrectAnswersFromQuestions(rest.questions_json);
       }
@@ -1061,6 +1645,271 @@ export class SchoolAssessmentService {
     }
   }
 
+  /**
+   * The figures available to a paper, as a short catalogue the model can pick
+   * from by reference.
+   *
+   * Only captions and descriptions go into the prompt — never the images — so
+   * offering figures costs a few hundred tokens rather than a vision call per
+   * paper. The `ref` is positional (F1, F2, …) and lives only for this one
+   * generation; the stable identity is the row id carried alongside it.
+   */
+  private async collectChapterFigures(
+    instituteId: string,
+    chapterList: Array<{ id: string; name: string }>,
+    body: any,
+  ): Promise<Array<{ ref: string; id: string; label: string; caption: string; description: string; imageUrl: string }>> {
+    const chapterIds = chapterList.length
+      ? chapterList.map((c) => c.id)
+      : [body?.chapterId || body?.chapter_id].filter(Boolean);
+
+    // No chapter in scope means a subject, mock or final paper: the teacher
+    // picked a subject and the paper covers the year. Fall back to the whole
+    // subject, spread across its chapters, instead of returning nothing —
+    // these are the papers that most need diagrams.
+    if (!chapterIds.length) {
+      const subjectId = body?.subjectId || body?.subject_id;
+      if (!subjectId) return [];
+      try {
+        const figures = await this.textbooks.getSubjectFigures(
+          instituteId, subjectId, _MAX_PAPER_FIGURES,
+        );
+        return figures.slice(0, _MAX_PAPER_FIGURES).map((figure: any, index: number) => ({
+          ref: `F${index + 1}`,
+          id: String(figure.id),
+          label: String(figure.label || ''),
+          caption: String(figure.caption || ''),
+          description: String(figure.description || ''),
+          imageUrl: String(figure.imageUrl || ''),
+        }));
+      } catch (err: any) {
+        this.logger.warn(`Subject-wide figure lookup failed: ${err?.message || err}`);
+        return [];
+      }
+    }
+
+    const collected: any[] = [];
+    for (const chapterId of chapterIds) {
+      try {
+        const figures = await this.textbooks.getChapterFigures(instituteId, chapterId);
+        collected.push(...figures);
+      } catch (err: any) {
+        // Consistent with grounding everywhere else here: best-effort.
+        this.logger.warn(`Figure lookup failed for chapter ${chapterId}: ${err?.message || err}`);
+      }
+      if (collected.length >= _MAX_PAPER_FIGURES) break;
+    }
+
+    return collected.slice(0, _MAX_PAPER_FIGURES).map((figure, index) => ({
+      ref: `F${index + 1}`,
+      id: String(figure.id),
+      label: String(figure.label || ''),
+      caption: String(figure.caption || ''),
+      description: String(figure.description || ''),
+      imageUrl: String(figure.imageUrl || ''),
+    }));
+  }
+
+  /**
+   * Turn [FIGURE: Fn] markers into Markdown images.
+   *
+   * Unknown references are REMOVED rather than left in place: a model that
+   * invents "F9" must not put the literal text "[FIGURE: F9]" in front of a
+   * student. The same applies to a figure whose image never got a URL.
+   *
+   * A figure is used at most once even if the model repeats the reference, so a
+   * paper cannot show the same diagram against four different questions.
+   */
+  private resolveFigureMarkers(
+    text: string,
+    catalogue: Array<{ ref: string; label: string; caption: string; imageUrl: string }>,
+  ): { text: string; used: string[]; unresolved: string[] } {
+    const source = String(text || '');
+    if (!source || !catalogue.length) {
+      return { text: this.stripFigureMarkers(source), used: [], unresolved: [] };
+    }
+    const byRef = new Map(catalogue.map((f) => [f.ref.toUpperCase(), f]));
+    const used: string[] = [];
+    const unresolved: string[] = [];
+
+    const resolved = source.replace(_FIGURE_MARKER_RE, (_match, ref: string) => {
+      const key = String(ref || '').toUpperCase();
+      const figure = byRef.get(key);
+      if (!figure || !figure.imageUrl || used.includes(key)) {
+        if (!figure) unresolved.push(key);
+        return '';
+      }
+      used.push(key);
+      // Alt text is the caption, so the paper still reads correctly if the
+      // image fails to load, and a screen reader has something to announce.
+      const alt = [figure.label, figure.caption].filter(Boolean).join(' ').replace(/[\[\]]/g, '').trim();
+      return `\n\n![${alt || 'Figure'}](${figure.imageUrl})\n\n`;
+    });
+
+    return { text: resolved.replace(/\n{3,}/g, '\n\n'), used, unresolved };
+  }
+
+  /**
+   * Hide images from the translator, then put them back.
+   *
+   * The whole paper — resolved images included — goes to translateText for a
+   * Hindi or Odia paper. A translation model handed
+   * `![Fig. 2.3 Graph of a polynomial](https://…/p8-0.png)` will translate the
+   * alt text and can just as easily rewrite or drop the URL, so a translated
+   * paper lost its figures. Resolving markers before translation (which the
+   * earlier comment here claimed was enough) only swapped a short marker for a
+   * long URL — strictly worse.
+   *
+   * The placeholder is plain uppercase ASCII with no punctuation, which a
+   * translator carries through unchanged far more reliably than a URL.
+   */
+  private maskImagesForTranslation(text: string): { text: string; images: string[] } {
+    const images: string[] = [];
+    const masked = String(text || '').replace(
+      new RegExp(_MARKDOWN_IMAGE_RE.source, 'g'),
+      (match) => {
+        images.push(match);
+        return `\n\nXFIGX${images.length - 1}XENDX\n\n`;
+      },
+    );
+    return { text: masked, images };
+  }
+
+  private restoreImagesAfterTranslation(text: string, images: string[]): string {
+    if (!images.length) return String(text || '');
+    const seen = new Set<number>();
+    const restored = String(text || '').replace(
+      /X\s*FIGX\s*(\d+)\s*X\s*ENDX/gi,
+      (whole, index: string) => {
+        const image = images[Number(index)];
+        if (!image) return whole;
+        seen.add(Number(index));
+        return `\n\n${image}\n\n`;
+      },
+    );
+    // A translator that dropped a placeholder entirely would silently lose the
+    // figure. Saying so beats a paper that is quietly missing a diagram.
+    if (seen.size < images.length) {
+      this.logger.warn(
+        `Translation lost ${images.length - seen.size} of ${images.length} figure(s); ` +
+        'they are appended at the end of the paper rather than dropped.',
+      );
+      const lost = images.filter((_img, i) => !seen.has(i));
+      return `${restored}\n\n${lost.join('\n\n')}`.replace(/\n{3,}/g, '\n\n');
+    }
+    return restored.replace(/\n{3,}/g, '\n\n');
+  }
+
+  /** Remove every figure marker, resolved or not. */
+  private stripFigureMarkers(text: string): string {
+    return String(text || '')
+      .replace(_FIGURE_MARKER_RE, '')
+      .replace(_PLOT_MARKER_RE, '')
+      .replace(/\n{3,}/g, '\n\n');
+  }
+
+  /**
+   * Draw the [PLOT: ...] figures a paper asked for and inline them.
+   *
+   * Each spec goes to the AI service, which writes matplotlib code and runs it
+   * in an isolated process; the PNG comes back and is stored in R2 like any
+   * other figure. Storage keys are a hash of the spec, so regenerating a draft
+   * with the same question reuses the same object instead of filling the bucket
+   * with copies.
+   *
+   * A figure that cannot be drawn leaves a VISIBLE note for the teacher rather
+   * than silently vanishing. Dropping the marker quietly would leave the
+   * question saying "study the figure below" with nothing below it — the exact
+   * orphan reference the prompt rules exist to prevent. This output is a draft
+   * a teacher reviews before publishing, so telling them what to fix is worth
+   * more than a tidy-looking paper that is quietly wrong.
+   */
+  private async resolvePlotMarkers(
+    text: string,
+    instituteId: string,
+    context: { subjectName?: string; className?: string; board?: string },
+  ): Promise<{ text: string; drawn: number; failed: number }> {
+    const source = String(text || '');
+    const markers = Array.from(source.matchAll(_PLOT_MARKER_RE));
+    if (!markers.length) return { text: source, drawn: 0, failed: 0 };
+
+    // Identical specs are drawn once, and only a bounded number of distinct
+    // ones: each is a sandboxed subprocess plus a model call, and a runaway
+    // paper must not be able to queue dozens of them.
+    const specs: string[] = [];
+    for (const match of markers) {
+      const spec = String(match[1] || '').trim();
+      if (spec && !specs.includes(spec) && specs.length < _MAX_PAPER_PLOTS) specs.push(spec);
+    }
+
+    const rendered = new Map<string, string>();
+    for (const spec of specs) {
+      try {
+        const res: any = await this.aiBridge.renderDiagram(
+          {
+            spec,
+            subjectName: context.subjectName,
+            className: context.className,
+            board: context.board,
+          },
+          instituteId,
+          'school',
+          context.board,
+        );
+        const dataUri = String(res?.data?.imageBase64 || '');
+        if (!dataUri.startsWith('data:image/png;base64,')) continue;
+        const url = await this.storeGeneratedFigure(instituteId, spec, dataUri);
+        if (url) rendered.set(spec, url);
+      } catch (err: any) {
+        // A 422 here means "this could not be drawn", which is an ordinary
+        // outcome, not a failure of paper generation.
+        this.logger.warn(`Diagram not drawn (${spec.slice(0, 60)}): ${err?.message || err}`);
+      }
+    }
+
+    let drawn = 0;
+    let failed = 0;
+    const out = source.replace(_PLOT_MARKER_RE, (_match, rawSpec: string) => {
+      const spec = String(rawSpec || '').trim();
+      const url = rendered.get(spec);
+      if (!url) {
+        failed += 1;
+        return '\n\n_[Diagram could not be generated for this question. '
+          + 'Please add a figure or replace the question before publishing.]_\n\n';
+      }
+      drawn += 1;
+      const alt = spec.replace(/[\[\]]/g, '').slice(0, 160);
+      return `\n\n![${alt}](${url})\n\n`;
+    });
+
+    return { text: out.replace(/\n{3,}/g, '\n\n'), drawn, failed };
+  }
+
+  /**
+   * Persist a generated figure and return its URL.
+   *
+   * Keyed by a hash of the spec so the same figure regenerated across drafts
+   * overwrites one object rather than accumulating copies, and scoped by
+   * institute like every other tenant asset.
+   */
+  private async storeGeneratedFigure(
+    instituteId: string,
+    spec: string,
+    dataUri: string,
+  ): Promise<string | null> {
+    try {
+      const comma = dataUri.indexOf(',');
+      const buffer = Buffer.from(dataUri.slice(comma + 1), 'base64');
+      if (!buffer.length) return null;
+      const hash = createHash('sha256').update(spec).digest('hex').slice(0, 32);
+      const key = `tenants/${instituteId}/assessment-figures/${hash}.png`;
+      return await this.s3Service.upload(key, buffer, 'image/png');
+    } catch (err: any) {
+      this.logger.warn(`Generated figure upload failed: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   async aiGenerateDraft(user: any, body: any) {
     const instituteId = user.instituteId || body.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID is required');
@@ -1191,6 +2040,62 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       if (singleName) (sourcePassages.length ? groundedChapters : ungroundedChapters).push(singleName);
     }
     const grounded = sourcePassages.length > 0;
+
+    // Figures cropped from the school's own chapter PDF. Offered to the model as
+    // a short catalogue of captions — the images themselves never go to the
+    // model, so a paper with ten diagrams costs exactly the same as one without.
+    // The model asks for one by writing [FIGURE: Fn], which resolveFigureMarkers
+    // turns back into the stored image after generation.
+    const figureCatalogue = await this.collectChapterFigures(instituteId, chapterList, body);
+    const figureRule = figureCatalogue.length
+      ? '\nFIGURES AVAILABLE — these diagrams come from the students\' own textbook chapter:\n'
+        + figureCatalogue
+          .map((f) => `  ${f.ref} — ${[f.label, f.caption || f.description].filter(Boolean).join(' ')}`)
+          .join('\n')
+        + '\nWhen a question genuinely needs one of these diagrams to be answerable, put the '
+        + 'marker [FIGURE: Fn] on its OWN line immediately after that question\'s text, using '
+        + 'the exact reference above. Use a figure ONLY when the question cannot be answered '
+        + 'without it, use each figure at most once, and never invent a reference that is not '
+        + 'listed. Do not describe the figure in words as well — the image will be shown.'
+      : '';
+
+    // Figures the textbook does not contain, but the question's own data fully
+    // determines — a triangle on named coordinates, a graph of a stated
+    // function, a number line, a bar chart of given data. These are drawn from
+    // the question rather than found in a book, which is the only way to serve
+    // the most common diagram question in a maths or physics paper.
+    const plotRule =
+      '\nDRAWN DIAGRAMS: For a question whose figure is fully determined by the '
+      + 'question\'s own data — coordinate geometry, a graph of a stated function, a '
+      + 'distance-time or velocity-time graph, a number line, a bar chart or histogram '
+      + 'of given values, an angle or triangle construction — you may have the figure '
+      + 'drawn. Put [PLOT: <description>] on its OWN line immediately after that '
+      + 'question. Describe only what is GIVEN in the question, never the answer: '
+      + 'write [PLOT: right-angled triangle with vertices A(1,1), B(4,1), C(4,5) on a '
+      + 'coordinate grid from 0 to 6], not the lengths the student must compute. '
+      + `Use at most ${_MAX_PAPER_PLOTS} drawn diagrams in the whole paper, and only `
+      + 'where the question truly cannot be answered without one. Never use [PLOT: ...] '
+      + 'for a photograph, a map, a biological specimen or anything that must be '
+      + 'observed rather than constructed from given values.';
+
+    // A question may only mention a diagram if one is actually attached to it.
+    //
+    // Without this the model writes "Study the figure below and find the area"
+    // with no figure at all — an unanswerable question on a student's paper.
+    // It applies hardest when NO figures are available, which is exactly when
+    // the offer above is silent, so the rule is stated unconditionally.
+    const noOrphanDiagramRule =
+      '\nDIAGRAM RULE: Never refer to a diagram, figure, graph, map, circuit or image '
+      + '("the figure below", "the given graph", "as shown in the diagram", "study the map") '
+      + 'unless you attach one with a marker on the line after that question. '
+      + (figureCatalogue.length
+        ? 'The only diagrams you may refer to are the figures listed above attached with '
+          + '[FIGURE: Fn], or one you have drawn with [PLOT: ...]. '
+        : 'The only diagram you may refer to is one you have drawn with [PLOT: ...]. ')
+      + 'If a question would need a diagram you cannot attach, rewrite it so it is fully '
+      + 'answerable from its own words, or set a different question instead. Every question '
+      + 'must be answerable by a student who sees only what is printed on this paper.';
+
     // Reinforce the book-only rule in the paper prompt itself (belt-and-suspenders
     // with the grounding system prompt the AI service applies). Only when we have
     // passages — never tell the model to cite a book it wasn't given.
@@ -1211,7 +2116,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           contentType: 'assessment_paper',
           difficulty,
           length: 'detailed',
-          extraContext: extraContext + strictSourceRule,
+          extraContext: extraContext + strictSourceRule + figureRule + plotRule + noOrphanDiagramRule,
           ...(sourcePassages.length ? { sourcePassages } : {}),
         },
         instituteId,
@@ -1225,14 +2130,49 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       let questionsPart = splitResult.contentText || content;
       let answerKeyPart = splitResult.answerKey || '';
 
+      // Resolve [FIGURE: Fn] into real images before anything else touches the
+      // text — in particular before translation, which would otherwise try to
+      // translate the marker and could mangle it.
+      const figureResolution = this.resolveFigureMarkers(questionsPart, figureCatalogue);
+      questionsPart = figureResolution.text;
+      // A marker must never survive into a paper a student sees. Any that could
+      // not be resolved (a reference the model invented) is stripped by
+      // resolveFigureMarkers; this only records that it happened.
+      if (figureResolution.unresolved.length) {
+        this.logger.warn(
+          `AI paper referenced unknown figures: ${figureResolution.unresolved.join(', ')}`,
+        );
+      }
+      // Then the figures that had to be drawn because no textbook holds them.
+      // After [FIGURE: ...] so a paper can carry both, and still before
+      // translation, which must never see a marker.
+      const plotResolution = await this.resolvePlotMarkers(questionsPart, instituteId, {
+        subjectName, className, board: await this.resolveBoard(instituteId),
+      });
+      questionsPart = plotResolution.text;
+      if (plotResolution.drawn || plotResolution.failed) {
+        this.logger.log(
+          `Paper diagrams drawn=${plotResolution.drawn} failed=${plotResolution.failed}`,
+        );
+      }
+
+      // The answer key never carries figures — it mirrors the paper's numbering,
+      // and a duplicated image there would just bloat it.
+      answerKeyPart = this.stripFigureMarkers(answerKeyPart);
+
       if (language !== 'en') {
         try {
           if (questionsPart.trim()) {
+            // Images are masked out for the round trip — see
+            // maskImagesForTranslation. A translator handed a URL rewrites it.
+            const masked = this.maskImagesForTranslation(questionsPart);
             const transQ = (await this.aiBridge.translateText(
-              { text: questionsPart, targetLanguage: language },
+              { text: masked.text, targetLanguage: language },
               instituteId,
             )) as any;
-            questionsPart = transQ?.translatedText ?? transQ?.text ?? transQ?.translation ?? questionsPart;
+            const translated =
+              transQ?.translatedText ?? transQ?.text ?? transQ?.translation ?? masked.text;
+            questionsPart = this.restoreImagesAfterTranslation(translated, masked.images);
           }
           if (answerKeyPart.trim()) {
             const transA = (await this.aiBridge.translateText(
@@ -1326,6 +2266,29 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       );
       const assessment = rows[0];
 
+      // Reconciled AFTER the insert, because markers bind to an assessment id
+      // that does not exist until then. The only markers a brand-new paper can
+      // carry are ones pasted from another paper, so this is the copy path.
+      // Skipped entirely — no query at all — when the text has no markers.
+      const reconciledNew = await this.reconcileDiagramMarkers(
+        user?.instituteId, assessment.id, assessment.content_text || '', manager,
+      );
+      if (reconciledNew.changed) {
+        assessment.content_text = reconciledNew.text;
+        const reparsed = this.parseQuestionsFromMarkdown(
+          reconciledNew.text, assessment.answer_key || '',
+        );
+        assessment.questions_json = reparsed;
+        await manager.query(
+          `UPDATE assessments SET content_text=$2, questions_json=$3::jsonb
+            WHERE id::text=$1::text`,
+          [assessment.id, reconciledNew.text, reparsed.length ? JSON.stringify(reparsed) : null],
+        );
+      }
+      if (reconciledNew.warnings.length) {
+        this.logger.log(`Diagram reconcile (new ${assessment.id}): ${reconciledNew.warnings.join('; ')}`);
+      }
+
       // Sync calendar event
       await this.syncCalendarEvent(manager, assessment, user.id, user.instituteId);
 
@@ -1415,7 +2378,15 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     });
   }
 
-  private async checkAssessmentAccess(user: any, assessmentId: string) {
+  /**
+   * Tenant and role isolation for one assessment, returning the row.
+   *
+   * Public rather than private because the diagram service must run exactly
+   * this check before it touches an assessment — and it has to be the SAME
+   * check, not a second implementation of it. Two copies of an authorization
+   * rule is how one of them ends up subtly weaker.
+   */
+  async checkAssessmentAccess(user: any, assessmentId: string) {
     const rows: any[] = await this.ds.query(
       `SELECT a.*, c.institute_id AS class_institute_id FROM assessments a LEFT JOIN classes c ON a.class_id::text = c.id::text WHERE a.id::text=$1::text`,
       [assessmentId],
@@ -1485,6 +2456,12 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     if (!rows.length) throw new NotFoundException('Assessment not found');
     const row = this.parseAndSplitLegacyAssessment(rows[0]);
     await this.hydrateQuestions(row);
+    // After hydration, so a reparse cannot discard the enrichment: the parser
+    // records only the marker key, and this turns it back into an image.
+    // The tenant comes from the assessment row itself where it has one, so a
+    // marker resolves against the diagrams of the paper's own institute
+    // rather than of whoever is reading it.
+    await this.attachDiagrams(row, row.institute_id || user?.instituteId);
     return { success: true, data: this.stripAnswerKeyForStudent(user, row) };
   }
 
@@ -1524,7 +2501,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     return await this.ds.transaction(async (manager) => {
       // Find the existing assessment's teacher and institute before updating
       const assessmentInfo = await manager.query(
-        `SELECT a.teacher_id, u.institute_id
+        `SELECT a.teacher_id, a.content_text, u.institute_id
          FROM assessments a
          LEFT JOIN users u ON a.teacher_id = u.id
          WHERE a.id::text = $1::text`,
@@ -1532,6 +2509,10 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       );
       const teacherId = assessmentInfo[0]?.teacher_id || null;
       const instituteId = assessmentInfo[0]?.institute_id || null;
+      // Read before the UPDATE overwrites it. The reconciler needs to know
+      // whether this paper HAD markers, so that deleting the last one still
+      // detaches its diagram instead of hitting the no-markers fast path.
+      const previousContentText = String(assessmentInfo[0]?.content_text || '');
 
       const rows: any[] = await manager.query(
         `UPDATE assessments
@@ -1568,6 +2549,25 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       );
       if (!rows.length) throw new NotFoundException('Assessment not found');
       const updated = rows[0];
+
+      // Reconcile BEFORE the reparse, so the questions are parsed from the
+      // settled text: a duplicated or pasted marker is re-keyed here, and the
+      // parse below records the key each question actually ends up with.
+      const reconciled = await this.reconcileDiagramMarkers(
+        instituteId, targetId, updated.content_text || '', manager,
+        previousContentText,
+      );
+      if (reconciled.changed) {
+        updated.content_text = reconciled.text;
+        await manager.query(
+          `UPDATE assessments SET content_text=$2 WHERE id::text=$1::text`,
+          [targetId, reconciled.text],
+        );
+      }
+      if (reconciled.warnings.length) {
+        this.logger.log(`Diagram reconcile (${targetId}): ${reconciled.warnings.join('; ')}`);
+      }
+
       const refreshedQuestions = this.parseQuestionsFromMarkdown(updated.content_text || '', updated.answer_key || '');
       updated.questions_json = refreshedQuestions;
       await manager.query(
@@ -1632,7 +2632,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
   }
 
   async startAttempt(user: any, assessmentId: string) {
-    await this.checkAssessmentAccess(user, assessmentId);
+    const access = await this.checkAssessmentAccess(user, assessmentId);
     await this.ensureAssessmentContentColumns();
     await this.ensureAssessmentSubmissionSchema();
 
@@ -1642,6 +2642,15 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     );
     if (!assessmentRows.length) throw new NotFoundException('Assessment not found');
     const assessment = await this.hydrateQuestions(assessmentRows[0]);
+    // The attempt response is what the student actually answers from —
+    // TestEngine prefers these questions over the ones on the assessment — so
+    // approved diagrams have to be expanded here too, not only in findOne.
+    // The tenant comes from the assessment row the access check returned, not
+    // from the caller, so a marker can only resolve within its own institute.
+    await this.attachDiagrams(
+      assessment,
+      access?.institute_id || access?.class_institute_id || user?.instituteId,
+    );
     const durationMinutes = Math.max(1, Number(assessment.duration_minutes || 60));
 
     // Validate start time and end time windows
@@ -1829,7 +2838,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     }
 
     const language = req?.body?.language || req?.query?.language || '';
-    const aiOcrEnabled = user?.role === 'SUPER_ADMIN' || user?.inst_ai_enabled !== false || isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting');
+    const aiOcrEnabled = hasSchoolRole(user?.role, 'SUPER_ADMIN') || user?.inst_ai_enabled !== false || isSchoolAiFeatureEnabled(user, 'ai_ocr_handwriting');
 
     // Read file buffer FIRST (before R2 upload which deletes the disk file)
     // so we can send a base64 data URI directly to the AI service.
@@ -2048,7 +3057,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         this.aiBridge
           .gradeSubjectiveAnswer(
             {
-              questionText: question.text,
+              questionText: this.questionTextForMarking(question),
               maxMarks: Number(question.marks || 1),
               studentAnswer: answerText,
               criteria: question.rubric?.criteria,
@@ -2147,7 +3156,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       const detail = gradingDetails.find((d: any) => String(d.questionId) === String(q.id));
       return detail && detail.status === 'pending';
     });
-    const aiEnabled = user?.role === 'SUPER_ADMIN' || isSchoolAiFeatureEnabled(user, 'ai_subjective_grading');
+    const aiEnabled = hasSchoolRole(user?.role, 'SUPER_ADMIN') || isSchoolAiFeatureEnabled(user, 'ai_subjective_grading');
     if (subjectivePending && aiEnabled && instituteId) {
       try {
         await this.runAiSubjectiveGrading(assessmentId, studentUserId, questions, answers || {}, instituteId);
@@ -2364,7 +3373,11 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       [body.assessmentId],
     );
     const totalMarks = Number(body.totalMarks || body.total_marks || assessmentRows[0]?.total_marks || 100);
-    const marksObtained = body.isAbsent ? 0 : Number(body.marksObtained || 0);
+    // Defense in depth: the UI already clamps to [0, totalMarks], but this is the
+    // one write path for marks_obtained (manual entry and both auto-grading call
+    // sites), so clamp here too rather than trusting every caller.
+    const rawMarks = body.isAbsent ? 0 : Number(body.marksObtained || 0);
+    const marksObtained = Math.min(Math.max(Number.isFinite(rawMarks) ? rawMarks : 0, 0), totalMarks);
     const percentage = totalMarks ? Math.round((marksObtained / totalMarks) * 10000) / 100 : 0;
     const rows: any[] = await this.ds.query(
       `INSERT INTO results

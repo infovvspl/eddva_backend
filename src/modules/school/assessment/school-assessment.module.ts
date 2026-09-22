@@ -6,11 +6,13 @@ import { SchoolNotificationModule } from '../notification/school-notification.mo
 import { AiBridgeModule } from '../../ai-bridge/ai-bridge.module';
 import { SchoolNotificationFcmModule } from '../notification-fcm/school-notification-fcm.module';
 import { UploadModule } from '../../upload/upload.module';
+import { SchoolDiagramService } from './diagram/school-diagram.service';
+import { SchoolDiagramController } from './diagram/school-diagram.controller';
 
 @Module({
   imports: [SchoolTextbookModule, SchoolNotificationModule, AiBridgeModule, SchoolNotificationFcmModule, UploadModule],
-  controllers: [SchoolAssessmentController],
-  providers: [SchoolAssessmentService]
+  controllers: [SchoolAssessmentController, SchoolDiagramController],
+  providers: [SchoolAssessmentService, SchoolDiagramService]
 })
 export class SchoolAssessmentModule {}
 

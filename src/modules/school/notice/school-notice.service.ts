@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { FcmService } from '../notification-fcm/fcm.service';
+import { hasSchoolRole } from '../common/role-helper';
 import {
   SchoolFcmNotificationType,
   SCHOOL_NOTIFICATION_TEMPLATES,
@@ -30,7 +31,7 @@ export class SchoolNoticeService {
   }
 
   async list(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.instituteId || user.instituteId) : user.instituteId;
     let filter = `institute_id=$1`;
     const params: any[] = [instituteId];
     if (query.category) { params.push(query.category); filter += ` AND category=$${params.length}`; }
@@ -62,7 +63,7 @@ export class SchoolNoticeService {
   }
 
   async create(user: any, body: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (body.instituteId || user.instituteId) : user.instituteId;
     const rows: any[] = await this.ds.query(
       `INSERT INTO notices (institute_id,title,content,category,priority,posted_date,expiry_date,attachments,target_roles)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,

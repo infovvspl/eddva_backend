@@ -3,6 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import type { Cache } from 'cache-manager';
+import { hasSchoolRole } from '../common/role-helper';
 
 const ACADEMIC_TTL = 30 * 60 * 1000; // 30 min — class/section structure is quasi-static
 
@@ -41,7 +42,7 @@ export class SchoolAcademicService {
   }
 
   private async resolveInstituteId(user: any, bodyId?: string): Promise<string> {
-    return user.role === 'SUPER_ADMIN'
+    return hasSchoolRole(user.role, 'SUPER_ADMIN')
       ? bodyId || user.instituteId
       : user.instituteId;
   }
@@ -51,7 +52,7 @@ export class SchoolAcademicService {
   async listClasses(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
     const academicYear = query.academicYear ? String(query.academicYear).trim() : undefined;
-    const isTeacher = user.role === 'TEACHER' || (typeof user.role === 'string' && user.role.includes('TEACHER'));
+    const isTeacher = hasSchoolRole(user.role, 'TEACHER');
 
     let cacheKey = this.classListKey(instituteId, academicYear);
     if (isTeacher) {
@@ -361,7 +362,7 @@ export class SchoolAcademicService {
 
   async listSections(user: any, query: any) {
     const instituteId = await this.resolveInstituteId(user, query.instituteId);
-    const isTeacher = user.role === 'TEACHER' || (typeof user.role === 'string' && user.role.includes('TEACHER'));
+    const isTeacher = hasSchoolRole(user.role, 'TEACHER');
 
     let cacheKey = this.sectionListKey(instituteId, query.classId, query.academicYear);
     if (isTeacher) {

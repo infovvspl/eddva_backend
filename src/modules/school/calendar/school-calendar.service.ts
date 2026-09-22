@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { hasSchoolRole } from '../common/role-helper';
 
 const HOLIDAYS_2026 = [
   { id: 1, title: 'Makar Sankranti', date: '2026-01-14', type: 'STATE' },
@@ -224,7 +225,7 @@ export class SchoolCalendarService implements OnModuleInit {
   }
 
   async getEvents(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.schoolId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.schoolId || user.instituteId) : user.instituteId;
     const role = query.role || user.role;
     
     let from, to;
@@ -261,11 +262,11 @@ export class SchoolCalendarService implements OnModuleInit {
     params.push(endWindow);
     sql += ` AND e.start_time <= $${params.length}`;
 
-    if (role === 'TEACHER') {
+    if (hasSchoolRole(role, 'TEACHER')) {
       sql += ` AND e.category IN ('EXAM', 'HOLIDAY', 'VACATION', 'TEACHER_MEETING', 'LIVE_CLASS', 'EMERGENCY_NOTICE', 'ACADEMIC')`;
-    } else if (role === 'STUDENT') {
+    } else if (hasSchoolRole(role, 'STUDENT')) {
       sql += ` AND e.category IN ('EXAM', 'HOLIDAY', 'VACATION', 'ASSIGNMENT', 'LIVE_CLASS', 'EMERGENCY_NOTICE', 'ACADEMIC')`;
-    } else if (role === 'PARENT') {
+    } else if (hasSchoolRole(role, 'PARENT')) {
       sql += ` AND e.category IN ('EXAM', 'HOLIDAY', 'VACATION', 'PARENT_MEETING', 'EMERGENCY_NOTICE', 'ACADEMIC')`;
     }
 

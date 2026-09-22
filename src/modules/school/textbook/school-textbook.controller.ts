@@ -27,6 +27,24 @@ export class SchoolTextbookController {
   }
 
   /**
+   * Extract figures for chapters indexed before figure support existed.
+   *
+   * Staff-only and admin-only: it re-reads every matching chapter PDF, so it is
+   * a bulk operation rather than something a teacher runs casually. Idempotent
+   * — chapters that already have figures are skipped unless `force` is set.
+   */
+  @Post('backfill-figures')
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  backfillFigures(@Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.svc.backfillFigures(req.user, {
+      instituteId: body?.instituteId,
+      limit: body?.limit,
+      force: !!body?.force,
+    });
+  }
+
+  /**
    * Attach a PDF to a chapter and index it in one step, so an uploaded chapter
    * is usable immediately rather than waiting for a separate indexing pass.
    */

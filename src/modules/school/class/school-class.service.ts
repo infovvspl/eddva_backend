@@ -13,6 +13,7 @@ import { ThumbnailService } from './thumbnail.service';
 import { R2Service } from '../../storage/r2.service';
 import { aiRequestStorage, getAiRequestContext } from '../../../common/context/ai-request-context';
 import { AdmissionPool } from '../../../common/services/ai-admission.constants';
+import { hasSchoolRole } from '../common/role-helper';
 import {
   LECTURE_JOB,
   LECTURE_QUEUE,
@@ -267,7 +268,7 @@ export class SchoolClassService implements OnModuleInit {
   }
 
   private resolveInstituteId(user: any, override?: string): string {
-    const instituteId = user.role === 'SUPER_ADMIN' ? override || user.instituteId : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? override || user.instituteId : user.instituteId;
     if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
     return instituteId;
   }
@@ -296,7 +297,7 @@ export class SchoolClassService implements OnModuleInit {
   }
 
   private async assertStudentCanAccessRecording(user: any, recordingId: string) {
-    if (user.role !== 'STUDENT') return;
+    if (!hasSchoolRole(user.role, 'STUDENT')) return;
     const scope = await this.getStudentScope(user);
     if (!scope.classId || !scope.sectionId) throw new NotFoundException('Recording not found');
     const rows = await this.ds.query(
@@ -352,7 +353,7 @@ export class SchoolClassService implements OnModuleInit {
 
   async list(user: any, query: any) {
     await this.ensureTable();
-    const instituteId = user.role === 'SUPER_ADMIN' ? query.instituteId || user.instituteId : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? query.instituteId || user.instituteId : user.instituteId;
     if (!instituteId) return { success: true, data: [] };
     const params: any[] = [instituteId];
     let sql = `
@@ -396,7 +397,7 @@ export class SchoolClassService implements OnModuleInit {
     if (query.classId) { params.push(query.classId); sql += ` AND r.class_id = $${params.length}::uuid`; }
     if (query.sectionId) { params.push(query.sectionId); sql += ` AND r.section_id = $${params.length}::uuid`; }
     if (query.subjectId) { params.push(query.subjectId); sql += ` AND r.subject_id = $${params.length}::uuid`; }
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const scope = await this.getStudentScope(user);
       if (!scope.classId || !scope.sectionId) return { success: true, data: [] };
       params.push(scope.classId);
@@ -444,7 +445,7 @@ export class SchoolClassService implements OnModuleInit {
   async getPlayUrl(user: any, id: string) {
     await this.ensureTable();
     await this.assertStudentCanAccessRecording(user, id);
-    const instituteId = user.role === 'SUPER_ADMIN' ? user.instituteId : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? user.instituteId : user.instituteId;
     const params: any[] = [id];
     let sql = `SELECT id, video_url, video_key, source, stream_hls, stream_status FROM class_recordings WHERE id=$1`;
     if (instituteId) {
@@ -528,7 +529,7 @@ export class SchoolClassService implements OnModuleInit {
    */
   private assertCanReuseRecording(user: any, recording: any): void {
     const isOwner = !!user?.id && String(recording.teacher_user_id) === String(user.id);
-    const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'INSTITUTE_ADMIN';
+    const isAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN') || hasSchoolRole(user?.role, 'INSTITUTE_ADMIN');
     if (isOwner || isAdmin) return;
     throw new ConflictException('This video has already been uploaded');
   }
@@ -630,7 +631,7 @@ export class SchoolClassService implements OnModuleInit {
       }
     }
 
-    if (user.role === 'TEACHER') {
+    if (hasSchoolRole(user.role, 'TEACHER')) {
       const assignmentRows = await this.ds.query(
         `SELECT 1
          FROM teachers t

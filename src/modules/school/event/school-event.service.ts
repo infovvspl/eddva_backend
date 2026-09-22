@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { FcmService } from '../notification-fcm/fcm.service';
+import { hasSchoolRole } from '../common/role-helper';
 import {
   SchoolFcmNotificationType,
   SCHOOL_NOTIFICATION_TEMPLATES,
@@ -50,7 +51,7 @@ export class SchoolEventService {
   ) {}
 
   async list(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.instituteId || user.instituteId) : user.instituteId;
     let sql = `SELECT e.id, e.institute_id AS "instituteId", e.title, e.description, e.category, 
                       e.start_time AS "startTime", e.end_time AS "endTime", 
                       e.is_all_day AS "isAllDay", e.location, e.priority, 
@@ -143,7 +144,7 @@ export class SchoolEventService {
   }
 
   async create(user: any, body: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (body.instituteId || user.instituteId) : user.instituteId;
     const startTime = body.startTime ? new Date(body.startTime) : new Date();
     const endTime = body.endTime ? new Date(body.endTime) : null;
     const isAllDay = body.isAllDay ?? false;

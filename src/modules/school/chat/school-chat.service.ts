@@ -7,6 +7,7 @@ import { Cache } from 'cache-manager';
 import { SchoolNotificationGateway } from '../notification/school-notification.gateway';
 import { S3Service } from '../../upload/s3.service';
 import { randomUUID } from 'crypto';
+import { hasSchoolRole } from '../common/role-helper';
 
 const LEGACY_VIRTUAL_SUPER_ADMIN_ID = 'demo-super-admin';
 const VIRTUAL_SUPER_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
@@ -49,7 +50,7 @@ export class SchoolChatService implements OnModuleInit {
     const ids = new Set<string>();
     const id = String(user?.id || '').trim();
     if (id) ids.add(id);
-    if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN') {
+    if (hasSchoolRole(user?.role, 'SUPER_ADMIN')) {
       ids.add(VIRTUAL_SUPER_ADMIN_ID);
       ids.add(LEGACY_VIRTUAL_SUPER_ADMIN_ID);
     }
@@ -58,7 +59,7 @@ export class SchoolChatService implements OnModuleInit {
 
   private chatUserId(user: any): string {
     const id = String(user?.id || '').trim();
-    if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN' && !this.isUuid(id)) {
+    if (hasSchoolRole(user?.role, 'SUPER_ADMIN') && !this.isUuid(id)) {
       return VIRTUAL_SUPER_ADMIN_ID;
     }
     return id;
@@ -93,7 +94,7 @@ export class SchoolChatService implements OnModuleInit {
   async getConversations(user: any, query: any) {
     const role = query.role || 'TEACHER';
     const crossInstitute =
-      user.role === 'SUPER_ADMIN' || role.toUpperCase() === 'SUPER_ADMIN';
+      hasSchoolRole(user.role, 'SUPER_ADMIN') || role.toUpperCase() === 'SUPER_ADMIN';
     const actorIds = this.chatActorIds(user);
     const rows: any[] = await this.ds.query(
       crossInstitute
@@ -135,7 +136,7 @@ export class SchoolChatService implements OnModuleInit {
       crossInstitute ? [role, actorIds] : [user.id, role, user.instituteId],
     );
 
-    const isTeacher = user.role === 'TEACHER';
+    const isTeacher = hasSchoolRole(user.role, 'TEACHER');
     const mapped = rows.map(r => ({
       id: isTeacher ? r.room_id : r.peer_id,
       room_id: r.room_id,
@@ -175,7 +176,7 @@ export class SchoolChatService implements OnModuleInit {
     const params: any[] = [];
 
     // Check smart directory restrictions
-    if (user.role === 'TEACHER' && targetRole === 'PARENT') {
+    if (hasSchoolRole(user.role, 'TEACHER') && targetRole === 'PARENT') {
       params.push(instituteId, user.id);
       let searchCond = '';
       if (q) {
@@ -218,7 +219,7 @@ export class SchoolChatService implements OnModuleInit {
             ))
           )
       `;
-    } else if (user.role === 'PARENT' && targetRole === 'TEACHER') {
+    } else if (hasSchoolRole(user.role, 'PARENT') && targetRole === 'TEACHER') {
       params.push(instituteId, user.id);
       let searchCond = '';
       if (q) {
@@ -254,7 +255,7 @@ export class SchoolChatService implements OnModuleInit {
         searchCond = ` AND (u.name ILIKE $1 OR u.email ILIKE $1)`;
       }
       sql = `SELECT u.id, u.name, u.email, u.role, u.profile_image, 'Platform' AS institute_name FROM users u WHERE LOWER(u.role) = 'super_admin' AND u.is_active IS NOT FALSE${searchCond}`;
-    } else if (user.role === 'SUPER_ADMIN' && targetRole.toUpperCase() === 'INSTITUTE_ADMIN') {
+    } else if (hasSchoolRole(user.role, 'SUPER_ADMIN') && targetRole.toUpperCase() === 'INSTITUTE_ADMIN') {
       // Super admin looking up institute admins across all institutes
       let searchCond = '';
       if (q) {
@@ -630,8 +631,6 @@ export class SchoolChatService implements OnModuleInit {
        ORDER BY c.name, sec.name, u.name`,
       [user.instituteId, user.id]
     );
-    console.log('Parent Directory Count:', rows.length);
-    console.log('Parent Directory Data:', rows);
     return { success: true, data: rows };
   }
 }

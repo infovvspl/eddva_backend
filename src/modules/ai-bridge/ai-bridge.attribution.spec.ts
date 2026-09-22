@@ -146,4 +146,69 @@ describe('AiBridgeService — attribution forwarding', () => {
     await svc.resolveDoubt({ questionText: 'q' } as any, 'inst-1');
     expect(admission.acquire.mock.calls[0][0]).toBe(AdmissionPool.INTERACTIVE);
   });
+
+  // ── Doubt curriculum context: the Horace/Florence fix ──────────────────────
+  // An image-only doubt has no question text, so transcription accuracy IS the
+  // answer quality. These pin that class/board/chapter actually leave NestJS.
+  it('resolveDoubt forwards board to Django (X-Board was always empty before)', async () => {
+    await svc.resolveDoubt(
+      { questionText: 'q', mode: 'detailed', studentContext: { subject: 'English Communicative' } },
+      'inst-1', 'school', 'cbse',
+    );
+    const h = lastHeaders();
+    expect(h['X-Board']).toBe('cbse');
+    expect(h['X-Vertical']).toBe('school');
+  });
+
+  it('resolveDoubt omits X-Board when the institute has no board configured', async () => {
+    await svc.resolveDoubt(
+      { questionText: 'q', mode: 'detailed' }, 'inst-1', 'school', undefined,
+    );
+    expect(lastHeaders()['X-Board']).toBeUndefined();
+  });
+
+  it('resolveDoubt sends class, board and chapter in studentContext', async () => {
+    await svc.resolveDoubt(
+      {
+        questionText: 'Why was Horace arrested?',
+        mode: 'detailed',
+        studentContext: {
+          subject: 'English Communicative',
+          className: 'Class 10',
+          chapterName: 'A Question of Trust',
+          board: 'cbse',
+          level: 'school',
+        },
+      },
+      'inst-1', 'school', 'cbse',
+    );
+    const body = http.post.mock.calls[0][1] as any;
+    expect(body.studentContext).toMatchObject({
+      subject: 'English Communicative',
+      className: 'Class 10',
+      chapterName: 'A Question of Trust',
+      board: 'cbse',
+      level: 'school',
+    });
+  });
+
+  it('an image-only doubt still carries the image URL alongside the context', async () => {
+    await svc.resolveDoubt(
+      {
+        questionText: 'Explain and solve the question shown in the attached image.',
+        questionImageUrl: 'https://cdn/q.png',
+        mode: 'detailed',
+        studentContext: { subject: 'English Communicative', className: 'Class 10' },
+      },
+      'inst-1', 'school', 'cbse',
+    );
+    const body = http.post.mock.calls[0][1] as any;
+    expect(body.questionImageUrl).toBe('https://cdn/q.png');
+    expect(body.studentContext.className).toBe('Class 10');
+  });
+
+  it('the doubt path is still classified INTERACTIVE after the signature change', async () => {
+    await svc.resolveDoubt({ questionText: 'q', mode: 'detailed' }, 'inst-1', 'school', 'cbse');
+    expect(admission.acquire.mock.calls[0][0]).toBe(AdmissionPool.INTERACTIVE);
+  });
 });
