@@ -129,6 +129,50 @@ export class SchoolTextbookService implements OnModuleInit {
       `CREATE INDEX IF NOT EXISTS idx_lecture_chunks_recording
        ON lecture_chunks (recording_id)`,
     );
+    // Chapter figures — the diagrams cropped out of the chapter PDF by the AI
+    // service. A separate table rather than columns on textbook_chunks because
+    // a page carries 0..N figures and a passage is not 1:1 with any of them.
+    //
+    // The image itself lives in R2 and only its key is stored here: a crop is
+    // ~40-300KB and questions_json rides along in every list/hydrate query, so
+    // inlining the bytes would put megabytes into a hot path.
+    //
+    // institute_id scoping mirrors textbook_chunks exactly, which is what keeps
+    // one school's textbook out of another school's question papers.
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS textbook_figures (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        institute_id  UUID NOT NULL,
+        material_id   UUID,
+        class_id      UUID,
+        subject_id    UUID,
+        chapter_id    UUID NOT NULL,
+        page_no       INTEGER,
+        figure_index  INTEGER NOT NULL,
+        label         TEXT,
+        caption       TEXT,
+        description   TEXT,
+        detector      VARCHAR(16),
+        bbox          JSONB,
+        width         INTEGER,
+        height        INTEGER,
+        image_key     TEXT NOT NULL,
+        image_url     TEXT,
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.ds.query(
+      `CREATE INDEX IF NOT EXISTS idx_textbook_figures_scope
+       ON textbook_figures (institute_id, chapter_id, page_no, figure_index)`,
+    );
+    // Re-indexing a chapter replaces its figures, and (chapter, page, index) is
+    // the identity a re-ingest lines up against — the AI service keeps
+    // figure_index contiguous per page for exactly this reason. Unique so a
+    // partially-failed run can never leave two rows claiming the same figure.
+    await this.ds.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_textbook_figures_identity
+       ON textbook_figures (chapter_id, page_no, figure_index)`,
+    );
     await this.ds.query(`
       CREATE TABLE IF NOT EXISTS textbook_sources (
         chapter_id    UUID PRIMARY KEY,
@@ -368,9 +412,14 @@ export class SchoolTextbookService implements OnModuleInit {
       await this.recordSource(instituteId, material, data, chunks.length, tx);
     });
 
+    // After the passages, and outside their transaction: figures are a bonus on
+    // top of a chapter that is already successfully indexed, and must not be
+    // able to roll back the passages that make it usable.
+    const figureCount = await this.persistFigures(instituteId, material, data?.figures ?? []);
+
     this.logger.log(
-      `Indexed chapter "${material.chapter_name}": ${chunks.length} passages ` +
-      `(${data?.pages} pages, method=${data?.method})`,
+      `Indexed chapter "${material.chapter_name}": ${chunks.length} passages, ` +
+      `${figureCount} figures (${data?.pages} pages, method=${data?.method})`,
     );
     return {
       chapterId: material.chapter_id,
@@ -378,10 +427,280 @@ export class SchoolTextbookService implements OnModuleInit {
       indexed: true,
       pages: data?.pages ?? 0,
       chunks: chunks.length,
+      figures: figureCount,
       tokens: data?.total_tokens ?? 0,
       method: data?.method ?? 'text_layer',
       quality: data?.quality ?? 'ok',
     };
+  }
+
+  /**
+   * Store the chapter's cropped figures: images to R2, metadata to Postgres.
+   *
+   * Best-effort by design. Passages are what makes a chapter usable; figures
+   * only make a generated paper better, so a storage failure here logs and
+   * returns rather than failing an ingest that otherwise succeeded.
+   *
+   * Uploads run BEFORE the transaction, never inside it: each one is a network
+   * round trip, and holding a Postgres transaction open across a few dozen of
+   * them would pin the chapter's rows for the whole upload.
+   *
+   * Keys are deterministic — (chapter, page, figure_index) — so re-indexing a
+   * chapter overwrites the same objects instead of orphaning the old ones in
+   * the bucket. The AI service keeps figure_index contiguous per page so that
+   * identity stays stable across runs.
+   */
+  private async persistFigures(
+    instituteId: string,
+    material: any,
+    figures: any[],
+  ): Promise<number> {
+    if (!Array.isArray(figures) || !figures.length) {
+      // A chapter can legitimately have no figures, but an existing set must
+      // not survive a re-index that produced none — otherwise the chapter keeps
+      // figures from a PDF it no longer has.
+      await this.ds.query(`DELETE FROM textbook_figures WHERE chapter_id::text = $1::text`, [
+        material.chapter_id,
+      ]);
+      return 0;
+    }
+
+    const stored: any[] = [];
+    for (const figure of figures) {
+      const dataUri = String(figure?.image_base64 || '');
+      const comma = dataUri.indexOf(',');
+      if (!dataUri.startsWith('data:image/png;base64,') || comma < 0) {
+        this.logger.warn(`Skipping figure with unusable image payload (page ${figure?.page_no})`);
+        continue;
+      }
+      const pageNo = Number.isFinite(Number(figure?.page_no)) ? Number(figure.page_no) : 0;
+      const figureIndex = Number.isFinite(Number(figure?.figure_index)) ? Number(figure.figure_index) : 0;
+      const key =
+        `tenants/${instituteId}/textbook-figures/${material.chapter_id}/` +
+        `p${pageNo}-${figureIndex}.png`;
+      try {
+        const buffer = Buffer.from(dataUri.slice(comma + 1), 'base64');
+        if (!buffer.length) throw new Error('empty image buffer');
+        const url = await this.s3Service.upload(key, buffer, 'image/png');
+        stored.push({ figure, pageNo, figureIndex, key, url });
+      } catch (err: any) {
+        this.logger.warn(`Figure upload failed (page ${pageNo} #${figureIndex}): ${err?.message || err}`);
+      }
+    }
+
+    if (!stored.length) return 0;
+
+    try {
+      await this.ds.transaction(async (tx) => {
+        await tx.query(`DELETE FROM textbook_figures WHERE chapter_id::text = $1::text`, [
+          material.chapter_id,
+        ]);
+        for (let start = 0; start < stored.length; start += _INSERT_BATCH) {
+          const batch = stored.slice(start, start + _INSERT_BATCH);
+          const values: any[] = [];
+          const tuples = batch.map((row, i) => {
+            const base = i * 15;
+            values.push(
+              instituteId, material.id, material.class_id, material.subject_id,
+              material.chapter_id, row.pageNo, row.figureIndex,
+              row.figure.label || null, row.figure.caption || null,
+              row.figure.description || null, row.figure.detector || null,
+              JSON.stringify(row.figure.bbox ?? null),
+              Number(row.figure.width) || null, Number(row.figure.height) || null,
+              row.key,
+            );
+            const p = (n: number) => `$${base + n}`;
+            return `(${p(1)},${p(2)},${p(3)},${p(4)},${p(5)},${p(6)},${p(7)},${p(8)},${p(9)},` +
+                   `${p(10)},${p(11)},${p(12)}::jsonb,${p(13)},${p(14)},${p(15)})`;
+          });
+          await tx.query(
+            `INSERT INTO textbook_figures
+               (institute_id, material_id, class_id, subject_id, chapter_id, page_no,
+                figure_index, label, caption, description, detector, bbox, width, height, image_key)
+             VALUES ${tuples.join(',')}`,
+            values,
+          );
+        }
+      });
+    } catch (err: any) {
+      this.logger.warn(`Figure metadata write failed: ${err?.message || err}`);
+      return 0;
+    }
+    return stored.length;
+  }
+
+  /**
+   * Figures from every chapter of a subject, spread evenly across them.
+   *
+   * A subject, mock or final paper carries no chapter scope at all — the
+   * teacher picks a subject and the paper covers the year — so the
+   * chapter-scoped lookup returned nothing and exactly the papers that most
+   * need diagrams got none.
+   *
+   * Spread rather than "first N": ordering by chapter would hand the whole
+   * budget to chapter 1 and leave an annual paper illustrated entirely from the
+   * first few pages of the book. Taking a few from each chapter in turn keeps
+   * the catalogue representative of the year.
+   */
+  async getSubjectFigures(
+    instituteId: string,
+    subjectId?: string | null,
+    limit = 24,
+  ): Promise<any[]> {
+    if (!instituteId || !subjectId) return [];
+    await this.ensureSchema();
+    const capped = Math.min(Math.max(Number(limit) || 24, 1), 100);
+    try {
+      const rows: any[] = await this.ds.query(
+        `SELECT id, page_no, figure_index, label, caption, description,
+                detector, width, height, image_key
+           FROM (
+             SELECT tf.*,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY tf.chapter_id
+                      ORDER BY tf.page_no NULLS LAST, tf.figure_index
+                    ) AS rank_in_chapter
+               FROM textbook_figures tf
+               JOIN chapters c ON c.id = tf.chapter_id
+              WHERE tf.institute_id::text = $1::text
+                AND c.subject_id::text = $2::text
+           ) ranked
+          WHERE rank_in_chapter <= 3
+          ORDER BY rank_in_chapter, page_no NULLS LAST, figure_index
+          LIMIT $3`,
+        [instituteId, subjectId, capped],
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        pageNo: row.page_no,
+        figureIndex: row.figure_index,
+        label: row.label || '',
+        caption: row.caption || '',
+        description: row.description || '',
+        detector: row.detector || '',
+        width: row.width,
+        height: row.height,
+        imageUrl: this.s3Service.toPublicUrl(row.image_key),
+      }));
+    } catch (err: any) {
+      this.logger.warn(`Subject figure lookup failed: ${err?.message || err}`);
+      return [];
+    }
+  }
+
+  /**
+   * Extract figures for chapters that were indexed before figures existed.
+   *
+   * Deliberately NOT a re-index. The passages for these chapters are already
+   * correct, and rewriting them would churn rows for no gain — worse, a scanned
+   * chapter would re-run its whole vision transcription, which is the single
+   * most expensive thing this service does. So OCR is disabled for this pass
+   * (a scan yields no figures anyway) and only the figures are persisted.
+   *
+   * Idempotent: a chapter that already has figures is skipped unless `force`,
+   * and the storage keys are deterministic, so running it twice is a no-op.
+   */
+  async backfillFigures(
+    user: any,
+    opts: { instituteId?: string; limit?: number; force?: boolean } = {},
+  ) {
+    const instituteId = this.resolveInstitute(user, opts.instituteId);
+    await this.ensureSchema();
+    const limit = Math.min(Math.max(Number(opts.limit) || 25, 1), 200);
+
+    // Chapters with passages but no figures — i.e. indexed before this existed.
+    const rows: any[] = await this.ds.query(
+      `SELECT DISTINCT sm.id, sm.s3_key, sm.chapter_id, sm.class_id,
+              sm.subject_id_fk AS subject_id, c.name AS chapter_name
+         FROM textbook_chunks tc
+         JOIN study_materials sm ON sm.id = tc.material_id
+         JOIN chapters c ON c.id = tc.chapter_id
+        WHERE tc.institute_id::text = $1::text
+          AND sm.s3_key ILIKE '%.pdf'
+          ${opts.force ? '' : `AND NOT EXISTS (
+                SELECT 1 FROM textbook_figures tfg
+                 WHERE tfg.chapter_id = tc.chapter_id
+                   AND tfg.institute_id = tc.institute_id)`}
+        LIMIT $2`,
+      [instituteId, limit],
+    );
+
+    const results: any[] = [];
+    for (const material of rows) {
+      try {
+        const res: any = await this.aiBridge.ingestTextbook(
+          { fileUrl: material.s3_key, allowOcr: false, wantFigures: true },
+          instituteId,
+        );
+        const data: any = res?.data ?? res;
+        const count = await this.persistFigures(instituteId, material, data?.figures ?? []);
+        results.push({
+          chapterId: material.chapter_id,
+          chapterName: material.chapter_name,
+          figures: count,
+        });
+      } catch (err: any) {
+        // One unreadable chapter must not stop the backfill.
+        this.logger.warn(
+          `Figure backfill failed for chapter "${material.chapter_name}": ${err?.message || err}`,
+        );
+        results.push({
+          chapterId: material.chapter_id,
+          chapterName: material.chapter_name,
+          figures: 0,
+          error: err?.message || 'failed',
+        });
+      }
+    }
+
+    const total = results.reduce((sum, r) => sum + (r.figures || 0), 0);
+    this.logger.log(
+      `Figure backfill: ${total} figures across ${results.length} chapters (limit ${limit})`,
+    );
+    return { scanned: results.length, figures: total, chapters: results };
+  }
+
+  /**
+   * The figures available for one chapter, newest ingest only.
+   *
+   * Returned with a resolved URL rather than the stored key, so callers never
+   * have to know how the bucket is addressed. Scoped by institute for the same
+   * reason getChapterPassages is: a chapter id alone must not reach across
+   * schools.
+   */
+  async getChapterFigures(
+    instituteId: string,
+    chapterId?: string | null,
+  ): Promise<any[]> {
+    if (!instituteId || !chapterId) return [];
+    await this.ensureSchema();
+    try {
+      const rows: any[] = await this.ds.query(
+        `SELECT id, page_no, figure_index, label, caption, description,
+                detector, width, height, image_key
+           FROM textbook_figures
+          WHERE institute_id::text = $1::text AND chapter_id::text = $2::text
+          ORDER BY page_no NULLS LAST, figure_index`,
+        [instituteId, chapterId],
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        pageNo: row.page_no,
+        figureIndex: row.figure_index,
+        label: row.label || '',
+        caption: row.caption || '',
+        description: row.description || '',
+        detector: row.detector || '',
+        width: row.width,
+        height: row.height,
+        imageUrl: this.s3Service.toPublicUrl(row.image_key),
+      }));
+    } catch (err: any) {
+      // Grounding is best-effort everywhere else in this service; figures are
+      // strictly a bonus on top of it.
+      this.logger.warn(`Chapter figure lookup failed: ${err?.message || err}`);
+      return [];
+    }
   }
 
   /**
@@ -1100,6 +1419,13 @@ export class SchoolTextbookService implements OnModuleInit {
               ts.pages, ts.chunk_count AS "passages", ts.method, ts.quality,
               ts.ingested_at AS "ingestedAt",
               (ts.chapter_id IS NOT NULL AND ts.chunk_count > 0) AS "indexed",
+              -- How many diagrams were cropped from this chapter. Surfaced so a
+              -- teacher can tell "the book has no figures" from "this chapter
+              -- was indexed before figures existed" — both of which otherwise
+              -- look identical: a green Ready tick and a paper with no images.
+              (SELECT count(*)::int FROM textbook_figures tf
+                WHERE tf.chapter_id = c.id
+                  AND tf.institute_id::text = cl.institute_id::text) AS "figures",
               m.material_id AS "materialId",
               (m.material_id IS NOT NULL) AS "hasPdf",
               m.reachable AS "linkReachable",

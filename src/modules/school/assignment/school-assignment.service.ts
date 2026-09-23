@@ -382,7 +382,7 @@ export class SchoolAssignmentService {
        LEFT JOIN sections sec ON a.section_id::text = sec.id::text
        ${submissionJoin}
        WHERE ${filter}
-       ORDER BY a.due_date DESC NULLS LAST, a.created_at DESC`,
+       ORDER BY a.due_date ASC NULLS LAST, a.created_at DESC`,
       params,
     );
     return {

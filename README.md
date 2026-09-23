@@ -1,189 +1,224 @@
-# APEXIQ Backend — NestJS Monolith
+# EDDVA / APEXIQ — Backend
 
-JEE/NEET Battle Learning Platform — Complete backend starter.
+One NestJS application serving **two products** from a single deployment:
 
-## Stack
+- **School** (EDDVA) — institutes, classes, sections, timetables, attendance,
+  fees, assessments, homework, live classes, report cards, parent access.
+- **Coaching** (APEXIQ) — JEE/NEET batches, PYQs, the Battle Arena, study
+  plans, mock tests.
 
-| Layer | Tech |
-|-------|------|
-| Framework | NestJS 10 + TypeScript |
-| Database | PostgreSQL 16 + TypeORM |
-| Cache / Sessions | Redis 7 |
-| Real-time | Socket.io (Battle Arena) |
-| Auth | JWT (access + refresh) + OTP (Twilio) |
-| Background Jobs | BullMQ + @nestjs/schedule |
-| Media | Cloudflare R2 / AWS S3 |
-| Push | Firebase FCM |
-| SMS / WhatsApp | Twilio |
-| API Docs | Swagger (auto-generated) |
+They share the process, the HTTP server and most infrastructure, but they are
+**separate databases with separate authentication**. Understanding that split
+is the first thing a newcomer needs, so it is explained in full below.
 
 ---
 
-## Quick Start
+## Quick start
 
-### 1. Clone and install
-
-```bash
+```sh
 npm install
-cp .env.example .env
-# Edit .env with your DB and Redis credentials
+cp .env.example .env         # then fill in DB, Redis and JWT values
+npm run start:dev            # http://localhost:3000
 ```
 
-### 2. Start services (Docker)
+| | |
+| --- | --- |
+| API base path | `/api/v1` (override with `API_PREFIX`) |
+| Port | `3000` (override with `PORT`) |
+| Swagger UI | `http://localhost:3000/docs` |
 
-```bash
-docker run --name pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=apexiq -p 5432:5432 -d postgres:16
-docker run --name redis -p 6379:6379 -d redis:7
+`start:dev` kills anything already on port 3000 before starting, so a stale
+process from a previous run will not block you.
+
+## Scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm run start:dev` | Development server via ts-node |
+| `npm run start:debug` | Watch mode with the Node inspector attached |
+| `npm run build` | Compile to `dist/` |
+| `npm run start:prod` | Run the compiled build |
+| `npm test` | Jest test suite |
+| `npm run test:watch` / `test:cov` | Watch mode / coverage |
+| `npm run lint` | ESLint with `--fix` |
+| `npm run format` | Prettier over `src/` |
+| `npm run seed` | Seed baseline data |
+| `npm run seed:super-admins` | Create the platform super-admin accounts |
+
+Type checking has no dedicated script — run `npx tsc --noEmit`.
+
+## The two-database architecture
+
+This is the single most important thing to know about this codebase.
+
+The application registers **two TypeORM datasources**:
+
+| Datasource | Connection string | Used by |
+| --- | --- | --- |
+| default (unnamed) | `DB_URL` / `COACHING_DB_URL` | coaching product |
+| `'school'` | `SCHOOL_DB_URL` | everything under `src/modules/school` |
+
+School services inject the named connection:
+
+```ts
+constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
 ```
 
-### 3. Run migrations
+Forgetting the `'school'` name silently gives you the coaching database, where
+the tables you want do not exist. If a school query fails with *relation does
+not exist*, check this first.
 
-```bash
-npm run migration:run
+### Schema management differs per side
+
+**The `src/migrations/` folder is empty, and that is deliberate.** The school
+module does not use TypeORM migrations. Instead, each service creates and
+evolves its own tables at runtime with idempotent SQL:
+
+```ts
+await this.ds.query(`CREATE TABLE IF NOT EXISTS … `);
+await this.ds.query(`ALTER TABLE … ADD COLUMN IF NOT EXISTS … `);
 ```
 
-### 4. Start dev server
+These live in `ensureSchema()`-style methods called at the start of a request
+(guarded by a `schemaReady` flag so they run once per process). Roughly 28
+school files follow this pattern. When adding a column to a school table, add
+an idempotent `ADD COLUMN IF NOT EXISTS` to the relevant `ensure…()` method —
+do not introduce a migration framework for the school side without discussing
+it first.
 
-```bash
-npm run start:dev
+The coaching side retains the TypeORM migration scripts (`migration:generate`,
+`migration:run`, `migration:revert`). Note that the migration chain is known to
+be broken partway; creating tables directly has been the working practice.
+
+## Authentication
+
+The two products have **entirely separate auth stacks**. They are not
+interchangeable, and a token from one is meaningless to the other.
+
+| | Coaching | School |
+| --- | --- | --- |
+| Module | `src/modules/auth` | `src/modules/school-auth`, `src/modules/school/auth` |
+| Guard | `JwtAuthGuard` | `SchoolJwtGuard` |
+| Roles | `RolesGuard` | `SchoolRolesGuard` + `@SchoolRoles(...)` |
+| Tenancy | tenant, by subdomain | `institute_id`, from the user record |
+
+School requests additionally pass through **`SchoolFeatureGuard`**, which
+enforces per-institute module and AI-feature switches declared with
+`@SchoolFeature('module', 'assessments')` or `@SchoolFeature('ai', 'ai_doubt_solver')`.
+
+`SchoolJwtGuard` loads the user from the database on each request (with a short
+cache) and attaches the institute's flags — `inst_ai_enabled`,
+`inst_ai_features`, `inst_modules_permissions` — onto `req.user`. Services that
+need an inline check use `isSchoolAiFeatureEnabled(user, key)` from
+`src/modules/school/common/ai-features.registry.ts`, which resolves exactly as
+the guard does so the two cannot drift apart.
+
+School roles: `SUPER_ADMIN`, `INSTITUTE_ADMIN`, `TEACHER`, `STUDENT`, `PARENT`.
+
+## Module layout
+
+`src/modules/` holds 40 top-level modules. The largest by far is `school/`,
+with roughly 50 submodules of its own:
+
+```text
+src/modules/
+  school/            the school product
+    assessment/      question papers, attempts, grading, the diagram engine
+    textbook/        chapter ingestion, figure extraction, RAG grounding
+    live/            RTMP → HLS classes with Socket.IO interaction
+    attendance/ fee/ timetable/ report/ staff/ student/ parent/ …
+    guards/ decorators/ common/     cross-cutting school concerns
+  auth/ student/ batch/ battle/ pyq/ study-plan/    coaching
+  ai-bridge/         outbound calls to the Django AI service
+  ai-usage/          per-tenant AI usage accounting
+  upload/            R2 / S3 storage (S3Service)
+  notification/ mail/ otp/ chat/ presence/          shared services
+  internal/          service-to-service endpoints (INTERNAL_API_KEY)
 ```
 
-- API: `http://localhost:3000/api/v1`
-- Swagger Docs: `http://localhost:3000/docs`
-- Battle WS: `ws://localhost:3000/battle`
+## The AI service
 
----
+Anything generative — question papers, doubt answers, notes, PPT decks,
+textbook grounding, subjective grading — is produced by a **separate Django
+service** (`eddva_ai_service`), not by this repository. This backend reaches it
+through `src/modules/ai-bridge`.
 
-## Module Structure
+Calls carry a service-account API key plus an `X-Tenant-ID` header holding the
+school's institute UUID, which is how the AI service attributes usage and
+applies that institute's token budget. The AI service calls back into
+`src/modules/internal` to report usage, authenticated with `INTERNAL_API_KEY`.
 
-```
-src/
-├── common/
-│   ├── decorators/      # @CurrentUser, @Public, @TenantId, @Roles
-│   ├── filters/         # Global exception filter
-│   ├── guards/          # JwtAuthGuard, RolesGuard
-│   ├── interceptors/    # Response wrapper interceptor
-│   └── middleware/      # TenantMiddleware (multi-tenancy)
-│
-├── config/              # App, JWT, Redis, AI, OTP, Storage config
-│
-├── database/
-│   ├── entities/        # All 20+ TypeORM entities
-│   └── migrations/      # SQL migrations
-│
-└── modules/
-    ├── auth/            # OTP login, JWT, onboarding       ✅ COMPLETE
-    ├── student/         # Dashboard, weak topics, streak   ✅ SCAFFOLD
-    ├── battle/          # ELO battles + Socket.io gateway  ✅ COMPLETE
-    ├── ai-bridge/       # All 12 AI service adapters       ✅ COMPLETE
-    ├── content/         # Lectures, questions, notes        🔲 TODO
-    ├── assessment/      # Mock tests, gate lock, grading    🔲 TODO
-    ├── analytics/       # Leaderboard, rank prediction      🔲 TODO
-    └── notification/    # Push, WhatsApp, SMS               🔲 TODO
-```
+Relevant configuration: `AI_BASE_URL`, `AI_API_KEY`, `AI_TIMEOUT_MS`, and the
+`AI_ADMISSION_*` family that bounds concurrent AI work per tenant.
 
----
+Not everything labelled "AI" costs a model call. The assessment **diagram
+engine** (`src/modules/school/assessment/diagram/`) renders SVG deterministically
+from validated specifications with no network call at all, and textbook figure
+extraction crops images straight out of the chapter PDF.
 
-## Authentication Flow
+## Real-time
 
-```
-POST /api/v1/auth/otp/send    { phoneNumber }
-→ OTP sent via Twilio SMS (or console in dev mode — OTP is always 123456)
+Socket.IO gateways serve the Battle Arena, chat, presence and school live
+classes (namespace `/school-live`). Redis backs sessions, caching and the
+BullMQ queues used for background work such as media processing.
 
-POST /api/v1/auth/otp/verify  { phoneNumber, otp }
-→ { accessToken, refreshToken, user, isNewUser, onboardingRequired }
+## Storage and media
 
-POST /api/v1/auth/onboard     (requires Bearer token)
-→ { examTarget, class, examYear, dailyStudyHours, language, city }
-→ Creates Student record + PerformanceProfile + ELO
+Uploads go to Cloudflare R2 (S3-compatible) through `S3Service` in
+`src/modules/upload`. `R2_ACCOUNT_ID` must be set — leaving it undefined breaks
+every server-to-R2 TLS connection. Recordings are remuxed with ffmpeg
+(`@ffmpeg-installer/ffmpeg`) and served from the CDN at `LIVE_CDN_BASE_URL`.
 
-POST /api/v1/auth/refresh     { refreshToken }
-→ { accessToken, refreshToken }
-```
+## Environment variables
 
----
+`.env.example` is the authoritative list. The ones you cannot start without:
 
-## Multi-Tenancy
+| Variable | Purpose |
+| --- | --- |
+| `DB_URL` / `COACHING_DB_URL` | Coaching PostgreSQL |
+| `SCHOOL_DB_URL` | School PostgreSQL |
+| `REDIS_URL` | Cache, sessions, queues |
+| `JWT_SECRET`, `JWT_REFRESH_SECRET` | Token signing |
+| `CORS_ORIGINS` | Comma-separated allowed origins |
 
-Every request goes through `TenantMiddleware` which resolves `tenant_id` from:
-1. `X-Tenant-ID` header (admin/internal calls)
-2. Subdomain (e.g. `allen-kota.apexiq.in` → subdomain = `allen-kota`)
-3. Falls back to platform tenant (B2C students)
+Commonly needed beyond that: `AI_BASE_URL` and `AI_API_KEY` (AI features),
+`INTERNAL_API_KEY` (usage callbacks), `AWS_*` / `CLOUDFLARE_ACCOUNT_ID` /
+`R2_ACCOUNT_ID` (storage), `MAIL_*` (email), Twilio credentials (SMS/OTP),
+`FRONTEND_URL`, and `DB_POOL_MAX` / `SCHOOL_DB_POOL_MAX` for pool sizing.
 
-All database queries automatically scoped by `tenant_id`.
-PostgreSQL Row-Level Security policies are enabled in migration.
+`DB_SYNC` must stay **false** outside local experimentation — TypeORM
+synchronisation against these databases will drop data.
 
----
+## Testing
 
-## Battle Arena WebSocket
+Jest, with specs beside the code as `*.spec.ts` and `rootDir` set to `src`.
 
-Connect: `ws://localhost:3000/battle`
-
-```javascript
-// Events Client → Server
-socket.emit('battle:join',   { roomCode, studentId })
-socket.emit('battle:answer', { roomCode, battleId, questionId, optionId, roundNumber, responseTimeMs, studentId })
-
-// Events Server → Client
-socket.on('battle:player_joined', ({ participants }) => ...)
-socket.on('battle:start',        ({ battle, firstQuestion, totalRounds, timePerRound }) => ...)
-socket.on('battle:round_result', ({ roundNumber, winnerId, correctOptionId, scores }) => ...)
-socket.on('battle:question',     ({ question, roundNumber, timeLimit }) => ...)
-socket.on('battle:end',          ({ winnerId, finalScores, eloChanges }) => ...)
-socket.on('battle:opponent_left',({ message }) => ...)
-socket.on('battle:error',        ({ message }) => ...)
+```sh
+npm test
+npx jest src/modules/school/assessment      # one area
 ```
 
----
+Two notes on the current state: `src/modules/chat/chat.service.spec.ts` has
+11 failing tests from a missing provider in its testing module — a known,
+pre-existing failure unrelated to feature work. And `tsc --noEmit` does **not**
+type-check `.spec.ts` files, so a spec can compile-fail only under Jest.
 
-## AI Services (AI Bridge)
+## Deployment
 
-All 12 AI services are called via `AiBridgeService`. Inject it into any module:
+| Branch | Workflow | Target |
+| --- | --- | --- |
+| `dev` | `.github/workflows/deploy-dev.yml` | DEV |
+| `main` | `.github/workflows/deploy.yml` | Production |
 
-```typescript
-constructor(private readonly ai: AiBridgeService) {}
+Both install from `requirements`/`package.json` on the server and restart via
+pm2. Because the school side builds its schema at runtime, a deploy needs no
+migration step — new columns appear on the first request that touches them.
 
-// Resolve a doubt
-const result = await this.ai.resolveDoubt({
-  questionText: 'Why is entropy always positive?',
-  topicId: 'uuid',
-  mode: 'detailed',
-});
+## Repository notes
 
-// Generate study plan
-const plan = await this.ai.generateStudyPlan({
-  studentId: 'uuid',
-  examTarget: 'jee',
-  examYear: '2026',
-  dailyHours: 4,
-  weakTopics: ['topic-uuid-1', 'topic-uuid-2'],
-});
-```
-
----
-
-## Environment Variables
-
-See `.env.example` for all variables. Key ones:
-
-| Variable | Description |
-|----------|-------------|
-| `DB_*` | PostgreSQL connection |
-| `REDIS_*` | Redis connection |
-| `JWT_SECRET` | Access token signing key |
-| `JWT_REFRESH_SECRET` | Refresh token signing key |
-| `OTP_DEV_MODE=true` | Use fixed OTP `123456` in development |
-| `AI_BASE_URL` | Your AI services base URL |
-| `AI_API_KEY` | API key for AI services |
-| `TWILIO_*` | SMS/WhatsApp credentials |
-
----
-
-## Next Modules to Build
-
-1. **Content Module** — lecture CRUD, video upload to R2, STT trigger
-2. **Assessment Module** — quiz gate lock engine, adaptive questions, mock test session
-3. **Analytics Module** — leaderboard computation (CRON), rank prediction
-4. **Notification Module** — BullMQ queue, FCM push, Twilio WhatsApp
-
-Each module follows identical structure to `auth/` and `student/`.
+The root previously accumulated several hundred one-off debugging scripts;
+these were cleared. What remains beside the config files are genuine tools —
+the seed scripts, `run_school_migrations.ts`, `list-routes`, and the
+`add-*` / `create-*` / `drop-*` schema helpers. Those helpers apply ad-hoc DDL
+outside any migration system; prefer the `ensureSchema()` convention for new
+work.
