@@ -34,6 +34,7 @@ import { CareerModule } from './career/career.module';
 import { SchoolStudyPlanModule } from './study-plan/school-study-plan.module';
 import { SchoolPptModule } from './ppt/school-ppt.module';
 import { SchoolTextbookModule } from './textbook/school-textbook.module';
+import { SchoolAiTutorModule } from './ai-tutor/school-ai-tutor.module';
 import { SchoolLiveModule } from './live/school-live.module';
 import { SchoolJwtGuard } from './guards/school-jwt.guard';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
@@ -84,6 +85,7 @@ import { SchoolRolesModule } from './roles/school-roles.module';
     SchoolStudyPlanModule,
     SchoolPptModule,
     SchoolTextbookModule,
+    SchoolAiTutorModule,
     SchoolLiveModule,
     SchoolGamificationModule,
     SchoolSecurityModule,

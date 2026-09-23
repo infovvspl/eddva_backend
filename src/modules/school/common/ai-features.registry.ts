@@ -3,6 +3,7 @@ import { hasSchoolRole } from './role-helper';
 export const AI_FEATURES_REGISTRY = [
   { key: 'ai_doubt_solver', name: 'AI Doubt Solver', defaultEnabled: true },
   { key: 'ai_study_planner', name: 'AI Study Planner', defaultEnabled: true },
+  { key: 'ai_tutor', name: 'AI Tutor (student chatbot)', defaultEnabled: true },
   { key: 'ai_career_guidance', name: 'AI Career Guidance', defaultEnabled: true },
   { key: 'ai_notes_generator', name: 'AI Notes Generator', defaultEnabled: true },
   { key: 'ai_quiz_generator', name: 'AI Quiz Generator', defaultEnabled: true },

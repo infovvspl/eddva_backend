@@ -45,6 +45,53 @@ export interface TeacherRecordingAnalysis {
   _meta?: Record<string, any>;
 }
 
+export interface AiTutorChatPayload {
+  message: string;
+  history: Array<{ role: 'student' | 'tutor'; content: string }>;
+  student: { className?: string; board?: string; subjectName?: string; chapterName?: string; topicName?: string };
+  passages: any[];
+  allowWeb?: boolean;
+}
+
+export interface AiTutorSource {
+  id: string;
+  kind: 'course' | 'web';
+  type?: 'textbook' | 'lecture';
+  title: string;
+  label?: string;
+  url?: string;
+  site?: string;
+  excerpt?: string;
+}
+
+export interface AiTutorImage {
+  title: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  source: string;
+  pageUrl: string;
+}
+
+export interface AiTutorVideo {
+  title: string;
+  url: string;
+  videoId: string;
+  thumbnailUrl: string;
+  channel: string;
+  duration: string;
+}
+
+export interface AiTutorChatResult {
+  answer: string;
+  syllabusStatus: 'in_syllabus' | 'supporting' | 'beyond_syllabus';
+  usedWeb: boolean;
+  courseMatched: boolean;
+  sources: AiTutorSource[];
+  images?: AiTutorImage[];
+  videos?: AiTutorVideo[];
+  _meta?: Record<string, any>;
+}
+
 @Injectable()
 export class AiBridgeService {
   private readonly logger = new Logger(AiBridgeService.name);
@@ -75,6 +122,7 @@ export class AiBridgeService {
     '/doubt/ocr-image':     { feature: 'image_ocr_handwriting',  provider: 'groq_vision' },
     '/tutor/session':       { feature: 'tutor',                  provider: 'groq' },
     '/tutor/continue':      { feature: 'tutor',                  provider: 'groq' },
+    '/ai-tutor/chat':       { feature: 'ai_tutor',               provider: 'groq_serper' },
     '/stt/transcribe':      { feature: 'lecture_transcription',  provider: 'whisper_sarvam' },
     '/stt/notes':           { feature: 'ai_lecture_notes',       provider: 'whisper_llm' },
     '/stt/notes-from-text': { feature: 'ai_lecture_notes',       provider: 'groq_gemini' },
@@ -368,6 +416,13 @@ export class AiBridgeService {
     _meta?: { model?: string; latency_ms?: number };
   }> {
     return this.post('/grading/subjective-answer', payload, tenantId, 30_000, vertical, board);
+  }
+
+  // ── School AI Tutor (student chatbot) ─────────────────────────────────────
+  // Separate from the AI #2 tutor/session flow below: stateless on the AI side,
+  // the caller sends history + course passages and persists the reply.
+  async aiTutorChat(payload: AiTutorChatPayload, tenantId?: string, board?: string): Promise<AiTutorChatResult> {
+    return this.post<AiTutorChatResult>('/ai-tutor/chat', payload, tenantId, 60_000, 'school', board);
   }
 
   // ── AI #2 — AI Tutor ──────────────────────────────────────────────────────

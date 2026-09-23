@@ -38,6 +38,7 @@ export const ADMISSION_POOL_BY_PATH: Readonly<Record<string, AdmissionPool>> = {
   '/doubt/ocr-image': AdmissionPool.INTERACTIVE,
   '/tutor/session': AdmissionPool.INTERACTIVE,
   '/tutor/continue': AdmissionPool.INTERACTIVE,
+  '/ai-tutor/chat': AdmissionPool.INTERACTIVE,
   '/quiz/generate': AdmissionPool.INTERACTIVE,
   '/translate': AdmissionPool.INTERACTIVE,
   '/grading/subjective-answer': AdmissionPool.INTERACTIVE,
