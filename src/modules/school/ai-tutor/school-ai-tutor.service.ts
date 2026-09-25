@@ -247,6 +247,9 @@ export class SchoolAiTutorService implements OnModuleInit {
       sources: row.sources ?? [],
       images: row.media?.images ?? [],
       videos: row.media?.videos ?? [],
+      quiz: row.media?.quiz ?? null,
+      mediaPending: !!row.media?.mediaPending,
+      quizResult: row.media?.quizResult ?? null,
       syllabusStatus: row.syllabus_status ?? null,
       usedWeb: !!row.used_web,
       createdAt: row.created_at,
@@ -418,6 +421,7 @@ export class SchoolAiTutorService implements OnModuleInit {
       result = await this.aiBridge.aiTutorChat(
         {
           message: question,
+          mode: dto.mode,
           history: historyRows.reverse().map((m: any) => ({ role: m.role, content: String(m.content).slice(0, 1500) })),
           student: {
             className: student.class_name,
@@ -456,7 +460,13 @@ export class SchoolAiTutorService implements OnModuleInit {
           conversationId,
           result.answer,
           JSON.stringify(result.sources ?? []),
-          JSON.stringify({ images: result.images ?? [], videos: result.videos ?? [] }),
+          JSON.stringify({
+            images: [],
+            videos: [],
+            quiz: result.quiz ?? null,
+            mediaPending: !!result.wantMedia && !!result.mediaQuery,
+            mediaQuery: result.mediaQuery ?? '',
+          }),
           result.syllabusStatus ?? null,
           !!result.usedWeb,
         ],
@@ -476,5 +486,84 @@ export class SchoolAiTutorService implements OnModuleInit {
       studentMessage: this.toMessage(saved.studentMsg),
       tutorMessage: this.toMessage(saved.tutorMsg),
     };
+  }
+
+  /**
+   * Pictures and videos for an answer, fetched after the answer so the student
+   * can start reading at once. Fetched once: the result (even an empty one, on
+   * failure) is stored and returned on later calls.
+   */
+  async loadMedia(user: any, conversationId: string, messageId: string) {
+    await this.ensureTables();
+    const student = await this.getStudent(user);
+    const conv = await this.getOwnedConversation(student.student_id, conversationId);
+    const rows = await this.ds.query(
+      `SELECT media FROM school_ai_tutor_messages WHERE id = $1 AND conversation_id = $2 AND role = 'tutor'`,
+      [messageId, conversationId],
+    );
+    if (!rows.length) throw new NotFoundException('Message not found');
+    const media = rows[0].media ?? {};
+    if (!media.mediaPending) {
+      return { images: media.images ?? [], videos: media.videos ?? [] };
+    }
+
+    let images: any[] = [];
+    let videos: any[] = [];
+    try {
+      ({ images, videos } = await this.aiBridge.aiTutorMedia(
+        {
+          query: media.mediaQuery,
+          student: {
+            className: student.class_name,
+            subjectName: conv.subject_name ?? undefined,
+            chapterName: conv.chapter_name ?? undefined,
+            topicName: conv.topic_name ?? undefined,
+          },
+        },
+        this.instituteId(user),
+      ));
+    } catch (err) {
+      this.logger.warn(`AI tutor media failed for message ${messageId}: ${(err as Error).message}`);
+    }
+    await this.ds.query(
+      `UPDATE school_ai_tutor_messages
+       SET media = COALESCE(media, '{}'::jsonb) || $2::jsonb
+       WHERE id = $1`,
+      [messageId, JSON.stringify({ images: images ?? [], videos: videos ?? [], mediaPending: false })],
+    );
+    return { images: images ?? [], videos: videos ?? [] };
+  }
+
+  /**
+   * Record a finished quiz. The score is worked out here from the stored
+   * correct answers, never taken from the client.
+   */
+  async saveQuizResult(user: any, conversationId: string, messageId: string, answers: number[]) {
+    await this.ensureTables();
+    const student = await this.getStudent(user);
+    await this.getOwnedConversation(student.student_id, conversationId);
+    const rows = await this.ds.query(
+      `SELECT media FROM school_ai_tutor_messages WHERE id = $1 AND conversation_id = $2 AND role = 'tutor'`,
+      [messageId, conversationId],
+    );
+    const questions: Array<{ answerIndex: number }> = rows[0]?.media?.quiz?.questions ?? [];
+    if (!questions.length) throw new NotFoundException('Quiz not found');
+    if (answers.length !== questions.length) {
+      throw new BadRequestException(`Expected ${questions.length} answers`);
+    }
+
+    const quizResult = {
+      answers,
+      score: answers.filter((a, i) => a === questions[i].answerIndex).length,
+      total: questions.length,
+      completedAt: new Date().toISOString(),
+    };
+    await this.ds.query(
+      `UPDATE school_ai_tutor_messages
+       SET media = jsonb_set(COALESCE(media, '{}'::jsonb), '{quizResult}', $2::jsonb)
+       WHERE id = $1`,
+      [messageId, JSON.stringify(quizResult)],
+    );
+    return { quizResult };
   }
 }

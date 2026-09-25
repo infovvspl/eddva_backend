@@ -45,6 +45,8 @@ export const ADMISSION_POOL_BY_PATH: Readonly<Record<string, AdmissionPool>> = {
 
   // ── Background ────────────────────────────────────────────────────────────
   '/stt/transcribe': AdmissionPool.BACKGROUND,
+  // Loads under an answer the student is already reading; must not starve chat.
+  '/ai-tutor/media': AdmissionPool.BACKGROUND,
   '/stt/notes': AdmissionPool.BACKGROUND,
   '/stt/notes-from-text': AdmissionPool.BACKGROUND,
   '/stt/notes-from-youtube': AdmissionPool.BACKGROUND,

@@ -6,7 +6,7 @@ import { SchoolFeature } from '../decorators/school-feature.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolAiTutorService } from './school-ai-tutor.service';
-import { CreateTutorConversationDto, SendTutorMessageDto } from './school-ai-tutor.dto';
+import { CreateTutorConversationDto, SaveQuizResultDto, SendTutorMessageDto } from './school-ai-tutor.dto';
 
 @Controller('school/ai-tutor')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
@@ -47,5 +47,24 @@ export class SchoolAiTutorController {
     @Body() dto: SendTutorMessageDto,
   ) {
     return this.service.sendMessage(user, id, dto);
+  }
+
+  @Post('conversations/:id/messages/:messageId/media')
+  loadMedia(
+    @SchoolUser() user: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+  ) {
+    return this.service.loadMedia(user, id, messageId);
+  }
+
+  @Post('conversations/:id/messages/:messageId/quiz-result')
+  saveQuizResult(
+    @SchoolUser() user: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @Body() dto: SaveQuizResultDto,
+  ) {
+    return this.service.saveQuizResult(user, id, messageId, dto.answers);
   }
 }

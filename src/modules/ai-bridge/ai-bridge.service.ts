@@ -45,8 +45,11 @@ export interface TeacherRecordingAnalysis {
   _meta?: Record<string, any>;
 }
 
+export type AiTutorMode = 'chat' | 'quiz' | 'practice';
+
 export interface AiTutorChatPayload {
   message: string;
+  mode?: AiTutorMode;
   history: Array<{ role: 'student' | 'tutor'; content: string }>;
   student: { className?: string; board?: string; subjectName?: string; chapterName?: string; topicName?: string };
   passages: any[];
@@ -81,15 +84,30 @@ export interface AiTutorVideo {
   duration: string;
 }
 
+export interface AiTutorQuizQuestion {
+  question: string;
+  options: string[];
+  answerIndex: number;
+  explanation: string;
+}
+
 export interface AiTutorChatResult {
   answer: string;
+  mode?: AiTutorMode;
+  quiz?: { questions: AiTutorQuizQuestion[] };
   syllabusStatus: 'in_syllabus' | 'supporting' | 'beyond_syllabus';
   usedWeb: boolean;
   courseMatched: boolean;
   sources: AiTutorSource[];
-  images?: AiTutorImage[];
-  videos?: AiTutorVideo[];
+  /** When true, fetch pictures/videos separately with aiTutorMedia(mediaQuery). */
+  wantMedia?: boolean;
+  mediaQuery?: string;
   _meta?: Record<string, any>;
+}
+
+export interface AiTutorMediaResult {
+  images: AiTutorImage[];
+  videos: AiTutorVideo[];
 }
 
 @Injectable()
@@ -423,6 +441,14 @@ export class AiBridgeService {
   // the caller sends history + course passages and persists the reply.
   async aiTutorChat(payload: AiTutorChatPayload, tenantId?: string, board?: string): Promise<AiTutorChatResult> {
     return this.post<AiTutorChatResult>('/ai-tutor/chat', payload, tenantId, 60_000, 'school', board);
+  }
+
+  /** Pictures (Gemini-checked) and YouTube videos for an answer — slower, so loaded after it. */
+  async aiTutorMedia(
+    payload: { query: string; student: AiTutorChatPayload['student'] },
+    tenantId?: string,
+  ): Promise<AiTutorMediaResult> {
+    return this.post<AiTutorMediaResult>('/ai-tutor/media', payload, tenantId, 90_000, 'school');
   }
 
   // ── AI #2 — AI Tutor ──────────────────────────────────────────────────────
