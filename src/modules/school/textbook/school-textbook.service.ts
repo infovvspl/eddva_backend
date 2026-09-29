@@ -388,15 +388,22 @@ export class SchoolTextbookService {
       // are a known curriculum-dedup artifact: a PDF gets indexed under one "The
       // Cell" row while a deck/paper is generated for another, so an exact
       // chapter_id match finds nothing even though the book IS indexed — the
-      // teacher then sees "General knowledge" on an indexed chapter. Match any
-      // chapter of the same name in this institute that actually has chunks.
+      // teacher then sees "General knowledge" on an indexed chapter. Match a
+      // chapter of the same name in the same subject AND class — matching on
+      // name alone, institute-wide, let a same-named chapter in an unrelated
+      // subject supply the wrong book (e.g. two "Carbon"-adjacent chapters
+      // across Science sub-topics colliding on a normalized name).
       const byName = await this.ds.query(
         `SELECT tc.page_no, tc.chunk_index, tc.content, tc.tokens
          FROM textbook_chunks tc
          JOIN chapters c_idx ON c_idx.id::text = tc.chapter_id::text
+         JOIN subjects s_idx ON s_idx.id = c_idx.subject_id
          JOIN chapters c_sel ON c_sel.id::text = $2::text
+         JOIN subjects s_sel ON s_sel.id = c_sel.subject_id
          WHERE tc.institute_id::text = $1::text
            AND LOWER(TRIM(c_idx.name)) = LOWER(TRIM(c_sel.name))
+           AND c_idx.subject_id = c_sel.subject_id
+           AND s_idx.class_id IS NOT DISTINCT FROM s_sel.class_id
          ORDER BY tc.page_no NULLS LAST, tc.chunk_index`,
         [instituteId, chapterId],
       );
@@ -676,28 +683,48 @@ export class SchoolTextbookService {
     return { cancelled: true, done: r.done, total: r.total };
   }
 
-  /** Chapters worth indexing: has a PDF, known reachable, and not already done. */
+  /**
+   * Chapters worth indexing: has a reachable PDF, and either never indexed or
+   * indexed against a file that is no longer the one linked to the chapter.
+   *
+   * The newest-PDF-per-chapter pick has to happen before the "already done"
+   * check, not folded into the same WHERE — filtering rows first and then
+   * taking DISTINCT ON's newest survivor would let a stale *older* material
+   * pass just because it happens to match textbook_sources, silently
+   * re-indexing the chapter against the wrong, outdated file instead of the
+   * one a teacher actually uploaded last.
+   *
+   * Comparing by material_id (not just "has any chunks") is the fix for a
+   * real incident: a chapter got indexed once against the wrong PDF, the
+   * correct PDF was uploaded right after, and because chunk_count was already
+   * > 0 the chapter was never picked up again — the coverage screen showed it
+   * READY while every generation for it quoted the wrong chapter's text.
+   */
   private async pendingMaterials(instituteId: string, opts: { reindex?: boolean; limit?: number }) {
-    const skipIndexed = opts.reindex
-      ? ''
-      : `AND NOT EXISTS (SELECT 1 FROM textbook_sources ts
-                         WHERE ts.chapter_id::text = c.id::text AND ts.chunk_count > 0)`;
-    return this.ds.query(
-      `SELECT DISTINCT ON (c.id) sm.id AS material_id, c.id AS chapter_id, c.name AS chapter_name
-       FROM study_materials sm
-       JOIN chapters c ON c.id = sm.chapter_id
-       JOIN subjects s ON s.id = c.subject_id
-       LEFT JOIN classes cl ON cl.id = s.class_id
-       LEFT JOIN textbook_link_status ls ON ls.material_id::text = sm.id::text
-       WHERE cl.institute_id::text = $1::text
-         AND sm.s3_key ILIKE '%.pdf' AND sm.is_active
-         -- Unaudited links are attempted; only a link known to be dead is skipped.
-         AND (ls.reachable IS NULL OR ls.reachable = TRUE)
-         ${skipIndexed}
-       ORDER BY c.id, sm.created_at DESC
-       LIMIT $2`,
-      [instituteId, opts.limit ?? 500],
+    const rows = await this.ds.query(
+      `SELECT newest.material_id, newest.chapter_id, newest.chapter_name
+       FROM (
+         SELECT DISTINCT ON (c.id) sm.id AS material_id, c.id AS chapter_id, c.name AS chapter_name
+         FROM study_materials sm
+         JOIN chapters c ON c.id = sm.chapter_id
+         JOIN subjects s ON s.id = c.subject_id
+         LEFT JOIN classes cl ON cl.id = s.class_id
+         LEFT JOIN textbook_link_status ls ON ls.material_id::text = sm.id::text
+         WHERE cl.institute_id::text = $1::text
+           AND sm.s3_key ILIKE '%.pdf' AND sm.is_active
+           -- Unaudited links are attempted; only a link known to be dead is skipped.
+           AND (ls.reachable IS NULL OR ls.reachable = TRUE)
+         ORDER BY c.id, sm.created_at DESC
+       ) newest
+       LEFT JOIN textbook_sources ts ON ts.chapter_id::text = newest.chapter_id::text
+       WHERE $2::boolean
+          OR ts.chapter_id IS NULL
+          OR ts.chunk_count = 0
+          OR ts.material_id::text <> newest.material_id::text
+       LIMIT $3`,
+      [instituteId, !!opts.reindex, opts.limit ?? 500],
     );
+    return rows;
   }
 
   /**
@@ -833,7 +860,14 @@ export class SchoolTextbookService {
               -- right book was indexed rather than trusting a green tick.
               m.s3_key AS "fileUrl",
               COALESCE(NULLIF(m.title,''), regexp_replace(m.s3_key, '^.*/', '')) AS "fileName",
-              m.uploaded_at AS "uploadedAt"
+              m.uploaded_at AS "uploadedAt",
+              -- Indexed, but against a PDF that isn't the one linked any more —
+              -- a newer file was uploaded after the last (successful) index and
+              -- nothing re-ran it. Distinct from "indexed" so the screen can
+              -- show it needs a re-index instead of a plain green tick.
+              (ts.chapter_id IS NOT NULL AND ts.chunk_count > 0
+                 AND m.material_id IS NOT NULL
+                 AND ts.material_id::text <> m.material_id::text) AS "stale"
        FROM chapters c
        JOIN subjects s ON s.id = c.subject_id
        LEFT JOIN classes cl ON cl.id = s.class_id
