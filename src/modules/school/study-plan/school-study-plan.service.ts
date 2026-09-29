@@ -209,20 +209,54 @@ export class SchoolStudyPlanService implements OnModuleInit {
       throw new BadRequestException('No subjects assigned to your section.');
     }
 
-    // Fetch chapters and topics
-    const topics = await this.ds.query(
-      `SELECT t.id AS topic_id, t.name AS topic_name, chap.name AS chapter_name, sub.name AS subject_name, sub.id AS subject_id
-       FROM topics t
-       JOIN chapters chap ON t.chapter_id = chap.id
+    // Fetch chapters and topics. LEFT JOIN so a chapter with no topics yet
+    // still produces one row (topic_id NULL) instead of vanishing — topics
+    // are an optional refinement on top of chapters, not a requirement to
+    // generate a plan.
+    const chapterTopicRows = await this.ds.query(
+      `SELECT chap.id AS chapter_id, chap.name AS chapter_name,
+              sub.id AS subject_id, sub.name AS subject_name,
+              t.id AS topic_id, t.name AS topic_name
+       FROM chapters chap
        JOIN subjects sub ON chap.subject_id = sub.id
+       LEFT JOIN topics t ON t.chapter_id = chap.id
        WHERE sub.id = ANY($1)
        ORDER BY sub.name, chap.sort_order, chap.name, t.sort_order, t.name`,
       [subjectIds]
     );
 
-    if (!topics.length) {
-      throw new BadRequestException('No topics found in curriculum.');
+    if (!chapterTopicRows.length) {
+      throw new BadRequestException('No chapters found in curriculum.');
     }
+
+    // Chapters with no topic at all get one created on the fly, named after
+    // the chapter. Every downstream feature (AI tutor, quizzes, revision,
+    // progress tracking) keys off a real row in `topics`, so this backfill
+    // — rather than threading a nullable topic_id through all of them — is
+    // what actually makes "topics" optional for the teacher.
+    const createdTopicByChapter = new Map<string, { id: string; name: string }>();
+    for (const row of chapterTopicRows) {
+      if (row.topic_id || createdTopicByChapter.has(row.chapter_id)) continue;
+      const created = await this.ds.query(
+        `INSERT INTO topics (chapter_id, institute_id, name, sort_order) VALUES ($1, $2, $3, 1) RETURNING id, name`,
+        [row.chapter_id, user.instituteId, row.chapter_name]
+      );
+      createdTopicByChapter.set(row.chapter_id, created[0]);
+    }
+
+    const topics = chapterTopicRows.map((row: any) => {
+      if (row.topic_id) {
+        return {
+          topic_id: row.topic_id, topic_name: row.topic_name,
+          chapter_name: row.chapter_name, subject_name: row.subject_name, subject_id: row.subject_id,
+        };
+      }
+      const created = createdTopicByChapter.get(row.chapter_id)!;
+      return {
+        topic_id: created.id, topic_name: created.name,
+        chapter_name: row.chapter_name, subject_name: row.subject_name, subject_id: row.subject_id,
+      };
+    });
 
     // Determine weak subjects from past assessments
     const weakSubjectRows = await this.ds.query(

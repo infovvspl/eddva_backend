@@ -22,6 +22,17 @@ export interface AiRequestContext {
   userId?: string | null;
   userRole?: string | null;
   requestId?: string | null;
+  /**
+   * P0-4.4: TRUSTED institute/tenant id for admission control.
+   *
+   * Set ONLY from the guard-verified `request.user` (school JWTs carry
+   * `instituteId`, coaching JWTs carry `tenantId`) or, for background jobs, from
+   * the institute persisted when the job was enqueued. Never from
+   * `x-tenant-id` / `x-tenant-subdomain` / the request body — the P0-4.4 audit
+   * found `@TenantId()` can fall back to those client-supplied headers, which
+   * would let one institute consume another's admission slots.
+   */
+  instituteId?: string | null;
 }
 
 export const aiRequestStorage = new AsyncLocalStorage<AiRequestContext>();

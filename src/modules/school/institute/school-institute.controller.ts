@@ -8,6 +8,7 @@ import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { SchoolPublic } from '../decorators/school-public.decorator';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { PlatformConfig } from '../../../database/entities/payment.entity';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Controller('school/institutes')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
@@ -45,7 +46,7 @@ export class SchoolInstituteController {
   @Get(':id')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STUDENT')
   findOne(@Param('id') id: string, @SchoolUser() user: any) {
-    const isSuperAdmin = user.role?.toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && user.instituteId && user.instituteId !== id) {
       throw new ForbiddenException('You are not authorized to view this institute');
     }
@@ -55,7 +56,7 @@ export class SchoolInstituteController {
   @Put(':id')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
   update(@Param('id') id: string, @Body() body: any, @SchoolUser() user: any) {
-    const isSuperAdmin = user.role?.toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && user.instituteId && user.instituteId !== id) {
       throw new ForbiddenException('You are not authorized to update this institute');
     }

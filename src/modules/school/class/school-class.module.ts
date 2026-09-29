@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { UploadModule } from '../../upload/upload.module';
 import { AiBridgeModule } from '../../ai-bridge/ai-bridge.module';
+import { SchoolTextbookModule } from '../textbook/school-textbook.module';
 import { SchoolClassService } from './school-class.service';
 import { SchoolClassController } from './school-class.controller';
 import { ThumbnailService } from './thumbnail.service';
@@ -15,6 +16,7 @@ import { LectureProcessor } from './lecture.processor';
   imports: [
     UploadModule,
     AiBridgeModule,
+    SchoolTextbookModule,
     R2Module,
     // Dedicated durable queue for lecture processing (P0-2), isolated from the
     // real-time AI path and from RECORDINGS_QUEUE. Uses the global Bull Redis

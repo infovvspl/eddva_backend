@@ -1,8 +1,0 @@
-require('dotenv').config();
-const { DataSource } = require('typeorm');
-const ds = new DataSource({ type: 'postgres', url: process.env.SCHOOL_DB_URL, ssl: { rejectUnauthorized: false } });
-ds.initialize().then(async () => {
-  const users = await ds.query('SELECT id, full_name, profile_picture_url FROM users');
-  console.log(users);
-  ds.destroy();
-}).catch(console.error);

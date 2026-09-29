@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolActivityLogService {
@@ -14,7 +15,7 @@ export class SchoolActivityLogService {
   }
 
   async list(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.instituteId || user.instituteId) : user.instituteId;
     let sql = `SELECT al.*,u.name AS user_name,u.role AS user_role FROM activity_logs al LEFT JOIN users u ON al.user_id=u.id WHERE al.institute_id=$1`;
     const params: any[] = [instituteId];
     if (query.userId) { params.push(query.userId); sql += ` AND al.user_id=$${params.length}`; }
@@ -30,7 +31,7 @@ export class SchoolActivityLogService {
   }
 
   async createLog(user: any, body: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (body.instituteId || user.instituteId) : user.instituteId;
     await this.log(instituteId, body.userId || user.id, body.action, body.details);
     return { success: true, message: 'Activity logged' };
   }

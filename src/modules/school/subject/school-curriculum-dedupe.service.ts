@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { normalizeSubjectName } from './school-subject.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 /**
  * Curriculum de-duplication.
@@ -88,7 +89,7 @@ export class SchoolCurriculumDedupeService {
 
   /** Staff act on their own institute; a super-admin has none and must name one. */
   private resolveInstitute(user: any, requestedId?: string | null): string {
-    const isSuper = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuper = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     const id = isSuper ? (requestedId || user?.instituteId) : user?.instituteId;
     if (!id) {
       throw new BadRequestException(

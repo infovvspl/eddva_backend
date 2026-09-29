@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolFeeService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
 
   async list(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.instituteId || user.instituteId) : user.instituteId;
     let whereClause = `WHERE f.institute_id=$1`;
     const params: any[] = [instituteId];
     if (query.status) { params.push(query.status); whereClause += ` AND f.status=$${params.length}`; }
@@ -38,7 +39,7 @@ export class SchoolFeeService {
   }
 
   async create(user: any, body: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (body.instituteId || user.instituteId) : user.instituteId;
     const rows: any[] = await this.ds.query(
       `INSERT INTO fees (institute_id,student_id,fee_type,amount,due_date,paid_date,status,remarks)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,

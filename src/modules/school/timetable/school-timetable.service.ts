@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 const DAY_MAP: Record<string, number> = {
   'MONDAY': 1,
@@ -127,7 +128,7 @@ export class SchoolTimetableService {
 
   // Timetables
   async listTimetables(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.instituteId || user.instituteId) : user.instituteId;
     
     const page = Math.max(1, parseInt(query.page) || 1);
     const limit = Math.max(1, parseInt(query.limit) || 100);
@@ -136,7 +137,7 @@ export class SchoolTimetableService {
     let filterQuery = `WHERE t.institute_id::text=$1::text`;
     const params: any[] = [instituteId];
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
       const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
       if (sectionId) {
@@ -145,7 +146,7 @@ export class SchoolTimetableService {
       } else {
         filterQuery += ` AND 1=0`;
       }
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id = $1 AND (
           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
@@ -159,7 +160,7 @@ export class SchoolTimetableService {
       } else {
         filterQuery += ` AND 1=0`;
       }
-    } else if (user.role === 'TEACHER') {
+    } else if (hasSchoolRole(user.role, 'TEACHER')) {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
@@ -373,12 +374,12 @@ export class SchoolTimetableService {
   }
 
   async createTimetable(user: any, body: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (body.instituteId || user.instituteId) : user.instituteId;
     const dayOfWeekInt = DAY_MAP[body.dayOfWeek?.toUpperCase()] || 1;
 
     // Validate assignment
     // If it's a teacher creating, enforce teacherId
-    if (user.role === 'TEACHER') {
+    if (hasSchoolRole(user.role, 'TEACHER')) {
       const teachRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       if (teachRows.length) {
         body.teacherId = teachRows[0].id;
@@ -701,7 +702,7 @@ export class SchoolTimetableService {
   }
 
   async bulkUpdate(user: any, body: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (body.instituteId || user.instituteId) : user.instituteId;
     const sectionId = body.sectionId;
     const slots = body.slots || [];
 

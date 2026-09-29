@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolComplaintService implements OnModuleInit {
@@ -101,14 +102,14 @@ export class SchoolComplaintService implements OnModuleInit {
     if (!rows.length) throw new NotFoundException('Complaint not found');
     const complaint = rows[0];
 
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     if (isSuperAdmin) return complaint;
 
     if (String(complaint.institute_id) !== String(user.instituteId)) {
       throw new ForbiddenException('You do not have access to this ticket');
     }
 
-    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+    const isInstituteAdmin = hasSchoolRole(user?.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user?.role, 'ADMIN');
     if (!isInstituteAdmin && String(complaint.user_id) !== String(user.id)) {
       throw new ForbiddenException('You do not have access to this ticket');
     }
@@ -117,7 +118,7 @@ export class SchoolComplaintService implements OnModuleInit {
 
   async list(user: any, query: any, connection: 'school' | 'coaching' = 'school') {
     const ds = this.getDs(connection);
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.instituteId || user.instituteId) : user.instituteId;
     const userNameColumn = connection === 'coaching' ? 'u.full_name' : 'u.name';
     let filter = `1=1`;
     const params: any[] = [];
@@ -127,8 +128,8 @@ export class SchoolComplaintService implements OnModuleInit {
       filter = `c.institute_id=$1`;
     }
 
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
-    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
+    const isInstituteAdmin = hasSchoolRole(user?.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user?.role, 'ADMIN');
 
     if (!isSuperAdmin && !isInstituteAdmin) {
       params.push(user.id);
@@ -224,7 +225,7 @@ export class SchoolComplaintService implements OnModuleInit {
 
   async create(user: any, body: any, connection: 'school' | 'coaching' = 'school') {
     const ds = this.getDs(connection);
-    const instituteId = user.role === 'SUPER_ADMIN' ? (body.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (body.instituteId || user.instituteId) : user.instituteId;
     const rows: any[] = await ds.query(
       `INSERT INTO complaints (institute_id,user_id,title,description,status) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [instituteId, user.id, body.title, body.description || null, body.status || 'OPEN'],
@@ -343,7 +344,7 @@ export class SchoolComplaintService implements OnModuleInit {
     const ds = this.getDs(connection);
     await this.findComplaintForUser(id, user, connection);
 
-    if (user.role !== 'SUPER_ADMIN') {
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       throw new ForbiddenException('Only super admins can reply to platform support tickets');
     }
 

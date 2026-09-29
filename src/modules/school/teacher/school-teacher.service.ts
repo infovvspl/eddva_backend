@@ -2,10 +2,17 @@ import { BadRequestException, Injectable, NotFoundException, ForbiddenException,
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolTeacherService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) { }
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly aiBridgeService: AiBridgeService,
+  ) { }
+
+  private readonly logger = new Logger(SchoolTeacherService.name);
 
   private parseJsonArray(val: any): any[] {
     if (!val) return [];
@@ -78,9 +85,8 @@ export class SchoolTeacherService {
   }
 
   private async resolveInstituteId(user: any, bodyId?: string): Promise<string> {
-    const role = String(user.role || '').toUpperCase();
     const userInstituteId = user.instituteId || user.institute_id || null;
-    if (role === 'SUPER_ADMIN') {
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       if (userInstituteId) {
         if (bodyId && bodyId !== userInstituteId) throw new BadRequestException('Unauthorized institute access');
         return userInstituteId;
@@ -92,9 +98,8 @@ export class SchoolTeacherService {
   }
 
   private async resolveOptionalInstituteId(user: any, requestedInstituteId?: string): Promise<string | null> {
-    const role = String(user.role || '').toUpperCase();
     const userInstituteId = user.instituteId || user.institute_id || null;
-    if (role === 'SUPER_ADMIN') {
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       if (userInstituteId) {
         if (requestedInstituteId && requestedInstituteId !== 'ALL' && requestedInstituteId !== userInstituteId) {
           throw new BadRequestException('Unauthorized institute access');
@@ -487,7 +492,7 @@ export class SchoolTeacherService {
       filter += ` AND u.institute_id=$${params.length}`;
     }
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
       const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
       if (sectionId) {
@@ -499,7 +504,7 @@ export class SchoolTeacherService {
       } else {
         filter += ` AND 1=0`;
       }
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id = $1 AND (
           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
@@ -693,7 +698,7 @@ export class SchoolTeacherService {
   }
 
   async findOne(user: any, id: string) {
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     const instituteId = isSuperAdmin ? null : user?.instituteId;
 
     let queryStr = `SELECT u.*,
@@ -786,7 +791,7 @@ export class SchoolTeacherService {
       totalStudents = studentsRow[0]?.c || 0;
       assignmentsCreated = assignsRow[0]?.c || 0;
       assessmentsConducted = assessRow[0]?.c || 0;
-    } else if (r.role === 'INSTITUTE_ADMIN') {
+    } else if (hasSchoolRole(r.role, 'INSTITUTE_ADMIN')) {
       const joinDate = new Date(r.created_at);
       const today = new Date();
       const diffTime = Math.abs(today.getTime() - joinDate.getTime());
@@ -881,7 +886,7 @@ export class SchoolTeacherService {
   }
 
   async update(user: any, id: string, body: any) {
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && user) {
       const targetInstRow = await this.ds.query(
         `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM teachers WHERE id = $1 LIMIT 1`,
@@ -1121,7 +1126,7 @@ export class SchoolTeacherService {
    * "TEACHER,INSTITUTE_ADMIN". A dedicated route keeps both meanings intact.
    */
   async setAdminRole(user: any, id: string, isAdmin: boolean) {
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && user) {
       const targetInstRow = await this.ds.query(`SELECT institute_id FROM users WHERE id=$1`, [id]);
       if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(user.instituteId)) {
@@ -1215,7 +1220,7 @@ export class SchoolTeacherService {
       targetId = user;
     }
 
-    const isSuperAdmin = String(reqUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+    const isSuperAdmin = hasSchoolRole(reqUser?.role, 'SUPER_ADMIN');
     if (!isSuperAdmin && reqUser) {
       const targetInstRow = await this.ds.query(
         `SELECT institute_id FROM users WHERE id = $1 UNION SELECT institute_id FROM teachers WHERE id = $1 LIMIT 1`,
@@ -1232,7 +1237,6 @@ export class SchoolTeacherService {
 
   // ── Teacher Video Performance Analysis ────────────────────────────────────
 
-  private readonly GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
   private analysisColumnsReady = false;
 
   private async ensureAnalysisColumns() {
@@ -1256,7 +1260,7 @@ export class SchoolTeacherService {
 
   async getTeacherRecordings(user: any, teacherId: string, query: any) {
     await this.ensureAnalysisColumns();
-    const instituteId = user.role === 'SUPER_ADMIN'
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN')
       ? (query.instituteId ?? (() => { throw new BadRequestException('instituteId required'); })())
       : user.instituteId;
     const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
@@ -1298,7 +1302,7 @@ export class SchoolTeacherService {
 
   async getTeacherRecordingsSummary(user: any, teacherId: string, query: any) {
     await this.ensureAnalysisColumns();
-    const instituteId = user.role === 'SUPER_ADMIN'
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN')
       ? (query.instituteId ?? (() => { throw new BadRequestException('instituteId required'); })())
       : user.instituteId;
     const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
@@ -1327,7 +1331,7 @@ export class SchoolTeacherService {
   }
 
   async analyzeTeacherRecording(user: any, teacherId: string, recordingId: string, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN'
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN')
       ? (query.instituteId ?? (() => { throw new BadRequestException('instituteId required'); })())
       : user.instituteId;
     const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
@@ -1350,49 +1354,37 @@ export class SchoolTeacherService {
       [recordingId],
     );
 
-    const groqKey = process.env.GROQ_API_KEY ?? '';
-    if (!groqKey) {
-      await this.ds.query(`UPDATE class_recordings SET ai_teaching_analysis_status = 'failed' WHERE id = $1`, [recordingId]);
-      throw new BadRequestException('AI service not configured (GROQ_API_KEY missing).');
-    }
-
+    // The 8000-char cap predates this migration (it was applied to the same
+    // slice before the direct Groq call) and is preserved exactly. It is also
+    // load-bearing: Groq's on-demand tier hard-413s when prompt + max_tokens
+    // exceeds the per-request budget, and that failure is not retryable. See
+    // the matching cap in the Django endpoint.
     const transcript = rec.transcript.slice(0, 8000);
-    const prompt = `You are an expert education coach. Analyze this classroom teaching transcript and return structured JSON feedback.
-
-Transcript:
-"""
-${transcript}
-"""
-
-Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
-{
-  "overallScore": <integer 1-10>,
-  "summary": "<2-3 sentence holistic assessment>",
-  "clarity": { "score": <1-10>, "feedback": "<specific observation about explanation clarity and structure>" },
-  "pacing": { "score": <1-10>, "feedback": "<observation about lesson pacing, time allocation>" },
-  "contentCoverage": { "score": <1-10>, "feedback": "<observation about topic depth, examples, accuracy>" },
-  "studentEngagement": { "score": <1-10>, "feedback": "<observation about questions asked, interaction, energy>" },
-  "languageQuality": { "score": <1-10>, "feedback": "<observation about vocabulary, analogies, simplicity>" },
-  "suggestions": ["<concrete improvement 1>", "<concrete improvement 2>", "<concrete improvement 3>"],
-  "strengths": ["<identified strength 1>", "<identified strength 2>"]
-}`;
 
     let analysis: any;
     try {
-      const res = await fetch(this.GROQ_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.3,
-          max_tokens: 1024,
-        }),
-      });
-      const data: any = await res.json();
-      const content: string = data?.choices?.[0]?.message?.content ?? '{}';
-      analysis = JSON.parse(content.replace(/```json\n?|\n?```/g, '').trim());
-    } catch {
+      // instituteId is the guard-verified value resolved above, never a
+      // client-supplied tenant header. The bridge additionally keys admission
+      // on AiRequestContext, so attribution does not depend on this argument.
+      const res = await this.aiBridgeService.analyzeTeachingRecording(
+        { transcript, title: rec.title ?? undefined },
+        instituteId,
+      );
+      // _meta is the bridge envelope (model, latency, usage). The stored rubric
+      // predates it, and TeacherProfile.jsx renders the stored shape, so strip
+      // it rather than widening what gets persisted.
+      const { _meta, ...rubric } = (res ?? {}) as Record<string, any>;
+      if (!rubric || typeof rubric.overallScore !== 'number') {
+        // A malformed body would otherwise be persisted as a completed
+        // analysis and shown to an admin as real feedback.
+        throw new Error('AI bridge returned no usable analysis');
+      }
+      analysis = rubric;
+    } catch (err: any) {
+      // Never leave the row stuck in 'processing' — that state has no UI escape.
+      this.logger.error(
+        `Teacher recording analysis failed: recording=${recordingId} institute=${instituteId}: ${err?.message ?? err}`,
+      );
       await this.ds.query(`UPDATE class_recordings SET ai_teaching_analysis_status = 'failed' WHERE id = $1`, [recordingId]);
       throw new BadRequestException('AI analysis failed. Please try again.');
     }

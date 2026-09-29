@@ -6,6 +6,8 @@ import { firstValueFrom } from 'rxjs';
 import { randomUUID } from 'crypto';
 import { AiUsageService } from '../ai-usage/ai-usage.service';
 import { getAiRequestContext } from '../../common/context/ai-request-context';
+import { AiAdmissionService, AdmissionTicket } from '../../common/services/ai-admission.service';
+import { AdmissionPool, classifyPath, ADMISSION_EXEMPT_PATHS } from '../../common/services/ai-admission.constants';
 
 /**
  * AiBridgeService
@@ -18,6 +20,96 @@ import { getAiRequestContext } from '../../common/context/ai-request-context';
  *   - API key is sent via Authorization: Bearer (validated by Django middleware)
  *   - Django middleware resolves the tenant and applies per-tenant rate limits + caching
  */
+/**
+ * The nine-field teaching rubric returned by Django's /teacher/analyze-recording.
+ * Shape is unchanged from the direct-Groq prompt it replaces, because it is
+ * persisted verbatim into class_recordings.ai_teaching_analysis and rendered by
+ * TeacherProfile.jsx.
+ */
+export interface TeacherRecordingRubric {
+  score: number;
+  feedback: string;
+}
+
+export interface TeacherRecordingAnalysis {
+  overallScore: number;
+  summary: string;
+  clarity: TeacherRecordingRubric;
+  pacing: TeacherRecordingRubric;
+  contentCoverage: TeacherRecordingRubric;
+  studentEngagement: TeacherRecordingRubric;
+  languageQuality: TeacherRecordingRubric;
+  suggestions: string[];
+  strengths: string[];
+  /** Bridge envelope added by ai_call(); not part of the persisted rubric. */
+  _meta?: Record<string, any>;
+}
+
+export type AiTutorMode = 'chat' | 'quiz' | 'practice';
+
+export interface AiTutorChatPayload {
+  message: string;
+  mode?: AiTutorMode;
+  history: Array<{ role: 'student' | 'tutor'; content: string }>;
+  student: { className?: string; board?: string; subjectName?: string; chapterName?: string; topicName?: string };
+  passages: any[];
+  allowWeb?: boolean;
+}
+
+export interface AiTutorSource {
+  id: string;
+  kind: 'course' | 'web';
+  type?: 'textbook' | 'lecture';
+  title: string;
+  label?: string;
+  url?: string;
+  site?: string;
+  excerpt?: string;
+}
+
+export interface AiTutorImage {
+  title: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  source: string;
+  pageUrl: string;
+}
+
+export interface AiTutorVideo {
+  title: string;
+  url: string;
+  videoId: string;
+  thumbnailUrl: string;
+  channel: string;
+  duration: string;
+}
+
+export interface AiTutorQuizQuestion {
+  question: string;
+  options: string[];
+  answerIndex: number;
+  explanation: string;
+}
+
+export interface AiTutorChatResult {
+  answer: string;
+  mode?: AiTutorMode;
+  quiz?: { questions: AiTutorQuizQuestion[] };
+  syllabusStatus: 'in_syllabus' | 'supporting' | 'beyond_syllabus';
+  usedWeb: boolean;
+  courseMatched: boolean;
+  sources: AiTutorSource[];
+  /** When true, fetch pictures/videos separately with aiTutorMedia(mediaQuery). */
+  wantMedia?: boolean;
+  mediaQuery?: string;
+  _meta?: Record<string, any>;
+}
+
+export interface AiTutorMediaResult {
+  images: AiTutorImage[];
+  videos: AiTutorVideo[];
+}
+
 @Injectable()
 export class AiBridgeService {
   private readonly logger = new Logger(AiBridgeService.name);
@@ -29,6 +121,7 @@ export class AiBridgeService {
     private readonly http: HttpService,
     config: ConfigService,
     private readonly aiUsage: AiUsageService,
+    private readonly admission: AiAdmissionService,
   ) {
     this.baseUrl = config.get<string>('ai.baseUrl');
     this.apiKey = config.get<string>('ai.apiKey');
@@ -47,6 +140,7 @@ export class AiBridgeService {
     '/doubt/ocr-image':     { feature: 'image_ocr_handwriting',  provider: 'groq_vision' },
     '/tutor/session':       { feature: 'tutor',                  provider: 'groq' },
     '/tutor/continue':      { feature: 'tutor',                  provider: 'groq' },
+    '/ai-tutor/chat':       { feature: 'ai_tutor',               provider: 'groq_serper' },
     '/stt/transcribe':      { feature: 'lecture_transcription',  provider: 'whisper_sarvam' },
     '/stt/notes':           { feature: 'ai_lecture_notes',       provider: 'whisper_llm' },
     '/stt/notes-from-text': { feature: 'ai_lecture_notes',       provider: 'groq_gemini' },
@@ -122,7 +216,16 @@ export class AiBridgeService {
     return h;
   }
 
-  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string): Promise<T> {
+  /**
+   * @param poolOverride P0-4.5 (G1): force the admission pool for this call.
+   *   A TypeScript argument, so it is reachable only from server-side callers —
+   *   there is deliberately no request header or body field that can select a
+   *   pool, which would let a client route its own traffic into the interactive
+   *   pool. Used when the PATH alone misclassifies the workload: lecture note
+   *   enrichment translates search terms via /translate (interactive by default)
+   *   while running as background work.
+   */
+  private async post<T>(path: string, body: any, tenantId?: string, timeoutMs?: number, vertical?: string, board?: string, poolOverride?: AdmissionPool): Promise<T> {
     const mapped = AiBridgeService.FEATURE_MAP[path];
     const v = vertical || 'coaching';
 
@@ -152,11 +255,26 @@ export class AiBridgeService {
     const requestId = ctx.requestId || randomUUID();
     const userId = ctx.userId || undefined;
     const userRole = ctx.userRole || undefined;
+    // ── P0-4.4 admission control ──────────────────────────────────────────────
+    // Bounded, Redis-backed slot per pool so background work can never occupy every
+    // Django sync worker and stall interactive traffic. Identity is the TRUSTED
+    // instituteId from AiRequestContext (JWT for HTTP, persisted job data for
+    // workers) — never the `tenantId` parameter, which upstream may have resolved
+    // from client-supplied tenant headers.
+    const effectiveTimeoutMs = timeoutMs ?? this.timeout;
+    const pool: AdmissionPool = poolOverride ?? classifyPath(path);
+    let ticket: AdmissionTicket | null = null;
+    if (!ADMISSION_EXEMPT_PATHS.has(path)) {
+      ticket = await this.admission.acquire(
+        pool, ctx.instituteId ?? null, effectiveTimeoutMs, requestId, mapped?.feature ?? path,
+      );
+    }
+
     try {
       const res: AxiosResponse<T> = await firstValueFrom(
         this.http.post<T>(`${this.baseUrl}${path}`, body, {
           headers: this.headers(tenantId, vertical, board, requestId, userId, userRole),
-          timeout: timeoutMs ?? this.timeout,
+          timeout: effectiveTimeoutMs,
         }),
       );
       // We do NOT call this.aiUsage.record() here for successful requests to avoid double-counting.
@@ -207,6 +325,11 @@ export class AiBridgeService {
         });
       }
       throw err;
+    } finally {
+      // Guarantees the slot is freed on success, throw, Django error, timeout and
+      // cancellation alike. The Redis lease is the second line of defence for the
+      // one case this cannot cover: the process being SIGKILLed mid-request.
+      await this.admission.release(ticket, requestId);
     }
   }
 
@@ -225,11 +348,14 @@ export class AiBridgeService {
       questionImageUrl?: string;
       topicId?: string;
       mode: 'short' | 'detailed';
+      /** subject, className, chapterName, board, level — curriculum context the
+       *  AI service uses for syllabus framing AND for priming image transcription. */
       studentContext?: any;
       language?: string;
     },
     tenantId?: string,
     vertical?: string,
+    board?: string,
   ) {
     const lang = (payload.language || '').toLowerCase();
     const isEnglish = !lang || lang === 'english' || lang === 'en';
@@ -242,7 +368,10 @@ export class AiBridgeService {
       questionText: shouldAddMathHint
         ? this.withMathDerivationStyleHint(payload.questionText)
         : payload.questionText,
-    }, tenantId, undefined, vertical);
+      // board reaches Django as X-Board; without it _build_solver_system_prompt()
+      // always framed answers generically, because getattr(request,'board','') was
+      // empty for every school doubt.
+    }, tenantId, undefined, vertical, board);
   }
 
   /**
@@ -307,6 +436,21 @@ export class AiBridgeService {
     return this.post('/grading/subjective-answer', payload, tenantId, 30_000, vertical, board);
   }
 
+  // ── School AI Tutor (student chatbot) ─────────────────────────────────────
+  // Separate from the AI #2 tutor/session flow below: stateless on the AI side,
+  // the caller sends history + course passages and persists the reply.
+  async aiTutorChat(payload: AiTutorChatPayload, tenantId?: string, board?: string): Promise<AiTutorChatResult> {
+    return this.post<AiTutorChatResult>('/ai-tutor/chat', payload, tenantId, 60_000, 'school', board);
+  }
+
+  /** Pictures (Gemini-checked) and YouTube videos for an answer — slower, so loaded after it. */
+  async aiTutorMedia(
+    payload: { query: string; student: AiTutorChatPayload['student'] },
+    tenantId?: string,
+  ): Promise<AiTutorMediaResult> {
+    return this.post<AiTutorMediaResult>('/ai-tutor/media', payload, tenantId, 90_000, 'school');
+  }
+
   // ── AI #2 — AI Tutor ──────────────────────────────────────────────────────
   async startTutorSession(
     payload: { studentId: string; topicId: string; context: string },
@@ -353,8 +497,12 @@ export class AiBridgeService {
   async translateText(
     payload: { text: string; targetLanguage: string },
     tenantId?: string,
+    opts?: { pool?: AdmissionPool },
   ) {
-    return this.post('/translate', payload, tenantId, 60_000);
+    // Interactive by default (a user is waiting on a translation). Background
+    // callers — currently lecture note-image enrichment — pass the pool
+    // explicitly so long-running content work cannot occupy interactive capacity.
+    return this.post('/translate', payload, tenantId, 60_000, undefined, undefined, opts?.pool);
   }
 
   // ── AI #7 — Speech-to-Text Notes ─────────────────────────────────────────
@@ -522,6 +670,24 @@ export class AiBridgeService {
     tenantId?: string,
   ) {
     return this.post('/resume/analyze', payload, tenantId);
+  }
+
+  // ── Teacher recording analysis (G3 Class-B) ───────────────────────────────
+  // Replaces a direct api.groq.com fetch in SchoolTeacherService that named
+  // llama-3.3-70b-versatile — a model Groq decommissioned on 2026-08-16 — and
+  // that bypassed admission control, attribution and central key rotation.
+  //
+  // The caller passes the transcript already capped at 8000 chars; Django caps
+  // again on its own side rather than trusting the client.
+  async analyzeTeachingRecording(
+    payload: { transcript: string; title?: string },
+    tenantId?: string,
+  ): Promise<TeacherRecordingAnalysis> {
+    // 60s rather than the 240s default: this is a single ~1024-token completion
+    // over at most 8000 chars, and the BACKGROUND pool admits one call at a
+    // time — a longer timeout would hold that one slot far past any plausible
+    // response. The call it replaces had no timeout at all.
+    return this.post('/teacher/analyze-recording', payload, tenantId, 60_000, 'school');
   }
 
   // ── AI #11 — Interview Prep ────────────────────────────────────────────────
@@ -1622,8 +1788,30 @@ export class AiBridgeService {
   }
 
   /** Read a chapter PDF into page-tagged passages (scans are transcribed there). */
+  /**
+   * Draw one figure a question needs that the textbook does not contain.
+   *
+   * The AI service writes matplotlib code from `spec` and runs it in an
+   * isolated process. Called once per figure while a paper is being drafted, so
+   * the timeout is short: a figure that cannot be drawn quickly is dropped and
+   * the paper goes on without it.
+   *
+   * Pool: left unclassified on purpose, so classifyPath() defaults it to
+   * BACKGROUND. That is the correct pool — this runs inside teacher paper
+   * generation, which is itself BACKGROUND — and it keeps the admission
+   * constants file untouched.
+   */
+  async renderDiagram(
+    dto: { spec: string; subjectName?: string; className?: string; board?: string },
+    tenantId?: string,
+    vertical?: string,
+    board?: string,
+  ): Promise<{ success: boolean; data?: { imageBase64: string; attempts: number } }> {
+    return this.post('/diagram/render', dto, tenantId, 60_000, vertical || 'school', board);
+  }
+
   async ingestTextbook(
-    dto: { fileUrl: string; allowOcr?: boolean; progressKey?: string },
+    dto: { fileUrl: string; allowOcr?: boolean; progressKey?: string; wantFigures?: boolean },
     tenantId?: string,
   ): Promise<{ success: boolean; data: any }> {
     // A scanned chapter goes through a vision pass page by page, so this is far

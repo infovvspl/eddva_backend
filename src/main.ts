@@ -10,6 +10,7 @@ import { mkdirSync, existsSync } from 'fs';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import compression from 'compression';
+import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { seedSuperAdmin } from './database/seeds/super-admin.seeder';
 
@@ -63,6 +64,20 @@ async function bootstrap() {
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
+
+  // ── Prevent the browser from caching authenticated API responses ──────────
+  // Without this, a GET to the same URL (e.g. /school/syllabus/teaching-plan) made
+  // by two different users in the same tab — logging out and back in as someone
+  // else — can be served straight from the browser's HTTP cache, since caching is
+  // keyed by URL and does not vary by Authorization header. Static file uploads
+  // are excluded since those are fine (and desirable) to cache.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.startsWith('/uploads') && !req.path.startsWith('/api/v1/uploads')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.setHeader('Pragma', 'no-cache');
+    }
+    next();
+  });
 
   // ── Gzip compression ─────────────────────────────────────────────────────
   app.use(compression());

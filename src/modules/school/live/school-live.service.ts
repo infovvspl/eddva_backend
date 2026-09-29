@@ -9,6 +9,7 @@ import { RECORDING_JOB, RECORDINGS_QUEUE } from '../../live-broadcast/live-broad
 import { R2Service } from '../../storage/r2.service';
 import { SCHOOL_LIVE_CHANNELS, SchoolLiveRedis } from './school-live.redis';
 import { SchoolClassService } from '../class/school-class.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 interface SchoolUser {
   id: string;
@@ -269,7 +270,7 @@ export class SchoolLiveService implements OnModuleInit {
     const params: any[] = [user.instituteId];
     let filter = `l.institute_id = $1`;
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
       const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
       if (sectionId) {
@@ -278,7 +279,7 @@ export class SchoolLiveService implements OnModuleInit {
       } else {
         filter += ` AND 1=0`;
       }
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id = $1 AND (
           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
@@ -292,7 +293,7 @@ export class SchoolLiveService implements OnModuleInit {
       } else {
         filter += ` AND 1=0`;
       }
-    } else if (user.role === 'TEACHER') {
+    } else if (hasSchoolRole(user.role, 'TEACHER')) {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
@@ -329,7 +330,7 @@ export class SchoolLiveService implements OnModuleInit {
     const params: any[] = [user.instituteId];
     let filter = `institute_id = $1 AND status = 'LIVE'`;
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
       const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
       if (sectionId) {
@@ -338,7 +339,7 @@ export class SchoolLiveService implements OnModuleInit {
       } else {
         filter += ` AND 1=0`;
       }
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id = $1 AND (
           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
@@ -352,7 +353,7 @@ export class SchoolLiveService implements OnModuleInit {
       } else {
         filter += ` AND 1=0`;
       }
-    } else if (user.role === 'TEACHER') {
+    } else if (hasSchoolRole(user.role, 'TEACHER')) {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
@@ -385,18 +386,18 @@ export class SchoolLiveService implements OnModuleInit {
     const lecture = rows[0];
 
     if (user) {
-      const isSuperAdmin = String(user.role || '').toUpperCase() === 'SUPER_ADMIN';
+      const isSuperAdmin = hasSchoolRole(user.role, 'SUPER_ADMIN');
       if (!isSuperAdmin) {
         if (lecture.instituteId !== user.instituteId) {
           throw new ForbiddenException('Lecture not found');
         }
-        if (user.role === 'STUDENT') {
+        if (hasSchoolRole(user.role, 'STUDENT')) {
           const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
           const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
           if (sectionId && lecture.sectionId && String(lecture.sectionId) !== String(sectionId)) {
             throw new ForbiddenException('You do not have access to this lecture');
           }
-        } else if (user.role === 'TEACHER') {
+        } else if (hasSchoolRole(user.role, 'TEACHER')) {
           const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
           const teacherId = tRows[0]?.id;
           if (teacherId) {
@@ -410,7 +411,7 @@ export class SchoolLiveService implements OnModuleInit {
           } else {
             throw new ForbiddenException('You do not have access to this lecture');
           }
-        } else if (user.role === 'PARENT') {
+        } else if (hasSchoolRole(user.role, 'PARENT')) {
           const children = await this.ds.query(`
             SELECT section_id FROM students WHERE institute_id = $1 AND (
               (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
@@ -431,7 +432,7 @@ export class SchoolLiveService implements OnModuleInit {
   async getStreamUrl(id: string, user: SchoolUser) {
     const lecture = await this.getLecture(id, user);
     if (!lecture) throw new NotFoundException('Lecture not found');
-    if (String(user.role || '').toUpperCase() === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       void this.trackJoin(id, user.id, user.name || 'Student').catch(() => undefined);
     }
     const key = lecture.streamKey;
@@ -702,7 +703,7 @@ export class SchoolLiveService implements OnModuleInit {
   async getChatHistory(lectureId: string, user: SchoolUser, limit = 100) {
     const lecture = await this.getLecture(lectureId);
     if (!lecture) throw new NotFoundException('Lecture not found');
-    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
       throw new NotFoundException('Lecture not found');
     }
     return this.ds.query(
@@ -749,7 +750,7 @@ export class SchoolLiveService implements OnModuleInit {
     if (user) {
       const lecture = await this.getLecture(lectureId);
       if (!lecture) throw new NotFoundException('Lecture not found');
-      if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
         throw new NotFoundException('Lecture not found');
       }
     }
@@ -791,7 +792,7 @@ export class SchoolLiveService implements OnModuleInit {
     // Return empty array (not 404) when lecture doesn't exist — this method
     // is called by a polling interval every 5 s and a 404 would spam the logs.
     if (!lecture) return [];
-    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
       // Wrong tenant — do throw for security reasons
       throw new NotFoundException('Lecture not found');
     }
@@ -821,7 +822,7 @@ export class SchoolLiveService implements OnModuleInit {
     await this.ensureStatsTables();
     const lecture = await this.getLecture(id);
     if (!lecture) throw new NotFoundException('Lecture not found');
-    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
       throw new NotFoundException('Lecture not found');
     }
 
@@ -880,7 +881,7 @@ export class SchoolLiveService implements OnModuleInit {
    async createPoll(lectureId: string, user: SchoolUser, question: string, options: string[], correctOption?: string) {
      const lecture = await this.getLecture(lectureId);
      if (!lecture) throw new NotFoundException('Lecture not found');
-     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+     if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
        throw new NotFoundException('Lecture not found');
      }
      // Wrap UPDATE+INSERT in a transaction to prevent a race where two polls
@@ -906,7 +907,7 @@ export class SchoolLiveService implements OnModuleInit {
    async endPoll(lectureId: string, pollId: string, user: SchoolUser) {
      const lecture = await this.getLecture(lectureId);
      if (!lecture) throw new NotFoundException('Lecture not found');
-     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+     if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
        throw new NotFoundException('Lecture not found');
      }
      await this.ds.query(
@@ -921,7 +922,7 @@ export class SchoolLiveService implements OnModuleInit {
    async getActivePoll(lectureId: string, user: SchoolUser) {
      const lecture = await this.getLecture(lectureId);
      if (!lecture) throw new NotFoundException('Lecture not found');
-     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+     if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
        throw new NotFoundException('Lecture not found');
      }
      const [poll] = await this.ds.query(
@@ -951,7 +952,7 @@ export class SchoolLiveService implements OnModuleInit {
    async votePoll(lectureId: string, pollId: string, user: SchoolUser, userName: string, option: string) {
      const lecture = await this.getLecture(lectureId);
      if (!lecture) throw new NotFoundException('Lecture not found');
-     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+     if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
        throw new NotFoundException('Lecture not found');
      }
      // Verify the poll belongs to this lecture and is still accepting votes (BUG-19,20,21)
@@ -999,7 +1000,7 @@ export class SchoolLiveService implements OnModuleInit {
    async listPolls(lectureId: string, user: SchoolUser) {
      const lecture = await this.getLecture(lectureId);
      if (!lecture) throw new NotFoundException('Lecture not found');
-     if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+     if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
        throw new NotFoundException('Lecture not found');
      }
      const polls = await this.ds.query(
@@ -1031,7 +1032,7 @@ export class SchoolLiveService implements OnModuleInit {
     if (user) {
       const lecture = await this.getLecture(lectureId);
       if (!lecture) throw new NotFoundException('Lecture not found');
-      if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+      if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
         throw new NotFoundException('Lecture not found');
       }
     }
@@ -1047,7 +1048,7 @@ export class SchoolLiveService implements OnModuleInit {
   async getQuestions(lectureId: string, user: SchoolUser) {
     const lecture = await this.getLecture(lectureId);
     if (!lecture) throw new NotFoundException('Lecture not found');
-    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
       throw new NotFoundException('Lecture not found');
     }
     return this.ds.query(
@@ -1125,7 +1126,7 @@ export class SchoolLiveService implements OnModuleInit {
     );
     if (!rows.length) throw new NotFoundException('Lecture not found');
     const lecture = rows[0];
-    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
       throw new NotFoundException('Lecture not found');
     }
     if (!lecture.recordingUrl) throw new ForbiddenException('Recording is not ready yet');

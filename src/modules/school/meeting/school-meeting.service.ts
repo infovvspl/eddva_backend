@@ -10,6 +10,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { FcmService } from '../notification-fcm/fcm.service';
+import { hasSchoolRole } from '../common/role-helper';
 import {
   SchoolFcmNotificationType,
   SCHOOL_NOTIFICATION_TEMPLATES,
@@ -105,7 +106,7 @@ export class SchoolMeetingService implements OnModuleInit {
   }
 
   private resolveInstituteId(user: any, override?: string) {
-    return user.role === 'SUPER_ADMIN' ? override || user.instituteId : user.instituteId;
+    return hasSchoolRole(user.role, 'SUPER_ADMIN') ? override || user.instituteId : user.instituteId;
   }
 
   private normalizeMode(mode: unknown) {
@@ -323,11 +324,9 @@ export class SchoolMeetingService implements OnModuleInit {
 
   private async notifyMeeting(recipientId: string, sender: any, meeting: MeetingRow, recipientRole: string | null, recipientName?: string | null) {
     const actionUrl =
-      sender.role === 'PARENT'
+      hasSchoolRole(sender.role, 'PARENT')
         ? '/school/teacher/meetings'
-        : sender.role === 'TEACHER' || sender.role === 'INSTITUTE_ADMIN' || sender.role === 'SUPER_ADMIN'
-          ? '/school/parent/communication'
-          : '/school/parent/communication';
+        : '/school/parent/communication';
 
     const message =
       `${sender.name} scheduled a ${meeting.meeting_mode} meeting` +
@@ -429,7 +428,7 @@ export class SchoolMeetingService implements OnModuleInit {
       ),
     ]);
 
-    if (user.role === 'TEACHER') {
+    if (hasSchoolRole(user.role, 'TEACHER')) {
       const scope = await this.getTeacherSectionScope(user.id);
       return {
         success: true,
@@ -525,7 +524,7 @@ export class SchoolMeetingService implements OnModuleInit {
         ['TEACHER'],
       );
 
-      if (user.role === 'PARENT') {
+      if (hasSchoolRole(user.role, 'PARENT')) {
         const allowed = await this.validateParentTeacherRelationship(
           instituteId,
           user.id,
@@ -547,7 +546,7 @@ export class SchoolMeetingService implements OnModuleInit {
         ['PARENT'],
       );
 
-      if (user.role === 'TEACHER') {
+      if (hasSchoolRole(user.role, 'TEACHER')) {
         const allowed = await this.validateParentTeacherRelationship(
           instituteId,
           parentUser.id,
@@ -649,15 +648,15 @@ export class SchoolMeetingService implements OnModuleInit {
       throw new BadRequestException('No meeting recipients could be resolved');
     }
 
-    if (user.role === 'PARENT' && recipients.some((r) => r.role !== 'TEACHER')) {
+    if (hasSchoolRole(user.role, 'PARENT') && recipients.some((r) => !hasSchoolRole(r.role, 'TEACHER'))) {
       throw new ForbiddenException('Parents can request meetings only with teachers');
     }
 
-    if (user.role === 'TEACHER' && recipients.some((r) => !['PARENT', 'INSTITUTE_ADMIN', 'SUPER_ADMIN'].includes(String(r.role)))) {
+    if (hasSchoolRole(user.role, 'TEACHER') && recipients.some((r) => !hasSchoolRole(r.role, 'PARENT') && !hasSchoolRole(r.role, 'INSTITUTE_ADMIN') && !hasSchoolRole(r.role, 'SUPER_ADMIN'))) {
       throw new ForbiddenException('Teachers can schedule meetings only with parents or institute administration');
     }
 
-    if (scopeType !== 'individual' && !['INSTITUTE_ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (scopeType !== 'individual' && !hasSchoolRole(user.role, 'INSTITUTE_ADMIN') && !hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       throw new ForbiddenException('Bulk meeting creation is available only to institute administration');
     }
 
@@ -669,25 +668,25 @@ export class SchoolMeetingService implements OnModuleInit {
     const location = String(body.location || '').trim() || null;
     const description = String(body.description || body.reason || '').trim() || null;
     const agenda = String(body.agenda || '').trim() || null;
-    const status = this.normalizeStatus(body.status, user.role === 'PARENT' ? 'pending' : 'scheduled');
+    const status = this.normalizeStatus(body.status, hasSchoolRole(user.role, 'PARENT') ? 'pending' : 'scheduled');
     const created: any[] = [];
 
     // Fetch institute admins once — avoids 1 DB query per recipient in bulk meetings
-    const instituteAdmins = ['PARENT', 'TEACHER'].includes(user.role)
+    const instituteAdmins = hasSchoolRole(user.role, 'PARENT') || hasSchoolRole(user.role, 'TEACHER')
       ? await this.getInstituteAdmins(instituteId, user.id)
       : [];
 
     for (const recipient of recipients) {
       const teacherUserId =
-        user.role === 'TEACHER'
+        hasSchoolRole(user.role, 'TEACHER')
           ? user.id
-          : recipient.role === 'TEACHER'
+          : hasSchoolRole(recipient.role, 'TEACHER')
             ? recipient.id
             : body.teacherId || null;
       const parentUserId =
-        user.role === 'PARENT'
+        hasSchoolRole(user.role, 'PARENT')
           ? user.id
-          : recipient.role === 'PARENT'
+          : hasSchoolRole(recipient.role, 'PARENT')
             ? recipient.id
             : body.parentId || null;
 
@@ -775,15 +774,15 @@ export class SchoolMeetingService implements OnModuleInit {
     const meeting = rows[0];
     const isCreator = String(meeting.created_by) === String(user.id);
     const isRecipient = String(meeting.recipient_user_id) === String(user.id);
-    if (!isCreator && !isRecipient && !['INSTITUTE_ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!isCreator && !isRecipient && !hasSchoolRole(user.role, 'INSTITUTE_ADMIN') && !hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       throw new ForbiddenException('You cannot update this meeting');
     }
 
     const nextStatus = this.normalizeStatus(body.status, meeting.status);
-    if (isRecipient && !['accepted', 'rejected', 'completed'].includes(nextStatus) && !['INSTITUTE_ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (isRecipient && !['accepted', 'rejected', 'completed'].includes(nextStatus) && !hasSchoolRole(user.role, 'INSTITUTE_ADMIN') && !hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       throw new ForbiddenException('Recipients can only accept, reject, or complete a meeting');
     }
-    if (isCreator && !['cancelled', 'scheduled', 'completed', 'pending'].includes(nextStatus) && !['INSTITUTE_ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (isCreator && !['cancelled', 'scheduled', 'completed', 'pending'].includes(nextStatus) && !hasSchoolRole(user.role, 'INSTITUTE_ADMIN') && !hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       throw new ForbiddenException('Creators can only reschedule, cancel, or complete a meeting');
     }
 
@@ -863,7 +862,7 @@ export class SchoolMeetingService implements OnModuleInit {
       message,
       referenceId: updated.id,
       referenceType: 'meeting',
-      actionUrl: user.role === 'PARENT' ? '/school/teacher/meetings' : '/school/parent/communication',
+      actionUrl: hasSchoolRole(user.role, 'PARENT') ? '/school/teacher/meetings' : '/school/parent/communication',
     });
 
     return { success: true, data: updated };

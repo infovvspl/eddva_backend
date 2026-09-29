@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { querySectionSubjects } from '../common/section-subjects';
 import { recordStudentActivity } from '../common/gamification-helper';
+import { hasSchoolRole } from '../common/role-helper';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 
@@ -140,7 +141,7 @@ export class SchoolAuthService {
 
     const { password: _p, ...safeUser } = user;
     const studentProfile =
-      user.role === 'STUDENT' ? await this.loadStudentAcademic(user.id) : null;
+      hasSchoolRole(user.role, 'STUDENT') ? await this.loadStudentAcademic(user.id) : null;
     return {
       token,
       user: {
@@ -205,9 +206,9 @@ export class SchoolAuthService {
 
   async getMe(user: any) {
     const studentProfile =
-      user.role === 'STUDENT' ? await this.loadStudentAcademic(user.id) : null;
+      hasSchoolRole(user.role, 'STUDENT') ? await this.loadStudentAcademic(user.id) : null;
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       await recordStudentActivity(this.ds, user.id, 'login').catch(err =>
         console.error('Failed to log student activity (login):', err.message),
       );

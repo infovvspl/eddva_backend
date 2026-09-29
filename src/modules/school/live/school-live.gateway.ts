@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 
 import { SCHOOL_LIVE_CHANNELS, SchoolLiveRedis } from './school-live.redis';
 import { SchoolLiveService } from './school-live.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 const ALLOWED_REACTIONS = ['👍', '❤️', '😮', '😂', '🔥', '👏'];
 
@@ -141,7 +142,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       client.disconnect();
       return;
     }
-    if (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId) {
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId) {
       client.emit('live-error', { message: 'Unauthorized' });
       client.disconnect();
       return;
@@ -184,7 +185,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     // Verify the lecture belongs to this teacher's institute — without this any
     // authenticated teacher could join any other school's live room (BUG-02).
     const lecture = await this.svc.getLecture(lectureId);
-    if (!lecture || (user.role !== 'SUPER_ADMIN' && lecture.instituteId !== user.instituteId)) {
+    if (!lecture || (!hasSchoolRole(user.role, 'SUPER_ADMIN') && lecture.instituteId !== user.instituteId)) {
       client.emit('live-error', { message: 'Lecture not found' });
       client.disconnect();
       return;

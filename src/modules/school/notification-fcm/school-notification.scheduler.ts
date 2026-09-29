@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 
 import { FcmService } from './fcm.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { SchoolSyllabusService } from '../syllabus/school-syllabus.service';
 import {
   SchoolFcmNotificationType,
   SCHOOL_NOTIFICATION_TEMPLATES,
@@ -19,6 +20,7 @@ export class SchoolNotificationScheduler {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly fcm: FcmService,
     private readonly notificationService: SchoolNotificationService,
+    private readonly syllabusService: SchoolSyllabusService,
   ) {}
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -461,6 +463,175 @@ export class SchoolNotificationScheduler {
       }
     } catch (err: any) {
       this.logger.error(`Failed to process low attendance alert: ${err.message}`);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Weekly Syllabus Plan Behind-Schedule Alert (Teacher + Admin Alert)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  @Cron('0 9 * * 1', { timeZone: 'Asia/Kolkata' })
+  async handleSyllabusPlanDelayedAlert() {
+    try {
+      const weekResult = await this.ds.query(
+        `SELECT EXTRACT(WEEK FROM NOW())::int AS week_num, EXTRACT(YEAR FROM NOW())::int AS year_num`
+      );
+      const weekStr = `${weekResult[0].year_num}_W${weekResult[0].week_num}`;
+
+      const behindPlans = await this.syllabusService.getPlansBehindSchedule();
+      if (!behindPlans.length) return;
+
+      const dueDateStr = (d: string) => new Date(d).toISOString().split('T')[0];
+
+      for (const plan of behindPlans) {
+        const teacherActionUrl = `/school/teacher/syllabus-planner/${plan.planId}`;
+        const adminActionUrl = `/school/admin/syllabus-tracker/${plan.planId}`;
+
+        // Resolve the teacher — deliberately not filtered by school_device_tokens existence
+        // (unlike getTeacherForClass) so the in-app notification still lands even when the
+        // teacher has no registered device; there's no web push receiver wired up today, so
+        // the in-app bell is the channel most likely to actually reach anyone.
+        let teacher: any = null;
+        if (plan.teacherId) {
+          const rows = await this.ds.query(
+            `SELECT u.id AS user_id, u.name AS user_name
+             FROM teachers t INNER JOIN users u ON t.user_id = u.id
+             WHERE t.id = $1 AND u.is_active = true`,
+            [plan.teacherId],
+          );
+          teacher = rows[0] || null;
+          if (!teacher) {
+            // teacher_id may already be a users.id in some legacy rows
+            const directRows = await this.ds.query(
+              `SELECT id AS user_id, name AS user_name FROM users WHERE id = $1 AND is_active = true`,
+              [plan.teacherId],
+            );
+            teacher = directRows[0] || null;
+          }
+        }
+
+        if (teacher) {
+          const planDedupKey = `${weekStr}_${plan.planId}`;
+          const alreadySentToTeacher = await this.ds.query(
+            `SELECT 1 FROM school_notification_log
+             WHERE user_id = $1 AND notification_type = $2 AND reference_id = $3 AND status = 'SUCCESS' LIMIT 1`,
+            [teacher.user_id, SchoolFcmNotificationType.SYLLABUS_PLAN_DELAYED, planDedupKey],
+          );
+
+          if (!alreadySentToTeacher.length && await this.fcm.checkUserPreference(teacher.user_id, 'syllabus_alerts')) {
+            const { title, body } = fillTemplate(
+              SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.SYLLABUS_PLAN_DELAYED],
+              {
+                subjectName: plan.subjectName,
+                className: plan.sectionName ? `${plan.className} - ${plan.sectionName}` : plan.className,
+                progress: String(plan.progressPercentage),
+                dueDate: dueDateStr(plan.plannedCompletionDate),
+              },
+            );
+
+            const pushResults = await this.fcm.sendPushToUser(teacher.user_id, title, body, {
+              type: 'SYLLABUS_PLAN_DELAYED', planId: plan.planId,
+            });
+            if (pushResults.length > 0) {
+              await this.logNotification(
+                teacher.user_id, SchoolFcmNotificationType.SYLLABUS_PLAN_DELAYED, planDedupKey,
+                pushResults.some((r) => r.success) ? 'SUCCESS' : 'FAILED',
+                pushResults.find((r) => r.messageId)?.messageId || null,
+                pushResults.filter((r) => !r.success).map((r) => r.error).join('; ') || null,
+              );
+            } else {
+              // No device tokens — still record so the weekly dedup applies to the in-app notification too.
+              await this.logNotification(teacher.user_id, SchoolFcmNotificationType.SYLLABUS_PLAN_DELAYED, planDedupKey, 'SUCCESS', null, null);
+            }
+
+            await this.createInAppNotification(teacher.user_id, title, body, {
+              type: 'ALERT', category: 'syllabus', priority: 'high',
+              referenceId: plan.planId, referenceType: 'syllabus_plan', role: 'TEACHER',
+              actionUrl: teacherActionUrl,
+            });
+          }
+
+          // Per-topic alerts: only topics the teacher actually started but hasn't finished,
+          // and only once the plan itself is overdue — never for untouched PLANNED topics.
+          for (const topic of plan.delayedInProgressTopics) {
+            const topicKey = topic.topicId || topic.topicName;
+            const topicDedupKey = `${weekStr}_${plan.planId}_${topicKey}`;
+            const alreadySentTopic = await this.ds.query(
+              `SELECT 1 FROM school_notification_log
+               WHERE user_id = $1 AND notification_type = $2 AND reference_id = $3 AND status = 'SUCCESS' LIMIT 1`,
+              [teacher.user_id, SchoolFcmNotificationType.SYLLABUS_TOPIC_DELAYED, topicDedupKey],
+            );
+            if (alreadySentTopic.length) continue;
+            if (!(await this.fcm.checkUserPreference(teacher.user_id, 'syllabus_alerts'))) continue;
+
+            const { title, body } = fillTemplate(
+              SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.SYLLABUS_TOPIC_DELAYED],
+              { topicName: topic.topicName, subjectName: plan.subjectName },
+            );
+
+            const pushResults = await this.fcm.sendPushToUser(teacher.user_id, title, body, {
+              type: 'SYLLABUS_TOPIC_DELAYED', planId: plan.planId,
+            });
+            await this.logNotification(
+              teacher.user_id, SchoolFcmNotificationType.SYLLABUS_TOPIC_DELAYED, topicDedupKey,
+              pushResults.length === 0 || pushResults.some((r) => r.success) ? 'SUCCESS' : 'FAILED',
+              pushResults.find((r) => r.messageId)?.messageId || null,
+              pushResults.filter((r) => !r.success).map((r) => r.error).join('; ') || null,
+            );
+
+            await this.createInAppNotification(teacher.user_id, title, body, {
+              type: 'ALERT', category: 'syllabus', priority: 'medium',
+              referenceId: plan.planId, referenceType: 'syllabus_plan', role: 'TEACHER',
+              actionUrl: teacherActionUrl,
+            });
+          }
+        }
+
+        // Institute admins — plan-level rollup only, no per-topic spam.
+        const admins = await this.ds.query(
+          `SELECT id FROM users WHERE role = 'INSTITUTE_ADMIN' AND is_active = true AND institute_id = $1`,
+          [plan.instituteId],
+        );
+        for (const admin of admins) {
+          const adminDedupKey = `${weekStr}_${plan.planId}`;
+          const alreadySentToAdmin = await this.ds.query(
+            `SELECT 1 FROM school_notification_log
+             WHERE user_id = $1 AND notification_type = $2 AND reference_id = $3 AND status = 'SUCCESS' LIMIT 1`,
+            [admin.id, SchoolFcmNotificationType.SYLLABUS_PLAN_DELAYED_ADMIN, adminDedupKey],
+          );
+          if (alreadySentToAdmin.length) continue;
+          if (!(await this.fcm.checkUserPreference(admin.id, 'syllabus_alerts'))) continue;
+
+          const { title, body } = fillTemplate(
+            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.SYLLABUS_PLAN_DELAYED_ADMIN],
+            {
+              teacherName: teacher?.user_name || 'The assigned teacher',
+              subjectName: plan.subjectName,
+              className: plan.sectionName ? `${plan.className} - ${plan.sectionName}` : plan.className,
+              progress: String(plan.progressPercentage),
+              dueDate: dueDateStr(plan.plannedCompletionDate),
+            },
+          );
+
+          const pushResults = await this.fcm.sendPushToUser(admin.id, title, body, {
+            type: 'SYLLABUS_PLAN_DELAYED_ADMIN', planId: plan.planId,
+          });
+          await this.logNotification(
+            admin.id, SchoolFcmNotificationType.SYLLABUS_PLAN_DELAYED_ADMIN, adminDedupKey,
+            pushResults.length === 0 || pushResults.some((r) => r.success) ? 'SUCCESS' : 'FAILED',
+            pushResults.find((r) => r.messageId)?.messageId || null,
+            pushResults.filter((r) => !r.success).map((r) => r.error).join('; ') || null,
+          );
+
+          await this.createInAppNotification(admin.id, title, body, {
+            type: 'ALERT', category: 'syllabus', priority: 'high',
+            referenceId: plan.planId, referenceType: 'syllabus_plan', role: 'INSTITUTE_ADMIN',
+            actionUrl: adminActionUrl,
+          });
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to process syllabus plan delayed alert: ${err.message}`);
     }
   }
 
@@ -1491,6 +1662,7 @@ export class SchoolNotificationScheduler {
       referenceId?: string;
       referenceType?: string;
       role?: string;
+      actionUrl?: string;
     },
   ): Promise<void> {
     try {
@@ -1506,6 +1678,7 @@ export class SchoolNotificationScheduler {
         message,
         referenceId: opts.referenceId || null,
         referenceType: opts.referenceType || null,
+        actionUrl: opts.actionUrl || null,
         isRead: false,
       });
     } catch (err: any) {

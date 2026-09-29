@@ -3,6 +3,7 @@ import { HttpModule } from '@nestjs/axios';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiBridgeService } from './ai-bridge.service';
+import { AiAdmissionService } from '../../common/services/ai-admission.service';
 import { AiBridgeController } from './ai-bridge.controller';
 import { AiFeatureGuard } from '../../common/guards/ai-feature.guard';
 import { Tenant } from '../../database/entities/tenant.entity';
@@ -27,7 +28,7 @@ import { AiUsageModule } from '../ai-usage/ai-usage.module';
     AiUsageModule,
   ],
   controllers: [AiBridgeController],
-  providers: [AiBridgeService, AiFeatureGuard],
+  providers: [AiAdmissionService, AiBridgeService, AiFeatureGuard],
   exports: [AiBridgeService],
 })
 export class AiBridgeModule {}

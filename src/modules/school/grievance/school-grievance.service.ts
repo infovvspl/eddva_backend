@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { FcmService } from '../notification-fcm/fcm.service';
+import { hasSchoolRole } from '../common/role-helper';
 import {
   SchoolFcmNotificationType,
   SCHOOL_NOTIFICATION_TEMPLATES,
@@ -63,8 +64,8 @@ export class SchoolGrievanceService implements OnModuleInit {
     if (!rows.length) throw new NotFoundException('Grievance not found');
     const grievance = rows[0];
 
-    if (user.role === 'SUPER_ADMIN') return grievance;
-    if (user.role === 'INSTITUTE_ADMIN') {
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) return grievance;
+    if (hasSchoolRole(user.role, 'INSTITUTE_ADMIN')) {
       if (String(grievance.raised_by_institute_id) !== String(user.instituteId)) {
         throw new ForbiddenException('You do not have access to this ticket');
       }
@@ -79,10 +80,10 @@ export class SchoolGrievanceService implements OnModuleInit {
   async list(user: any, query: any) {
     let filter = `1=1`;
     const params: any[] = [];
-    if (user.role === 'INSTITUTE_ADMIN') {
+    if (hasSchoolRole(user.role, 'INSTITUTE_ADMIN')) {
       params.push(user.instituteId);
       filter += ` AND u.institute_id=$${params.length}`;
-    } else if (user.role !== 'SUPER_ADMIN') {
+    } else if (!hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       params.push(user.id);
       filter += ` AND g.raised_by=$${params.length}`;
     }
@@ -155,7 +156,7 @@ export class SchoolGrievanceService implements OnModuleInit {
   }
 
   async create(user: any, body: any) {
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       throw new BadRequestException('Students cannot raise grievances directly. Please ask your parent or teacher to contact the institute.');
     }
     const rows: any[] = await this.ds.query(
@@ -315,7 +316,7 @@ export class SchoolGrievanceService implements OnModuleInit {
     await this.ensureGrievanceMessagesTable();
     const grievance = await this.findGrievanceForUser(id, user);
 
-    if (user.role !== 'INSTITUTE_ADMIN' && String(grievance.raised_by) !== String(user.id)) {
+    if (!hasSchoolRole(user.role, 'INSTITUTE_ADMIN') && String(grievance.raised_by) !== String(user.id)) {
       throw new ForbiddenException('You do not have access to reply to this ticket');
     }
 

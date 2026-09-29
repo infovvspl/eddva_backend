@@ -15,6 +15,7 @@ export const AI_FEATURES = [
   { id: 'content_flashcard',          label: 'Flashcards',                 category: 'content' },
   { id: 'content_revision_checklist', label: 'Revision Checklist',         category: 'content' },
   { id: 'content_faq',                label: 'FAQ',                        category: 'content' },
+  { id: 'content_lecture_grounding',  label: 'Generate from Lecture Transcripts', category: 'content' },
 
   // ── Student features ──────────────────────────────────────────────────────
   { id: 'doubt_resolver',             label: 'Doubt Resolver',             category: 'student' },

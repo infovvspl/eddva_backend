@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolReportService {
@@ -44,13 +45,13 @@ export class SchoolReportService {
   }
 
   private async resolveClassScope(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.instituteId || user.instituteId) : user.instituteId;
     let classIds = [query.classId || query.class_id].filter(Boolean).map(String);
     let sectionIds = [query.sectionId || query.section_id].filter(Boolean).map(String);
     let subjectIds = [query.subjectId || query.subject_id].filter(Boolean).map(String);
     let assignments: any[] = [];
 
-    const teacherUserId = query.teacherUserId || query.teacher_user_id || (user.role === 'TEACHER' ? user.id : null);
+    const teacherUserId = query.teacherUserId || query.teacher_user_id || (hasSchoolRole(user.role, 'TEACHER') ? user.id : null);
     let teacherId = null;
     if (teacherUserId) {
       const teacherRows: any[] = await this.ds.query(`SELECT id FROM teachers WHERE user_id::text=$1::text OR id::text=$1::text LIMIT 1`, [teacherUserId]);
@@ -262,7 +263,6 @@ export class SchoolReportService {
     const attendanceByStudent = new Map(attendanceRows.map((row) => [String(row.student_id), row]));
 
     const resultsByStudent = new Map<string, any[]>();
-    const subjectScores = new Map<string, { subject: string; scores: number[]; weakStudents: Set<string> }>();
     const monthScores = new Map<string, { scores: number[]; attendance: number[] }>();
     const now = new Date();
     const weekStart = new Date(now);
@@ -287,12 +287,6 @@ export class SchoolReportService {
       if (!resultsByStudent.has(studentId)) resultsByStudent.set(studentId, []);
       resultsByStudent.get(studentId)!.push({ ...row, percentage });
 
-      const subject = row.subject_name || 'General';
-      const subjectStat = subjectScores.get(subject) || { subject, scores: [], weakStudents: new Set<string>() };
-      subjectStat.scores.push(percentage);
-      if (percentage < 60) subjectStat.weakStudents.add(studentId);
-      subjectScores.set(subject, subjectStat);
-
       const month = row.scheduled_date
         ? new Date(row.scheduled_date).toLocaleString('en-US', { month: 'short' })
         : 'Current';
@@ -315,12 +309,27 @@ export class SchoolReportService {
       const avgScore = this.average(scores);
       const attendance = attendanceByStudent.get(String(student.student_id));
       const attendanceRate = attendance?.total ? Math.round((this.toNumber(attendance.attended) / this.toNumber(attendance.total)) * 100) : 0;
-      const subjectAverages = new Map<string, number[]>();
+      // Grouped by subject_id (falling back to the name when a row has none —
+      // e.g. legacy assessments with no subject linked) rather than by name
+      // string alone: the same subject can exist as more than one row in
+      // `subjects` (duplicate/legacy records, e.g. "Mathematics" vs "Maths"),
+      // so name-only grouping can silently split one subject's scores across
+      // two averages, or (downstream, in the Weakness tab) fail to match a
+      // weak area back to the class's canonical subject card.
+      const subjectAverages = new Map<string, { subjectId: string | null; name: string; values: number[] }>();
       for (const row of rows) {
-        const subject = row.subject_name || 'General';
-        subjectAverages.set(subject, [...(subjectAverages.get(subject) || []), this.toNumber(row.percentage)]);
+        const subjectId = row.subject_id ? String(row.subject_id) : null;
+        const name = row.subject_name || 'General';
+        const key = subjectId || `name:${name}`;
+        const entry = subjectAverages.get(key) || { subjectId, name, values: [] };
+        entry.values.push(this.toNumber(row.percentage));
+        subjectAverages.set(key, entry);
       }
-      const subjects = [...subjectAverages.entries()].map(([subject, values]) => ({ subject, avg: this.average(values) }));
+      const subjects = [...subjectAverages.values()].map(({ subjectId, name, values }) => ({
+        subjectId,
+        subject: name,
+        avg: this.average(values),
+      }));
       return {
         id: student.student_id,
         name: student.name,
@@ -334,23 +343,25 @@ export class SchoolReportService {
         attendance: attendanceRate,
         isEvaluated: scores.length > 0,
         trend: scores.length > 1 && scores[scores.length - 1] > scores[0] ? 'improving' : scores.length > 1 && scores[scores.length - 1] < scores[0] ? 'declining' : 'consistent',
-        weakAreas: subjects.filter((item) => item.avg < 60).map((item) => item.subject),
-        strongAreas: subjects.filter((item) => item.avg >= 75).map((item) => item.subject),
+        weakAreas: subjects.filter((item) => item.avg < 60).map((item) => ({ subjectId: item.subjectId, name: item.subject })),
+        strongAreas: subjects.filter((item) => item.avg >= 75).map((item) => ({ subjectId: item.subjectId, name: item.subject })),
+        // Full per-subject breakdown (not just the weak/strong slices above) —
+        // the Weakness tab's "Class Average" needs a specific subject's average
+        // across students, not each student's overall avgScore.
+        subjectScores: subjects.map((item) => ({ subjectId: item.subjectId, name: item.subject, avg: item.avg })),
       };
     });
 
     const evaluatedStudents = studentPerformance.filter((student) => (resultsByStudent.get(String(student.id)) || []).length > 0);
     const classAverage = this.average(evaluatedStudents.map((student) => student.avgScore));
-    const passRate = evaluatedStudents.length
-      ? Math.round((evaluatedStudents.filter((student) => student.avgScore >= 40).length / evaluatedStudents.length) * 100)
+    // Denominator is every student in scope, not just those who've been
+    // evaluated — a rate over "students who happened to take a test" reads as
+    // the whole class's health but silently ignores everyone who hasn't been
+    // graded yet, e.g. showing 100% when only 1 of 81 students has a result.
+    const passRate = studentPerformance.length
+      ? Math.round((evaluatedStudents.filter((student) => student.avgScore >= 40).length / studentPerformance.length) * 100)
       : 0;
     const atRiskStudents = studentPerformance.filter((student) => student.avgScore > 0 && student.avgScore < 40).length;
-
-    const subjectAnalytics = [...subjectScores.values()].map((item) => ({
-      subject: item.subject,
-      avgScore: this.average(item.scores),
-      weakStudents: item.weakStudents.size,
-    })).sort((a, b) => b.avgScore - a.avgScore);
 
     const uniqueClassSections = new Map<string, { classId: string; sectionId: string; className: string; sectionName: string }>();
 
@@ -388,36 +399,62 @@ export class SchoolReportService {
       }
     }
 
+    // Per class+section+subject, not just per subject name globally — a
+    // subject name (e.g. "Mathematics") is a distinct `subjects` row in each
+    // class, and two classes' students should never blend into one shared
+    // average. Collected while building classAnalytics since that's already
+    // iterating each class+section's own student set.
+    const scopedWeaknesses: Array<{ classId: string; sectionId: string; subjectId: string | null; topic: string; weakStudents: number; avgScore: number }> = [];
+
     const classAnalytics = Array.from(uniqueClassSections.values()).map((cs) => {
       const classStudents = studentPerformance.filter(
         (s) => String(s.classId || '') === cs.classId && String(s.sectionId || '') === cs.sectionId
       );
       const classEvaluated = classStudents.filter((s) => (resultsByStudent.get(String(s.id)) || []).length > 0);
       const avgScore = classEvaluated.length ? this.average(classEvaluated.map((s) => s.avgScore)) : 0;
-      const passRate = classEvaluated.length
-        ? Math.round((classEvaluated.filter((s) => s.avgScore >= 40).length / classEvaluated.length) * 100)
+      // Same fix as the overall summary's passRate: rate over the whole class
+      // roster, not just the subset who've been evaluated so far.
+      const passRate = classStudents.length
+        ? Math.round((classEvaluated.filter((s) => s.avgScore >= 40).length / classStudents.length) * 100)
         : 0;
       const attendance = this.average(classStudents.map((s) => s.attendance).filter((value) => value > 0));
 
-      const classSubjectScores = new Map<string, number[]>();
+      const classSubjectScores = new Map<string, { subjectId: string | null; name: string; scores: number[]; weakStudents: Set<string> }>();
       for (const student of classStudents) {
         const studentResults = resultsByStudent.get(String(student.id)) || [];
         for (const row of studentResults) {
-          const subject = row.subject_name || 'General';
-          if (!classSubjectScores.has(subject)) {
-            classSubjectScores.set(subject, []);
-          }
-          classSubjectScores.get(subject)!.push(row.percentage);
+          const subjectId = row.subject_id ? String(row.subject_id) : null;
+          const name = row.subject_name || 'General';
+          const key = subjectId || `name:${name}`;
+          const entry = classSubjectScores.get(key) || { subjectId, name, scores: [], weakStudents: new Set<string>() };
+          entry.scores.push(row.percentage);
+          if (row.percentage < 60) entry.weakStudents.add(String(student.id));
+          classSubjectScores.set(key, entry);
         }
       }
 
-      const classSubjectAnalytics = [...classSubjectScores.entries()].map(([subject, scores]) => ({
-        subject,
-        avgScore: this.average(scores),
+      const classSubjectAnalytics = [...classSubjectScores.values()].map((item) => ({
+        subjectId: item.subjectId,
+        subject: item.name,
+        avgScore: this.average(item.scores),
+        weakStudents: item.weakStudents.size,
       })).sort((a, b) => b.avgScore - a.avgScore);
 
       const topSubject = classSubjectAnalytics[0]?.subject || '-';
       const weakSubject = classSubjectAnalytics[classSubjectAnalytics.length - 1]?.subject || '-';
+
+      for (const item of classSubjectAnalytics) {
+        if (item.weakStudents > 0 || item.avgScore < 60) {
+          scopedWeaknesses.push({
+            classId: cs.classId,
+            sectionId: cs.sectionId,
+            subjectId: item.subjectId,
+            topic: item.subject,
+            weakStudents: item.weakStudents,
+            avgScore: item.avgScore,
+          });
+        }
+      }
 
       const classLabel = [cs.className, cs.sectionName].filter(Boolean).join(' - ') || 'Assigned Class';
 
@@ -432,9 +469,7 @@ export class SchoolReportService {
       };
     });
 
-    const weaknesses = subjectAnalytics
-      .filter((item) => item.weakStudents > 0 || item.avgScore < 60)
-      .map((item) => ({ topic: item.subject, weakStudents: item.weakStudents, avgScore: item.avgScore }));
+    const weaknesses = scopedWeaknesses;
 
     const overallAttendance = this.average(studentPerformance.map((student) => student.attendance).filter((value) => value > 0));
 
@@ -447,8 +482,11 @@ export class SchoolReportService {
     const weeklyAverage = this.average(weeklyAverages);
     const weeklyAnalysis = {
       averageScore: weeklyAverage,
-      passRate: weeklyAverages.length
-        ? Math.round((weeklyAverages.filter((score) => score >= 40).length / weeklyAverages.length) * 100)
+      // Same fix as the overall/per-class passRate: rate over every student
+      // in scope, not just those who happened to be tested this week — 1
+      // passing result out of 81 students should read as ~1%, not 100%.
+      passRate: studentPerformance.length
+        ? Math.round((weeklyAverages.filter((score) => score >= 40).length / studentPerformance.length) * 100)
         : 0,
       atRiskStudents: weeklyAverages.filter((score) => score > 0 && score < 40).length,
       evaluatedStudents: weeklyAverages.length,
@@ -762,14 +800,14 @@ export class SchoolReportService {
   }
 
   async studentReport(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.instituteId || user.instituteId) : user.instituteId;
     let filter = `u.institute_id=$1 AND u.role='STUDENT'`;
     const params: any[] = [instituteId];
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       params.push(user.id);
       filter += ` AND u.id = $${params.length}`;
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT u.id FROM students s JOIN users u ON u.id = s.user_id WHERE s.institute_id = $1 AND (
           (s.parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($2))
@@ -783,7 +821,7 @@ export class SchoolReportService {
       } else {
         filter += ` AND 1=0`;
       }
-    } else if (user.role === 'TEACHER') {
+    } else if (hasSchoolRole(user.role, 'TEACHER')) {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
@@ -851,14 +889,14 @@ export class SchoolReportService {
   }
 
   async assessmentReport(user: any, query: any) {
-    const instituteId = user.role === 'SUPER_ADMIN' ? (query.instituteId || user.instituteId) : user.instituteId;
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN') ? (query.instituteId || user.instituteId) : user.instituteId;
     const params: any[] = [instituteId];
     let filter = `c.institute_id = $1`;
 
-    if (user.role === 'STUDENT') {
+    if (hasSchoolRole(user.role, 'STUDENT')) {
       params.push(user.id);
       filter += ` AND u.id = $${params.length}`;
-    } else if (user.role === 'PARENT') {
+    } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT u.id FROM students s JOIN users u ON u.id = s.user_id WHERE s.institute_id = $1 AND (
           (s.parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($2))
@@ -872,7 +910,7 @@ export class SchoolReportService {
       } else {
         filter += ` AND 1=0`;
       }
-    } else if (user.role === 'TEACHER') {
+    } else if (hasSchoolRole(user.role, 'TEACHER')) {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
       const teacherId = tRows[0]?.id;
       if (teacherId) {
@@ -918,9 +956,9 @@ export class SchoolReportService {
   }
 
   async teacherClassReport(user: any, query: any) {
-    const isSuperAdmin = String(user?.role || '').toUpperCase() === 'SUPER_ADMIN';
-    const isInstituteAdmin = String(user?.role || '').toUpperCase() === 'INSTITUTE_ADMIN' || String(user?.role || '').toUpperCase() === 'ADMIN';
-    const isTeacher = String(user?.role || '').toUpperCase() === 'TEACHER';
+    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
+    const isInstituteAdmin = hasSchoolRole(user?.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user?.role, 'ADMIN');
+    const isTeacher = hasSchoolRole(user?.role, 'TEACHER');
 
     if (!isSuperAdmin && !isInstituteAdmin && !isTeacher) {
       throw new ForbiddenException('You do not have access to this report');

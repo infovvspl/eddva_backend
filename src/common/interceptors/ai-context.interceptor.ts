@@ -27,6 +27,10 @@ export class AiContextInterceptor implements NestInterceptor {
     const store: AiRequestContext = {
       userId: user?.id ?? null,
       userRole: user?.role ?? null,
+      // P0-4.4 trusted tenant identity. School guards set `instituteId`, coaching
+      // JWT strategy sets `tenantId` — both from the VERIFIED token. Deliberately
+      // not `req.tenantId`, which tenant.middleware may resolve from client headers.
+      instituteId: user?.instituteId ?? user?.tenantId ?? null,
       // Reuse an upstream correlation id if a trusted proxy set one; otherwise mint one.
       requestId: req?.headers?.['x-request-id'] || randomUUID(),
     };

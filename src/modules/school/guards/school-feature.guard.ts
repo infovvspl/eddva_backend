@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { SCHOOL_FEATURE_KEY, SchoolFeatureRequirement } from '../decorators/school-feature.decorator';
 import { isSchoolAiFeatureEnabled } from '../common/ai-features.registry';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolFeatureGuard implements CanActivate {
@@ -20,7 +21,7 @@ export class SchoolFeatureGuard implements CanActivate {
       throw new ForbiddenException({ code: 'NO_USER', message: 'User not resolved' });
     }
 
-    if (user.role === 'SUPER_ADMIN') {
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) {
       return true;
     }
 

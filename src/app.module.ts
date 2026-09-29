@@ -8,7 +8,7 @@ import { BullModule } from '@nestjs/bull';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { redisStore } from 'cache-manager-redis-yet';
 
-import appConfig, { jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig, streamingConfig } from './config/app.config';
+import appConfig, { jwtConfig, redisConfig, aiConfig, aiAdmissionConfig, otpConfig, mailConfig, storageConfig, streamingConfig } from './config/app.config';
 import { coachingDbConfig, schoolDbConfig } from './config/database.config';
 import { TenantAiFeatureModule } from './common/services/tenant-ai-feature.module';
 
@@ -104,10 +104,16 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { AiContextInterceptor } from './common/interceptors/ai-context.interceptor';
 import { RtmpHooksModule } from './modules/rtmp-hooks/rtmp-hooks.module';
 import { LeadsModule } from './modules/leads/leads.module';
+import { BlogModule } from './modules/blog/blog.module';
+import { BlogAdminAuthModule } from './modules/blog-admin-auth/blog-admin-auth.module';
 import { Lead } from './database/entities/lead.entity';
+import { BlogPost } from './database/entities/blog-post.entity';
+import { BlogAdmin } from './database/entities/blog-admin.entity';
 
 const ALL_COACHING_ENTITIES = [
   Lead,
+  BlogPost,
+  BlogAdmin,
   Tenant, User, Student, AuditLog, Role,
   Subject, Chapter, Topic, TopicResource,
   Question, QuestionOption,
@@ -139,7 +145,7 @@ const ALL_COACHING_ENTITIES = [
     // ── Config ───────────────────────────────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, jwtConfig, redisConfig, aiConfig, otpConfig, mailConfig, storageConfig, streamingConfig],
+      load: [appConfig, jwtConfig, redisConfig, aiConfig, aiAdmissionConfig, otpConfig, mailConfig, storageConfig, streamingConfig],
       envFilePath: ['.env.local', '.env'],
     }),
 
@@ -264,6 +270,8 @@ const ALL_COACHING_ENTITIES = [
     SchoolModule,
     RtmpHooksModule,
     LeadsModule,
+    BlogModule,
+    BlogAdminAuthModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
