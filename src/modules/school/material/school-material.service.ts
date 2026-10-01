@@ -26,7 +26,26 @@ const ALLOWED_MATERIAL_TYPES = [
   'revision_checklist',
   'faq',
 ];
-const UUID_TEXT_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+/** Upper bound for teacher-typed flashcard text (~1,000 cards of normal length). */
+const MAX_FLASHCARD_CONTENT_CHARS = 200_000;
+
+/**
+ * Teacher-typed flashcards are stored as `**Q:** … / **A:** …` Markdown in
+ * `description` — the same shape the AI generator saves and FlashcardViewer
+ * parses. Reject content that would render as an empty deck.
+ */
+function assertValidFlashcardContent(content: unknown) {
+  const text = typeof content === 'string' ? content.trim() : '';
+  if (!text) throw new BadRequestException('Add at least one flashcard');
+  if (text.length > MAX_FLASHCARD_CONTENT_CHARS) {
+    throw new BadRequestException('Flashcard set is too large — split it into smaller sets');
+  }
+  if (!/^\s*\**\s*Q\s*:/im.test(text) || !/^\s*\**\s*A\s*:/im.test(text)) {
+    throw new BadRequestException('Flashcards must contain questions and answers');
+  }
+}
+
+const UUID_TEXT_PATTERN ='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 
 /** Why a slide-image generation failed, for telemetry only. */
 type SlideImageFailure =
@@ -410,9 +429,9 @@ export class SchoolMaterialService implements OnModuleInit {
     const rows: any[] = await this.ds.query(
       `INSERT INTO study_materials (
         tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
-        subject_id_fk, chapter_id, topic_id, file_size_kb, class_id, section_id
+        subject_id_fk, chapter_id, topic_id, file_size_kb, class_id, section_id, content_source
       )
-       VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0, $11::uuid, $12::uuid)
+       VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0, $11::uuid, $12::uuid, 'ai')
        RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId"`,
       [
         instituteId,
@@ -832,6 +851,7 @@ export class SchoolMaterialService implements OnModuleInit {
         sm.created_at AS "createdAt",
         sm.class_id AS "classId",
         sm.section_id AS "sectionId",
+        sm.content_source AS "contentSource",
         CASE
           WHEN NULLIF(TRIM(s.name), '') IS NOT NULL THEN s.name
           WHEN NULLIF(TRIM(sm.subject), '') IS NOT NULL AND sm.subject !~* '${UUID_TEXT_PATTERN}' THEN sm.subject
@@ -1012,6 +1032,11 @@ export class SchoolMaterialService implements OnModuleInit {
       ? fileTypeLower
       : 'notes';
 
+    // No file/link → the material is text the teacher typed (e.g. flashcards).
+    const hasFile = !!String(body.fileUrl || '').trim();
+    if (type === 'flashcard' && !hasFile) assertValidFlashcardContent(body.description);
+    const contentSource = hasFile ? 'upload' : 'manual';
+
     const rows: any[] = await this.ds.query(
       `INSERT INTO study_materials (
         tenant_id, 
@@ -1028,9 +1053,10 @@ export class SchoolMaterialService implements OnModuleInit {
         topic_id,
         file_size_kb,
         class_id,
-        section_id
+        section_id,
+        content_source
        )
-       VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14::uuid)
+       VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14::uuid, $15)
        RETURNING *`,
       [
         instituteId,
@@ -1046,7 +1072,8 @@ export class SchoolMaterialService implements OnModuleInit {
         body.topicId || null,
         body.fileSizeKb || 0,
         body.classId || scope.classId,
-        body.sectionId || scope.sectionId
+        body.sectionId || scope.sectionId,
+        contentSource,
       ],
     );
 
@@ -1110,7 +1137,8 @@ export class SchoolMaterialService implements OnModuleInit {
         fileType: row.type,
         file_type: row.type,
         classId: row.class_id,
-        sectionId: row.section_id
+        sectionId: row.section_id,
+        contentSource: row.content_source,
       }
     };
   }
@@ -1137,6 +1165,7 @@ export class SchoolMaterialService implements OnModuleInit {
         sm.created_at AS "createdAt",
         sm.class_id AS "classId",
         sm.section_id AS "sectionId",
+        sm.content_source AS "contentSource",
         CASE
           WHEN NULLIF(TRIM(s.name), '') IS NOT NULL THEN s.name
           WHEN NULLIF(TRIM(sm.subject), '') IS NOT NULL AND sm.subject !~* '${UUID_TEXT_PATTERN}' THEN sm.subject
@@ -1177,14 +1206,23 @@ export class SchoolMaterialService implements OnModuleInit {
         subjectName: row.subjectName,
         chapterName: row.chapterName,
         topicName: row.topicName,
+        contentSource: row.contentSource,
       }
     };
   }
 
   async update(user: any, id: string, body: any) {
-    const topRows = await this.ds.query(`SELECT subject, subject_id_fk FROM study_materials WHERE id=$1`, [id]);
-    const currentSubjectStr = topRows.length > 0 ? topRows[0].subject : null;
-    const currentSubjectId = topRows.length > 0 ? topRows[0].subject_id_fk : null;
+    // Only super admins may reach across institutes; everyone else is scoped to their own.
+    const isSuperAdmin = hasSchoolRole(user.role, 'SUPER_ADMIN');
+    const topRows = await this.ds.query(
+      `SELECT subject, subject_id_fk, type::text AS type, s3_key
+       FROM study_materials
+       WHERE id = $1 AND ($2::boolean OR tenant_id::text = $3::text)`,
+      [id, isSuperAdmin, user.instituteId ?? null],
+    );
+    if (!topRows.length) throw new NotFoundException('Material not found');
+    const currentSubjectStr = topRows[0].subject;
+    const currentSubjectId = topRows[0].subject_id_fk;
 
     // Fallback to legacy string validation if subject_id_fk is missing but subject string exists
     await this.validateTeacherAssignment(user, body.subjectIdFk || body.subjectId || currentSubjectId || currentSubjectStr, 'UPDATE_MATERIAL_DENIED');
@@ -1214,6 +1252,12 @@ export class SchoolMaterialService implements OnModuleInit {
     const type = fileTypeLower && ALLOWED_MATERIAL_TYPES.includes(fileTypeLower)
       ? fileTypeLower
       : undefined;
+
+    const finalType = type ?? topRows[0].type;
+    const finalFileUrl = body.fileUrl !== undefined ? body.fileUrl : topRows[0].s3_key;
+    if (finalType === 'flashcard' && !String(finalFileUrl || '').trim() && body.description !== undefined) {
+      assertValidFlashcardContent(body.description);
+    }
 
     await this.ds.query(
       `UPDATE study_materials SET 
