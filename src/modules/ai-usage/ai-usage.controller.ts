@@ -40,6 +40,21 @@ export class AiUsageController {
     return { success: true, data: await this.svc.getByFeature(this.scope(user, q)) };
   }
 
+  /**
+   * Per-feature token spend broken down by the model that served it. by-feature
+   * cannot answer this: it reads the daily rollup, which has no model column.
+   * Same scoping as the other endpoints, so an institute admin only ever sees
+   * their own tenant.
+   */
+  @Get('by-model')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN)
+  async byModel(@CurrentUser() user: any, @Query() q: any) {
+    return {
+      success: true,
+      data: await this.svc.getByModel({ ...this.scope(user, q), feature: q.feature || undefined }),
+    };
+  }
+
   @Get('trend')
   @Roles(UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN)
   async trend(@CurrentUser() user: any, @Query() q: any) {

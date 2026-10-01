@@ -90,4 +90,48 @@ describe('AiUsageService — attribution + provider events', () => {
       svc.recordProviderEvent({ eventType: 'timeout' }),
     ).resolves.toBeUndefined();
   });
+
+  describe('getByModel — which model served each feature', () => {
+    it('reads the events table, not the daily rollup which has no model column', async () => {
+      await svc.getByModel({ vertical: 'school' });
+      const q = findCall('GROUP BY feature, provider, model');
+      expect(q).toBeDefined();
+      expect(String(q[0])).toContain('FROM ai_usage_events');
+      expect(String(q[0])).not.toContain('ai_usage_daily');
+    });
+
+    it('reports input and output tokens separately (they are priced differently)', async () => {
+      await svc.getByModel({});
+      const sql = String(findCall('GROUP BY feature, provider, model')[0]);
+      expect(sql).toContain('prompt_tokens');
+      expect(sql).toContain('completion_tokens');
+      expect(sql).toContain('AS tokens');
+      expect(sql).toContain('AS cost');
+    });
+
+    it('scopes by institute, vertical, feature and period', async () => {
+      await svc.getByModel({
+        instituteId: '11111111-1111-1111-1111-111111111111',
+        vertical: 'school',
+        feature: 'ppt_generate',
+        from: '2026-09-01',
+        to: '2026-09-28',
+      });
+      const call = findCall('GROUP BY feature, provider, model');
+      const sql = String(call[0]);
+      expect(sql).toContain('created_at >=');
+      expect(sql).toContain('institute_id =');
+      expect(sql).toContain('vertical =');
+      expect(sql).toContain('feature =');
+      expect(call[1]).toContain('11111111-1111-1111-1111-111111111111');
+      expect(call[1]).toContain('ppt_generate');
+    });
+
+    it('never leaves a null provider or model unlabelled', async () => {
+      await svc.getByModel({});
+      const sql = String(findCall('GROUP BY feature, provider, model')[0]);
+      expect(sql).toContain("COALESCE(provider, 'unknown')");
+      expect(sql).toContain("COALESCE(model, 'unknown')");
+    });
+  });
 });

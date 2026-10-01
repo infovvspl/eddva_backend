@@ -162,6 +162,36 @@ export class AiUsageService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS idx_ai_provider_events_type_time ON ai_provider_events(event_type, created_at);
       CREATE INDEX IF NOT EXISTS idx_ai_provider_events_prov_time ON ai_provider_events(provider, created_at);
 
+      -- Routing returns provider-qualified model ids ("together:zai-org/GLM-5.3-Flash",
+      -- 30 chars). Tables created before routing existed have provider VARCHAR(24),
+      -- so every routed call failed its INSERT with "value too long for type
+      -- character varying(24)" and the usage row was lost while the request itself
+      -- succeeded. Widening a varchar needs no table rewrite; guarded so repeated
+      -- boots do not take the lock once the column is already wide enough.
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'ai_usage_events' AND column_name = 'provider'
+                     AND coalesce(character_maximum_length, 0) < 64) THEN
+          ALTER TABLE ai_usage_events ALTER COLUMN provider TYPE VARCHAR(64);
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'ai_usage_events' AND column_name = 'model'
+                     AND coalesce(character_maximum_length, 0) < 96) THEN
+          ALTER TABLE ai_usage_events ALTER COLUMN model TYPE VARCHAR(96);
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'ai_provider_events' AND column_name = 'provider'
+                     AND coalesce(character_maximum_length, 0) < 64) THEN
+          ALTER TABLE ai_provider_events ALTER COLUMN provider TYPE VARCHAR(64);
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'ai_provider_events' AND column_name = 'model'
+                     AND coalesce(character_maximum_length, 0) < 96) THEN
+          ALTER TABLE ai_provider_events ALTER COLUMN model TYPE VARCHAR(96);
+        END IF;
+      END $$;
+
       CREATE TABLE IF NOT EXISTS ai_usage_daily (
         institute_id UUID NOT NULL,
         vertical VARCHAR(16) NOT NULL DEFAULT 'coaching',
@@ -424,6 +454,56 @@ export class AiUsageService implements OnModuleInit {
     if (opts.instituteId) sql += ` AND institute_id = $${params.push(opts.instituteId)}`;
     if (opts.vertical) sql += ` AND vertical = $${params.push(opts.vertical)}`;
     return sql;
+  }
+
+  /**
+   * Same period filter as filterSql, but for ai_usage_events, whose date column
+   * is created_at rather than day.
+   */
+  private eventFilterSql(
+    opts: { instituteId?: string; vertical?: string; feature?: string; from?: string; to?: string },
+    params: any[],
+  ): string {
+    let sql = ` WHERE created_at >= $${params.push(this.monthStart(opts.from) + ' 00:00:00')}`;
+    if (opts.to) sql += ` AND created_at <= $${params.push(opts.to + ' 23:59:59')}`;
+    if (opts.instituteId) sql += ` AND institute_id = $${params.push(opts.instituteId)}`;
+    if (opts.vertical) sql += ` AND vertical = $${params.push(opts.vertical)}`;
+    if (opts.feature) sql += ` AND feature = $${params.push(opts.feature)}`;
+    return sql;
+  }
+
+  /**
+   * Token spend per feature AND the model that served it.
+   *
+   * getByFeature() reads ai_usage_daily, which rolls up by feature only and has
+   * no model column — so it can never answer "which model did this feature use".
+   * That lives one level down, in ai_usage_events, which stores provider + model
+   * per request. Input and output tokens are reported separately because
+   * providers price them differently (GLM-5.3-Flash: $0.15 in vs $0.50 out per 1M).
+   */
+  async getByModel(
+    opts: { instituteId?: string; vertical?: string; feature?: string; from?: string; to?: string } = {},
+  ) {
+    await this.ensureTables();
+    const params: any[] = [];
+    const where = this.eventFilterSql(opts, params);
+    return this.ds.query(
+      `SELECT feature,
+              COALESCE(provider, 'unknown')                      AS provider,
+              COALESCE(model, 'unknown')                         AS model,
+              COUNT(*)::int                                      AS requests,
+              SUM(CASE WHEN success THEN 1 ELSE 0 END)::int      AS success,
+              COALESCE(SUM(prompt_tokens), 0)::bigint            AS prompt_tokens,
+              COALESCE(SUM(completion_tokens), 0)::bigint        AS completion_tokens,
+              COALESCE(SUM(total_tokens), 0)::bigint             AS tokens,
+              COALESCE(SUM(est_cost), 0)::numeric                AS cost,
+              COALESCE(ROUND(AVG(latency_ms)), 0)::int           AS avg_latency_ms,
+              MAX(created_at)                                    AS last_used
+       FROM ai_usage_events${where}
+       GROUP BY feature, provider, model
+       ORDER BY tokens DESC, requests DESC`,
+      params,
+    );
   }
 
   /** Platform/institute totals for the period. */

@@ -9,13 +9,37 @@ export class InternalAiUsageService {
 
   constructor(private readonly aiUsageService: AiUsageService) {}
 
+  /**
+   * The AI service reports only the model it used, so `provider` was being filled
+   * with the model id. Once routing began returning ids like
+   * "together:zai-org/GLM-5.3-Flash" (30 chars) that overflowed provider's
+   * VARCHAR(24) and EVERY routed call failed to record — generation succeeded but
+   * the usage row was silently lost.
+   *
+   * Routed ids carry their provider as a "<provider>:" prefix. Unprefixed ids are
+   * the historical Groq/Gemini ones, mapped by their well-known shapes; anything
+   * unrecognised stays null rather than guessing, so a wrong provider never gets
+   * attributed a cost.
+   */
+  static providerOf(modelUsed?: string | null): string | null {
+    const id = (modelUsed || '').trim();
+    if (!id) return null;
+    const colon = id.indexOf(':');
+    if (colon > 0) return id.slice(0, colon);
+    const low = id.toLowerCase();
+    if (low.startsWith('gemini')) return 'gemini';
+    if (low.startsWith('openai/') || low.startsWith('qwen/') || low.startsWith('llama')) return 'groq';
+    if (low === 'scientific_solver') return 'groq';
+    return null;
+  }
+
   async logUsage(dto: LogAiUsageDto): Promise<{ logged: boolean }> {
     try {
       await this.aiUsageService.record({
         instituteId: dto.instituteId?.trim() || null,
         vertical: dto.instituteType?.trim() || null,
         feature: dto.featureId,
-        provider: dto.modelUsed ?? null,
+        provider: InternalAiUsageService.providerOf(dto.modelUsed),
         model: dto.modelUsed ?? null,
         success: dto.success ?? true,
         latencyMs: dto.latencyMs ?? null,
