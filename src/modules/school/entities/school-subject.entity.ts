@@ -8,6 +8,12 @@ export class SchoolSubject extends SchoolBase {
   @Column({ nullable: true }) code: string;
   @Column({ nullable: true }) description: string;
   @Column({ name: 'subject_type', default: 'theory' }) subjectType: string;
+  /**
+   * Distinguishes school-curriculum subjects from competitive-exam subjects.
+   * Values: 'school' (default) | 'competitive'
+   * All pre-existing rows default to 'school' via the DB-level default.
+   */
+  @Column({ name: 'content_type', default: 'school' }) contentType: string;
 }
 
 @Entity('class_subjects')

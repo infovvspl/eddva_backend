@@ -1,4 +1,4 @@
-import { Inject, Injectable, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -46,18 +46,48 @@ export function normalizeSubjectName(name: string): string {
 }
 
 @Injectable()
-export class SchoolSubjectService {
+export class SchoolSubjectService implements OnModuleInit {
+  private readonly logger = new Logger(SchoolSubjectService.name);
+
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) { }
 
+  /** Ensure the content_type column exists — idempotent, safe to run every boot. */
+  async onModuleInit() {
+    try {
+      await this.ds.query(`
+        ALTER TABLE subjects
+          ADD COLUMN IF NOT EXISTS content_type VARCHAR(20) NOT NULL DEFAULT 'school';
+      `);
+      await this.ds.query(`
+        UPDATE subjects SET content_type = 'school'
+        WHERE content_type IS NULL OR content_type = '';
+      `);
+      await this.ds.query(`
+        CREATE INDEX IF NOT EXISTS idx_subjects_content_type
+          ON subjects (institute_id, content_type);
+      `);
+      // Verify the column actually exists and log distinct values for visibility
+      const check = await this.ds.query(`
+        SELECT content_type, COUNT(*)::int AS cnt
+        FROM subjects
+        GROUP BY content_type
+        ORDER BY content_type
+      `);
+      this.logger.log(`[onModuleInit] subjects.content_type column ready. Distribution: ${JSON.stringify(check)}`);
+    } catch (err) {
+      this.logger.warn(`Could not ensure subjects.content_type column: ${(err as Error).message}`);
+    }
+  }
+
   private async resolveInstituteId(user: any, id?: string) {
     return hasSchoolRole(user.role, 'SUPER_ADMIN') ? (id || user.instituteId) : user.instituteId;
   }
 
-  private subjectListKey(instituteId: string, classId?: string, sectionId?: string, page = 1, limit = 10) {
-    return `school:subjects:list:${instituteId}:${classId ?? '_'}:${sectionId ?? '_'}:p${page}:l${limit}`;
+  private subjectListKey(instituteId: string, classId?: string, sectionId?: string, page = 1, limit = 10, contentType?: string) {
+    return `school:subjects:list:${instituteId}:${classId ?? '_'}:${sectionId ?? '_'}:p${page}:l${limit}:ct${contentType ?? '_'}`;
   }
 
   async invalidateSubjectCache(instituteId: string) {
@@ -102,7 +132,7 @@ export class SchoolSubjectService {
     const isTeacher = hasSchoolRole(user.role, 'TEACHER');
 
     // Only cache general non-search list requests — class or section scoped lists should bypass cache to avoid stale caches
-    let cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit);
+    let cacheKey = (query.search || query.classId || query.sectionId) ? null : this.subjectListKey(instituteId, query.classId, query.sectionId, page, limit, query.contentType);
     if (cacheKey && isTeacher) {
       cacheKey += `:teacher:${user.id}`;
     }
@@ -128,8 +158,14 @@ export class SchoolSubjectService {
       filter += ` AND (s.section_id=$${params.length} OR s.section_id IS NULL)`;
     }
 
-    if (query.search) {
-      const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+    // Filter by content_type ('school' or 'competitive').
+    // If not supplied, both types are returned so existing callers are unaffected.
+    if (query.contentType) {
+      params.push(query.contentType);
+      filter += ` AND s.content_type = $${params.length}`;
+    }
+
+    if (query.search) {      const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
       if (searchTerms.length > 0) {
         const searchConditions = searchTerms.map((term: string) => {
           params.push(term);
@@ -189,6 +225,7 @@ export class SchoolSubjectService {
     console.log(`[SchoolSubjectService.list] Authenticated school_id:`, instituteId);
     console.log(`[SchoolSubjectService.list] Selected class_id:`, query.classId);
     console.log(`[SchoolSubjectService.list] Selected section_id:`, query.sectionId);
+    console.log(`[SchoolSubjectService.list] Content type filter:`, query.contentType || 'none (returning all)');
     console.log(`[SchoolSubjectService.list] SQL filters: WHERE ${filter}`);
     console.log(`[SchoolSubjectService.list] SQL params:`, params);
     console.log(`[SchoolSubjectService.list] Number of subjects returned:`, rows.length);
@@ -205,28 +242,32 @@ export class SchoolSubjectService {
     }
     const normalizedName = normalizeSubjectName(body.name);
 
-    // Uniqueness within (institute, class, section) on the normalised name.
+    // Uniqueness within (institute, class, section, content_type) on the normalised name.
     //
-    // Scope is compared through COALESCE rather than branching to IS NULL. The
-    // old form let a class-wide subject and a section-scoped one coexist — SQL
-    // never matches NULL to NULL — which is how Class 10 ended up with two
-    // Economics subjects, each carrying its own copy of every chapter.
+    // content_type is included in the scope so a school-curriculum "Physics" and a
+    // competitive-exam "Physics" can coexist under the same class/section without
+    // conflicting. The old form let a class-wide subject and a section-scoped one
+    // coexist — SQL never matches NULL to NULL — which is how Class 10 ended up with
+    // two Economics subjects, each carrying its own copy of every chapter.
+    const contentType = body.contentType || 'school';
     const dups = await this.ds.query(
       `SELECT id FROM subjects
        WHERE institute_id = $1
          AND LOWER(TRIM(name)) = LOWER(TRIM($2))
          AND COALESCE(class_id::text, '')   = COALESCE($3::text, '')
-         AND COALESCE(section_id::text, '') = COALESCE($4::text, '')`,
-      [instituteId, normalizedName, body.classId ?? null, body.sectionId ?? null],
+         AND COALESCE(section_id::text, '') = COALESCE($4::text, '')
+         AND content_type = $5`,
+      [instituteId, normalizedName, body.classId ?? null, body.sectionId ?? null, contentType],
     );
     if (dups.length > 0) {
       throw new BadRequestException('Subject already exists.');
     }
 
     const rows: any[] = await this.ds.query(
-      `INSERT INTO subjects (institute_id,name,class_id,section_id,code,type,description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [instituteId, normalizedName, body.classId || null, body.sectionId || null, body.code || null, body.type || 'Theory', body.description || null]
+      `INSERT INTO subjects (institute_id,name,class_id,section_id,code,type,description,content_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [instituteId, normalizedName, body.classId || null, body.sectionId || null, body.code || null, body.type || 'Theory', body.description || null, contentType]
     );
+    this.logger.log(`[create] Saved subject "${normalizedName}" with content_type="${contentType}" id=${rows[0]?.id}`);
     await this.invalidateSubjectCache(instituteId);
     return { success: true, data: rows[0] };
   }
@@ -241,17 +282,20 @@ export class SchoolSubjectService {
     const normalizedName = body.name ? normalizeSubjectName(body.name) : current.name;
     const classId = body.classId !== undefined ? (body.classId || null) : current.class_id;
     const sectionId = body.sectionId !== undefined ? (body.sectionId || null) : current.section_id;
+    const contentType = body.contentType !== undefined ? (body.contentType || 'school') : (current.content_type || 'school');
 
-    if (body.name || body.classId !== undefined || body.sectionId !== undefined) {
+    if (body.name || body.classId !== undefined || body.sectionId !== undefined || body.contentType !== undefined) {
       // Same COALESCE scope comparison as create() — see the note there.
+      // content_type is also in scope so renaming a competitive subject doesn't collide with a school one.
       const dups = await this.ds.query(
         `SELECT id FROM subjects
          WHERE institute_id = $1
            AND LOWER(TRIM(name)) = LOWER(TRIM($2))
            AND id <> $3
            AND COALESCE(class_id::text, '')   = COALESCE($4::text, '')
-           AND COALESCE(section_id::text, '') = COALESCE($5::text, '')`,
-        [current.institute_id, normalizedName, id, classId ?? null, sectionId ?? null],
+           AND COALESCE(section_id::text, '') = COALESCE($5::text, '')
+           AND content_type = $6`,
+        [current.institute_id, normalizedName, id, classId ?? null, sectionId ?? null, contentType],
       );
       if (dups.length > 0) {
         throw new BadRequestException('Subject already exists.');
@@ -259,8 +303,8 @@ export class SchoolSubjectService {
     }
 
     await this.ds.query(
-      `UPDATE subjects SET name=COALESCE($2,name),class_id=$3,section_id=$4,code=COALESCE($5,code),type=COALESCE($6,type),description=COALESCE($7,description),updated_at=NOW() WHERE id=$1`,
-      [id, body.name ? normalizedName : current.name, classId, sectionId, body.code, body.type, body.description]
+      `UPDATE subjects SET name=COALESCE($2,name),class_id=$3,section_id=$4,code=COALESCE($5,code),type=COALESCE($6,type),description=COALESCE($7,description),content_type=$8,updated_at=NOW() WHERE id=$1`,
+      [id, body.name ? normalizedName : current.name, classId, sectionId, body.code, body.type, body.description, contentType]
     );
     await this.invalidateSubjectCache(current.institute_id);
     return { success: true };
