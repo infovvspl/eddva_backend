@@ -262,11 +262,19 @@ export class SchoolTopicService {
         `, [subjectId]);
 
         for (const d of dups) {
+          // Rank the indexed duplicate first: keeping a chapter with no passages
+          // while deleting the one a PDF was actually ingested against is how a
+          // chapter silently loses its grounding (or, worse, how another chapter's
+          // passages end up matched to it — see getChapterPassages' by-name
+          // fallback in SchoolTextbookService).
           const cRows = await this.ds.query(`
-            SELECT id, name, sort_order, created_at, updated_at
-            FROM chapters
-            WHERE subject_id = $1 AND LOWER(TRIM(name)) = $2
-            ORDER BY COALESCE(sort_order,0) ASC, updated_at DESC NULLS LAST, created_at ASC
+            SELECT c.id, c.name, c.sort_order, c.created_at, c.updated_at,
+                   COALESCE(ts.chunk_count, 0) AS chunk_count
+            FROM chapters c
+            LEFT JOIN textbook_sources ts ON ts.chapter_id = c.id
+            WHERE c.subject_id = $1 AND LOWER(TRIM(c.name)) = $2
+            ORDER BY COALESCE(ts.chunk_count, 0) DESC,
+                     COALESCE(c.sort_order, 0) ASC, c.updated_at DESC NULLS LAST, c.created_at ASC
           `, [subjectId, d.norm_name]);
 
           const keepId = cRows[0].id;
@@ -278,6 +286,28 @@ export class SchoolTopicService {
           for (const remId of removeIds) {
             await this.ds.query(`UPDATE topics SET chapter_id = $1 WHERE chapter_id = $2`, [keepId, remId]);
             await this.ds.query(`UPDATE study_materials SET chapter_id = $1, chapter = $2 WHERE chapter_id = $3`, [keepId, keepName, remId]);
+
+            // Repoint the loser's indexed passages onto the survivor instead of
+            // orphaning them — the chapter row about to be deleted may be the one
+            // a PDF was actually ingested against. Grounding tables are an
+            // enhancement layer here, so a missing table must not abort the heal.
+            try {
+              await this.ds.query(`UPDATE textbook_chunks SET chapter_id = $1 WHERE chapter_id = $2`, [keepId, remId]);
+              await this.ds.query(`UPDATE textbook_link_status SET chapter_id = $1 WHERE chapter_id = $2`, [keepId, remId]);
+              // textbook_sources.chapter_id is the primary key, so it cannot be
+              // repointed onto a survivor that already has a row of its own.
+              const keepHasSource = await this.ds.query(
+                `SELECT 1 FROM textbook_sources WHERE chapter_id = $1 LIMIT 1`, [keepId],
+              );
+              if (keepHasSource.length) {
+                await this.ds.query(`DELETE FROM textbook_sources WHERE chapter_id = $1`, [remId]);
+              } else {
+                await this.ds.query(`UPDATE textbook_sources SET chapter_id = $1 WHERE chapter_id = $2`, [keepId, remId]);
+              }
+            } catch (err) {
+              this.logger.warn(`Chapter merge: could not repoint grounding data for ${remId} -> ${keepId}: ${(err as Error).message}`);
+            }
+
             await this.ds.query(`DELETE FROM chapters WHERE id = $1`, [remId]);
           }
         }

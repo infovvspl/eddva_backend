@@ -36,6 +36,21 @@ export class SchoolAiUsageController {
     return { success: true, data: await this.svc.getByFeature(this.scope(user, q)) };
   }
 
+  /**
+   * Per-feature token spend broken down by the model that served it. by-feature
+   * reads the daily rollup, which has no model column, so it cannot answer this.
+   * Scoped exactly like the endpoints above: a school admin sees only their own
+   * institute, a super admin may pass instituteId.
+   */
+  @Get('by-model')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  async byModel(@SchoolUser() user: any, @Query() q: any) {
+    return {
+      success: true,
+      data: await this.svc.getByModel({ ...this.scope(user, q), feature: q.feature || undefined }),
+    };
+  }
+
   @Get('trend')
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
   async trend(@SchoolUser() user: any, @Query() q: any) {
