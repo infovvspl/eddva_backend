@@ -28,6 +28,14 @@ export class SchoolTeacherController {
     @Query() query: any,
   ) { return this.svc.getTeacherRecordingsSummary(user, teacherId, query); }
 
+  @Get(':teacherId/benchmarking')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  benchmarking(
+    @SchoolUser() user: any,
+    @Param('teacherId', ParseUUIDPipe) teacherId: string,
+    @Query() query: any,
+  ) { return this.svc.getTeacherBenchmarking(user, teacherId, query); }
+
   @Get(':teacherId/recordings')
   @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
   recordings(

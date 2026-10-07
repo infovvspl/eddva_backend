@@ -60,8 +60,8 @@ export class SchoolErpModulesService {
     return { success: true, data: rows[0] };
   }
 
-  async getAssignments(schoolId: string) {
-    // Get all active modules and join with assignments for this school
+  async getAssignments(instituteId: string) {
+    // Get all active modules and join with assignments for this institute
     const modules = await this.ds.query(`
       SELECT 
         m.id as module_id, 
@@ -75,28 +75,28 @@ export class SchoolErpModulesService {
         COALESCE(a.is_active, false) as is_assigned
       FROM school_erp_modules m
       LEFT JOIN school_erp_module_assignments a 
-        ON m.id = a.module_id AND a.school_id = $1
+        ON m.id = a.module_id AND a.institute_id = $1
       WHERE m.is_active = true
       ORDER BY m.sort_order ASC
-    `, [schoolId]);
+    `, [instituteId]);
 
     return { success: true, data: modules };
   }
 
-  async toggleAssignment(schoolId: string, moduleId: string, is_active: boolean) {
+  async toggleAssignment(instituteId: string, moduleId: string, is_active: boolean) {
     // Upsert the assignment
     await this.ds.query(`
-      INSERT INTO school_erp_module_assignments (school_id, module_id, is_active)
+      INSERT INTO school_erp_module_assignments (institute_id, module_id, is_active)
       VALUES ($1, $2, $3)
-      ON CONFLICT (school_id, module_id) 
+      ON CONFLICT (institute_id, module_id)
       DO UPDATE SET is_active = EXCLUDED.is_active, updated_at = NOW()
-    `, [schoolId, moduleId, is_active]);
+    `, [instituteId, moduleId, is_active]);
 
     return { success: true };
   }
 
-  async getInstituteModules(schoolId: string) {
-    // Get modules assigned and active for a school
+  async getInstituteModules(instituteId: string) {
+    // Get modules assigned and active for an institute
     const modules = await this.ds.query(`
       SELECT 
         m.id, 
@@ -110,11 +110,11 @@ export class SchoolErpModulesService {
       FROM school_erp_modules m
       INNER JOIN school_erp_module_assignments a 
         ON m.id = a.module_id
-      WHERE a.school_id = $1 
+      WHERE a.institute_id = $1
         AND a.is_active = true 
         AND m.is_active = true
       ORDER BY m.sort_order ASC
-    `, [schoolId]);
+    `, [instituteId]);
 
     return { success: true, data: modules };
   }

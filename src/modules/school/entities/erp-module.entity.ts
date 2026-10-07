@@ -26,6 +26,9 @@ export class ErpModule extends SchoolBase {
   @Column({ nullable: true })
   bg: string;
 
+  @Column({ default: 0 })
+  sort_order: number;
+
   @Column({ default: true })
   is_active: boolean;
 

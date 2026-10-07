@@ -388,6 +388,7 @@ export class SchoolInstituteService {
        modules_permissions=CASE WHEN $20::jsonb IS NOT NULL THEN COALESCE(modules_permissions,'{}'::jsonb) || $20::jsonb ELSE modules_permissions END,
        active_modules=CASE WHEN $22::jsonb IS NOT NULL THEN $22::jsonb ELSE active_modules END,
        board=COALESCE($21,board),
+       min_attendance_percentage=COALESCE($23::numeric,min_attendance_percentage),
        updated_at=NOW() WHERE id=$1`,
       [
         id,
@@ -412,6 +413,7 @@ export class SchoolInstituteService {
         modulesPermissions !== undefined ? JSON.stringify(modulesPermissions) : null,
         body.board || null,
         activeModules !== undefined ? JSON.stringify(activeModules) : null,
+        body.minAttendancePercentage ?? body.min_attendance_percentage ?? null,
       ],
     );
 

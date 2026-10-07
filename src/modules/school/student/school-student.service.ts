@@ -704,7 +704,7 @@ export class SchoolStudentService implements OnModuleInit {
               s.father_name, s.mother_name, s.parent_phone, s.admission_date,
               s.parent_email, s.parent_occupation, s.address, s.city, s.state, s.pin_code,
               s.medical_conditions, s.allergies, s.documents, s.national_id,
-              s.previous_school_name, s.previous_admission_no, s.reason_for_transfer, s.caste_category, s.board_registration_no, s.board_name, s.document_verification, s.status,
+              s.previous_school_name, s.previous_admission_no, s.reason_for_transfer, s.caste_category, s.board_registration_no, s.board_name, s.document_verification, s.status, s.min_attendance_percentage,
               sec.name AS section_name, c.name AS class_name, c.id AS class_id, c.academic_year
        FROM users u
        LEFT JOIN students s ON s.user_id=u.id
@@ -951,6 +951,7 @@ export class SchoolStudentService implements OnModuleInit {
         boardName: r.board_name,
         documentVerification: this.parseJsonObject(r.document_verification),
         status: r.status || 'ACTIVE',
+        minAttendancePercentage: r.min_attendance_percentage,
         classId: r.class_id,
         academicYear: r.academic_year,
         subjects: subjectRows.map((s) => s.name),
@@ -1067,6 +1068,7 @@ export class SchoolStudentService implements OnModuleInit {
     if (body.boardRegistrationNo !== undefined) addStudentUpdate('board_registration_no', body.boardRegistrationNo || null);
     if (body.boardName !== undefined) addStudentUpdate('board_name', body.boardName || null);
     if (body.status !== undefined) addStudentUpdate('status', body.status || 'ACTIVE');
+    if (body.minAttendancePercentage !== undefined) addStudentUpdate('min_attendance_percentage', body.minAttendancePercentage === '' ? null : body.minAttendancePercentage);
 
     if (body.documentVerification !== undefined) {
       addStudentUpdate('document_verification', JSON.stringify(body.documentVerification));

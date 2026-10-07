@@ -644,7 +644,7 @@ export class AiBridgeService {
   async generateFeedback(
     payload: {
       studentId: string;
-      context: 'post_test' | 'weekly_summary' | 'battle_result';
+      context: 'post_test' | 'weekly_summary' | 'battle_result' | 'report_card';
       data: any;
     },
     tenantId?: string,

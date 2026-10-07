@@ -706,7 +706,7 @@ export class SchoolTeacherService {
               t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
               t.address,t.city,t.state,t.pin_code,t.allergies,t.medical_conditions,t.documents,t.shift,t.weekdays,
               t.office_hours_start,t.office_hours_end,t.max_hours_per_week,t.emergency_contact,t.guardian_contact,
-              t.disability,t.emergency_doctor,t.nationality,t.country,
+              t.disability,t.emergency_doctor,t.nationality,t.country,t.min_attendance_percentage,
        COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name)) FROM (SELECT DISTINCT class_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN classes c ON taa.class_id=c.id), '[]'::json) as classes,
        COALESCE((SELECT json_agg(json_build_object('id', s.id, 'name', s.name)) FROM (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id=t.id) taa JOIN sections s ON taa.section_id=s.id), '[]'::json) as sections,
        COALESCE((SELECT json_agg(json_build_object('id', sub.id, 'name', sub.name)) FROM (SELECT DISTINCT subject_id FROM teacher_academic_assignments WHERE teacher_id=t.id AND subject_id IS NOT NULL) taa JOIN subjects sub ON taa.subject_id=sub.id), '[]'::json) as subjects
@@ -851,6 +851,7 @@ export class SchoolTeacherService {
         country: r.country,
         allergies: r.allergies,
         medicalConditions: r.medical_conditions,
+        minAttendancePercentage: r.min_attendance_percentage,
         docs,
         religion: teacherDetails.religion,
         qualification: teacherDetails.qualification,
@@ -995,6 +996,7 @@ export class SchoolTeacherService {
     if (body.emergencyDoctor !== undefined) addTeacherUpdate('emergency_doctor', body.emergencyDoctor || null);
     if (body.nationality !== undefined) addTeacherUpdate('nationality', body.nationality || null);
     if (body.country !== undefined) addTeacherUpdate('country', body.country || null);
+    if (body.minAttendancePercentage !== undefined) addTeacherUpdate('min_attendance_percentage', body.minAttendancePercentage === '' ? null : body.minAttendancePercentage);
 
     addTeacherUpdate('documents', JSON.stringify(documents));
 
@@ -1328,6 +1330,83 @@ export class SchoolTeacherService {
     ).catch(() => [{ total_live: 0 }]);
 
     return { data: { ...summary, total_live: liveRows[0]?.total_live ?? 0 } };
+  }
+
+  /**
+   * Rolls up the per-recording AI teaching-analysis rubric (see
+   * analyzeTeacherRecording) across a teacher's recordings into a single
+   * benchmarking view, and compares their classes' average score against the
+   * institute average — the data backing the Teacher Benchmarking tab.
+   */
+  async getTeacherBenchmarking(user: any, teacherId: string, query: any) {
+    await this.ensureAnalysisColumns();
+    const instituteId = hasSchoolRole(user.role, 'SUPER_ADMIN')
+      ? (query.instituteId ?? (() => { throw new BadRequestException('instituteId required'); })())
+      : user.instituteId;
+    const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
+
+    const analysisRows: any[] = await this.ds.query(
+      `SELECT ai_teaching_analysis FROM class_recordings
+       WHERE institute_id::text = $1 AND teacher_user_id::text = $2 AND ai_teaching_analysis IS NOT NULL
+       ORDER BY recorded_date DESC
+       LIMIT 50`,
+      [instituteId, teacherUserId],
+    );
+
+    const dims = ['clarity', 'pacing', 'contentCoverage', 'studentEngagement', 'languageQuality'];
+    const dimTotals: Record<string, number[]> = { overallScore: [] };
+    dims.forEach((d) => (dimTotals[d] = []));
+    const suggestionCounts = new Map<string, number>();
+    const strengthCounts = new Map<string, number>();
+
+    for (const row of analysisRows) {
+      const a = row.ai_teaching_analysis;
+      if (!a) continue;
+      if (typeof a.overallScore === 'number') dimTotals.overallScore.push(a.overallScore);
+      for (const d of dims) {
+        const score = a[d]?.score;
+        if (typeof score === 'number') dimTotals[d].push(score);
+      }
+      (a.suggestions || []).forEach((s: string) => suggestionCounts.set(s, (suggestionCounts.get(s) || 0) + 1));
+      (a.strengths || []).forEach((s: string) => strengthCounts.set(s, (strengthCounts.get(s) || 0) + 1));
+    }
+
+    const avg = (arr: number[]) => (arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : null);
+    const topByCount = (m: Map<string, number>, n: number) =>
+      [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([text]) => text);
+
+    const [classPerf] = await this.ds.query(
+      `SELECT
+         (SELECT ROUND(AVG(r.percentage), 1) FROM results r
+            JOIN students s ON s.user_id::text = r.student_id::text
+            WHERE s.section_id IN (SELECT DISTINCT section_id FROM teacher_academic_assignments WHERE teacher_id = (SELECT id FROM teachers WHERE user_id::text = $2))
+         ) AS teacher_average,
+         (SELECT ROUND(AVG(r.percentage), 1) FROM results r
+            JOIN students s ON s.user_id::text = r.student_id::text
+            WHERE s.institute_id::text = $1
+         ) AS institute_average`,
+      [instituteId, teacherUserId],
+    );
+
+    return {
+      data: {
+        recordingsAnalyzed: analysisRows.length,
+        rubric: {
+          overallScore: avg(dimTotals.overallScore),
+          clarity: avg(dimTotals.clarity),
+          pacing: avg(dimTotals.pacing),
+          contentCoverage: avg(dimTotals.contentCoverage),
+          studentEngagement: avg(dimTotals.studentEngagement),
+          languageQuality: avg(dimTotals.languageQuality),
+        },
+        topStrengths: topByCount(strengthCounts, 5),
+        areasForImprovement: topByCount(suggestionCounts, 5),
+        classPerformance: {
+          teacherAverage: classPerf?.teacher_average !== null ? parseFloat(classPerf.teacher_average) : null,
+          instituteAverage: classPerf?.institute_average !== null ? parseFloat(classPerf.institute_average) : null,
+        },
+      },
+    };
   }
 
   async analyzeTeacherRecording(user: any, teacherId: string, recordingId: string, query: any) {

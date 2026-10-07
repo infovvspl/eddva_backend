@@ -660,6 +660,52 @@ export class SchoolReportService {
   }
 
   async myStudentAnalytics(user: any) {
+    return this.computeStudentAnalytics(user.id);
+  }
+
+  /**
+   * Admin/teacher/parent-facing analytics lookup for an arbitrary student,
+   * scoped to the caller's institute (teachers/admins) or their own child
+   * (parents). Students may only fetch their own via `myStudentAnalytics`.
+   */
+  async studentAnalyticsFor(user: any, studentId: string) {
+    if (!studentId) throw new ForbiddenException('studentId is required');
+    if (hasSchoolRole(user.role, 'STUDENT')) {
+      if (studentId !== user.id) throw new ForbiddenException('Students may only view their own analytics');
+      return this.computeStudentAnalytics(studentId);
+    }
+
+    const rows: any[] = await this.ds.query(`SELECT institute_id FROM users WHERE id = $1`, [studentId]);
+    if (!rows.length) throw new ForbiddenException('Student not found');
+    const targetInstituteId = rows[0].institute_id;
+
+    if (hasSchoolRole(user.role, 'PARENT')) {
+      const children = await this.ds.query(
+        `SELECT u.id FROM students s JOIN users u ON u.id = s.user_id WHERE s.institute_id = $1 AND (
+          (s.parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($2))
+          OR (s.parent_phone IS NOT NULL AND $3::text IS NOT NULL AND s.parent_phone = $3)
+        )`,
+        [targetInstituteId, user.email, user.phone],
+      );
+      if (!children.some((c: any) => c.id === studentId)) {
+        throw new ForbiddenException('You do not have access to this student');
+      }
+      return this.computeStudentAnalytics(studentId);
+    }
+
+    if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && String(targetInstituteId) !== String(user.instituteId)) {
+      throw new ForbiddenException('You do not have access to this student');
+    }
+    return this.computeStudentAnalytics(studentId);
+  }
+
+  /**
+   * Shared by the self-service "my analytics" endpoint and anything (e.g.
+   * report-card remark generation) that needs another student's analytics by
+   * their user id. Kept side-effect free so callers can use the computed
+   * insight without going through the self-scoped endpoint.
+   */
+  async computeStudentAnalytics(studentUserId: string) {
     await this.ensureResultSchema();
     const profileRows: any[] = await this.ds.query(
       `SELECT
@@ -673,7 +719,7 @@ export class SchoolReportService {
        LEFT JOIN classes c ON c.id::text=sec.class_id::text
        WHERE s.user_id::text=$1::text
        LIMIT 1`,
-      [user.id],
+      [studentUserId],
     );
     const profile = profileRows[0] || null;
 
@@ -699,7 +745,7 @@ export class SchoolReportService {
        LEFT JOIN subjects sub ON sub.id::text=a.subject_id::text
        WHERE r.student_id::text=$1::text
        ORDER BY COALESCE(a.scheduled_date, r.updated_at, r.created_at) ASC`,
-      [user.id],
+      [studentUserId],
     );
 
     const submissionRows: any[] = await this.ds.query(
@@ -707,7 +753,7 @@ export class SchoolReportService {
        FROM assessment_submissions
        WHERE student_user_id::text=$1::text
        ORDER BY submitted_at ASC`,
-      [user.id],
+      [studentUserId],
     ).catch(() => []);
 
     const scores = resultRows
