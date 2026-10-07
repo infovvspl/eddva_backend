@@ -35,6 +35,7 @@ export class BlogService implements OnModuleInit {
           cover_image varchar,
           read_time int,
           sections jsonb,
+          document_settings jsonb,
           status varchar NOT NULL DEFAULT 'DRAFT',
           published_at timestamptz,
           created_by varchar,
@@ -49,6 +50,11 @@ export class BlogService implements OnModuleInit {
       await this.blogRepo.query(`CREATE INDEX IF NOT EXISTS idx_blog_posts_status ON blog_posts(status)`);
     } catch (e: any) {
       this.logger.warn(`Could not ensure blog_posts table exists: ${e?.message}`);
+    }
+    try {
+      await this.blogRepo.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS document_settings jsonb`);
+    } catch (e: any) {
+      this.logger.warn(`Could not add blog document settings column: ${e?.message}`);
     }
   }
 
@@ -116,6 +122,7 @@ export class BlogService implements OnModuleInit {
     if (dto.coverImage !== undefined) post.coverImage = dto.coverImage;
     if (dto.readTime !== undefined) post.readTime = dto.readTime;
     if (dto.sections !== undefined) post.sections = dto.sections;
+    if (dto.documentSettings !== undefined) post.documentSettings = dto.documentSettings;
     if (dto.status !== undefined) {
       if (dto.status === BlogPostStatus.PUBLISHED && post.status !== BlogPostStatus.PUBLISHED) {
         post.publishedAt = new Date();
