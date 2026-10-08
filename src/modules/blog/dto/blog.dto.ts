@@ -97,6 +97,11 @@ export class CreateBlogPostDto {
   coverImage?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  coverImageAlt?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -148,6 +153,11 @@ export class UpdateBlogPostDto {
   @IsString()
   @MaxLength(600)
   coverImage?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  coverImageAlt?: string;
 
   @IsOptional()
   @Type(() => Number)

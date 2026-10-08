@@ -61,6 +61,9 @@ export class BlogPost extends Base {
   @Column({ name: 'cover_image', nullable: true })
   coverImage: string;
 
+  @Column({ name: 'cover_image_alt', nullable: true })
+  coverImageAlt: string;
+
   @Column({ name: 'read_time', type: 'int', nullable: true })
   readTime: number;
 
