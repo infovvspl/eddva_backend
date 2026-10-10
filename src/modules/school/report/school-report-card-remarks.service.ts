@@ -41,10 +41,25 @@ export class SchoolReportCardRemarksService {
     return instituteId;
   }
 
+  /** improving / declining / steady from the chronological score series (needs 4+ scored exams). */
+  private scoreTrend(scores: number[]): { direction: 'improving' | 'declining' | 'steady' | 'not_enough_data'; change: number } {
+    if (scores.length < 4) return { direction: 'not_enough_data', change: 0 };
+    const mid = Math.floor(scores.length / 2);
+    const avg = (xs: number[]) => xs.reduce((n, x) => n + x, 0) / xs.length;
+    const change = Math.round(avg(scores.slice(mid)) - avg(scores.slice(0, mid)));
+    return { direction: change >= 5 ? 'improving' : change <= -5 ? 'declining' : 'steady', change };
+  }
+
   private async generateAiRemark(studentId: string, instituteId: string, academicYear: string): Promise<string | null> {
     try {
       const { data: analytics } = await this.reportService.computeStudentAnalytics(studentId);
+      // Without a single scored result the model would have to invent a remark.
+      if (!analytics.scoreTrend?.length) {
+        this.logger.log(`No exam results yet for student=${studentId}; skipping AI report-card remark`);
+        return null;
+      }
       const studentRows = await this.ds.query(`SELECT name FROM users WHERE id = $1`, [studentId]);
+      const trend = this.scoreTrend((analytics.scoreTrend || []).map((t: any) => Number(t.score)));
       const payload = {
         studentId,
         context: 'report_card' as const,
@@ -53,12 +68,30 @@ export class SchoolReportCardRemarksService {
           academicYear,
           className: analytics.profile?.class_name,
           overallAccuracy: analytics.overallAccuracy,
+          examsTaken: analytics.questionsAttempted,
           strongestSubject: analytics.subjectPerformance?.[0]?.subjectName || null,
+          subjectPerformance: (analytics.subjectPerformance || []).map((s: any) => ({
+            subject: s.subjectName,
+            averagePercent: s.accuracy,
+            exams: s.attempts,
+          })),
           weakTopics: (analytics.weakTopics || []).map((w: any) => w.subjectName),
+          progress: trend,
+          recentExamResults: (analytics.recentResults || []).slice(0, 8).map((r: any) => ({
+            exam: r.assessmentTitle,
+            subject: r.subjectName,
+            marks: `${r.marksObtained}/${r.totalMarks}`,
+            percent: r.percentage,
+            grade: r.grade || null,
+            absent: !!r.isAbsent,
+          })),
+          activeStreakDays: analytics.streakDays,
           recentResultsSummary: analytics.insights?.summary,
           instruction:
             'Write a single short, warm, professional report-card remark (2-3 sentences) a class teacher would ' +
-            'write about this student, grounded in the performance data above. Put the paragraph in feedbackText.',
+            'write about this student. Ground every statement in the data above (exam results, subject averages, ' +
+            'progress trend); do not invent facts, marks or subjects that are not listed. ' +
+            'Put the paragraph in feedbackText.',
         },
       };
       const res: any = await this.aiBridgeService.generateFeedback(payload, instituteId);
@@ -123,12 +156,12 @@ export class SchoolReportCardRemarksService {
     const teacherRemark = (body.teacherRemark ?? '').trim() || null;
     const rows: any[] = await this.ds.query(
       `INSERT INTO report_card_remarks (institute_id, student_id, academic_year, class_name, teacher_remark, remark_source, updated_by)
-       VALUES ($1, $2, $3, $4, $5, CASE WHEN $5 IS NOT NULL THEN 'TEACHER' ELSE 'AI' END, $6)
+       VALUES ($1, $2, $3, $4::text, $5::text, CASE WHEN $5::text IS NOT NULL THEN 'TEACHER' ELSE 'AI' END, $6)
        ON CONFLICT (student_id, academic_year)
        DO UPDATE SET
-         teacher_remark = $5,
-         remark_source = CASE WHEN $5 IS NOT NULL THEN 'TEACHER' WHEN report_card_remarks.ai_remark IS NOT NULL THEN 'AI' ELSE NULL END,
-         class_name = COALESCE($4, report_card_remarks.class_name),
+         teacher_remark = $5::text,
+         remark_source = CASE WHEN $5::text IS NOT NULL THEN 'TEACHER' WHEN report_card_remarks.ai_remark IS NOT NULL THEN 'AI' ELSE NULL END,
+         class_name = COALESCE($4::text, report_card_remarks.class_name),
          updated_by = $6,
          updated_at = NOW()
        RETURNING *`,

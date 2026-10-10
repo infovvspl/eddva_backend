@@ -1346,7 +1346,7 @@ export class SchoolTeacherService {
     const teacherUserId = await this.resolveTeacherUserId(teacherId, instituteId);
 
     const analysisRows: any[] = await this.ds.query(
-      `SELECT ai_teaching_analysis FROM class_recordings
+      `SELECT ai_teaching_analysis, recorded_date FROM class_recordings
        WHERE institute_id::text = $1 AND teacher_user_id::text = $2 AND ai_teaching_analysis IS NOT NULL
        ORDER BY recorded_date DESC
        LIMIT 50`,
@@ -1371,9 +1371,38 @@ export class SchoolTeacherService {
       (a.strengths || []).forEach((s: string) => strengthCounts.set(s, (strengthCounts.get(s) || 0) + 1));
     }
 
+    // Month-by-month overall score for the trend chart (oldest first).
+    const monthBuckets = new Map<string, number[]>();
+    for (const row of analysisRows) {
+      const score = row.ai_teaching_analysis?.overallScore;
+      if (typeof score !== 'number' || !row.recorded_date) continue;
+      const key = new Date(row.recorded_date).toISOString().slice(0, 7);
+      monthBuckets.set(key, [...(monthBuckets.get(key) || []), score]);
+    }
+
     const avg = (arr: number[]) => (arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : null);
     const topByCount = (m: Map<string, number>, n: number) =>
       [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([text]) => text);
+
+    const monthlyTrend = [...monthBuckets.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([month, scores]) => ({ month, overallScore: avg(scores), recordings: scores.length }));
+
+    // Institute-wide average per rubric dimension (all teachers) as the peer benchmark.
+    const instRows: any[] = await this.ds.query(
+      `SELECT
+         ROUND(AVG((ai_teaching_analysis->>'overallScore')::numeric), 1) AS overall,
+         ROUND(AVG((ai_teaching_analysis->'clarity'->>'score')::numeric), 1) AS clarity,
+         ROUND(AVG((ai_teaching_analysis->'pacing'->>'score')::numeric), 1) AS pacing,
+         ROUND(AVG((ai_teaching_analysis->'contentCoverage'->>'score')::numeric), 1) AS coverage,
+         ROUND(AVG((ai_teaching_analysis->'studentEngagement'->>'score')::numeric), 1) AS engagement,
+         ROUND(AVG((ai_teaching_analysis->'languageQuality'->>'score')::numeric), 1) AS language
+       FROM class_recordings
+       WHERE institute_id::text = $1 AND ai_teaching_analysis IS NOT NULL`,
+      [instituteId],
+    ).catch(() => []);
+    const inst = instRows[0];
+    const num = (v: any) => (v === null || v === undefined ? null : parseFloat(v));
 
     const [classPerf] = await this.ds.query(
       `SELECT
@@ -1399,6 +1428,17 @@ export class SchoolTeacherService {
           studentEngagement: avg(dimTotals.studentEngagement),
           languageQuality: avg(dimTotals.languageQuality),
         },
+        monthlyTrend,
+        instituteRubric: inst
+          ? {
+              overallScore: num(inst.overall),
+              clarity: num(inst.clarity),
+              pacing: num(inst.pacing),
+              contentCoverage: num(inst.coverage),
+              studentEngagement: num(inst.engagement),
+              languageQuality: num(inst.language),
+            }
+          : null,
         topStrengths: topByCount(strengthCounts, 5),
         areasForImprovement: topByCount(suggestionCounts, 5),
         classPerformance: {

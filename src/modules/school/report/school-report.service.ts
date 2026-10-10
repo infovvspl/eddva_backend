@@ -1,4 +1,5 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
+import { bandFor, summarizeAssignments, summarizeAttendance } from './student-performance';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { hasSchoolRole } from '../common/role-helper';
@@ -669,10 +670,19 @@ export class SchoolReportService {
    * (parents). Students may only fetch their own via `myStudentAnalytics`.
    */
   async studentAnalyticsFor(user: any, studentId: string) {
+    await this.authorizeStudentView(user, studentId);
+    return this.computeStudentAnalytics(studentId);
+  }
+
+  /**
+   * Who may see a student's performance data: the student, their parent, a teacher who
+   * teaches the student's section, and admins of the same institute.
+   */
+  private async authorizeStudentView(user: any, studentId: string): Promise<void> {
     if (!studentId) throw new ForbiddenException('studentId is required');
     if (hasSchoolRole(user.role, 'STUDENT')) {
       if (studentId !== user.id) throw new ForbiddenException('Students may only view their own analytics');
-      return this.computeStudentAnalytics(studentId);
+      return;
     }
 
     const rows: any[] = await this.ds.query(`SELECT institute_id FROM users WHERE id = $1`, [studentId]);
@@ -690,13 +700,106 @@ export class SchoolReportService {
       if (!children.some((c: any) => c.id === studentId)) {
         throw new ForbiddenException('You do not have access to this student');
       }
-      return this.computeStudentAnalytics(studentId);
+      return;
     }
 
     if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && String(targetInstituteId) !== String(user.instituteId)) {
       throw new ForbiddenException('You do not have access to this student');
     }
-    return this.computeStudentAnalytics(studentId);
+
+    // A teacher (who is not also an admin) only sees students in sections they teach.
+    const isAdmin = hasSchoolRole(user.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user.role, 'SUPER_ADMIN');
+    if (hasSchoolRole(user.role, 'TEACHER') && !isAdmin) {
+      const taught: any[] = await this.ds.query(
+        `SELECT 1
+         FROM students s
+         JOIN sections sec ON sec.id::text = s.section_id::text
+         JOIN teachers t ON t.user_id::text = $2::text
+         JOIN teacher_academic_assignments ta ON ta.teacher_id::text = t.id::text
+          AND ta.class_id::text = sec.class_id::text
+          AND (ta.section_id IS NULL OR ta.section_id::text = s.section_id::text)
+         WHERE s.user_id::text = $1::text
+         LIMIT 1`,
+        [studentId, user.id],
+      );
+      if (!taught.length) throw new ForbiddenException('This student is not in a class you teach');
+    }
+  }
+
+  /** Everything the teacher's student "Performance" cards need, in one call. */
+  async studentPerformance(user: any, studentId: string) {
+    await this.authorizeStudentView(user, studentId);
+    const { data: analytics } = await this.computeStudentAnalytics(studentId);
+
+    const attendanceRows: any[] = await this.ds
+      .query(`SELECT status, date FROM attendances WHERE user_id::text = $1::text`, [studentId])
+      .catch(() => []);
+
+    const assignmentRows: any[] = await this.ds
+      .query(
+        `SELECT a.id, a.title, a.due_date, a.max_marks, COALESCE(a.target_type, 'individual') AS target_type,
+                subj.name AS subject_name,
+                subm.status AS sub_status, subm.marks AS sub_marks, subm.is_late AS sub_late, subm.submitted_at
+         FROM students st
+         JOIN sections sec ON sec.id::text = st.section_id::text
+         JOIN assignments a ON a.tenant_id::text = st.institute_id::text
+         LEFT JOIN subjects subj ON subj.id::text = a.subject_id::text
+         LEFT JOIN assignment_group_members gm
+           ON gm.assignment_id::text = a.id::text AND gm.student_id::text = st.id::text
+         LEFT JOIN assignment_submissions subm
+           ON subm.assignment_id::text = a.id::text
+          AND ((COALESCE(a.target_type, 'individual') = 'group' AND subm.group_id = gm.group_id)
+            OR (COALESCE(a.target_type, 'individual') <> 'group' AND subm.student_id::text = st.id::text))
+         WHERE st.user_id::text = $1::text
+           AND COALESCE(a.status, 'active') = 'active'
+           AND (
+             EXISTS (SELECT 1 FROM assignment_students p
+                     WHERE p.assignment_id::text = a.id::text AND p.student_id::text = st.id::text)
+             OR (NOT EXISTS (SELECT 1 FROM assignment_students p2 WHERE p2.assignment_id::text = a.id::text)
+                 AND a.class_id::text = sec.class_id::text
+                 AND (a.section_id IS NULL OR a.section_id::text = st.section_id::text))
+           )
+           AND (COALESCE(a.target_type, 'individual') <> 'group' OR gm.group_id IS NOT NULL)
+         ORDER BY a.due_date DESC NULLS LAST, a.created_at DESC`,
+        [studentId],
+      )
+      .catch(() => []);
+
+    const who: any[] = await this.ds.query(
+      `SELECT u.name, u.profile_image, u.is_active, s.roll_no
+       FROM users u LEFT JOIN students s ON s.user_id::text = u.id::text
+       WHERE u.id::text = $1::text LIMIT 1`,
+      [studentId],
+    );
+    return {
+      success: true,
+      data: {
+        // just enough for the page header; no contact, family or medical details
+        student: {
+          id: studentId,
+          name: who[0]?.name ?? null,
+          profileImage: who[0]?.profile_image ?? null,
+          rollNo: who[0]?.roll_no ?? null,
+          isActive: who[0]?.is_active ?? null,
+        },
+        profile: analytics.profile,
+        overallAccuracy: analytics.overallAccuracy,
+        examsTaken: analytics.questionsAttempted,
+        streakDays: analytics.streakDays,
+        subjects: (analytics.subjectPerformance || []).map((s: any) => ({
+          subjectName: s.subjectName,
+          accuracy: s.accuracy,
+          exams: s.attempts,
+          band: bandFor(s.accuracy),
+        })),
+        focusAreas: analytics.weakTopics || [],
+        scoreTrend: analytics.scoreTrend || [],
+        recentResults: analytics.recentResults || [],
+        attendance: summarizeAttendance(attendanceRows),
+        assignments: summarizeAssignments(assignmentRows),
+        insight: analytics.insights?.summary || null,
+      },
+    };
   }
 
   /**

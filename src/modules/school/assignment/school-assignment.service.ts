@@ -36,6 +36,16 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * TypeORM's postgres driver returns `[rows, affectedCount]` for UPDATE/DELETE ... RETURNING
+ * (but plain rows for SELECT/INSERT). Normalise to the rows.
+ */
+function rowsOf(result: any): any[] {
+  return Array.isArray(result) && result.length === 2 && Array.isArray(result[0]) && typeof result[1] === 'number'
+    ? result[0]
+    : result;
+}
+
 @Injectable()
 export class SchoolAssignmentService {
   private readonly logger = new Logger(SchoolAssignmentService.name);
@@ -204,11 +214,12 @@ export class SchoolAssignmentService {
     let targetSectionId = assignment.section_id;
     if (!targetSectionId && assignment.class_id) {
       const fallbackSections: any[] = await this.ds.query(
-        `SELECT id
-         FROM sections
-         WHERE class_id::text = $1::text
-           AND institute_id::text = $2::text
-         ORDER BY name ASC
+        `SELECT sec.id
+         FROM sections sec
+         JOIN classes c ON c.id::text = sec.class_id::text
+         WHERE sec.class_id::text = $1::text
+           AND c.institute_id::text = $2::text
+         ORDER BY sec.name ASC
          LIMIT 1`,
         [assignment.class_id, instituteId],
       );
@@ -216,10 +227,11 @@ export class SchoolAssignmentService {
     }
 
     const sectionRows: any[] = await this.ds.query(
-      `SELECT sec.id AS section_id, sec.class_id, sec.institute_id
+      `SELECT sec.id AS section_id, sec.class_id, c.institute_id
        FROM sections sec
+       JOIN classes c ON c.id::text = sec.class_id::text
        WHERE sec.id::text = $1::text
-         AND sec.institute_id::text = $2::text
+         AND c.institute_id::text = $2::text
        LIMIT 1`,
       [targetSectionId, instituteId],
     );
@@ -354,11 +366,11 @@ export class SchoolAssignmentService {
   @Cron('* * * * *')
   async releaseScheduledAssignments() {
     try {
-      const released: any[] = await this.ds.query(
+      const released: any[] = rowsOf(await this.ds.query(
         `UPDATE assignments SET status = 'active', published_at = NOW(), updated_at = NOW()
          WHERE status = 'scheduled' AND start_at IS NOT NULL AND start_at <= NOW()
          RETURNING *`,
-      );
+      ));
       for (const a of released) await this.notifyPool(a);
     } catch (err: any) {
       this.logger.error(`Failed to release scheduled assignments: ${err.message}`);
@@ -380,13 +392,13 @@ export class SchoolAssignmentService {
       start_at: body?.start_at || body?.startAt,
       due_date: assignment.due_date,
     });
-    const rows: any[] = await this.ds.query(
+    const rows: any[] = rowsOf(await this.ds.query(
       `UPDATE assignments
          SET status = $2, start_at = $3, published_at = $4, updated_at = NOW()
        WHERE id::text = $1::text
        RETURNING *`,
       [assignmentId, rules.status, rules.startAt, rules.status === 'active' ? new Date() : null],
-    );
+    ));
     if (rules.status === 'active') await this.notifyPool(rows[0]);
     return { success: true, data: rows[0] };
   }
@@ -631,7 +643,7 @@ export class SchoolAssignmentService {
       ? await this.ds.query(
           `SELECT sec.id AS section_id, sec.name AS section_name, c.id AS class_id, c.name AS class_name
            FROM sections sec JOIN classes c ON c.id::text = sec.class_id::text
-           WHERE sec.institute_id::text = $1::text
+           WHERE c.institute_id::text = $1::text
            ORDER BY c.name, sec.name`,
           [instituteId],
         )
@@ -642,7 +654,7 @@ export class SchoolAssignmentService {
            JOIN sections sec ON sec.class_id::text = ta.class_id::text
                             AND (ta.section_id IS NULL OR sec.id::text = ta.section_id::text)
            JOIN classes c ON c.id::text = sec.class_id::text
-           WHERE t.user_id::text = $1::text AND sec.institute_id::text = $2::text
+           WHERE t.user_id::text = $1::text AND c.institute_id::text = $2::text
            ORDER BY c.name, sec.name`,
           [user.id, instituteId],
         );
@@ -692,9 +704,10 @@ export class SchoolAssignmentService {
   /** Legacy single class/section roster. */
   private async loadRoster(instituteId: string, classId: string, sectionId?: string | null) {
     const secRows: any[] = await this.ds.query(
-      `SELECT id FROM sections
-       WHERE class_id::text = $1::text AND institute_id::text = $2::text
-         AND ($3::text IS NULL OR id::text = $3::text)`,
+      `SELECT sec.id FROM sections sec
+       JOIN classes c ON c.id::text = sec.class_id::text
+       WHERE sec.class_id::text = $1::text AND c.institute_id::text = $2::text
+         AND ($3::text IS NULL OR sec.id::text = $3::text)`,
       [classId, instituteId, sectionId || null],
     );
     return this.loadStudentsBySections(instituteId, secRows.map((r) => String(r.id)));
@@ -1546,7 +1559,7 @@ export class SchoolAssignmentService {
       throw new BadRequestException(`You have used all ${assignment.max_attempts} attempt(s) for this assignment`);
     }
 
-    const rows: any[] = existing.length
+    const rowsRaw: any[] = existing.length
       ? await this.ds.query(
         `UPDATE assignment_submissions
          SET file_path = COALESCE($2, file_path),
@@ -1578,6 +1591,8 @@ export class SchoolAssignmentService {
       ],
     );
 
+    const rows: any[] = rowsOf(rowsRaw);
+
     // Store the answers; assignments made only of objective questions are graded on the spot.
     let submissionRow = rows[0];
     if (graded) {
@@ -1596,7 +1611,7 @@ export class SchoolAssignmentService {
              WHERE id::text = $1::text RETURNING *`,
             [submissionRow.id, graded.total],
           );
-          submissionRow = updated[0];
+          submissionRow = rowsOf(updated)[0];
         }
       });
     }
@@ -1817,7 +1832,7 @@ export class SchoolAssignmentService {
       });
     }
 
-    const rows: any[] = await this.ds.query(
+    const rowsRaw: any[] = await this.ds.query(
       `UPDATE assignment_submissions
          SET marks = $2,
              feedback_summary = $3,
@@ -1828,6 +1843,7 @@ export class SchoolAssignmentService {
          RETURNING *`,
       [submissionId, marks, body.feedback?.trim() ?? null, assignmentId],
     );
+    const rows = rowsOf(rowsRaw);
     if (!rows.length) throw new NotFoundException('Submission not found');
     return { success: true, data: rows[0] };
   }

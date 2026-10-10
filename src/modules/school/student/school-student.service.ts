@@ -284,7 +284,9 @@ export class SchoolStudentService implements OnModuleInit {
               s.parent_email,s.parent_occupation,s.address,s.city,s.state,s.pin_code,
               s.medical_conditions,s.allergies,s.documents,s.national_id,
               s.previous_school_name,s.previous_admission_no,s.reason_for_transfer,s.caste_category,s.board_registration_no,s.board_name,s.document_verification,s.status,
-              sec.name AS section_name,c.id AS class_id,c.name AS class_name
+              sec.name AS section_name,c.id AS class_id,c.name AS class_name,
+              (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE UPPER(at.status) IN ('PRESENT','LATE')) / NULLIF(COUNT(*), 0))
+                 FROM attendances at WHERE at.user_id::text = u.id::text) AS attendance_pct
        FROM users u JOIN students s ON s.user_id=u.id
        LEFT JOIN institutes i ON i.id=u.institute_id
        LEFT JOIN sections sec ON s.section_id=sec.id
@@ -303,6 +305,7 @@ export class SchoolStudentService implements OnModuleInit {
         isActive: r.is_active,
         profileImage: r.profile_image,
         createdAt: r.created_at,
+        attendancePct: r.attendance_pct == null ? null : Number(r.attendance_pct),
         instituteId: r.institute_id,
         instituteName: r.institute_name,
         parentDetails,
