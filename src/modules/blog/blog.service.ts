@@ -33,6 +33,7 @@ export class BlogService implements OnModuleInit {
           excerpt text,
           author varchar,
           cover_image varchar,
+          cover_image_alt varchar,
           read_time int,
           sections jsonb,
           document_settings jsonb,
@@ -55,6 +56,11 @@ export class BlogService implements OnModuleInit {
       await this.blogRepo.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS document_settings jsonb`);
     } catch (e: any) {
       this.logger.warn(`Could not add blog document settings column: ${e?.message}`);
+    }
+    try {
+      await this.blogRepo.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS cover_image_alt varchar`);
+    } catch (e: any) {
+      this.logger.warn(`Could not add blog cover image alt column: ${e?.message}`);
     }
   }
 
@@ -120,6 +126,7 @@ export class BlogService implements OnModuleInit {
     if (dto.excerpt !== undefined) post.excerpt = dto.excerpt;
     if (dto.author !== undefined) post.author = dto.author;
     if (dto.coverImage !== undefined) post.coverImage = dto.coverImage;
+    if (dto.coverImageAlt !== undefined) post.coverImageAlt = dto.coverImageAlt;
     if (dto.readTime !== undefined) post.readTime = dto.readTime;
     if (dto.sections !== undefined) post.sections = dto.sections;
     if (dto.documentSettings !== undefined) post.documentSettings = dto.documentSettings;

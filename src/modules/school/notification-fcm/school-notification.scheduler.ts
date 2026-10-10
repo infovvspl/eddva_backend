@@ -856,9 +856,11 @@ export class SchoolNotificationScheduler {
           title,
           class_id,
           section_id,
-          due_date
+          due_date,
+          target_type
         FROM assignments
-        WHERE due_date BETWEEN
+        WHERE COALESCE(status, 'active') = 'active'
+          AND due_date BETWEEN
               (NOW() AT TIME ZONE 'Asia/Kolkata')
           AND (NOW() AT TIME ZONE 'Asia/Kolkata') + INTERVAL '24 hours'
       `);
@@ -875,13 +877,26 @@ export class SchoolNotificationScheduler {
           `SELECT s.user_id, s.id AS student_id
            FROM students s
            JOIN sections sec ON s.section_id = sec.id
-           WHERE sec.class_id = $1
-             AND ($2::uuid IS NULL OR s.section_id = $2)
+           WHERE (
+               EXISTS (SELECT 1 FROM assignment_students p
+                       WHERE p.assignment_id::text = $3::text AND p.student_id::text = s.id::text)
+               OR (NOT EXISTS (SELECT 1 FROM assignment_students p2 WHERE p2.assignment_id::text = $3::text)
+                   AND sec.class_id = $1
+                   AND ($2::uuid IS NULL OR s.section_id = $2))
+             )
              AND s.id NOT IN (
                SELECT student_id FROM assignment_submissions
                WHERE assignment_id = $3
-             )`,
-          [assignment.class_id, assignment.section_id || null, assignment.assignment_id],
+             )
+             -- group assignments: only members of a group, and not when their group already submitted
+             AND ($4::text <> 'group' OR EXISTS (
+               SELECT 1 FROM assignment_group_members gm
+               WHERE gm.assignment_id::text = $3::text AND gm.student_id::text = s.id::text))
+             AND NOT EXISTS (
+               SELECT 1 FROM assignment_group_members gm2
+               JOIN assignment_submissions gs ON gs.group_id = gm2.group_id
+               WHERE gm2.assignment_id::text = $3::text AND gm2.student_id::text = s.id::text)`,
+          [assignment.class_id, assignment.section_id || null, assignment.assignment_id, assignment.target_type || 'individual'],
         );
 
         for (const stu of pendingStudents) {

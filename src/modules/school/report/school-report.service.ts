@@ -737,6 +737,7 @@ export class SchoolReportService {
          r.created_at,
          r.updated_at,
          a.title AS assessment_title,
+         a.type AS assessment_type,
          a.scheduled_date,
          a.subject_id,
          sub.name AS subject_name
@@ -839,7 +840,26 @@ export class SchoolReportService {
           grade: row.grade,
           remarks: row.remarks,
           isAbsent: row.is_absent,
+          date: row.scheduled_date || row.updated_at || row.created_at,
+          assessmentType: row.assessment_type,
         })),
+        // Chronological (oldest first) series for the Improvement Metrics chart.
+        scoreTrend: resultRows
+          .filter((row) => !row.is_absent)
+          .slice(-20)
+          .map((row) => {
+            const totalMarks = this.toNumber(row.total_marks, 100);
+            return {
+              date: row.scheduled_date || row.updated_at || row.created_at,
+              score: Math.round(
+                row.percentage !== null && row.percentage !== undefined
+                  ? this.toNumber(row.percentage)
+                  : totalMarks ? (this.toNumber(row.marks_obtained) / totalMarks) * 100 : 0,
+              ),
+              assessmentTitle: row.assessment_title,
+              subjectName: row.subject_name || 'General',
+            };
+          }),
         insights: { summary },
       },
     };

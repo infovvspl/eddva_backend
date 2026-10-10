@@ -37,6 +37,42 @@ export class SchoolAssignmentController {
     return this.svc.list(user, query);
   }
 
+  @Get('roster')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  roster(@SchoolUser() user: any, @Query() query: any) {
+    return this.svc.getRoster(user, query);
+  }
+
+  @Get('question-bank')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  questionBank(@SchoolUser() user: any, @Query() query: any) {
+    return this.svc.searchQuestionBank(user, query);
+  }
+
+  @Post('questions/generate')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  generateQuestions(@SchoolUser() user: any, @Body() body: any) {
+    return this.svc.generateQuestions(user, body);
+  }
+
+  @Get('pool/options')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  poolOptions(@SchoolUser() user: any, @Query() query: any) {
+    return this.svc.getPoolOptions(user, query);
+  }
+
+  @Post('pool/resolve')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  resolvePool(@SchoolUser() user: any, @Body() body: any) {
+    return this.svc.resolvePoolPreview(user, body);
+  }
+
+  @Post('groups/preview')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  previewGroups(@SchoolUser() user: any, @Body() body: any) {
+    return this.svc.previewGroups(user, body);
+  }
+
   @Get('submissions/inbox')
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   listInbox(@SchoolUser() user: any, @Query() query: any) {
@@ -74,6 +110,13 @@ export class SchoolAssignmentController {
     return this.svc.create(user, body, file);
   }
 
+  @Post(':id/publish')
+  @Audit({ module: 'Academic', action: 'Assignment Publish', description: 'Published assignment ID {params.id}' })
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  publish(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.publish(user, id, body);
+  }
+
   @Post(':id/submit')
   @Audit({ module: 'Academic', action: 'Assignment Submit', description: 'Submitted assignment ID {params.id}' })
   @SchoolRoles('STUDENT')
@@ -91,6 +134,16 @@ export class SchoolAssignmentController {
   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   getSubmissions(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.getSubmissions(user, id);
+  }
+
+  @Get(':id/submissions/:submissionId/answers')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  getSubmissionAnswers(
+    @SchoolUser() user: any,
+    @Param('id') id: string,
+    @Param('submissionId') submissionId: string,
+  ) {
+    return this.svc.getSubmissionAnswers(user, id, submissionId);
   }
 
   @Post(':id/submissions/:submissionId/grade')
@@ -112,6 +165,38 @@ export class SchoolAssignmentController {
     @Param('submissionId') submissionId: string,
   ) {
     return this.svc.resolveSubmissionFile(user, submissionId);
+  }
+
+  @Get(':id/questions')
+  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  getQuestions(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getQuestions(user, id);
+  }
+
+  @Put(':id/questions')
+  @Audit({ module: 'Academic', action: 'Assignment Questions Update', description: 'Edited questions of assignment {params.id}' })
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  updateQuestions(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.updateQuestions(user, id, body);
+  }
+
+  @Get(':id/analytics')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  getAnalytics(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getAnalytics(user, id);
+  }
+
+  @Get(':id/groups')
+  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  getGroups(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getGroups(user, id);
+  }
+
+  @Put(':id/groups')
+  @Audit({ module: 'Academic', action: 'Assignment Groups Update', description: 'Edited groups of assignment {params.id}' })
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  updateGroups(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.svc.updateGroups(user, id, body);
   }
 
   @Get(':id')

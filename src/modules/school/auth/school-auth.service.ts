@@ -102,26 +102,21 @@ export class SchoolAuthService {
 
     const token = this.signSchoolToken(user);
 
-    if (String(user.role).toUpperCase().includes('TEACHER')) {
+    // Logging in marks today's attendance PRESENT, but only when nothing has
+    // been recorded for the day yet — DO NOTHING (not DO UPDATE) so this can
+    // never silently overwrite an attendance row an admin already marked
+    // (e.g. ABSENT/LEAVE) with PRESENT just because the user logged in later.
+    // No remarks are set, so the table no longer shows a literal "Auto-login" row.
+    if (String(user.role).toUpperCase().includes('TEACHER') || String(user.role).toUpperCase().includes('INSTITUTE_ADMIN')) {
       try {
         await this.ds.query(
-          `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
-           ON CONFLICT (date, user_id) DO UPDATE SET status=EXCLUDED.status, remarks=EXCLUDED.remarks, updated_at=NOW()`,
+          `INSERT INTO attendances (institute_id, user_id, date, status) VALUES ($1, $2, CURRENT_DATE, 'PRESENT')
+           ON CONFLICT (date, user_id) DO NOTHING`,
           [user.inst_id, user.id]
         );
       } catch (error) {
-        console.error(`Auto-attendance failed for teacher ${user.id}:`, error);
+        console.error(`Auto-attendance failed for user ${user.id}:`, error);
         // Do not throw; allow login to succeed even if attendance insert fails
-      }
-    } else if (String(user.role).toUpperCase().includes('INSTITUTE_ADMIN')) {
-      try {
-        await this.ds.query(
-          `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
-           ON CONFLICT (date, user_id) DO UPDATE SET status=EXCLUDED.status, remarks=EXCLUDED.remarks, updated_at=NOW()`,
-          [user.inst_id, user.id]
-        );
-      } catch (error) {
-        console.error(`Auto-attendance failed for admin ${user.id}:`, error);
       }
     }
 

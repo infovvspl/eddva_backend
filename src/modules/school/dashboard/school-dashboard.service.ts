@@ -199,8 +199,12 @@ export class SchoolDashboardService {
       return teacherResult;
     }
 
-    if (hasInstituteAdminRole && !hasSuperAdminRole) {
-      const instituteId = user?.instituteId || null;
+    if ((hasInstituteAdminRole && !hasSuperAdminRole) || (hasSuperAdminRole && wantsAdminPortal)) {
+      let instituteId = user?.instituteId || null;
+      if (!instituteId && hasSuperAdminRole) {
+        const defaultInst = await this.safeQuery(`SELECT id FROM institutes ORDER BY created_at DESC LIMIT 1`, [], []);
+        instituteId = defaultInst[0]?.id || null;
+      }
       if (!instituteId) {
         return {
           currentInstitute: null,
@@ -220,7 +224,13 @@ export class SchoolDashboardService {
           scheduledClassesCount: 0,
           presentStudentsToday: 0,
           presentTeachersToday: 0,
-          attendanceHistory: []
+          attendanceHistory: [],
+          feesCollected: 0,
+          feesPending: 0,
+          feesOverdue: 0,
+          feesTotal: 0,
+          feesCollectedPercentage: 0,
+          topStudents: [],
         };
       }
 
@@ -229,6 +239,22 @@ export class SchoolDashboardService {
       if (cached) return cached;
 
       const todayStr = new Date().toISOString().split('T')[0];
+
+      // Most recent day that actually has attendance on record. "Today" is empty on
+      // weekends/holidays (and before attendance is taken), which used to blank the
+      // dashboard; fall back to the latest marked day so the figures stay meaningful.
+      const latestAttRow = await this.safeQuery(`
+        SELECT MAX(d)::text AS d FROM (
+          SELECT date::date AS d FROM attendances
+            WHERE institute_id = $1 AND date <= $2::date
+            GROUP BY date HAVING COUNT(DISTINCT user_id) >= 10
+          UNION ALL
+          SELECT date::date AS d FROM attendance_sessions
+            WHERE tenant_id = $1 AND date::date <= $2::date
+            GROUP BY date::date
+        ) x
+      `, [instituteId, todayStr], [{ d: null }]);
+      const attDate: string = latestAttRow[0]?.d || todayStr;
 
       const [
         instRow,
@@ -241,7 +267,9 @@ export class SchoolDashboardService {
         teacherAttRows,
         liveClassesCountRow,
         scheduledClassesCountRow,
-        ticketCountsRow
+        ticketCountsRow,
+        feeTotalsRow,
+        topStudentsRows
       ] = await Promise.all([
         this.safeQuery(`SELECT * FROM institutes WHERE id=$1`, [instituteId], []),
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE UPPER(REPLACE(role, ' ', '_')) LIKE '%TEACHER%' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
@@ -250,29 +278,56 @@ export class SchoolDashboardService {
         this.safeQuery(`SELECT status AS name, COUNT(*)::int AS value FROM complaints WHERE institute_id=$1 GROUP BY status`, [instituteId], []),
         this.safeQuery(`SELECT id, title, content, posted_date, created_at FROM notices WHERE institute_id=$1 ORDER BY COALESCE(posted_date, created_at) DESC LIMIT 3`, [instituteId], []),
         this.safeQuery(`
-          SELECT COUNT(DISTINCT ar.student_id)::int AS present
-          FROM attendance_records ar
-          JOIN attendance_sessions asess ON ar.session_id = asess.id
-          WHERE asess.tenant_id = $1 AND asess.date = $2
-            AND (LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')
-        `, [instituteId, todayStr], [{ present: 0 }]),
+          SELECT COUNT(DISTINCT sid)::int AS present FROM (
+            SELECT ar.student_id::text AS sid
+            FROM attendance_records ar
+            JOIN attendance_sessions asess ON ar.session_id = asess.id
+            WHERE asess.tenant_id = $1 AND asess.date::date = $2::date
+              AND (LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')
+            UNION
+            SELECT a.user_id::text AS sid
+            FROM attendances a
+            JOIN users u ON a.user_id = u.id
+            WHERE a.institute_id = $1 AND a.date = $2::date AND UPPER(u.role) = 'STUDENT'
+              AND (LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')
+          ) s
+        `, [instituteId, attDate], [{ present: 0 }]),
         this.safeQuery(`
           SELECT COUNT(DISTINCT a.user_id)::int AS present
           FROM attendances a
           JOIN users u ON a.user_id = u.id
-          WHERE a.institute_id = $1 AND a.date = $2 AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'
+          WHERE a.institute_id = $1 AND a.date = $2::date AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'
             AND (LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')
-        `, [instituteId, todayStr], [{ present: 0 }]),
+        `, [instituteId, attDate], [{ present: 0 }]),
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND status = 'LIVE'`, [instituteId], [{ c: 0 }]),
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND DATE(scheduled_for) = DATE($2)`, [instituteId, todayStr], [{ c: 0 }]),
         this.safeQuery(`
-          SELECT 
+          SELECT
             COUNT(*) FILTER (WHERE UPPER(COALESCE(status::text, '')) IN ('IN_PROGRESS', 'IN PROGRESS', 'PENDING'))::int AS in_progress,
             COUNT(*) FILTER (WHERE UPPER(COALESCE(status::text, '')) IN ('OPEN', 'REOPENED', 'NEW'))::int AS open_tickets,
             COUNT(*) FILTER (WHERE UPPER(COALESCE(status::text, '')) IN ('RESOLVED', 'CLOSED', 'COMPLETED'))::int AS closed_tickets
-          FROM complaints 
+          FROM complaints
           WHERE institute_id = $1
         `, [instituteId], [{ in_progress: 0, open_tickets: 0, closed_tickets: 0 }]),
+        this.safeQuery(`
+          SELECT
+            COALESCE(SUM(amount) FILTER (WHERE UPPER(status::text) = 'PAID'), 0)::float AS collected,
+            COALESCE(SUM(amount) FILTER (WHERE UPPER(status::text) != 'PAID' AND (due_date IS NULL OR due_date >= CURRENT_DATE)), 0)::float AS pending,
+            COALESCE(SUM(amount) FILTER (WHERE UPPER(status::text) != 'PAID' AND due_date IS NOT NULL AND due_date < CURRENT_DATE), 0)::float AS overdue,
+            COALESCE(SUM(amount), 0)::float AS total
+          FROM fees
+          WHERE institute_id = $1
+        `, [instituteId], [{ collected: 0, pending: 0, overdue: 0, total: 0 }]),
+        this.safeQuery(`
+          SELECT u.id AS user_id, u.name, u.profile_image, s.xp_total, c.name AS class_name, sec.name AS section_name
+          FROM students s
+          JOIN users u ON u.id = s.user_id
+          LEFT JOIN sections sec ON sec.id = s.section_id
+          LEFT JOIN classes c ON c.id = sec.class_id
+          WHERE s.institute_id = $1 AND COALESCE(s.xp_total, 0) > 0
+          ORDER BY s.xp_total DESC
+          LIMIT 5
+        `, [instituteId], []),
       ]);
 
       const totalStudents = students[0]?.c || 0;
@@ -283,7 +338,9 @@ export class SchoolDashboardService {
       const studentAttendancePercentage = totalStudents > 0 ? (presentStudentsToday / totalStudents) * 100 : 0;
       const teacherAttendancePercentage = totalTeachers > 0 ? (presentTeachersToday / totalTeachers) * 100 : 0;
 
-      const now = new Date();
+      // Week containing the latest attendance day (not simply "this week"), so the chart
+      // is never blank on a Monday morning or during a holiday.
+      const now = new Date(`${attDate}T12:00:00`);
       const currentDay = now.getDay();
       const diffToMonday = currentDay === 0 ? 6 : currentDay - 1;
       const mondayDate = new Date(now);
@@ -303,17 +360,24 @@ export class SchoolDashboardService {
       const sundayStr = formatDateStr(sundayDate);
 
       const historyRows = await this.safeQuery(`
-        SELECT 
-          asess.date::text AS date,
-          COUNT(DISTINCT ar.student_id)::int AS present_count
-        FROM attendance_sessions asess
-        LEFT JOIN attendance_records ar ON ar.session_id = asess.id
-          AND (LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')
-        WHERE asess.tenant_id = $1 
-          AND asess.date::date >= $2::date
-          AND asess.date::date <= $3::date
-        GROUP BY asess.date
-        ORDER BY asess.date ASC
+        SELECT d::text AS date, COUNT(DISTINCT sid)::int AS present_count FROM (
+          SELECT asess.date::date AS d, ar.student_id::text AS sid
+          FROM attendance_sessions asess
+          JOIN attendance_records ar ON ar.session_id = asess.id
+          WHERE asess.tenant_id = $1
+            AND asess.date::date >= $2::date AND asess.date::date <= $3::date
+            AND (LOWER(ar.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ar.status) LIKE 'half%')
+          UNION
+          SELECT a.date::date AS d, a.user_id::text AS sid
+          FROM attendances a
+          JOIN users u ON u.id = a.user_id
+          WHERE a.institute_id = $1
+            AND a.date >= $2::date AND a.date <= $3::date
+            AND UPPER(u.role) = 'STUDENT'
+            AND (LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')
+        ) x
+        GROUP BY d
+        ORDER BY d ASC
       `, [instituteId, mondayStr, sundayStr], []);
 
       const attendanceHistory = [];
@@ -326,13 +390,20 @@ export class SchoolDashboardService {
         
         const row = historyRows.find((r: any) => r.date === dateStr);
         const present = row ? parseInt(row.present_count || '0', 10) : 0;
-        const percentage = totalStudents > 0 ? Math.round((present / totalStudents) * 100) : 0;
+        // null = no attendance taken that day (weekend/holiday) so the chart shows a gap, not 0%.
+        const percentage = row && totalStudents > 0 ? Math.round((present / totalStudents) * 100) : null;
         
         attendanceHistory.push({
           name: dayLabel,
           att: percentage
         });
       }
+
+      const feesCollected = feeTotalsRow[0]?.collected || 0;
+      const feesPending = feeTotalsRow[0]?.pending || 0;
+      const feesOverdue = feeTotalsRow[0]?.overdue || 0;
+      const feesTotal = feeTotalsRow[0]?.total || 0;
+      const feesCollectedPercentage = feesTotal > 0 ? Math.round((feesCollected / feesTotal) * 100) : 0;
 
       const inProgressTickets = ticketCountsRow[0]?.in_progress || 0;
       const openTicketsCount = ticketCountsRow[0]?.open_tickets || 0;
@@ -368,6 +439,7 @@ export class SchoolDashboardService {
         totalStudents,
         studentAttendancePercentage,
         teacherAttendancePercentage,
+        attendanceDate: attDate,
         openComplaints: openTicketsCount,
         inProgressTickets,
         closedTickets,
@@ -380,7 +452,20 @@ export class SchoolDashboardService {
         scheduledClassesCount: scheduledClassesCountRow[0]?.c || 0,
         presentStudentsToday,
         presentTeachersToday,
-        attendanceHistory
+        attendanceHistory,
+        feesCollected,
+        feesPending,
+        feesOverdue,
+        feesTotal,
+        feesCollectedPercentage,
+        topStudents: (topStudentsRows || []).map((r: any) => ({
+          userId: r.user_id,
+          name: r.name,
+          avatar: r.profile_image || null,
+          xp: Number(r.xp_total || 0),
+          className: r.class_name || null,
+          sectionName: r.section_name || null,
+        })),
       };
       await this.safeCacheSet(cacheKey, adminResult, ADMIN_TTL);
       return adminResult;

@@ -97,7 +97,7 @@ export class SchoolStudentExitService implements OnModuleInit {
 
       // Auto-check fee clearance from fees table if available
       const feeDuesRows = await this.ds.query(
-        `SELECT COUNT(*)::int as unpaid FROM fees WHERE student_id = $1 AND LOWER(status) <> 'paid'`,
+        `SELECT COUNT(*)::int as unpaid FROM fees WHERE student_id = $1 AND LOWER(status::text) <> 'paid'`,
         [st.student_id]
       ).catch(() => [{ unpaid: 0 }]);
       const feeStatus = (feeDuesRows[0]?.unpaid || 0) === 0 ? 'CLEARED' : 'PENDING';
