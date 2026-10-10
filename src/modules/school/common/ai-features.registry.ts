@@ -15,6 +15,7 @@ export const AI_FEATURES_REGISTRY = [
   { key: 'ai_ocr_handwriting', name: 'AI OCR & Handwriting Recognition', defaultEnabled: true },
   { key: 'ai_subjective_grading', name: 'AI Subjective Answer Grading (rubric + auto-grading)', defaultEnabled: true },
   { key: 'competitive_exams', name: 'Competitive Exam Prep (JEE/NEET AI practice questions)', defaultEnabled: false },
+  { key: 'ai_curriculum_import', name: 'AI Curriculum Import (scan book index)', defaultEnabled: true },
 ];
 
 export const AI_FEATURE_DEFAULT_ON = new Set<string>(

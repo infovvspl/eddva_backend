@@ -19,6 +19,58 @@ const USER_CACHE = new Map<string, { user: any; exp: number }>();
 const SESSION_CACHE = new Map<string, { exp: number }>();
 const USER_TTL_MS = 30_000;
 
+// Default page/session idle timeout for every school role — the single
+// source of truth both this guard and the frontend's idle-logout hook are
+// meant to agree with. Override per-environment via SCHOOL_IDLE_TIMEOUT_MINUTES.
+function idleTimeoutMs(): number {
+  const minutes = Number(process.env.SCHOOL_IDLE_TIMEOUT_MINUTES);
+  return (Number.isFinite(minutes) && minutes > 0 ? minutes : 30) * 60_000;
+}
+
+// auth_sessions.last_active_at only needs request-level granularity, not
+// every-single-call precision — writing it on every authenticated request
+// would double this guard's DB cost for no benefit at a 30-minute scale.
+const ACTIVITY_WRITE_THROTTLE_MS = 60_000;
+
+// The column auth_sessions keeps the last activity in. This repo's migration
+// names it last_active_at, but the shared dev database was rebuilt by another
+// branch's migration (RecreateAuthSessionsTable1782114302238) with
+// last_seen_at instead; asking for a missing column failed every
+// authenticated request with a 500. Looked up once per process (from a fixed
+// list, so it is safe to put in SQL); null means neither exists and the idle
+// timeout is not enforced, which is how this guard behaved before it.
+const ACTIVITY_COLUMNS = ['last_active_at', 'last_seen_at'] as const;
+let activityColumn: Promise<string | null> | null = null;
+
+function resolveActivityColumn(ds: DataSource): Promise<string | null> {
+  if (!activityColumn) {
+    activityColumn = ds
+      .query(
+        `SELECT column_name FROM information_schema.columns
+          WHERE table_name = 'auth_sessions' AND column_name = ANY($1)`,
+        [ACTIVITY_COLUMNS as unknown as string[]],
+      )
+      .then((rows: any[]) => {
+        const found = new Set(rows.map((r) => r.column_name));
+        const column = ACTIVITY_COLUMNS.find((c) => found.has(c)) ?? null;
+        if (!column) {
+          console.warn('[SchoolJwtGuard] auth_sessions has no activity column; idle timeout not enforced');
+        }
+        return column;
+      })
+      .catch((err) => {
+        activityColumn = null; // look again on the next request
+        throw err;
+      });
+  }
+  return activityColumn;
+}
+
+/** Test hook: forget the looked-up column. */
+export function resetActivityColumnForTests(): void {
+  activityColumn = null;
+}
+
 async function loadStudentProfile(ds: DataSource, userId: string) {
   const rows: any[] = await ds.query(
     `SELECT s.id AS student_id, s.section_id, s.institute_id, s.enrollment_no, s.roll_no,
@@ -109,12 +161,38 @@ export class SchoolJwtGuard implements CanActivate {
     if (sessionId) {
       const cachedSession = SESSION_CACHE.get(sessionId);
       if (!cachedSession || cachedSession.exp < Date.now()) {
+        const column = await resolveActivityColumn(this.ds);
+        // Idle time is measured by Postgres: last_seen_at is a timestamp
+        // WITHOUT time zone, which node-postgres reads as this server's local
+        // time - in India that made every session look 5.5 hours idle.
         const sessionRows: any[] = await this.ds.query(
-          `SELECT is_active FROM auth_sessions WHERE id = $1`,
+          column
+            ? `SELECT is_active, EXTRACT(EPOCH FROM (now() - ${column})) * 1000 AS idle_ms
+                 FROM auth_sessions WHERE id = $1`
+            : `SELECT is_active, NULL AS idle_ms FROM auth_sessions WHERE id = $1`,
           [sessionId]
         );
         if (!sessionRows.length || !sessionRows[0].is_active) {
           throw new UnauthorizedException('Session terminated');
+        }
+
+        // Unknown (no column, or no value yet) is never "idle": it would log
+        // the user out on their very first request.
+        const idleMs = sessionRows[0].idle_ms == null ? null : Number(sessionRows[0].idle_ms);
+
+        if (idleMs !== null && idleMs > idleTimeoutMs()) {
+          await this.ds.query(`UPDATE auth_sessions SET is_active = false WHERE id = $1`, [sessionId]);
+          SESSION_CACHE.delete(sessionId);
+          await this.logSessionTimeout(req, sessionId, userId, userRole, tokenInstituteId);
+          throw new UnauthorizedException('Session expired due to inactivity');
+        }
+
+        if (column && (idleMs === null || idleMs > ACTIVITY_WRITE_THROTTLE_MS)) {
+          // Fire-and-forget: an activity time that is up to a minute stale costs
+          // nothing at a 30-minute timeout scale, but awaiting this on every
+          // request would double this guard's DB cost for every authenticated call.
+          void this.ds.query(`UPDATE auth_sessions SET ${column} = now() WHERE id = $1`, [sessionId])
+            .catch(() => {});
         }
         SESSION_CACHE.set(sessionId, { exp: Date.now() + USER_TTL_MS });
       }
@@ -181,6 +259,7 @@ export class SchoolJwtGuard implements CanActivate {
       profile_image: row.profile_image,
       instituteId: resolvedInstituteId,
       isActive: row.is_active,
+      sessionId,
       inst_ai_enabled: row.inst_ai_enabled,
       inst_ai_features: typeof row.inst_ai_features === 'string' ? JSON.parse(row.inst_ai_features) : row.inst_ai_features,
       inst_active_modules: typeof row.inst_active_modules === 'string' ? JSON.parse(row.inst_active_modules) : (row.inst_active_modules ?? []),
@@ -206,5 +285,54 @@ export class SchoolJwtGuard implements CanActivate {
     USER_CACHE.set(userId, { user: resolvedUser, exp: Date.now() + USER_TTL_MS });
     req.user = resolvedUser;
     return true;
+  }
+
+  /**
+   * Writes the audit trail entry for a server-enforced idle logout.
+   *
+   * Does its own INSERT rather than going through AuditLogService/@Audit:
+   * those run via an interceptor that only sees a request AFTER a guard lets
+   * it through to the handler. A guard throwing — exactly what happens here —
+   * never reaches that pipeline, so this is the only place that can log it.
+   *
+   * Best-effort: a logging failure must never turn into the user staying
+   * logged in, so this never throws back into canActivate().
+   */
+  private async logSessionTimeout(
+    req: any,
+    sessionId: string,
+    userId: string,
+    role: string | null,
+    instituteId: string | null,
+  ): Promise<void> {
+    try {
+      const ipAddress =
+        req.headers?.['x-forwarded-for'] ||
+        req.headers?.['x-real-ip'] ||
+        req.ip ||
+        req.connection?.remoteAddress ||
+        null;
+      const formattedIp = typeof ipAddress === 'string' && ipAddress.includes(',')
+        ? ipAddress.split(',')[0].trim()
+        : ipAddress;
+
+      const nameRows: any[] = await this.ds.query(`SELECT name FROM users WHERE id = $1`, [userId]);
+
+      await this.ds.query(
+        `INSERT INTO audit_logs
+           (institute_id, user_id, user_name, role, module, action, description, ip_address, status, vertical)
+         VALUES ($1, $2, $3, $4, 'Security', 'Session Timeout', $5, $6, 'Success', 'school')`,
+        [
+          instituteId,
+          userId,
+          nameRows[0]?.name || null,
+          role,
+          `Automatically logged out after ${idleTimeoutMs() / 60_000} minutes of inactivity (session ${sessionId})`,
+          formattedIp,
+        ],
+      );
+    } catch {
+      // Never let audit logging block the auth decision above.
+    }
   }
 }

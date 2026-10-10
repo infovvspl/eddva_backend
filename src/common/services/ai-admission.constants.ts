@@ -17,8 +17,15 @@ export enum AdmissionPool {
   BACKGROUND = 'background',
 }
 
-/** Paths that are never admission-controlled (cheap, no provider work). */
-export const ADMISSION_EXEMPT_PATHS: ReadonlySet<string> = new Set(['/health']);
+/**
+ * Paths that are never admission-controlled (cheap, no provider work).
+ *
+ * '/ppt/generate/start' only queues a deck and returns in milliseconds; the
+ * work is limited by the AI service's own deck queue and provider gate. Held
+ * to the BACKGROUND pool, a school whose slots were taken by long jobs (a
+ * lecture transcription runs minutes) had a deck refused before it started.
+ */
+export const ADMISSION_EXEMPT_PATHS: ReadonlySet<string> = new Set(['/health', '/ppt/generate/start']);
 
 /**
  * Explicit path -> pool classification, from the P0-4.4 Phase 1 audit.
@@ -36,6 +43,7 @@ export const ADMISSION_POOL_BY_PATH: Readonly<Record<string, AdmissionPool>> = {
   // ── Interactive ───────────────────────────────────────────────────────────
   '/doubt/resolve': AdmissionPool.INTERACTIVE,
   '/doubt/ocr-image': AdmissionPool.INTERACTIVE,
+  '/topics/parse-index-image': AdmissionPool.INTERACTIVE,
   '/tutor/session': AdmissionPool.INTERACTIVE,
   '/tutor/continue': AdmissionPool.INTERACTIVE,
   '/ai-tutor/chat': AdmissionPool.INTERACTIVE,

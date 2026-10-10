@@ -50,9 +50,9 @@ export class SchoolAuthController {
   }
 
   @Get('logout')
-  @Audit({ module: 'Security', action: 'Logout', description: 'School user logged out' })
-  logout() {
-    return { success: true, message: 'Logged out successfully' };
+  @Audit({ module: 'Security', action: 'Logout', description: 'School user logged out ({query.reason})' })
+  logout(@SchoolUser() user: any) {
+    return this.authService.logout(user);
   }
 }
 
