@@ -156,6 +156,7 @@ export class AiBridgeService {
     '/resume/analyze':       { feature: 'resume_analyser',        provider: 'groq' },
     '/interview/start':      { feature: 'interview_prep',         provider: 'groq' },
     '/ppt/generate':         { feature: 'ppt_generate',           provider: 'groq' },
+    '/ppt/generate/start':   { feature: 'ppt_generate',           provider: 'groq' },
     '/ppt/regenerate-slide': { feature: 'ppt_generate',           provider: 'groq' },
     '/ppt/search-image':     { feature: 'ppt_image_search',       provider: 'serper' },
     '/grading/subjective-rubric-batch': { feature: 'subjective_rubric_generation', provider: 'groq' },
@@ -1756,18 +1757,46 @@ export class AiBridgeService {
   async generatePpt(
     dto: {
       topic: string;
-      slideCount?: number;
+      /** A number, or 'auto' to let the chapter's content decide. */
+      slideCount?: number | 'auto';
       language?: string;
       className?: string;
       subjectName?: string;
       chapterName?: string;
       topicName?: string;
       sourcePassages?: any[];
+      /** 'v1' | 'v2' | 'image' - honoured only when the AI service allows the override. */
+      pptVersion?: string;
     },
     tenantId?: string,
     board?: string,
   ): Promise<{ success: boolean; data: { title: string; slides: any[]; source?: any } }> {
     return this.post('/ppt/generate', dto, tenantId, 240_000, 'school', board);
+  }
+
+  /**
+   * Start a deck in the background. Returns { success, jobId } at once; poll
+   * getPptGenerationStatus. Same body as generatePpt, plus clientMeta that
+   * the AI service hands back with the result.
+   */
+  async startPptGeneration(
+    dto: Record<string, any>,
+    tenantId?: string,
+    board?: string,
+  ): Promise<{ success: boolean; jobId: string }> {
+    return this.post('/ppt/generate/start', dto, tenantId, 30_000, 'school', board);
+  }
+
+  /** Progress, the deck as far as it exists, then the result. Tenant-scoped by the AI service. */
+  async getPptGenerationStatus(jobId: string, tenantId?: string): Promise<any> {
+    const res: AxiosResponse<any> = await firstValueFrom(
+      this.http.get(`${this.baseUrl}/ppt/generate/status`, {
+        params: { job_id: jobId },
+        headers: this.headers(tenantId, 'school'),
+        timeout: 15_000,
+      }),
+    );
+    return res.data;
   }
 
   async regeneratePptSlide(

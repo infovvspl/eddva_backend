@@ -215,6 +215,35 @@ export class SchoolPptService {
   }
 
   async generate(body: any, instituteId?: string, user?: any) {
+    const prepared = await this.preparePptRequest(body, instituteId, user);
+    const result = await this.aiBridge.generatePpt(prepared.aiBody, instituteId, prepared.board);
+    this.finishPptData(result?.data ?? {}, prepared.meta);
+    return result;
+  }
+
+  /**
+   * Start a deck in the background and return its job id at once. The studio
+   * polls generationStatus; nothing is held open long enough to time out.
+   */
+  async startGeneration(body: any, instituteId?: string, user?: any) {
+    const prepared = await this.preparePptRequest(body, instituteId, user);
+    return this.aiBridge.startPptGeneration(
+      { ...prepared.aiBody, clientMeta: prepared.meta }, instituteId, prepared.board,
+    );
+  }
+
+  /** Progress and the deck so far; once done, the same data generate() returns. */
+  async generationStatus(jobId: string, instituteId?: string) {
+    if (!jobId) throw new BadRequestException('jobId is required.');
+    const job = await this.aiBridge.getPptGenerationStatus(jobId, instituteId);
+    if (job?.status === 'done' && job?.result?.data) {
+      this.finishPptData(job.result.data, job.meta || {});
+    }
+    return job;
+  }
+
+  /** Everything generate() did before calling the AI service. */
+  private async preparePptRequest(body: any, instituteId?: string, user?: any) {
     const { topic, slideCount = 5, language = 'English' } = body || {};
     if (!topic) throw new BadRequestException('Topic is required.');
 
@@ -241,23 +270,49 @@ export class SchoolPptService {
       instituteId!, { chapterId, topicId: body?.topicId }, effectiveSourceMode,
     );
 
-    const result = await this.aiBridge.generatePpt(
-      {
+    // Slide style chosen in PPT Studio: 'v2' (designed, editable) or 'image'
+    // (each slide painted by an image model). Only known values pass; the AI
+    // service still honours it only when its override flag is on.
+    const requestedVersion = String(body?.pptVersion || '').trim().toLowerCase();
+    const pptVersion = ['v1', 'v2', 'image'].includes(requestedVersion) ? requestedVersion : undefined;
+
+    return {
+      board,
+      aiBody: {
         topic,
-        slideCount: Math.max(3, Math.min(MAX_SLIDES, Number(slideCount) || 5)),
+        // 'auto': the chapter's content decides the count (AI service).
+        slideCount: String(slideCount).trim().toLowerCase() === 'auto'
+          ? ('auto' as const)
+          : Math.max(3, Math.min(MAX_SLIDES, Number(slideCount) || 5)),
         language,
         ...ctx,
         ...(sourcePassages.length ? { sourcePassages } : {}),
+        ...(pptVersion ? { pptVersion } : {}),
       },
-      instituteId,
-      board,
-    );
+      // What the finishing step needs. Travels with a background job and comes
+      // back with its result, so the status call can finish it the same way.
+      meta: {
+        sourceMode,
+        effectiveSourceMode,
+        passages: sourcePassages.length,
+        chapterId: chapterId ?? null,
+      },
+    };
+  }
 
-    const data: any = result?.data ?? {};
+  /** Everything generate() did to the AI service's answer. Mutates data. */
+  private finishPptData(
+    data: any,
+    meta: { sourceMode?: string; effectiveSourceMode?: string; passages?: number; chapterId?: string | null },
+  ) {
+    const sourceMode = meta.sourceMode || 'ebook';
+    const effectiveSourceMode = meta.effectiveSourceMode || sourceMode;
+    const passages = Number(meta.passages) || 0;
+    const chapterId = meta.chapterId;
     if (!data.source) {
       data.source = {
         grounded: false,
-        reason: sourcePassages.length ? 'unavailable' : (effectiveSourceMode === 'ebook' ? 'not_indexed' : 'no_source_available'),
+        reason: passages ? 'unavailable' : (effectiveSourceMode === 'ebook' ? 'not_indexed' : 'no_source_available'),
       };
     }
     data.sourceMode = effectiveSourceMode;
@@ -269,13 +324,12 @@ export class SchoolPptService {
     // only signal is a teacher's screenshot of a "General knowledge" badge; here
     // the precise reason (gemini_exhausted / gemini_key_rejected / …) lands in the
     // service logs the moment it happens.
-    if (sourcePassages.length && !data.source?.grounded) {
+    if (passages && !data.source?.grounded) {
       this.logger.warn(
-        `PPT ungrounded despite ${sourcePassages.length} indexed passages ` +
+        `PPT ungrounded despite ${passages} indexed passages ` +
           `(chapter=${chapterId ?? 'n/a'}): reason=${data.source?.reason ?? 'unknown'}`,
       );
     }
-    return result;
   }
 
   /** A topic knows its chapter; grounding is always at chapter granularity. */

@@ -27,6 +27,22 @@ export class SchoolPptController {
     return this.svc.generate(body, req.user?.instituteId, req.user);
   }
 
+  @Post('generate/start')
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_ppt_generator')
+  startGeneration(@Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.svc.startGeneration(body, req.user?.instituteId, req.user);
+  }
+
+  @Get('generate/status/:jobId')
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_ppt_generator')
+  generationStatus(@Param('jobId') jobId: string, @Req() req: Request & { user?: any }) {
+    return this.svc.generationStatus(jobId, req.user?.instituteId);
+  }
+
   @Post('regenerate-slide')
   @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')

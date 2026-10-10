@@ -51,6 +51,9 @@ export const ADMISSION_POOL_BY_PATH: Readonly<Record<string, AdmissionPool>> = {
   '/stt/notes-from-text': AdmissionPool.BACKGROUND,
   '/stt/notes-from-youtube': AdmissionPool.BACKGROUND,
   '/ppt/generate': AdmissionPool.BACKGROUND,
+  // Starting a background deck returns at once; the work runs in the AI
+  // service's own job, capped per institute there.
+  '/ppt/generate/start': AdmissionPool.BACKGROUND,
   '/ppt/regenerate-slide': AdmissionPool.BACKGROUND,
   '/ppt/search-image': AdmissionPool.BACKGROUND,
   '/test/generate/': AdmissionPool.BACKGROUND,
