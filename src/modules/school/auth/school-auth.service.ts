@@ -256,6 +256,21 @@ export class SchoolAuthService {
     };
   }
 
+  /**
+   * Deactivates the caller's own auth_sessions row, same as an admin's
+   * forceLogout() does to someone else's. Without this, a token that leaked
+   * after a user clicked "logout" would still work: logging out only ever
+   * cleared the frontend's copy, the server never knew the session had ended.
+   * Idempotent — logging out twice (or a session the idle-timeout guard
+   * already deactivated) is not an error.
+   */
+  async logout(user: any) {
+    if (user?.sessionId) {
+      await this.ds.query(`UPDATE auth_sessions SET is_active = false WHERE id = $1`, [user.sessionId]);
+    }
+    return { success: true, message: 'Logged out successfully' };
+  }
+
   async register(body: any) {
     const { name, email, password, phone, tenantDomain, instituteName, address, city, state, pinCode, logo } = body;
     if (!name || !email || !password || !instituteName) {

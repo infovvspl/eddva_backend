@@ -47,6 +47,7 @@ import { SchoolNotificationFcmModule } from './notification-fcm/school-notificat
 import { SchoolSyllabusModule } from './syllabus/school-syllabus.module';
 import { SchoolStaffModule } from './staff/school-staff.module';
 import { SchoolRolesModule } from './roles/school-roles.module';
+import { CompetitiveModule } from './competitive/competitive.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { SchoolRolesModule } from './roles/school-roles.module';
     SchoolNotificationFcmModule,
     SchoolStaffModule,
     SchoolRolesModule,
+    CompetitiveModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
   providers: [SchoolJwtGuard, SchoolRolesGuard],

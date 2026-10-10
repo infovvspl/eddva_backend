@@ -1,13 +1,34 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, Optional } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
+import { PptJobRecord, PptJobsStore } from './ppt-jobs.store';
+
+/**
+ * The PPT Studio page a background deck opens in. Only that page, on this
+ * site: a path, never a URL, so a list entry can never send a teacher elsewhere.
+ */
+export function safeStudioPath(value: unknown): string | null {
+  const path = typeof value === 'string' ? value.trim() : '';
+  if (!path.startsWith('/school/teacher/ppt-studio') || path.startsWith('//')) return null;
+  if (path.length > 2000 || /[\s<>"'`]/.test(path)) return null;
+  return path;
+}
 const AdmZip = require('adm-zip');
 
 /** Keep in step with _MAX_SLIDES in the AI service's ppt.py. */
-const MAX_SLIDES = 25;
+const MAX_SLIDES = 10;
+
+/**
+ * PPT Studio's "Choose a Theme" cards. Keep in step with STUDIO_PALETTES in
+ * the AI service's ppt_v2/design.py. "subject" (match the subject) is the
+ * default and is sent as no theme at all.
+ */
+const PPT_DECK_THEMES = [
+  'dark-professional', 'ocean-blue', 'warm-sunset', 'forest-green', 'royal-purple', 'clean-white',
+];
 
 /**
  * PPT generation is delegated entirely to the Django AI service (POST /ppt/*).
@@ -24,6 +45,7 @@ export class SchoolPptService {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly textbooks: SchoolTextbookService,
     private readonly featureFlagService: AiFeatureFlagService,
+    @Optional() private readonly jobsStore?: PptJobsStore,
   ) {}
 
   /** What can this deck's scope be generated from right now (before the teacher generates). */
@@ -98,10 +120,10 @@ export class SchoolPptService {
           [body.topicId],
         );
         if (rows.length) {
-          out.topicName ??= clean(rows[0].topic_name);
-          out.chapterName ??= clean(rows[0].chapter_name);
-          out.subjectName ??= clean(rows[0].subject_name);
-          out.className ??= clean(rows[0].class_name);
+          out.topicName = clean(rows[0].topic_name) ?? out.topicName;
+          out.chapterName = clean(rows[0].chapter_name) ?? out.chapterName;
+          out.subjectName = clean(rows[0].subject_name) ?? out.subjectName;
+          out.className = clean(rows[0].class_name) ?? out.className;
           out.className ??= await this.classNameFromTeacherAssignment(rows[0].subject_id, user);
         }
       } else if (body?.chapterId) {
@@ -115,9 +137,9 @@ export class SchoolPptService {
           [body.chapterId],
         );
         if (rows.length) {
-          out.chapterName ??= clean(rows[0].chapter_name);
-          out.subjectName ??= clean(rows[0].subject_name);
-          out.className ??= clean(rows[0].class_name);
+          out.chapterName = clean(rows[0].chapter_name) ?? out.chapterName;
+          out.subjectName = clean(rows[0].subject_name) ?? out.subjectName;
+          out.className = clean(rows[0].class_name) ?? out.className;
           out.className ??= await this.classNameFromTeacherAssignment(rows[0].subject_id, user);
         }
       } else if (body?.subjectId) {
@@ -129,8 +151,8 @@ export class SchoolPptService {
           [body.subjectId],
         );
         if (rows.length) {
-          out.subjectName ??= clean(rows[0].subject_name);
-          out.className ??= clean(rows[0].class_name);
+          out.subjectName = clean(rows[0].subject_name) ?? out.subjectName;
+          out.className = clean(rows[0].class_name) ?? out.className;
           out.className ??= await this.classNameFromTeacherAssignment(rows[0].subject_id, user);
         }
       }
@@ -215,6 +237,118 @@ export class SchoolPptService {
   }
 
   async generate(body: any, instituteId?: string, user?: any) {
+    const prepared = await this.preparePptRequest(body, instituteId, user);
+    const result = await this.aiBridge.generatePpt(prepared.aiBody, instituteId, prepared.board);
+    this.finishPptData(result?.data ?? {}, prepared.meta);
+    return result;
+  }
+
+  /**
+   * Start a deck in the background and return its job id at once. The studio
+   * polls generationStatus; nothing is held open long enough to time out.
+   */
+  async startGeneration(body: any, instituteId?: string, user?: any) {
+    const prepared = await this.preparePptRequest(body, instituteId, user);
+    const started = await this.aiBridge.startPptGeneration(
+      { ...prepared.aiBody, clientMeta: prepared.meta }, instituteId, prepared.board,
+    );
+    // Remember the deck for the teacher, so it can be followed from Course
+    // Content after they leave the studio, and opened when it is ready.
+    const jobId = (started as any)?.jobId ?? (started as any)?.data?.jobId;
+    const userId = user?.id ? String(user.id) : '';
+    if (jobId && instituteId && userId && this.jobsStore) {
+      const ai = prepared.aiBody as Record<string, any>;
+      await this.jobsStore.put(instituteId, userId, {
+        jobId: String(jobId),
+        createdAt: Date.now(),
+        topic: String(ai.topic || ''),
+        topicName: ai.topicName || undefined,
+        chapterName: ai.chapterName || undefined,
+        subjectName: ai.subjectName || undefined,
+        className: ai.className || undefined,
+        style: ai.pptVersion || 'v1',
+        pagePath: safeStudioPath(body?.pagePath),
+      }).catch((e: any) => this.logger.warn(`Could not record PPT job ${jobId}: ${e?.message || e}`));
+    }
+    return started;
+  }
+
+  /**
+   * The teacher's decks from the last day, newest first, each with its live
+   * progress (queued, writing, painting n of m) or how it ended. A finished
+   * job's ending is stored, so the AI service is only asked about running ones.
+   */
+  async listJobs(instituteId?: string, user?: any) {
+    const userId = user?.id ? String(user.id) : '';
+    if (!instituteId || !userId || !this.jobsStore) return { jobs: [] };
+    const records = await this.jobsStore.list(instituteId, userId);
+    const jobs = await Promise.all(records.map(async (r) => {
+      if (r.final) return this.jobView(r, r.final);
+      try {
+        const s = await this.aiBridge.getPptGenerationStatus(r.jobId, instituteId, { summary: true });
+        if (s?.status === 'done' || s?.status === 'failed') {
+          r.final = { status: s.status, error: s.error ?? null, title: s.title ?? null, slides: s.slides };
+          await this.jobsStore!.put(instituteId, userId, r);
+        }
+        return this.jobView(r, s || {});
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          // Gone from the AI service (expired): nothing left to open.
+          await this.jobsStore!.remove(instituteId, userId, r.jobId);
+          return null;
+        }
+        // The AI service is briefly unreachable: show the deck, not an error.
+        return this.jobView(r, { status: 'running' });
+      }
+    }));
+    return { jobs: jobs.filter(Boolean) };
+  }
+
+  /** Take a deck off the teacher's list (opened, or not wanted). */
+  async dismissJob(jobId: string, instituteId?: string, user?: any) {
+    const userId = user?.id ? String(user.id) : '';
+    if (!jobId) throw new BadRequestException('jobId is required.');
+    if (instituteId && userId && this.jobsStore) {
+      await this.jobsStore.remove(instituteId, userId, jobId);
+    }
+    return { success: true };
+  }
+
+  private jobView(r: PptJobRecord, s: Record<string, any>) {
+    return {
+      jobId: r.jobId,
+      createdAt: r.createdAt,
+      topic: r.topic,
+      topicName: r.topicName ?? null,
+      chapterName: r.chapterName ?? null,
+      subjectName: r.subjectName ?? null,
+      className: r.className ?? null,
+      style: r.style ?? null,
+      pagePath: r.pagePath ?? null,
+      status: s.status ?? 'running',
+      stage: s.stage ?? null,
+      done: s.done ?? null,
+      total: s.total ?? null,
+      queuePosition: s.queuePosition ?? null,
+      activity: s.activity ?? null,
+      error: s.error ?? null,
+      title: s.title ?? null,
+      slides: s.slides ?? null,
+    };
+  }
+
+  /** Progress and the deck so far; once done, the same data generate() returns. */
+  async generationStatus(jobId: string, instituteId?: string) {
+    if (!jobId) throw new BadRequestException('jobId is required.');
+    const job = await this.aiBridge.getPptGenerationStatus(jobId, instituteId);
+    if (job?.status === 'done' && job?.result?.data) {
+      this.finishPptData(job.result.data, job.meta || {});
+    }
+    return job;
+  }
+
+  /** Everything generate() did before calling the AI service. */
+  private async preparePptRequest(body: any, instituteId?: string, user?: any) {
     const { topic, slideCount = 5, language = 'English' } = body || {};
     if (!topic) throw new BadRequestException('Topic is required.');
 
@@ -241,23 +375,57 @@ export class SchoolPptService {
       instituteId!, { chapterId, topicId: body?.topicId }, effectiveSourceMode,
     );
 
-    const result = await this.aiBridge.generatePpt(
-      {
+    // Slide style chosen in PPT Studio: 'v2' (designed, editable) or 'image'
+    // (each slide painted by an image model). Only known values pass; the AI
+    // service still honours it only when its override flag is on.
+    const requestedVersion = String(body?.pptVersion || '').trim().toLowerCase();
+    const pptVersion = ['v1', 'v2', 'image'].includes(requestedVersion) ? requestedVersion : undefined;
+
+    // The theme the teacher picked, for V2 and image decks (V1 decks are
+    // coloured in the studio itself). Only known cards pass.
+    const requestedTheme = String(body?.deckTheme || '').trim().toLowerCase();
+    const deckTheme = PPT_DECK_THEMES.includes(requestedTheme) ? requestedTheme : undefined;
+
+    return {
+      board,
+      aiBody: {
         topic,
-        slideCount: Math.max(3, Math.min(MAX_SLIDES, Number(slideCount) || 5)),
+        // 'auto': the chapter's content decides the count (AI service).
+        slideCount: String(slideCount).trim().toLowerCase() === 'auto'
+          ? ('auto' as const)
+          : Math.max(3, Math.min(MAX_SLIDES, Number(slideCount) || 5)),
         language,
         ...ctx,
         ...(sourcePassages.length ? { sourcePassages } : {}),
+        ...(pptVersion ? { pptVersion } : {}),
+        ...(deckTheme ? { deckTheme } : {}),
+        // "Make a fresh one": skip the AI service's kept deck for this request.
+        ...(body?.fresh === true ? { fresh: true } : {}),
       },
-      instituteId,
-      board,
-    );
+      // What the finishing step needs. Travels with a background job and comes
+      // back with its result, so the status call can finish it the same way.
+      meta: {
+        sourceMode,
+        effectiveSourceMode,
+        passages: sourcePassages.length,
+        chapterId: chapterId ?? null,
+      },
+    };
+  }
 
-    const data: any = result?.data ?? {};
+  /** Everything generate() did to the AI service's answer. Mutates data. */
+  private finishPptData(
+    data: any,
+    meta: { sourceMode?: string; effectiveSourceMode?: string; passages?: number; chapterId?: string | null },
+  ) {
+    const sourceMode = meta.sourceMode || 'ebook';
+    const effectiveSourceMode = meta.effectiveSourceMode || sourceMode;
+    const passages = Number(meta.passages) || 0;
+    const chapterId = meta.chapterId;
     if (!data.source) {
       data.source = {
         grounded: false,
-        reason: sourcePassages.length ? 'unavailable' : (effectiveSourceMode === 'ebook' ? 'not_indexed' : 'no_source_available'),
+        reason: passages ? 'unavailable' : (effectiveSourceMode === 'ebook' ? 'not_indexed' : 'no_source_available'),
       };
     }
     data.sourceMode = effectiveSourceMode;
@@ -269,13 +437,12 @@ export class SchoolPptService {
     // only signal is a teacher's screenshot of a "General knowledge" badge; here
     // the precise reason (gemini_exhausted / gemini_key_rejected / …) lands in the
     // service logs the moment it happens.
-    if (sourcePassages.length && !data.source?.grounded) {
+    if (passages && !data.source?.grounded) {
       this.logger.warn(
-        `PPT ungrounded despite ${sourcePassages.length} indexed passages ` +
+        `PPT ungrounded despite ${passages} indexed passages ` +
           `(chapter=${chapterId ?? 'n/a'}): reason=${data.source?.reason ?? 'unknown'}`,
       );
     }
-    return result;
   }
 
   /** A topic knows its chapter; grounding is always at chapter granularity. */
@@ -312,6 +479,18 @@ export class SchoolPptService {
     const searchTerm = body?.searchTerm;
     if (!searchTerm) throw new BadRequestException('searchTerm is required.');
     return this.aiBridge.searchPptImage({ searchTerm }, instituteId);
+  }
+
+  /** How the AI service names generated images: a hex id and an image extension. */
+  private static readonly GENERATED_IMAGE = /^[A-Za-z0-9_-]{8,100}\.(png|jpe?g|webp)$/i;
+
+  /**
+   * A picture the AI service generated, by file name only. Never a URL: the
+   * name is checked strictly, so this can only ever read that one folder.
+   */
+  async generatedImage(file: string): Promise<{ contentType: string; buffer: Buffer } | null> {
+    if (!SchoolPptService.GENERATED_IMAGE.test(String(file || ''))) return null;
+    return this.aiBridge.getGeneratedImage(file);
   }
 
   /** Proxy an external image URL — bypasses hotlink protection for studio preview. */

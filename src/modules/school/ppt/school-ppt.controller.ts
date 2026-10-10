@@ -27,6 +27,39 @@ export class SchoolPptController {
     return this.svc.generate(body, req.user?.instituteId, req.user);
   }
 
+  @Post('generate/start')
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_ppt_generator')
+  startGeneration(@Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.svc.startGeneration(body, req.user?.instituteId, req.user);
+  }
+
+  @Get('generate/status/:jobId')
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_ppt_generator')
+  generationStatus(@Param('jobId') jobId: string, @Req() req: Request & { user?: any }) {
+    return this.svc.generationStatus(jobId, req.user?.instituteId);
+  }
+
+  /** The teacher's decks from the last day, with live progress (for Course Content). */
+  @Get('jobs')
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_ppt_generator')
+  listJobs(@Req() req: Request & { user?: any }) {
+    return this.svc.listJobs(req.user?.instituteId, req.user);
+  }
+
+  @Post('jobs/:jobId/dismiss')
+  @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+  @SchoolFeature('ai', 'ai_ppt_generator')
+  dismissJob(@Param('jobId') jobId: string, @Req() req: Request & { user?: any }) {
+    return this.svc.dismissJob(jobId, req.user?.instituteId, req.user);
+  }
+
   @Post('regenerate-slide')
   @UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
   @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
@@ -58,6 +91,24 @@ export class SchoolPptController {
     if (!out) { res.status(404).end(); return; }
     res.setHeader('Content-Type', out.contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(out.buffer);
+  }
+
+  /**
+   * Pictures the AI service generated (painted slides, figures). The AI service
+   * is not reachable from browsers on every deployment, so its image links can
+   * point here (AI service NOTES_IMAGE_PUBLIC_BASE_URL = <api base>/school/ppt).
+   * Unguarded like proxy-image - an <img> cannot send a token - but it only
+   * reads the AI service's generated-images folder, by a strictly checked
+   * file name; the names are random, so a link is as private as the deck.
+   */
+  @Get('generated-note-images/:file')
+  async generatedImage(@Param('file') file: string, @Res() res: Response) {
+    const out = await this.svc.generatedImage(file);
+    if (!out) { res.status(404).end(); return; }
+    res.setHeader('Content-Type', out.contentType);
+    // A generated image never changes under its name.
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.send(out.buffer);
   }
 
