@@ -19,6 +19,11 @@ export class SchoolNotificationController {
     return this.svc.getUnreadCount(user);
   }
 
+  @Get('flag-count')
+  getFlagCount(@SchoolUser() user: any) {
+    return this.svc.getFlagCount(user);
+  }
+
   @Post()
   create(@Body() body: any) {
     return this.svc.create(body);

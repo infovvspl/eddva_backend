@@ -138,6 +138,7 @@ export class AiBridgeService {
   private static readonly FEATURE_MAP: Record<string, { feature: string; provider: string }> = {
     '/doubt/resolve':       { feature: 'doubt_resolver',         provider: 'groq' },
     '/doubt/ocr-image':     { feature: 'image_ocr_handwriting',  provider: 'groq_vision' },
+    '/topics/parse-index-image': { feature: 'curriculum_index_import', provider: 'groq_vision' },
     '/tutor/session':       { feature: 'tutor',                  provider: 'groq' },
     '/tutor/continue':      { feature: 'tutor',                  provider: 'groq' },
     '/ai-tutor/chat':       { feature: 'ai_tutor',               provider: 'groq_serper' },
@@ -384,6 +385,19 @@ export class AiBridgeService {
     tenantId?: string,
   ): Promise<{ text: string }> {
     return this.post('/doubt/ocr-image', payload, tenantId, 120_000);
+  }
+
+  /**
+   * Reads a photographed/scanned textbook table-of-contents page into a
+   * chapter → topics structure, for the teacher's "scan to import" curriculum
+   * flow. An empty `chapters` array means the model couldn't reliably read
+   * one — never thrown as an error, the caller falls back to manual entry.
+   */
+  async parseCurriculumIndexImage(
+    payload: { imageUrl: string; language?: string },
+    tenantId?: string,
+  ): Promise<{ chapters: Array<{ chapter: string; topics: string[] }>; warning?: string }> {
+    return this.post('/topics/parse-index-image', payload, tenantId, 120_000);
   }
 
   // ── Subjective-answer grading rubric generation ──────────────────────────
@@ -645,7 +659,7 @@ export class AiBridgeService {
   async generateFeedback(
     payload: {
       studentId: string;
-      context: 'post_test' | 'weekly_summary' | 'battle_result';
+      context: 'post_test' | 'weekly_summary' | 'battle_result' | 'report_card';
       data: any;
     },
     tenantId?: string,
@@ -1767,6 +1781,10 @@ export class AiBridgeService {
       sourcePassages?: any[];
       /** 'v1' | 'v2' | 'image' - honoured only when the AI service allows the override. */
       pptVersion?: string;
+      /** A PPT Studio theme key for V2 and image decks; absent = match the subject. */
+      deckTheme?: string;
+      /** Make a new deck even if the AI service kept one for this exact request. */
+      fresh?: boolean;
     },
     tenantId?: string,
     board?: string,
@@ -1787,11 +1805,37 @@ export class AiBridgeService {
     return this.post('/ppt/generate/start', dto, tenantId, 30_000, 'school', board);
   }
 
+  /**
+   * A picture the AI service generated (a painted slide, a figure), fetched from
+   * its generated-images folder over the internal network. Browsers cannot
+   * reach the AI service on every deployment, so its image links point at the
+   * backend, which serves them through this. Null when there is no such image.
+   */
+  async getGeneratedImage(file: string): Promise<{ contentType: string; buffer: Buffer } | null> {
+    try {
+      const res: AxiosResponse<ArrayBuffer> = await firstValueFrom(
+        this.http.get(`${this.baseUrl}/generated-note-images/${encodeURIComponent(file)}`, {
+          responseType: 'arraybuffer',
+          timeout: 15_000,
+          validateStatus: () => true,
+        }),
+      );
+      const contentType = String(res.headers?.['content-type'] || '');
+      if (res.status !== 200 || !contentType.startsWith('image/')) return null;
+      return { contentType, buffer: Buffer.from(res.data) };
+    } catch (err: any) {
+      this.logger.warn(`Generated image ${file} unavailable: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   /** Progress, the deck as far as it exists, then the result. Tenant-scoped by the AI service. */
-  async getPptGenerationStatus(jobId: string, tenantId?: string): Promise<any> {
+  /** ``summary``: progress fields only, without the deck (for lists polled often). */
+  async getPptGenerationStatus(jobId: string, tenantId?: string,
+                               opts: { summary?: boolean } = {}): Promise<any> {
     const res: AxiosResponse<any> = await firstValueFrom(
       this.http.get(`${this.baseUrl}/ppt/generate/status`, {
-        params: { job_id: jobId },
+        params: { job_id: jobId, ...(opts.summary ? { summary: 1 } : {}) },
         headers: this.headers(tenantId, 'school'),
         timeout: 15_000,
       }),
@@ -1840,13 +1884,30 @@ export class AiBridgeService {
   }
 
   async ingestTextbook(
-    dto: { fileUrl: string; allowOcr?: boolean; progressKey?: string; wantFigures?: boolean },
+    dto: { fileUrl: string; allowOcr?: boolean; progressKey?: string },
     tenantId?: string,
   ): Promise<{ success: boolean; data: any }> {
     // A scanned chapter goes through a vision pass page by page, so this is far
     // slower than a normal bridge call. Callers run it in the background (see
     // ingestMaterialAsync), so a generous 10-minute ceiling is safe.
     return this.post('/textbook/ingest', dto, tenantId, 600_000, 'school');
+  }
+
+  /**
+   * Competitive Exam Prep — extract structured questions from a PYQ /
+   * question-bank PDF (and optionally a separate answer-key PDF). Called by
+   * Super Admin to populate the global `competitive_questions` bank; results
+   * always land as unverified rows pending human review, never served to a
+   * teacher directly. No `tenantId` — this is global, platform-wide content,
+   * not an institute-scoped feature, so it is deliberately left out of
+   * FEATURE_MAP and carries no AI quota against any institute.
+   */
+  async extractCompetitiveQuestions(
+    dto: { fileUrl: string; answerKeyFileUrl?: string; progressKey?: string },
+  ): Promise<{ success: boolean; data: any }> {
+    // Same rationale as ingestTextbook: a multi-hundred-page compilation runs
+    // several vision batches in sequence, so this can take a while.
+    return this.post('/competitive/extract-questions', dto, undefined, 600_000, 'school');
   }
 
   /**
@@ -1867,6 +1928,31 @@ export class AiBridgeService {
         this.http.get(`${this.baseUrl}/textbook/ingest-progress`, {
           params: { key: progressKey },
           headers: this.headers(tenantId, 'school'),
+          timeout: 5_000,
+        }),
+      );
+      const data = res.data?.data;
+      return data && Object.keys(data).length ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Live page progress for one in-flight extractCompetitiveQuestions call,
+   * keyed by the same progressKey passed to it (the run's own id — see
+   * CompetitiveMasterService.processIngestRun). Same no-throw, no-quota
+   * status-peek contract as getTextbookIngestProgress above.
+   */
+  async getCompetitiveExtractionProgress(
+    progressKey: string,
+  ): Promise<{ pagesDone?: number; pagesTotal?: number; stage?: string } | null> {
+    if (!progressKey) return null;
+    try {
+      const res: AxiosResponse<{ success: boolean; data: any }> = await firstValueFrom(
+        this.http.get(`${this.baseUrl}/competitive/extract-progress`, {
+          params: { key: progressKey },
+          headers: this.headers(undefined, 'school'),
           timeout: 5_000,
         }),
       );

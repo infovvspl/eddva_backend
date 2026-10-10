@@ -20,8 +20,11 @@
     "migration:generate": "npm run typeorm -- migration:generate",
     "migration:run": "npm run typeorm -- migration:run -d src/config/database.config.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/config/database.config.ts",
+    "migration:run:school": "npm run typeorm -- migration:run -d src/config/school-datasource.ts",
+    "migration:revert:school": "npm run typeorm -- migration:revert -d src/config/school-datasource.ts",
     "seed": "ts-node src/database/seed.ts",
     "seed:super-admins": "ts-node -r tsconfig-paths/register src/database/seed-super-admins.ts",
+    "seed:erp-modules": "ts-node -r tsconfig-paths/register src/modules/school/seeds/seed-erp-modules.ts",
     "backfill:mock-test-math": "node scripts/backfill-mock-test-math.js",
     "prepare": "husky"
   },

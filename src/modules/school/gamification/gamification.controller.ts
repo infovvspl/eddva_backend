@@ -155,6 +155,19 @@ export class SchoolGamificationController {
     return this.gamification.getMyProfile((req as any).user);
   }
 
+  /** Per-game free-hint balance + spendable coins, for the hints HUD. */
+  @Get('hints/wallet')
+  getHintWallet(@Req() req: Request) {
+    return this.gamification.getHintWallet((req as any).user);
+  }
+
+  /** Uses one hint (free if available, otherwise bought with coins) on a question. */
+  @Post('hints/request')
+  @SchoolFeature('ai', 'ai_game_quizzes')
+  requestHint(@Req() req: Request, @Body() body: any) {
+    return this.gamification.requestHint((req as any).user, body);
+  }
+
   @Get('leaderboard')
   @SchoolPublic()
   async getMultiLeaderboard(@Query('scope') scope: string) {

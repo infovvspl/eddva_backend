@@ -340,6 +340,11 @@ export class CareerService implements OnModuleInit {
 
   async getQuizQuestions(studentId: string) {
     const status = await this.getQuizStatus(studentId);
+    // Cooldown is enforced here too (not just in submitQuiz) so a locked
+    // student can never receive real, answerable questions from this endpoint.
+    if (!status.data.canRetake) {
+      return { success: true, data: { questions: [], status } };
+    }
     // Every question lists R/I/A/S/E/C in the same order — a student who
     // straight-lines (always picks the same position) would otherwise land on
     // a single, meaningless Holland letter every time. Shuffling per student
@@ -374,12 +379,12 @@ export class CareerService implements OnModuleInit {
     const latest = await this.getLatestQuiz(studentId);
     const now = new Date();
 
-    let canRetakeAfter = latest?.canRetakeAfter ?? null;
-    if (latest && latest.completedAt) {
-      const computedDate = new Date(latest.completedAt);
-      computedDate.setMonth(computedDate.getMonth() + RETAKE_MONTHS);
-      canRetakeAfter = computedDate;
-    }
+    // Trust the value stored at submission time - it's what submitQuiz's own
+    // cooldown check enforces. Recomputing from completedAt + RETAKE_MONTHS
+    // here would silently drift from that stored value if RETAKE_MONTHS is
+    // ever changed, letting this endpoint say "unlocked" while submit still
+    // rejects the attempt.
+    const canRetakeAfter = latest?.canRetakeAfter ?? null;
 
     const canRetake = !latest || !canRetakeAfter || canRetakeAfter <= now;
 

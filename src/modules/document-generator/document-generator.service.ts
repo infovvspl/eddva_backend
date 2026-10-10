@@ -437,7 +437,18 @@ export class DocumentGeneratorService {
   }
 
   async getIdCardHistory() {
-    return this.idCardRecordRepo.find({ order: { issuedAt: 'DESC' } });
+    const records = await this.idCardRecordRepo.find({ order: { issuedAt: 'DESC' } });
+    const targetIds = [...new Set(records.map((r) => r.targetId).filter(Boolean))];
+    const users = targetIds.length ? await this.userRepo.find({ where: { id: In(targetIds) } }) : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+    return records.map((r) => {
+      const user = userMap.get(r.targetId);
+      return {
+        ...r,
+        targetName: user?.name || null,
+        targetEmail: user?.email || null,
+      };
+    });
   }
 
   async updateIdCardStatus(id: string, status: IdCardStatus) {

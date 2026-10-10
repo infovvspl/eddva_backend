@@ -2,6 +2,9 @@ import { Injectable, ForbiddenException, Logger, BadRequestException } from '@ne
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { hasSchoolRole } from '../common/role-helper';
+import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { S3Service } from '../../upload/s3.service';
+import { isSchoolAiFeatureEnabled } from '../common/ai-features.registry';
 
 /**
  * Tidy a chapter name so case alone cannot create a second chapter.
@@ -30,7 +33,11 @@ export function normalizeChapterName(name: string): string {
 export class SchoolTopicService {
   private readonly logger = new Logger(SchoolTopicService.name);
 
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) { }
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly aiBridge: AiBridgeService,
+    private readonly s3Service: S3Service,
+  ) { }
 
   private async validateTeacherAssignment(user: any, subjectId: string | null, action: string) {
     if (!hasSchoolRole(user.role, 'TEACHER')) return;
@@ -536,6 +543,40 @@ export class SchoolTopicService {
     }
 
     return { success: true, data: summary };
+  }
+
+  /**
+   * Scan a photographed/scanned textbook table-of-contents page into a
+   * chapter → topics structure for the teacher to review and edit before
+   * committing it via bulkImport() above — this step never writes to the
+   * database itself. Upload/AI failures surface as a clear error; a readable
+   * image that just doesn't look like an index page comes back as an empty
+   * `chapters` array with a `warning`, not an error, so the UI can offer
+   * "try a clearer photo" instead of a scary failure.
+   */
+  async parseIndexImage(user: any, file: Express.Multer.File, language?: string) {
+    if (!isSchoolAiFeatureEnabled(user, 'ai_curriculum_import')) {
+      throw new ForbiddenException('AI curriculum import is not enabled for your institute');
+    }
+    if (!file?.buffer?.length) throw new BadRequestException('No image uploaded');
+
+    const instituteId = user?.instituteId || 'default';
+    const safeName = (file.originalname || 'index.jpg').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'index.jpg';
+    const key = `tenants/${instituteId}/curriculum-import/${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`;
+
+    let imageUrl: string;
+    try {
+      imageUrl = await this.s3Service.upload(key, file.buffer, file.mimetype || 'image/jpeg');
+    } catch (e) {
+      this.logger.error(`[parseIndexImage] upload failed: ${e instanceof Error ? e.message : e}`);
+      throw new BadRequestException('Could not upload the image — please try again');
+    }
+
+    const result = await this.aiBridge.parseCurriculumIndexImage({ imageUrl, language }, user?.instituteId);
+    return {
+      success: true,
+      data: { chapters: result?.chapters || [], warning: result?.warning },
+    };
   }
 
   async updateChapter(user: any, id: string, body: any) {

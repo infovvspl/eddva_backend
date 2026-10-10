@@ -102,26 +102,21 @@ export class SchoolAuthService {
 
     const token = this.signSchoolToken(user);
 
-    if (String(user.role).toUpperCase().includes('TEACHER')) {
+    // Logging in marks today's attendance PRESENT, but only when nothing has
+    // been recorded for the day yet — DO NOTHING (not DO UPDATE) so this can
+    // never silently overwrite an attendance row an admin already marked
+    // (e.g. ABSENT/LEAVE) with PRESENT just because the user logged in later.
+    // No remarks are set, so the table no longer shows a literal "Auto-login" row.
+    if (String(user.role).toUpperCase().includes('TEACHER') || String(user.role).toUpperCase().includes('INSTITUTE_ADMIN')) {
       try {
         await this.ds.query(
-          `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
-           ON CONFLICT (date, user_id) DO UPDATE SET status=EXCLUDED.status, remarks=EXCLUDED.remarks, updated_at=NOW()`,
+          `INSERT INTO attendances (institute_id, user_id, date, status) VALUES ($1, $2, CURRENT_DATE, 'PRESENT')
+           ON CONFLICT (date, user_id) DO NOTHING`,
           [user.inst_id, user.id]
         );
       } catch (error) {
-        console.error(`Auto-attendance failed for teacher ${user.id}:`, error);
+        console.error(`Auto-attendance failed for user ${user.id}:`, error);
         // Do not throw; allow login to succeed even if attendance insert fails
-      }
-    } else if (String(user.role).toUpperCase().includes('INSTITUTE_ADMIN')) {
-      try {
-        await this.ds.query(
-          `INSERT INTO attendances (institute_id, user_id, date, status, remarks) VALUES ($1, $2, CURRENT_DATE, 'PRESENT', 'Auto-login')
-           ON CONFLICT (date, user_id) DO UPDATE SET status=EXCLUDED.status, remarks=EXCLUDED.remarks, updated_at=NOW()`,
-          [user.inst_id, user.id]
-        );
-      } catch (error) {
-        console.error(`Auto-attendance failed for admin ${user.id}:`, error);
       }
     }
 
@@ -259,6 +254,21 @@ export class SchoolAuthService {
       message: 'Admin portal attendance recorded',
       data: rows[0] || null,
     };
+  }
+
+  /**
+   * Deactivates the caller's own auth_sessions row, same as an admin's
+   * forceLogout() does to someone else's. Without this, a token that leaked
+   * after a user clicked "logout" would still work: logging out only ever
+   * cleared the frontend's copy, the server never knew the session had ended.
+   * Idempotent — logging out twice (or a session the idle-timeout guard
+   * already deactivated) is not an error.
+   */
+  async logout(user: any) {
+    if (user?.sessionId) {
+      await this.ds.query(`UPDATE auth_sessions SET is_active = false WHERE id = $1`, [user.sessionId]);
+    }
+    return { success: true, message: 'Logged out successfully' };
   }
 
   async register(body: any) {

@@ -7,10 +7,20 @@ import { calculateCurrentStreak } from '../../../common/gamification-helper';
 
 type GameType = 'quiz_rush' | 'treasure_hunt' | 'math_sprint' | 'memory_match' | 'word_master' | 'battle_arena';
 
+/** Games hints apply to: the three MCQ games (graded through gradeMcqRun) plus Word Master (its own letter-reveal mechanic). */
+const HINT_ELIGIBLE_GAME_TYPES: GameType[] = ['quiz_rush', 'math_sprint', 'treasure_hunt', 'word_master'];
+
 @Injectable()
 export class GamificationService implements OnModuleInit {
   private readonly logger = new Logger(GamificationService.name);
   private readonly _boardCache = new Map<string, { value: string; expiresAt: number }>();
+
+  /** Lifetime free hints granted per (student, game type); never renews. */
+  private readonly HINT_FREE_TOTAL = 3;
+  /** Coin cost of each hint once the free pool for that game is exhausted. */
+  private readonly HINT_COIN_COST = 5;
+  /** Max bought hints stackable on a single question, on top of any free ones used there. */
+  private readonly HINT_MAX_PURCHASED_PER_QUESTION = 2;
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
@@ -104,6 +114,38 @@ export class GamificationService implements OnModuleInit {
       )
     `);
     await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_seen_q_lookup ON school_game_seen_questions (student_user_id, game_type, subject_id, seen_at)`);
+
+    // Hints: a one-time, lifetime pool of free hints per (student, game type) —
+    // never renews. Once exhausted, further hints are bought with coins.
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS school_hint_wallets (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_user_id uuid NOT NULL,
+        game_type varchar(50) NOT NULL,
+        free_hints_total int NOT NULL DEFAULT 3,
+        free_hints_used int NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await this.ds.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_hint_wallets_student_game ON school_hint_wallets (student_user_id, game_type)`);
+
+    // Append-only coin spend log. getMyProfile's coin balance is a MAX() across
+    // several lifetime-earn sources that only ever grows, so spending can only be
+    // reflected by subtracting this ledger's total from that MAX() at read time —
+    // see getAvailableCoins()/getMyProfile().
+    await this.ds.query(`
+      CREATE TABLE IF NOT EXISTS school_coin_ledger (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_user_id uuid NOT NULL,
+        delta int NOT NULL,
+        reason varchar(100) NOT NULL,
+        reference_type varchar(50),
+        reference_id uuid,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_coin_ledger_student ON school_coin_ledger (student_user_id, created_at)`);
   }
 
   /**
@@ -390,6 +432,12 @@ export class GamificationService implements OnModuleInit {
         }
       }
 
+      // Net out anything spent via the coin ledger (e.g. bought hints). `coins`
+      // above is a gross lifetime-earned MAX() across legacy sources that only
+      // ever grows, so spending is only visible by subtracting here — the
+      // underlying gamification_profiles/students columns stay as gross totals.
+      coins = Math.max(0, coins - (await this.getSpentCoinsTotal(this.ds, userId)));
+
       const calculatedLevel = this.computeLevel(xp);
 
       return {
@@ -430,6 +478,448 @@ export class GamificationService implements OnModuleInit {
     if (xp >= 250) return 'Scholar';
     if (xp >= 100) return 'Learner';
     return 'Beginner';
+  }
+
+  // ── Hints: free-pool tracking, coin spend, clue generation ───────────────
+
+  /**
+   * Lifetime-earned coins (gross), mirroring getMyProfile's MAX() across its
+   * legacy sources — except the `students.eddva_coins` column, which does
+   * not actually exist in this database (getMyProfile's own query against it
+   * silently fails and defaults to 0 via its own `.catch`; harmless there
+   * since it runs outside a transaction). Queries here are deliberately left
+   * UNcaught: this runs inside spendCoins' transaction, so a real failure
+   * must abort the transaction and fail the request loudly — silently
+   * defaulting a failed query to 0 here would risk understating a student's
+   * balance and wrongly rejecting a legitimate hint purchase.
+   */
+  private async getGrossCoins(executor: any, userId: string, studentId: string) {
+    const sid = studentId || userId;
+    const profileRows = await executor.query(
+      `SELECT coins FROM gamification_profiles WHERE user_id::text = $1::text OR user_id::text = $2::text`,
+      [userId, sid],
+    );
+    const scoreRows = await executor.query(
+      `SELECT COALESCE(SUM(coins_earned), 0)::int AS total_coins FROM school_game_scores
+       WHERE student_user_id::text = $1::text OR student_id::text = $1::text OR student_user_id::text = $2::text OR student_id::text = $2::text`,
+      [userId, sid],
+    );
+    return Math.max(
+      Number(profileRows[0]?.coins || 0),
+      Number(scoreRows[0]?.total_coins || 0),
+    );
+  }
+
+  private async getSpentCoinsTotal(executor: any, userId: string) {
+    const rows = await executor.query(
+      `SELECT COALESCE(SUM(-delta), 0)::int AS total_spent FROM school_coin_ledger WHERE student_user_id::text = $1::text AND delta < 0`,
+      [userId],
+    );
+    return Number(rows[0]?.total_spent || 0);
+  }
+
+  /** Spendable balance = gross lifetime earnings minus everything ever spent via the ledger. */
+  private async getAvailableCoins(executor: any, userId: string, studentId: string) {
+    const gross = await this.getGrossCoins(executor, userId, studentId);
+    const spent = await this.getSpentCoinsTotal(executor, userId);
+    return Math.max(0, gross - spent);
+  }
+
+  /** Debits the ledger if the balance covers it; throws otherwise. Must run inside the caller's transaction so the balance check and the insert are atomic. */
+  private async spendCoins(manager: any, userId: string, studentId: string, amount: number, reason: string, referenceType: string, referenceId: string) {
+    const available = await this.getAvailableCoins(manager, userId, studentId);
+    if (available < amount) {
+      throw new BadRequestException(`Not enough coins. You have ${available}, this hint costs ${amount}.`);
+    }
+    await manager.query(
+      `INSERT INTO school_coin_ledger (student_user_id, delta, reason, reference_type, reference_id) VALUES ($1, $2, $3, $4, $5)`,
+      [userId, -amount, reason, referenceType, referenceId],
+    );
+    return available - amount;
+  }
+
+  /** Idempotently ensures the wallet row exists, then locks it for the rest of the caller's transaction. */
+  private async lockHintWalletRow(manager: any, studentUserId: string, gameType: string) {
+    await manager.query(
+      `INSERT INTO school_hint_wallets (student_user_id, game_type, free_hints_total, free_hints_used)
+       VALUES ($1, $2, $3, 0)
+       ON CONFLICT (student_user_id, game_type) DO NOTHING`,
+      [studentUserId, gameType, this.HINT_FREE_TOTAL],
+    );
+    const rows = await manager.query(
+      `SELECT * FROM school_hint_wallets WHERE student_user_id::text=$1::text AND game_type=$2 FOR UPDATE`,
+      [studentUserId, gameType],
+    );
+    return rows[0];
+  }
+
+  private normalizeClueText(value: string) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  private clueLeaksAnswer(clue: string, answerText: string) {
+    const normalize = (v: string) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizedAnswer = normalize(answerText);
+    if (!normalizedAnswer || normalizedAnswer.length < 2) return false;
+    return normalize(clue).includes(normalizedAnswer);
+  }
+
+  /**
+   * Builds up to 5 progressively-revealing text clues for a question. Tries
+   * an AI call first (via the same doubt-resolution service used elsewhere
+   * in the app), asking it to hint at the reasoning without ever stating the
+   * answer; every candidate line is still checked against clueLeaksAnswer
+   * before being trusted. Falls back to a locally-derived ladder — from the
+   * question's own `explanation` field, or a generic nudge — if the AI call
+   * fails, times out, or every line it returns turns out to leak the answer.
+   *
+   * Must be called OUTSIDE any DB transaction: it makes a network call to the
+   * AI service, which must never happen while holding a Postgres row lock.
+   */
+  private async generateHintLadder(question: any, user: any): Promise<string[]> {
+    const correct = (question.options || []).find((o: any) => o.isCorrect);
+    const answerText = String(correct?.content || '');
+
+    try {
+      const profile = user.studentProfile || {};
+      const instituteId = user.instituteId || profile.instituteId;
+      const board = instituteId ? await this.resolveBoard(instituteId) : undefined;
+      const optionsText = (question.options || [])
+        .map((o: any) => o.content)
+        .filter(Boolean)
+        .join(' | ');
+
+      const aiResult: any = await this.aiBridge.resolveDoubt(
+        {
+          questionText: [
+            'A student is attempting this multiple-choice question in a game and has asked for a hint.',
+            'Do NOT reveal, state, spell out, or strongly imply the correct option, its letter, or its exact wording anywhere in your reply.',
+            'Reply with exactly 3 short hints, one sentence each, one per line, formatted as:',
+            'Hint 1: <hint>',
+            'Hint 2: <hint>',
+            'Hint 3: <hint>',
+            'Each hint should be more specific than the last, guiding the student toward the concept or method the question is testing — never toward a specific option.',
+            '',
+            `Question: ${question.content || ''}`,
+            `Options: ${optionsText}`,
+          ].join('\n'),
+          mode: 'short',
+          studentContext: { level: 'school', className: profile.className || undefined },
+        },
+        instituteId,
+        'school',
+        board,
+      );
+
+      const raw = String(aiResult?.answer ?? aiResult?.explanation ?? '').trim();
+      const lines = raw
+        .split(/\n+/)
+        .map((l: string) => l.replace(/^\s*hint\s*\d+\s*[:.\-]\s*/i, '').trim())
+        .filter(Boolean);
+      const safeLines = lines.filter((l: string) => !this.clueLeaksAnswer(l, answerText)).map((l: string) => l.slice(0, 220));
+
+      if (safeLines.length > 0) {
+        const ladder = [0, 1, 2].map((i) => safeLines[i] || safeLines[safeLines.length - 1]);
+        ladder.push(`${ladder[2]} Double-check units, sign, and spelling before you lock in an answer.`);
+        ladder.push(`${ladder[2]} You're very close now — eliminate anything that doesn't match every detail in the question.`);
+        return ladder;
+      }
+      this.logger.warn('[hints] AI returned no usable (non-leaking) hint lines, using fallback ladder');
+    } catch (err: any) {
+      this.logger.warn(`[hints] AI hint generation failed, using fallback ladder: ${err?.message || err}`);
+    }
+
+    return this.buildFallbackHintLadder(question, answerText);
+  }
+
+  /** Locally-derived hint ladder used when the AI call fails or leaks the answer. */
+  private buildFallbackHintLadder(question: any, answerText: string): string[] {
+    const explanation = this.normalizeClueText(question.explanation || '');
+    const sentences = explanation.split(/(?<=[.!?])\s+/).map((s: string) => s.trim()).filter(Boolean);
+
+    const genericLadder = [
+      'Re-read the question carefully and rule out any options that clearly do not fit what is being asked.',
+      'Think about what you studied most recently on this topic, and compare each remaining option against that idea.',
+      'Try working the problem a different way, or recall the specific rule or formula this question is testing.',
+    ];
+
+    const safeSentences: string[] = [];
+    let running = '';
+    for (const sentence of sentences) {
+      const next = running ? `${running} ${sentence}` : sentence;
+      if (this.clueLeaksAnswer(next, answerText)) break;
+      running = next;
+      safeSentences.push(running);
+      if (safeSentences.length >= 3) break;
+    }
+
+    const ladder = [0, 1, 2].map((i) => (safeSentences[i] || genericLadder[i]).slice(0, 220));
+    // Levels 4-5 are only reachable via bought hints beyond the free pool —
+    // there's no more explanation left to reveal, so nudge instead of repeat verbatim.
+    ladder.push(`${ladder[2]} Double-check units, sign, and spelling before you lock in an answer.`);
+    ladder.push(`${ladder[2]} You're very close now — eliminate anything that doesn't match every detail in the question.`);
+    return ladder;
+  }
+
+  /** Read-only wallet + balance summary for the hints HUD. */
+  async getHintWallet(user: any) {
+    const studentUserId = String(user.id);
+    const studentId = String(user.studentProfile?.id || '');
+    const rows = await this.ds.query(
+      `SELECT game_type, free_hints_total, free_hints_used FROM school_hint_wallets WHERE student_user_id::text = $1::text`,
+      [studentUserId],
+    );
+    const wallets: Record<string, { freeRemaining: number; freeTotal: number }> = {};
+    for (const gameType of HINT_ELIGIBLE_GAME_TYPES) {
+      const row = rows.find((r: any) => r.game_type === gameType);
+      const total = Number(row?.free_hints_total ?? this.HINT_FREE_TOTAL);
+      const used = Number(row?.free_hints_used ?? 0);
+      wallets[gameType] = { freeRemaining: Math.max(0, total - used), freeTotal: total };
+    }
+    const coins = await this.getAvailableCoins(this.ds, studentUserId, studentId);
+    return {
+      wallets,
+      coins,
+      hintCost: this.HINT_COIN_COST,
+      maxPurchasedPerQuestion: this.HINT_MAX_PURCHASED_PER_QUESTION,
+    };
+  }
+
+  /**
+   * Uses one hint in an active session. Dispatches to the game-specific
+   * mechanic: the three MCQ games get a text clue (requestMcqHint), Word
+   * Master gets a letter reveal (requestWordMasterHint) since it has no
+   * "options" to clue toward — Both share the same free-pool/coin wallet,
+   * capped at HINT_MAX_PURCHASED_PER_QUESTION bought hints on top of the
+   * free ones, per question/word.
+   */
+  async requestHint(user: any, body: { sessionId: string; questionId?: string; wordIndex?: number }) {
+    const sessionId = String(body?.sessionId || '');
+    if (!sessionId) throw new BadRequestException('sessionId is required.');
+
+    const typeRows = await this.ds.query(
+      `SELECT game_type, status FROM school_game_sessions WHERE id::text=$1::text AND student_user_id::text=$2::text`,
+      [sessionId, user.id],
+    );
+    const sessionInfo = typeRows[0];
+    if (!sessionInfo) throw new NotFoundException('Game session not found');
+    if (sessionInfo.status === 'completed') throw new BadRequestException('This game has already ended.');
+    if (!HINT_ELIGIBLE_GAME_TYPES.includes(sessionInfo.game_type)) {
+      throw new BadRequestException('Hints are not available for this game.');
+    }
+
+    if (sessionInfo.game_type === 'word_master') {
+      return this.requestWordMasterHint(user, sessionId, body.wordIndex);
+    }
+    return this.requestMcqHint(user, sessionId, String(body?.questionId || ''));
+  }
+
+  /**
+   * Uses one hint on a question in an active session. Draws from the
+   * student's lifetime free pool for that game type first, then charges
+   * coins (capped at HINT_MAX_PURCHASED_PER_QUESTION bought hints per
+   * question).
+   *
+   * Two phases, deliberately not both inside the transaction: phase 1 (no
+   * lock held) resolves the session/question and, if this question has no
+   * cached hint ladder yet, calls the AI to generate one — an HTTP round
+   * trip that must never happen while holding a Postgres row lock. Phase 2
+   * (the actual wallet lock, coin spend, and metadata write-back) runs in
+   * one fast, local-only transaction, so two concurrent requests can never
+   * both consume the same last free hint or double-charge coins.
+   */
+  private async requestMcqHint(user: any, sessionId: string, questionId: string) {
+    if (!questionId) throw new BadRequestException('questionId is required.');
+
+    const preRows = await this.ds.query(
+      `SELECT * FROM school_game_sessions WHERE id::text=$1::text AND student_user_id::text=$2::text`,
+      [sessionId, user.id],
+    );
+    const preSession = preRows[0];
+    if (!preSession) throw new NotFoundException('Game session not found');
+    if (preSession.status === 'completed') throw new BadRequestException('This game has already ended.');
+    if (!HINT_ELIGIBLE_GAME_TYPES.includes(preSession.game_type)) {
+      throw new BadRequestException('Hints are not available for this game.');
+    }
+    const preMetadata = preSession.metadata || {};
+    const question = (preMetadata.questions || []).find((q: any) => q.id === questionId);
+    if (!question) throw new NotFoundException('Question not found in this session.');
+
+    let freshQuestionHints: string[] | null = preMetadata.questionHints?.[questionId] || null;
+    if (!freshQuestionHints) {
+      freshQuestionHints = await this.generateHintLadder(question, user);
+    }
+
+    return this.ds.transaction(async (manager) => {
+      const sessionRows = await manager.query(
+        `SELECT * FROM school_game_sessions WHERE id::text=$1::text AND student_user_id::text=$2::text FOR UPDATE`,
+        [sessionId, user.id],
+      );
+      const session = sessionRows[0];
+      if (!session) throw new NotFoundException('Game session not found');
+      if (session.status === 'completed') throw new BadRequestException('This game has already ended.');
+      if (!HINT_ELIGIBLE_GAME_TYPES.includes(session.game_type)) {
+        throw new BadRequestException('Hints are not available for this game.');
+      }
+
+      const metadata = session.metadata || {};
+
+      const hintsUsedByQuestion = { ...(metadata.hintsUsedByQuestion || {}) };
+      const purchasedHintsByQuestion = { ...(metadata.purchasedHintsByQuestion || {}) };
+      const currentCount = Number(hintsUsedByQuestion[questionId] || 0);
+      const purchasedSoFar = Number(purchasedHintsByQuestion[questionId] || 0);
+      const maxPerQuestion = this.HINT_FREE_TOTAL + this.HINT_MAX_PURCHASED_PER_QUESTION;
+      if (currentCount >= maxPerQuestion) {
+        throw new BadRequestException('No more hints available for this question.');
+      }
+
+      const studentUserId = String(session.student_user_id);
+      const studentId = String(session.student_id || '');
+
+      const wallet = await this.lockHintWalletRow(manager, studentUserId, session.game_type);
+      const freeRemaining = Math.max(0, Number(wallet.free_hints_total) - Number(wallet.free_hints_used));
+
+      let source: 'free' | 'purchased';
+      let coinsAfter: number;
+      if (freeRemaining > 0) {
+        await manager.query(
+          `UPDATE school_hint_wallets SET free_hints_used = free_hints_used + 1, updated_at = now() WHERE id = $1`,
+          [wallet.id],
+        );
+        source = 'free';
+        coinsAfter = await this.getAvailableCoins(manager, studentUserId, studentId);
+      } else {
+        if (purchasedSoFar >= this.HINT_MAX_PURCHASED_PER_QUESTION) {
+          throw new BadRequestException("You've used all the free and bought hints allowed on this question.");
+        }
+        source = 'purchased';
+        coinsAfter = await this.spendCoins(manager, studentUserId, studentId, this.HINT_COIN_COST, 'hint_purchase', 'question', questionId);
+        purchasedHintsByQuestion[questionId] = purchasedSoFar + 1;
+      }
+
+      hintsUsedByQuestion[questionId] = currentCount + 1;
+
+      // Prefer whatever is in the metadata we just read fresh under lock —
+      // a concurrent request may have cached a ladder first — falling back
+      // to the one generated (possibly via AI) before this transaction opened.
+      const questionHints: string[] = metadata.questionHints?.[questionId] || freshQuestionHints;
+
+      const level = hintsUsedByQuestion[questionId];
+      const hintText = questionHints[Math.min(level, questionHints.length) - 1];
+
+      const updatedMetadata = {
+        ...metadata,
+        hintsUsedByQuestion,
+        purchasedHintsByQuestion,
+        questionHints: { ...(metadata.questionHints || {}), [questionId]: questionHints },
+      };
+      await manager.query(
+        `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+        [sessionId, JSON.stringify(updatedMetadata)],
+      );
+
+      return {
+        hintText,
+        hintsUsedThisQuestion: level,
+        source,
+        freeRemaining: source === 'free' ? freeRemaining - 1 : freeRemaining,
+        coins: coinsAfter,
+      };
+    });
+  }
+
+  /** "CO______" — revealed letters from the start of the word, blanks elsewhere. No AI needed: the server already holds the true answer. */
+  private buildWordRevealPattern(word: string, revealCount: number): string {
+    const upper = String(word || '').toUpperCase();
+    return upper.split('').map((ch, i) => (i < revealCount ? ch : '_')).join('');
+  }
+
+  /**
+   * Word Master's hint: reveal one more letter of the current word, from the
+   * start. There's nothing to leak-check or generate — the server already
+   * holds the true answer — so unlike the MCQ path this never needs an AI
+   * call. Always leaves at least 2 letters unrevealed so the puzzle stays a
+   * puzzle, even for short words where the usual 5-hint ceiling would
+   * otherwise let a student reveal (almost) the whole thing for coins.
+   */
+  private async requestWordMasterHint(user: any, sessionId: string, wordIndexRaw: number | undefined) {
+    const wordIndex = Number(wordIndexRaw);
+    if (!Number.isInteger(wordIndex) || wordIndex < 0) {
+      throw new BadRequestException('wordIndex is required.');
+    }
+
+    return this.ds.transaction(async (manager) => {
+      const sessionRows = await manager.query(
+        `SELECT * FROM school_game_sessions WHERE id::text=$1::text AND student_user_id::text=$2::text FOR UPDATE`,
+        [sessionId, user.id],
+      );
+      const session = sessionRows[0];
+      if (!session) throw new NotFoundException('Game session not found');
+      if (session.status === 'completed') throw new BadRequestException('This game has already ended.');
+
+      const metadata = session.metadata || {};
+      const words: any[] = metadata.words || [];
+      const wordData = words[wordIndex];
+      if (!wordData) throw new NotFoundException('Word not found in this session.');
+      const word = String(wordData.word || '');
+      if (!word) throw new NotFoundException('Word not found in this session.');
+
+      const revealedByWord = { ...(metadata.revealedLettersByWord || {}) };
+      const purchasedByWord = { ...(metadata.purchasedHintsByQuestion || {}) };
+      const currentCount = Number(revealedByWord[wordIndex] || 0);
+      const purchasedSoFar = Number(purchasedByWord[wordIndex] || 0);
+
+      const maxUseful = Math.max(1, word.length - 2); // always leave >=2 letters for the student to work out
+      const maxPerWord = Math.min(this.HINT_FREE_TOTAL + this.HINT_MAX_PURCHASED_PER_QUESTION, maxUseful);
+      if (currentCount >= maxPerWord) {
+        throw new BadRequestException('No more hints available for this word.');
+      }
+
+      const studentUserId = String(session.student_user_id);
+      const studentId = String(session.student_id || '');
+
+      const wallet = await this.lockHintWalletRow(manager, studentUserId, 'word_master');
+      const freeRemaining = Math.max(0, Number(wallet.free_hints_total) - Number(wallet.free_hints_used));
+
+      let source: 'free' | 'purchased';
+      let coinsAfter: number;
+      if (freeRemaining > 0) {
+        await manager.query(
+          `UPDATE school_hint_wallets SET free_hints_used = free_hints_used + 1, updated_at = now() WHERE id = $1`,
+          [wallet.id],
+        );
+        source = 'free';
+        coinsAfter = await this.getAvailableCoins(manager, studentUserId, studentId);
+      } else {
+        if (purchasedSoFar >= this.HINT_MAX_PURCHASED_PER_QUESTION) {
+          throw new BadRequestException("You've used all the free and bought hints allowed on this word.");
+        }
+        source = 'purchased';
+        coinsAfter = await this.spendCoins(manager, studentUserId, studentId, this.HINT_COIN_COST, 'hint_purchase', 'word_master_word', sessionId);
+        purchasedByWord[wordIndex] = purchasedSoFar + 1;
+      }
+
+      const revealCount = currentCount + 1;
+      revealedByWord[wordIndex] = revealCount;
+
+      const updatedMetadata = {
+        ...metadata,
+        revealedLettersByWord: revealedByWord,
+        purchasedHintsByQuestion: purchasedByWord,
+      };
+      await manager.query(
+        `UPDATE school_game_sessions SET metadata = $2::jsonb, updated_at = now() WHERE id = $1`,
+        [sessionId, JSON.stringify(updatedMetadata)],
+      );
+
+      return {
+        revealPattern: this.buildWordRevealPattern(word, revealCount),
+        hintsUsedThisQuestion: revealCount,
+        source,
+        freeRemaining: source === 'free' ? freeRemaining - 1 : freeRemaining,
+        coins: coinsAfter,
+      };
+    });
   }
 
   async startQuizRush(user: any, query: any) {
@@ -596,9 +1086,19 @@ export class GamificationService implements OnModuleInit {
       cheatReason = 'Unnaturally high solving speed';
     }
 
-    const xpEarned = cheatFlagged ? 0 : (passed ? result.correctAnswers * 20 + 20 : result.correctAnswers * 5);
-    const coinsEarned = cheatFlagged ? -15 : (passed ? 8 : 0);
-    
+    // This stage's own XP/coin formula is driven by correctAnswers directly
+    // (not gradeMcqRun's xpEarned/coinsEarned, which use a different point
+    // scale) — so the hint penalty has to be re-applied here via an
+    // effective, hint-weighted correct count, rather than inherited for free.
+    const effectiveCorrect = result.gradedAnswers.reduce(
+      (sum: number, g: any) => sum + (g.isCorrect ? this.hintRewardMultiplier(g.hintsUsed || 0) : 0),
+      0,
+    );
+    const avgRewardMultiplier = result.correctAnswers > 0 ? effectiveCorrect / result.correctAnswers : 1;
+
+    const xpEarned = cheatFlagged ? 0 : (passed ? effectiveCorrect * 20 + 20 : effectiveCorrect * 5);
+    const coinsEarned = cheatFlagged ? -15 : (passed ? 8 * avgRewardMultiplier : 0);
+
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers: body.answers || [], graded: result.gradedAnswers, passed, stageOrder }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, xpEarned, xpEarned, coinsEarned, result);
 
@@ -981,6 +1481,7 @@ export class GamificationService implements OnModuleInit {
     const answers = body.answers || [];
     const answeredWords = words.slice(0, answers.length);
     let correctAnswers = 0;
+    let effectiveCorrect = 0;
     let maxStreak = 0;
     let streak = 0;
     for (const answer of answers) {
@@ -988,13 +1489,14 @@ export class GamificationService implements OnModuleInit {
       const ok = word && String(answer.word || '').toUpperCase() === String(word).toUpperCase();
       if (ok) {
         correctAnswers += 1;
+        effectiveCorrect += this.hintRewardMultiplier(Math.max(0, Number(answer.hintsUsed || 0)));
         streak += 1;
         maxStreak = Math.max(maxStreak, streak);
       } else {
         streak = 0;
       }
     }
-    
+
     // Anti-cheat checks
     const tabSwitches = Number(body.tabSwitchesCount || 0);
     const timeTaken = Number(body.timeTakenSeconds || 999);
@@ -1011,8 +1513,12 @@ export class GamificationService implements OnModuleInit {
     }
 
     const perfect = correctAnswers >= 10;
-    const xpEarned = cheatFlagged ? 0 : (correctAnswers * 15 + (perfect ? 50 : 0));
-    const coinsEarned = cheatFlagged ? -15 : (correctAnswers + (perfect ? 5 : 0));
+    // Letter-reveal hints discount reward the same way MCQ hints do — see
+    // hintRewardMultiplier(). The perfect-run bonus stays tied to the raw
+    // correct count (matches Quiz Rush/Treasure Hunt): hints reduce what a
+    // correct word is worth, not whether the run counts as a clean sweep.
+    const xpEarned = cheatFlagged ? 0 : (effectiveCorrect * 15 + (perfect ? 50 : 0));
+    const coinsEarned = cheatFlagged ? -15 : (effectiveCorrect + (perfect ? 5 : 0));
     const result = { totalQuestions: totalQ, correctAnswers, maxStreak, wordsAttempted: totalQ, score: xpEarned };
     await this.completeSession(session.id, xpEarned, coinsEarned, { answers, correctAnswers }, cheatFlagged, cheatReason || null, tabSwitches);
     await this.saveScore(session, cheatFlagged ? 0 : xpEarned, xpEarned, coinsEarned, result);
@@ -1413,6 +1919,11 @@ export class GamificationService implements OnModuleInit {
     return questions.map((q) => ({ ...q, options: q.options.map((o: any) => ({ ...o })) }));
   }
 
+  /** 0 hints=100%, 1=75%, 2=50%, 3+=25% floor — never zero, so a correct answer always earns something. */
+  private hintRewardMultiplier(hintsUsed: number) {
+    return Math.max(0.25, 1 - 0.25 * Math.max(0, hintsUsed));
+  }
+
   private gradeMcqRun(questions: any[], answers: any[], timed: boolean) {
     const answerMap = new Map((answers || []).map((a: any) => [a.questionId, a]));
     let correctAnswers = 0;
@@ -1426,16 +1937,22 @@ export class GamificationService implements OnModuleInit {
       const correct = q.options.find((o: any) => o.isCorrect);
       const isCorrect = !!correct && correct.id === answer.selectedOptionId;
       timeTakenSeconds += Number(answer.timeTakenSeconds || 0);
+      // Hints earned for free or bought still cost reward: each one taken on this
+      // question scales its XP/coins down, floored so a correct answer is never
+      // worth zero. Not rounded here — the caller rounds once over the session total.
+      const hintsUsed = Math.max(0, Math.min(5, Number(answer.hintsUsed || 0)));
+      const rewardMultiplier = this.hintRewardMultiplier(hintsUsed);
       if (isCorrect) {
         correctAnswers += 1;
         streak += 1;
         maxStreak = Math.max(maxStreak, streak);
-        xpEarned += timed && Number(answer.timeTakenSeconds || 99) <= 5 ? 15 : 10;
-        coinsEarned += 1;
+        const baseXp = timed && Number(answer.timeTakenSeconds || 99) <= 5 ? 15 : 10;
+        xpEarned += baseXp * rewardMultiplier;
+        coinsEarned += 1 * rewardMultiplier;
       } else {
         streak = 0;
       }
-      return { questionId: q.id, selectedOptionId: answer.selectedOptionId || null, correctOptionId: correct?.id || null, isCorrect };
+      return { questionId: q.id, selectedOptionId: answer.selectedOptionId || null, correctOptionId: correct?.id || null, isCorrect, hintsUsed };
     });
     return {
       totalQuestions: questions.length,

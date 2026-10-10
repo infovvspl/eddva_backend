@@ -124,6 +124,9 @@ describe('P0-4.4 — AiAdmissionService', () => {
     });
     it('exempts /health', () => {
       expect(ADMISSION_EXEMPT_PATHS.has('/health')).toBe(true);
+      // Starting a deck only queues it; it must not wait behind long jobs.
+      expect(ADMISSION_EXEMPT_PATHS.has('/ppt/generate/start')).toBe(true);
+      expect(ADMISSION_EXEMPT_PATHS.has('/ppt/generate')).toBe(false);   // the one-request deck does the work
     });
   });
 

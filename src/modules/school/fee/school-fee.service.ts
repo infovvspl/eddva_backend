@@ -22,7 +22,8 @@ export class SchoolFeeService {
     const sql = `
       SELECT f.*, u.name AS student_name
       FROM fees f
-      LEFT JOIN users u ON f.student_id=u.id
+      LEFT JOIN students st ON st.id = f.student_id
+      LEFT JOIN users u ON u.id = COALESCE(st.user_id, f.student_id)
       ${whereClause}
       ORDER BY f.due_date DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}

@@ -12,6 +12,7 @@ export const AI_FEATURES = [
   { id: 'content_pyq',                label: 'PYQ Practice',               category: 'content' },
   { id: 'content_study_guide',        label: 'Study Guide',                category: 'content' },
   { id: 'content_key_concepts',       label: 'Key Concepts',               category: 'content' },
+  { id: 'content_formula_sheet',      label: 'Formula Sheet',              category: 'content' },
   { id: 'content_flashcard',          label: 'Flashcards',                 category: 'content' },
   { id: 'content_revision_checklist', label: 'Revision Checklist',         category: 'content' },
   { id: 'content_faq',                label: 'FAQ',                        category: 'content' },

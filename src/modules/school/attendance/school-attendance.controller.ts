@@ -36,6 +36,11 @@ export class SchoolAttendanceController {
     return this.svc.getDashboardStats(user);
   }
 
+  @Get('below-threshold')
+  getBelowThreshold(@SchoolUser() user: any, @Query() query: any) {
+    return this.svc.getBelowThreshold(user, query);
+  }
+
   @Get('history')
   getHistory(@SchoolUser() user: any, @Query() query: any) {
     return this.svc.getHistory(user, query);

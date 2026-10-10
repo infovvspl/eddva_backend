@@ -18,6 +18,20 @@ export class SchoolAttendanceService {
     private readonly fcm: FcmService,
   ) {}
 
+  private async resolveMinAttendancePercentage(userId: string, instituteId: string): Promise<number> {
+    const rows: any[] = await this.ds.query(
+      `SELECT
+         (SELECT min_attendance_percentage FROM teachers WHERE user_id = $1) AS teacher_override,
+         (SELECT min_attendance_percentage FROM students WHERE user_id = $1) AS student_override,
+         (SELECT min_attendance_percentage FROM institutes WHERE id = $2) AS institute_default`,
+      [userId, instituteId],
+    );
+    const row = rows[0] || {};
+    const override = row.teacher_override ?? row.student_override;
+    const resolved = override ?? row.institute_default ?? 80;
+    return parseFloat(resolved);
+  }
+
   async mark(user: any, body: any) {
     const instituteId = user.instituteId;
     const result: any[] = await this.ds.query(
@@ -150,15 +164,20 @@ export class SchoolAttendanceService {
         const attended = parseInt(attStats[0].attended);
         const total = parseInt(attStats[0].total);
         const percentage = (attended / total) * 100;
+        const threshold = await this.resolveMinAttendancePercentage(body.userId, instituteId);
 
-        if (percentage < 75) {
+        if (percentage < threshold) {
+          const severity = threshold - percentage >= 15 ? 'urgent' : 'high';
           await this.notificationService.create({
             recipientId: body.userId,
             senderId: user.id,
             role: 'STUDENT',
             type: 'attendance_warning',
+            category: 'attendance',
+            priority: severity,
+            isFlag: true,
             title: 'Low Attendance Alert',
-            message: `Your overall attendance has dropped below 75% (${percentage.toFixed(1)}%).`,
+            message: `Your overall attendance has dropped below the required ${threshold}% (currently ${percentage.toFixed(1)}%).`,
             actionUrl: '/school/student/dashboard',
           });
 
@@ -180,8 +199,11 @@ export class SchoolAttendanceService {
               senderId: user.id,
               role: 'TEACHER',
               type: 'attendance_warning',
+              category: 'attendance',
+              priority: severity,
+              isFlag: true,
               title: 'Low Attendance Warning',
-              message: `${studentName}'s overall attendance has dropped below 75% (${percentage.toFixed(1)}%).`,
+              message: `${studentName}'s overall attendance has dropped below the required ${threshold}% (currently ${percentage.toFixed(1)}%).`,
               actionUrl: '/school/teacher/dashboard',
             });
           }
@@ -411,13 +433,14 @@ export class SchoolAttendanceService {
     if (query.classId) { params.push(query.classId); filter += ` AND c.id=$${params.length}`; }
     if (query.sectionId) { params.push(query.sectionId); filter += ` AND sec.id=$${params.length}`; }
     if (query.status) { params.push(query.status.toLowerCase()); filter += ` AND LOWER(a.status)=$${params.length}`; }
+    if (query.rollNo) { params.push(`%${query.rollNo.toLowerCase()}%`); filter += ` AND LOWER(s.roll_no) LIKE $${params.length}`; }
 
     if (query.search) {
       const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
       if (searchTerms.length > 0) {
         const searchConditions = searchTerms.map((term: string) => {
           params.push(term);
-          return `(LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length})`;
+          return `(LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(s.roll_no) LIKE $${params.length})`;
         });
         filter += ` AND (${searchConditions.join(' AND ')})`;
       }
@@ -712,6 +735,64 @@ export class SchoolAttendanceService {
       WHERE u.role='STUDENT' GROUP BY u.id,u.name ORDER BY u.name
     `);
     return { success: true, count: result.length, data: result };
+  }
+
+  /**
+   * Students/teachers whose overall attendance is below their resolved
+   * minimum-attendance threshold (institute default, overridden per-teacher
+   * or per-student). Powers the "flagged" indicator in the admin Attendance
+   * view.
+   */
+  async getBelowThreshold(user: any, query: any) {
+    const instituteId = user.instituteId;
+    const role = (query.role || 'STUDENT').toUpperCase();
+
+    const params: any[] = [instituteId, role];
+    let joinClause: string;
+    let overrideColumn: string;
+    if (role === 'TEACHER') {
+      joinClause = `JOIN teachers p ON p.user_id = u.id`;
+      overrideColumn = 'p.min_attendance_percentage';
+    } else {
+      joinClause = `JOIN students p ON p.user_id = u.id LEFT JOIN sections sec ON p.section_id = sec.id LEFT JOIN classes c ON sec.class_id = c.id`;
+      overrideColumn = 'p.min_attendance_percentage';
+    }
+
+    let filter = '';
+    if (role === 'STUDENT' && query.classId) {
+      params.push(query.classId);
+      filter += ` AND c.id::text = $${params.length}::text`;
+    }
+    if (role === 'STUDENT' && query.sectionId) {
+      params.push(query.sectionId);
+      filter += ` AND p.section_id::text = $${params.length}::text`;
+    }
+
+    const rows: any[] = await this.ds.query(
+      `SELECT
+         u.id AS user_id,
+         u.name,
+         ${role === 'STUDENT' ? 'p.roll_no, sec.name AS section_name, c.name AS class_name,' : ''}
+         COALESCE(${overrideColumn}, (SELECT min_attendance_percentage FROM institutes WHERE id = u.institute_id), 80) AS threshold,
+         COALESCE(att.total, 0) AS total,
+         COALESCE(att.attended, 0) AS attended,
+         CASE WHEN COALESCE(att.total, 0) > 0 THEN ROUND((att.attended::numeric / att.total) * 100, 1) ELSE NULL END AS percentage
+       FROM users u
+       ${joinClause}
+       LEFT JOIN (
+         SELECT user_id,
+           COUNT(*) AS total,
+           COUNT(*) FILTER (WHERE status ILIKE 'present' OR status ILIKE 'late') AS attended
+         FROM attendances
+         WHERE institute_id = $1
+         GROUP BY user_id
+       ) att ON att.user_id = u.id
+       WHERE u.institute_id = $1 AND u.role = $2 AND u.is_active = true ${filter}`,
+      params,
+    );
+
+    const flagged = rows.filter((r) => r.percentage !== null && parseFloat(r.percentage) < parseFloat(r.threshold));
+    return { success: true, data: flagged };
   }
 
   async getStudentsByClass(classId: string) {

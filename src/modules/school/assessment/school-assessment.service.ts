@@ -2221,14 +2221,13 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const rawAnswerKey = body.answerKey || body.answer_key || null;
     const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
     const answerKey = this.rebuildAnswerKeyWithSections(contentText, splitAnswerKey);
-    let questionsJson = this.parseQuestionsFromMarkdown(contentText || '', answerKey || '');
-    if (questionsJson.some((q: any) => this.subjectiveTypes.has(q.type))) {
-      questionsJson = await this.generateSubjectiveRubrics(
-        questionsJson,
-        { subjectId: body.subjectId || body.subject_id, classId, instituteId: user?.instituteId },
-        user,
-      );
-    }
+    const questionsJson = this.parseQuestionsFromMarkdown(contentText || '', answerKey || '');
+    // Rubric generation is an AI round-trip over every subjective question in
+    // one call — it used to run here, blocking the teacher's "Save" on an LLM
+    // response. It now runs in the background after the row is committed (see
+    // backfillSubjectiveRubrics below), the same way AI subjective grading on
+    // submit already does.
+    const needsRubricBackfill = questionsJson.some((q: any) => this.subjectiveTypes.has(q.type));
     const filePath = this.storedUploadPath(file) || body.filePath || body.file_path || null;
     const contentSource = filePath ? 'upload' : contentText ? (body.contentSource || body.content_source || 'manual') : 'metadata';
     const title = String(body.title || '').trim() || this.deriveTitle(contentText || '', '');
@@ -2237,7 +2236,7 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     }
     const resolvedTotalMarks = this.sumQuestionMarks(questionsJson) ?? (body.totalMarks || body.total_marks || 100);
 
-    return await this.ds.transaction(async (manager) => {
+    const assessment = await this.ds.transaction(async (manager) => {
       const rows: any[] = await manager.query(
         `INSERT INTO assessments
           (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, chapter_ids, topic_id, answer_key, language, questions_json)
@@ -2292,90 +2291,153 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       // Sync calendar event
       await this.syncCalendarEvent(manager, assessment, user.id, user.instituteId);
 
-      // Notify students
-      if (assessment.status !== 'draft') {
-        try {
-          if (classId) {
-            const studentUsers = await manager.query(
-              `SELECT s.user_id FROM students s
-               JOIN sections sec ON s.section_id::text = sec.id::text
-               WHERE sec.class_id::text = $1`,
-              [classId]
-            );
-
-            await Promise.allSettled(
-              studentUsers.map((stu: any) =>
-                this.notificationService.create({
-                  recipientId: stu.user_id,
-                  type: 'assessment',
-                  title: 'New Assessment Available',
-                  message: `${body.title} is now available.`,
-                  actionUrl: '/school/student/assessments',
-                }),
-              ),
-            );
-
-            // Send FCM push to all target students
-            if (studentUsers.length > 0 && this.fcm.isReady) {
-              const { title: pushTitle, body: pushBody } = fillTemplate(
-                SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NEW_ASSESSMENT],
-                { title: assessment.title },
-              );
-
-              for (const stu of studentUsers) {
-                const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'announcement_alerts');
-                if (!prefAllowed) continue;
-
-                const dupRows = await manager.query(
-                  `SELECT 1 FROM school_notification_log
-                   WHERE user_id = $1
-                     AND notification_type = $2
-                     AND reference_id = $3
-                     AND status = 'SUCCESS'
-                   LIMIT 1`,
-                  [stu.user_id, SchoolFcmNotificationType.NEW_ASSESSMENT, assessment.id],
-                );
-                if (dupRows.length > 0) continue;
-
-                const pushResults = await this.fcm.sendPushToUser(
-                  stu.user_id,
-                  pushTitle,
-                  pushBody,
-                  { type: 'NEW_ASSESSMENT', assessmentId: assessment.id },
-                );
-
-                const anySuccess = pushResults.some((r) => r.success);
-                const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
-                const failureReasons = pushResults
-                  .filter((r) => !r.success)
-                  .map((r) => r.error)
-                  .join('; ');
-
-                if (pushResults.length > 0) {
-                  await manager.query(
-                    `INSERT INTO school_notification_log
-                       (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
-                     VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
-                    [
-                      stu.user_id,
-                      SchoolFcmNotificationType.NEW_ASSESSMENT,
-                      assessment.id,
-                      anySuccess ? 'SUCCESS' : 'FAILED',
-                      firstMessageId,
-                      failureReasons || null,
-                    ],
-                  );
-                }
-              }
-            }
-          }
-        } catch (notifErr: any) {
-          this.logger.error(`Failed to send assessment notifications: ${notifErr.message}`);
-        }
-      }
-
-      return { success: true, data: assessment };
+      return assessment;
     });
+
+    // Everything below is fire-and-forget: an AI rubric call and a per-student
+    // notification/FCM-push fan-out can each take seconds to minutes, and none
+    // of it is needed before the teacher's "Save" can return. Each logs its
+    // own failures and never surfaces them to the caller, matching the same
+    // pattern used for background AI grading on submit (runAiSubjectiveGrading).
+    if (needsRubricBackfill) {
+      void this.backfillSubjectiveRubrics(
+        assessment,
+        { subjectId: body.subjectId || body.subject_id, classId, instituteId: user?.instituteId },
+        user,
+      ).catch((err) => this.logger.error(`Rubric backfill failed for ${assessment.id}: ${err?.message || err}`));
+    }
+    if (assessment.status !== 'draft' && classId) {
+      void this.notifyStudentsOfNewAssessment(assessment, classId).catch((err) =>
+        this.logger.error(`Failed to send assessment notifications: ${err?.message || err}`),
+      );
+    }
+
+    return { success: true, data: assessment };
+  }
+
+  /**
+   * Background pass: generates AI marking rubrics for a just-created
+   * assessment's subjective questions and merges them into `questions_json`.
+   * Split out of `create()` because the AI call covers every subjective
+   * question in one round-trip and can take long enough to make "Save"
+   * appear to hang. Re-fetches the row before writing so it never clobbers
+   * an edit made (e.g. via PUT) in the window while this was running.
+   */
+  private async backfillSubjectiveRubrics(
+    assessment: any,
+    ctx: { subjectId?: string; classId?: string; instituteId?: string },
+    user: any,
+  ): Promise<void> {
+    const generated = await this.generateSubjectiveRubrics(
+      this.normalizeQuestions(assessment.questions_json),
+      ctx,
+      user,
+    );
+    const rubricsById = new Map(
+      generated.filter((q: any) => q.rubric).map((q: any) => [q.id, q.rubric]),
+    );
+    if (!rubricsById.size) return;
+
+    const rows: any[] = await this.ds.query(
+      `SELECT questions_json FROM assessments WHERE id::text=$1::text`,
+      [assessment.id],
+    );
+    if (!rows.length) return;
+    let changed = false;
+    const merged = this.normalizeQuestions(rows[0].questions_json).map((q: any) => {
+      if (q.rubric || !rubricsById.has(q.id)) return q;
+      changed = true;
+      return { ...q, rubric: rubricsById.get(q.id) };
+    });
+    if (!changed) return;
+    await this.ds.query(
+      `UPDATE assessments SET questions_json=$2::jsonb WHERE id::text=$1::text`,
+      [assessment.id, JSON.stringify(merged)],
+    );
+  }
+
+  /**
+   * Background pass: in-app + FCM notifications for a newly scheduled
+   * assessment. Split out of `create()`'s transaction because, run inside it,
+   * a sequential per-student loop (preference check, dedupe check, FCM send)
+   * held the DB connection — and the teacher's "Save" request — open for as
+   * long as every push in the class took to send. Runs the per-student work
+   * in parallel instead of one student at a time.
+   */
+  private async notifyStudentsOfNewAssessment(assessment: any, classId: string): Promise<void> {
+    const studentUsers: any[] = await this.ds.query(
+      `SELECT s.user_id FROM students s
+       JOIN sections sec ON s.section_id::text = sec.id::text
+       WHERE sec.class_id::text = $1`,
+      [classId],
+    );
+    if (!studentUsers.length) return;
+
+    await Promise.allSettled(
+      studentUsers.map((stu: any) =>
+        this.notificationService.create({
+          recipientId: stu.user_id,
+          type: 'assessment',
+          title: 'New Assessment Available',
+          message: `${assessment.title} is now available.`,
+          actionUrl: '/school/student/assessments',
+        }),
+      ),
+    );
+
+    if (!this.fcm.isReady) return;
+    const { title: pushTitle, body: pushBody } = fillTemplate(
+      SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NEW_ASSESSMENT],
+      { title: assessment.title },
+    );
+
+    await Promise.allSettled(
+      studentUsers.map(async (stu: any) => {
+        const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'announcement_alerts');
+        if (!prefAllowed) return;
+
+        const dupRows = await this.ds.query(
+          `SELECT 1 FROM school_notification_log
+           WHERE user_id = $1
+             AND notification_type = $2
+             AND reference_id = $3
+             AND status = 'SUCCESS'
+           LIMIT 1`,
+          [stu.user_id, SchoolFcmNotificationType.NEW_ASSESSMENT, assessment.id],
+        );
+        if (dupRows.length > 0) return;
+
+        const pushResults = await this.fcm.sendPushToUser(
+          stu.user_id,
+          pushTitle,
+          pushBody,
+          { type: 'NEW_ASSESSMENT', assessmentId: assessment.id },
+        );
+
+        const anySuccess = pushResults.some((r) => r.success);
+        const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+        const failureReasons = pushResults
+          .filter((r) => !r.success)
+          .map((r) => r.error)
+          .join('; ');
+
+        if (pushResults.length > 0) {
+          await this.ds.query(
+            `INSERT INTO school_notification_log
+               (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+             VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+            [
+              stu.user_id,
+              SchoolFcmNotificationType.NEW_ASSESSMENT,
+              assessment.id,
+              anySuccess ? 'SUCCESS' : 'FAILED',
+              firstMessageId,
+              failureReasons || null,
+            ],
+          );
+        }
+      }),
+    );
   }
 
   /**
@@ -2482,23 +2544,21 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
     const rawAnswerKey = body.answerKey || body.answer_key || null;
     const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
     const answerKey = this.rebuildAnswerKeyWithSections(contentText, splitAnswerKey);
-    let questionsJson = contentText || answerKey
+    // Rubric generation (an AI call) is NOT done here anymore — this content
+    // gets re-parsed from markdown again below right after the UPDATE, which
+    // used to discard whatever rubric this call produced before the response
+    // ever went out. It's generated once, in the background, from the final
+    // persisted questions (see backfillSubjectiveRubrics after the transaction).
+    const questionsJson = contentText || answerKey
       ? this.parseQuestionsFromMarkdown(contentText || '', answerKey || '')
       : null;
-    if (questionsJson?.some((q: any) => this.subjectiveTypes.has(q.type))) {
-      questionsJson = await this.generateSubjectiveRubrics(
-        questionsJson,
-        { subjectId: body.subjectId || body.subject_id, classId: body.classId || body.class_id, instituteId: reqUser?.instituteId },
-        reqUser,
-      );
-    }
     // Whenever this update touches content and re-parses real questions, the sum of
     // their marks is authoritative — takes priority over a stale/mismatched form
     // value. Only falls back to the form value (or leaves total_marks untouched via
     // COALESCE) when this update doesn't touch content at all.
     const resolvedTotalMarks = this.sumQuestionMarks(questionsJson) ?? (body.totalMarks || body.total_marks || null);
 
-    return await this.ds.transaction(async (manager) => {
+    const updated = await this.ds.transaction(async (manager) => {
       // Find the existing assessment's teacher and institute before updating
       const assessmentInfo = await manager.query(
         `SELECT a.teacher_id, a.content_text, u.institute_id
@@ -2578,8 +2638,27 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       // Sync calendar event
       await this.syncCalendarEvent(manager, updated, teacherId, instituteId);
 
-      return { success: true, data: updated };
+      return updated;
     });
+
+    // Fire-and-forget, same as create(): an AI rubric call must never delay
+    // this response. refreshedQuestions above always wins over whatever rubric
+    // this fills in if content is touched by a later edit — same as before
+    // this change, when the synchronous call here was clobbered by that same
+    // reparse within this one request.
+    if (this.normalizeQuestions(updated.questions_json).some((q: any) => this.subjectiveTypes.has(q.type))) {
+      void this.backfillSubjectiveRubrics(
+        updated,
+        {
+          subjectId: body.subjectId || body.subject_id || updated.subject_id,
+          classId: body.classId || body.class_id || updated.class_id,
+          instituteId: reqUser?.instituteId,
+        },
+        reqUser,
+      ).catch((err) => this.logger.error(`Rubric backfill failed for ${updated.id}: ${err?.message || err}`));
+    }
+
+    return { success: true, data: updated };
   }
 
   async remove(user: any, id?: string) {

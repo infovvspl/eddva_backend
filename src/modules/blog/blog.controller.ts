@@ -109,10 +109,10 @@ export class BlogController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 10 * 1024 * 1024 },
+      limits: { fileSize: 5 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file?.mimetype)) {
-          return cb(new BadRequestException('Only JPEG, PNG, and WEBP files are allowed'), false);
+        if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'].includes(file?.mimetype)) {
+          return cb(new BadRequestException('Only JPEG, PNG, WEBP, GIF, and BMP files are allowed'), false);
         }
         cb(null, true);
       },

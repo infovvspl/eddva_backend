@@ -31,7 +31,14 @@ export class SchoolNotificationService {
       sql += ` AND is_read=$${params.length}`;
     }
 
-    if (query.category && query.category.toLowerCase() !== 'all') {
+    if (query.flagged !== undefined) {
+      params.push(query.flagged === 'true');
+      sql += ` AND is_flag=$${params.length}`;
+    }
+
+    if (query.category && query.category.toLowerCase() === 'flag') {
+      sql += ` AND is_flag=true`;
+    } else if (query.category && query.category.toLowerCase() !== 'all') {
       const cat = query.category.toLowerCase();
       const mappedTypes = NOTIFICATION_CATEGORY_MAP[cat] || [cat];
       params.push(mappedTypes);
@@ -76,6 +83,7 @@ export class SchoolNotificationService {
       title: r.title,
       message: r.message,
       isRead: r.is_read,
+      isFlag: r.is_flag || false,
       createdAt: r.created_at,
       updatedAt: r.updated_at
     }));
@@ -86,8 +94,8 @@ export class SchoolNotificationService {
     const userId = body.userId || body.recipientId;
     const recipientId = body.recipientId || body.userId;
     const rows: any[] = await this.ds.query(
-      `INSERT INTO notifications (user_id, recipient_id, sender_id, role, type, title, message, reference_id, reference_type, action_url, is_read, category, priority, recipient_role, sender_role)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+      `INSERT INTO notifications (user_id, recipient_id, sender_id, role, type, title, message, reference_id, reference_type, action_url, is_read, category, priority, recipient_role, sender_role, is_flag)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [
         userId,
         recipientId,
@@ -103,7 +111,8 @@ export class SchoolNotificationService {
         body.category || body.type || 'general',
         body.priority || 'medium',
         body.recipientRole || body.role || null,
-        body.senderRole || null
+        body.senderRole || null,
+        body.isFlag || false,
       ],
     );
     const notif = rows[0];
@@ -122,6 +131,7 @@ export class SchoolNotificationService {
       title: notif.title,
       message: notif.message,
       isRead: notif.is_read,
+      isFlag: notif.is_flag || false,
       createdAt: notif.created_at,
       updatedAt: notif.updated_at
     };
@@ -163,6 +173,14 @@ export class SchoolNotificationService {
 
   async getUnreadCount(user: any) {
     const rows = await this.ds.query(`SELECT COUNT(*)::int AS count FROM notifications WHERE (user_id=$1 OR recipient_id=$1) AND is_read=false AND is_deleted=false`, [user.id]);
+    return { success: true, count: rows[0]?.count || 0 };
+  }
+
+  async getFlagCount(user: any) {
+    const rows = await this.ds.query(
+      `SELECT COUNT(*)::int AS count FROM notifications WHERE (user_id=$1 OR recipient_id=$1) AND is_flag=true AND is_read=false AND is_deleted=false`,
+      [user.id],
+    );
     return { success: true, count: rows[0]?.count || 0 };
   }
 

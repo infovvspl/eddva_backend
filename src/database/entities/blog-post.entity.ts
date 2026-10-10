@@ -9,6 +9,28 @@ export enum BlogPostStatus {
 export interface BlogPostSection {
   heading: string;
   body: string;
+  contentJson?: Record<string, unknown>;
+  references?: BlogReference[];
+}
+
+export interface BlogReference {
+  id: string;
+  kind: 'footnote' | 'endnote';
+  text: string;
+}
+
+export interface BlogDocumentSettings {
+  pageSize?: 'A4' | 'LETTER';
+  marginTop?: number;
+  marginRight?: number;
+  marginBottom?: number;
+  marginLeft?: number;
+  header?: string;
+  footer?: string;
+  showPageNumbers?: boolean;
+  showTotalPages?: boolean;
+  fontFamily?: string;
+  fontSize?: number;
 }
 
 /**
@@ -39,12 +61,18 @@ export class BlogPost extends Base {
   @Column({ name: 'cover_image', nullable: true })
   coverImage: string;
 
+  @Column({ name: 'cover_image_alt', nullable: true })
+  coverImageAlt: string;
+
   @Column({ name: 'read_time', type: 'int', nullable: true })
   readTime: number;
 
   /** Ordered body sections, each with its own heading — matches the public page layout. */
   @Column({ type: 'jsonb', nullable: true })
   sections: BlogPostSection[];
+
+  @Column({ name: 'document_settings', type: 'jsonb', nullable: true })
+  documentSettings: BlogDocumentSettings;
 
   @Index()
   @Column({ type: 'varchar', default: BlogPostStatus.DRAFT })
