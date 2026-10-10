@@ -1821,6 +1821,23 @@ export class AiBridgeService {
   }
 
   /**
+   * Competitive Exam Prep — extract structured questions from a PYQ /
+   * question-bank PDF (and optionally a separate answer-key PDF). Called by
+   * Super Admin to populate the global `competitive_questions` bank; results
+   * always land as unverified rows pending human review, never served to a
+   * teacher directly. No `tenantId` — this is global, platform-wide content,
+   * not an institute-scoped feature, so it is deliberately left out of
+   * FEATURE_MAP and carries no AI quota against any institute.
+   */
+  async extractCompetitiveQuestions(
+    dto: { fileUrl: string; answerKeyFileUrl?: string; progressKey?: string },
+  ): Promise<{ success: boolean; data: any }> {
+    // Same rationale as ingestTextbook: a multi-hundred-page compilation runs
+    // several vision batches in sequence, so this can take a while.
+    return this.post('/competitive/extract-questions', dto, undefined, 600_000, 'school');
+  }
+
+  /**
    * Live page progress for one in-flight ingestTextbook call, keyed by the
    * same progressKey passed to it. Polled from ingestRunStatus while a run is
    * active. Deliberately does not go through post(): this is a status peek,
@@ -1838,6 +1855,31 @@ export class AiBridgeService {
         this.http.get(`${this.baseUrl}/textbook/ingest-progress`, {
           params: { key: progressKey },
           headers: this.headers(tenantId, 'school'),
+          timeout: 5_000,
+        }),
+      );
+      const data = res.data?.data;
+      return data && Object.keys(data).length ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Live page progress for one in-flight extractCompetitiveQuestions call,
+   * keyed by the same progressKey passed to it (the run's own id — see
+   * CompetitiveMasterService.processIngestRun). Same no-throw, no-quota
+   * status-peek contract as getTextbookIngestProgress above.
+   */
+  async getCompetitiveExtractionProgress(
+    progressKey: string,
+  ): Promise<{ pagesDone?: number; pagesTotal?: number; stage?: string } | null> {
+    if (!progressKey) return null;
+    try {
+      const res: AxiosResponse<{ success: boolean; data: any }> = await firstValueFrom(
+        this.http.get(`${this.baseUrl}/competitive/extract-progress`, {
+          params: { key: progressKey },
+          headers: this.headers(undefined, 'school'),
           timeout: 5_000,
         }),
       );
