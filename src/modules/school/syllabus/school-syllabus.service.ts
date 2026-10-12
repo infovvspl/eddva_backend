@@ -293,7 +293,7 @@ export class SchoolSyllabusService implements OnModuleInit {
     // join in this service already works around) — while attendance_sessions.teacher_id
     // is always the users.id. Resolve both forms so this doesn't silently undercount.
     const conditions = [
-      `teacher_id IN ($1::uuid, (SELECT user_id FROM teachers WHERE id = $1::uuid), (SELECT id FROM teachers WHERE user_id = $1::uuid))`,
+      `teacher_id::text IN ($1::text, (SELECT user_id::text FROM teachers WHERE id::text = $1::text), (SELECT id::text FROM teachers WHERE user_id::text = $1::text))`,
       'subject_id = $2',
       'finalized = true',
     ];
