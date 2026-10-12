@@ -923,22 +923,16 @@ export class GamificationService implements OnModuleInit {
   }
 
   async startQuizRush(user: any, query: any) {
-    const playMode = query.mode === 'free_play' ? 'free_play' : 'ranked';
     const ctx = await this.resolveContext(user, query.subjectId, query.chapterId);
-    let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
-    if (playMode === 'ranked') {
-      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'quiz_rush');
-    } else {
-      difficulty = query.difficulty || 'medium';
-    }
+    const difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'quiz_rush');
     const seenTexts = await this.getSeenQuestions(user.id, 'quiz_rush', ctx.subjectId);
     const excludeObjs = seenTexts.map(t => ({ content: t }));
     const questions = await this.generateMcqs(ctx, 5, difficulty, 'Quiz Rush', excludeObjs);
-    const session = await this.createSession(user, ctx, 'quiz_rush', { questions, difficulty }, playMode);
+    const session = await this.createSession(user, ctx, 'quiz_rush', { questions, difficulty }, 'ranked');
     return { sessionId: session.id, questions: this.publicQuestions(questions.slice(0, 1)), difficulty };
   }
 
-  async getNextQuizRushQuestion(user: any, sessionId: string, currentIdxQuery?: string) {
+  async getNextQuizRushQuestion(user: any, sessionId: string, currentIdxQuery?: string, answersQuery?: string) {
     const session = await this.getActiveSession(user, sessionId, 'quiz_rush');
     const questions = session.metadata.questions || [];
     const currentDifficulty = session.metadata.difficulty || 'medium';
@@ -946,22 +940,41 @@ export class GamificationService implements OnModuleInit {
     const nextIdx = currentIdx + 1;
 
     if (nextIdx < questions.length) {
-      return { 
-        question: this.publicQuestions([questions[nextIdx]])[0], 
-        difficulty: questions[nextIdx].difficulty || currentDifficulty 
+      return {
+        question: this.publicQuestions([questions[nextIdx]])[0],
+        difficulty: questions[nextIdx].difficulty || currentDifficulty
       };
     }
 
-    const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+    // Batch of 5 just finished — size the next batch up, down, or hold based on
+    // how the student actually did on it, instead of always ratcheting up.
+    let recentAnswers: any[] = [];
+    try {
+      recentAnswers = answersQuery ? JSON.parse(answersQuery) : [];
+    } catch {
+      recentAnswers = [];
+    }
+
+    const lastBatch = questions.slice(Math.max(0, questions.length - 5));
+    const lastBatchAnswers = recentAnswers.filter((a: any) =>
+      lastBatch.some((q: any) => q.id === a.questionId),
+    );
+    const batchResult = lastBatch.length > 0 ? this.gradeMcqRun(lastBatch, lastBatchAnswers, true) : null;
+    const accuracy = batchResult && batchResult.totalQuestions > 0
+      ? batchResult.correctAnswers / batchResult.totalQuestions
+      : 0.5;
+
+    const nextDifficulty = this.nextDifficultyLevel(currentDifficulty, accuracy);
+
     const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
     const newQuestions = await this.generateMcqs(ctx, 5, nextDifficulty, 'Quiz Rush', questions);
     if (!newQuestions || newQuestions.length === 0) {
       throw new BadRequestException('Could not generate more questions.');
     }
-    
+
     const newQuestionsWithDiff = newQuestions.map(q => ({ ...q, difficulty: nextDifficulty }));
     const updatedQuestions = [...questions, ...newQuestionsWithDiff];
-    
+
     const updatedMetadata = {
       ...session.metadata,
       questions: updatedQuestions,
@@ -973,9 +986,9 @@ export class GamificationService implements OnModuleInit {
       [sessionId, JSON.stringify(updatedMetadata)]
     );
 
-    return { 
-      question: this.publicQuestions([newQuestionsWithDiff[0]])[0], 
-      difficulty: nextDifficulty 
+    return {
+      question: this.publicQuestions([newQuestionsWithDiff[0]])[0],
+      difficulty: nextDifficulty
     };
   }
 
@@ -1051,17 +1064,14 @@ export class GamificationService implements OnModuleInit {
     });
   }
 
-  async getTreasureChallenge(user: any, questId: string, stageOrder = 1, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
+  async getTreasureChallenge(user: any, questId: string, stageOrder = 1, subjectId?: string, chapterId?: string) {
     const ctx = await this.resolveContext(user, subjectId || questId, chapterId || null);
     const safeStageOrder = Math.max(1, Math.min(5, Number(stageOrder || 1)));
-    let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
-    if (queryMode === 'ranked') {
-      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'treasure_hunt');
-    }
+    const difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'treasure_hunt');
     const seenTexts = await this.getSeenQuestions(user.id, 'treasure_hunt', ctx.subjectId);
     const excludeObjs = seenTexts.map(t => ({ content: t }));
     const questions = await this.generateMcqs(ctx, 3, difficulty, `Treasure Hunt checkpoint ${safeStageOrder} application riddle`, excludeObjs);
-    const session = await this.createSession(user, ctx, 'treasure_hunt', { questions, questId: subjectId, stageOrder: safeStageOrder, difficulty }, queryMode);
+    const session = await this.createSession(user, ctx, 'treasure_hunt', { questions, questId: subjectId, stageOrder: safeStageOrder, difficulty }, 'ranked');
     return { sessionId: session.id, questId: subjectId, stageOrder: safeStageOrder, questions: this.publicQuestions(questions), difficulty };
   }
 
@@ -1124,22 +1134,17 @@ export class GamificationService implements OnModuleInit {
     };
   }
 
-  async startMathSprint(user: any, difficultyParam = 'medium', queryMode = 'ranked') {
+  async startMathSprint(user: any) {
     const subject = await this.findMathSubject(user);
     const ctx = await this.resolveContext(user, subject?.id || null, null);
-    let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
-    if (queryMode === 'ranked') {
-      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'math_sprint');
-    } else {
-      difficulty = (difficultyParam as any) || 'medium';
-    }
+    const difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'math_sprint');
     const seenTexts = await this.getSeenQuestions(user.id, 'math_sprint', ctx.subjectId);
     const questions = await this.generateMathSprintQuestions(ctx, difficulty, seenTexts);
-    const session = await this.createSession(user, ctx, 'math_sprint', { questions, difficulty }, queryMode);
+    const session = await this.createSession(user, ctx, 'math_sprint', { questions, difficulty }, 'ranked');
     return { sessionId: session.id, questions: this.publicQuestions(questions.slice(0, 1)), difficulty };
   }
 
-  async getNextMathSprintQuestion(user: any, sessionId: string, currentIdxQuery?: string) {
+  async getNextMathSprintQuestion(user: any, sessionId: string, currentIdxQuery?: string, lastCorrectQuery?: string) {
     const session = await this.getActiveSession(user, sessionId, 'math_sprint');
     const questions = session.metadata.questions || [];
     const currentDifficulty = session.metadata.difficulty || 'medium';
@@ -1147,22 +1152,39 @@ export class GamificationService implements OnModuleInit {
     const nextIdx = currentIdx + 1;
 
     if (nextIdx < questions.length) {
-      return { 
-        question: this.publicQuestions([questions[nextIdx]])[0], 
-        difficulty: questions[nextIdx].difficulty || currentDifficulty 
+      return {
+        question: this.publicQuestions([questions[nextIdx]])[0],
+        difficulty: questions[nextIdx].difficulty || currentDifficulty
       };
     }
 
-    const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+    // Each new sum is generated locally (no AI call), so difficulty can react
+    // immediately: three correct in a row levels up, any miss levels down.
+    const lastCorrect = lastCorrectQuery === 'true';
+    const prevStreak = Number(session.metadata.correctStreak || 0);
+
+    let nextDifficulty = currentDifficulty;
+    let nextStreak = 0;
+    if (lastCorrect) {
+      nextStreak = prevStreak + 1;
+      if (nextStreak >= 3) {
+        nextDifficulty = this.nextDifficultyLevel(currentDifficulty, 1);
+        nextStreak = 0;
+      }
+    } else {
+      nextDifficulty = this.nextDifficultyLevel(currentDifficulty, 0);
+    }
+
     const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
     const newQuestion = this.localMathQuestion(nextDifficulty, ctx.className);
     (newQuestion as any).difficulty = nextDifficulty;
-    
+
     const updatedQuestions = [...questions, newQuestion];
     const updatedMetadata = {
       ...session.metadata,
       questions: updatedQuestions,
       difficulty: nextDifficulty,
+      correctStreak: nextStreak,
     };
 
     await this.ds.query(
@@ -1170,9 +1192,9 @@ export class GamificationService implements OnModuleInit {
       [sessionId, JSON.stringify(updatedMetadata)]
     );
 
-    return { 
-      question: this.publicQuestions([newQuestion])[0], 
-      difficulty: nextDifficulty 
+    return {
+      question: this.publicQuestions([newQuestion])[0],
+      difficulty: nextDifficulty
     };
   }
 
@@ -1226,16 +1248,11 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
-  async startMemoryMatch(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
+  async startMemoryMatch(user: any, deckId: string, subjectId?: string, chapterId?: string) {
     const subjects = await this.listClassSubjects(user);
     const theme = this.resolveMemoryMatchTheme(deckId, subjects);
-    let difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
-      ? difficultyParam.toLowerCase()
-      : (theme.difficulty || 'medium');
     const ctx = await this.resolveContext(user, subjectId || theme.subjectId, chapterId || null);
-    if (queryMode === 'ranked') {
-      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'memory_match');
-    }
+    const difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'memory_match');
     const promptMode = [
       `Memory Match: ${theme.name} (${difficulty})`,
       theme.description,
@@ -1252,7 +1269,7 @@ export class GamificationService implements OnModuleInit {
         { id: randomUUID(), matchId, content: p.definition },
       ];
     }));
-    const session = await this.createSession(user, ctx, 'memory_match', { pairs, cards, deckName: theme.name, difficulty, themeKey: theme.key }, queryMode);
+    const session = await this.createSession(user, ctx, 'memory_match', { pairs, cards, deckName: theme.name, difficulty, themeKey: theme.key }, 'ranked');
     return { sessionId: session.id, deckName: theme.name, difficulty, cards };
   }
 
@@ -1308,16 +1325,11 @@ export class GamificationService implements OnModuleInit {
     }));
   }
 
-  async startWordMaster(user: any, deckId: string, difficultyParam?: string, queryMode = 'ranked', subjectId?: string, chapterId?: string) {
+  async startWordMaster(user: any, deckId: string, subjectId?: string, chapterId?: string) {
     const subjects = await this.listClassSubjects(user);
     const theme = this.resolveWordMasterTheme(deckId, subjects);
-    let difficulty = (difficultyParam && ['easy', 'medium', 'hard'].includes(difficultyParam.toLowerCase()))
-      ? difficultyParam.toLowerCase()
-      : (theme.difficulty || 'medium');
     const ctx = await this.resolveContext(user, subjectId || theme.subjectId, chapterId || null);
-    if (queryMode === 'ranked') {
-      difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'word_master');
-    }
+    const difficulty = await this.resolveSkillDifficulty(user.id, ctx.subjectId, ctx.chapterId, 'word_master');
     const promptMode = [
       `Word Master: ${theme.name} (${difficulty})`,
       theme.description,
@@ -1334,7 +1346,7 @@ export class GamificationService implements OnModuleInit {
       return { word, scrambled: this.scramble(word), hint, length: word.length };
     }).filter((w: any) => w.word.length >= 4 && w.hint.length >= 12 && !this.hintContainsAnswer(w.hint, w.word));
     if (words.length < 4) throw new BadRequestException('AI could not generate enough vocabulary words. Please try again.');
-    const session = await this.createSession(user, ctx, 'word_master', { words, deckName: theme.name, difficulty, themeKey: theme.key }, queryMode);
+    const session = await this.createSession(user, ctx, 'word_master', { words, deckName: theme.name, difficulty, themeKey: theme.key }, 'ranked');
     return { sessionId: session.id, deckName: theme.name, difficulty, words: words.slice(0, 1).map(({ word, ...rest }: any) => rest) };
   }
 
@@ -1360,11 +1372,12 @@ export class GamificationService implements OnModuleInit {
       }
       
       const currentDifficulty = session.metadata.difficulty || 'medium';
-      const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+      const batchAccuracy = this.gradeWordMasterBatch(words, body.answers || [], Math.max(0, words.length - 10));
+      const nextDifficulty = this.nextDifficultyLevel(currentDifficulty, batchAccuracy);
       const subjects = await this.listClassSubjects(user);
       const theme = this.resolveWordMasterTheme(session.metadata.themeKey || '', subjects);
       const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
-      
+
       const promptMode = [
         `Word Master: ${theme.name} (${nextDifficulty})`,
         theme.description,
@@ -1372,7 +1385,7 @@ export class GamificationService implements OnModuleInit {
         this.wordMasterDifficultyPrompt(nextDifficulty),
         'Choose surprising, student-friendly syllabus vocabulary that feels like a puzzle, but never put the answer word inside the clue.',
       ].join(' - ');
-      
+
       const pairs = await this.generateConceptPairs(ctx, 10, promptMode, nextDifficulty, words);
       const newWords = pairs.map((pair: any) => {
         const word = this.toVocabularyWord(pair.term);
@@ -1423,7 +1436,8 @@ export class GamificationService implements OnModuleInit {
 
         // generate more words if needed
         const currentDifficulty = session.metadata.difficulty || 'medium';
-        const nextDifficulty = currentDifficulty === 'easy' ? 'medium' : 'hard';
+        const batchAccuracy = this.gradeWordMasterBatch(words, answers, Math.max(0, words.length - 10));
+        const nextDifficulty = this.nextDifficultyLevel(currentDifficulty, batchAccuracy);
         const subjects = await this.listClassSubjects(user);
         const theme = this.resolveWordMasterTheme(session.metadata.themeKey || '', subjects);
         const ctx = await this.resolveContext(user, session.subject_id, session.chapter_id);
@@ -1917,6 +1931,30 @@ export class GamificationService implements OnModuleInit {
 
   private publicQuestions(questions: any[]) {
     return questions.map((q) => ({ ...q, options: q.options.map((o: any) => ({ ...o })) }));
+  }
+
+  private readonly DIFFICULTY_LEVELS: Array<'easy' | 'medium' | 'hard'> = ['easy', 'medium', 'hard'];
+
+  /** Up a level on a strong batch, down on a weak one, held otherwise — instead of always ratcheting up. */
+  private nextDifficultyLevel(currentDifficulty: string, accuracy: number): 'easy' | 'medium' | 'hard' {
+    const currentLevel = this.DIFFICULTY_LEVELS.indexOf(currentDifficulty as any);
+    let nextLevel = currentLevel;
+    if (accuracy >= 0.8) nextLevel = Math.min(this.DIFFICULTY_LEVELS.length - 1, currentLevel + 1);
+    else if (accuracy <= 0.4) nextLevel = Math.max(0, currentLevel - 1);
+    return this.DIFFICULTY_LEVELS[nextLevel];
+  }
+
+  /** Accuracy over the most recent batch of Word Master words (by absolute index into `words`). */
+  private gradeWordMasterBatch(words: any[], answers: any[], batchStart: number): number {
+    const batchSize = words.length - batchStart;
+    if (batchSize <= 0) return 0.5;
+    let correct = 0;
+    for (let i = batchStart; i < words.length; i += 1) {
+      const ans = (answers || []).find((a: any) => Number(a.index) === i);
+      const ok = !!ans && !!words[i]?.word && String(ans.word || '').toUpperCase().trim() === String(words[i].word).toUpperCase().trim();
+      if (ok) correct += 1;
+    }
+    return correct / batchSize;
   }
 
   /** 0 hints=100%, 1=75%, 2=50%, 3+=25% floor — never zero, so a correct answer always earns something. */
