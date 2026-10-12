@@ -6,6 +6,7 @@ import { SchoolTeacherService } from '../school/teacher/school-teacher.service';
 import { MailService } from '../mail/mail.service';
 import { ErpTeacherDto } from './dto/erp-teacher.dto';
 import { ErpTeacherStatusDto } from './dto/erp-teacher-status.dto';
+import { ErpTeacherDepartmentDto } from './dto/erp-teacher-department.dto';
 
 @Injectable()
 export class InternalErpTeacherService {
@@ -90,6 +91,28 @@ export class InternalErpTeacherService {
 
     const { id: teacherId, user_id: userId } = found[0];
     await this.ds.query(`UPDATE users SET is_active=$1 WHERE id=$2`, [dto.status === 'ACTIVE', userId]);
+
+    return { teacherId, updated: true };
+  }
+
+  /** Updates a teacher's department on the LMS side — e.g. reassigned from the ERP. */
+  async updateDepartment(dto: ErpTeacherDepartmentDto): Promise<{ teacherId: string; updated: boolean }> {
+    if (!dto?.instituteId || !dto.employeeId || !dto.department) {
+      throw new BadRequestException(this.fail('INVALID_PAYLOAD', 'instituteId, employeeId and department are required'));
+    }
+
+    const inst: any[] = await this.ds.query(`SELECT id, erp_enabled FROM institutes WHERE id=$1`, [dto.instituteId]);
+    if (!inst.length) throw new NotFoundException(this.fail('INSTITUTE_NOT_FOUND', 'Institute not found in LMS'));
+    if (!inst[0].erp_enabled) throw new ForbiddenException(this.fail('ERP_NOT_ENABLED', 'ERP integration is not enabled for this institute'));
+
+    const found: any[] = await this.ds.query(
+      `SELECT id FROM teachers WHERE institute_id=$1 AND employee_id=$2`,
+      [dto.instituteId, dto.employeeId],
+    );
+    if (!found.length) throw new NotFoundException(this.fail('TEACHER_NOT_FOUND', 'No LMS teacher matches this institute/employee id'));
+
+    const { id: teacherId } = found[0];
+    await this.ds.query(`UPDATE teachers SET department=$1, updated_at=NOW() WHERE id=$2`, [dto.department, teacherId]);
 
     return { teacherId, updated: true };
   }

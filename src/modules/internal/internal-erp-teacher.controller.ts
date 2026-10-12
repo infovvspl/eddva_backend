@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'crypto';
 import { InternalErpTeacherService } from './internal-erp-teacher.service';
 import { ErpTeacherDto } from './dto/erp-teacher.dto';
 import { ErpTeacherStatusDto } from './dto/erp-teacher-status.dto';
+import { ErpTeacherDepartmentDto } from './dto/erp-teacher-department.dto';
 
 @Controller('internal/erp/teachers')
 export class InternalErpTeacherController {
@@ -27,5 +28,11 @@ export class InternalErpTeacherController {
   async updateStatus(@Headers('x-internal-key') key: string, @Body() dto: ErpTeacherStatusDto) {
     this.assertInternal(key);
     return this.service.updateStatus(dto);
+  }
+
+  @Patch('department')
+  async updateDepartment(@Headers('x-internal-key') key: string, @Body() dto: ErpTeacherDepartmentDto) {
+    this.assertInternal(key);
+    return this.service.updateDepartment(dto);
   }
 }

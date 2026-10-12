@@ -760,7 +760,8 @@ export class SchoolTeacherService {
           WHERE user_id = $1
         `, [r.id]),
         this.ds.query(`
-          SELECT COUNT(DISTINCT class_id)::int AS c FROM teacher_academic_assignments WHERE teacher_id = $1
+          SELECT COUNT(*)::int AS c FROM attendance_sessions
+          WHERE finalized = true AND teacher_id IN ($1::uuid, (SELECT user_id FROM teachers WHERE id = $1::uuid))
         `, [tProfileId]),
         this.ds.query(`
           SELECT COUNT(DISTINCT s.user_id)::int AS c
