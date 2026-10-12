@@ -216,6 +216,30 @@ export class SchoolAttendanceService {
     return result[0];
   }
 
+  /** Monthly attendance % per user for the active filter range, shown in the list instead of raw remarks text. */
+  private async attendancePercentageByUser(
+    instituteId: string,
+    userIds: string[],
+    query: any,
+  ): Promise<Record<string, number>> {
+    if (!userIds.length) return {};
+    const rangeStart = query.startDate
+      ? new Date(query.startDate)
+      : query.date
+      ? new Date(query.date)
+      : new Date(new Date().setDate(new Date().getDate() - 30));
+    const rangeEnd = query.endDate ? new Date(query.endDate) : query.date ? new Date(query.date) : new Date();
+    const rows: any[] = await this.ds.query(
+      `SELECT user_id::text AS user_id,
+         ROUND(100.0 * COUNT(*) FILTER (WHERE UPPER(status) = 'PRESENT') / NULLIF(COUNT(*), 0), 1) AS percentage
+       FROM attendances
+       WHERE institute_id::text = $1::text AND user_id::text = ANY($2::text[]) AND date >= $3 AND date <= $4
+       GROUP BY user_id`,
+      [instituteId, userIds, rangeStart, rangeEnd],
+    );
+    return Object.fromEntries(rows.map((r) => [r.user_id, r.percentage !== null ? Number(r.percentage) : 0]));
+  }
+
   async get(user: any, query: any) {
     const instituteId = user.instituteId;
 
@@ -376,12 +400,14 @@ export class SchoolAttendanceService {
       `;
       
       const rows: any[] = await this.ds.query(sql, params);
-      
+      const percentageByUser = await this.attendancePercentageByUser(instituteId, [...new Set(rows.map(r => r.user_id))], query);
+
       const mapped = rows.map(r => ({
         id: r.id,
         date: r.date,
         status: r.status,
         remarks: r.remarks,
+        attendancePercentage: percentageByUser[r.user_id] ?? null,
         user: {
           id: r.user_id,
           name: r.user_name,
@@ -492,12 +518,14 @@ export class SchoolAttendanceService {
     `;
     
     const rows: any[] = await this.ds.query(sql, params);
-    
+    const percentageByUser = await this.attendancePercentageByUser(instituteId, [...new Set(rows.map(r => r.user_id))], query);
+
     const mapped = rows.map(r => ({
       id: r.id,
       date: r.date,
       status: r.status,
       remarks: r.remarks,
+      attendancePercentage: percentageByUser[r.user_id] ?? null,
       user: {
         id: r.user_id,
         name: r.user_name,

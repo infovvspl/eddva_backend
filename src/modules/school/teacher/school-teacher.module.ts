@@ -7,5 +7,6 @@ import { SchoolTeacherController } from './school-teacher.controller';
   imports: [AiBridgeModule],
   controllers: [SchoolTeacherController],
   providers: [SchoolTeacherService],
+  exports: [SchoolTeacherService],
 })
 export class SchoolTeacherModule {}
