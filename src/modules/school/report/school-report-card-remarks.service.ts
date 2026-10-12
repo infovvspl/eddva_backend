@@ -41,6 +41,29 @@ export class SchoolReportCardRemarksService {
     return instituteId;
   }
 
+  /** Unwraps AI remarks persisted before the feedback-generation bug fix, where the raw
+   *  {"feedbackText": "...", ...} JSON envelope — sometimes even double-encoded as a JSON
+   *  string of that object — was stored verbatim instead of the paragraph. */
+  private cleanAiRemark(remark: string | null): string | null {
+    if (!remark) return remark;
+    let current: unknown = remark;
+    // Up to a few rounds: a value can be a JSON string containing another JSON string.
+    for (let i = 0; i < 4 && typeof current === 'string'; i++) {
+      const trimmed = current.trim();
+      const looksJson = (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('"') && trimmed.endsWith('"'));
+      if (!looksJson) break;
+      try {
+        current = JSON.parse(trimmed);
+      } catch {
+        break;
+      }
+      if (current && typeof current === 'object' && typeof (current as any).feedbackText === 'string' && (current as any).feedbackText.trim()) {
+        return (current as any).feedbackText.trim();
+      }
+    }
+    return remark;
+  }
+
   /** improving / declining / steady from the chronological score series (needs 4+ scored exams). */
   private scoreTrend(scores: number[]): { direction: 'improving' | 'declining' | 'steady' | 'not_enough_data'; change: number } {
     if (scores.length < 4) return { direction: 'not_enough_data', change: 0 };
@@ -131,7 +154,7 @@ export class SchoolReportCardRemarksService {
     }
 
     const teacherRemark = row?.teacher_remark || null;
-    const aiRemark = row?.ai_remark || null;
+    const aiRemark = this.cleanAiRemark(row?.ai_remark || null);
     const remarkSource = teacherRemark ? 'TEACHER' : (aiRemark ? 'AI' : null);
     return {
       success: true,
@@ -168,13 +191,15 @@ export class SchoolReportCardRemarksService {
       [instituteId, studentId, academicYear, className || null, teacherRemark, user.id],
     );
     const row = rows[0];
+    const savedTeacherRemark = row.teacher_remark || null;
+    const aiRemark = this.cleanAiRemark(row.ai_remark || null);
     return {
       success: true,
       data: {
-        teacherRemark: row.teacher_remark || null,
-        aiRemark: row.ai_remark || null,
-        remarkSource: row.teacher_remark ? 'TEACHER' : (row.ai_remark ? 'AI' : null),
-        effectiveRemark: row.teacher_remark || row.ai_remark || '',
+        teacherRemark: savedTeacherRemark,
+        aiRemark,
+        remarkSource: savedTeacherRemark ? 'TEACHER' : (aiRemark ? 'AI' : null),
+        effectiveRemark: savedTeacherRemark || aiRemark || '',
         aiGeneratedAt: row.ai_generated_at || null,
       },
     };

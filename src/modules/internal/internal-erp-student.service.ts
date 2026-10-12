@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import { SchoolStudentService } from '../school/student/school-student.service';
 import { MailService } from '../mail/mail.service';
 import { ErpStudentDto } from './dto/erp-student.dto';
+import { ErpStudentStatusDto } from './dto/erp-student-status.dto';
 
 @Injectable()
 export class InternalErpStudentService implements OnModuleInit {
@@ -95,6 +96,29 @@ export class InternalErpStudentService implements OnModuleInit {
       .catch((err) => this.logger.error(`Credential email failed for ${dto.email}: ${err?.message ?? err}`));
 
     return { studentId: profile.id, userId: result.data.id, created: true };
+  }
+
+  /** Updates the lifecycle status of a student the ERP previously upserted here (e.g. Alumni marks them GRADUATED). */
+  async updateStatus(dto: ErpStudentStatusDto): Promise<{ studentId: string; updated: boolean }> {
+    if (!dto?.instituteId || !dto.enrollmentNumber || !dto.status) {
+      throw new BadRequestException(this.fail('INVALID_PAYLOAD', 'instituteId, enrollmentNumber and status are required'));
+    }
+
+    const inst: any[] = await this.ds.query(`SELECT id, erp_enabled FROM institutes WHERE id=$1`, [dto.instituteId]);
+    if (!inst.length) throw new NotFoundException(this.fail('INSTITUTE_NOT_FOUND', 'Institute not found in LMS'));
+    if (!inst[0].erp_enabled) throw new ForbiddenException(this.fail('ERP_NOT_ENABLED', 'ERP integration is not enabled for this institute'));
+
+    const found: any[] = await this.ds.query(
+      `SELECT id, user_id FROM students WHERE institute_id=$1 AND erp_enrollment_number=$2`,
+      [dto.instituteId, dto.enrollmentNumber],
+    );
+    if (!found.length) throw new NotFoundException(this.fail('STUDENT_NOT_FOUND', 'No LMS student matches this institute/enrollment number'));
+
+    const { id: studentId, user_id: userId } = found[0];
+    await this.ds.query(`UPDATE students SET status=$1 WHERE id=$2`, [dto.status, studentId]);
+    await this.ds.query(`UPDATE users SET is_active=$1 WHERE id=$2`, [dto.status === 'ACTIVE', userId]);
+
+    return { studentId, updated: true };
   }
 
   private async resolveSection(dto: ErpStudentDto): Promise<string | null> {
