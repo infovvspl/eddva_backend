@@ -12,6 +12,7 @@ const NOTIFICATION_CATEGORY_MAP: Record<string, string[]> = {
   study_material: ['study_material', 'material'],
   fee: ['fee', 'fee_reminder'],
   result: ['result', 'exam_result'],
+  report_card: ['report_card', 'report_card_published', 'report_card_approved', 'report_card_rejected', 'report_card_checked'],
   general: ['general', 'info']
 };
 
