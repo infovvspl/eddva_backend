@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Patch, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Patch, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { timingSafeEqual } from 'crypto';
 import { InternalErpTeacherService } from './internal-erp-teacher.service';
 import { ErpTeacherDto } from './dto/erp-teacher.dto';
@@ -22,6 +22,23 @@ export class InternalErpTeacherController {
   async upsert(@Headers('x-internal-key') key: string, @Body() dto: ErpTeacherDto) {
     this.assertInternal(key);
     return this.service.upsert(dto);
+  }
+
+  @Get()
+  async list(@Headers('x-internal-key') key: string, @Query('instituteId') instituteId: string) {
+    this.assertInternal(key);
+    return this.service.listForInstitute(instituteId);
+  }
+
+  /** Resolves a logged-in teacher's own LMS user id to their teacher/employee id, for the ERP's teacher self-service SSO exchange. */
+  @Get('resolve')
+  async resolve(
+    @Headers('x-internal-key') key: string,
+    @Query('instituteId') instituteId: string,
+    @Query('userId') userId: string,
+  ) {
+    this.assertInternal(key);
+    return this.service.resolveByUserId(instituteId, userId);
   }
 
   @Patch('status')
