@@ -40,13 +40,19 @@ suite('Report card remarks (end to end)', () => {
   let aiMode: 'ok' | 'throw' | 'empty' = 'ok';
   let aiCounter = 0;
 
-  const get = async (user: any, studentId: string, year: string) => request('GET', user, `?studentId=${studentId}&academicYear=${year}`);
-  const put = async (user: any, body: any) => request('PUT', user, '', body);
-  const request = async (method: string, user: any, qs = '', body?: any) => {
+  const get = async (user: any, studentId: string, year: string) => request('GET', user, 'report-card-remarks', `?studentId=${studentId}&academicYear=${year}`);
+  const put = async (user: any, body: any) => request('PUT', user, 'report-card-remarks', '', body);
+  const getStatus = async (user: any, studentId: string, year: string) => request('GET', user, 'report-card-status', `?studentId=${studentId}&academicYear=${year}`);
+  const publish = async (user: any, body: any) => request('POST', user, 'report-card-publish', '', body);
+  const approve = async (user: any, body: any) => request('POST', user, 'report-card-approve', '', body);
+  const reject = async (user: any, body: any) => request('POST', user, 'report-card-reject', '', body);
+  const check = async (user: any, body: any) => request('POST', user, 'report-card-check', '', body);
+  const checkStatus = async (user: any, studentId: string, year: string) => request('GET', user, 'report-card-check-status', `?studentId=${studentId}&academicYear=${year}`);
+  const request = async (method: string, user: any, path: string, qs = '', body?: any) => {
     const headers: Record<string, string> = {};
     if (user) headers['x-test-user'] = JSON.stringify(user);
     if (body) headers['content-type'] = 'application/json';
-    const res = await fetch(`${base}/school/reports/report-card-remarks${qs}`, {
+    const res = await fetch(`${base}/school/reports/${path}${qs}`, {
       method, headers, body: body ? JSON.stringify(body) : undefined,
     });
     let json: any = null;
@@ -55,6 +61,8 @@ suite('Report card remarks (end to end)', () => {
   };
   const row = async (studentId: string, year: string) =>
     (await ds.query(`SELECT * FROM report_card_remarks WHERE student_id::text=$1 AND academic_year=$2`, [studentId, year]))[0];
+  const notifsFor = async (userId: string, type: string) =>
+    ds.query(`SELECT * FROM notifications WHERE recipient_id::text=$1 AND type=$2 ORDER BY created_at DESC`, [userId, type]);
 
   beforeAll(async () => {
     require('dotenv').config();
@@ -68,6 +76,8 @@ suite('Report card remarks (end to end)', () => {
     const { SchoolReportCardRemarksService } = require('./school-report-card-remarks.service');
     const { SchoolJwtGuard } = require('../guards/school-jwt.guard');
     const { AiBridgeService } = require('../../ai-bridge/ai-bridge.service');
+    const { SchoolNotificationService } = require('../notification/school-notification.service');
+    const { SchoolNotificationGateway } = require('../notification/school-notification.gateway');
 
     const fakeJwt: CanActivate = {
       canActivate(ctx: ExecutionContext) {
@@ -84,6 +94,8 @@ suite('Report card remarks (end to end)', () => {
       providers: [
         SchoolReportService,
         SchoolReportCardRemarksService,
+        SchoolNotificationService,
+        SchoolNotificationGateway,
         { provide: getDataSourceToken('school'), useValue: ds },
         {
           provide: AiBridgeService,
@@ -141,6 +153,8 @@ suite('Report card remarks (end to end)', () => {
 
   afterAll(async () => {
     try {
+      await ds.query(`DELETE FROM report_card_acknowledgements WHERE academic_year LIKE 'E2E-%'`);
+      await ds.query(`DELETE FROM notifications WHERE type LIKE 'report_card_%' AND message LIKE '%E2E-%'`);
       await ds.query(`DELETE FROM report_card_remarks WHERE academic_year LIKE 'E2E-%'`);
       const left = await ds.query(`SELECT COUNT(*)::int n FROM report_card_remarks WHERE academic_year LIKE 'E2E-%'`);
       expect(left[0].n).toBe(0);
@@ -234,10 +248,16 @@ suite('Report card remarks (end to end)', () => {
       expect(again.data).toMatchObject({ remarkSource: 'AI', effectiveRemark: aiText });
     });
 
-    it('is the same remark the student and parent see', async () => {
+    it('is the same remark the student and parent see, once approved', async () => {
       const own = { id: withResults, role: 'STUDENT', instituteId: institute };
+      // Not approved yet (this row only ever went through get()/put(), never publish+approve) —
+      // the new workflow means the student can't see it regardless of remark content.
+      const blocked = await get(own, withResults, YEAR);
+      expect(blocked.data).toMatchObject({ status: 'DRAFT', visible: false });
+
+      await ds.query(`UPDATE report_card_remarks SET status='APPROVED' WHERE student_id::text=$1 AND academic_year=$2`, [withResults, YEAR]);
       const res = await get(own, withResults, YEAR);
-      expect(res.data).toMatchObject({ remarkSource: 'AI', effectiveRemark: aiText });
+      expect(res.data).toMatchObject({ status: 'APPROVED', visible: true, remarkSource: 'AI', effectiveRemark: aiText });
     });
 
     it('a teacher\'s remark then takes priority, and the AI text is kept underneath', async () => {
@@ -322,6 +342,127 @@ suite('Report card remarks (end to end)', () => {
       await put(admin, { studentId: withResults, academicYear: YEAR, teacherRemark: 'Written by the admin.' });
       const res = await get(admin, withResults, YEAR);
       expect(res.data.remarkSource).toBe('TEACHER');
+    });
+  });
+
+  // ───────────────────────── publish → approve → check workflow ─────────────────────────
+  describe('publish, approve and reject workflow', () => {
+    const YEAR = 'E2E-G';
+
+    it('starts as DRAFT, invisible to the student, even with real results behind it', async () => {
+      const own = { id: withResults, role: 'STUDENT', instituteId: institute };
+      expect((await getStatus(own, withResults, YEAR)).data).toMatchObject({ status: 'DRAFT', visible: false });
+    });
+
+    it('blocks parent/student from publishing, and non-admin from approving/rejecting', async () => {
+      const own = { id: withResults, role: 'STUDENT', instituteId: institute };
+      expect((await publish(own, { studentId: withResults, academicYear: YEAR })).status).toBe(403);
+      expect((await approve(teacher, { studentId: withResults, academicYear: YEAR })).status).toBe(403);
+      expect((await reject(teacher, { studentId: withResults, academicYear: YEAR, reason: 'x' })).status).toBe(403);
+      if (parent && parentsChild) {
+        expect((await publish(parent, { studentId: parentsChild, academicYear: YEAR })).status).toBe(403);
+      }
+    });
+
+    it('cannot be approved before it has been published', async () => {
+      expect((await approve(admin, { studentId: withResults, academicYear: YEAR })).status).toBe(400);
+    });
+
+    it('teacher publish notifies institute admins and keeps it hidden from the student', async () => {
+      const pub = await publish(teacher, { studentId: withResults, academicYear: YEAR, className: 'Class 5' });
+      expect(pub.status).toBe(200);
+      expect(pub.data.status).toBe('PUBLISHED');
+      expect(await row(withResults, YEAR)).toMatchObject({ status: 'PUBLISHED', published_by: teacher.id });
+      expect((await notifsFor(admin.id, 'report_card_published')).length).toBeGreaterThan(0);
+
+      const own = { id: withResults, role: 'STUDENT', instituteId: institute };
+      expect((await getStatus(own, withResults, YEAR)).data).toMatchObject({ status: 'PUBLISHED', visible: false });
+    });
+
+    it('admin approve makes it visible to the student and notifies them', async () => {
+      const appr = await approve(admin, { studentId: withResults, academicYear: YEAR });
+      expect(appr.status).toBe(200);
+      expect(appr.data.status).toBe('APPROVED');
+
+      const own = { id: withResults, role: 'STUDENT', instituteId: institute };
+      expect((await getStatus(own, withResults, YEAR)).data).toMatchObject({ status: 'APPROVED', visible: true });
+      expect((await notifsFor(withResults, 'report_card_approved')).length).toBeGreaterThan(0);
+    });
+
+    it('cannot be approved again once already approved (not published/rejected)', async () => {
+      expect((await approve(admin, { studentId: withResults, academicYear: YEAR })).status).toBe(400);
+    });
+  });
+
+  describe('reject path', () => {
+    const YEAR = 'E2E-H';
+
+    it('can only reject a published report card', async () => {
+      expect((await reject(admin, { studentId: withResults, academicYear: YEAR, reason: 'x' })).status).toBe(400);
+    });
+
+    it('sends it back to the teacher with a reason; re-publishing clears the rejection', async () => {
+      await publish(teacher, { studentId: withResults, academicYear: YEAR });
+
+      const rej = await reject(admin, { studentId: withResults, academicYear: YEAR, reason: 'Please add more detail.' });
+      expect(rej.status).toBe(200);
+      expect(rej.data).toMatchObject({ status: 'REJECTED', rejectionReason: 'Please add more detail.' });
+      expect(await row(withResults, YEAR)).toMatchObject({ status: 'REJECTED', rejection_reason: 'Please add more detail.' });
+      expect((await notifsFor(teacher.id, 'report_card_rejected')).length).toBeGreaterThan(0);
+
+      const rePub = await publish(teacher, { studentId: withResults, academicYear: YEAR });
+      expect(rePub.status).toBe(200);
+      expect(await row(withResults, YEAR)).toMatchObject({ status: 'PUBLISHED', rejected_by: null, rejection_reason: null });
+    });
+
+    it('lets admin approve directly from REJECTED (admin override)', async () => {
+      await ds.query(`UPDATE report_card_remarks SET status='REJECTED' WHERE student_id::text=$1 AND academic_year=$2`, [withResults, YEAR]);
+      expect((await approve(admin, { studentId: withResults, academicYear: YEAR })).status).toBe(200);
+    });
+  });
+
+  describe('parent acknowledgement', () => {
+    const YEAR = 'E2E-I';
+
+    it('requires the report card to already be approved', async () => {
+      if (!parent || !parentsChild) return;
+      await publish(teacher, { studentId: parentsChild, academicYear: YEAR });
+      expect((await check(parent, { studentId: parentsChild, academicYear: YEAR })).status).toBe(400);
+    });
+
+    it('lets the parent explicitly acknowledge it; teacher/admin see it, and are notified', async () => {
+      if (!parent || !parentsChild) return;
+      await approve(admin, { studentId: parentsChild, academicYear: YEAR });
+
+      expect((await checkStatus(admin, parentsChild, YEAR)).data).toEqual([]);
+
+      const ack = await check(parent, { studentId: parentsChild, academicYear: YEAR });
+      expect(ack.status).toBe(200);
+      expect(ack.data).toMatchObject({ checked: true });
+
+      // clicking again is idempotent, not an error or a duplicate row
+      expect((await check(parent, { studentId: parentsChild, academicYear: YEAR })).status).toBe(200);
+      const ackRows = await ds.query(
+        `SELECT COUNT(*)::int n FROM report_card_acknowledgements WHERE student_id::text=$1 AND academic_year=$2`,
+        [parentsChild, YEAR],
+      );
+      expect(ackRows[0].n).toBe(1);
+
+      const after = await checkStatus(admin, parentsChild, YEAR);
+      expect(after.data.length).toBe(1);
+      expect(after.data[0]).toMatchObject({ parentUserId: 'test-parent' });
+      expect((await notifsFor(admin.id, 'report_card_checked')).length).toBeGreaterThan(0);
+
+      // Gap: the fixture pool only exposes one PARENT user per student (matched by
+      // parent_email/parent_phone), so independent acknowledgement by a second parent on the
+      // same student isn't covered here — would need a student fixture with two distinct
+      // PARENT users both matching that student's parent_email/parent_phone.
+    });
+
+    it('a student can never acknowledge on a parent\'s behalf', async () => {
+      if (!parentsChild) return;
+      const own = { id: parentsChild, role: 'STUDENT', instituteId: institute };
+      expect((await check(own, { studentId: parentsChild, academicYear: YEAR })).status).toBe(403);
     });
   });
 });
