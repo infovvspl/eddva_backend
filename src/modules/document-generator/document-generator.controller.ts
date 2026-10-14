@@ -6,6 +6,8 @@ import { SchoolRolesGuard } from '../school/guards/school-roles.guard';
 import { SchoolRoles } from '../school/decorators/school-roles.decorator';
 import { SchoolUser } from '../school/decorators/school-user.decorator';
 import { SchoolPublic } from '../school/decorators/school-public.decorator';
+import { AdminModuleGuard } from '../school/guards/admin-module.guard';
+import { RequireAdminModule } from '../school/decorators/require-admin-module.decorator';
 
 import { DocumentGeneratorService } from './document-generator.service';
 import { CreateDocumentTemplateDto, UpdateDocumentTemplateDto, GenerateIdCardDto, GenerateAdmitCardDto, GenerateCertificateDto } from './dto/document-generator.dto';
@@ -13,8 +15,9 @@ import { DocumentTemplateType } from '../school/entities/school-document-templat
 
 @ApiTags('School - Document Generator')
 @ApiBearerAuth()
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, AdminModuleGuard)
 @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+@RequireAdminModule('document_generator')
 @Controller('school/institute-admin/document')
 export class DocumentGeneratorController {
   constructor(private readonly documentGeneratorService: DocumentGeneratorService) {}
@@ -68,6 +71,13 @@ export class DocumentGeneratorController {
     const instituteId = user.instituteId || user.tenantId || user.institute_id;
     const adminId = user.id || user.sub;
     const pdfBuffer = await this.documentGeneratorService.generateCertificate(dto, instituteId, adminId);
+    return { pdfBase64: pdfBuffer.toString('base64') };
+  }
+
+  @Post('generate/credential-slip')
+  @ApiOperation({ summary: 'Generate printable student login-credential slips (one page per record)' })
+  async generateCredentialSlip(@Body() dto: { records: Array<{ studentName: string; studentEmail: string; tempPassword: string; instituteName: string; loginUrl: string }> }) {
+    const pdfBuffer = await this.documentGeneratorService.generateCredentialSlip(dto.records);
     return { pdfBase64: pdfBuffer.toString('base64') };
   }
 

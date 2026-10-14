@@ -63,7 +63,7 @@ function makeService(rec: any, bridgeImpl?: jest.Mock) {
     analyzeTeachingRecording:
       bridgeImpl ?? jest.fn(async () => ({ ...RUBRIC })),
   };
-  const svc = new SchoolTeacherService(ds as any, bridge as any);
+  const svc = new SchoolTeacherService(ds as any, bridge as any, {} as any);
   return { svc, ds, bridge };
 }
 

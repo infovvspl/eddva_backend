@@ -7,10 +7,13 @@ import { Audit } from '../../audit-log/audit.decorator';
 import { SchoolFeature } from '../decorators/school-feature.decorator';
 import { SchoolFeatureGuard } from '../guards/school-feature.guard';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
+import { AdminModuleGuard } from '../guards/admin-module.guard';
+import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
 
 @Controller('school/chat')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard, AdminModuleGuard)
 @SchoolFeature('module', 'chat')
+@RequireAdminModule('communications')
 export class SchoolChatController {
   constructor(private readonly svc: SchoolChatService) {}
 

@@ -3,6 +3,8 @@ import { SchoolSyllabusService } from './school-syllabus.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
+import { AdminModuleGuard } from '../guards/admin-module.guard';
+import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
 import {
   CompleteLessonPlanDto,
   CreateLessonPlanDto,
@@ -14,7 +16,8 @@ import {
 } from './dto/school-syllabus.dto';
 
 @Controller('school/syllabus')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, AdminModuleGuard)
+@RequireAdminModule('syllabus_planner')
 export class SchoolSyllabusController {
   constructor(private readonly svc: SchoolSyllabusService) {}
 

@@ -3,13 +3,16 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { R2Service } from '../../storage/r2.service';
 import { hasSchoolRole } from '../common/role-helper';
+import { isValidAdminPermissionModule } from '../common/admin-permission-modules';
 
 @Injectable()
 export class SchoolTeacherService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly r2Service: R2Service,
   ) { }
 
   private readonly logger = new Logger(SchoolTeacherService.name);
@@ -577,7 +580,7 @@ export class SchoolTeacherService {
 
     const dataQuery = `
       SELECT u.id,u.name,u.email,u.phone,u.role,u.is_active,u.created_at,u.profile_image,
-             u.institute_id,i.name AS institute_name,
+             u.institute_id,i.name AS institute_name,u.is_primary_admin,u.admin_permissions,
              t.id AS profile_id,t.employee_id,t.blood_group,t.marital_status,t.department,t.joining_date,t.qualifications,
              t.education_details,t.experience_details,t.dob,t.gender,t.national_id,t.designation,t.salary,t.experience,
              t.address,t.city,t.state,t.pin_code,t.allergies,t.medical_conditions,t.documents,t.shift,t.weekdays,
@@ -632,6 +635,8 @@ export class SchoolTeacherService {
         createdAt: r.created_at,
         instituteId: r.institute_id,
         instituteName: r.institute_name,
+        isPrimaryAdmin: r.is_primary_admin === true,
+        adminPermissions: typeof r.admin_permissions === 'string' ? JSON.parse(r.admin_permissions) : r.admin_permissions,
         classes: r.classes || [],
         sections: r.sections || [],
         subjects: r.subjects || [],
@@ -1128,8 +1133,15 @@ export class SchoolTeacherService {
    * were changed to special-case it, risk clobbering a real designation with
    * "TEACHER,INSTITUTE_ADMIN". A dedicated route keeps both meanings intact.
    */
-  async setAdminRole(user: any, id: string, isAdmin: boolean) {
+  async setAdminRole(user: any, id: string, isAdmin: boolean, permissions?: string[]) {
     const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
+    // Only the primary institute admin (onboarded by the SuperAdmin) or the
+    // SuperAdmin itself may grant/revoke admin access — a restricted sub-admin
+    // must never be able to delegate further, even though they hold the
+    // literal INSTITUTE_ADMIN role string.
+    if (!isSuperAdmin && !user?.isPrimaryAdmin) {
+      throw new ForbiddenException('Only the primary institute admin can manage administrator access');
+    }
     if (!isSuperAdmin && user) {
       const targetInstRow = await this.ds.query(`SELECT institute_id FROM users WHERE id=$1`, [id]);
       if (targetInstRow.length && String(targetInstRow[0].institute_id) !== String(user.instituteId)) {
@@ -1146,16 +1158,29 @@ export class SchoolTeacherService {
       .filter(Boolean);
 
     let newRolesList: string[];
+    let newAdminPermissions: string[] | null = null;
     if (isAdmin) {
       newRolesList = rolesList.includes('INSTITUTE_ADMIN') ? rolesList : [...rolesList, 'INSTITUTE_ADMIN'];
+      // Granting access through this flow is always scoped — there is no way
+      // to hand out unrestricted admin access here; only the SuperAdmin-onboarded
+      // primary admin ever has admin_permissions = NULL (unrestricted).
+      const cleaned = Array.isArray(permissions) ? permissions.filter(isValidAdminPermissionModule) : [];
+      if (cleaned.length === 0) {
+        throw new BadRequestException('Select at least one module to grant access to');
+      }
+      newAdminPermissions = cleaned;
     } else {
       newRolesList = rolesList.filter((r) => r !== 'INSTITUTE_ADMIN');
       if (newRolesList.length === 0) newRolesList = ['TEACHER'];
+      newAdminPermissions = null;
     }
     const newRole = newRolesList.join(',');
 
-    await this.ds.query(`UPDATE users SET role=$2, updated_at=NOW() WHERE id=$1`, [id, newRole]);
-    return { success: true, data: { id, role: newRole } };
+    await this.ds.query(
+      `UPDATE users SET role=$2, admin_permissions=$3, updated_at=NOW() WHERE id=$1`,
+      [id, newRole, newAdminPermissions ? JSON.stringify(newAdminPermissions) : null],
+    );
+    return { success: true, data: { id, role: newRole, adminPermissions: newAdminPermissions } };
   }
 
   async bulkImport(user: any, body: any) {
@@ -1276,7 +1301,7 @@ export class SchoolTeacherService {
         r.id, r.title, r.description, r.recorded_date, r.duration, r.views,
         r.transcript_status, r.notes_status, r.quiz_status,
         r.ai_teaching_analysis, r.ai_teaching_analysis_status,
-        r.created_at, r.language, r.source,
+        r.created_at, r.language, r.source, r.thumbnail_url,
         c.name AS class_name, sec.name AS section_name, sub.name AS subject_name,
         COALESCE(AVG(p.watch_percentage), 0)::int AS avg_watch_pct,
         COUNT(DISTINCT p.student_user_id) AS total_viewers,
@@ -1297,8 +1322,24 @@ export class SchoolTeacherService {
       [instituteId, teacherUserId],
     );
 
+    // Mirrors school-class.service.ts's listRecordings: 'upload' source already
+    // stores a public media.eddva.in CDN URL (never re-sign it — that produces an
+    // invalid URL since it isn't an R2 object key). Only 'live_stream' thumbnails
+    // are stored as raw keys in the private recordings bucket and need presigning.
+    const data = await Promise.all(rows.map(async (row) => {
+      if (row.source === 'live_stream' && row.thumbnail_url) {
+        try {
+          return { ...row, thumbnail_url: await this.r2Service.getSignedUrl(this.r2Service.recordingsBucket, row.thumbnail_url, 3600) };
+        } catch (err: any) {
+          this.logger.warn(`Failed to sign recording thumbnail ${row.id}: ${err?.message}`);
+          return { ...row, thumbnail_url: null };
+        }
+      }
+      return row;
+    }));
+
     return {
-      data: rows,
+      data,
       meta: { total: parseInt(countRows[0]?.total ?? '0'), page, limit },
     };
   }

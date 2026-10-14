@@ -4,10 +4,13 @@ import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolFeature } from '../decorators/school-feature.decorator';
 import { SchoolFeatureGuard } from '../guards/school-feature.guard';
+import { AdminModuleGuard } from '../guards/admin-module.guard';
+import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
 
 @Controller('school/schedules')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard, AdminModuleGuard)
 @SchoolFeature('module', 'timetable')
+@RequireAdminModule('timetable')
 export class SchoolScheduleController {
   constructor(private readonly svc: SchoolTimetableService) {}
 
