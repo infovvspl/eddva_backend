@@ -205,10 +205,11 @@ export class SchoolJwtGuard implements CanActivate {
     }
 
     const rows: any[] = await this.ds.query(
-      `SELECT u.id, u.email, u.name, u.role, u.profile_image, u.institute_id, u.is_active, 
+      `SELECT u.id, u.email, u.name, u.role, u.profile_image, u.institute_id, u.is_active,
               i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status,
               i.logo AS inst_logo, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address,
-              i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features, i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules
+              i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features, i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules,
+              i.erp_enabled AS inst_erp_enabled, i.lms_enabled AS inst_lms_enabled
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE u.id = $1`,
@@ -279,6 +280,8 @@ export class SchoolJwtGuard implements CanActivate {
           aiFeatures: typeof row.inst_ai_features === 'string' ? JSON.parse(row.inst_ai_features) : row.inst_ai_features,
           activeModules: typeof row.inst_active_modules === 'string' ? JSON.parse(row.inst_active_modules) : (row.inst_active_modules ?? []),
           modulesPermissions: typeof row.inst_modules_permissions === 'string' ? JSON.parse(row.inst_modules_permissions) : row.inst_modules_permissions,
+          erpEnabled: row.inst_erp_enabled ?? false,
+          lmsEnabled: row.inst_lms_enabled ?? true,
         }
         : null,
     };

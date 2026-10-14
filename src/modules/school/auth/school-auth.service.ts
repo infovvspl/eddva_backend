@@ -67,7 +67,8 @@ export class SchoolAuthService {
     const rows: any[] = await this.ds.query(
       `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo,
               i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features,
-              i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address
+              i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address,
+              i.erp_enabled AS inst_erp_enabled, i.lms_enabled AS inst_lms_enabled
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE ${whereClause}`,
@@ -164,6 +165,8 @@ export class SchoolAuthService {
         aiFeatures: typeof user.inst_ai_features === 'string' ? JSON.parse(user.inst_ai_features) : (user.inst_ai_features ?? {}),
         activeModules: typeof user.inst_active_modules === 'string' ? JSON.parse(user.inst_active_modules) : (user.inst_active_modules ?? []),
         modulesPermissions: typeof user.inst_modules_permissions === 'string' ? JSON.parse(user.inst_modules_permissions) : (user.inst_modules_permissions ?? {}),
+        erpEnabled: user.inst_erp_enabled ?? false,
+        lmsEnabled: user.inst_lms_enabled ?? true,
       } : null,
       tenantDomain: user.tenant_domain,
     };
@@ -269,6 +272,42 @@ export class SchoolAuthService {
       await this.ds.query(`UPDATE auth_sessions SET is_active = false WHERE id = $1`, [user.sessionId]);
     }
     return { success: true, message: 'Logged out successfully' };
+  }
+
+  /**
+   * Mints a short-lived bridge token for the LMS→ERP SSO handoff. Signed with
+   * SCHOOL_JWT_SECRET specifically — the one secret ERP's core JwtStrategy is
+   * already documented to trust as "LMS-issued" (see eddva_erp_backend's
+   * AUTH_ENV.md / resolveCoreJwtSecrets()). Deliberately short-lived: this is
+   * a one-shot exchange token, not a session credential — ERP verifies it
+   * once, provisions/looks up its own local user, and mints its own native
+   * session token from then on.
+   */
+  async mintErpSsoToken(user: any) {
+    if (!user?.institute?.erpEnabled) {
+      throw new ForbiddenException('This institute does not have ERP access');
+    }
+
+    const secret = process.env.SCHOOL_JWT_SECRET;
+    if (!secret) {
+      throw new InternalServerErrorException('SCHOOL_JWT_SECRET is not configured');
+    }
+
+    const token = jwt.sign(
+      {
+        sub: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        instituteId: user.instituteId ?? user.institute?.id ?? null,
+        tenantType: 'school',
+        purpose: 'erp-sso',
+      },
+      secret,
+      { expiresIn: '2m' },
+    );
+
+    return { success: true, token };
   }
 
   async register(body: any) {

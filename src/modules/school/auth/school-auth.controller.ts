@@ -54,5 +54,13 @@ export class SchoolAuthController {
   logout(@SchoolUser() user: any) {
     return this.authService.logout(user);
   }
+
+  @Post('erp-sso-token')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER', 'STAFF')
+  @Audit({ module: 'Security', action: 'ERP SSO', description: 'Minted ERP SSO token for {user.email}' })
+  @HttpCode(HttpStatus.OK)
+  mintErpSsoToken(@SchoolUser() user: any) {
+    return this.authService.mintErpSsoToken(user);
+  }
 }
 

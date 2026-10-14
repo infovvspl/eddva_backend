@@ -36,6 +36,13 @@ export class SchoolNoticeService {
     const params: any[] = [instituteId];
     if (query.category) { params.push(query.category); filter += ` AND category=$${params.length}`; }
 
+    // Admins manage notices (including expired ones, to edit/delete/extend them); every
+    // other role only ever consumes the feed, so expired notices must drop out for them.
+    const isManager = hasSchoolRole(user.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user.role, 'SUPER_ADMIN');
+    if (!isManager) {
+      filter += ` AND (expiry_date IS NULL OR expiry_date >= NOW())`;
+    }
+
     const page = Math.max(1, parseInt(query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 20));
     const offset = (page - 1) * limit;
