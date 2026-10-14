@@ -424,31 +424,40 @@ export class SchoolMaterialService implements OnModuleInit {
     const type = map[String(body.resourceType || 'notes').toLowerCase()] ?? 'notes';
 
     const targetClassId = body.classId || scope.classId;
-    const targetSectionId = body.sectionId || scope.sectionId;
+    // A teacher who teaches this subject to several sections of the same class
+    // can publish the same AI-generated material to all of them in one save,
+    // instead of regenerating/resaving once per section.
+    const targetSectionIds: (string | null)[] = Array.isArray(body.sectionIds) && body.sectionIds.length
+      ? [...new Set(body.sectionIds)]
+      : [body.sectionId || scope.sectionId || null];
 
-    const rows: any[] = await this.ds.query(
-      `INSERT INTO study_materials (
-        tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
-        subject_id_fk, chapter_id, topic_id, file_size_kb, class_id, section_id, content_source
-      )
-       VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0, $11::uuid, $12::uuid, 'ai')
-       RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId"`,
-      [
-        instituteId,
-        type,
-        body.title || `${ctx.topic_name} — AI content`,
-        ctx.subject_name,
-        ctx.chapter_name,
-        body.content,
-        user.id,
-        ctx.subject_id,
-        ctx.chapter_id,
-        ctx.topic_id,
-        targetClassId,
-        targetSectionId,
-      ],
-    );
-    return { success: true, data: rows[0] };
+    const created: any[] = [];
+    for (const targetSectionId of targetSectionIds) {
+      const rows: any[] = await this.ds.query(
+        `INSERT INTO study_materials (
+          tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
+          subject_id_fk, chapter_id, topic_id, file_size_kb, class_id, section_id, content_source
+        )
+         VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0, $11::uuid, $12::uuid, 'ai')
+         RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId"`,
+        [
+          instituteId,
+          type,
+          body.title || `${ctx.topic_name} — AI content`,
+          ctx.subject_name,
+          ctx.chapter_name,
+          body.content,
+          user.id,
+          ctx.subject_id,
+          ctx.chapter_id,
+          ctx.topic_id,
+          targetClassId,
+          targetSectionId,
+        ],
+      );
+      created.push(rows[0]);
+    }
+    return { success: true, data: created.length === 1 ? created[0] : created };
   }
 
   /** Upper bound on the caller-supplied slide prompt, before styling. */
@@ -969,7 +978,33 @@ export class SchoolMaterialService implements OnModuleInit {
         if (query.sectionId) {
           params.push(query.sectionId);
           const sectionParam = params.length;
-          sql += ` AND sm.class_id = $${classParam}::uuid AND (sm.section_id = $${sectionParam}::uuid OR sm.section_id IS NULL)`;
+          // A NULL section_id (e.g. a chapter textbook trained once for the
+          // whole class) means "every section that actually teaches this
+          // subject" — resolved live against teacher_academic_assignments
+          // rather than frozen at upload time, so a section assigned this
+          // subject later sees it immediately with no backfill. A subject
+          // with no assignment data at all (or no subject link) still shows,
+          // so ungoverned/legacy material isn't hidden by missing rows.
+          sql += ` AND sm.class_id = $${classParam}::uuid AND (
+            sm.section_id = $${sectionParam}::uuid
+            OR (
+              sm.section_id IS NULL
+              AND (
+                sm.subject_id_fk IS NULL
+                OR EXISTS (
+                  SELECT 1 FROM teacher_academic_assignments taa
+                  WHERE taa.subject_id = sm.subject_id_fk
+                    AND taa.class_id = $${classParam}::uuid
+                    AND taa.section_id = $${sectionParam}::uuid
+                )
+                OR NOT EXISTS (
+                  SELECT 1 FROM teacher_academic_assignments taa2
+                  WHERE taa2.subject_id = sm.subject_id_fk
+                    AND taa2.class_id = $${classParam}::uuid
+                )
+              )
+            )
+          )`;
         } else {
           sql += ` AND sm.class_id = $${classParam}::uuid`;
         }
@@ -1037,109 +1072,123 @@ export class SchoolMaterialService implements OnModuleInit {
     if (type === 'flashcard' && !hasFile) assertValidFlashcardContent(body.description);
     const contentSource = hasFile ? 'upload' : 'manual';
 
-    const rows: any[] = await this.ds.query(
-      `INSERT INTO study_materials (
-        tenant_id, 
-        exam, 
-        type, 
-        title, 
-        subject, 
-        chapter, 
-        description, 
-        s3_key, 
-        uploaded_by,
-        subject_id_fk,
-        chapter_id,
-        topic_id,
-        file_size_kb,
-        class_id,
-        section_id,
-        content_source
-       )
-       VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14::uuid, $15)
-       RETURNING *`,
-      [
-        instituteId,
-        type,
-        body.title,
-        resolvedSubjectName,
-        resolvedChapterName,
-        body.description || null,
-        body.fileUrl || '',
-        user.id,
-        requestedSubjectId,
-        body.chapterId || null,
-        body.topicId || null,
-        body.fileSizeKb || 0,
-        body.classId || scope.classId,
-        body.sectionId || scope.sectionId,
-        contentSource,
-      ],
-    );
+    const targetClassId = body.classId || scope.classId;
+    // A teacher who teaches this subject to several sections of the same class
+    // can add the same material to all of them in one save, instead of
+    // repeating the whole upload/typed-content flow once per section.
+    const targetSectionIds: (string | null)[] = Array.isArray(body.sectionIds) && body.sectionIds.length
+      ? [...new Set(body.sectionIds)]
+      : [body.sectionId || scope.sectionId || null];
 
-    const row = rows[0];
-
-    // Notify students
-    try {
-      if (row.class_id) {
-        let studentQuery = `SELECT s.user_id FROM students s JOIN sections sec ON s.section_id = sec.id WHERE sec.class_id::text = $1`;
-        const studentParams = [row.class_id];
-        if (row.section_id) {
-          studentQuery += ` AND s.section_id::text = $2`;
-          studentParams.push(row.section_id);
-        }
-        const studentUsers = await this.ds.query(studentQuery, studentParams);
-
-        const typeLabels: Record<string, string> = {
-          notes: 'Notes',
-          pyq: 'PYQs',
-          formula_sheet: 'Formula Sheet',
-          dpp: 'Daily Assessment',
-          mindmap: 'Mindmap',
-          ppt: 'Presentation',
-          ebook: 'E-book',
-          study_guide: 'Study Guide',
-          key_concepts: 'Key Concepts',
-          flashcard: 'Flashcards',
-          revision_checklist: 'Revision Checklist',
-          faq: 'FAQ',
-        };
-        const fileTypeWord = typeLabels[type] || 'Study Material';
-
-        await Promise.allSettled(
-          studentUsers.map((stu: any) =>
-            this.notificationService.create({
-              recipientId: stu.user_id,
-              type: 'study_material',
-              title: 'New Study Material',
-              message: `${body.title} (${fileTypeWord}) has been uploaded.`,
-              actionUrl: '/school/student/study-materials',
-            }),
-          ),
-        );
-      }
-    } catch (notifErr) {
-      console.error('Failed to send study material upload notifications:', notifErr);
+    const createdRows: any[] = [];
+    for (const targetSectionId of targetSectionIds) {
+      const rows: any[] = await this.ds.query(
+        `INSERT INTO study_materials (
+          tenant_id,
+          exam,
+          type,
+          title,
+          subject,
+          chapter,
+          description,
+          s3_key,
+          uploaded_by,
+          subject_id_fk,
+          chapter_id,
+          topic_id,
+          file_size_kb,
+          class_id,
+          section_id,
+          content_source
+         )
+         VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14::uuid, $15)
+         RETURNING *`,
+        [
+          instituteId,
+          type,
+          body.title,
+          resolvedSubjectName,
+          resolvedChapterName,
+          body.description || null,
+          body.fileUrl || '',
+          user.id,
+          requestedSubjectId,
+          body.chapterId || null,
+          body.topicId || null,
+          body.fileSizeKb || 0,
+          targetClassId,
+          targetSectionId,
+          contentSource,
+        ],
+      );
+      createdRows.push(rows[0]);
     }
+
+    // Notify students of every section the material was just added to.
+    const typeLabels: Record<string, string> = {
+      notes: 'Notes',
+      pyq: 'PYQs',
+      formula_sheet: 'Formula Sheet',
+      dpp: 'Daily Assessment',
+      mindmap: 'Mindmap',
+      ppt: 'Presentation',
+      ebook: 'E-book',
+      study_guide: 'Study Guide',
+      key_concepts: 'Key Concepts',
+      flashcard: 'Flashcards',
+      revision_checklist: 'Revision Checklist',
+      faq: 'FAQ',
+    };
+    const fileTypeWord = typeLabels[type] || 'Study Material';
+    for (const row of createdRows) {
+      try {
+        if (row.class_id) {
+          let studentQuery = `SELECT s.user_id FROM students s JOIN sections sec ON s.section_id = sec.id WHERE sec.class_id::text = $1`;
+          const studentParams = [row.class_id];
+          if (row.section_id) {
+            studentQuery += ` AND s.section_id::text = $2`;
+            studentParams.push(row.section_id);
+          }
+          const studentUsers = await this.ds.query(studentQuery, studentParams);
+
+          await Promise.allSettled(
+            studentUsers.map((stu: any) =>
+              this.notificationService.create({
+                recipientId: stu.user_id,
+                type: 'study_material',
+                title: 'New Study Material',
+                message: `${body.title} (${fileTypeWord}) has been uploaded.`,
+                actionUrl: '/school/student/study-materials',
+              }),
+            ),
+          );
+        }
+      } catch (notifErr) {
+        console.error('Failed to send study material upload notifications:', notifErr);
+      }
+    }
+
+    const toDto = (row: any) => ({
+      id: row.id,
+      tenant_id: row.tenant_id,
+      title: row.title,
+      subjectId: row.subject,
+      description: row.description,
+      fileUrl: row.s3_key,
+      file_url: row.s3_key,
+      fileName: row.chapter,
+      file_name: row.chapter,
+      fileType: row.type,
+      file_type: row.type,
+      classId: row.class_id,
+      sectionId: row.section_id,
+      contentSource: row.content_source,
+    });
+    const dtos = createdRows.map(toDto);
 
     return {
       success: true,
-      data: {
-        id: row.id,
-        tenant_id: row.tenant_id,
-        title: row.title,
-        subjectId: row.subject,
-        description: row.description,
-        fileUrl: row.s3_key,
-        file_url: row.s3_key,
-        fileName: row.chapter,
-        file_name: row.chapter,
-        fileType: row.type,
-        file_type: row.type,
-        classId: row.class_id,
-        sectionId: row.section_id,
-        contentSource: row.content_source,
-      }
+      data: dtos.length === 1 ? dtos[0] : dtos,
     };
   }
 

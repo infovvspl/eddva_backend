@@ -867,9 +867,14 @@ export class SchoolTextbookService implements OnModuleInit {
     await this.ensureSchema();
 
     const chapterRows = await this.ds.query(
-      `SELECT c.id, c.name AS chapter_name, s.id AS subject_id, s.class_id
+      // subjects.class_id is frequently NULL — a subject may carry a section_id
+      // instead (see school-ppt.service.ts's CLASS_JOIN) — so the class is
+      // resolved through the section too, not the subjects row alone.
+      `SELECT c.id, c.name AS chapter_name, s.id AS subject_id,
+              COALESCE(s.class_id, sec.class_id) AS class_id
        FROM chapters c
        JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN sections sec ON sec.id = s.section_id
        WHERE c.id::text = $1::text LIMIT 1`,
       [chapterId],
     );
@@ -880,6 +885,17 @@ export class SchoolTextbookService implements OnModuleInit {
     const key = `tenants/${instituteId}/school-materials/${Date.now()}-${randomUUID()}-${safeName}`;
     const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype || 'application/pdf');
 
+    // A chapter's textbook is trained once for the whole class. section_id is
+    // deliberately left NULL rather than fanned out to today's assigned
+    // sections: fanning out would freeze "which sections see this" as of
+    // training time, so a section added — or newly assigned this subject —
+    // afterwards would silently miss every chapter trained before that
+    // change, needing a re-train or manual backfill to catch up. With NULL,
+    // the materials list (school-material.service.ts) resolves "which
+    // sections of this class actually teach this subject" live, off
+    // teacher_academic_assignments, every time it's queried — so a section
+    // assigned later sees every already-trained chapter immediately, and one
+    // row per chapter never multiplies no matter how many times it's retrained.
     const inserted = await this.ds.query(
       // exam and type are NOT NULL enums; 'school'/'ebook' is what the 300-odd
       // chapter PDFs already in this table use.
