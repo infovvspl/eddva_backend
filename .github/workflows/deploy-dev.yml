@@ -33,7 +33,10 @@ jobs:
       - name: Package the build
         run: |
           mkdir -p release
-          tar -czf release/dist.tgz dist
+          # package.json and package-lock.json travel with the build: the
+          # server needs them for npm ci and cannot fetch them itself (the
+          # repository is private and the server holds no GitHub credentials).
+          tar -czf release/dist.tgz dist package.json package-lock.json
 
       - name: Get runner IP and open EC2 security group
         env:
@@ -73,9 +76,10 @@ jobs:
           script: |
             set -e
             cd /home/ubuntu/eddva_backend_dev
-            git fetch --all
-            git reset --hard origin/dev
             mkdir -p .release
+            # The package files come from the build tarball, not git: the
+            # repository is private and this server has no GitHub credentials.
+            tar -xzf .release/dist.tgz package.json package-lock.json
             # Packages are reinstalled only when package-lock.json changed (most
             # pushes do not), and at low priority so production keeps the CPU.
             LOCK_SHA=$(sha256sum package-lock.json | cut -d' ' -f1)
@@ -89,7 +93,7 @@ jobs:
             # The new build goes in next to the running one and is swapped in
             # just before the restart; the previous one is kept for rollback.
             rm -rf dist.new && mkdir dist.new
-            tar -xzf .release/dist.tgz -C dist.new --strip-components=1
+            tar -xzf .release/dist.tgz -C dist.new --strip-components=1 dist
             test -f dist.new/main.js
             rm -rf dist.prev
             if [ -d dist ]; then mv dist dist.prev; fi
