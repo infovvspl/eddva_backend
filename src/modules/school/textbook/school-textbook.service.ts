@@ -911,6 +911,31 @@ export class SchoolTextbookService implements OnModuleInit {
     );
     const materialId = inserted[0].id;
 
+    // A replacement supersedes every earlier upload made *through this
+    // pipeline* for this chapter. study_materials itself has no upsert key
+    // (unlike textbook_sources, keyed by chapter_id), so without this each
+    // "Replace" piles up another row — the teacher-facing materials list
+    // (school-material.service.ts's list()) has no "latest only" logic and
+    // would show every past version as its own E-book entry instead of just
+    // the one actually being trained.
+    //
+    // Scoped to rows this pipeline itself created (content_source IS NULL,
+    // never set by /school/materials' create(), and tracked in
+    // textbook_link_status, written only by uploadAndIndex/auditLinks) so a
+    // teacher's own "E-book" reference material for the same chapter — a
+    // different, personal upload — is never touched.
+    await this.ds.query(
+      `UPDATE study_materials sm
+          SET is_active = FALSE
+        WHERE sm.chapter_id::text = $1::text
+          AND sm.type = 'ebook'::study_materials_type_enum
+          AND sm.id::text <> $2::text
+          AND sm.tenant_id::text = $3::text
+          AND sm.content_source IS NULL
+          AND EXISTS (SELECT 1 FROM textbook_link_status ls WHERE ls.material_id::text = sm.id::text)`,
+      [chapter.id, materialId, instituteId],
+    );
+
     // A freshly uploaded file is by definition reachable; recording it keeps the
     // bulk run from re-checking and the coverage screen from showing it unknown.
     await this.ds.query(

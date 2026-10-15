@@ -861,6 +861,9 @@ export class SchoolMaterialService implements OnModuleInit {
         sm.class_id AS "classId",
         sm.section_id AS "sectionId",
         sm.content_source AS "contentSource",
+        -- The chapter's currently-indexed AI-grounding textbook (see remove()) —
+        -- surfaced so the frontend can hide the delete action from teachers.
+        EXISTS (SELECT 1 FROM textbook_sources ts WHERE ts.material_id::text = sm.id::text) AS "isTrainedTextbook",
         CASE
           WHEN NULLIF(TRIM(s.name), '') IS NOT NULL THEN s.name
           WHEN NULLIF(TRIM(sm.subject), '') IS NOT NULL AND sm.subject !~* '${UUID_TEXT_PATTERN}' THEN sm.subject
@@ -880,6 +883,9 @@ export class SchoolMaterialService implements OnModuleInit {
       WHERE sm.tenant_id = $1::uuid
         AND (sm.chapter_id IS NULL OR c.id IS NOT NULL)
         AND (sm.topic_id IS NULL OR (t.id IS NOT NULL AND topic_ch.id IS NOT NULL))
+        -- A replaced chapter textbook is deactivated, not deleted (uploadAndIndex) —
+        -- keep it out of the list instead of showing every past version.
+        AND sm.is_active IS NOT FALSE
     `;
     const params: any[] = [instituteId];
 
@@ -1215,6 +1221,7 @@ export class SchoolMaterialService implements OnModuleInit {
         sm.class_id AS "classId",
         sm.section_id AS "sectionId",
         sm.content_source AS "contentSource",
+        EXISTS (SELECT 1 FROM textbook_sources ts WHERE ts.material_id::text = sm.id::text) AS "isTrainedTextbook",
         CASE
           WHEN NULLIF(TRIM(s.name), '') IS NOT NULL THEN s.name
           WHEN NULLIF(TRIM(sm.subject), '') IS NOT NULL AND sm.subject !~* '${UUID_TEXT_PATTERN}' THEN sm.subject
@@ -1347,7 +1354,8 @@ export class SchoolMaterialService implements OnModuleInit {
     const topRows = await this.ds.query(
       `SELECT sm.uploaded_by,
               sm.type::text AS type,
-              COALESCE(sm.subject_id_fk, ch.subject_id, topic_ch.subject_id) AS subject_id
+              COALESCE(sm.subject_id_fk, ch.subject_id, topic_ch.subject_id) AS subject_id,
+              EXISTS (SELECT 1 FROM textbook_sources ts WHERE ts.material_id::text = sm.id::text) AS is_trained_textbook
        FROM study_materials sm
        LEFT JOIN chapters ch ON ch.id::text = sm.chapter_id::text
        LEFT JOIN topics t ON t.id::text = sm.topic_id::text
@@ -1358,6 +1366,16 @@ export class SchoolMaterialService implements OnModuleInit {
     );
     if (!topRows.length) throw new NotFoundException('Material not found');
     const currentSubjectId = topRows[0].subject_id;
+    // textbook_sources.material_id is the chapter's currently-indexed textbook
+    // (school-textbook.service.ts's recordSource) — the AI-grounding source for
+    // every section of the class, not personal content. A teacher may never
+    // delete it — even one who happens to be its uploaded_by (ingest/upload
+    // also accepts TEACHER) or who teaches its subject. Only an admin can
+    // retire it (by replacing it from the Textbook Coverage screen).
+    if (hasSchoolRole(user.role, 'TEACHER') && topRows[0].is_trained_textbook) {
+      this.logger.warn(`[AUDIT] Action: DELETE_MATERIAL_DENIED | Role: ${user.role} | Teacher: ${user.id} | Material: ${id} | Reason: Trained textbook — admin-only | Status: DENIED`);
+      throw new ForbiddenException('Only an admin can delete a trained textbook');
+    }
     const isTeacherOwner = hasSchoolRole(user.role, 'TEACHER') && String(topRows[0].uploaded_by || '') === String(user.id);
     const isLegacyOrphanPpt = hasSchoolRole(user.role, 'TEACHER') && topRows[0].type === 'ppt' && !currentSubjectId;
     if (!isTeacherOwner && !isLegacyOrphanPpt) {
