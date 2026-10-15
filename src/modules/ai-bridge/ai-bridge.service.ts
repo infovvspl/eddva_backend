@@ -1988,6 +1988,16 @@ export class AiBridgeService {
       board?: string;
       /** Passages from the school's own chapter; presence switches on grounding. */
       sourcePassages?: any[];
+      /** Assessment papers: the sections, header, difficulty mix and figure/plot
+       *  rules as the exact strings in extraContext, so the AI service can write
+       *  the objective and written sections in parallel. */
+      paperPlan?: {
+        sections: { letter: string; kind: 'objective' | 'written'; count: number; text: string }[];
+        header: string;
+        difficulty: { line: string; easy: number; medium: number; hard: number } | null;
+        figures: string;
+        plots: string;
+      };
     },
     tenantId?: string,
     vertical?: string,
