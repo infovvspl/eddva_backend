@@ -558,6 +558,14 @@ export class SchoolClassService implements OnModuleInit {
     let effectiveSubjectId = body.subjectId;
     let effectiveChapterId = body.chapterId || null;
     let effectiveTopicId = body.topicId || null;
+    // subjects.class_id is frequently NULL — a subject may carry a section_id
+    // instead (see school-ppt.service.ts's CLASS_JOIN) — so the class is
+    // resolved through the section too, not the subjects row alone. Matching
+    // on sub.class_id directly here mismatched every section-scoped subject,
+    // which fell through to the name-fallback below and could remap
+    // effectiveSubjectId to an unrelated subject row — silently dropping the
+    // selected chapter (it validates against chapters of the *wrong*
+    // subject's id) and leaving videoUrl/title as the lecture's only content.
     const scopeRows = await this.ds.query(
       `SELECT sub.id, sub.name
        FROM sections sec
@@ -567,7 +575,7 @@ export class SchoolClassService implements OnModuleInit {
          AND sec.id::text = $2::text
          AND c.institute_id::text = $3::text
          AND sub.institute_id::text = $3::text
-         AND sub.class_id::text = $1::text
+         AND COALESCE(sub.class_id::text, sec.class_id::text) = $1::text
          AND (sub.section_id IS NULL OR sub.section_id::text = $2::text)
        LIMIT 1`,
       [body.classId, body.sectionId, instituteId, body.subjectId],
@@ -579,10 +587,11 @@ export class SchoolClassService implements OnModuleInit {
          JOIN subjects scoped
            ON LOWER(TRIM(scoped.name)) = LOWER(TRIM(selected.name))
           AND scoped.institute_id::text = selected.institute_id::text
-          AND scoped.class_id::text = $2::text
-          AND (scoped.section_id IS NULL OR scoped.section_id::text = $3::text)
+         LEFT JOIN sections scoped_sec ON scoped_sec.id::text = scoped.section_id::text
          WHERE selected.id::text = $1::text
            AND selected.institute_id::text = $4::text
+           AND COALESCE(scoped.class_id::text, scoped_sec.class_id::text) = $2::text
+           AND (scoped.section_id IS NULL OR scoped.section_id::text = $3::text)
          ORDER BY CASE WHEN scoped.section_id::text = $3::text THEN 0 ELSE 1 END
          LIMIT 1`,
         [body.subjectId, body.classId, body.sectionId, instituteId],
