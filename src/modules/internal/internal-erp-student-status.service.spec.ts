@@ -1,6 +1,10 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InternalErpStudentService } from './internal-erp-student.service';
 
+// SchoolStudentService now imports the document generator, which loads puppeteer
+// (ESM, not transformed by ts-jest). Nothing here renders a PDF.
+jest.mock('puppeteer', () => ({ __esModule: true, default: {} }));
+
 describe('InternalErpStudentService.updateStatus', () => {
   const ds = { query: jest.fn() };
   let service: InternalErpStudentService;

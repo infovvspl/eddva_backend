@@ -1085,6 +1085,20 @@ export class SchoolLiveService implements OnModuleInit {
     }
   }
 
+  /**
+   * Called once the recording queue has exhausted its retries for this lecture
+   * (see RecordingProcessor.onFailed) — without this, a failed job left the row
+   * at status='ENDED' with no recording_url forever, which the admin UI renders
+   * as an infinite "Processing recording…" spinner with no way to tell it had
+   * actually failed.
+   */
+  async markProcessingFailed(lectureId: string): Promise<void> {
+    await this.ds.query(
+      `UPDATE school_live_lectures SET status = 'PROCESSING_FAILED' WHERE id = $1`,
+      [lectureId],
+    );
+  }
+
   async listRecordings(user: SchoolUser) {
     const rows = await this.ds.query(
       `SELECT l.id, l.title,

@@ -17,6 +17,72 @@ import { SchoolSection } from '../school/entities/school-class.entity';
 import { TeacherProfile } from '../../database/entities/teacher.entity';
 import { CreateDocumentTemplateDto, UpdateDocumentTemplateDto, GenerateIdCardDto, GenerateAdmitCardDto } from './dto/document-generator.dto';
 
+/** One page per record, `page-break-after` between them so a multi-student
+ * batch prints as separate sheets instead of running together. */
+const CREDENTIAL_SLIP_TEMPLATE = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, sans-serif; color: #0f172a; }
+  .slip { width: 100%; min-height: 100vh; padding: 56px 64px; page-break-after: always; }
+  .slip:last-child { page-break-after: auto; }
+  .header { text-align: center; margin-bottom: 36px; }
+  .header h1 { margin: 0; font-size: 22px; font-weight: 900; color: #4338ca; }
+  .header p { margin: 4px 0 0; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; }
+  .title { font-size: 18px; font-weight: 800; margin: 32px 0 4px; }
+  .subtitle { font-size: 13px; color: #64748b; margin: 0 0 28px; }
+  .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background: #f8fafc; display: flex; align-items: center; gap: 24px; }
+  .fields { flex: 1; }
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .field-label { font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 3px; }
+  .field-value { font-size: 17px; font-family: 'Courier New', monospace; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 14px; margin: 0; letter-spacing: 0.5px; }
+  .qr { text-align: center; flex-shrink: 0; }
+  .qr img { width: 110px; height: 110px; }
+  .qr p { font-size: 9px; color: #94a3b8; margin: 6px 0 0; }
+  .notice { margin-top: 24px; padding: 12px 16px; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 0 8px 8px 0; font-size: 12px; color: #b45309; }
+  .footer { margin-top: 40px; font-size: 10px; color: #cbd5e1; text-align: center; }
+</style>
+</head>
+<body>
+{{#each this}}
+  <div class="slip">
+    <div class="header">
+      <h1>{{this.instituteName}}</h1>
+      <p>Student Login Credentials</p>
+    </div>
+    <p class="title">{{this.studentName}}</p>
+    <p class="subtitle">Generated {{this.generatedAt}} &middot; Keep this slip secure</p>
+    <div class="card">
+      <div class="fields">
+        <div class="field">
+          <p class="field-label">Login Email</p>
+          <p class="field-value">{{this.studentEmail}}</p>
+        </div>
+        <div class="field">
+          <p class="field-label">Temporary Password</p>
+          <p class="field-value">{{this.tempPassword}}</p>
+        </div>
+        <div class="field">
+          <p class="field-label">Login URL</p>
+          <p class="field-value">{{this.loginUrl}}</p>
+        </div>
+      </div>
+      <div class="qr">
+        <img src="{{this.qrCode}}" alt="QR code to login page" />
+        <p>Scan to open<br/>login page</p>
+      </div>
+    </div>
+    <div class="notice">You will be asked to change this password the first time you log in.</div>
+    <div class="footer">&copy; {{this.instituteName}} &middot; via EDVA Platform</div>
+  </div>
+{{/each}}
+</body>
+</html>
+`;
+
 @Injectable()
 export class DocumentGeneratorService {
   private publicUrl: string;
@@ -488,6 +554,35 @@ export class DocumentGeneratorService {
       targetType: record.targetType,
       details,
     };
+  }
+
+  /**
+   * One or more printable login-credential slips — one page per record,
+   * meant to be handed to a student in class. Unlike ID cards/admit cards/
+   * certificates, this has no admin-managed template (it's a standardized
+   * security document, not a branding surface) and no history/verification
+   * record: it's a one-time handout, not a long-lived physical card with a
+   * LOST/ACTIVE lifecycle. The caller (school-student.service.ts) already has
+   * the student/institute data resolved, so this takes plain records rather
+   * than re-querying by institute/class/section the way generateIdCard does.
+   */
+  async generateCredentialSlip(records: Array<{
+    studentName: string;
+    studentEmail: string;
+    tempPassword: string;
+    instituteName: string;
+    loginUrl: string;
+  }>): Promise<Buffer> {
+    if (!records.length) throw new BadRequestException('At least one record is required');
+
+    const dataList = await Promise.all(records.map(async (r) => ({
+      ...r,
+      qrCode: await QRCode.toDataURL(r.loginUrl, { errorCorrectionLevel: 'M' }),
+      generatedAt: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    })));
+
+    const html = this.compileTemplate(CREDENTIAL_SLIP_TEMPLATE, dataList);
+    return this.renderPdf(html);
   }
 
   private compileTemplate(templateHtml: string, dataList: any[]): string {

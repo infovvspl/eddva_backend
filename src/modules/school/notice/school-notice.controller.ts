@@ -5,9 +5,12 @@ import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { Audit } from '../../audit-log/audit.decorator';
+import { AdminModuleGuard } from '../guards/admin-module.guard';
+import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
 
 @Controller('school/notices')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, AdminModuleGuard)
+@RequireAdminModule('notices')
 export class SchoolNoticeController {
   constructor(private readonly svc: SchoolNoticeService) {}
 

@@ -38,6 +38,7 @@ import { SchoolAiTutorModule } from './ai-tutor/school-ai-tutor.module';
 import { SchoolLiveModule } from './live/school-live.module';
 import { SchoolJwtGuard } from './guards/school-jwt.guard';
 import { SchoolRolesGuard } from './guards/school-roles.guard';
+import { AdminModuleGuard } from './guards/admin-module.guard';
 
 import { SchoolGamificationModule } from './gamification/gamification.module';
 import { SchoolSecurityModule } from './security/school-security.module';
@@ -97,7 +98,7 @@ import { CompetitiveModule } from './competitive/competitive.module';
     CompetitiveModule,
   ],
   // Guards provided here are resolved globally when used with @UseGuards()
-  providers: [SchoolJwtGuard, SchoolRolesGuard],
-  exports: [SchoolJwtGuard, SchoolRolesGuard],
+  providers: [SchoolJwtGuard, SchoolRolesGuard, AdminModuleGuard],
+  exports: [SchoolJwtGuard, SchoolRolesGuard, AdminModuleGuard],
 })
 export class SchoolModule {}

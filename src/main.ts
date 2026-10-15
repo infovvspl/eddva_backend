@@ -119,6 +119,8 @@ async function bootstrap() {
       'x-tenant-subdomain',
       'x-institute-domain',
       'x-vertical',
+      // The portal a school request comes from; see actingUser in school-jwt.guard.
+      'x-school-portal',
       'Cache-Control',
       'Pragma',
       'Expires',

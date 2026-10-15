@@ -6,9 +6,12 @@ import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { Audit } from '../../audit-log/audit.decorator';
+import { AdminModuleGuard } from '../guards/admin-module.guard';
+import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
 
 @Controller('school/students')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, AdminModuleGuard)
+@RequireAdminModule('students')
 export class SchoolStudentController {
   constructor(
     private readonly svc: SchoolStudentService,
@@ -18,6 +21,23 @@ export class SchoolStudentController {
   @Post('bulk-import')
   @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
   bulkImport(@SchoolUser() user: any, @Body() body: any) { return this.svc.bulkImport(user, body); }
+
+  @Post('bulk-send-credentials')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  @Audit({ module: 'Security', action: 'Bulk Send Parent Credentials', description: 'Sent parent credentials to {body.studentIds.length} student(s)' })
+  bulkSendParentCredentials(@SchoolUser() user: any, @Body() body: any) {
+    return this.svc.bulkSendParentCredentials(user, body.studentIds, { skipAlreadySent: body.skipAlreadySent !== false });
+  }
+
+  @Post('bulk-send-student-credentials')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  @Audit({ module: 'Security', action: 'Bulk Send Student Credentials', description: 'Sent student credentials ({body.channel}) to {body.studentIds.length} student(s)' })
+  bulkSendStudentCredentials(@SchoolUser() user: any, @Body() body: any) {
+    return this.svc.bulkSendStudentCredentials(user, body.studentIds, {
+      channel: body.channel,
+      skipAlreadySent: body.skipAlreadySent !== false,
+    });
+  }
 
   @Post()
   @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
@@ -57,8 +77,16 @@ export class SchoolStudentController {
 
   @Post(':id/send-credentials')
   @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  @Audit({ module: 'Security', action: 'Send Parent Credentials', description: 'Sent parent credentials for student ID {params.id}' })
   sendParentCredentials(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) {
     return this.svc.sendParentCredentials(user, id, body);
+  }
+
+  @Post(':id/send-student-credentials')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  @Audit({ module: 'Security', action: 'Send Student Credentials', description: 'Sent student credentials ({body.channel}) for student ID {params.id}' })
+  sendStudentCredentials(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: any) {
+    return this.svc.sendStudentCredentials(user, id, body);
   }
 
   @Post(':id/previous-results')

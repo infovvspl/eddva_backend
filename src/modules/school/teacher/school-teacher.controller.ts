@@ -5,9 +5,12 @@ import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { Audit } from '../../audit-log/audit.decorator';
+import { AdminModuleGuard } from '../guards/admin-module.guard';
+import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
 
 @Controller('school/teachers')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, AdminModuleGuard)
+@RequireAdminModule('teachers')
 export class SchoolTeacherController {
   constructor(private readonly svc: SchoolTeacherService) { }
 
@@ -63,8 +66,8 @@ export class SchoolTeacherController {
   @Put(':id/admin-role')
   @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
   @Audit({ module: 'Users', action: 'Teacher Admin Role', description: 'Changed admin access for teacher ID {params.id}' })
-  setAdminRole(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: { isAdmin: boolean }) {
-    return this.svc.setAdminRole(user, id, !!body?.isAdmin);
+  setAdminRole(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: { isAdmin: boolean; permissions?: string[] }) {
+    return this.svc.setAdminRole(user, id, !!body?.isAdmin, body?.permissions);
   }
 
   @Delete(':id')
