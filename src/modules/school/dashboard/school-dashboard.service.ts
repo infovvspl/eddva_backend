@@ -1149,8 +1149,9 @@ export class SchoolDashboardService {
         id: `att-${a.student_id}`,
         title: `Attendance flag: ${a.name}`,
         message: `${a.name} has ${a.pct}% attendance over the last 30 days (below ${Math.round(Number(a.threshold))}%).`,
-        // Deep-link to the flagged student, not the whole attendance module.
-        actionUrl: `/school/admin/students/${a.student_id}`,
+        // Deep-link to the flagged student's Attendance tab, defaulted to the same
+        // trailing 30-day window used above, not the whole attendance module.
+        actionUrl: `/school/admin/students/${a.student_id}?flag=attendance`,
         priority: 'HIGH',
       })),
       ...performance.map((a: any) => ({
