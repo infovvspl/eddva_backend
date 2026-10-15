@@ -4,8 +4,10 @@ import { SchoolStudentController } from './school-student.controller';
 import { SchoolUserController } from './school-user.controller';
 import { SchoolStudentExitService } from './school-student-exit.service';
 import { SchoolStudentExitController } from './school-student-exit.controller';
+import { DocumentGeneratorModule } from '../../document-generator/document-generator.module';
 
 @Module({
+  imports: [DocumentGeneratorModule],
   controllers: [
     SchoolStudentController,
     SchoolUserController,

@@ -59,6 +59,15 @@ jobs:
             echo "Installing dependencies..."
             npm ci --production=false
 
+            # Prune the install caches. ffmpeg-static's postinstall downloads a
+            # ~70MB binary into ~/.cache on every npm ci, and nothing ever
+            # removed it: on 2026-10-04 that cache had reached 9.1GB across
+            # ~130 deploys, filled the 24GB root volume, killed the pm2 daemon
+            # and took dev AND prod down until the disk was cleared by hand.
+            # Both caches are rebuilt on demand, so dropping them costs only a
+            # slower next install.
+            rm -rf /home/ubuntu/.cache/ffmpeg-static-nodejs "$HOME/.npm/_cacache"
+
             echo "Building TypeScript..."
             npm run build
 

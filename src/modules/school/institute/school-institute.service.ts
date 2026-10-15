@@ -100,8 +100,8 @@ export class SchoolInstituteService {
       const hashed = await bcrypt.hash(body.adminPassword, 12);
       const adminName = body.principalName || body.adminName || 'Admin';
       await this.ds.query(
-        `INSERT INTO users (institute_id, name, email, password, role, phone, is_active)
-         VALUES ($1,$2,$3,$4,'INSTITUTE_ADMIN',$5,TRUE)`,
+        `INSERT INTO users (institute_id, name, email, password, role, phone, is_active, is_primary_admin)
+         VALUES ($1,$2,$3,$4,'INSTITUTE_ADMIN',$5,TRUE,TRUE)`,
         [institute.id, adminName, body.email, hashed, body.phone || null]
       );
     }
@@ -483,8 +483,8 @@ export class SchoolInstituteService {
     if (!adminEmail || !hashedPassword) return;
 
     await this.ds.query(
-      `INSERT INTO users (institute_id, name, email, password, role, phone, is_active)
-       VALUES ($1, $2, $3, $4, 'INSTITUTE_ADMIN', $5, TRUE)`,
+      `INSERT INTO users (institute_id, name, email, password, role, phone, is_active, is_primary_admin)
+       VALUES ($1, $2, $3, $4, 'INSTITUTE_ADMIN', $5, TRUE, TRUE)`,
       [
         instituteId,
         adminName || 'Admin',

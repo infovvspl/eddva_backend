@@ -147,6 +147,8 @@ export class SchoolAuthService {
         role: user.role,
         isActive: user.is_active,
         profileImage: user.profile_image,
+        isPrimaryAdmin: user.is_primary_admin === true,
+        adminPermissions: typeof user.admin_permissions === 'string' ? JSON.parse(user.admin_permissions) : user.admin_permissions,
 
         phone: user.phone,
         instituteId: user.institute_id,

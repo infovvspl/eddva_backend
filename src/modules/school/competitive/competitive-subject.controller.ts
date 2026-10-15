@@ -6,10 +6,13 @@ import { SchoolUser } from '../decorators/school-user.decorator';
 import { CompetitiveFeatureGuard } from './competitive-feature.guard';
 import { CompetitiveSubjectService } from './competitive-subject.service';
 import { CreateCompetitiveSubjectDto, CreateGroundingLinkDto, UpdateCompetitiveSubjectDto } from './dto/competitive-subject.dto';
+import { AdminModuleGuard } from '../guards/admin-module.guard';
+import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
 
 @Controller('school/competitive/subjects')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard, CompetitiveFeatureGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, CompetitiveFeatureGuard, AdminModuleGuard)
 @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN', 'TEACHER')
+@RequireAdminModule('competitive_exam_prep')
 export class CompetitiveSubjectController {
   constructor(private readonly svc: CompetitiveSubjectService) {}
 

@@ -205,7 +205,8 @@ export class SchoolJwtGuard implements CanActivate {
     }
 
     const rows: any[] = await this.ds.query(
-      `SELECT u.id, u.email, u.name, u.role, u.profile_image, u.institute_id, u.is_active, 
+      `SELECT u.id, u.email, u.name, u.role, u.profile_image, u.institute_id, u.is_active,
+              u.is_primary_admin, u.admin_permissions,
               i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status,
               i.logo AS inst_logo, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address,
               i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features, i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules
@@ -259,6 +260,8 @@ export class SchoolJwtGuard implements CanActivate {
       profile_image: row.profile_image,
       instituteId: resolvedInstituteId,
       isActive: row.is_active,
+      isPrimaryAdmin: row.is_primary_admin === true,
+      adminPermissions: typeof row.admin_permissions === 'string' ? JSON.parse(row.admin_permissions) : row.admin_permissions,
       sessionId,
       inst_ai_enabled: row.inst_ai_enabled,
       inst_ai_features: typeof row.inst_ai_features === 'string' ? JSON.parse(row.inst_ai_features) : row.inst_ai_features,

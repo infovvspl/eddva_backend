@@ -7,9 +7,12 @@ import { SchoolRoles } from '../decorators/school-roles.decorator';
 
 import { AuditLogService } from '../../audit-log/audit-log.service';
 import { hasSchoolRole } from '../common/role-helper';
+import { AdminModuleGuard } from '../guards/admin-module.guard';
+import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
 
 @Controller('school/admin/audit-logs')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, AdminModuleGuard)
+@RequireAdminModule('audit_logs')
 export class SchoolActivityLogController {
   constructor(
     private readonly svc: SchoolActivityLogService,

@@ -1,4 +1,4 @@
-import { Process, Processor } from '@nestjs/bull';
+import { OnQueueFailed, Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bull';
@@ -155,5 +155,36 @@ export class RecordingProcessor {
 
   private safeUnlink(filePath: string) {
     try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch { /* non-fatal */ }
+  }
+
+  /**
+   * Without this, a failed job (streaming server unreachable, ffmpeg missing,
+   * R2 error, the 600s wait timing out...) left the lecture row stuck at
+   * status='ENDED'/recording_url=NULL forever once Bull's retries ran out —
+   * the admin UI has no way to distinguish that from "still processing" and
+   * shows an infinite spinner. Mirrors LectureProcessor.onFailed in
+   * ../school/class/lecture.processor.ts, the sibling queue that already does
+   * this correctly.
+   */
+  @OnQueueFailed()
+  async onFailed(job: Job<RecordingJobData>, err: Error) {
+    if (job.name !== RECORDING_JOB || !job.data) return;
+    const attempts = job.opts?.attempts ?? 1;
+    const exhausted = job.attemptsMade >= attempts;
+    this.logger.warn(
+      `Recording job failed vertical=${job.data.vertical ?? 'coaching'} lecture=${job.data.lectureId} ` +
+      `attempt=${job.attemptsMade}/${attempts} exhausted=${exhausted}: ${err?.message}`,
+    );
+    if (!exhausted) return;
+
+    try {
+      if (job.data.vertical === 'school') {
+        await this.schoolSvc.markProcessingFailed(job.data.lectureId);
+      } else {
+        await this.svc.markProcessingFailed(job.data.lectureId);
+      }
+    } catch (markErr: any) {
+      this.logger.error(`Failed to persist PROCESSING_FAILED for lecture=${job.data.lectureId}: ${markErr?.message}`);
+    }
   }
 }
