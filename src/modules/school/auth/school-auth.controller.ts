@@ -29,11 +29,20 @@ export class SchoolAuthController {
     return this.authService.register(body);
   }
 
-  @Post('register-user')
-  @Audit({ module: 'Users', action: 'Admin Create', description: 'Registered school user {body.email}' })
+  @Post('sso')
+  @Audit({ module: 'Security', action: 'ERP SSO', description: 'Switched to LMS via ERP SSO' })
   @SchoolPublic()
-  async registerUser(@Body() body: any) {
-    return this.authService.registerUser(body);
+  @HttpCode(HttpStatus.OK)
+  async sso(@Body('token') token: string, @Ip() ip: string, @Headers('user-agent') userAgent: string) {
+    const data = await this.authService.ssoLogin(token, ip, userAgent);
+    return { success: true, message: 'Login successful', ...data };
+  }
+
+  @Post('register-user')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  @Audit({ module: 'Users', action: 'Admin Create', description: 'Registered school user {body.email}' })
+  async registerUser(@SchoolUser() actor: any, @Body() body: any) {
+    return this.authService.registerUser(actor, body);
   }
 
   @Get('me')
