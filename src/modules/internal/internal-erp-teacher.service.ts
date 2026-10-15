@@ -116,4 +116,62 @@ export class InternalErpTeacherService {
 
     return { teacherId, updated: true };
   }
+
+  /** Resolves a teacher's own LMS user id to their teacherId/employeeId — used by the ERP's teacher self-service SSO exchange. */
+  async resolveByUserId(instituteId: string, userId: string): Promise<{ teacherId: string; employeeId: string | null; name: string; email: string }> {
+    if (!instituteId || !userId) {
+      throw new BadRequestException(this.fail('INVALID_PAYLOAD', 'instituteId and userId are required'));
+    }
+
+    const found: any[] = await this.ds.query(
+      `SELECT t.id AS teacher_id, t.employee_id, u.name, u.email
+       FROM teachers t JOIN users u ON u.id = t.user_id
+       WHERE t.institute_id=$1 AND t.user_id=$2`,
+      [instituteId, userId],
+    );
+    if (!found.length) throw new NotFoundException(this.fail('TEACHER_NOT_FOUND', 'No LMS teacher profile matches this user'));
+
+    return { teacherId: found[0].teacher_id, employeeId: found[0].employee_id, name: found[0].name, email: found[0].email };
+  }
+
+  /** Read-only list of every LMS teacher for an institute — for the ERP to show which ones it already has a matching staff record for. */
+  async listForInstitute(instituteId: string): Promise<
+    Array<{
+      teacherId: string;
+      employeeId: string | null;
+      name: string;
+      email: string;
+      department: string | null;
+      designation: string | null;
+      joiningDate: string | null;
+      isActive: boolean;
+    }>
+  > {
+    if (!instituteId) {
+      throw new BadRequestException(this.fail('INVALID_PAYLOAD', 'instituteId is required'));
+    }
+
+    const inst: any[] = await this.ds.query(`SELECT id, erp_enabled FROM institutes WHERE id=$1`, [instituteId]);
+    if (!inst.length) throw new NotFoundException(this.fail('INSTITUTE_NOT_FOUND', 'Institute not found in LMS'));
+    if (!inst[0].erp_enabled) throw new ForbiddenException(this.fail('ERP_NOT_ENABLED', 'ERP integration is not enabled for this institute'));
+
+    const rows: any[] = await this.ds.query(
+      `SELECT t.id AS teacher_id, t.employee_id, t.department, t.designation, t.joining_date, u.name, u.email, u.is_active
+       FROM teachers t JOIN users u ON u.id = t.user_id
+       WHERE t.institute_id = $1
+       ORDER BY u.name ASC`,
+      [instituteId],
+    );
+
+    return rows.map((r) => ({
+      teacherId: r.teacher_id,
+      employeeId: r.employee_id,
+      name: r.name,
+      email: r.email,
+      department: r.department,
+      designation: r.designation,
+      joiningDate: r.joining_date,
+      isActive: r.is_active,
+    }));
+  }
 }

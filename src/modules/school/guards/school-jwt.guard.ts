@@ -16,6 +16,32 @@ import { hasSchoolRole } from '../common/role-helper';
 // calls at once) without re-querying. TTL stays small so role/active changes
 // take effect quickly.
 const USER_CACHE = new Map<string, { user: any; exp: number }>();
+
+/** Sent by the frontend from the teacher portal (see actingUser). */
+export const PORTAL_HEADER = 'x-school-portal';
+
+/**
+ * The user a request acts as. From the teacher portal, an account that is a
+ * teacher and also holds other roles (e.g. 'TEACHER,INSTITUTE_ADMIN') is a
+ * plain TEACHER for that request: a sub-admin whose admin access was limited
+ * to some modules keeps all of their teacher access, and gains nothing from
+ * their admin role there. Without this, AdminModuleGuard applied the admin
+ * limits inside the teacher portal too - a teacher limited to the Students
+ * module got 403 on their own profile and the class list, and their
+ * timetable showed no classes.
+ *
+ * It only ever narrows: the header changes nothing unless the account really
+ * has the TEACHER role, so it cannot be used to gain access. The cached user
+ * object is never modified. /school/auth/* always answers for the whole
+ * account, so the session the frontend keeps still knows the admin role.
+ */
+export function actingUser(user: any, portal: unknown, url = ''): any {
+  if (String(portal || '').trim().toLowerCase() !== 'teacher') return user;
+  if (/\/school\/auth(\/|\?|$)/.test(String(url))) return user;
+  if (!user || !hasSchoolRole(user.role, 'TEACHER')) return user;
+  if (String(user.role).trim().toUpperCase() === 'TEACHER') return user;
+  return { ...user, role: 'TEACHER', accountRole: user.role, isPrimaryAdmin: false, adminPermissions: null };
+}
 const SESSION_CACHE = new Map<string, { exp: number }>();
 const USER_TTL_MS = 30_000;
 
@@ -200,7 +226,7 @@ export class SchoolJwtGuard implements CanActivate {
 
     const cached = USER_CACHE.get(userId);
     if (cached && cached.exp > Date.now()) {
-      req.user = cached.user;
+      req.user = actingUser(cached.user, req.headers[PORTAL_HEADER], req.originalUrl || req.url);
       return true;
     }
 
@@ -209,7 +235,8 @@ export class SchoolJwtGuard implements CanActivate {
               u.is_primary_admin, u.admin_permissions,
               i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status,
               i.logo AS inst_logo, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address,
-              i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features, i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules
+              i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features, i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules,
+              i.erp_enabled AS inst_erp_enabled, i.lms_enabled AS inst_lms_enabled
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE u.id = $1`,
@@ -282,11 +309,13 @@ export class SchoolJwtGuard implements CanActivate {
           aiFeatures: typeof row.inst_ai_features === 'string' ? JSON.parse(row.inst_ai_features) : row.inst_ai_features,
           activeModules: typeof row.inst_active_modules === 'string' ? JSON.parse(row.inst_active_modules) : (row.inst_active_modules ?? []),
           modulesPermissions: typeof row.inst_modules_permissions === 'string' ? JSON.parse(row.inst_modules_permissions) : row.inst_modules_permissions,
+          erpEnabled: row.inst_erp_enabled ?? false,
+          lmsEnabled: row.inst_lms_enabled ?? true,
         }
         : null,
     };
     USER_CACHE.set(userId, { user: resolvedUser, exp: Date.now() + USER_TTL_MS });
-    req.user = resolvedUser;
+    req.user = actingUser(resolvedUser, req.headers[PORTAL_HEADER], req.originalUrl || req.url);
     return true;
   }
 

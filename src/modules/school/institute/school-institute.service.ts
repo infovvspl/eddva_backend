@@ -51,11 +51,11 @@ export class SchoolInstituteService {
           name, email, phone, address, city, state, pin_code, logo, tenant_domain, status,
           alternate_phone, principal_name, registration_no, plot_no, street_name, land_mark, district,
           website, school_type, board, established_year, affiliation_no, total_classes,
-          total_students, total_teachers, ai_enabled, ai_features, active_modules
+          total_students, total_teachers, ai_enabled, ai_features, active_modules, erp_enabled, lms_enabled
          )
          VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
+          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30
          ) RETURNING *`,
         [
           name.trim(),
@@ -86,6 +86,8 @@ export class SchoolInstituteService {
           body.aiEnabled ?? body.ai_enabled ?? false,
           JSON.stringify(body.aiFeatures || body.ai_features || {}),
           JSON.stringify(body.activeModules || body.active_modules || []),
+          body.erpEnabled ?? body.erp_enabled ?? false,
+          body.lmsEnabled ?? body.lms_enabled ?? true,
         ],
       );
       institute = rows[0];
@@ -362,8 +364,10 @@ export class SchoolInstituteService {
     const aiFeatures = body.aiFeatures ?? body.ai_features;
     const activeModules = body.activeModules ?? body.active_modules;
     const modulesPermissions = body.modulesPermissions ?? body.modules_permissions;
+    const erpEnabled = body.erpEnabled ?? body.erp_enabled;
+    const lmsEnabled = body.lmsEnabled ?? body.lms_enabled;
 
-    console.log('UPDATE INSTITUTE - BODY:', JSON.stringify({ aiEnabled, aiFeatures, modulesPermissions }));
+    console.log('UPDATE INSTITUTE - BODY:', JSON.stringify({ aiEnabled, aiFeatures, modulesPermissions, erpEnabled, lmsEnabled }));
 
     await this.ds.query(
       `UPDATE institutes SET
@@ -389,6 +393,8 @@ export class SchoolInstituteService {
        active_modules=CASE WHEN $22::jsonb IS NOT NULL THEN $22::jsonb ELSE active_modules END,
        board=COALESCE($21,board),
        min_attendance_percentage=COALESCE($23::numeric,min_attendance_percentage),
+       erp_enabled=COALESCE($24::boolean,erp_enabled),
+       lms_enabled=COALESCE($25::boolean,lms_enabled),
        updated_at=NOW() WHERE id=$1`,
       [
         id,
@@ -414,6 +420,8 @@ export class SchoolInstituteService {
         body.board || null,
         activeModules !== undefined ? JSON.stringify(activeModules) : null,
         body.minAttendancePercentage ?? body.min_attendance_percentage ?? null,
+        erpEnabled !== undefined ? erpEnabled : null,
+        lmsEnabled !== undefined ? lmsEnabled : null,
       ],
     );
 

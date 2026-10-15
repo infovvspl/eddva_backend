@@ -10,6 +10,7 @@ import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 import { hasSchoolRole } from '../common/role-helper';
+import { rehostLocalImages } from './local-image-rehost';
 
 /** Material types accepted by the study_materials.type enum (school). */
 const ALLOWED_MATERIAL_TYPES = [
@@ -424,31 +425,40 @@ export class SchoolMaterialService implements OnModuleInit {
     const type = map[String(body.resourceType || 'notes').toLowerCase()] ?? 'notes';
 
     const targetClassId = body.classId || scope.classId;
-    const targetSectionId = body.sectionId || scope.sectionId;
+    // A teacher who teaches this subject to several sections of the same class
+    // can publish the same AI-generated material to all of them in one save,
+    // instead of regenerating/resaving once per section.
+    const targetSectionIds: (string | null)[] = Array.isArray(body.sectionIds) && body.sectionIds.length
+      ? [...new Set(body.sectionIds)]
+      : [body.sectionId || scope.sectionId || null];
 
-    const rows: any[] = await this.ds.query(
-      `INSERT INTO study_materials (
-        tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
-        subject_id_fk, chapter_id, topic_id, file_size_kb, class_id, section_id, content_source
-      )
-       VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0, $11::uuid, $12::uuid, 'ai')
-       RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId"`,
-      [
-        instituteId,
-        type,
-        body.title || `${ctx.topic_name} — AI content`,
-        ctx.subject_name,
-        ctx.chapter_name,
-        body.content,
-        user.id,
-        ctx.subject_id,
-        ctx.chapter_id,
-        ctx.topic_id,
-        targetClassId,
-        targetSectionId,
-      ],
-    );
-    return { success: true, data: rows[0] };
+    const created: any[] = [];
+    for (const targetSectionId of targetSectionIds) {
+      const rows: any[] = await this.ds.query(
+        `INSERT INTO study_materials (
+          tenant_id, exam, type, title, subject, chapter, description, s3_key, uploaded_by,
+          subject_id_fk, chapter_id, topic_id, file_size_kb, class_id, section_id, content_source
+        )
+         VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, '', $7, $8, $9, $10, 0, $11::uuid, $12::uuid, 'ai')
+         RETURNING id, title, type::text AS "fileType", description, topic_id AS "topicId"`,
+        [
+          instituteId,
+          type,
+          body.title || `${ctx.topic_name} — AI content`,
+          ctx.subject_name,
+          ctx.chapter_name,
+          body.content,
+          user.id,
+          ctx.subject_id,
+          ctx.chapter_id,
+          ctx.topic_id,
+          targetClassId,
+          targetSectionId,
+        ],
+      );
+      created.push(rows[0]);
+    }
+    return { success: true, data: created.length === 1 ? created[0] : created };
   }
 
   /** Upper bound on the caller-supplied slide prompt, before styling. */
@@ -674,6 +684,29 @@ export class SchoolMaterialService implements OnModuleInit {
     return { fileUrl, key };
   }
 
+  /**
+   * The material's description with every picture that only works on the
+   * computer that made it (http://localhost:…) stored in R2 instead. See
+   * local-image-rehost.ts. A picture that cannot be fetched keeps its address
+   * and is logged; saving never fails here.
+   */
+  private async publicImages(instituteId: string, description: any): Promise<any> {
+    if (typeof description !== 'string' || !description) return description;
+    const { description: out, moved, failed } = await rehostLocalImages(description, async (url) => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      if (!res.ok) return null;
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const contentType = res.headers.get('content-type') || 'image/png';
+      const name = (url.split('?')[0].split('/').pop() || '').replace(/[^a-zA-Z0-9.\-_]/g, '') || `${randomUUID()}.png`;
+      return this.s3Service.upload(`tenants/${instituteId}/ppt-slide-images/${name}`, buffer, contentType);
+    });
+    if (moved) this.logger.log(`Material pictures moved from a local address to storage: ${moved}`);
+    if (failed.length) {
+      this.logger.warn(`Material saved with ${failed.length} picture(s) at a local address that could not be fetched: ${failed.slice(0, 3).join(', ')}`);
+    }
+    return out;
+  }
+
   private async validateTeacherAssignment(user: any, subjectId: string | null, action: string) {
     if (!hasSchoolRole(user.role, 'TEACHER')) return;
     if (!subjectId) {
@@ -852,6 +885,9 @@ export class SchoolMaterialService implements OnModuleInit {
         sm.class_id AS "classId",
         sm.section_id AS "sectionId",
         sm.content_source AS "contentSource",
+        -- The chapter's currently-indexed AI-grounding textbook (see remove()) —
+        -- surfaced so the frontend can hide the delete action from teachers.
+        EXISTS (SELECT 1 FROM textbook_sources ts WHERE ts.material_id::text = sm.id::text) AS "isTrainedTextbook",
         CASE
           WHEN NULLIF(TRIM(s.name), '') IS NOT NULL THEN s.name
           WHEN NULLIF(TRIM(sm.subject), '') IS NOT NULL AND sm.subject !~* '${UUID_TEXT_PATTERN}' THEN sm.subject
@@ -871,6 +907,9 @@ export class SchoolMaterialService implements OnModuleInit {
       WHERE sm.tenant_id = $1::uuid
         AND (sm.chapter_id IS NULL OR c.id IS NOT NULL)
         AND (sm.topic_id IS NULL OR (t.id IS NOT NULL AND topic_ch.id IS NOT NULL))
+        -- A replaced chapter textbook is deactivated, not deleted (uploadAndIndex) —
+        -- keep it out of the list instead of showing every past version.
+        AND sm.is_active IS NOT FALSE
     `;
     const params: any[] = [instituteId];
 
@@ -969,7 +1008,33 @@ export class SchoolMaterialService implements OnModuleInit {
         if (query.sectionId) {
           params.push(query.sectionId);
           const sectionParam = params.length;
-          sql += ` AND sm.class_id = $${classParam}::uuid AND (sm.section_id = $${sectionParam}::uuid OR sm.section_id IS NULL)`;
+          // A NULL section_id (e.g. a chapter textbook trained once for the
+          // whole class) means "every section that actually teaches this
+          // subject" — resolved live against teacher_academic_assignments
+          // rather than frozen at upload time, so a section assigned this
+          // subject later sees it immediately with no backfill. A subject
+          // with no assignment data at all (or no subject link) still shows,
+          // so ungoverned/legacy material isn't hidden by missing rows.
+          sql += ` AND sm.class_id = $${classParam}::uuid AND (
+            sm.section_id = $${sectionParam}::uuid
+            OR (
+              sm.section_id IS NULL
+              AND (
+                sm.subject_id_fk IS NULL
+                OR EXISTS (
+                  SELECT 1 FROM teacher_academic_assignments taa
+                  WHERE taa.subject_id = sm.subject_id_fk
+                    AND taa.class_id = $${classParam}::uuid
+                    AND taa.section_id = $${sectionParam}::uuid
+                )
+                OR NOT EXISTS (
+                  SELECT 1 FROM teacher_academic_assignments taa2
+                  WHERE taa2.subject_id = sm.subject_id_fk
+                    AND taa2.class_id = $${classParam}::uuid
+                )
+              )
+            )
+          )`;
         } else {
           sql += ` AND sm.class_id = $${classParam}::uuid`;
         }
@@ -1037,109 +1102,125 @@ export class SchoolMaterialService implements OnModuleInit {
     if (type === 'flashcard' && !hasFile) assertValidFlashcardContent(body.description);
     const contentSource = hasFile ? 'upload' : 'manual';
 
-    const rows: any[] = await this.ds.query(
-      `INSERT INTO study_materials (
-        tenant_id, 
-        exam, 
-        type, 
-        title, 
-        subject, 
-        chapter, 
-        description, 
-        s3_key, 
-        uploaded_by,
-        subject_id_fk,
-        chapter_id,
-        topic_id,
-        file_size_kb,
-        class_id,
-        section_id,
-        content_source
-       )
-       VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14::uuid, $15)
-       RETURNING *`,
-      [
-        instituteId,
-        type,
-        body.title,
-        resolvedSubjectName,
-        resolvedChapterName,
-        body.description || null,
-        body.fileUrl || '',
-        user.id,
-        requestedSubjectId,
-        body.chapterId || null,
-        body.topicId || null,
-        body.fileSizeKb || 0,
-        body.classId || scope.classId,
-        body.sectionId || scope.sectionId,
-        contentSource,
-      ],
-    );
+    const targetClassId = body.classId || scope.classId;
+    // A teacher who teaches this subject to several sections of the same class
+    // can add the same material to all of them in one save, instead of
+    // repeating the whole upload/typed-content flow once per section.
+    const targetSectionIds: (string | null)[] = Array.isArray(body.sectionIds) && body.sectionIds.length
+      ? [...new Set(body.sectionIds)]
+      : [body.sectionId || scope.sectionId || null];
 
-    const row = rows[0];
+    body.description = await this.publicImages(instituteId, body.description);
 
-    // Notify students
-    try {
-      if (row.class_id) {
-        let studentQuery = `SELECT s.user_id FROM students s JOIN sections sec ON s.section_id = sec.id WHERE sec.class_id::text = $1`;
-        const studentParams = [row.class_id];
-        if (row.section_id) {
-          studentQuery += ` AND s.section_id::text = $2`;
-          studentParams.push(row.section_id);
-        }
-        const studentUsers = await this.ds.query(studentQuery, studentParams);
-
-        const typeLabels: Record<string, string> = {
-          notes: 'Notes',
-          pyq: 'PYQs',
-          formula_sheet: 'Formula Sheet',
-          dpp: 'Daily Assessment',
-          mindmap: 'Mindmap',
-          ppt: 'Presentation',
-          ebook: 'E-book',
-          study_guide: 'Study Guide',
-          key_concepts: 'Key Concepts',
-          flashcard: 'Flashcards',
-          revision_checklist: 'Revision Checklist',
-          faq: 'FAQ',
-        };
-        const fileTypeWord = typeLabels[type] || 'Study Material';
-
-        await Promise.allSettled(
-          studentUsers.map((stu: any) =>
-            this.notificationService.create({
-              recipientId: stu.user_id,
-              type: 'study_material',
-              title: 'New Study Material',
-              message: `${body.title} (${fileTypeWord}) has been uploaded.`,
-              actionUrl: '/school/student/study-materials',
-            }),
-          ),
-        );
-      }
-    } catch (notifErr) {
-      console.error('Failed to send study material upload notifications:', notifErr);
+    const createdRows: any[] = [];
+    for (const targetSectionId of targetSectionIds) {
+      const rows: any[] = await this.ds.query(
+        `INSERT INTO study_materials (
+          tenant_id,
+          exam,
+          type,
+          title,
+          subject,
+          chapter,
+          description,
+          s3_key,
+          uploaded_by,
+          subject_id_fk,
+          chapter_id,
+          topic_id,
+          file_size_kb,
+          class_id,
+          section_id,
+          content_source
+         )
+         VALUES ($1::uuid, 'school'::study_materials_exam_enum, $2::study_materials_type_enum, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14::uuid, $15)
+         RETURNING *`,
+        [
+          instituteId,
+          type,
+          body.title,
+          resolvedSubjectName,
+          resolvedChapterName,
+          body.description || null,
+          body.fileUrl || '',
+          user.id,
+          requestedSubjectId,
+          body.chapterId || null,
+          body.topicId || null,
+          body.fileSizeKb || 0,
+          targetClassId,
+          targetSectionId,
+          contentSource,
+        ],
+      );
+      createdRows.push(rows[0]);
     }
+
+    // Notify students of every section the material was just added to.
+    const typeLabels: Record<string, string> = {
+      notes: 'Notes',
+      pyq: 'PYQs',
+      formula_sheet: 'Formula Sheet',
+      dpp: 'Daily Assessment',
+      mindmap: 'Mindmap',
+      ppt: 'Presentation',
+      ebook: 'E-book',
+      study_guide: 'Study Guide',
+      key_concepts: 'Key Concepts',
+      flashcard: 'Flashcards',
+      revision_checklist: 'Revision Checklist',
+      faq: 'FAQ',
+    };
+    const fileTypeWord = typeLabels[type] || 'Study Material';
+    for (const row of createdRows) {
+      try {
+        if (row.class_id) {
+          let studentQuery = `SELECT s.user_id FROM students s JOIN sections sec ON s.section_id = sec.id WHERE sec.class_id::text = $1`;
+          const studentParams = [row.class_id];
+          if (row.section_id) {
+            studentQuery += ` AND s.section_id::text = $2`;
+            studentParams.push(row.section_id);
+          }
+          const studentUsers = await this.ds.query(studentQuery, studentParams);
+
+          await Promise.allSettled(
+            studentUsers.map((stu: any) =>
+              this.notificationService.create({
+                recipientId: stu.user_id,
+                type: 'study_material',
+                title: 'New Study Material',
+                message: `${body.title} (${fileTypeWord}) has been uploaded.`,
+                actionUrl: '/school/student/study-materials',
+              }),
+            ),
+          );
+        }
+      } catch (notifErr) {
+        console.error('Failed to send study material upload notifications:', notifErr);
+      }
+    }
+
+    const toDto = (row: any) => ({
+      id: row.id,
+      tenant_id: row.tenant_id,
+      title: row.title,
+      subjectId: row.subject,
+      description: row.description,
+      fileUrl: row.s3_key,
+      file_url: row.s3_key,
+      fileName: row.chapter,
+      file_name: row.chapter,
+      fileType: row.type,
+      file_type: row.type,
+      classId: row.class_id,
+      sectionId: row.section_id,
+      contentSource: row.content_source,
+    });
+    const dtos = createdRows.map(toDto);
 
     return {
       success: true,
-      data: {
-        id: row.id,
-        tenant_id: row.tenant_id,
-        title: row.title,
-        subjectId: row.subject,
-        description: row.description,
-        fileUrl: row.s3_key,
-        file_url: row.s3_key,
-        fileName: row.chapter,
-        file_name: row.chapter,
-        fileType: row.type,
-        file_type: row.type,
-        classId: row.class_id,
-        sectionId: row.section_id,
-        contentSource: row.content_source,
-      }
+      data: dtos.length === 1 ? dtos[0] : dtos,
     };
   }
 
@@ -1166,6 +1247,7 @@ export class SchoolMaterialService implements OnModuleInit {
         sm.class_id AS "classId",
         sm.section_id AS "sectionId",
         sm.content_source AS "contentSource",
+        EXISTS (SELECT 1 FROM textbook_sources ts WHERE ts.material_id::text = sm.id::text) AS "isTrainedTextbook",
         CASE
           WHEN NULLIF(TRIM(s.name), '') IS NOT NULL THEN s.name
           WHEN NULLIF(TRIM(sm.subject), '') IS NOT NULL AND sm.subject !~* '${UUID_TEXT_PATTERN}' THEN sm.subject
@@ -1215,7 +1297,7 @@ export class SchoolMaterialService implements OnModuleInit {
     // Only super admins may reach across institutes; everyone else is scoped to their own.
     const isSuperAdmin = hasSchoolRole(user.role, 'SUPER_ADMIN');
     const topRows = await this.ds.query(
-      `SELECT subject, subject_id_fk, type::text AS type, s3_key
+      `SELECT subject, subject_id_fk, type::text AS type, s3_key, tenant_id
        FROM study_materials
        WHERE id = $1 AND ($2::boolean OR tenant_id::text = $3::text)`,
       [id, isSuperAdmin, user.instituteId ?? null],
@@ -1259,6 +1341,10 @@ export class SchoolMaterialService implements OnModuleInit {
       assertValidFlashcardContent(body.description);
     }
 
+    if (body.description !== undefined) {
+      body.description = await this.publicImages(String(topRows[0].tenant_id), body.description);
+    }
+
     await this.ds.query(
       `UPDATE study_materials SET 
         title = COALESCE($2, title),
@@ -1298,7 +1384,8 @@ export class SchoolMaterialService implements OnModuleInit {
     const topRows = await this.ds.query(
       `SELECT sm.uploaded_by,
               sm.type::text AS type,
-              COALESCE(sm.subject_id_fk, ch.subject_id, topic_ch.subject_id) AS subject_id
+              COALESCE(sm.subject_id_fk, ch.subject_id, topic_ch.subject_id) AS subject_id,
+              EXISTS (SELECT 1 FROM textbook_sources ts WHERE ts.material_id::text = sm.id::text) AS is_trained_textbook
        FROM study_materials sm
        LEFT JOIN chapters ch ON ch.id::text = sm.chapter_id::text
        LEFT JOIN topics t ON t.id::text = sm.topic_id::text
@@ -1309,6 +1396,16 @@ export class SchoolMaterialService implements OnModuleInit {
     );
     if (!topRows.length) throw new NotFoundException('Material not found');
     const currentSubjectId = topRows[0].subject_id;
+    // textbook_sources.material_id is the chapter's currently-indexed textbook
+    // (school-textbook.service.ts's recordSource) — the AI-grounding source for
+    // every section of the class, not personal content. A teacher may never
+    // delete it — even one who happens to be its uploaded_by (ingest/upload
+    // also accepts TEACHER) or who teaches its subject. Only an admin can
+    // retire it (by replacing it from the Textbook Coverage screen).
+    if (hasSchoolRole(user.role, 'TEACHER') && topRows[0].is_trained_textbook) {
+      this.logger.warn(`[AUDIT] Action: DELETE_MATERIAL_DENIED | Role: ${user.role} | Teacher: ${user.id} | Material: ${id} | Reason: Trained textbook — admin-only | Status: DENIED`);
+      throw new ForbiddenException('Only an admin can delete a trained textbook');
+    }
     const isTeacherOwner = hasSchoolRole(user.role, 'TEACHER') && String(topRows[0].uploaded_by || '') === String(user.id);
     const isLegacyOrphanPpt = hasSchoolRole(user.role, 'TEACHER') && topRows[0].type === 'ppt' && !currentSubjectId;
     if (!isTeacherOwner && !isLegacyOrphanPpt) {

@@ -392,6 +392,23 @@ export class SchoolDashboardService {
         ORDER BY d ASC
       `, [instituteId, mondayStr, sundayStr], []);
 
+      // Same present/absent breakdown as above, but for teachers, so the chart can show
+      // both roles side by side instead of leaving it ambiguous which one "Attendance" means.
+      const teacherHistoryRows = await this.safeQuery(`
+        SELECT a.date::text AS date,
+               COUNT(DISTINCT a.user_id) FILTER (
+                 WHERE LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%'
+               )::int AS present_count,
+               COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'absent')::int AS absent_count
+        FROM attendances a
+        JOIN users u ON u.id = a.user_id
+        WHERE a.institute_id = $1
+          AND a.date >= $2::date AND a.date <= $3::date
+          AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'
+        GROUP BY a.date
+        ORDER BY a.date ASC
+      `, [instituteId, mondayStr, sundayStr], []);
+
       const attendanceHistory = [];
       const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       for (let i = 0; i < 7; i++) {
@@ -399,7 +416,7 @@ export class SchoolDashboardService {
         d.setDate(mondayDate.getDate() + i);
         const dateStr = formatDateStr(d);
         const dayLabel = daysOfWeek[d.getDay()];
-        
+
         const row = historyRows.find((r: any) => r.date === dateStr);
         const present = row ? parseInt(row.present_count || '0', 10) : 0;
         // null = no attendance taken that day (weekend/holiday) so the chart shows a gap, not 0%.
@@ -407,10 +424,15 @@ export class SchoolDashboardService {
         const absent = row ? parseInt(row.absent_count || '0', 10) : 0;
         const absentPercentage = row && totalStudents > 0 ? Math.round((absent / totalStudents) * 100) : null;
 
+        const teacherRow = teacherHistoryRows.find((r: any) => r.date === dateStr);
+        const teacherPresent = teacherRow ? parseInt(teacherRow.present_count || '0', 10) : 0;
+        const teacherPercentage = teacherRow && totalTeachers > 0 ? Math.round((teacherPresent / totalTeachers) * 100) : null;
+
         attendanceHistory.push({
           name: dayLabel,
           att: percentage,
           abs: absentPercentage,
+          teacherAtt: teacherPercentage,
         });
       }
 
@@ -1073,10 +1095,24 @@ export class SchoolDashboardService {
       users
     };
   }
+  /** Every attention flag for the "View All" page, not just the dashboard card's top few. */
+  async getAllAttentionFlags(user: any) {
+    const hasSuperAdminRole = String(user?.role || '').toUpperCase().includes('SUPER_ADMIN');
+    let instituteId = user?.instituteId || null;
+    if (!instituteId && hasSuperAdminRole) {
+      const defaultInst = await this.safeQuery(`SELECT id FROM institutes ORDER BY created_at DESC LIMIT 1`, [], []);
+      instituteId = defaultInst[0]?.id || null;
+    }
+    if (!instituteId) return [];
+    return this.buildAttentionFlags(instituteId, { full: true });
+  }
+
   /** Students and fees that need an admin's attention, from live data (last 30 days of attendance). */
-  private async buildAttentionFlags(instituteId: string) {
+  private async buildAttentionFlags(instituteId: string, opts: { full?: boolean } = {}) {
+    const limit = (dashboardLimit: number, fullLimit: number) => (opts.full ? fullLimit : dashboardLimit);
+
     const attendance = await this.safeQuery(`
-      SELECT u.name,
+      SELECT u.id AS student_id, u.name,
              ROUND(100.0 * COUNT(*) FILTER (WHERE LOWER(a.status) IN ('present','late')) / COUNT(*))::int AS pct,
              COALESCE(MAX(s.min_attendance_percentage), MAX(i.min_attendance_percentage), 75)::numeric AS threshold
       FROM attendances a
@@ -1087,44 +1123,49 @@ export class SchoolDashboardService {
       GROUP BY u.id, u.name
       HAVING 100.0 * COUNT(*) FILTER (WHERE LOWER(a.status) IN ('present','late')) / COUNT(*)
              < COALESCE(MAX(s.min_attendance_percentage), MAX(i.min_attendance_percentage), 75)
-      ORDER BY 2 LIMIT 3
+      ORDER BY 2 LIMIT ${limit(3, 50)}
     `, [instituteId], []);
 
     const performance = await this.safeQuery(`
-      SELECT u.name, ROUND(AVG(r.percentage))::int AS pct
+      SELECT u.id AS student_id, u.name, ROUND(AVG(r.percentage))::int AS pct
       FROM results r JOIN users u ON u.id = r.student_id
       WHERE u.institute_id::text = $1 AND COALESCE(r.is_absent, false) = false
       GROUP BY u.id, u.name HAVING AVG(r.percentage) < 50
-      ORDER BY 2 LIMIT 2
+      ORDER BY 2 LIMIT ${limit(2, 50)}
     `, [instituteId], []);
 
+    // "Overdue" isn't a stored status value: a fee is overdue once its due date has
+    // passed without being marked PAID (same rule the Fee Overview widget uses above).
     const fees = await this.safeQuery(`
-      SELECT u.name, SUM(f.amount - COALESCE(f.amount_paid, 0))::int AS due, COUNT(*)::int AS n
+      SELECT u.id AS student_id, u.name, SUM(f.amount)::int AS due, COUNT(*)::int AS n
       FROM fees f JOIN students s ON s.id = f.student_id JOIN users u ON u.id = s.user_id
-      WHERE f.institute_id = $1 AND f.status::text = 'overdue'
-      GROUP BY u.id, u.name ORDER BY 2 DESC LIMIT 1
+      WHERE f.institute_id = $1 AND UPPER(f.status::text) != 'PAID'
+            AND f.due_date IS NOT NULL AND f.due_date < CURRENT_DATE
+      GROUP BY u.id, u.name ORDER BY 2 DESC LIMIT ${limit(1, 50)}
     `, [instituteId], []);
 
     return [
       ...attendance.map((a: any) => ({
-        id: `att-${a.name}`,
+        id: `att-${a.student_id}`,
         title: `Attendance flag: ${a.name}`,
         message: `${a.name} has ${a.pct}% attendance over the last 30 days (below ${Math.round(Number(a.threshold))}%).`,
-        actionUrl: '/school/admin/attendance',
+        // Deep-link to the flagged student's Attendance tab, defaulted to the same
+        // trailing 30-day window used above, not the whole attendance module.
+        actionUrl: `/school/admin/students/${a.student_id}?flag=attendance`,
         priority: 'HIGH',
       })),
       ...performance.map((a: any) => ({
-        id: `perf-${a.name}`,
+        id: `perf-${a.student_id}`,
         title: `Performance flag: ${a.name}`,
         message: `${a.name} is averaging ${a.pct}% across recent assessments.`,
-        actionUrl: '/school/admin/analytics',
+        actionUrl: `/school/admin/students/${a.student_id}`,
         priority: 'HIGH',
       })),
       ...fees.map((a: any) => ({
-        id: `fee-${a.name}`,
+        id: `fee-${a.student_id}`,
         title: `Fee flag: ${a.name}`,
         message: `${a.name} has ${a.n} overdue fees totalling Rs ${Number(a.due).toLocaleString('en-IN')}.`,
-        actionUrl: '/school/admin/erp',
+        actionUrl: '/school/admin/fee-defaulters',
         priority: 'MEDIUM',
       })),
     ];

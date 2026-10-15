@@ -138,5 +138,11 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "overrides": {
+    "mailtrap": {
+      "nodemailer": "$nodemailer",
+      "@types/nodemailer": "$@types/nodemailer"
+    }
   }
 }

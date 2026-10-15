@@ -162,7 +162,7 @@ export class MailService {
     return this.deliver({
       to, subject, html,
       category: 'Password Reset',
-      logLabel: `Password reset email (link: ${resetLink})`,
+      logLabel: 'Password reset email',
     });
   }
 
@@ -357,7 +357,7 @@ export class MailService {
     return this.deliver({
       to: opts.to, subject, html,
       category: 'Parent Credentials',
-      logLabel: `Parent credentials email (temp password: ${opts.tempPassword})`,
+      logLabel: 'Parent credentials email',
     });
   }
 

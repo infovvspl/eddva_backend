@@ -15,6 +15,8 @@ export class SchoolDashboardController {
 
   @Get('admin/stats') adminStats(@SchoolUser() user: any) { return this.svc.adminStats(user); }
 
+  @Get('admin/attention-flags') attentionFlags(@SchoolUser() user: any) { return this.svc.getAllAttentionFlags(user); }
+
   @Get('search')
   search(@SchoolUser() user: any, @Query('q') q = '') {
     return this.svc.search(user, q);

@@ -2019,6 +2019,9 @@ export class SchoolAssessmentService {
     // 'intermediate' goes to the AI-bridge field as a safe representative value.
     let difficultyForBridge = difficultyMode;
     let difficultyLine = `Difficulty: ${difficultyMode}.`;
+    // The mix as numbers, for the AI service to split between the calls that
+    // write the paper's sections in parallel (see paperPlan below).
+    let difficultyCounts: { easy: number; medium: number; hard: number } | null = null;
     if (difficultyMode === 'mix' || difficultyMode === 'custom') {
       let easyCount: number;
       let mediumCount: number;
@@ -2040,18 +2043,27 @@ export class SchoolAssessmentService {
         hardCount = base;
       }
       difficultyForBridge = 'intermediate';
+      difficultyCounts = { easy: easyCount, medium: mediumCount, hard: hardCount };
       difficultyLine = `Difficulty mix: the paper must contain exactly ${easyCount} easy, ${mediumCount} `
         + `intermediate and ${hardCount} hard questions in total (not per section) — spread this mix across `
         + `the sections above however fits naturally, rather than grouping all of one difficulty together.`;
     }
 
     const sections: string[] = [];
-    if (mcq > 0) sections.push(`- Section A — Multiple Choice Questions: exactly ${mcq} questions, each with four options labelled (a), (b), (c), (d) and exactly one correct option. 1 mark each.`);
-    if (trueFalse > 0) sections.push(`- Section B — True or False: exactly ${trueFalse} statements. 1 mark each.`);
-    if (fillBlank > 0) sections.push(`- Section C — Fill in the Blanks: exactly ${fillBlank} questions, each containing a blank shown as "______". 1 mark each.`);
-    if (shortAns > 0) sections.push(`- Section D — Short Answer: exactly ${shortAns} questions. 3 marks each.`);
-    if (longAns > 0) sections.push(`- Section E — Long Answer: exactly ${longAns} questions. 5 marks each.`);
-    if (sections.length === 0) sections.push(`- Section A — Multiple Choice Questions: exactly 10 questions, four options (a)-(d), one correct. 1 mark each.`);
+    // The same lines, described for the AI service: objective and written
+    // sections are written by two model calls at once and joined.
+    const planSections: { letter: string; kind: 'objective' | 'written'; count: number; text: string }[] = [];
+    const addSection = (letter: string, kind: 'objective' | 'written', count: number, text: string) => {
+      sections.push(text);
+      planSections.push({ letter, kind, count, text });
+    };
+    if (mcq > 0) addSection('A', 'objective', mcq, `- Section A — Multiple Choice Questions: exactly ${mcq} questions, each with four options labelled (a), (b), (c), (d) and exactly one correct option. 1 mark each.`);
+    if (trueFalse > 0) addSection('B', 'objective', trueFalse, `- Section B — True or False: exactly ${trueFalse} statements. 1 mark each.`);
+    if (fillBlank > 0) addSection('C', 'objective', fillBlank, `- Section C — Fill in the Blanks: exactly ${fillBlank} questions, each containing a blank shown as "______". 1 mark each.`);
+    if (shortAns > 0) addSection('D', 'written', shortAns, `- Section D — Short Answer: exactly ${shortAns} questions. 3 marks each.`);
+    if (longAns > 0) addSection('E', 'written', longAns, `- Section E — Long Answer: exactly ${longAns} questions. 5 marks each.`);
+    if (sections.length === 0) addSection('A', 'objective', 10, `- Section A — Multiple Choice Questions: exactly 10 questions, four options (a)-(d), one correct. 1 mark each.`);
+    const headerLine = `Begin with a paper header (Subject, Class, Maximum Marks, Time Allowed) and a brief "General Instructions" list.`;
 
     // Resolve the selected chapters (supports a multi-chapter range, e.g. 1–10).
     // Ordered by curriculum sort_order so the scope reads in teaching sequence.
@@ -2075,7 +2087,7 @@ export class SchoolAssessmentService {
       `Class: ${className}. Subject: ${subjectName}. Assessment type: ${testType}. Maximum Marks: ${totalMarks}. Time Allowed: ${duration} minutes.`,
       difficultyLine,
       scopeLine,
-      `Begin with a paper header (Subject, Class, Maximum Marks, Time Allowed) and a brief "General Instructions" list.`,
+      headerLine,
       `Include ONLY these sections, in this order, each with a clear section heading and the EXACT number of questions specified:`,
       ...sections,
       `Number questions clearly inside each section. The visible question numbers in the answer key must match the visible question numbers in the paper for that same section.`,
@@ -2226,6 +2238,16 @@ For MCQ, True/False and Fill in the Blanks, Answer is the exact correct option/w
           length: 'detailed',
           extraContext: extraContext + strictSourceRule + figureRule + plotRule + noOrphanDiagramRule,
           ...(sourcePassages.length ? { sourcePassages } : {}),
+          // Exact strings from extraContext above, so the AI service can write
+          // the objective and written sections in parallel and join them. A
+          // service that does not know it ignores it.
+          paperPlan: {
+            sections: planSections,
+            header: headerLine,
+            difficulty: difficultyCounts ? { line: difficultyLine, ...difficultyCounts } : null,
+            figures: figureRule,
+            plots: plotRule,
+          },
         },
         instituteId,
         'school',
