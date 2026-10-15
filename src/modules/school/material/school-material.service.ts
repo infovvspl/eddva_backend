@@ -10,6 +10,7 @@ import { SchoolTextbookService } from '../textbook/school-textbook.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { AiFeatureFlagService } from '../../internal/ai-feature-flag.service';
 import { hasSchoolRole } from '../common/role-helper';
+import { rehostLocalImages } from './local-image-rehost';
 
 /** Material types accepted by the study_materials.type enum (school). */
 const ALLOWED_MATERIAL_TYPES = [
@@ -683,6 +684,29 @@ export class SchoolMaterialService implements OnModuleInit {
     return { fileUrl, key };
   }
 
+  /**
+   * The material's description with every picture that only works on the
+   * computer that made it (http://localhost:…) stored in R2 instead. See
+   * local-image-rehost.ts. A picture that cannot be fetched keeps its address
+   * and is logged; saving never fails here.
+   */
+  private async publicImages(instituteId: string, description: any): Promise<any> {
+    if (typeof description !== 'string' || !description) return description;
+    const { description: out, moved, failed } = await rehostLocalImages(description, async (url) => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      if (!res.ok) return null;
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const contentType = res.headers.get('content-type') || 'image/png';
+      const name = (url.split('?')[0].split('/').pop() || '').replace(/[^a-zA-Z0-9.\-_]/g, '') || `${randomUUID()}.png`;
+      return this.s3Service.upload(`tenants/${instituteId}/ppt-slide-images/${name}`, buffer, contentType);
+    });
+    if (moved) this.logger.log(`Material pictures moved from a local address to storage: ${moved}`);
+    if (failed.length) {
+      this.logger.warn(`Material saved with ${failed.length} picture(s) at a local address that could not be fetched: ${failed.slice(0, 3).join(', ')}`);
+    }
+    return out;
+  }
+
   private async validateTeacherAssignment(user: any, subjectId: string | null, action: string) {
     if (!hasSchoolRole(user.role, 'TEACHER')) return;
     if (!subjectId) {
@@ -1086,6 +1110,8 @@ export class SchoolMaterialService implements OnModuleInit {
       ? [...new Set(body.sectionIds)]
       : [body.sectionId || scope.sectionId || null];
 
+    body.description = await this.publicImages(instituteId, body.description);
+
     const createdRows: any[] = [];
     for (const targetSectionId of targetSectionIds) {
       const rows: any[] = await this.ds.query(
@@ -1271,7 +1297,7 @@ export class SchoolMaterialService implements OnModuleInit {
     // Only super admins may reach across institutes; everyone else is scoped to their own.
     const isSuperAdmin = hasSchoolRole(user.role, 'SUPER_ADMIN');
     const topRows = await this.ds.query(
-      `SELECT subject, subject_id_fk, type::text AS type, s3_key
+      `SELECT subject, subject_id_fk, type::text AS type, s3_key, tenant_id
        FROM study_materials
        WHERE id = $1 AND ($2::boolean OR tenant_id::text = $3::text)`,
       [id, isSuperAdmin, user.instituteId ?? null],
@@ -1313,6 +1339,10 @@ export class SchoolMaterialService implements OnModuleInit {
     const finalFileUrl = body.fileUrl !== undefined ? body.fileUrl : topRows[0].s3_key;
     if (finalType === 'flashcard' && !String(finalFileUrl || '').trim() && body.description !== undefined) {
       assertValidFlashcardContent(body.description);
+    }
+
+    if (body.description !== undefined) {
+      body.description = await this.publicImages(String(topRows[0].tenant_id), body.description);
     }
 
     await this.ds.query(
