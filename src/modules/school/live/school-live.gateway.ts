@@ -15,6 +15,13 @@ import { SchoolLiveService } from './school-live.service';
 import { hasSchoolRole } from '../common/role-helper';
 
 const ALLOWED_REACTIONS = ['👍', '❤️', '😮', '😂', '🔥', '👏'];
+/**
+ * Student chat limit per lecture (B-05). It was 3 messages / 10 s, dropped
+ * silently on the client; a class of 40 hit it routinely. Teachers are not
+ * limited. The client is told, with the text, so nothing typed is lost.
+ */
+export const CHAT_LIMIT = 6;
+export const CHAT_WINDOW_SECONDS = 10;
 
 interface SocketData {
   userId: string;
@@ -22,6 +29,13 @@ interface SocketData {
   lectureId: string;
   role: string;
   handRaised?: boolean;
+}
+
+/** A student in a class, with every socket they are connected on (B-32). */
+interface StudentEntry {
+  userName: string;
+  handRaised: boolean;
+  sockets: Set<string>;
 }
 
 interface LiveParticipant {
@@ -44,13 +58,15 @@ interface LiveParticipant {
 })
 export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
   private readonly logger = new Logger(SchoolLiveGateway.name);
-  // socketId stored alongside user data to guard the quick-reconnect race (BUG-09):
-  // if a new join fires before the old socket's disconnect, we won't evict the
-  // freshly re-joined user when the stale disconnect event finally fires.
-  private readonly activeStudents = new Map<string, Map<string, { userName: string; handRaised: boolean; socketId: string }>>();
+  // Every socket of each student is kept (B-32): a student who has the class
+  // open twice (two tabs, or a reconnect that lands before the old socket
+  // closes) stays in the class until their last socket closes (BUG-09).
+  private readonly activeStudents = new Map<string, Map<string, StudentEntry>>();
   private readonly questionsActive = new Map<string, boolean>();
   private readonly lectureQuestions = new Map<string, Array<{ id: string; userId: string; userName: string; text: string; answer: string | null; createdAt: string }>>();
   private readonly pinnedAnnouncements = new Map<string, string | null>();
+  /** Saved "students may chat" per lecture (B-06, B-22), loaded on join. */
+  private readonly chatEnabled = new Map<string, boolean>();
 
   @WebSocketServer()
   server: Server;
@@ -71,6 +87,10 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       // stream-ended and their disconnects the set would never be cleaned (BUG-08).
       void this.redis.clearViewers(lectureId).catch(() => undefined);
       this.activeStudents.delete(lectureId);
+    });
+    // B-28 / B-29: OBS stopped; the class waits for it to reconnect.
+    void this.redis.subscribe<{ lectureId: string; graceSeconds: number }>(SCHOOL_LIVE_CHANNELS.STREAM_INTERRUPTED, ({ lectureId, graceSeconds }) => {
+      this.server.to(`lecture:${lectureId}`).emit('stream-interrupted', { lectureId, graceSeconds });
     });
     void this.redis.subscribe<{ lectureId: string; poll: any }>(SCHOOL_LIVE_CHANNELS.POLL_CREATED, ({ lectureId, poll }) => {
       this.server.to(`lecture:${lectureId}`).emit('poll-created', { poll });
@@ -151,10 +171,17 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     user.name = await this.svc.getUserDisplayName(user.id, user.name);
     client.join(`lecture:${lectureId}`);
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role };
+    this.chatEnabled.set(lectureId, lecture.chatEnabled !== false);
 
     const count = await this.redis.addViewer(lectureId, user.id);
-    const students = this.activeStudents.get(lectureId) || new Map<string, { userName: string; handRaised: boolean; socketId: string }>();
-    students.set(user.id, { userName: user.name, handRaised: false, socketId: client.id });
+    const students = this.activeStudents.get(lectureId) || new Map<string, StudentEntry>();
+    const existing = students.get(user.id);
+    if (existing) {
+      existing.sockets.add(client.id);
+      existing.userName = user.name;
+    } else {
+      students.set(user.id, { userName: user.name, handRaised: false, sockets: new Set([client.id]) });
+    }
     this.activeStudents.set(lectureId, students);
     await this.svc.trackJoin(lectureId, user.id, user.name).catch(() => undefined);
     const finalCount = count || students.size;
@@ -167,7 +194,13 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       questionsActive: this.questionsActive.get(lectureId) || false,
       questions: this.lectureQuestions.get(lectureId) || [],
       pinnedAnnouncement: this.pinnedAnnouncements.get(lectureId) || null,
+      chatEnabled: this.chatEnabled.get(lectureId) !== false,
+      // B-30: a page reconnecting after the class finished learns it here.
+      status: lecture.status,
     });
+    if (lecture.status === 'LIVE' && lecture.streamStoppedAt) {
+      client.emit('stream-interrupted', { lectureId, graceSeconds: this.svc.reconnectGraceSeconds });
+    }
   }
 
   @SubscribeMessage('teacher-join')
@@ -194,6 +227,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     client.join(`teacher:${lectureId}`);
     client.join(`lecture:${lectureId}`);
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role };
+    this.chatEnabled.set(lectureId, lecture.chatEnabled !== false);
     const viewerCount = await this.redis.viewerCount(lectureId);
     const students = this.getActiveStudents(lectureId);
     client.emit('teacher-joined', {
@@ -202,11 +236,16 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       questionsActive: this.questionsActive.get(lectureId) || false,
       questions: this.lectureQuestions.get(lectureId) || [],
       pinnedAnnouncement: this.pinnedAnnouncements.get(lectureId) || null,
+      chatEnabled: this.chatEnabled.get(lectureId) !== false,
     });
     // If OBS started before the teacher opened/refreshed the page they missed
     // the stream-started Redis event — emit it directly so the dashboard transitions.
     if (lecture?.status === 'LIVE') {
-      client.emit('stream-started', { lectureId });
+      if (lecture.streamStoppedAt) {
+        client.emit('stream-interrupted', { lectureId, graceSeconds: this.svc.reconnectGraceSeconds });
+      } else {
+        client.emit('stream-started', { lectureId });
+      }
     }
   }
 
@@ -217,15 +256,34 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     const text = (payload?.text || '').trim();
     if (!text || text.length > 300) return;
 
-    // Rate limit: max 3 messages / 10s per user per lecture.
-    const allowed = await this.redis.allowAction(`chatrl:${data.lectureId}:${data.userId}`, 3, 10);
-    if (!allowed) {
-      client.emit('chat-rate-limited', { retryInSeconds: 10 });
-      return;
+    if (!this.isTeacher(data.role)) {
+      // B-22: muting chat only changed the teacher's own screen; students
+      // kept sending. The server now refuses, and says so.
+      if (this.chatEnabled.get(data.lectureId) === false) {
+        client.emit('chat-muted', { chatEnabled: false, text });
+        return;
+      }
+      const allowed = await this.redis.allowAction(
+        `chatrl:${data.lectureId}:${data.userId}`, CHAT_LIMIT, CHAT_WINDOW_SECONDS);
+      if (!allowed) {
+        client.emit('chat-rate-limited', { retryInSeconds: CHAT_WINDOW_SECONDS, text });
+        return;
+      }
     }
 
     const msg = await this.svc.saveChat(data.lectureId, data.userId, data.userName, text);
     this.server.to(`lecture:${data.lectureId}`).emit('chat', msg);
+  }
+
+  /** Teacher changes classroom settings (B-06, B-22): saved, then pushed to every student. */
+  @SubscribeMessage('update-settings')
+  async handleUpdateSettings(@ConnectedSocket() client: Socket, @MessageBody() payload: { chatEnabled?: boolean }) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role) || typeof payload?.chatEnabled !== 'boolean') return;
+    await this.svc.setChatEnabled(data.lectureId, payload.chatEnabled);
+    this.chatEnabled.set(data.lectureId, payload.chatEnabled);
+    this.server.to(`lecture:${data.lectureId}`).emit('chat-settings', { chatEnabled: payload.chatEnabled });
+    client.emit('settings-saved', { chatEnabled: payload.chatEnabled });
   }
 
   @SubscribeMessage('raise-hand')
@@ -272,7 +330,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       student.handRaised = false;
       students.set(targetUserId, student);
       this.emitParticipants(data.lectureId);
-      this.server.to(student.socketId).emit('hand-ack', { raised: false });
+      this.server.to([...student.sockets]).emit('hand-ack', { raised: false });
     }
 
     this.server.to(`lecture:${data.lectureId}`).emit('hand-lowered', { userId: targetUserId });
@@ -299,7 +357,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
         if (student.handRaised) {
           student.handRaised = false;
           students.set(userId, student);
-          this.server.to(student.socketId).emit('hand-ack', { raised: false });
+          this.server.to([...student.sockets]).emit('hand-ack', { raised: false });
           this.server.to(`teacher:${data.lectureId}`).emit('hand-raised', {
             userId,
             userName: student.userName,
@@ -402,16 +460,19 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     const data = client.data as SocketData;
     if (!data?.userId || !data?.lectureId) return;
 
+    // B-32: only a student's last socket closing takes them out of the class.
+    // One socket id per student was kept before, so closing the newer of two
+    // tabs dropped a student who was still watching in the other.
+    let left = true;
     if (!this.isTeacher(data.role)) {
       const students = this.activeStudents.get(data.lectureId);
       const entry = students?.get(data.userId);
-      // Guard reconnect race: if another socket for this user joined before this
-      // disconnect fires, the map already has the new socketId — don't evict them
-      // (BUG-09).
-      if (entry?.socketId === client.id) {
+      entry?.sockets.delete(client.id);
+      if (entry && entry.sockets.size) {
+        left = false;
+      } else if (entry) {
         students!.delete(data.userId);
-        if (students!.size) this.activeStudents.set(data.lectureId, students!);
-        else this.activeStudents.delete(data.lectureId);
+        if (!students!.size) this.activeStudents.delete(data.lectureId);
         await this.redis.removeViewer(data.lectureId, data.userId);
         this.emitParticipants(data.lectureId);
       }
@@ -421,6 +482,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     const finalCount = count || this.getActiveStudents(data.lectureId).length;
     this.server.to(`teacher:${data.lectureId}`).emit('viewerCount', { count: finalCount });
     this.server.to(`lecture:${data.lectureId}`).emit('viewerCount', { count: finalCount });
+    if (!left) return;
     if (data.handRaised) {
       await this.svc.setHandRaised(data.lectureId, data.userId, false, data.userName).catch(() => undefined);
       this.server.to(`teacher:${data.lectureId}`).emit('hand-raised', {

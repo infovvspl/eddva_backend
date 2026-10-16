@@ -9,6 +9,8 @@ export const SCHOOL_LIVE_CHANNELS = {
   POLL_VOTED: 'school:lecture:poll_voted',
   POLL_ENDED: 'school:lecture:poll_ended',
   PROCESSED: 'school:lecture:processed',
+  /** B-28: OBS stopped; the class waits for it to reconnect. */
+  STREAM_INTERRUPTED: 'school:lecture:stream_interrupted',
 } as const;
 
 /**

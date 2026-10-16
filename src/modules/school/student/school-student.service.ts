@@ -1913,20 +1913,30 @@ export class SchoolStudentService implements OnModuleInit {
          WHERE taa.class_id::text = $1::text
            AND taa.section_id::text = $2::text
        )
-       SELECT cs.id, cs.name, u.name AS teacher_name, u.id AS teacher_user_id
-       FROM class_subjects cs
-       LEFT JOIN teacher_academic_assignments taa 
-         ON taa.class_id::text = $1::text 
-        AND taa.section_id::text = $2::text 
-        AND (
-          taa.subject_id::text = cs.id::text 
-          OR taa.subject_id::text IN (
-            SELECT id::text FROM subjects WHERE LOWER(TRIM(name)) = LOWER(TRIM(cs.name))
+       SELECT * FROM (
+         SELECT DISTINCT ON (cs.id) cs.id, cs.name, u.name AS teacher_name, u.id AS teacher_user_id
+         FROM class_subjects cs
+         LEFT JOIN teacher_academic_assignments taa
+           ON taa.class_id::text = $1::text
+          AND taa.section_id::text = $2::text
+          AND (
+            taa.subject_id::text = cs.id::text
+            OR taa.subject_id::text IN (
+              SELECT id::text FROM subjects WHERE LOWER(TRIM(name)) = LOWER(TRIM(cs.name))
+            )
           )
-        )
-       LEFT JOIN teachers t ON taa.teacher_id = t.id
-       LEFT JOIN users u ON t.user_id = u.id
-       ORDER BY cs.name`,
+         LEFT JOIN teachers t ON taa.teacher_id = t.id
+         LEFT JOIN users u ON t.user_id = u.id
+         -- The OR/name-matching join above can match more than one teacher_academic_assignments
+         -- row per subject, fanning the LEFT JOIN out into duplicate (cs.id) rows — which then
+         -- duplicated every chapter/topic/resource (DPP, mindmap, ...) under that subject all
+         -- the way to the API response. DISTINCT ON (cs.id) collapses back to one row per
+         -- subject; ORDER BY here (required to pair with DISTINCT ON) just picks a deterministic
+         -- teacher when more than one assignment matches — it does not affect the final subject
+         -- ordering, which the outer ORDER BY below still controls.
+         ORDER BY cs.id, u.name NULLS LAST
+       ) deduped_subjects
+       ORDER BY deduped_subjects.name`,
       [student.class_id, student.section_id]
     );
 
@@ -2004,8 +2014,12 @@ export class SchoolStudentService implements OnModuleInit {
       }
     }
 
-    // Assemble tree from pre-fetched maps (zero additional DB queries)
-    const curriculum = subjectRows.map((sub: any) => {
+    // Assemble tree from pre-fetched maps (zero additional DB queries).
+    // Belt-and-suspenders dedup by id — the subject query above is already fixed to return
+    // one row per subject, but this guarantees a duplicated subjectRows entry (from this or
+    // any future join change) can never double every chapter/topic/resource under it again.
+    const uniqueSubjectRows = [...new Map(subjectRows.map((s: any) => [s.id, s])).values()];
+    const curriculum = uniqueSubjectRows.map((sub: any) => {
       const chapterRows = chaptersBySubjectId.get(sub.id) ?? [];
       const chapters = chapterRows.map((chap: any) => {
         const topicRows = topicsByChapterId.get(chap.id) ?? [];
