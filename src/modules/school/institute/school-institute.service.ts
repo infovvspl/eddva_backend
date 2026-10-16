@@ -8,6 +8,8 @@ import {
   SCHOOL_NOTIFICATION_TEMPLATES,
   fillTemplate,
 } from '../notification-fcm/school-notification-templates';
+import { MailService } from '../../mail/mail.service';
+import { randomBytes } from 'crypto';
 
 import * as bcrypt from 'bcryptjs';
 
@@ -19,7 +21,12 @@ export class SchoolInstituteService {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
     private readonly fcm: FcmService,
+    private readonly mailService: MailService,
   ) {}
+
+  private generateTempPassword() {
+    return randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+  }
 
   private normalizeTenantDomain(value: unknown): string | null {
     if (value === undefined || value === null) return null;
@@ -506,6 +513,35 @@ export class SchoolInstituteService {
   async setStatus(id: string, status: string) {
     await this.ds.query(`UPDATE institutes SET status=$2, updated_at=NOW() WHERE id=$1`, [id, status]);
     return this.findOne(id);
+  }
+
+  /**
+   * Resets the institute's primary admin password and re-sends the
+   * credentials email — for when the original onboarding email was lost, or
+   * never arrived (mail provider down, typo'd address later corrected, etc).
+   */
+  async resendCredentials(id: string) {
+    const institute = await this.findOne(id);
+
+    const admins: Array<{ id: string; email: string | null; name: string }> = await this.ds.query(
+      `SELECT id, email, name FROM users
+       WHERE institute_id = $1 AND role = 'INSTITUTE_ADMIN'
+       ORDER BY created_at ASC LIMIT 1`,
+      [id],
+    );
+    const admin = admins[0];
+    if (!admin) throw new NotFoundException('No admin account found for this institute');
+    if (!admin.email) throw new NotFoundException("This institute's admin has no email on file");
+
+    const tempPassword = this.generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
+    await this.ds.query(
+      `UPDATE users SET password = $1, is_first_login = true, updated_at = NOW() WHERE id = $2`,
+      [passwordHash, admin.id],
+    );
+
+    const result = await this.mailService.sendCredentials(admin.email, admin.name, admin.email, tempPassword, institute.name);
+    return { message: result.sent ? 'Credentials re-sent' : 'Password reset, but the email could not be sent', emailSent: result.sent };
   }
 
   async delete(id: string) {

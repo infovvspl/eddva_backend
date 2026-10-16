@@ -148,19 +148,18 @@ export class SchoolJwtGuard implements CanActivate {
 
     if (!token) throw new UnauthorizedException('Not authorized to access this route');
 
-    // School uses its own secret so coaching JWTs cannot authenticate against school endpoints
+    // School uses its own secret so coaching JWTs cannot authenticate against school
+    // endpoints. There is deliberately no fallback to the coaching JWT_SECRET here:
+    // a coaching token verifying successfully would still carry a coaching user id
+    // and role string, which the code below cannot tell apart from a real school
+    // identity — that used to let a coaching token forge a school session.
     const jwtSecret = process.env.SCHOOL_JWT_SECRET ||
       (process.env.JWT_SECRET ? process.env.JWT_SECRET + '_school' : 'dev_school_secret_change_in_prod');
-    const mainSecret = process.env.JWT_SECRET || 'dev_secret_change_in_prod';
     let decoded: any;
     try {
       decoded = jwt.verify(token, jwtSecret);
     } catch {
-      try {
-        decoded = jwt.verify(token, mainSecret);
-      } catch {
-        throw new UnauthorizedException('Invalid or expired token');
-      }
+      throw new UnauthorizedException('Invalid or expired token');
     }
 
     const userId = decoded.id || decoded.sub;
@@ -243,18 +242,10 @@ export class SchoolJwtGuard implements CanActivate {
       [userId],
     );
 
+    // Unlike the demo-super-admin sentinel above, a real user id with no matching
+    // row is never trusted on the strength of its role claim alone — that used to
+    // let any school-secret-signed token claim SUPER_ADMIN without a backing row.
     if (!rows.length) {
-      if (hasSchoolRole(userRole, 'SUPER_ADMIN')) {
-        req.user = {
-          id: userId,
-          email: decoded.email || 'admin@gmail.com',
-          role: 'SUPER_ADMIN',
-          name: decoded.name || 'Super Admin',
-          instituteId: tokenInstituteId,
-          isActive: true,
-        };
-        return true;
-      }
       throw new UnauthorizedException('User no longer exists');
     }
 

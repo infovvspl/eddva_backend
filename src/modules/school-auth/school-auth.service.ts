@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { SchoolDatabaseService } from './school-database.service';
 import { SchoolLoginDto, SchoolRegisterDto } from './dto/school-auth.dto';
+import { MailService } from '../mail/mail.service';
 
 interface SchoolUserRow {
   id: string;
@@ -38,6 +39,7 @@ export class SchoolAuthService {
     private readonly schoolDb: SchoolDatabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
   ) {}
 
   async login(dto: SchoolLoginDto, tenantDomain?: string | null) {
@@ -159,6 +161,33 @@ export class SchoolAuthService {
       );
     } catch (err) {
       console.warn('Failed to insert automatic institute admin attendance on register:', err.message);
+    }
+
+    // Best-effort: a failed send must never fail the registration itself —
+    // the institute and admin account already exist by this point.
+    try {
+      await this.mailService.sendCredentials(email, user.name, email, dto.password, institute.name);
+    } catch (err) {
+      console.warn('Failed to send admin credentials email on register:', err.message);
+    }
+    try {
+      const superAdmins = await this.schoolDb.query<{ email: string | null }>(
+        `SELECT email FROM users WHERE role = 'SUPER_ADMIN' AND deleted_at IS NULL AND email IS NOT NULL`,
+      );
+      await Promise.all(
+        superAdmins.rows
+          .filter((row): row is { email: string } => !!row.email)
+          .map((row) =>
+            this.mailService.sendInstituteOnboardedNotification({
+              to: row.email,
+              instituteName: institute.name,
+              adminName: user.name,
+              adminEmail: email,
+            }),
+          ),
+      );
+    } catch (err) {
+      console.warn('Failed to send super admin onboarding notification on register:', err.message);
     }
 
     const token = await this.signSchoolToken(user);
