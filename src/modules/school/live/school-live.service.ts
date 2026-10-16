@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -10,7 +10,13 @@ import { R2Service } from '../../storage/r2.service';
 import { SCHOOL_LIVE_CHANNELS, SchoolLiveRedis } from './school-live.redis';
 import { SchoolClassService } from '../class/school-class.service';
 import { hasSchoolRole } from '../common/role-helper';
-import { CLOSED_STATUSES, canSeeStreamKey, forViewer, isMissed, parseScheduledFor } from './live-class-rules';
+import { CLOSED_STATUSES, canSeeStreamKey, forViewer, isMissed, parseScheduledFor, reconnectGraceSeconds } from './live-class-rules';
+
+/** TypeORM's Postgres driver returns [rows, count] for UPDATE … RETURNING. */
+function returnedRows(res: any): any[] {
+  if (Array.isArray(res) && Array.isArray(res[0])) return res[0];
+  return Array.isArray(res) ? res : [];
+}
 
 interface SchoolUser {
   id: string;
@@ -26,12 +32,17 @@ import { SchoolNotificationService } from '../notification/school-notification.s
 import { FcmService } from '../notification-fcm/fcm.service';
 
 @Injectable()
-export class SchoolLiveService implements OnModuleInit {
+export class SchoolLiveService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SchoolLiveService.name);
   private statsTablesReady = false;
   
   /** Cache of validated HLS stream keys → expiry timestamp (ms). Avoids a DB hit on every .ts segment request. */
   private readonly hlsKeyCache = new Map<string, { key: string; until: number }>();
+
+  /** B-28: seconds a class stays live after OBS stops, waiting for it to reconnect. */
+  readonly reconnectGraceSeconds = reconnectGraceSeconds(process.env.SCHOOL_LIVE_RECONNECT_GRACE_SECONDS);
+  private readonly finalizeTimers = new Map<string, NodeJS.Timeout>();
+  private sweepTimer?: NodeJS.Timeout;
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
@@ -172,8 +183,11 @@ export class SchoolLiveService implements OnModuleInit {
       // B-06 / B-22: whether students may chat, saved per class so it holds
       // after a reload and the server can enforce it.
       await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS chat_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
+      // B-28: when OBS stopped while the class was live (NULL while streaming).
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS stream_stopped_at TIMESTAMPTZ`);
 
       this.statsTablesReady = true;
+      this.startStoppedStreamSweep();
     } catch (err) {
       this.logger.warn(`ensureTables failed: ${(err as Error).message}`);
     }
@@ -400,6 +414,7 @@ export class SchoolLiveService implements OnModuleInit {
     const rows = await this.ds.query(
       `SELECT id, title, status, stream_key AS "streamKey", playback_url AS "playbackUrl",
               playback_id AS "playbackId", chat_enabled AS "chatEnabled",
+              stream_stopped_at AS "streamStoppedAt",
               institute_id AS "instituteId", teacher_id AS "teacherId",
               started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt",
               scheduled_for AS "scheduledFor", class_id AS "classId", section_id AS "sectionId",
@@ -479,6 +494,9 @@ export class SchoolLiveService implements OnModuleInit {
       createdAt: lecture.createdAt,
       title: lecture.title,
       startedAt: lecture.startedAt,
+      // B-28: OBS has stopped and the class is waiting for it to reconnect.
+      streamInterrupted: lecture.status === 'LIVE' && !!lecture.streamStoppedAt,
+      reconnectGraceSeconds: this.reconnectGraceSeconds,
     };
     if (canSeeStreamKey(user.role) && !CLOSED_STATUSES.includes(String(lecture.status))) {
       out.streamKey = lecture.streamKey;
@@ -538,7 +556,7 @@ export class SchoolLiveService implements OnModuleInit {
     // SELECT first to get the id reliably, then UPDATE.
     // UPDATE...RETURNING can return undefined id in some connection pool configs.
     const schoolRows = await this.ds.query(
-      `SELECT id, title, class_id, section_id, subject_name FROM school_live_lectures
+      `SELECT id, title, status, class_id, section_id, subject_name FROM school_live_lectures
        WHERE stream_key = $1
          AND status NOT IN ('ENDED', 'PROCESSED', 'PROCESSING_FAILED', 'CANCELLED')
        LIMIT 1`,
@@ -547,9 +565,16 @@ export class SchoolLiveService implements OnModuleInit {
     if (schoolRows.length) {
       const lecture = schoolRows[0];
       const lectureId: string = lecture.id;
+      // B-28: OBS publishing again into a class that is still LIVE (inside the
+      // reconnect grace) resumes it: same start time, no second notification.
+      const resumed = lecture.status === 'LIVE';
+      this.cancelFinalize(lectureId);
       await this.ds.query(
         `UPDATE school_live_lectures
-           SET status = 'LIVE', started_at = now(), ended_at = NULL
+           SET status = 'LIVE',
+               started_at = CASE WHEN status = 'LIVE' THEN COALESCE(started_at, now()) ELSE now() END,
+               ended_at = NULL,
+               stream_stopped_at = NULL
          WHERE id = $1`,
         [lectureId],
       );
@@ -557,6 +582,10 @@ export class SchoolLiveService implements OnModuleInit {
       // dashboard updates regardless of which socket namespace the teacher is on.
       await this.redis.publish(SCHOOL_LIVE_CHANNELS.LIVE, { lectureId });
       await this.redis.publish('lecture:live', { lectureId });
+      if (resumed) {
+        this.logger.log(`[RTMP] allowed — school lecture ${lectureId} resumed after a stream drop`);
+        return true;
+      }
       this.logger.log(`[RTMP] allowed — school lecture ${lectureId} is now LIVE`);
 
       // Trigger student notifications on start
@@ -661,11 +690,27 @@ export class SchoolLiveService implements OnModuleInit {
     // and no recording, shown as "Processing recording…" forever. Such a
     // class is cancelled instead; only a LIVE class ends.
     const status = lecture.status === 'LIVE' ? 'ENDED' : 'CANCELLED';
-    await this.ds.query(
-      `UPDATE school_live_lectures SET status = $2, ended_at = COALESCE(ended_at, now()) WHERE id = $1`,
+    const res = await this.ds.query(
+      `UPDATE school_live_lectures
+          SET status = $2, ended_at = COALESCE(ended_at, stream_stopped_at, now())
+        WHERE id = $1 AND status NOT IN ('ENDED', 'PROCESSED', 'PROCESSING_FAILED', 'CANCELLED')
+        RETURNING stream_key AS "streamKey", institute_id AS "instId", stream_stopped_at AS "streamStoppedAt"`,
       [id, status],
     );
-    await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId: id });
+    const row = returnedRows(res)[0];
+    if (!row) {
+      // Closed in the meantime (the reconnect grace ran out at the same moment).
+      const current = await this.getLecture(id);
+      return { success: true, status: current?.status ?? status };
+    }
+    this.cancelFinalize(id);
+    await this.announceEnded(id);
+    // B-28: OBS had already stopped (the class was waiting for it to come
+    // back), so no stream-ended hook will follow: record now. While OBS is
+    // still streaming, the hook records when it stops.
+    if (status === 'ENDED' && row.streamStoppedAt) {
+      await this.queueRecording(id, row.streamKey, row.instId || '');
+    }
     return { success: true, status };
   }
 
@@ -735,33 +780,41 @@ export class SchoolLiveService implements OnModuleInit {
     return { success: true };
   }
 
+  /**
+   * nginx on_publish_done: OBS stopped publishing.
+   *
+   * B-28: this used to end the class at once (ENDED, recording queued, key
+   * refused from then on), so a short network drop or an encoder restart
+   * ended the class for everyone. A LIVE class now stays live and waits
+   * `reconnectGraceSeconds` for the same key to publish again; see
+   * finalizeStoppedStreams. A class the teacher already ended is recorded now.
+   */
   async streamEnded(streamKey: string): Promise<void> {
     const rows = await this.ds.query(
-      `SELECT id, institute_id AS "instId" FROM school_live_lectures WHERE stream_key = $1`,
+      `SELECT id, institute_id AS "instId", status FROM school_live_lectures WHERE stream_key = $1`,
       [streamKey],
     );
     if (rows.length) {
       const lectureId: string = rows[0].id;
       const instId: string = rows[0].instId || '';
-      await this.ds.query(
-        `UPDATE school_live_lectures
-         SET status = CASE WHEN status = 'PROCESSED' THEN status ELSE 'ENDED' END,
-             ended_at = COALESCE(ended_at, now())
-         WHERE id = $1`,
-        [lectureId],
-      );
-      await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId });
-      await this.redis.publish('lecture:ended', { lectureId });
-      // Queue recording processing; processor polls streaming server for the MP4 file
-      await this.recordingsQueue
-        .add(RECORDING_JOB, { lectureId, streamKey, instId, vertical: 'school' }, {
-          delay: 10_000,
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 30_000 },
-          removeOnComplete: true,
-          removeOnFail: false,
-        })
-        .catch(e => this.logger.warn(`[school] recording queue failed: ${(e as Error).message}`));
+      if (rows[0].status === 'LIVE') {
+        await this.ds.query(
+          `UPDATE school_live_lectures SET stream_stopped_at = now() WHERE id = $1 AND status = 'LIVE'`,
+          [lectureId],
+        );
+        await this.redis.publish(SCHOOL_LIVE_CHANNELS.STREAM_INTERRUPTED, {
+          lectureId, graceSeconds: this.reconnectGraceSeconds,
+        });
+        this.scheduleFinalize(lectureId);
+        this.logger.log(`[RTMP] school lecture ${lectureId}: stream stopped — waiting ${this.reconnectGraceSeconds}s for it to reconnect`);
+      } else if (rows[0].status === 'ENDED') {
+        // The teacher ended the class while OBS was still streaming.
+        await this.ds.query(
+          `UPDATE school_live_lectures SET stream_stopped_at = COALESCE(stream_stopped_at, now()) WHERE id = $1`,
+          [lectureId],
+        );
+        await this.queueRecording(lectureId, streamKey, instId);
+      }
       return;
     }
 
@@ -793,6 +846,86 @@ export class SchoolLiveService implements OnModuleInit {
     } catch (e) {
       this.logger.warn(`[RTMP] coaching streamEnded fallback failed: ${(e as Error).message}`);
     }
+  }
+
+  // ── B-28: reconnect grace ──────────────────────────────────────────────
+  /**
+   * Ends every LIVE class (or just `lectureId`) whose stream stopped more than
+   * the reconnect grace ago, and queues its recording. The UPDATE is
+   * conditional, so a class is ended once however many instances, timers or
+   * sweeps race for it, and never after OBS has come back.
+   */
+  async finalizeStoppedStreams(lectureId?: string): Promise<string[]> {
+    const res = await this.ds.query(
+      `UPDATE school_live_lectures
+          SET status = 'ENDED', ended_at = stream_stopped_at
+        WHERE status = 'LIVE' AND stream_stopped_at IS NOT NULL
+          AND stream_stopped_at <= now() - make_interval(secs => $1)
+          AND ($2::uuid IS NULL OR id = $2::uuid)
+        RETURNING id, stream_key AS "streamKey", institute_id AS "instId"`,
+      [this.reconnectGraceSeconds, lectureId ?? null],
+    );
+    const ended = returnedRows(res);
+    for (const row of ended) {
+      this.cancelFinalize(row.id);
+      this.logger.log(`[RTMP] school lecture ${row.id} ended — the stream did not come back within ${this.reconnectGraceSeconds}s`);
+      await this.announceEnded(row.id);
+      await this.queueRecording(row.id, row.streamKey, row.instId || '');
+    }
+    return ended.map((r) => r.id);
+  }
+
+  onModuleDestroy() {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+    this.sweepTimer = undefined;
+    for (const t of this.finalizeTimers.values()) clearTimeout(t);
+    this.finalizeTimers.clear();
+  }
+
+  /** A timer per class gives the exact moment; this sweep covers restarts and other instances. */
+  private startStoppedStreamSweep() {
+    if (this.sweepTimer) return;
+    const sweep = () => void this.finalizeStoppedStreams()
+      .catch((e) => this.logger.warn(`Stopped-stream sweep failed: ${(e as Error).message}`));
+    this.sweepTimer = setInterval(sweep, 60_000);
+    this.sweepTimer.unref?.();
+    sweep();
+  }
+
+  private scheduleFinalize(lectureId: string) {
+    this.cancelFinalize(lectureId);
+    // A couple of seconds past the grace so the DB clock has surely passed it.
+    const t = setTimeout(() => {
+      this.finalizeTimers.delete(lectureId);
+      void this.finalizeStoppedStreams(lectureId)
+        .catch((e) => this.logger.warn(`Ending lecture ${lectureId} failed: ${(e as Error).message}`));
+    }, this.reconnectGraceSeconds * 1000 + 2_000);
+    t.unref?.();
+    this.finalizeTimers.set(lectureId, t);
+  }
+
+  private cancelFinalize(lectureId: string) {
+    const t = this.finalizeTimers.get(lectureId);
+    if (t) clearTimeout(t);
+    this.finalizeTimers.delete(lectureId);
+  }
+
+  private async announceEnded(lectureId: string) {
+    await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId });
+    await this.redis.publish('lecture:ended', { lectureId });
+  }
+
+  /** The recording job polls the streaming server for {streamKey}.mp4. */
+  private async queueRecording(lectureId: string, streamKey: string, instId: string) {
+    await this.recordingsQueue
+      .add(RECORDING_JOB, { lectureId, streamKey, instId, vertical: 'school' }, {
+        delay: 10_000,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 30_000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+      })
+      .catch(e => this.logger.warn(`[school] recording queue failed: ${(e as Error).message}`));
   }
 
   // ── chat (gateway) ─────────────────────────────────────────────────────

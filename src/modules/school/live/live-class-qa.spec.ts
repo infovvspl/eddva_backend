@@ -81,7 +81,10 @@ describe('forViewer (B-02, B-12)', () => {
 function makeService(lecture: any) {
   const query = jest.fn(async (sql: string, params: any[] = []) => {
     if (sql.includes('FROM school_live_lectures WHERE id = $1')) return lecture ? [{ ...lecture }] : [];
-    if (sql.startsWith('UPDATE school_live_lectures SET status')) { lecture.status = params[1]; return []; }
+    if (/UPDATE school_live_lectures\s+SET status = \$2/.test(sql)) {
+      lecture.status = params[1];
+      return [[{ streamKey: lecture.streamKey, instId: 'inst', streamStoppedAt: lecture.streamStoppedAt ?? null }], 1];
+    }
     if (sql.includes('UPDATE school_live_lectures') && sql.includes('scheduled_for = COALESCE')) {
       if (params[1]) lecture.title = params[1];
       if (params[3]) lecture.scheduledFor = params[3];

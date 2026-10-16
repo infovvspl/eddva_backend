@@ -13,6 +13,20 @@ export const DEFAULT_UTC_OFFSET = '+05:30';
 export const PAST_GRACE_MS = 5 * 60_000;
 /** A scheduled class that has not gone live this long after its start is "missed". */
 export const MISSED_AFTER_MINUTES = 60;
+/**
+ * B-28: how long a live class waits for OBS to come back after the stream
+ * stops (a network drop, an encoder restart) before it is ended.
+ */
+export const DEFAULT_RECONNECT_GRACE_SECONDS = 180;
+
+/** The reconnect grace from config, kept between 30 seconds and 30 minutes. */
+export function reconnectGraceSeconds(raw?: string | number | null): number {
+  const n = Number(raw);
+  if (raw === undefined || raw === null || raw === '' || !Number.isFinite(n) || n <= 0) {
+    return DEFAULT_RECONNECT_GRACE_SECONDS;
+  }
+  return Math.min(Math.max(Math.round(n), 30), 1800);
+}
 
 const HAS_ZONE = /(Z|[+-]\d{2}:?\d{2})$/i;
 
