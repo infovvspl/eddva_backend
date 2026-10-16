@@ -43,6 +43,23 @@ export class CreateLiveLectureDto {
   subjectName?: string;
 }
 
+/** B-08: change a class that has not started. Every field is optional. */
+export class UpdateLiveLectureDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  title?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  scheduledFor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  description?: string;
+}
+
 /** nginx-rtmp sends `name` = stream key on on_publish / on_publish_done. */
 export class RtmpHookDto {
   @IsString()
