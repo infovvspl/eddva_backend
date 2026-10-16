@@ -8,6 +8,7 @@ import {
   Headers,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -20,7 +21,7 @@ import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
-import { CreateLiveLectureDto } from './dto/school-live.dto';
+import { CreateLiveLectureDto, UpdateLiveLectureDto } from './dto/school-live.dto';
 import { SchoolLiveService } from './school-live.service';
 import { SchoolFeature } from '../decorators/school-feature.decorator';
 import { SchoolFeatureGuard } from '../guards/school-feature.guard';
@@ -56,6 +57,12 @@ export class SchoolLiveController {
   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   live(@SchoolUser() user: any) {
     return this.svc.listLive(user);
+  }
+
+  @Patch('lectures/:id')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  update(@SchoolUser() user: any, @Param('id') id: string, @Body() dto: UpdateLiveLectureDto) {
+    return this.svc.updateLecture(user, id, dto);
   }
 
   @Delete('lectures/:id')

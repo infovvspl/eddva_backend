@@ -15,6 +15,13 @@ import { SchoolLiveService } from './school-live.service';
 import { hasSchoolRole } from '../common/role-helper';
 
 const ALLOWED_REACTIONS = ['👍', '❤️', '😮', '😂', '🔥', '👏'];
+/**
+ * Student chat limit per lecture (B-05). It was 3 messages / 10 s, dropped
+ * silently on the client; a class of 40 hit it routinely. Teachers are not
+ * limited. The client is told, with the text, so nothing typed is lost.
+ */
+export const CHAT_LIMIT = 6;
+export const CHAT_WINDOW_SECONDS = 10;
 
 interface SocketData {
   userId: string;
@@ -51,6 +58,8 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
   private readonly questionsActive = new Map<string, boolean>();
   private readonly lectureQuestions = new Map<string, Array<{ id: string; userId: string; userName: string; text: string; answer: string | null; createdAt: string }>>();
   private readonly pinnedAnnouncements = new Map<string, string | null>();
+  /** Saved "students may chat" per lecture (B-06, B-22), loaded on join. */
+  private readonly chatEnabled = new Map<string, boolean>();
 
   @WebSocketServer()
   server: Server;
@@ -151,6 +160,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     user.name = await this.svc.getUserDisplayName(user.id, user.name);
     client.join(`lecture:${lectureId}`);
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role };
+    this.chatEnabled.set(lectureId, lecture.chatEnabled !== false);
 
     const count = await this.redis.addViewer(lectureId, user.id);
     const students = this.activeStudents.get(lectureId) || new Map<string, { userName: string; handRaised: boolean; socketId: string }>();
@@ -167,6 +177,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       questionsActive: this.questionsActive.get(lectureId) || false,
       questions: this.lectureQuestions.get(lectureId) || [],
       pinnedAnnouncement: this.pinnedAnnouncements.get(lectureId) || null,
+      chatEnabled: this.chatEnabled.get(lectureId) !== false,
     });
   }
 
@@ -194,6 +205,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     client.join(`teacher:${lectureId}`);
     client.join(`lecture:${lectureId}`);
     (client.data as SocketData) = { userId: user.id, userName: user.name, lectureId, role: user.role };
+    this.chatEnabled.set(lectureId, lecture.chatEnabled !== false);
     const viewerCount = await this.redis.viewerCount(lectureId);
     const students = this.getActiveStudents(lectureId);
     client.emit('teacher-joined', {
@@ -202,6 +214,7 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
       questionsActive: this.questionsActive.get(lectureId) || false,
       questions: this.lectureQuestions.get(lectureId) || [],
       pinnedAnnouncement: this.pinnedAnnouncements.get(lectureId) || null,
+      chatEnabled: this.chatEnabled.get(lectureId) !== false,
     });
     // If OBS started before the teacher opened/refreshed the page they missed
     // the stream-started Redis event — emit it directly so the dashboard transitions.
@@ -217,15 +230,34 @@ export class SchoolLiveGateway implements OnModuleInit, OnGatewayDisconnect {
     const text = (payload?.text || '').trim();
     if (!text || text.length > 300) return;
 
-    // Rate limit: max 3 messages / 10s per user per lecture.
-    const allowed = await this.redis.allowAction(`chatrl:${data.lectureId}:${data.userId}`, 3, 10);
-    if (!allowed) {
-      client.emit('chat-rate-limited', { retryInSeconds: 10 });
-      return;
+    if (!this.isTeacher(data.role)) {
+      // B-22: muting chat only changed the teacher's own screen; students
+      // kept sending. The server now refuses, and says so.
+      if (this.chatEnabled.get(data.lectureId) === false) {
+        client.emit('chat-muted', { chatEnabled: false, text });
+        return;
+      }
+      const allowed = await this.redis.allowAction(
+        `chatrl:${data.lectureId}:${data.userId}`, CHAT_LIMIT, CHAT_WINDOW_SECONDS);
+      if (!allowed) {
+        client.emit('chat-rate-limited', { retryInSeconds: CHAT_WINDOW_SECONDS, text });
+        return;
+      }
     }
 
     const msg = await this.svc.saveChat(data.lectureId, data.userId, data.userName, text);
     this.server.to(`lecture:${data.lectureId}`).emit('chat', msg);
+  }
+
+  /** Teacher changes classroom settings (B-06, B-22): saved, then pushed to every student. */
+  @SubscribeMessage('update-settings')
+  async handleUpdateSettings(@ConnectedSocket() client: Socket, @MessageBody() payload: { chatEnabled?: boolean }) {
+    const data = client.data as SocketData;
+    if (!data?.lectureId || !this.isTeacher(data.role) || typeof payload?.chatEnabled !== 'boolean') return;
+    await this.svc.setChatEnabled(data.lectureId, payload.chatEnabled);
+    this.chatEnabled.set(data.lectureId, payload.chatEnabled);
+    this.server.to(`lecture:${data.lectureId}`).emit('chat-settings', { chatEnabled: payload.chatEnabled });
+    client.emit('settings-saved', { chatEnabled: payload.chatEnabled });
   }
 
   @SubscribeMessage('raise-hand')

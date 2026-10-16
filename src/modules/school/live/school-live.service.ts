@@ -10,6 +10,7 @@ import { R2Service } from '../../storage/r2.service';
 import { SCHOOL_LIVE_CHANNELS, SchoolLiveRedis } from './school-live.redis';
 import { SchoolClassService } from '../class/school-class.service';
 import { hasSchoolRole } from '../common/role-helper';
+import { CLOSED_STATUSES, canSeeStreamKey, forViewer, isMissed, parseScheduledFor } from './live-class-rules';
 
 interface SchoolUser {
   id: string;
@@ -30,7 +31,7 @@ export class SchoolLiveService implements OnModuleInit {
   private statsTablesReady = false;
   
   /** Cache of validated HLS stream keys → expiry timestamp (ms). Avoids a DB hit on every .ts segment request. */
-  private readonly hlsKeyCache = new Map<string, number>();
+  private readonly hlsKeyCache = new Map<string, { key: string; until: number }>();
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
@@ -158,6 +159,20 @@ export class SchoolLiveService implements OnModuleInit {
       await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS recording_size_gb NUMERIC(10,3)`);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_school_live_lectures_processed ON school_live_lectures (institute_id, status) WHERE status = 'PROCESSED'`);
 
+      // B-02: students play a class by a playback ID that is not its stream
+      // key (anyone holding the key can publish into the class). Existing
+      // classes get one here.
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS playback_id VARCHAR`);
+      await this.ds.query(
+        `UPDATE school_live_lectures
+            SET playback_id = md5(random()::text || id::text || clock_timestamp()::text)
+          WHERE playback_id IS NULL`,
+      );
+      await this.ds.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_school_live_lectures_playback_id ON school_live_lectures (playback_id)`);
+      // B-06 / B-22: whether students may chat, saved per class so it holds
+      // after a reload and the server can enforce it.
+      await this.ds.query(`ALTER TABLE school_live_lectures ADD COLUMN IF NOT EXISTS chat_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
+
       this.statsTablesReady = true;
     } catch (err) {
       this.logger.warn(`ensureTables failed: ${(err as Error).message}`);
@@ -233,14 +248,17 @@ export class SchoolLiveService implements OnModuleInit {
       subjectName?: string;
     },
   ) {
+    // B-01 / B-03: a zone-less time is India time; a past one is refused.
+    const scheduledFor = parseScheduledFor(opts?.scheduledFor);
     const streamKey = randomBytes(16).toString('hex');
+    const playbackId = randomBytes(16).toString('hex');
     const playbackUrl = this.playbackUrlFor(streamKey);
     const rows = await this.ds.query(
       `INSERT INTO school_live_lectures
          (title, institute_id, teacher_id, stream_key, status, playback_url,
           scheduled_for, class_id, section_id, subject_id, description,
-          class_name, section_name, subject_name)
-       VALUES ($1,$2,$3,$4,'SCHEDULED',$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          class_name, section_name, subject_name, playback_id)
+       VALUES ($1,$2,$3,$4,'SCHEDULED',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING id`,
       [
         title,
@@ -248,7 +266,7 @@ export class SchoolLiveService implements OnModuleInit {
         user.id,
         streamKey,
         playbackUrl,
-        opts?.scheduledFor || null,
+        scheduledFor ? scheduledFor.toISOString() : null,
         opts?.classId || null,
         opts?.sectionId || null,
         opts?.subjectId || null,
@@ -256,10 +274,13 @@ export class SchoolLiveService implements OnModuleInit {
         opts?.className || null,
         opts?.sectionName || null,
         opts?.subjectName || null,
+        playbackId,
       ],
     );
     return {
       lectureId: rows[0].id,
+      playbackId,
+      scheduledFor: scheduledFor ? scheduledFor.toISOString() : null,
       streamKey,
       rtmpUrl: `rtmp://${this.config.get<string>('streaming.serverIp')}/live`,
       playbackUrl,
@@ -306,6 +327,7 @@ export class SchoolLiveService implements OnModuleInit {
 
     const rows = await this.ds.query(
       `SELECT l.id, l.title, l.status, l.stream_key AS "streamKey", l.playback_url AS "playbackUrl",
+              l.playback_id AS "playbackId", l.chat_enabled AS "chatEnabled",
               l.teacher_id AS "teacherId", l.started_at AS "startedAt", l.ended_at AS "endedAt", l.created_at AS "createdAt",
               l.scheduled_for AS "scheduledFor", l.class_id AS "classId", l.section_id AS "sectionId",
               l.subject_id AS "subjectId", l.description,
@@ -323,7 +345,8 @@ export class SchoolLiveService implements OnModuleInit {
       params,
     );
     const rtmpUrl = `rtmp://${this.config.get<string>('streaming.serverIp')}/live`;
-    return rows.map((r: any) => ({ ...r, rtmpUrl }));
+    const now = new Date();
+    return rows.map((r: any) => forViewer({ ...r, rtmpUrl }, user.role, now));
   }
 
   async listLive(user: SchoolUser) {
@@ -364,16 +387,19 @@ export class SchoolLiveService implements OnModuleInit {
       }
     }
 
-    return this.ds.query(
-      `SELECT id, title, status, playback_url AS "playbackUrl", teacher_id AS "teacherId", started_at AS "startedAt"
+    const rows = await this.ds.query(
+      `SELECT id, title, status, playback_url AS "playbackUrl", playback_id AS "playbackId",
+              teacher_id AS "teacherId", started_at AS "startedAt"
        FROM school_live_lectures WHERE ${filter} ORDER BY started_at DESC`,
       params,
     );
+    return rows.map((r: any) => forViewer(r, user.role));
   }
 
   async getLecture(id: string, user?: SchoolUser) {
     const rows = await this.ds.query(
       `SELECT id, title, status, stream_key AS "streamKey", playback_url AS "playbackUrl",
+              playback_id AS "playbackId", chat_enabled AS "chatEnabled",
               institute_id AS "instituteId", teacher_id AS "teacherId",
               started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt",
               scheduled_for AS "scheduledFor", class_id AS "classId", section_id AS "sectionId",
@@ -435,20 +461,29 @@ export class SchoolLiveService implements OnModuleInit {
     if (hasSchoolRole(user.role, 'STUDENT')) {
       void this.trackJoin(id, user.id, user.name || 'Student').catch(() => undefined);
     }
-    const key = lecture.streamKey;
-    return {
-      url: lecture.playbackUrl,
+    // B-02: the video is played through the API's HLS proxy by playback ID.
+    // The old response gave every caller the stream key and CDN URLs built
+    // from it (one on a private address, all on plain HTTP).
+    const pid = lecture.playbackId;
+    const out: Record<string, any> = {
+      playbackId: pid,
+      url: `/school/live/hls/${pid}/index.m3u8`,
       qualities: [
-        { label: 'Auto',  url: `${this.cdnBase}/${key}/index.m3u8` },
-        ...(this.cdnBase480 ? [{ label: '480p', url: `${this.cdnBase480}/${key}/index.m3u8` }] : []),
-        ...(this.cdnBase360 ? [{ label: '360p', url: `${this.cdnBase360}/${key}/index.m3u8` }] : []),
+        { label: 'Auto', url: `/school/live/hls/${pid}/index.m3u8` },
+        ...(this.cdnBase480 ? [{ label: '480p', url: `/school/live/hls480/${pid}/index.m3u8` }] : []),
+        ...(this.cdnBase360 ? [{ label: '360p', url: `/school/live/hls360/${pid}/index.m3u8` }] : []),
       ],
       status: lecture.status,
-      streamKey: key,
+      isMissed: isMissed(lecture),
+      chatEnabled: lecture.chatEnabled !== false,
       createdAt: lecture.createdAt,
       title: lecture.title,
       startedAt: lecture.startedAt,
     };
+    if (canSeeStreamKey(user.role) && !CLOSED_STATUSES.includes(String(lecture.status))) {
+      out.streamKey = lecture.streamKey;
+    }
+    return out;
   }
 
   /**
@@ -462,14 +497,21 @@ export class SchoolLiveService implements OnModuleInit {
     if (!/^[a-f0-9]{16,64}$/i.test(streamKey)) return null;
     if (file.includes('..') || file.includes('/') || file.includes('\\')) return null;
     if (!/^[\w.-]+\.(m3u8|ts|m4s|mp4|aac|key)$/i.test(file)) return null;
-    const cachedUntil = this.hlsKeyCache.get(streamKey);
-    if (!cachedUntil || cachedUntil < Date.now()) {
+    // `streamKey` is the id in the URL: normally the class's playback ID
+    // (B-02), which is resolved to the stream key the streaming server uses.
+    const cached = this.hlsKeyCache.get(streamKey);
+    let upstreamKey: string;
+    if (cached && cached.until > Date.now()) {
+      upstreamKey = cached.key;
+    } else {
       const rows = await this.ds.query(
-        `SELECT id FROM school_live_lectures WHERE stream_key = $1 LIMIT 1`,
+        `SELECT stream_key AS "key" FROM school_live_lectures
+          WHERE playback_id = $1 OR stream_key = $1 LIMIT 1`,
         [streamKey],
       ).catch(() => []);
       if (!rows.length) { this.hlsKeyCache.delete(streamKey); return null; }
-      this.hlsKeyCache.set(streamKey, Date.now() + 60_000);
+      upstreamKey = rows[0].key;
+      this.hlsKeyCache.set(streamKey, { key: upstreamKey, until: Date.now() + 60_000 });
     }
     const configKey = quality === '480' ? 'streaming.cdnBaseUrl480'
       : quality === '360' ? 'streaming.cdnBaseUrl360'
@@ -477,7 +519,7 @@ export class SchoolLiveService implements OnModuleInit {
     const base = (this.config.get<string>(configKey) || '').replace(/\/$/, '');
     if (!base) return null;
     try {
-      const r = await fetch(`${base}/${streamKey}/${file}`, { signal: AbortSignal.timeout(8000) });
+      const r = await fetch(`${base}/${upstreamKey}/${file}`, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) return null;
       const contentType = r.headers.get('content-type')
         || (file.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl'
@@ -498,7 +540,7 @@ export class SchoolLiveService implements OnModuleInit {
     const schoolRows = await this.ds.query(
       `SELECT id, title, class_id, section_id, subject_name FROM school_live_lectures
        WHERE stream_key = $1
-         AND status NOT IN ('ENDED', 'PROCESSED', 'PROCESSING_FAILED')
+         AND status NOT IN ('ENDED', 'PROCESSED', 'PROCESSING_FAILED', 'CANCELLED')
        LIMIT 1`,
       [streamKey],
     );
@@ -612,14 +654,78 @@ export class SchoolLiveService implements OnModuleInit {
   async endLecture(user: SchoolUser, id: string) {
     const lecture = await this.getLecture(id, user);
     if (!lecture) throw new NotFoundException('Lecture not found');
-    if (lecture.status !== 'ENDED') {
-      await this.ds.query(
-        `UPDATE school_live_lectures SET status = 'ENDED', ended_at = COALESCE(ended_at, now()) WHERE id = $1`,
-        [id],
-      );
-      await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId: id });
+    if (CLOSED_STATUSES.includes(String(lecture.status))) {
+      return { success: true, status: lecture.status };
     }
-    return { success: true, status: 'ENDED' };
+    // B-04: ending a class that never went live left it ENDED with no start
+    // and no recording, shown as "Processing recording…" forever. Such a
+    // class is cancelled instead; only a LIVE class ends.
+    const status = lecture.status === 'LIVE' ? 'ENDED' : 'CANCELLED';
+    await this.ds.query(
+      `UPDATE school_live_lectures SET status = $2, ended_at = COALESCE(ended_at, now()) WHERE id = $1`,
+      [id, status],
+    );
+    await this.redis.publish(SCHOOL_LIVE_CHANNELS.ENDED, { lectureId: id });
+    return { success: true, status };
+  }
+
+  /**
+   * B-08: change a scheduled class's title, description or time. Only a class
+   * that has not started can be changed; its students are told.
+   */
+  async updateLecture(user: SchoolUser, id: string, dto: { title?: string; description?: string; scheduledFor?: string }) {
+    const lecture = await this.getLecture(id, user);
+    if (!lecture) throw new NotFoundException('Lecture not found');
+    if (lecture.status !== 'SCHEDULED') {
+      throw new BadRequestException('Only a class that has not started can be changed');
+    }
+    const title = dto.title !== undefined ? String(dto.title).trim() : undefined;
+    if (title !== undefined && !title) throw new BadRequestException('Enter a class title');
+    const scheduledFor = dto.scheduledFor !== undefined ? parseScheduledFor(dto.scheduledFor) : undefined;
+    await this.ds.query(
+      `UPDATE school_live_lectures
+          SET title = COALESCE($2, title),
+              description = COALESCE($3, description),
+              scheduled_for = COALESCE($4, scheduled_for)
+        WHERE id = $1`,
+      [id, title ?? null, dto.description !== undefined ? String(dto.description).trim() : null,
+        scheduledFor ? scheduledFor.toISOString() : null],
+    );
+    const updated = await this.getLecture(id);
+    const timeChanged = scheduledFor && String(lecture.scheduledFor) !== String(updated.scheduledFor);
+    void this.notifySection(updated, 'Live class updated',
+      `${updated.title}${timeChanged ? ` is now at ${this.formatIst(updated.scheduledFor)}` : ' has been updated'}.`)
+      .catch((e) => this.logger.warn(`Live class update notification failed: ${(e as Error).message}`));
+    return forViewer({ ...updated, rtmpUrl: this.rtmpIngestBase }, user.role);
+  }
+
+  /** The saved "students may chat" setting (B-06, B-22). */
+  async setChatEnabled(lectureId: string, enabled: boolean): Promise<void> {
+    await this.ds.query(`UPDATE school_live_lectures SET chat_enabled = $2 WHERE id = $1`, [lectureId, enabled]);
+  }
+
+  private formatIst(value: any): string {
+    if (!value) return 'a new time';
+    return new Date(value).toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+    });
+  }
+
+  /** In-app notification to every student of the class's section. */
+  private async notifySection(lecture: any, title: string, message: string): Promise<void> {
+    if (!lecture?.classId) return;
+    const students: any[] = await this.ds.query(
+      `SELECT s.user_id FROM students s JOIN sections sec ON s.section_id = sec.id
+        WHERE sec.class_id = $1 AND ($2::uuid IS NULL OR s.section_id = $2)`,
+      [lecture.classId, lecture.sectionId || null],
+    );
+    for (const stu of students) {
+      await this.notificationSvc.create({
+        userId: stu.user_id, recipientId: stu.user_id, role: 'STUDENT', recipientRole: 'STUDENT',
+        type: 'live_class', category: 'live_class', priority: 'high', title, message,
+        referenceId: lecture.id, referenceType: 'live_lecture', isRead: false,
+      }).catch(() => undefined);
+    }
   }
 
   async deleteLecture(id: string, user: SchoolUser) {
