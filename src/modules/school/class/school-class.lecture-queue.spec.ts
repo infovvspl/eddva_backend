@@ -31,7 +31,8 @@ describe('SchoolClassService — durable lecture queue', () => {
       query: jest.fn().mockImplementation((sql: string) => {
         if (/FROM lecture_jobs WHERE recording_id/.test(sql)) return Promise.resolve(existingJobRows);
         if (/JOIN class_recordings r ON/.test(sql)) return Promise.resolve(jobStatusRows);
-        if (/FROM class_recordings\s+WHERE id=\$1 AND institute_id/.test(sql)) return Promise.resolve(recRows);
+        // runLectureJob's row (joins subjects for the notes language since c6c7455).
+        if (/FROM class_recordings(\s+r\s+LEFT JOIN subjects[^]*?)?\s+WHERE (r\.)?id=\$1 AND (r\.)?institute_id/.test(sql)) return Promise.resolve(recRows);
         if (/SELECT transcript FROM class_recordings/.test(sql)) return Promise.resolve([{ transcript: recRows[0]?.transcript || '' }]);
         // Atomic notes claim (merged from origin/dev) uses RETURNING id — succeed the claim.
         if (/notes_status='processing'/.test(sql) && /RETURNING id/.test(sql)) return Promise.resolve([{ id: recRows[0]?.id || 'rec1' }]);
