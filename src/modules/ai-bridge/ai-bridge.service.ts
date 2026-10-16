@@ -1718,10 +1718,14 @@ export class AiBridgeService {
     },
     tenantId?: string,
   ) {
-    const isOdia = dto.language === 'od';
-    const languageInstruction = isOdia
-      ? 'Generate all question text, option text, segment titles, and explanations in natural Odia (ଓଡ଼ିଆ) only. Keep JSON keys and option labels A/B/C/D unchanged.'
-      : 'Generate questions and explanations in English only.';
+    const languageInstruction =
+      dto.language === 'od'
+        ? 'Generate all question text, option text, segment titles, and explanations in natural Odia (ଓଡ଼ିଆ) only. Keep JSON keys and option labels A/B/C/D unchanged.'
+        : dto.language === 'hi'
+        ? 'Generate all question text, option text, segment titles, and explanations in natural Hindi using Devanagari script (हिन्दी) only. Keep JSON keys and option labels A/B/C/D unchanged.'
+        : dto.language === 'hinglish'
+        ? 'Generate all question text, option text, segment titles, and explanations in Hinglish (Hindi content written in the Latin/Roman script, the way Indian students commonly type) only. Keep JSON keys and option labels A/B/C/D unchanged.'
+        : 'Generate questions and explanations in English only.';
     const mathFormattingInstruction =
       'For every formula, equation, variable expression, option, and explanation math, use valid KaTeX markdown delimiters: inline math as $...$ and display math as $$...$$. Use \\frac{a}{b} for fractions, \\cdot for multiplication, and never split one formula across lines or use a lone backslash as division.';
     const payload = {

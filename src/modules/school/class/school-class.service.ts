@@ -323,6 +323,30 @@ export class SchoolClassService implements OnModuleInit {
     return 'en';
   }
 
+  /**
+   * Language subjects (Hindi, Odia) whose AI notes/quiz must be produced in that
+   * language regardless of the per-recording language dropdown — the subject
+   * being taught determines content language here, not how the teacher tagged
+   * the upload.
+   */
+  private languageFromSubjectName(subjectName?: string | null): 'hi' | 'od' | null {
+    const name = String(subjectName || '').toLowerCase();
+    if (/\bhindi\b/.test(name)) return 'hi';
+    if (/\bodia\b|\boriya\b/.test(name)) return 'od';
+    return null;
+  }
+
+  /**
+   * Content language for AI notes/quiz generation: a language subject (Hindi/Odia)
+   * always wins over the recording's own `language` field; every other subject
+   * falls back to the per-recording language the teacher selected at upload.
+   * Transcription keeps using `normalizeLanguage(rec.language)` directly, since
+   * that should match what was actually spoken, not the subject being taught.
+   */
+  private resolveContentLanguage(rec: { language?: any; subject_name?: string | null }): 'en' | 'hi' | 'hinglish' | 'od' {
+    return this.languageFromSubjectName(rec.subject_name) ?? this.normalizeLanguage(rec.language);
+  }
+
   /** Presigned S3 PUT URL for a recorded-class video (browser uploads directly). */
   async presignUpload(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }, req?: any) {
     const instituteId = this.resolveInstituteId(user, (body as any).instituteId);
@@ -1696,8 +1720,11 @@ export class SchoolClassService implements OnModuleInit {
   async runLectureJob(data: LectureJobData, attempt = 1): Promise<void> {
     await this.ensureTable();
     const rows = await this.ds.query(
-      `SELECT id, video_url, transcript, transcript_status, notes_status, topic_id, language
-       FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      `SELECT r.id, r.video_url, r.transcript, r.transcript_status, r.notes_status, r.topic_id, r.language,
+              s.name AS subject_name
+       FROM class_recordings r
+       LEFT JOIN subjects s ON s.id = r.subject_id
+       WHERE r.id=$1 AND r.institute_id=$2::uuid`,
       [data.recordingId, data.instituteId],
     );
     if (!rows.length) {
@@ -1706,7 +1733,8 @@ export class SchoolClassService implements OnModuleInit {
       return;
     }
     const rec = rows[0];
-    const language = this.normalizeLanguage(rec.language);
+    const language = this.normalizeLanguage(rec.language); // transcription: matches what was actually spoken
+    const notesLanguage = this.resolveContentLanguage(rec); // notes: a language subject (Hindi/Odia) wins
     const topicId = rec.topic_id || null;
 
     await this.setLectureJob(data.recordingId, LectureJobStatus.TRANSCRIBING, { started: true, attempt });
@@ -1737,7 +1765,7 @@ export class SchoolClassService implements OnModuleInit {
               transcript = t[0]?.transcript || transcript;
             }
             await this.setLectureJob(data.recordingId, LectureJobStatus.GENERATING_NOTES);
-            await this.generateNotes(rec.id, transcript, topicId, data.instituteId, language);
+            await this.generateNotes(rec.id, transcript, topicId, data.instituteId, notesLanguage);
           }
 
           await this.setLectureJob(data.recordingId, LectureJobStatus.COMPLETED, { completed: true });
@@ -1973,7 +2001,10 @@ export class SchoolClassService implements OnModuleInit {
     await this.ensureTable();
     const instituteId = this.resolveInstituteId(user);
     const rows = await this.ds.query(
-      `SELECT id, title, transcript, notes, topic_id, language FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      `SELECT r.id, r.title, r.transcript, r.notes, r.topic_id, r.language, s.name AS subject_name
+       FROM class_recordings r
+       LEFT JOIN subjects s ON s.id = r.subject_id
+       WHERE r.id=$1 AND r.institute_id=$2::uuid`,
       [id, instituteId],
     );
     if (!rows.length) throw new NotFoundException('Recording not found');
@@ -1999,7 +2030,7 @@ export class SchoolClassService implements OnModuleInit {
           lectureTitle: rec.title || 'Lecture',
           topicId: rec.topic_id || '',
           numQuestions: 5,
-          language: rec.language,
+          language: this.resolveContentLanguage(rec),
         },
         instituteId,
       );
