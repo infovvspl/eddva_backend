@@ -844,15 +844,17 @@ export class SchoolClassService implements OnModuleInit {
       // Kick off transcription so a live recording gets a transcript, notes and a
       // quiz — the whole point of publishing it here (see the method doc). Without
       // this it sits at transcript_status=null exactly like an untranscribed upload.
+      //
+      // Through the durable lecture job, like uploads: it runs transcript then
+      // notes inside an AI request context. Calling processTranscription
+      // directly from this background path had no institute in context, so AI
+      // admission refused every live recording ("could not be attributed to an
+      // authenticated institute") and no notes were ever made. The institute is
+      // the lecture row's own, set server-side when the class was created.
       const liveInstituteId = lecture.institute_id || lecture.instituteId;
       if (liveInstituteId && data.recordingUrl) {
-        this.processTranscription(
-          recording.id,
-          data.recordingUrl,
-          lecture.topic_id || lecture.topicId || null,
-          liveInstituteId,
-          'en',
-        ).catch((err) => this.logger.warn(`Transcription kickoff failed for live ${recording.id}: ${err?.message}`));
+        this.enqueueLectureJob(recording, null, liveInstituteId)
+          .catch((err) => this.logger.warn(`Lecture job kickoff failed for live ${recording.id}: ${err?.message}`));
       }
     } catch (err: any) {
       this.logger.warn(`Failed to create class_recording from live broadcast: ${err?.message}`);

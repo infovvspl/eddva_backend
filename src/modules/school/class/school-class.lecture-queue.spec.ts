@@ -73,6 +73,24 @@ describe('SchoolClassService — durable lecture queue', () => {
     expect(res.status).toBe('QUEUED');
   });
 
+  it('a finished live class queues the lecture job with the institute of the class (transcript, then notes)', async () => {
+    // Live QA follow-up: the live path called transcription directly, outside
+    // any AI request context, so AI admission refused every live recording.
+    const base = ds.query.getMockImplementation()!;
+    ds.query.mockImplementation((sql: string, params?: any[]) =>
+      /INSERT INTO class_recordings/.test(sql) ? Promise.resolve([{ id: 'rec-live' }]) : base(sql, params));
+    await svc.createFromLiveBroadcast(
+      { id: 'lec1', institute_id: 'inst-live', class_id: 'c1', teacher_id: 't1', title: 'Physics' },
+      { recordingUrl: 'school-recordings/inst-live/lec1/lecture.mp4', thumbnailUrl: '', durationSeconds: 420, recordingSizeGb: 0.3 },
+    );
+    await new Promise((r) => setImmediate(r));
+    expect(aiBridge.transcribeAudio).not.toHaveBeenCalled();
+    expect(queue.add).toHaveBeenCalledTimes(1);
+    const [name, data] = queue.add.mock.calls[0];
+    expect(name).toBe(LECTURE_JOB);
+    expect(data).toMatchObject({ recordingId: 'rec-live', instituteId: 'inst-live', userId: null });
+  });
+
   it('does not create a duplicate job while one is in flight', async () => {
     existingJobRows = [{ status: 'TRANSCRIBING' }];
     const res = await enqueue();
