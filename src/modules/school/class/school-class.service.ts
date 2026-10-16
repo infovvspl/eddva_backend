@@ -428,8 +428,12 @@ export class SchoolClassService implements OnModuleInit {
       const classParam = params.length;
       params.push(scope.sectionId);
       const sectionParam = params.length;
+      // Internal QA fixtures use a "QA-TEST" title prefix by convention — exclude them from
+      // the student-facing list (and therefore the study planner's backlog counts, which are
+      // derived from this same endpoint) so testing artifacts never surface as real coursework.
       sql += ` AND r.class_id = $${classParam}::uuid
-               AND r.section_id = $${sectionParam}::uuid`;
+               AND r.section_id = $${sectionParam}::uuid
+               AND r.title NOT ILIKE 'QA-TEST%'`;
     }
     sql += ` ORDER BY r.created_at DESC`;
     const rows = await this.ds.query(sql, params);

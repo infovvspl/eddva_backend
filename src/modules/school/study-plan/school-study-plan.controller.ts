@@ -92,6 +92,11 @@ export class SchoolStudyPlanController {
     return this.service.getRevisionPractice(user, batchId);
   }
 
+  @Get('improvement')
+  getStudyPlannerImprovement(@SchoolUser() user: any, @Query('batchId') batchId?: string) {
+    return this.service.getStudyPlannerImprovement(user, batchId);
+  }
+
   @Post('revision-session')
   startRevisionSession(
     @SchoolUser() user: any,

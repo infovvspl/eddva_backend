@@ -90,6 +90,21 @@ export class SchoolStudyPlanService implements OnModuleInit {
         ALTER TABLE school_topic_progress ADD COLUMN IF NOT EXISTS revision_accuracy INTEGER;
         ALTER TABLE school_topic_progress ADD COLUMN IF NOT EXISTS last_revised_at TIMESTAMPTZ;
         ALTER TABLE school_topic_progress ADD COLUMN IF NOT EXISTS revision_attempt_count INTEGER DEFAULT 0;
+
+        -- Append-only log of every AI quiz completion (school_topic_progress.best_accuracy only
+        -- keeps the rolling max, which can't show a before/after trend). Powers the "Your
+        -- Improvement" comparison of a student's first vs. most recent attempt per topic.
+        CREATE TABLE IF NOT EXISTS school_quiz_attempts (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          student_id UUID NOT NULL,
+          topic_id UUID NOT NULL,
+          accuracy INTEGER NOT NULL,
+          score INTEGER,
+          total_marks INTEGER,
+          studied_with_ai BOOLEAN NOT NULL DEFAULT FALSE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_school_quiz_attempts_student_topic ON school_quiz_attempts (student_id, topic_id, created_at);
       `);
       this.tablesReady = true;
     } catch (err) {
@@ -865,39 +880,73 @@ export class SchoolStudyPlanService implements OnModuleInit {
   async getRevisionNotes(user: any, classId?: string) {
     await this.ensureTables();
     const student = await this.getStudentProfile(user.id);
+    const targetClassId = classId || student.class_id;
 
-    // Get AI study sessions completed by the student
-    const rows = await this.ds.query(
-      `SELECT s.*, t.name AS topic_name, chap.name AS chapter_name, sub.name AS subject_name
-       FROM school_ai_study_sessions s
-       JOIN topics t ON s.topic_id = t.id
-       JOIN chapters chap ON t.chapter_id = chap.id
-       JOIN subjects sub ON chap.subject_id = sub.id
-       WHERE s.student_id = $1 AND s.is_completed = true
-       ORDER BY s.completed_at DESC`,
-      [student.student_id]
+    // Mirrors getRevisionPractice below: "done" means the student marked the Study
+    // Plan's "Study: X" task complete (school_plan_items, type='lecture'), not the
+    // narrower school_ai_study_sessions.is_completed flag — a student can tick a
+    // study task done from Today's list without separately confirming "Mark topic
+    // complete" inside the AI Study page itself, and that still counts as done here.
+    const planRows = await this.ds.query(
+      `SELECT id FROM school_study_plans WHERE student_id = $1 AND class_id = $2`,
+      [student.student_id, targetClassId]
+    );
+    if (!planRows.length) return [];
+    const planId = planRows[0].id;
+
+    const items = await this.ds.query(
+      `SELECT id, title, completed_at AS "completedAt", content_json AS content
+       FROM school_plan_items
+       WHERE study_plan_id = $1 AND status = 'completed' AND type = 'lecture'
+       ORDER BY completed_at DESC`,
+      [planId]
     );
 
-    return rows.map((session: any) => ({
-      id: session.id,
-      topicId: session.topic_id,
-      topicName: session.topic_name,
-      chapterName: session.chapter_name,
-      subjectName: session.subject_name,
-      completedAt: session.completed_at,
-      isCompleted: true,
-      timeSpentSeconds: session.time_spent_seconds ?? 0,
-      keyConcepts: session.key_concepts ?? [],
-      formulas: session.formulas ?? [],
-      highlights: session.highlights ?? [],
-      inlineComments: session.inline_comments ?? [],
-      conversation: session.conversation ?? [],
-      lessonMarkdown: session.lesson_markdown ?? '',
-      practiceQuestions: [],
-      commonMistakes: [],
-      notesTitle: `AI Summary Notes - ${session.topic_name}`,
-      notesUrl: '#'
-    }));
+    const topicIds: string[] = [];
+    const resolvedItems = items.map((i: any) => {
+      const content = typeof i.content === 'string' ? JSON.parse(i.content) : i.content;
+      const tId = content?.topicId;
+      if (tId && !topicIds.includes(tId)) {
+        topicIds.push(tId);
+      }
+      return { ...i, topicId: tId, content };
+    });
+
+    if (topicIds.length === 0) return [];
+
+    const sessionRows = await this.ds.query(
+      `SELECT * FROM school_ai_study_sessions WHERE student_id = $1 AND topic_id = ANY($2)`,
+      [student.student_id, topicIds]
+    );
+    const sessionMap = new Map<string, any>(sessionRows.map((s: any) => [s.topic_id, s]));
+
+    return resolvedItems.map((i: any) => {
+      const session = sessionMap.get(i.topicId);
+      const topicName = i.content?.topicName ?? session?.topic_name ?? '';
+      return {
+        // Keyed by the plan item's own id, not topicId — same duplicate-key issue
+        // getRevisionPractice already guards against (a topic can legitimately have
+        // more than one completed study task over time).
+        id: `note-${i.id}`,
+        topicId: i.topicId,
+        topicName,
+        chapterName: i.content?.chapterName ?? '',
+        subjectName: i.content?.subjectName ?? '',
+        completedAt: i.completedAt,
+        isCompleted: true,
+        timeSpentSeconds: session?.time_spent_seconds ?? 0,
+        keyConcepts: session?.key_concepts ?? [],
+        formulas: session?.formulas ?? [],
+        highlights: session?.highlights ?? [],
+        inlineComments: session?.inline_comments ?? [],
+        conversation: session?.conversation ?? [],
+        lessonMarkdown: session?.lesson_markdown ?? '',
+        practiceQuestions: [],
+        commonMistakes: [],
+        notesTitle: `AI Summary Notes - ${topicName}`,
+        notesUrl: '#'
+      };
+    });
   }
 
   async getRevisionPractice(user: any, classId?: string) {
@@ -941,7 +990,11 @@ export class SchoolStudyPlanService implements OnModuleInit {
     return resolvedItems.map((i: any) => {
       const session = sessionMap.get(i.topicId);
       return {
-        id: `practice-${i.topicId}`,
+        // Keyed by the plan item's own id, not topicId — a student can have more than one
+        // completed practice attempt for the same topic, and topicId alone collapsed them
+        // onto the same id, causing a React "duplicate key" warning (and letting one
+        // attempt's row silently stand in for another's) in the Practice History list.
+        id: `practice-${i.id}`,
         topicId: i.topicId,
         topicName: i.content?.topicName ?? '',
         chapterName: i.content?.chapterName ?? '',
@@ -961,6 +1014,114 @@ export class SchoolStudyPlanService implements OnModuleInit {
         totalQuestions: 10
       };
     });
+  }
+
+  /**
+   * All-round improvement, computed at the finest available granularity and rolled up to
+   * subject for display. Pooling every raw score into one before/after average is
+   * confounded by curriculum difficulty drift — if harder material happens to land in the
+   * "after" period, the number looks flat or worse even if the student is genuinely
+   * improving. So per subject, prefer a controlled comparison: for each topic (or chapter,
+   * when an assessment is only chapter-tagged) that has results from BOTH before and after
+   * the student started using the planner, compute that item's own delta, then average
+   * those deltas — same material, before vs. after.
+   *
+   * But most chapters/topics are only assessed ONCE a term, so requiring that pairing at
+   * EVERY subject silently dropped any subject with no retested material — which turned
+   * out to be most of them. So a subject without any such pair falls back to pooling all
+   * of its results (across different topics) by before/after period instead of being
+   * dropped — every subject with any before-period and any after-period result shows up;
+   * only a subject with results on just one side of the cutoff has nothing to compare.
+   */
+  async getStudyPlannerImprovement(user: any, classId?: string) {
+    await this.ensureTables();
+    const student = await this.getStudentProfile(user.id);
+    const targetClassId = classId || student.class_id;
+
+    const usageRows = await this.ds.query(
+      `SELECT LEAST(
+         (SELECT MIN(s.created_at) FROM school_ai_study_sessions s WHERE s.student_id = $1),
+         (SELECT MIN(pi.completed_at)
+          FROM school_plan_items pi
+          JOIN school_study_plans p ON pi.study_plan_id = p.id
+          WHERE p.student_id = $1 AND p.class_id = $2 AND pi.status = 'completed')
+       ) AS first_used_at`,
+      [student.student_id, targetClassId]
+    );
+    const firstUsedAt: Date | null = usageRows[0]?.first_used_at ?? null;
+    type SubjectImprovement = { subjectId: string; subjectName: string; improvementPoints: number; comparableGroups: number; method: 'topic' | 'subject' };
+    if (!firstUsedAt) {
+      return { firstUsedAt: null, overallImprovementPoints: null, subjects: [] as SubjectImprovement[] };
+    }
+
+    // group_key: the most specific tag an assessment has (topic, else chapter, else the
+    // subject itself) — the "same material" unit a controlled delta is computed on.
+    // Raw, ungrouped rows — the before/after and controlled-vs-pooled grouping happens in
+    // JS below, since a subject needs both groupings available to pick the right one.
+    const rows = await this.ds.query(
+      `SELECT
+         a.subject_id,
+         COALESCE(a.topic_id::text, a.chapter_id::text, a.subject_id::text) AS group_key,
+         CASE WHEN r.percentage IS NOT NULL THEN r.percentage
+              WHEN a.total_marks > 0 THEN (r.marks_obtained::numeric / a.total_marks) * 100
+              ELSE NULL END AS pct,
+         COALESCE(a.scheduled_date, r.created_at) AS result_date
+       FROM results r
+       JOIN assessments a ON a.id = r.assessment_id
+       WHERE r.student_id = $1
+         AND a.class_id::text = $2::text
+         AND a.subject_id IS NOT NULL
+         AND r.is_absent = false`,
+      [student.user_id, targetClassId]
+    );
+
+    const bySubject = new Map<string, Map<string, { before: number[]; after: number[] }>>();
+    for (const r of rows) {
+      if (r.pct === null || !r.result_date) continue;
+      const subjMap = bySubject.get(r.subject_id) ?? new Map<string, { before: number[]; after: number[] }>();
+      bySubject.set(r.subject_id, subjMap);
+      const grp = subjMap.get(r.group_key) ?? { before: [], after: [] };
+      subjMap.set(r.group_key, grp);
+      (new Date(r.result_date) < firstUsedAt ? grp.before : grp.after).push(Number(r.pct));
+    }
+
+    if (!bySubject.size) {
+      return { firstUsedAt, overallImprovementPoints: null, subjects: [] as SubjectImprovement[] };
+    }
+
+    const subjectIds = [...bySubject.keys()];
+    const subjectNameRows = await this.ds.query(
+      `SELECT id, name FROM subjects WHERE id = ANY($1::uuid[])`,
+      [subjectIds]
+    );
+    const subjectNames = new Map<string, string>(subjectNameRows.map((s: any) => [s.id, s.name]));
+
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+    const subjects: SubjectImprovement[] = [];
+    for (const [subjectId, groups] of bySubject.entries()) {
+      const controlledDeltas: number[] = [];
+      const allBefore: number[] = [];
+      const allAfter: number[] = [];
+      for (const g of groups.values()) {
+        if (g.before.length) allBefore.push(...g.before);
+        if (g.after.length) allAfter.push(...g.after);
+        if (g.before.length && g.after.length) controlledDeltas.push(avg(g.after) - avg(g.before));
+      }
+
+      const subjectName = subjectNames.get(subjectId) ?? "Subject";
+      if (controlledDeltas.length > 0) {
+        subjects.push({ subjectId, subjectName, improvementPoints: Math.round(avg(controlledDeltas)), comparableGroups: controlledDeltas.length, method: 'topic' });
+      } else if (allBefore.length > 0 && allAfter.length > 0) {
+        subjects.push({ subjectId, subjectName, improvementPoints: Math.round(avg(allAfter) - avg(allBefore)), comparableGroups: 0, method: 'subject' });
+      }
+      // else: this subject has results on only one side of the cutoff — nothing to compare.
+    }
+    subjects.sort((a, b) => b.improvementPoints - a.improvementPoints);
+
+    const overallImprovementPoints = subjects.length ? Math.round(avg(subjects.map(s => s.improvementPoints))) : null;
+
+    return { firstUsedAt, overallImprovementPoints, subjects };
   }
 
   async startRevisionSession(user: any, topicId: string, accuracy: number, intervalDays: number) {
@@ -1160,12 +1321,38 @@ export class SchoolStudyPlanService implements OnModuleInit {
     let commonMistakes: string[] = [];
     let practiceQuestions: any[] = [];
 
+    // The lesson and the practice questions don't depend on each other, but used to be
+    // awaited one after another — the student sat through both LLM calls' latency added
+    // together before the page could open. Firing both requests before awaiting either
+    // lets them run concurrently (wall time becomes ~max of the two, not the sum), while
+    // each keeps its own try/catch below exactly as before.
+    const lessonPromise = this.aiBridgeService.startTutorSession(
+      { studentId: student.student_id, topicId, context: selfStudyPrompt },
+      tenantId,
+      'school',
+    );
+    const practiceQuestionsPromise = this.aiBridgeService.generateQuestionsFromTopic(
+      {
+        topicId,
+        topicName: topic.topic_name,
+        count: 8,
+        difficulty: 'easy_medium',
+        type: 'mcq_single',
+        subject: topic.subject_name || undefined,
+        chapter: topic.chapter_name || undefined,
+        examTarget: `Class ${student.class_name || '10'}`,
+      },
+      tenantId,
+      'school',
+    );
+    // The lesson's catch block below can return early (lesson generation failed and
+    // there's no usable fallback) before this promise is ever awaited — attach a no-op
+    // handler now so that path can't produce an unhandled-rejection warning/crash; the
+    // real `await practiceQuestionsPromise` below still observes the actual result/error.
+    practiceQuestionsPromise.catch(() => {});
+
     try {
-      const lessonResponse = await this.aiBridgeService.startTutorSession(
-        { studentId: student.student_id, topicId, context: selfStudyPrompt },
-        tenantId,
-        'school',
-      ) as any;
+      const lessonResponse = await lessonPromise as any;
 
       lessonMarkdown = this.normalizeSolvedExamplesFormatting(this.extractAiText(lessonResponse));
       aiSessionRef = this.extractAiSessionRef(lessonResponse);
@@ -1203,20 +1390,7 @@ export class SchoolStudyPlanService implements OnModuleInit {
     }
 
     try {
-      const rawQuestions = await this.aiBridgeService.generateQuestionsFromTopic(
-        {
-          topicId,
-          topicName: topic.topic_name,
-          count: 8,
-          difficulty: 'easy_medium',
-          type: 'mcq_single',
-          subject: topic.subject_name || undefined,
-          chapter: topic.chapter_name || undefined,
-          examTarget: `Class ${student.class_name || '10'}`,
-        },
-        tenantId,
-        'school',
-      ) as any[];
+      const rawQuestions = await practiceQuestionsPromise as any[];
 
       if (Array.isArray(rawQuestions)) {
         practiceQuestions = rawQuestions
@@ -1645,6 +1819,16 @@ export class SchoolStudyPlanService implements OnModuleInit {
         [newStatus, bestAccuracy, passed ? now : null, progress.id]
       );
     }
+
+    // Append-only attempt log — captures whether AI study notes had already been opened for
+    // this topic (using the pre-update `progress` row, so it reflects state *before* this
+    // attempt). This is what lets "Your Improvement" compare a student's first vs. most
+    // recent attempt per topic instead of only ever seeing the rolling best_accuracy.
+    await this.ds.query(
+      `INSERT INTO school_quiz_attempts (student_id, topic_id, accuracy, score, total_marks, studied_with_ai)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [student.student_id, topicId, Math.round(dto.accuracy), dto.score ?? null, dto.totalMarks ?? null, !!progress?.studied_with_ai]
+    );
 
     const xpEarned = passed ? 15 : 8;
     await this.ds.query(
