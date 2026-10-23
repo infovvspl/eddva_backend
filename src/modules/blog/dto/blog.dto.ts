@@ -12,7 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BlogPostStatus } from '../../../database/entities/blog-post.entity';
+import { BLOG_LOCALES, BlogLocale, BlogPostStatus } from '../../../database/entities/blog-post.entity';
 
 export class BlogReferenceDto {
   @IsString()
@@ -119,6 +119,16 @@ export class CreateBlogPostDto {
   documentSettings?: BlogDocumentSettingsDto;
 
   @IsOptional()
+  @IsIn(BLOG_LOCALES)
+  locale?: BlogLocale;
+
+  // Links the English and Hindi versions of one article.
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  translationGroup?: string;
+
+  @IsOptional()
   @IsEnum(BlogPostStatus)
   status?: BlogPostStatus;
 }
@@ -177,11 +187,25 @@ export class UpdateBlogPostDto {
   documentSettings?: BlogDocumentSettingsDto;
 
   @IsOptional()
+  @IsIn(BLOG_LOCALES)
+  locale?: BlogLocale;
+
+  // Links the English and Hindi versions of one article.
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  translationGroup?: string;
+
+  @IsOptional()
   @IsEnum(BlogPostStatus)
   status?: BlogPostStatus;
 }
 
 export class ListBlogPostsQueryDto {
+  @IsOptional()
+  @IsIn(BLOG_LOCALES)
+  locale?: BlogLocale;
+
   @IsOptional()
   @IsString()
   category?: string;
@@ -208,6 +232,11 @@ export class ListBlogPostsQueryDto {
 }
 
 export class PublicBlogQueryDto {
+  // Defaults to English when omitted.
+  @IsOptional()
+  @IsIn(BLOG_LOCALES)
+  locale?: BlogLocale;
+
   @IsOptional()
   @IsString()
   category?: string;
