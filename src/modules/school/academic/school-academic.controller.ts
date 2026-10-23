@@ -34,7 +34,9 @@ export class SchoolAcademicController {
 
   @Get('sections') listSections(@SchoolUser() user: any, @Query() query: any) { return this.svc.listSections(user, query); }
   @Post('sections') createSection(@SchoolUser() user: any, @Body() body: any) { return this.svc.createSection(user, body); }
-  @Put('sections/:id') updateSection(@Param('id') id: string, @Body() body: any) { return this.svc.updateSection(id, body); }
+  @Put('sections/:id')
+  @Audit({ module: 'Academic', action: 'Section Edit', description: 'Updated section ID {params.id}, including class teacher if changed' })
+  updateSection(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) { return this.svc.updateSection(id, body, user); }
   @Delete('sections/:id') deleteSection(@Param('id') id: string) { return this.svc.deleteSection(id); }
 
   @Get('periods') listPeriods(@SchoolUser() user: any, @Query() query: any) { return this.svc.listPeriods(user, query); }

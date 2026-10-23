@@ -38,6 +38,10 @@ export class SchoolParentController {
     return this.svc.submitLeaveRequest(user, id, body);
   }
 
+  @Get('students/:id/fees') getFeeSummary(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getFeeSummary(user, id);
+  }
+
   @Get('students/:id/marks') getMarks(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.getMarks(user, id);
   }

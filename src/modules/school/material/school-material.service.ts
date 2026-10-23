@@ -121,6 +121,13 @@ export class SchoolMaterialService implements OnModuleInit {
       await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS ai_tags JSONB`);
       await this.ds.query(`UPDATE school_material_highlights SET category = 'concept' WHERE category IS NULL`);
       await this.ds.query(`CREATE INDEX IF NOT EXISTS idx_material_highlights_material_user ON school_material_highlights (material_id, created_by)`);
+      // Text-mode highlights (AI-generated notes/study guides rendered as
+      // Markdown, not PDF) have no page/rects — they're matched by substring
+      // via MarkdownRenderer's `highlights` prop instead. `highlight_type`
+      // distinguishes the two storage shapes in the same table.
+      await this.ds.query(`ALTER TABLE school_material_highlights ADD COLUMN IF NOT EXISTS highlight_type VARCHAR(10) NOT NULL DEFAULT 'pdf'`);
+      await this.ds.query(`ALTER TABLE school_material_highlights ALTER COLUMN page_number DROP NOT NULL`);
+      await this.ds.query(`ALTER TABLE school_material_highlights ALTER COLUMN rects DROP NOT NULL`);
     } catch (err) {
       this.logger.warn(`Could not create/update school_material_highlights table: ${(err as Error).message}`);
     }
@@ -1433,7 +1440,7 @@ export class SchoolMaterialService implements OnModuleInit {
     const rows = await this.ds.query(
       hasSchoolRole(user.role, 'STUDENT')
         ? `SELECT h.id, h.material_id AS "materialId", h.topic_id AS "topicId", h.created_by AS "createdBy",
-                  creator.role AS "createdByRole",
+                  creator.role AS "createdByRole", h.highlight_type AS "highlightType",
                   h.page_number AS "pageNumber", h.selected_text AS "selectedText", h.rects, h.color, h.category, h.note,
                   h.created_at AS "createdAt", h.updated_at AS "updatedAt"
            FROM school_material_highlights h
@@ -1443,15 +1450,15 @@ export class SchoolMaterialService implements OnModuleInit {
                h.created_by = $2
                OR UPPER(creator.role::text) = 'TEACHER'
              )
-           ORDER BY h.page_number ASC, h.created_at ASC`
+           ORDER BY h.page_number ASC NULLS LAST, h.created_at ASC`
         : `SELECT h.id, h.material_id AS "materialId", h.topic_id AS "topicId", h.created_by AS "createdBy",
-                  creator.role AS "createdByRole",
+                  creator.role AS "createdByRole", h.highlight_type AS "highlightType",
                   h.page_number AS "pageNumber", h.selected_text AS "selectedText", h.rects, h.color, h.category, h.note,
                   h.created_at AS "createdAt", h.updated_at AS "updatedAt"
            FROM school_material_highlights h
            JOIN users creator ON creator.id = h.created_by
            WHERE h.material_id = $1 AND h.created_by = $2
-           ORDER BY h.page_number ASC, h.created_at ASC`,
+           ORDER BY h.page_number ASC NULLS LAST, h.created_at ASC`,
       [id, user.id]
     );
 
@@ -1475,15 +1482,35 @@ export class SchoolMaterialService implements OnModuleInit {
     const topicId = matRows[0].topic_id;
 
     const { pageNumber, selectedText, rects, color, category, note } = body;
+
+    // Text-mode: AI-generated notes/study guides rendered as Markdown — no
+    // PDF page/rects, just the selected substring MarkdownRenderer matches
+    // against (same mechanism already used by the AI Study page's highlighter).
+    if (!pageNumber && !rects) {
+      if (!selectedText || typeof selectedText !== 'string') {
+        throw new BadRequestException('Invalid highlight data');
+      }
+      const rows = await this.ds.query(
+        `INSERT INTO school_material_highlights
+     (material_id, topic_id, created_by, highlight_type, selected_text, color, category, note)
+     VALUES ($1,$2,$3,'text',$4,$5,$6,$7)
+     RETURNING id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy",
+               highlight_type AS "highlightType", selected_text AS "selectedText", color, category, note,
+               created_at AS "createdAt", updated_at AS "updatedAt"`,
+        [id, topicId, user.id, selectedText, color || 'yellow', category || 'concept', note || null],
+      );
+      return { success: true, data: rows[0] };
+    }
+
     if (!pageNumber || !selectedText || !rects || !Array.isArray(rects) || !category) {
       throw new BadRequestException('Invalid highlight data');
     }
 
     const rows = await this.ds.query(
       `INSERT INTO school_material_highlights
-   (material_id, topic_id, created_by, page_number, selected_text, rects, color, category, note)
-   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-   RETURNING id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy", 
+   (material_id, topic_id, created_by, highlight_type, page_number, selected_text, rects, color, category, note)
+   VALUES ($1,$2,$3,'pdf',$4,$5,$6,$7,$8,$9)
+   RETURNING id, material_id AS "materialId", topic_id AS "topicId", created_by AS "createdBy",
              page_number AS "pageNumber", selected_text AS "selectedText", rects, color, category, note,
              created_at AS "createdAt", updated_at AS "updatedAt"`,
       [

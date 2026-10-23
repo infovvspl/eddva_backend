@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { SchoolStudentService } from './school-student.service';
 import { SchoolStudentExitService } from './school-student-exit.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
@@ -43,6 +43,12 @@ export class SchoolStudentController {
   @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
   @Audit({ module: 'Users', action: 'Student Create', description: 'Created student {body.name}' })
   create(@SchoolUser() user: any, @Body() body: any) { return this.svc.create(user, body); }
+
+  @Post('photo-upload-url')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  presignPhoto(@SchoolUser() user: any, @Body() body: any, @Req() req: any) {
+    return this.svc.presignPhoto(user, body, req);
+  }
 
   @Get('profile/me') getMyProfile(@SchoolUser() user: any) { return this.svc.findOne(user, user.id); }
   @Get('stats') stats(@SchoolUser() user: any, @Query() query: any) { return this.svc.getStats(user, query); }

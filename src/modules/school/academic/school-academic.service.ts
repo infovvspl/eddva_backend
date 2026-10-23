@@ -4,6 +4,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import type { Cache } from 'cache-manager';
 import { hasSchoolRole } from '../common/role-helper';
+import { SchoolNotificationService } from '../notification/school-notification.service';
 
 const ACADEMIC_TTL = 30 * 60 * 1000; // 30 min — class/section structure is quasi-static
 
@@ -12,6 +13,7 @@ export class SchoolAcademicService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    private readonly notificationService: SchoolNotificationService,
   ) { }
 
   private classListKey(instituteId: string, academicYear?: string) {
@@ -118,7 +120,7 @@ export class SchoolAcademicService {
         WHERE c.institute_id = $1
           AND c.academic_year = $2
           ${isTeacherFilter}
-        ORDER BY c.name
+        ORDER BY (regexp_match(c.name, '(\\d+)'))[1]::int NULLS LAST, c.name
         `,
         isTeacher ? [instituteId, academicYear, user.id] : [instituteId, academicYear],
       );
@@ -172,7 +174,7 @@ export class SchoolAcademicService {
         FROM classes c
         WHERE c.institute_id = $1
           ${isTeacherFilter}
-        ORDER BY c.name
+        ORDER BY (regexp_match(c.name, '(\\d+)'))[1]::int NULLS LAST, c.name
         `,
         isTeacher ? [instituteId, user.id] : [instituteId],
       );
@@ -372,7 +374,13 @@ export class SchoolAcademicService {
     const cached = await this.cache.get(cacheKey);
     if (cached) return cached;
 
-    let baseQuery = `SELECT sec.*,c.name AS class_name FROM sections sec LEFT JOIN classes c ON sec.class_id::text=c.id::text WHERE c.institute_id=$1`;
+    let baseQuery = `
+      SELECT sec.*, c.name AS class_name, u.name AS class_teacher_name
+      FROM sections sec
+      LEFT JOIN classes c ON sec.class_id::text=c.id::text
+      LEFT JOIN teachers t ON t.id::text = sec.class_teacher_id::text
+      LEFT JOIN users u ON u.id = t.user_id
+      WHERE c.institute_id=$1`;
     const params: any[] = [instituteId];
 
     if (query.classId) {
@@ -446,15 +454,19 @@ export class SchoolAcademicService {
     }
   }
 
-  async updateSection(id: string, body: any) {
+  async updateSection(id: string, body: any, user?: any) {
     const secRows: any[] = await this.ds.query(
-      `SELECT sec.class_id, sec.name, sec.academic_year, c.institute_id FROM sections sec JOIN classes c ON c.id::text=sec.class_id::text WHERE sec.id=$1`,
+      `SELECT sec.class_id, sec.name, sec.academic_year, sec.class_teacher_id, c.institute_id, c.name AS class_name
+       FROM sections sec JOIN classes c ON c.id::text=sec.class_id::text WHERE sec.id=$1`,
       [id],
     );
     if (!secRows.length) throw new NotFoundException('Section not found');
     const current = secRows[0];
     const newName = body.name !== undefined ? String(body.name).trim() : current.name;
     const newYear = body.academicYear !== undefined ? String(body.academicYear).trim() : current.academic_year;
+    // '' means "unassign"; undefined means "leave as-is" (not every PUT touches the class teacher).
+    const teacherIdChanging = body.teacherId !== undefined;
+    const newTeacherId: string | null = teacherIdChanging ? (body.teacherId || null) : current.class_teacher_id;
 
     if (newName.toLowerCase() !== current.name.toLowerCase()) {
       const existing = await this.ds.query(
@@ -471,6 +483,18 @@ export class SchoolAcademicService {
         `UPDATE sections SET name=COALESCE($2,name), academic_year=COALESCE($3,academic_year), updated_at=NOW() WHERE id=$1`,
         [id, newName, newYear],
       );
+
+      if (teacherIdChanging && newTeacherId !== current.class_teacher_id) {
+        // Clear this section from whoever else might have it (mirrors SchoolTeacherService.saveAssignments),
+        // then clear anywhere else the new teacher was marked class teacher (a teacher can only hold one section).
+        await this.ds.query(`UPDATE sections SET class_teacher_id = NULL WHERE id = $1`, [id]);
+        if (newTeacherId) {
+          await this.ds.query(`UPDATE sections SET class_teacher_id = NULL WHERE class_teacher_id = $1`, [newTeacherId]);
+          await this.ds.query(`UPDATE sections SET class_teacher_id = $1 WHERE id = $2`, [newTeacherId, id]);
+        }
+        await this.notifyClassTeacherChange(current, id, newName, newTeacherId, user);
+      }
+
       if (current.institute_id) {
         await this.invalidateSectionCaches(current.institute_id, current.class_id);
       }
@@ -480,6 +504,47 @@ export class SchoolAcademicService {
         throw new ConflictException(`Section '${newName}' already exists in this class.`);
       }
       throw err;
+    }
+  }
+
+  /** Notifies the outgoing and incoming class teacher when a section's class teacher changes mid-year. */
+  private async notifyClassTeacherChange(current: any, sectionId: string, sectionName: string, newTeacherId: string | null, user?: any) {
+    try {
+      const label = `${current.class_name} - ${sectionName}`;
+      if (current.class_teacher_id) {
+        const outgoing = await this.ds.query(`SELECT user_id FROM teachers WHERE id = $1`, [current.class_teacher_id]);
+        if (outgoing[0]?.user_id) {
+          await this.notificationService.create({
+            recipientId: outgoing[0].user_id,
+            senderId: user?.id || null,
+            role: 'TEACHER',
+            type: 'class_teacher_change',
+            category: 'academic',
+            priority: 'medium',
+            title: 'Class Teacher Role Removed',
+            message: `You are no longer the class teacher for ${label}.`,
+            actionUrl: '/school/teacher/dashboard',
+          });
+        }
+      }
+      if (newTeacherId) {
+        const incoming = await this.ds.query(`SELECT user_id FROM teachers WHERE id = $1`, [newTeacherId]);
+        if (incoming[0]?.user_id) {
+          await this.notificationService.create({
+            recipientId: incoming[0].user_id,
+            senderId: user?.id || null,
+            role: 'TEACHER',
+            type: 'class_teacher_change',
+            category: 'academic',
+            priority: 'medium',
+            title: 'You Are Now Class Teacher',
+            message: `You have been made the class teacher for ${label}. Open complaints, attendance flags and report cards for this section now route to you.`,
+            actionUrl: '/school/teacher/dashboard',
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to notify class teacher change:', err);
     }
   }
 

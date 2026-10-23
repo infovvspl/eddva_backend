@@ -99,4 +99,12 @@ export class DocumentGeneratorController {
   verifyIdCard(@Param('code') code: string) {
     return this.documentGeneratorService.verifyIdCard(code);
   }
+
+  @Get('my-id-card')
+  @SchoolRoles('STUDENT')
+  @ApiOperation({ summary: 'Generate the calling student\'s own ID card on demand' })
+  async getMyIdCard(@SchoolUser() user: any) {
+    const pdfBuffer = await this.documentGeneratorService.generateMyIdCard(user);
+    return { pdfBase64: pdfBuffer.toString('base64') };
+  }
 }
