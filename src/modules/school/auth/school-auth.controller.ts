@@ -1,4 +1,8 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards, Ip, Headers } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Patch, HttpCode, HttpStatus, Post, UseGuards, UseInterceptors, UploadedFile, Ip, Headers } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { UpdateSchoolProfileDto } from './dto/update-school-profile.dto';
+import { StorageService } from '../../storage/storage.service';
 import { SchoolAuthService } from './school-auth.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -7,10 +11,23 @@ import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { Audit } from '../../audit-log/audit.decorator';
 
+/** Checks the file's magic bytes (the client-supplied mimetype alone is not trustworthy). */
+function looksLikeImage(b: Buffer): boolean {
+  if (!b || b.length < 12) return false;
+  const jpeg = b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  const png = b[0] === 0x89 && b.toString('ascii', 1, 4) === 'PNG';
+  const gif = b.toString('ascii', 0, 3) === 'GIF';
+  const webp = b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP';
+  return jpeg || png || gif || webp;
+}
+
 @Controller('school/auth')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard)
 export class SchoolAuthController {
-  constructor(private readonly authService: SchoolAuthService) {}
+  constructor(
+    private readonly authService: SchoolAuthService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Post('login')
   @Audit({ module: 'Security', action: 'Login', description: 'School user logged in: {body.email}' })
@@ -39,6 +56,32 @@ export class SchoolAuthController {
   @Get('me')
   getMe(@SchoolUser() user: any) {
     return this.authService.getMe(user);
+  }
+
+  @Patch('profile')
+  updateProfile(@SchoolUser() user: any, @Body() dto: UpdateSchoolProfileDto) {
+    return this.authService.updateProfile(user, dto);
+  }
+
+  @Post('profile/avatar')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.match(/^image\/(jpeg|jpg|png|webp|gif)$/)) {
+          return cb(new BadRequestException('Only image files are allowed (jpg, png, webp, gif)'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadAvatar(@UploadedFile() file: Express.Multer.File, @SchoolUser() user: any) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    if (!looksLikeImage(file.buffer)) throw new BadRequestException('File is not a valid image');
+    const { url } = await this.storageService.uploadFile(file.buffer, file.originalname, file.mimetype, 'avatars');
+    return this.authService.updateAvatar(user.id, url);
   }
 
   @Post('admin-portal-entry')

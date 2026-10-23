@@ -164,7 +164,7 @@ const ALL_COACHING_ENTITIES = [
         return {
           ...coachingDbConfig,
           synchronize: !isProd && dbSyncRequested,
-          logging: !isProd,
+          logging: process.env.DB_LOGGING === 'true',
           retryAttempts: 3,
           retryDelay: 2000,
           entities: ALL_COACHING_ENTITIES,

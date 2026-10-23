@@ -7,6 +7,8 @@ import { hasSchoolRole } from '../common/role-helper';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class SchoolAuthService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
@@ -223,6 +225,25 @@ export class SchoolAuthService {
         studentProfile,
       },
     };
+  }
+
+  async updateProfile(user: any, dto: { name: string; email: string }) {
+    if (!UUID_RE.test(String(user?.id || ''))) {
+      throw new BadRequestException('This account has no editable profile');
+    }
+    const dup: any[] = await this.ds.query(
+      'SELECT 1 FROM users WHERE lower(email) = $1 AND id::text <> $2::text LIMIT 1',
+      [dto.email, user.id],
+    );
+    if (dup.length) throw new BadRequestException('That email is already in use');
+    await this.ds.query('UPDATE users SET name = $1, email = $2 WHERE id = $3', [dto.name, dto.email, user.id]);
+    return { success: true, data: { name: dto.name, email: dto.email } };
+  }
+
+  async updateAvatar(userId: string, avatarUrl: string) {
+    if (!UUID_RE.test(String(userId || ''))) throw new BadRequestException('This account has no editable profile');
+    await this.ds.query('UPDATE users SET profile_image = $1 WHERE id = $2', [avatarUrl, userId]);
+    return { success: true, data: { avatarUrl } };
   }
 
   async recordAdminPortalEntry(user: any) {
