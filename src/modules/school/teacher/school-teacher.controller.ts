@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { SchoolTeacherService } from './school-teacher.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -71,6 +71,9 @@ export class SchoolTeacherController {
   }
 
   @Delete(':id')
-  @Audit({ module: 'Users', action: 'Teacher Delete', description: 'Deleted teacher ID {params.id}' })
-  remove(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(user, id); }
+  remove() {
+    // Teacher records can never be hard-deleted — only deactivated/archived via PUT (isActive: false),
+    // so employment history, academic assignments and attendance stay intact for legacy reporting.
+    throw new ForbiddenException('Teachers cannot be deleted. Deactivate the teacher instead to archive their record.');
+  }
 }

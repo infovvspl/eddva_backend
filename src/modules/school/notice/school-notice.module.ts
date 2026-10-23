@@ -3,9 +3,10 @@ import { SchoolNoticeService } from './school-notice.service';
 import { SchoolNoticeController } from './school-notice.controller';
 import { SchoolNotificationModule } from '../notification/school-notification.module';
 import { SchoolNotificationFcmModule } from '../notification-fcm/school-notification-fcm.module';
+import { UploadModule } from '../../upload/upload.module';
 
 @Module({
-  imports: [SchoolNotificationModule, SchoolNotificationFcmModule],
+  imports: [SchoolNotificationModule, SchoolNotificationFcmModule, UploadModule],
   controllers: [SchoolNoticeController],
   providers: [SchoolNoticeService],
 })

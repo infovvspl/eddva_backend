@@ -20,7 +20,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { createHash } from 'crypto';
 
 import { Public } from '../../common/decorators/auth.decorator';
 import { BlogAdminGuard } from '../blog-admin-auth/blog-admin.guard';
@@ -121,10 +121,12 @@ export class BlogController {
   async uploadCover(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No file uploaded');
     const ext = extname(file.originalname).toLowerCase() || '.jpg';
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '') || `cover${ext}`;
-    const key = `platform/blog/${Date.now()}-${uuidv4()}-${safeName}`;
+    // Content-addressed key: re-uploading the same image reuses one object
+    // instead of piling up copies, and the URL never changes for that content.
+    const hash = createHash('sha256').update(file.buffer).digest('hex').slice(0, 32);
+    const key = `platform/blog/${hash}${ext}`;
     try {
-      const url = await this.s3Service.upload(key, file.buffer, file.mimetype || 'image/jpeg');
+      const url = await this.s3Service.upload(key, file.buffer, file.mimetype || 'image/jpeg', 'public, max-age=31536000, immutable');
       return { url, key };
     } catch (err: any) {
       throw new HttpException(err?.message || 'Upload failed', HttpStatus.BAD_REQUEST);

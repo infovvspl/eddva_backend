@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
 import { FcmService } from '../notification-fcm/fcm.service';
 import { hasSchoolRole } from '../common/role-helper';
+import { S3Service } from '../../upload/s3.service';
+import { randomUUID } from 'crypto';
 import {
   SchoolFcmNotificationType,
   SCHOOL_NOTIFICATION_TEMPLATES,
@@ -18,7 +20,33 @@ export class SchoolNoticeService {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
     private readonly fcm: FcmService,
+    private readonly s3Service: S3Service,
   ) {}
+
+  /**
+   * Notices used to embed each attachment as a base64 data URI straight in the
+   * JSON body — fine for a tiny thumbnail, but a real phone photo (often
+   * 3-10MB raw) pushes the base64-inflated payload past the server's 10MB
+   * JSON body limit, so uploads silently failed. This presigns a direct
+   * browser-to-storage upload instead, same pattern as chat attachments
+   * (`SchoolChatService.presignUpload`) — the attachment becomes a URL, not a
+   * blob in the row.
+   */
+  async presignAttachment(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }, req: any) {
+    const instituteId = user.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
+    if (!body.contentType) throw new BadRequestException('contentType is required');
+    const MAX = 20 * 1024 * 1024; // 20 MB — matches chat attachments' cap
+    if (body.fileSize && body.fileSize > MAX) throw new BadRequestException('File must be ≤ 20 MB');
+    const safeName = (body.fileName || 'file').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'file';
+    const key = `tenants/${instituteId}/notices/attachments/${Date.now()}-${randomUUID()}-${safeName}`;
+    const { uploadUrl, fileUrl } = await this.s3Service.presign(key, body.contentType);
+
+    const host = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const proxyUrl = `${host}/api/v1/upload/proxy?url=${encodeURIComponent(uploadUrl)}&contentType=${encodeURIComponent(body.contentType)}`;
+
+    return { uploadUrl: proxyUrl, fileUrl, key };
+  }
 
   private hasAttachments(attachments: any) {
     return Boolean(attachments && typeof attachments === 'object' && Object.keys(attachments).length > 0);

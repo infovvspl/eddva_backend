@@ -177,6 +177,7 @@ export class BlogService implements OnModuleInit {
 
   async update(id: string, dto: UpdateBlogPostDto): Promise<BlogPost> {
     const post = await this.findById(id);
+    const keysBefore = this.blogImageKeys(post);
 
     if (dto.slug !== undefined || dto.title !== undefined) {
       const base = slugify(dto.slug || dto.title || post.title);

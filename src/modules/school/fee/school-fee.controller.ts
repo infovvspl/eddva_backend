@@ -14,4 +14,6 @@ export class SchoolFeeController {
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(id); }
   @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
   @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(id); }
+  @Put(':id/exempt') exempt(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) { return this.svc.exempt(user, id, body); }
+  @Put(':id/revoke-exemption') revokeExemption(@Param('id') id: string) { return this.svc.revokeExemption(id); }
 }

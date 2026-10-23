@@ -8,6 +8,8 @@ import { querySectionSubjects } from '../common/section-subjects';
 import { hasSchoolRole } from '../common/role-helper';
 import { generateTempPassword } from '../../../common/temp-password';
 import { DocumentGeneratorService } from '../../document-generator/document-generator.service';
+import { S3Service } from '../../upload/s3.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class SchoolStudentService implements OnModuleInit {
@@ -15,7 +17,32 @@ export class SchoolStudentService implements OnModuleInit {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly mailService: MailService,
     private readonly documentGeneratorService: DocumentGeneratorService,
+    private readonly s3Service: S3Service,
   ) { }
+
+  /**
+   * Student photo uploads used to be read as a base64 data URI and posted
+   * straight in the create/update JSON body — the same bug class as notices
+   * attachments (see SchoolNoticeService.presignAttachment): a real phone
+   * photo pushes the base64-inflated payload past the server's 10MB JSON
+   * limit, so the upload silently never reached `profile_image` at all. This
+   * presigns a direct browser-to-storage upload instead.
+   */
+  async presignPhoto(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }, req: any) {
+    const instituteId = user.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
+    if (!body.contentType) throw new BadRequestException('contentType is required');
+    const MAX = 10 * 1024 * 1024; // 10 MB — a profile photo, not a document
+    if (body.fileSize && body.fileSize > MAX) throw new BadRequestException('Photo must be ≤ 10 MB');
+    const safeName = (body.fileName || 'photo').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'photo';
+    const key = `tenants/${instituteId}/student-photos/${Date.now()}-${randomUUID()}-${safeName}`;
+    const { uploadUrl, fileUrl } = await this.s3Service.presign(key, body.contentType);
+
+    const host = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const proxyUrl = `${host}/api/v1/upload/proxy?url=${encodeURIComponent(uploadUrl)}&contentType=${encodeURIComponent(body.contentType)}`;
+
+    return { uploadUrl: proxyUrl, fileUrl, key };
+  }
 
   async onModuleInit() {
     try {
@@ -401,31 +428,24 @@ export class SchoolStudentService implements OnModuleInit {
     const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
 
     const params: any[] = [];
-    let joinClause = '';
-    let filter = `u.role = 'STUDENT'`;
+    let joinClause = `
+      JOIN students s ON s.user_id = u.id
+      LEFT JOIN sections sec ON s.section_id = sec.id
+      LEFT JOIN classes c ON sec.class_id = c.id
+    `;
+    let filter = `u.role = 'STUDENT' AND s.status = 'ACTIVE'`;
     if (instituteId) {
       params.push(instituteId);
       filter += ` AND u.institute_id = $${params.length}`;
+      filter += ` AND c.academic_year = (SELECT MAX(academic_year) FROM classes WHERE institute_id = $${params.length})`;
     }
 
     if (query.classId) {
-      joinClause = `
-        JOIN students s ON s.user_id = u.id
-        LEFT JOIN sections sec ON s.section_id = sec.id
-        LEFT JOIN classes c ON sec.class_id = c.id
-      `;
       params.push(query.classId);
       filter += ` AND c.id::text = $${params.length}::text`;
     }
 
     if (query.sectionId) {
-      if (!query.classId) {
-        joinClause = `
-          JOIN students s ON s.user_id = u.id
-          LEFT JOIN sections sec ON s.section_id = sec.id
-          LEFT JOIN classes c ON sec.class_id = c.id
-        `;
-      }
       params.push(query.sectionId);
       filter += ` AND s.section_id::text = $${params.length}::text`;
     }
