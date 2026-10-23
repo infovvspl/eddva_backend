@@ -534,11 +534,12 @@ export class SchoolAttendanceService {
         u.email,
         u.role,
         s.id AS student_profile_id,
+        s.roll_no AS roll_no,
         sec.id AS section_id,
         sec.name AS section_name,
         c.id AS class_id,
         c.name AS class_name
-      FROM attendances a 
+      FROM attendances a
       JOIN users u ON a.user_id = u.id 
       LEFT JOIN students s ON s.user_id = u.id
       LEFT JOIN sections sec ON s.section_id = sec.id
@@ -564,6 +565,7 @@ export class SchoolAttendanceService {
         role: r.role,
         studentProfile: hasSchoolRole(r.role, 'STUDENT') ? {
           id: r.student_profile_id,
+          rollNo: r.roll_no,
           section: r.section_id ? {
             id: r.section_id,
             name: r.section_name,

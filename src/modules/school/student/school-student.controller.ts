@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseUUIDPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { SchoolStudentService } from './school-student.service';
 import { SchoolStudentExitService } from './school-student-exit.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
@@ -78,8 +78,11 @@ export class SchoolStudentController {
 
   @Delete(':id')
   @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
-  @Audit({ module: 'Users', action: 'Student Delete', description: 'Deleted student ID {params.id}' })
-  remove(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(user, id); }
+  remove() {
+    // Student records can never be hard-deleted — only deactivated/archived via PUT (isActive: false),
+    // so admission history, academic records and attendance stay intact for legacy reporting.
+    throw new ForbiddenException('Students cannot be deleted. Deactivate the student instead to archive their record.');
+  }
 
   @Post(':id/send-credentials')
   @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
