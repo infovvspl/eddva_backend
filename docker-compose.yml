@@ -1,37 +1,60 @@
+# Backend stack: NestJS API + Redis.
+# Databases are EXTERNAL (COACHING_DB_URL / SCHOOL_DB_URL in .env, SSL enforced
+# by src/config/database.config.ts), so no Postgres container is included.
+#
+#   docker compose up -d --build                     # run API + Redis
+#   docker compose --profile tools run --rm migrate  # apply pending migrations
 services:
-  postgres:
-    image: postgres:16
-    container_name: apexiq-postgres
+  backend:
+    build: .
+    image: eddva/backend:latest
+    container_name: eddva-backend
     restart: unless-stopped
+    env_file: .env
     environment:
-      POSTGRES_DB: ${DB_NAME:-apexiq}
-      POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      NODE_ENV: production
+      PORT: "3000"
+      # Redis host must not be "localhost": the app falls back to an in-memory
+      # cache when it is, which would silently disable the shared cache.
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      # AI service published on the host by eddva_ai_service's compose file.
+      AI_BASE_URL: ${AI_BASE_URL_DOCKER:-http://host.docker.internal:8000}
+      FFMPEG_PATH: /usr/bin/ffmpeg
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${BACKEND_PORT:-3000}:3000"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-apexiq}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - backend_uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
 
   redis:
-    image: redis:7
-    container_name: apexiq-redis
+    image: redis:7-alpine
+    container_name: eddva-backend-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - redis_data:/data
+      - backend_redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 5s
+      timeout: 3s
       retries: 5
 
+  # One-shot: applies pending coaching + school migrations, then exits.
+  # Never started by `up`; run explicitly (see header).
+  migrate:
+    image: eddva/backend:latest
+    profiles: ["tools"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+    command: ["node", "scripts/docker-migrate.js"]
+
 volumes:
-  postgres_data:
-  redis_data:
+  backend_uploads:
+  backend_redis:
