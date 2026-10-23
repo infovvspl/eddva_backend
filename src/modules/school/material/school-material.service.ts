@@ -26,6 +26,10 @@ const ALLOWED_MATERIAL_TYPES = [
   'flashcard',
   'revision_checklist',
   'faq',
+  // Teachers upload animation videos (file or YouTube/Vimeo/Drive link). Not
+  // being listed here saved them as 'notes', so only an .mp4 file URL let the
+  // student page recognise one.
+  'animation',
 ];
 /** Upper bound for teacher-typed flashcard text (~1,000 cards of normal length). */
 const MAX_FLASHCARD_CONTENT_CHARS = 200_000;
@@ -1177,6 +1181,7 @@ export class SchoolMaterialService implements OnModuleInit {
       flashcard: 'Flashcards',
       revision_checklist: 'Revision Checklist',
       faq: 'FAQ',
+      animation: 'Animation',
     };
     const fileTypeWord = typeLabels[type] || 'Study Material';
     for (const row of createdRows) {
