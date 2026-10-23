@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Patch, HttpCode, HttpStatus, Post, UseGuards, UseInterceptors, UploadedFile, Ip, Headers } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Patch, Delete, HttpCode, HttpStatus, Post, UseGuards, UseInterceptors, UploadedFile, Ip, Headers } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { UpdateSchoolProfileDto } from './dto/update-school-profile.dto';
@@ -61,6 +61,11 @@ export class SchoolAuthController {
   @Patch('profile')
   updateProfile(@SchoolUser() user: any, @Body() dto: UpdateSchoolProfileDto) {
     return this.authService.updateProfile(user, dto);
+  }
+
+  @Delete('profile/avatar')
+  removeAvatar(@SchoolUser() user: any) {
+    return this.authService.removeAvatar(user.id);
   }
 
   @Post('profile/avatar')

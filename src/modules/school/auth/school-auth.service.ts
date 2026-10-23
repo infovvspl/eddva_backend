@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { querySectionSubjects } from '../common/section-subjects';
 import { recordStudentActivity } from '../common/gamification-helper';
 import { hasSchoolRole } from '../common/role-helper';
+import { StorageService } from '../../storage/storage.service';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 
@@ -11,7 +12,21 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 @Injectable()
 export class SchoolAuthService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly storage: StorageService,
+  ) {}
+
+  /** Deletes a previously uploaded avatar file; only touches keys under avatars/. Never throws. */
+  private async deleteAvatarFile(url?: string | null) {
+    if (!url) return;
+    try {
+      const key = decodeURIComponent(new URL(url).pathname.replace(/^\/+/, ''));
+      if (key.startsWith('avatars/') && !key.includes('..')) await this.storage.deleteFile(key);
+    } catch {
+      /* not one of our URLs, or storage unavailable — the DB link is still cleared */
+    }
+  }
 
   private schoolJwtPayload(user: { id: string; role: string; email: string; institute_id?: string | null; sessionId?: string }) {
     return {
@@ -240,9 +255,19 @@ export class SchoolAuthService {
     return { success: true, data: { name: dto.name, email: dto.email } };
   }
 
+  async removeAvatar(userId: string) {
+    if (!UUID_RE.test(String(userId || ''))) throw new BadRequestException('This account has no editable profile');
+    const rows: any[] = await this.ds.query('SELECT profile_image FROM users WHERE id = $1', [userId]);
+    await this.ds.query('UPDATE users SET profile_image = NULL WHERE id = $1', [userId]);
+    await this.deleteAvatarFile(rows[0]?.profile_image);
+    return { success: true, data: { avatarUrl: null } };
+  }
+
   async updateAvatar(userId: string, avatarUrl: string) {
     if (!UUID_RE.test(String(userId || ''))) throw new BadRequestException('This account has no editable profile');
+    const rows: any[] = await this.ds.query('SELECT profile_image FROM users WHERE id = $1', [userId]);
     await this.ds.query('UPDATE users SET profile_image = $1 WHERE id = $2', [avatarUrl, userId]);
+    if (rows[0]?.profile_image !== avatarUrl) await this.deleteAvatarFile(rows[0]?.profile_image);
     return { success: true, data: { avatarUrl } };
   }
 

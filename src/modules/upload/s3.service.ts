@@ -94,13 +94,14 @@ export class S3Service implements OnModuleInit {
     };
   }
 
-  async upload(key: string, buffer: Buffer, contentType: string): Promise<string> {
+  async upload(key: string, buffer: Buffer, contentType: string, cacheControl?: string): Promise<string> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
         Body: buffer,
         ContentType: contentType,
+        ...(cacheControl ? { CacheControl: cacheControl } : {}),
       }),
     );
 
