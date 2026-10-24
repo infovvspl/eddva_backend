@@ -67,7 +67,7 @@ export class BlogSectionDto {
 
 export class CreateBlogPostDto {
   @IsString()
-  @MaxLength(200)
+  @MaxLength(400)
   title: string;
 
   // Derived from `title` when omitted — see BlogService.slugify.
@@ -83,7 +83,7 @@ export class CreateBlogPostDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(400)
+  @MaxLength(1000)
   excerpt?: string;
 
   @IsOptional()
@@ -136,7 +136,7 @@ export class CreateBlogPostDto {
 export class UpdateBlogPostDto {
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @MaxLength(400)
   title?: string;
 
   @IsOptional()
@@ -151,7 +151,7 @@ export class UpdateBlogPostDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(400)
+  @MaxLength(1000)
   excerpt?: string;
 
   @IsOptional()
