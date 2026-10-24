@@ -28,7 +28,7 @@ describe('BlogService public cache', () => {
       softDelete: jest.fn(),
     };
     const cache = await caching('memory', { ttl: 0 });
-    service = new BlogService(repo, cache as any);
+    service = new BlogService(repo, cache as any, { delete: jest.fn() } as any);
     await service.onModuleInit();
   });
 

@@ -164,8 +164,8 @@ const ALL_COACHING_ENTITIES = [
         return {
           ...coachingDbConfig,
           synchronize: !isProd && dbSyncRequested,
-logging: process.env.DB_LOGGING === 'true' ? true : ['error', 'warn'],
-maxQueryExecutionTime: Number(process.env.DB_SLOW_QUERY_MS) || 500,
+          logging: process.env.DB_LOGGING === 'true' ? true : ['error', 'warn'],
+          maxQueryExecutionTime: Number(process.env.DB_SLOW_QUERY_MS) || 500,
           retryAttempts: 3,
           retryDelay: 2000,
           entities: ALL_COACHING_ENTITIES,
