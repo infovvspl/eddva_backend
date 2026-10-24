@@ -105,7 +105,7 @@ export class SchoolDashboardService {
       const mappedDayOfWeek = String(dayNum === 0 ? 7 : dayNum);
       const currentTimeStr = now.toLocaleTimeString('en-GB', { hour12: false, timeZone: 'Asia/Kolkata' });
 
-      const [studentsCount, assignmentsCount, assessmentsCount, schedules, attendanceStats] = await Promise.all([
+      const [studentsCount, assignmentsCount, assessmentsCount, schedules, attendanceStats, sectionStudentCounts] = await Promise.all([
         teacherId
           ? this.safeQuery(`
               SELECT COUNT(DISTINCT s.user_id)::int AS c
@@ -143,6 +143,15 @@ export class SchoolDashboardService {
               WHERE asess.teacher_id = $1
             `, [teacherId], [{ session_count: 0, present: 0, absent: 0, late: 0, leave_count: 0 }])
           : [{ session_count: 0, present: 0, absent: 0, late: 0, leave_count: 0 }],
+        teacherId
+          ? this.safeQuery(`
+              SELECT s.section_id, COUNT(DISTINCT st.user_id)::int AS count
+              FROM teacher_academic_assignments s
+              JOIN students st ON st.section_id::text = s.section_id::text
+              WHERE s.teacher_id = $1
+              GROUP BY s.section_id
+            `, [teacherId], [])
+          : [],
       ]);
 
       const attPresent = parseInt(attendanceStats[0]?.present || '0');
@@ -192,7 +201,8 @@ export class SchoolDashboardService {
             subjectId: a.subject_id,
             subjectName: a.subject_name,
             isClassTeacher: a.is_class_teacher
-          }))
+          })),
+          sectionStudentCounts: sectionStudentCounts.map((r: any) => ({ sectionId: r.section_id, count: r.count }))
         }
       };
       await this.safeCacheSet(cacheKey, teacherResult, TEACHER_TTL);

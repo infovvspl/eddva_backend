@@ -47,6 +47,7 @@ import { RecordingHighlightModule } from './recording-highlight/recording-highli
 import { SchoolNotificationFcmModule } from './notification-fcm/school-notification-fcm.module';
 
 import { SchoolSyllabusModule } from './syllabus/school-syllabus.module';
+import { LessonPlanModule } from './lesson-plan/lesson-plan.module';
 import { SchoolStaffModule } from './staff/school-staff.module';
 import { SchoolRolesModule } from './roles/school-roles.module';
 import { CompetitiveModule } from './competitive/competitive.module';
@@ -54,6 +55,7 @@ import { CompetitiveModule } from './competitive/competitive.module';
 @Module({
   imports: [
     SchoolSyllabusModule,
+    LessonPlanModule,
     SchoolAuthModule,
     SchoolInstituteModule,
     SchoolStudentModule,
