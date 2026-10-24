@@ -51,6 +51,7 @@ export class SchoolStudentController {
   }
 
   @Get('profile/me') getMyProfile(@SchoolUser() user: any) { return this.svc.findOne(user, user.id); }
+  @Get('filters') filters(@SchoolUser() user: any, @Query() query: any) { return this.svc.listFilterOptions(user, query); }
   @Get('stats') stats(@SchoolUser() user: any, @Query() query: any) { return this.svc.getStats(user, query); }
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
   @Get('courses/my') myCourses(@SchoolUser() user: any) { return this.svc.getMyCourses(user); }
