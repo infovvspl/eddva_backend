@@ -12,6 +12,7 @@ export const ADMIN_PERMISSION_MODULES = [
   'syllabus_planner',
   'syllabus_tracker',
   'attendance',
+  'improvement_areas',
   'timetable',
   'academic_calendar',
   'notices',

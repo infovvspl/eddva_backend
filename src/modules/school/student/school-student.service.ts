@@ -8,6 +8,8 @@ import { querySectionSubjects } from '../common/section-subjects';
 import { hasSchoolRole } from '../common/role-helper';
 import { generateTempPassword } from '../../../common/temp-password';
 import { DocumentGeneratorService } from '../../document-generator/document-generator.service';
+import { S3Service } from '../../upload/s3.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class SchoolStudentService implements OnModuleInit {
@@ -15,7 +17,32 @@ export class SchoolStudentService implements OnModuleInit {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly mailService: MailService,
     private readonly documentGeneratorService: DocumentGeneratorService,
+    private readonly s3Service: S3Service,
   ) { }
+
+  /**
+   * Student photo uploads used to be read as a base64 data URI and posted
+   * straight in the create/update JSON body — the same bug class as notices
+   * attachments (see SchoolNoticeService.presignAttachment): a real phone
+   * photo pushes the base64-inflated payload past the server's 10MB JSON
+   * limit, so the upload silently never reached `profile_image` at all. This
+   * presigns a direct browser-to-storage upload instead.
+   */
+  async presignPhoto(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }, req: any) {
+    const instituteId = user.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
+    if (!body.contentType) throw new BadRequestException('contentType is required');
+    const MAX = 10 * 1024 * 1024; // 10 MB — a profile photo, not a document
+    if (body.fileSize && body.fileSize > MAX) throw new BadRequestException('Photo must be ≤ 10 MB');
+    const safeName = (body.fileName || 'photo').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'photo';
+    const key = `tenants/${instituteId}/student-photos/${Date.now()}-${randomUUID()}-${safeName}`;
+    const { uploadUrl, fileUrl } = await this.s3Service.presign(key, body.contentType);
+
+    const host = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const proxyUrl = `${host}/api/v1/upload/proxy?url=${encodeURIComponent(uploadUrl)}&contentType=${encodeURIComponent(body.contentType)}`;
+
+    return { uploadUrl: proxyUrl, fileUrl, key };
+  }
 
   async onModuleInit() {
     try {
@@ -237,7 +264,22 @@ export class SchoolStudentService implements OnModuleInit {
     }
   }
 
-  async list(user: any, query: any) {
+  // A user's teachers.id essentially never changes, and every students-list request needs it,
+  // so remember it briefly instead of spending a database round trip on each call.
+  // Only found ids are cached, so a teacher profile created later is picked up immediately.
+  private readonly teacherIdCache = new Map<string, { id: string; exp: number }>();
+
+  private async teacherIdForUser(userId: string): Promise<string | undefined> {
+    const hit = this.teacherIdCache.get(userId);
+    if (hit && hit.exp > Date.now()) return hit.id;
+    const rows: any[] = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [userId]);
+    const id = rows[0]?.id;
+    if (id) this.teacherIdCache.set(userId, { id, exp: Date.now() + 5 * 60_000 });
+    return id;
+  }
+
+  /** Who may see which students: institute, role (student/parent/teacher) scoping. */
+  private async studentScopeFilter(user: any, query: any) {
     const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
     const params: any[] = [];
     let filter = `u.role='STUDENT'`;
@@ -257,19 +299,45 @@ export class SchoolStudentService implements OnModuleInit {
         OR (s.parent_phone IS NOT NULL AND $${params.length}::text IS NOT NULL AND s.parent_phone = $${params.length})
       )`;
     } else if (hasSchoolRole(user.role, 'TEACHER')) {
-      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
-      const teacherId = tRows[0]?.id;
+      const teacherId = await this.teacherIdForUser(user.id);
       if (teacherId) {
         params.push(teacherId);
         filter += ` AND EXISTS (
           SELECT 1
           FROM teacher_academic_assignments ta
-          WHERE ta.teacher_id::text = $${params.length}::text
-            AND ta.class_id::text = sec.class_id::text
-            AND ta.section_id::text = sec.id::text
+          WHERE ta.teacher_id = $${params.length}::uuid
+            AND ta.class_id = sec.class_id
+            AND ta.section_id = sec.id
         )`;
       }
     }
+
+    return { filter, params };
+  }
+
+  /** Classes and sections the caller can see students in, for the filter dropdowns. */
+  async listFilterOptions(user: any, query: any = {}) {
+    const { filter, params } = await this.studentScopeFilter(user, query);
+    const rows: any[] = await this.ds.query(
+      `SELECT DISTINCT c.id AS class_id, c.name AS class_name, sec.id AS section_id, sec.name AS section_name
+       FROM users u JOIN students s ON s.user_id=u.id
+       JOIN sections sec ON s.section_id=sec.id
+       JOIN classes c ON sec.class_id=c.id
+       WHERE ${filter}
+       ORDER BY c.name, sec.name`,
+      params,
+    );
+    const classes = new Map<string, { id: string; name: string; sections: { id: string; name: string }[] }>();
+    for (const r of rows) {
+      if (!classes.has(r.class_id)) classes.set(r.class_id, { id: r.class_id, name: r.class_name, sections: [] });
+      classes.get(r.class_id)!.sections.push({ id: r.section_id, name: r.section_name });
+    }
+    return { success: true, data: { classes: [...classes.values()] } };
+  }
+
+  async list(user: any, query: any) {
+    const { filter: scopeFilter, params } = await this.studentScopeFilter(user, query);
+    let filter = scopeFilter;
 
     if (query.classId) {
       params.push(query.classId);
@@ -279,6 +347,9 @@ export class SchoolStudentService implements OnModuleInit {
       params.push(query.sectionId);
       filter += ` AND s.section_id::text=$${params.length}::text`;
     }
+    const status = String(query.status || '').toLowerCase();
+    if (status === 'active') filter += ` AND u.is_active = TRUE`;
+    else if (status === 'inactive') filter += ` AND u.is_active = FALSE`;
 
     if (query.search) {
       const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
@@ -303,9 +374,6 @@ export class SchoolStudentService implements OnModuleInit {
       LEFT JOIN classes c ON sec.class_id=c.id
       WHERE ${filter}
     `;
-    const countResult = await this.ds.query(countQuery, params);
-    const total = parseInt(countResult[0]?.total || '0', 10);
-    const totalPages = limit ? Math.ceil(total / limit) : 1;
 
     const allowedSortFields: Record<string, string> = {
       name: 'u.name',
@@ -316,7 +384,7 @@ export class SchoolStudentService implements OnModuleInit {
     const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const limitOffsetClause = limit !== null ? `LIMIT ${limit} OFFSET ${offset}` : '';
-    const rows: any[] = await this.ds.query(
+    const [countResult, rows]: [any[], any[]] = await Promise.all([this.ds.query(countQuery, params), this.ds.query(
       `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.profile_image,u.created_at,
               u.institute_id,i.name AS institute_name,
               s.id AS profile_id,s.enrollment_no,s.roll_no,s.section_id,s.dob,s.gender,s.blood_group,
@@ -327,14 +395,16 @@ export class SchoolStudentService implements OnModuleInit {
               s.credentials_sent_at,s.student_credentials_sent_at,
               sec.name AS section_name,c.id AS class_id,c.name AS class_name,
               (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE UPPER(at.status) IN ('PRESENT','LATE')) / NULLIF(COUNT(*), 0))
-                 FROM attendances at WHERE at.user_id::text = u.id::text) AS attendance_pct
+                 FROM attendances at WHERE at.user_id = u.id) AS attendance_pct
        FROM users u JOIN students s ON s.user_id=u.id
        LEFT JOIN institutes i ON i.id=u.institute_id
        LEFT JOIN sections sec ON s.section_id=sec.id
        LEFT JOIN classes c ON sec.class_id=c.id
        WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} ${limitOffsetClause}`,
       params,
-    );
+    )]);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = limit ? Math.ceil(total / limit) : 1;
     const mapped = rows.map(r => {
       const documents = this.parseJsonObject(r.documents);
       const parentDetails = documents.parentDetails || {};
@@ -401,31 +471,24 @@ export class SchoolStudentService implements OnModuleInit {
     const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
 
     const params: any[] = [];
-    let joinClause = '';
-    let filter = `u.role = 'STUDENT'`;
+    let joinClause = `
+      JOIN students s ON s.user_id = u.id
+      LEFT JOIN sections sec ON s.section_id = sec.id
+      LEFT JOIN classes c ON sec.class_id = c.id
+    `;
+    let filter = `u.role = 'STUDENT' AND s.status = 'ACTIVE'`;
     if (instituteId) {
       params.push(instituteId);
       filter += ` AND u.institute_id = $${params.length}`;
+      filter += ` AND c.academic_year = (SELECT MAX(academic_year) FROM classes WHERE institute_id = $${params.length})`;
     }
 
     if (query.classId) {
-      joinClause = `
-        JOIN students s ON s.user_id = u.id
-        LEFT JOIN sections sec ON s.section_id = sec.id
-        LEFT JOIN classes c ON sec.class_id = c.id
-      `;
       params.push(query.classId);
       filter += ` AND c.id::text = $${params.length}::text`;
     }
 
     if (query.sectionId) {
-      if (!query.classId) {
-        joinClause = `
-          JOIN students s ON s.user_id = u.id
-          LEFT JOIN sections sec ON s.section_id = sec.id
-          LEFT JOIN classes c ON sec.class_id = c.id
-        `;
-      }
       params.push(query.sectionId);
       filter += ` AND s.section_id::text = $${params.length}::text`;
     }

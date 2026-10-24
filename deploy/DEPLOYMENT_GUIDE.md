@@ -224,7 +224,7 @@ sudo apt-get update -y && sudo apt-get upgrade -y
 ### 6.2 Install Node.js 20
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs
 node --version   # should print v20.x.x
 npm --version    # should print 10.x.x
@@ -429,7 +429,7 @@ python3.11 --version   # should print Python 3.11.x
 ### 7.2 Install Node.js + PM2
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs
 sudo npm install -g pm2
 sudo pm2 startup systemd -u ubuntu --hp /home/ubuntu
@@ -1037,7 +1037,7 @@ git push origin main
 GitHub Actions triggers 3 parallel workflows:
   │
   ├── Backend (apexiq-backend/.github/workflows/deploy.yml)
-  │     1. Runner installs Node 20
+  │     1. Runner installs Node 22
   │     2. npm ci + npm run build   ← verifies build before SSH
   │     3. SSH into App Server
   │     4. Writes .env from GitHub Secrets
@@ -1045,7 +1045,7 @@ GitHub Actions triggers 3 parallel workflows:
   │     6. pm2 reload (zero-downtime cluster reload)
   │
   ├── Frontend (eddva_frontend/.github/workflows/deploy.yml)
-  │     1. Runner installs Node 20
+  │     1. Runner installs Node 22
   │     2. Creates .env.production from secrets
   │     3. npm ci + npm run build
   │     4. SCP dist/ → App Server /var/www/eddva-frontend/

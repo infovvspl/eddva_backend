@@ -229,6 +229,7 @@ export class SchoolDashboardService {
           feesPending: 0,
           feesOverdue: 0,
           feesTotal: 0,
+          feesOverdueAccounts: 0,
           feesCollectedPercentage: 0,
           topStudents: [],
         };
@@ -273,7 +274,15 @@ export class SchoolDashboardService {
       ] = await Promise.all([
         this.safeQuery(`SELECT * FROM institutes WHERE id=$1`, [instituteId], []),
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE UPPER(REPLACE(role, ' ', '_')) LIKE '%TEACHER%' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
-        this.safeQuery(`SELECT COUNT(*)::int AS c FROM users WHERE role='STUDENT' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
+        this.safeQuery(`
+          SELECT COUNT(DISTINCT s.id)::int AS c
+          FROM students s
+          JOIN users u ON u.id = s.user_id
+          LEFT JOIN sections sec ON sec.id = s.section_id
+          LEFT JOIN classes c ON c.id = sec.class_id
+          WHERE s.institute_id = $1 AND u.role = 'STUDENT' AND s.status = 'ACTIVE'
+            AND c.academic_year = (SELECT MAX(academic_year) FROM classes WHERE institute_id = $1)
+        `, [instituteId], [{ c: 0 }]),
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM complaints WHERE status='OPEN' AND institute_id=$1`, [instituteId], [{ c: 0 }]),
         this.safeQuery(`SELECT status AS name, COUNT(*)::int AS value FROM complaints WHERE institute_id=$1 GROUP BY status`, [instituteId], []),
         this.safeQuery(`SELECT id, title, content, posted_date, created_at FROM notices WHERE institute_id=$1 ORDER BY COALESCE(posted_date, created_at) DESC LIMIT 3`, [instituteId], []),
@@ -314,10 +323,11 @@ export class SchoolDashboardService {
             COALESCE(SUM(amount) FILTER (WHERE UPPER(status::text) = 'PAID'), 0)::float AS collected,
             COALESCE(SUM(amount) FILTER (WHERE UPPER(status::text) != 'PAID' AND (due_date IS NULL OR due_date >= CURRENT_DATE)), 0)::float AS pending,
             COALESCE(SUM(amount) FILTER (WHERE UPPER(status::text) != 'PAID' AND due_date IS NOT NULL AND due_date < CURRENT_DATE), 0)::float AS overdue,
-            COALESCE(SUM(amount), 0)::float AS total
+            COALESCE(SUM(amount), 0)::float AS total,
+            COUNT(DISTINCT student_id) FILTER (WHERE UPPER(status::text) != 'PAID' AND due_date IS NOT NULL AND due_date < CURRENT_DATE)::int AS "overdueAccounts"
           FROM fees
           WHERE institute_id = $1
-        `, [instituteId], [{ collected: 0, pending: 0, overdue: 0, total: 0 }]),
+        `, [instituteId], [{ collected: 0, pending: 0, overdue: 0, total: 0, overdueAccounts: 0 }]),
         this.safeQuery(`
           SELECT u.id AS user_id, u.name, u.profile_image, s.xp_total, c.name AS class_name, sec.name AS section_name
           FROM students s
@@ -440,6 +450,7 @@ export class SchoolDashboardService {
       const feesPending = feeTotalsRow[0]?.pending || 0;
       const feesOverdue = feeTotalsRow[0]?.overdue || 0;
       const feesTotal = feeTotalsRow[0]?.total || 0;
+      const feesOverdueAccounts = feeTotalsRow[0]?.overdueAccounts || 0;
       const feesCollectedPercentage = feesTotal > 0 ? Math.round((feesCollected / feesTotal) * 100) : 0;
 
       const inProgressTickets = ticketCountsRow[0]?.in_progress || 0;
@@ -473,6 +484,7 @@ export class SchoolDashboardService {
       // "Attention Required": computed from live data on every load, so it never goes stale
       // like the stored notification snapshots did.
       const attentionFlags = await this.buildAttentionFlags(instituteId);
+      const attentionFlagsCount = await this.countAttentionFlags(instituteId);
 
       // Last 6 months: average assessment score and attendance rate, for the dashboard performance chart.
       const scoreByMonth = await this.safeQuery(`
@@ -522,10 +534,12 @@ export class SchoolDashboardService {
         presentTeachersToday,
         attendanceHistory,
         attentionFlags,
+        attentionFlagsCount,
         feesCollected,
         feesPending,
         feesOverdue,
         feesTotal,
+        feesOverdueAccounts,
         feesCollectedPercentage,
         topStudents: (topStudentsRows || []).map((r: any) => ({
           userId: r.user_id,
@@ -1095,6 +1109,56 @@ export class SchoolDashboardService {
       users
     };
   }
+  /**
+   * True total across every attention-flag category, independent of the
+   * dashboard card's capped preview (3 attendance + 2 teacher attendance + 2
+   * performance + 1 fee) — the number the "Flag Tracker" badge shows.
+   */
+  private async countAttentionFlags(instituteId: string): Promise<number> {
+    const [attendance, teacherAttendance, performance, fees] = await Promise.all([
+      this.safeQuery(`
+        SELECT COUNT(*)::int AS c FROM (
+          SELECT u.id FROM attendances a
+          JOIN users u ON u.id = a.user_id
+          LEFT JOIN students s ON s.user_id = u.id
+          LEFT JOIN institutes i ON i.id = a.institute_id
+          WHERE a.institute_id = $1 AND a.date >= CURRENT_DATE - 30 AND u.role::text = 'STUDENT'
+          GROUP BY u.id
+          HAVING 100.0 * COUNT(*) FILTER (WHERE LOWER(a.status) IN ('present','late')) / COUNT(*)
+                 < COALESCE(MAX(s.min_attendance_percentage), MAX(i.min_attendance_percentage), 75)
+        ) sub
+      `, [instituteId], [{ c: 0 }]),
+      this.safeQuery(`
+        SELECT COUNT(*)::int AS c FROM (
+          SELECT u.id FROM teacher_attendance ta
+          JOIN users u ON u.id = ta.teacher_user_id
+          LEFT JOIN teachers t ON t.user_id = u.id
+          LEFT JOIN institutes i ON i.id = ta.institute_id
+          WHERE ta.institute_id = $1 AND ta.date >= (CURRENT_DATE - 30)::text
+          GROUP BY u.id
+          HAVING 100.0 * COUNT(*) FILTER (WHERE ta.status IN ('present','late')) / COUNT(*)
+                 < COALESCE(MAX(t.min_attendance_percentage), MAX(i.min_attendance_percentage), 80)
+        ) sub
+      `, [instituteId], [{ c: 0 }]),
+      this.safeQuery(`
+        SELECT COUNT(*)::int AS c FROM (
+          SELECT u.id FROM results r JOIN users u ON u.id = r.student_id
+          WHERE u.institute_id::text = $1 AND COALESCE(r.is_absent, false) = false
+          GROUP BY u.id HAVING AVG(r.percentage) < 50
+        ) sub
+      `, [instituteId], [{ c: 0 }]),
+      this.safeQuery(`
+        SELECT COUNT(*)::int AS c FROM (
+          SELECT u.id FROM fees f JOIN students s ON s.id = f.student_id JOIN users u ON u.id = s.user_id
+          WHERE f.institute_id = $1 AND UPPER(f.status::text) != 'PAID'
+                AND f.due_date IS NOT NULL AND f.due_date < CURRENT_DATE
+          GROUP BY u.id
+        ) sub
+      `, [instituteId], [{ c: 0 }]),
+    ]);
+    return (attendance[0]?.c || 0) + (teacherAttendance[0]?.c || 0) + (performance[0]?.c || 0) + (fees[0]?.c || 0);
+  }
+
   /** Every attention flag for the "View All" page, not just the dashboard card's top few. */
   async getAllAttentionFlags(user: any) {
     const hasSuperAdminRole = String(user?.role || '').toUpperCase().includes('SUPER_ADMIN');
@@ -1107,7 +1171,7 @@ export class SchoolDashboardService {
     return this.buildAttentionFlags(instituteId, { full: true });
   }
 
-  /** Students and fees that need an admin's attention, from live data (last 30 days of attendance). */
+  /** Students, teachers, and fees that need an admin's attention, from live data (last 30 days of attendance). */
   private async buildAttentionFlags(instituteId: string, opts: { full?: boolean } = {}) {
     const limit = (dashboardLimit: number, fullLimit: number) => (opts.full ? fullLimit : dashboardLimit);
 
@@ -1126,6 +1190,23 @@ export class SchoolDashboardService {
       ORDER BY 2 LIMIT ${limit(3, 50)}
     `, [instituteId], []);
 
+    // Teacher-side counterpart — teacher_attendance uses lowercase 'present'/'late'
+    // status values (see SchoolTeacherAttendanceService), unlike the student table above.
+    const teacherAttendance = await this.safeQuery(`
+      SELECT u.id AS teacher_user_id, u.name,
+             ROUND(100.0 * COUNT(*) FILTER (WHERE ta.status IN ('present','late')) / COUNT(*))::int AS pct,
+             COALESCE(MAX(t.min_attendance_percentage), MAX(i.min_attendance_percentage), 80)::numeric AS threshold
+      FROM teacher_attendance ta
+      JOIN users u ON u.id = ta.teacher_user_id
+      LEFT JOIN teachers t ON t.user_id = u.id
+      LEFT JOIN institutes i ON i.id = ta.institute_id
+      WHERE ta.institute_id = $1 AND ta.date >= (CURRENT_DATE - 30)::text
+      GROUP BY u.id, u.name
+      HAVING 100.0 * COUNT(*) FILTER (WHERE ta.status IN ('present','late')) / COUNT(*)
+             < COALESCE(MAX(t.min_attendance_percentage), MAX(i.min_attendance_percentage), 80)
+      ORDER BY 2 LIMIT ${limit(2, 50)}
+    `, [instituteId], []);
+
     const performance = await this.safeQuery(`
       SELECT u.id AS student_id, u.name, ROUND(AVG(r.percentage))::int AS pct
       FROM results r JOIN users u ON u.id = r.student_id
@@ -1136,17 +1217,21 @@ export class SchoolDashboardService {
 
     // "Overdue" isn't a stored status value: a fee is overdue once its due date has
     // passed without being marked PAID (same rule the Fee Overview widget uses above).
+    // MIN(due_date) is the account's longest-overdue bill, so the dashboard can show
+    // "overdue since X" instead of just a flat count.
     const fees = await this.safeQuery(`
-      SELECT u.id AS student_id, u.name, SUM(f.amount)::int AS due, COUNT(*)::int AS n
+      SELECT u.id AS student_id, u.name, SUM(f.amount)::int AS due, COUNT(*)::int AS n,
+             MIN(f.due_date) AS "oldestDueDate"
       FROM fees f JOIN students s ON s.id = f.student_id JOIN users u ON u.id = s.user_id
       WHERE f.institute_id = $1 AND UPPER(f.status::text) != 'PAID'
             AND f.due_date IS NOT NULL AND f.due_date < CURRENT_DATE
-      GROUP BY u.id, u.name ORDER BY 2 DESC LIMIT ${limit(1, 50)}
+      GROUP BY u.id, u.name ORDER BY "oldestDueDate" ASC LIMIT ${limit(5, 50)}
     `, [instituteId], []);
 
     return [
       ...attendance.map((a: any) => ({
         id: `att-${a.student_id}`,
+        category: 'ATTENDANCE',
         title: `Attendance flag: ${a.name}`,
         message: `${a.name} has ${a.pct}% attendance over the last 30 days (below ${Math.round(Number(a.threshold))}%).`,
         // Deep-link to the flagged student's Attendance tab, defaulted to the same
@@ -1154,8 +1239,17 @@ export class SchoolDashboardService {
         actionUrl: `/school/admin/students/${a.student_id}?flag=attendance`,
         priority: 'HIGH',
       })),
+      ...teacherAttendance.map((a: any) => ({
+        id: `tatt-${a.teacher_user_id}`,
+        category: 'ATTENDANCE',
+        title: `Teacher attendance flag: ${a.name}`,
+        message: `${a.name} has ${a.pct}% attendance over the last 30 days (below ${Math.round(Number(a.threshold))}%).`,
+        actionUrl: `/school/admin/teachers/${a.teacher_user_id}?flag=attendance`,
+        priority: 'HIGH',
+      })),
       ...performance.map((a: any) => ({
         id: `perf-${a.student_id}`,
+        category: 'PERFORMANCE',
         title: `Performance flag: ${a.name}`,
         message: `${a.name} is averaging ${a.pct}% across recent assessments.`,
         actionUrl: `/school/admin/students/${a.student_id}`,
@@ -1163,10 +1257,12 @@ export class SchoolDashboardService {
       })),
       ...fees.map((a: any) => ({
         id: `fee-${a.student_id}`,
+        category: 'FEE',
         title: `Fee flag: ${a.name}`,
         message: `${a.name} has ${a.n} overdue fees totalling Rs ${Number(a.due).toLocaleString('en-IN')}.`,
         actionUrl: '/school/admin/fee-defaulters',
         priority: 'MEDIUM',
+        dueDate: a.oldestDueDate,
       })),
     ];
   }

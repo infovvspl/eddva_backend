@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Put, Patch, Query, UseGuard
 import { SchoolNotificationService } from './school-notification.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
+import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { SchoolUser } from '../decorators/school-user.decorator';
 
 @Controller('school/notifications')
@@ -22,6 +23,12 @@ export class SchoolNotificationController {
   @Get('flag-count')
   getFlagCount(@SchoolUser() user: any) {
     return this.svc.getFlagCount(user);
+  }
+
+  @Get('flag-summary')
+  @SchoolRoles('SUPER_ADMIN', 'INSTITUTE_ADMIN')
+  getInstituteFlagSummary(@SchoolUser() user: any) {
+    return this.svc.getInstituteFlagSummary(user);
   }
 
   @Post()
