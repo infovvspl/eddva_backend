@@ -347,6 +347,15 @@ export class SchoolClassService implements OnModuleInit {
     return this.languageFromSubjectName(rec.subject_name) ?? this.normalizeLanguage(rec.language);
   }
 
+  /**
+   * In-video quiz language: only a language subject (Hindi/Odia) gets a quiz in
+   * that language; every other subject is always quizzed in English, even when
+   * the lecture was spoken/tagged as Hindi or Hinglish.
+   */
+  private resolveQuizLanguage(rec: { subject_name?: string | null }): 'en' | 'hi' | 'od' {
+    return this.languageFromSubjectName(rec.subject_name) ?? 'en';
+  }
+
   /** Presigned S3 PUT URL for a recorded-class video (browser uploads directly). */
   async presignUpload(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }, req?: any) {
     const instituteId = this.resolveInstituteId(user, (body as any).instituteId);
@@ -2036,7 +2045,7 @@ export class SchoolClassService implements OnModuleInit {
           lectureTitle: rec.title || 'Lecture',
           topicId: rec.topic_id || '',
           numQuestions: 5,
-          language: this.resolveContentLanguage(rec),
+          language: this.resolveQuizLanguage(rec),
         },
         instituteId,
       );

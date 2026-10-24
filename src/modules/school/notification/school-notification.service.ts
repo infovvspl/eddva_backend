@@ -264,7 +264,10 @@ export class SchoolNotificationService {
           attendanceAlerts: p.attendance_alerts,
           announcementAlerts: p.announcement_alerts,
           liveClassAlerts: p.live_class_alerts,
-          feeAlerts: p.fee_alerts
+          feeAlerts: p.fee_alerts,
+          // Column added for the AI Study Planner's weekly defaulter alerts; missing on a row
+          // saved before that migration, so it falls back to the same default as the rest (on).
+          studyPlannerAlerts: p.study_planner_alerts !== undefined ? p.study_planner_alerts : true
         }
       };
     }
@@ -280,7 +283,8 @@ export class SchoolNotificationService {
         attendanceAlerts: true,
         announcementAlerts: true,
         liveClassAlerts: true,
-        feeAlerts: true
+        feeAlerts: true,
+        studyPlannerAlerts: true
       }
     };
   }
@@ -290,8 +294,8 @@ export class SchoolNotificationService {
       `INSERT INTO notification_preferences (
         user_id, enable_in_app, enable_email, enable_push,
         assignment_alerts, assessment_alerts, attendance_alerts,
-        announcement_alerts, live_class_alerts, fee_alerts, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        announcement_alerts, live_class_alerts, fee_alerts, study_planner_alerts, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
       ON CONFLICT (user_id) DO UPDATE SET
         enable_in_app = EXCLUDED.enable_in_app,
         enable_email = EXCLUDED.enable_email,
@@ -302,6 +306,7 @@ export class SchoolNotificationService {
         announcement_alerts = EXCLUDED.announcement_alerts,
         live_class_alerts = EXCLUDED.live_class_alerts,
         fee_alerts = EXCLUDED.fee_alerts,
+        study_planner_alerts = EXCLUDED.study_planner_alerts,
         updated_at = NOW()`,
       [
         user.id,
@@ -313,7 +318,8 @@ export class SchoolNotificationService {
         prefs.attendanceAlerts !== undefined ? prefs.attendanceAlerts : true,
         prefs.announcementAlerts !== undefined ? prefs.announcementAlerts : true,
         prefs.liveClassAlerts !== undefined ? prefs.liveClassAlerts : true,
-        prefs.feeAlerts !== undefined ? prefs.feeAlerts : true
+        prefs.feeAlerts !== undefined ? prefs.feeAlerts : true,
+        prefs.studyPlannerAlerts !== undefined ? prefs.studyPlannerAlerts : true
       ]
     );
     return { success: true };

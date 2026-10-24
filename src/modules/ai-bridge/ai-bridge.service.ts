@@ -458,6 +458,73 @@ export class AiBridgeService {
     return this.post<AiTutorChatResult>('/ai-tutor/chat', payload, tenantId, 60_000, 'school', board);
   }
 
+  /**
+   * Learning path: the AI roadmap of a chapter — topics in teaching order with
+   * subtopics, and which of the school's recorded topics each one covers.
+   */
+  async generateChapterRoadmap(
+    payload: { subject: string; chapter: string; className?: string; board?: string; existingTopics: string[]; passages?: string[] },
+    tenantId?: string,
+  ): Promise<{ topics: { topic: string; subtopics: string[]; covers: string[] }[] }> {
+    return this.post(
+      '/learning/chapter-roadmap',
+      {
+        subject: payload.subject,
+        chapter: payload.chapter,
+        class_name: payload.className,
+        board: payload.board,
+        existing_topics: payload.existingTopics,
+        passages: payload.passages,
+      },
+      tenantId,
+      90_000,
+      'school',
+    );
+  }
+
+  /** Learning path: the subtopic roadmap of one weak topic (its chapter is not weak). */
+  async generateTopicRoadmap(
+    payload: { subject: string; chapter: string; topic: string; className?: string; board?: string; passages?: string[] },
+    tenantId?: string,
+  ): Promise<{ topic: string; subtopics: string[] }> {
+    return this.post(
+      '/learning/topic-roadmap',
+      {
+        subject: payload.subject,
+        chapter: payload.chapter,
+        topic: payload.topic,
+        class_name: payload.className,
+        board: payload.board,
+        passages: payload.passages,
+      },
+      tenantId,
+      60_000,
+      'school',
+    );
+  }
+
+  /** Learning path: whether a question asked in a topic's chat is about that topic. */
+  async checkTopicScope(
+    payload: { topic: string; chapter?: string; subject?: string; subtopics?: string[]; history?: { role: 'student' | 'tutor'; content: string }[]; message: string },
+    tenantId?: string,
+  ): Promise<{ on_topic: boolean }> {
+    return this.post('/learning/topic-scope', payload, tenantId, 15_000, 'school');
+  }
+
+  /** Learning path: the one best YouTube video for a topic, for the student's class and board (null if none fits). */
+  async findTopicVideo(
+    payload: { topic: string; chapter?: string; subject?: string; className?: string; board?: string },
+    tenantId?: string,
+  ): Promise<{ video: { videoId: string; title: string; channel: string; duration: string; thumbnailUrl: string } | null }> {
+    return this.post(
+      '/learning/topic-video',
+      { topic: payload.topic, chapter: payload.chapter, subject: payload.subject, class_name: payload.className, board: payload.board },
+      tenantId,
+      30_000,
+      'school',
+    );
+  }
+
   /** Pictures (Gemini-checked) and YouTube videos for an answer — slower, so loaded after it. */
   async aiTutorMedia(
     payload: { query: string; student: AiTutorChatPayload['student'] },
@@ -913,6 +980,8 @@ export class AiBridgeService {
       chapters?: string[];
       language?: string;
       board?: string;
+      /** When given, every question comes back with `concept` = one of these (learning-path weak-concept detection). */
+      concepts?: string[];
     },
     tenantId?: string,
     vertical?: string,
@@ -933,6 +1002,7 @@ export class AiBridgeService {
       chapters: dto.chapters,           // subject-test: exact DB chapters to generate from
       seed: (dto as any).seed,          // force LLM variety
       language: dto.language,
+      concepts: dto.concepts?.length ? dto.concepts : undefined,
     }, tenantId, undefined, vertical, board);
 
     const questions = this.resolveToQuestionList(raw);
@@ -1436,6 +1506,9 @@ export class AiBridgeService {
         answer: rawAnswer,
         scope_check: scopeCheck,
         subtopic,
+        concept: (q.concept || '').toString().trim() || undefined,
+        /** Django guessed the key ("A") because the model gave none; graders must not trust it. */
+        answerDefaulted: q.answerDefaulted === true || undefined,
         chapter: aiChapter,
         meta: q._meta || {},
       };

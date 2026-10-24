@@ -31,7 +31,7 @@ import { SchoolClassModule } from './class/school-class.module';
 import { SchoolAiUsageModule } from './ai-usage/school-ai-usage.module';
 import { SchoolCalendarModule } from './calendar/school-calendar.module';
 import { CareerModule } from './career/career.module';
-import { SchoolStudyPlanModule } from './study-plan/school-study-plan.module';
+import { LearningPathModule } from './learning-path/learning-path.module';
 import { SchoolPptModule } from './ppt/school-ppt.module';
 import { SchoolTextbookModule } from './textbook/school-textbook.module';
 import { SchoolAiTutorModule } from './ai-tutor/school-ai-tutor.module';
@@ -84,7 +84,7 @@ import { CompetitiveModule } from './competitive/competitive.module';
     SchoolAiUsageModule,
     SchoolCalendarModule,
     CareerModule,
-    SchoolStudyPlanModule,
+    LearningPathModule,
     SchoolPptModule,
     SchoolTextbookModule,
     SchoolAiTutorModule,
