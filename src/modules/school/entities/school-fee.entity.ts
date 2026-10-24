@@ -12,4 +12,7 @@ export class SchoolFee extends SchoolBase {
   @Column({ default: 'PENDING' }) status: string;
   @Column({ nullable: true }) remarks: string;
   @Column({ name: 'academic_year', nullable: true }) academicYear: string;
+  @Column({ name: 'exemption_category', nullable: true }) exemptionCategory: string;
+  @Column({ name: 'exempted_by', nullable: true }) exemptedBy: string;
+  @Column({ name: 'exempted_at', type: 'timestamp', nullable: true }) exemptedAt: Date;
 }

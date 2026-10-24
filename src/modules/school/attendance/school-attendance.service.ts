@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolNotificationService } from '../notification/school-notification.service';
@@ -9,6 +9,7 @@ import {
   SCHOOL_NOTIFICATION_TEMPLATES,
   fillTemplate,
 } from '../notification-fcm/school-notification-templates';
+import { HOLIDAYS_2026, VACATIONS_2026 } from '../calendar/school-calendar.service';
 
 @Injectable()
 export class SchoolAttendanceService {
@@ -30,6 +31,28 @@ export class SchoolAttendanceService {
     const override = row.teacher_override ?? row.student_override;
     const resolved = override ?? row.institute_default ?? 80;
     return parseFloat(resolved);
+  }
+
+  /** Flags every INSTITUTE_ADMIN/SUPER_ADMIN in the institute — the admin-side counterpart to the student/teacher flag notifications above. */
+  private async flagAdmins(instituteId: string, senderId: string, notice: { type: string; priority: string; title: string; message: string; actionUrl: string }) {
+    const admins = await this.ds.query(
+      `SELECT id FROM users WHERE institute_id = $1 AND UPPER(REPLACE(role, ' ', '_')) LIKE '%ADMIN%'`,
+      [instituteId],
+    );
+    for (const admin of admins) {
+      await this.notificationService.create({
+        recipientId: admin.id,
+        senderId,
+        role: 'INSTITUTE_ADMIN',
+        type: notice.type,
+        category: 'attendance',
+        priority: notice.priority,
+        isFlag: true,
+        title: notice.title,
+        message: notice.message,
+        actionUrl: notice.actionUrl,
+      });
+    }
   }
 
   async mark(user: any, body: any) {
@@ -205,6 +228,14 @@ export class SchoolAttendanceService {
               title: 'Low Attendance Warning',
               message: `${studentName}'s overall attendance has dropped below the required ${threshold}% (currently ${percentage.toFixed(1)}%).`,
               actionUrl: '/school/teacher/dashboard',
+            });
+
+            await this.flagAdmins(instituteId, user.id, {
+              type: 'attendance_warning',
+              priority: severity,
+              title: 'Low Attendance Flag',
+              message: `${studentName}'s overall attendance has dropped below the required ${threshold}% (currently ${percentage.toFixed(1)}%).`,
+              actionUrl: '/school/admin/dashboard',
             });
           }
         }
@@ -503,11 +534,12 @@ export class SchoolAttendanceService {
         u.email,
         u.role,
         s.id AS student_profile_id,
+        s.roll_no AS roll_no,
         sec.id AS section_id,
         sec.name AS section_name,
         c.id AS class_id,
         c.name AS class_name
-      FROM attendances a 
+      FROM attendances a
       JOIN users u ON a.user_id = u.id 
       LEFT JOIN students s ON s.user_id = u.id
       LEFT JOIN sections sec ON s.section_id = sec.id
@@ -533,6 +565,7 @@ export class SchoolAttendanceService {
         role: r.role,
         studentProfile: hasSchoolRole(r.role, 'STUDENT') ? {
           id: r.student_profile_id,
+          rollNo: r.roll_no,
           section: r.section_id ? {
             id: r.section_id,
             name: r.section_name,
@@ -551,22 +584,27 @@ export class SchoolAttendanceService {
   async checkSession(user: any, query: any) {
     try {
       const tenantId = user.instituteId;
+      // Exact-match (NULL collides only with NULL) — a wildcard match here would
+      // false-positive a no-subject submission against a different teacher's
+      // subject-specific session for the same period, or vice versa.
+      const period = query.period && query.period !== 'all' ? query.period : null;
+      const subjectId = query.subjectId && query.subjectId !== 'all' ? query.subjectId : null;
       const existing = await this.ds.query(`
-        SELECT id FROM attendance_sessions 
-        WHERE tenant_id::text = $1::text 
-          AND class_id::text = $2::text 
-          AND section_id::text = $3::text 
-          AND date::text = $4::text 
-          AND ($5::text IS NULL OR $5::text = '' OR period::text = $5::text)
-          AND ($6::text IS NULL OR $6::text = '' OR $6::text = 'all' OR subject_id::text = $6::text)
+        SELECT id FROM attendance_sessions
+        WHERE tenant_id::text = $1::text
+          AND class_id::text = $2::text
+          AND section_id::text = $3::text
+          AND date::text = $4::text
+          AND period IS NOT DISTINCT FROM $5
+          AND subject_id IS NOT DISTINCT FROM $6
         LIMIT 1
       `, [
-        tenantId || null, 
-        query.classId || null, 
-        query.sectionId || null, 
-        query.date || null, 
-        query.period || null, 
-        query.subjectId || null
+        tenantId || null,
+        query.classId || null,
+        query.sectionId || null,
+        query.date || null,
+        period,
+        subjectId
       ]);
       
       if (existing.length > 0) {
@@ -583,24 +621,50 @@ export class SchoolAttendanceService {
     const tenantId = user.instituteId;
     const teacherId = user.id;
 
+    // Gate the write path itself, not just the roster view — a teacher could
+    // otherwise submit attendance for a class/section they were never
+    // assigned to by calling this endpoint directly with student ids
+    // obtained elsewhere. Admins are unrestricted (see B4).
+    await this.assertRosterAccess(user, body.classId, body.sectionId);
+
+    // Purely blocked on a future date, holiday, or Sunday — no exception for
+    // anyone (student attendance is TEACHER-only to begin with; admin can't
+    // reach this method).
+    if (body.date > new Date().toISOString().split('T')[0]) {
+      throw new BadRequestException('Cannot mark attendance for a future date.');
+    }
+    const calendarStatus = await this.getCalendarStatus(tenantId, body.date);
+    if (calendarStatus.isHoliday) {
+      throw new BadRequestException(
+        `Cannot mark attendance on a holiday${calendarStatus.label ? ` (${calendarStatus.label})` : ''}.`,
+      );
+    }
+
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
+    // Normalize before the query, not inside the SQL — wildcard-match-anything
+    // is a search/filter concept, not a collision-check one. A NULL-subject
+    // submission (generic/homeroom marking) must only collide with another
+    // NULL-subject session, never with a different teacher's subject-specific one.
+    const period = body.period && body.period !== 'all' ? body.period : null;
+    const subjectId = body.subjectId && body.subjectId !== 'all' ? body.subjectId : null;
 
     try {
       let sessionId = body.sessionId;
       if (!sessionId) {
         // Look for duplicate session matching class, section, date, period, and subject
         const existing = await queryRunner.query(`
-          SELECT id FROM attendance_sessions 
-          WHERE tenant_id::text = $1::text 
-            AND class_id::text = $2::text 
-            AND section_id::text = $3::text 
-            AND date::text = $4::text 
-            AND ($5::text IS NULL OR $5::text = '' OR period::text = $5::text)
-            AND ($6::text IS NULL OR $6::text = '' OR $6::text = 'all' OR subject_id::text = $6::text)
+          SELECT id FROM attendance_sessions
+          WHERE tenant_id::text = $1::text
+            AND class_id::text = $2::text
+            AND section_id::text = $3::text
+            AND date::text = $4::text
+            AND period IS NOT DISTINCT FROM $5
+            AND subject_id IS NOT DISTINCT FROM $6
           LIMIT 1
-        `, [tenantId, body.classId, body.sectionId, body.date, body.period || null, body.subjectId || null]);
+        `, [tenantId, body.classId, body.sectionId, body.date, period, subjectId]);
         if (existing.length > 0) {
           await queryRunner.rollbackTransaction();
           throw new ConflictException({
@@ -644,16 +708,39 @@ export class SchoolAttendanceService {
             tenantId,
             body.classId,
             body.sectionId,
-            body.subjectId || null,
+            subjectId,
             teacherId,
             teacherId,
             body.date,
-            body.period || null,
+            period,
             body.finalized !== false
           ]);
           await queryRunner.query(`RELEASE SAVEPOINT ins_session`);
-        } catch (e) {
+        } catch (e: any) {
           await queryRunner.query(`ROLLBACK TO SAVEPOINT ins_session`);
+          if (e?.code === '23505') {
+            // Two near-simultaneous submits both passed the app-level dupe check
+            // above; the DB-level unique index (uq_attendance_sessions_slot)
+            // caught the real race. Surface it the same way the app-level
+            // check does, instead of silently retrying with fewer columns.
+            const existing = await queryRunner.query(`
+              SELECT id FROM attendance_sessions
+              WHERE tenant_id::text = $1::text
+                AND class_id::text = $2::text
+                AND section_id::text = $3::text
+                AND date::text = $4::text
+                AND period IS NOT DISTINCT FROM $5
+                AND subject_id IS NOT DISTINCT FROM $6
+              LIMIT 1
+            `, [tenantId, body.classId, body.sectionId, body.date, period, subjectId]);
+            await queryRunner.rollbackTransaction();
+            throw new ConflictException({
+              success: false,
+              message: "Attendance has already been submitted for this session.",
+              canEdit: true,
+              sessionId: existing[0]?.id,
+            });
+          }
           session = await queryRunner.query(`
             INSERT INTO attendance_sessions (
               section_id, subject_id, teacher_id, date, finalized, created_at, updated_at
@@ -661,7 +748,7 @@ export class SchoolAttendanceService {
             RETURNING id
           `, [
             body.sectionId,
-            body.subjectId || null,
+            subjectId,
             teacherId,
             body.date,
             body.finalized !== false
@@ -744,7 +831,7 @@ export class SchoolAttendanceService {
         }
       }
 
-      return { success: true, message: 'Attendance marked successfully', sessionId };
+      return { success: true, message: 'Attendance marked successfully', sessionId, isExamDay: calendarStatus.isExam };
     } catch (err) {
       try { await queryRunner.rollbackTransaction(); } catch (_) {}
       throw err;
@@ -823,7 +910,76 @@ export class SchoolAttendanceService {
     return { success: true, data: flagged };
   }
 
-  async getStudentsByClass(classId: string) {
+  /**
+   * A teacher's `attendance` module access alone used to be enough to pull any
+   * section's roster — no check against `teacher_academic_assignments` at
+   * all. Admin/principal roles are unrestricted (same as the rest of this
+   * controller); a TEACHER must have an assignment row for the class (and,
+   * when a section is given, that section — `is_class_teacher` bypasses the
+   * subject-level distinction for full-section access).
+   */
+  private async assertRosterAccess(user: any, classId: string, sectionId?: string): Promise<void> {
+    if (!user) return;
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN') || hasSchoolRole(user.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user.role, 'ADMIN')) {
+      return;
+    }
+    if (!hasSchoolRole(user.role, 'TEACHER')) return;
+
+    const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+    const teacherId = tRows[0]?.id;
+    if (!teacherId) throw new ForbiddenException('No teacher profile found for this user');
+
+    const params: any[] = [teacherId, classId];
+    let sql = `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id::text = $1::text AND class_id::text = $2::text`;
+    if (sectionId) {
+      params.push(sectionId);
+      sql += ` AND section_id::text = $3::text`;
+    }
+    const assigned = await this.ds.query(`${sql} LIMIT 1`, params);
+    if (!assigned.length) {
+      throw new ForbiddenException('You are not assigned to this class/section');
+    }
+  }
+
+  /**
+   * Nothing checked the date against holidays/exams before accepting a
+   * submission — Sundays only looked "safe" because the period dropdown is
+   * populated from the timetable, which never generates Sunday slots; that's
+   * an incidental side-effect, not an actual check. Reuses the same `events`
+   * table (and hardcoded fallback lists) the calendar module already reads
+   * from, rather than modeling holiday data twice.
+   */
+  private async getCalendarStatus(instituteId: string, dateStr: string): Promise<{ isHoliday: boolean; isExam: boolean; label?: string }> {
+    const rows: any[] = await this.ds.query(`
+      SELECT category, title FROM events
+      WHERE institute_id = $1
+        AND category IN ('HOLIDAY', 'VACATION', 'EXAM')
+        AND $2::date BETWEEN start_time::date AND COALESCE(end_time::date, start_time::date)
+    `, [instituteId, dateStr]).catch(() => [] as any[]);
+
+    let isHoliday = rows.some((r) => r.category === 'HOLIDAY' || r.category === 'VACATION');
+    let isExam = rows.some((r) => r.category === 'EXAM');
+    let label = rows.find((r) => r.category === 'HOLIDAY' || r.category === 'VACATION')?.title;
+
+    if (!isHoliday) {
+      const fixedHoliday = HOLIDAYS_2026.find((h) => h.date === dateStr);
+      if (fixedHoliday) { isHoliday = true; label = fixedHoliday.title; }
+    }
+    if (!isHoliday) {
+      const vacation = VACATIONS_2026.find((v) => dateStr >= v.startDate && dateStr <= v.endDate);
+      if (vacation) { isHoliday = true; label = vacation.title; }
+    }
+    // Weekly off, same as the holiday/vacation case — purely blocked, no exception.
+    if (!isHoliday) {
+      const [y, m, d] = dateStr.split('-').map((n) => parseInt(n, 10));
+      if (new Date(y, m - 1, d).getDay() === 0) { isHoliday = true; label = 'Sunday'; }
+    }
+
+    return { isHoliday, isExam, label };
+  }
+
+  async getStudentsByClass(user: any, classId: string) {
+    await this.assertRosterAccess(user, classId);
     const result: any[] = await this.ds.query(`
       SELECT u.id,u.name,u.email,s.roll_no FROM users u
       JOIN students s ON s.user_id=u.id JOIN sections sec ON s.section_id=sec.id
@@ -832,7 +988,8 @@ export class SchoolAttendanceService {
     return { success: true, count: result.length, data: result };
   }
 
-  async getStudentsByClassAndSection(classId: string, sectionId: string, query: any = {}) {
+  async getStudentsByClassAndSection(user: any, classId: string, sectionId: string, query: any = {}) {
+    await this.assertRosterAccess(user, classId, sectionId);
     let filter = `sec.class_id::text = $1::text AND s.section_id::text = $2::text`;
     const params: any[] = [classId, sectionId];
 

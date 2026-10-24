@@ -2,6 +2,7 @@ import { Module, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/c
 import { TypeOrmModule } from '@nestjs/typeorm'; // restart trigger for RDS
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { HealthController } from './health.controller';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
@@ -163,8 +164,7 @@ const ALL_COACHING_ENTITIES = [
         return {
           ...coachingDbConfig,
           synchronize: !isProd && dbSyncRequested,
-          logging: process.env.DB_LOGGING === 'true' ? true : ['error', 'warn'],
-          maxQueryExecutionTime: Number(process.env.DB_SLOW_QUERY_MS) || 500,
+          logging: process.env.DB_LOGGING === 'true',
           retryAttempts: 3,
           retryDelay: 2000,
           entities: ALL_COACHING_ENTITIES,
@@ -275,6 +275,7 @@ const ALL_COACHING_ENTITIES = [
     BlogModule,
     BlogAdminAuthModule,
   ],
+  controllers: [HealthController],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     // Outermost interceptor: opens the AI attribution ALS scope (P1-6) before

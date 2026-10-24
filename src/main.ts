@@ -44,8 +44,15 @@ function validateEnv(logger: Logger) {
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   validateEnv(logger);
+  // bodyParser:false — Nest's own default json/urlencoded parsers (body-parser's
+  // 100kb default limit) get registered inside NestFactory.create(), BEFORE the
+  // explicit 10mb parsers below ever run. Since Express runs middleware in
+  // registration order, that default 100kb parser silently rejected (413) any
+  // request body over 100kb — e.g. almost any real file attached as base64 JSON
+  // (notice attachments, etc.) — no matter what limit was passed below.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    bodyParser: false,
   });
   app.set('trust proxy', true);
 

@@ -4,6 +4,7 @@ import { Cache } from 'cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 import { BlogLocale, BlogPost, BlogPostStatus } from '../../database/entities/blog-post.entity';
+import { S3Service } from '../upload/s3.service';
 import { CreateBlogPostDto, ListBlogPostsQueryDto, PublicBlogQueryDto, UpdateBlogPostDto } from './dto/blog.dto';
 
 const slugify = (input: string): string =>
@@ -34,6 +35,7 @@ export class BlogService implements OnModuleInit {
     @InjectRepository(BlogPost, 'coaching')
     private readonly blogRepo: Repository<BlogPost>,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    private readonly s3Service: S3Service,
   ) {}
 
   /** The coaching DataSource has synchronize off, so self-create the table. */
@@ -177,6 +179,7 @@ export class BlogService implements OnModuleInit {
 
   async update(id: string, dto: UpdateBlogPostDto): Promise<BlogPost> {
     const post = await this.findById(id);
+    const keysBefore = this.blogImageKeys(post);
 
     if (dto.slug !== undefined || dto.title !== undefined) {
       const base = slugify(dto.slug || dto.title || post.title);
@@ -202,7 +205,35 @@ export class BlogService implements OnModuleInit {
 
     const saved = await this.blogRepo.save(post);
     await this.refreshPublicCache();
+    await this.deleteUnusedImages(post.id, keysBefore, this.blogImageKeys(saved));
     return saved;
+  }
+
+  /** S3 keys of blog-uploaded images referenced by a post's cover and section content. */
+  private blogImageKeys(post: Pick<BlogPost, 'coverImage' | 'sections'>): Set<string> {
+    const text = JSON.stringify({ c: post.coverImage ?? '', s: post.sections ?? [] });
+    return new Set(text.match(/platform\/blog\/[A-Za-z0-9._-]+/g) ?? []);
+  }
+
+  /**
+   * Deletes images that an edit removed from a post. Keys are content-addressed
+   * and so can be shared, so an object is only deleted when no other post
+   * (including soft-deleted ones, which can be restored) still references it.
+   * Best-effort: a failure here never fails the save.
+   */
+  private async deleteUnusedImages(postId: string, before: Set<string>, after: Set<string>) {
+    for (const key of before) {
+      if (after.has(key)) continue;
+      try {
+        const [used] = await this.blogRepo.query(
+          `SELECT 1 FROM blog_posts WHERE id <> $1 AND (cover_image LIKE $2 OR sections::text LIKE $2) LIMIT 1`,
+          [postId, `%${key}%`],
+        );
+        if (!used) await this.s3Service.delete(key);
+      } catch (err) {
+        this.logger.warn(`Could not clean up blog image ${key}: ${(err as Error).message}`);
+      }
+    }
   }
 
   async remove(id: string): Promise<{ message: string }> {
