@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
 import { SchoolSyllabusService } from './school-syllabus.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
+import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { AdminModuleGuard } from '../guards/admin-module.guard';
 import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
@@ -15,6 +16,20 @@ import {
   UpdateSyllabusPlanProgressDto,
 } from './dto/school-syllabus.dto';
 
+/**
+ * Every route names its roles. SchoolRolesGuard lets any signed-in school user
+ * through a route that declares none, so before this a student or parent could
+ * create, change and delete syllabus plans, create lesson plans, run the AI
+ * brief and publish templates (lesson-plan audit, 22 Oct 2026, finding D1).
+ *
+ * Who uses what (from the frontend):
+ *   admin pages     — plans CRUD, tracker
+ *   teacher pages   — plans read, plan progress, teaching plan, lessons, templates
+ *   student / parent— their own progress views
+ */
+const ADMIN = ['INSTITUTE_ADMIN', 'SUPER_ADMIN'];
+const STAFF = ['TEACHER', ...ADMIN];
+
 @Controller('school/syllabus')
 @UseGuards(SchoolJwtGuard, SchoolRolesGuard, AdminModuleGuard)
 @RequireAdminModule('syllabus_planner')
@@ -22,36 +37,43 @@ export class SchoolSyllabusController {
   constructor(private readonly svc: SchoolSyllabusService) {}
 
   @Post('plans')
+  @SchoolRoles(...ADMIN)
   createSyllabusPlan(@SchoolUser() user: any, @Body() body: CreateSyllabusPlanDto) {
     return this.svc.createSyllabusPlan(user, body);
   }
 
   @Get('plans')
+  @SchoolRoles(...STAFF)
   getSyllabusPlans(@SchoolUser() user: any, @Query() query: any) {
     return this.svc.getSyllabusPlans(user, query);
   }
 
   @Get('plans/:id')
-  getSyllabusPlanById(@SchoolUser() user: any, @Param('id') id: string) {
+  @SchoolRoles(...STAFF)
+  getSyllabusPlanById(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.svc.getSyllabusPlanById(user, id);
   }
 
   @Put('plans/:id')
-  updateSyllabusPlan(@SchoolUser() user: any, @Param('id') id: string, @Body() body: UpdateSyllabusPlanDto) {
+  @SchoolRoles(...ADMIN)
+  updateSyllabusPlan(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: UpdateSyllabusPlanDto) {
     return this.svc.updateSyllabusPlan(user, id, body);
   }
 
   @Patch('plans/:id/progress')
-  updateSyllabusPlanProgress(@SchoolUser() user: any, @Param('id') id: string, @Body() body: UpdateSyllabusPlanProgressDto) {
+  @SchoolRoles(...STAFF)
+  updateSyllabusPlanProgress(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: UpdateSyllabusPlanProgressDto) {
     return this.svc.updateSyllabusPlanProgress(user, id, body);
   }
 
   @Delete('plans/:id')
-  deleteSyllabusPlan(@SchoolUser() user: any, @Param('id') id: string) {
+  @SchoolRoles(...ADMIN)
+  deleteSyllabusPlan(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.svc.deleteSyllabusPlan(user, id);
   }
 
   @Get('tracker')
+  @SchoolRoles(...ADMIN)
   getSyllabusTracker(@SchoolUser() user: any, @Query() query: any) {
     if (query?.planId) {
       return this.svc.getDetailedPlanTracker(user, query.planId);
@@ -60,53 +82,64 @@ export class SchoolSyllabusController {
   }
 
   @Get('tracker-details/:planId')
-  getDetailedPlanTracker(@SchoolUser() user: any, @Param('planId') planId: string) {
+  @SchoolRoles(...ADMIN)
+  getDetailedPlanTracker(@SchoolUser() user: any, @Param('planId', ParseUUIDPipe) planId: string) {
     return this.svc.getDetailedPlanTracker(user, planId);
   }
 
   @Get('teaching-plan')
+  @SchoolRoles('TEACHER')
   getTeacherTeachingPlan(@SchoolUser() user: any, @Query() query: any) {
     return this.svc.getTeacherTeachingPlan(user, query);
   }
 
   @Post('lessons')
+  @SchoolRoles('TEACHER')
   createLessonPlan(@SchoolUser() user: any, @Body() body: CreateLessonPlanDto) {
     return this.svc.createLessonPlan(user, body);
   }
 
   @Get('lessons/:id')
-  getLessonPlanById(@SchoolUser() user: any, @Param('id') id: string) {
+  @SchoolRoles(...STAFF)
+  getLessonPlanById(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.svc.getLessonPlanById(user, id);
   }
 
   @Post('lessons/ai-template')
+  @SchoolRoles('TEACHER')
   generateAiLessonTemplate(@SchoolUser() user: any, @Body() body: GenerateAiLessonTemplateDto) {
     return this.svc.generateAiLessonTemplate(user, body);
   }
 
   @Post('lessons/:id/complete')
-  completeLessonPlan(@SchoolUser() user: any, @Param('id') id: string, @Body() body: CompleteLessonPlanDto) {
+  @SchoolRoles('TEACHER')
+  completeLessonPlan(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: CompleteLessonPlanDto) {
     return this.svc.completeLessonPlan(user, id, body);
   }
 
   @Get('templates')
+  @SchoolRoles(...STAFF)
   getLessonTemplates(@SchoolUser() user: any) {
     return this.svc.getLessonTemplates(user);
   }
 
   @Post('templates')
+  @SchoolRoles(...STAFF)
   createLessonTemplate(@SchoolUser() user: any, @Body() body: CreateLessonTemplateDto) {
     return this.svc.createLessonTemplate(user, body);
   }
 
+  /** A student sees their own progress; staff may look up a student of their school. */
   @Get('student-progress')
-  getStudentSyllabusProgress(@SchoolUser() user: any, @Query('studentId') studentId: string) {
-    return this.svc.getStudentSyllabusProgress(user, studentId || user.id);
+  @SchoolRoles('STUDENT', ...STAFF)
+  getStudentSyllabusProgress(@SchoolUser() user: any, @Query('studentId') studentId?: string) {
+    return this.svc.getStudentSyllabusProgress(user, studentId);
   }
 
+  /** A parent sees one of their own children (the first, unless childId names another). */
   @Get('parent-progress')
-  getParentChildSyllabusProgress(@SchoolUser() user: any, @Query('childId') childId: string) {
+  @SchoolRoles('PARENT')
+  getParentChildSyllabusProgress(@SchoolUser() user: any, @Query('childId') childId?: string) {
     return this.svc.getParentChildSyllabusProgress(user, childId);
   }
 }
-

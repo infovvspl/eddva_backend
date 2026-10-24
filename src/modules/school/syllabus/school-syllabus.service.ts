@@ -1,7 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolSyllabusService implements OnModuleInit {
@@ -1210,9 +1214,38 @@ export class SchoolSyllabusService implements OnModuleInit {
     };
   }
 
+  // ── Access helpers (lesson-plan audit, 22 Oct 2026) ──────────────────────
+
+  private isAdmin(user: any): boolean {
+    return hasSchoolRole(user?.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user?.role, 'SUPER_ADMIN');
+  }
+
+  /** The caller's teachers.id (teacher_academic_assignments keys on it, not users.id). */
+  private async teacherIdOf(user: any): Promise<string> {
+    const rows = await this.ds.query(`SELECT id FROM teachers WHERE user_id = $1 LIMIT 1`, [user.id]);
+    if (!rows.length) throw new ForbiddenException('Only teachers can do this');
+    return rows[0].id;
+  }
+
+  /** Refuses unless the teacher teaches this subject in this class (and section, when given). */
+  private async assertTeaches(user: any, subjectId: string, classId?: string | null, sectionId?: string | null) {
+    const teacherId = await this.teacherIdOf(user);
+    const rows = await this.ds.query(
+      `SELECT 1 FROM teacher_academic_assignments
+        WHERE teacher_id = $1 AND subject_id = $2
+          AND ($3::uuid IS NULL OR class_id = $3::uuid)
+          AND ($4::uuid IS NULL OR section_id = $4::uuid OR section_id IS NULL)
+        LIMIT 1`,
+      [teacherId, subjectId, classId || null, sectionId || null],
+    );
+    if (!rows.length) throw new ForbiddenException('You do not teach this subject in this class');
+  }
+
   async createLessonPlan(user: any, body: any) {
     const instituteId = user.instituteId;
     const teacherId = user.id;
+    // A teacher plans only for a class, section and subject they teach.
+    await this.assertTeaches(user, body.subjectId, body.classId, body.sectionId);
 
     // Resolve which syllabus plan this lesson covers so completeLessonPlan can update
     // exactly that plan's progress instead of guessing by subject+class later. Purely
@@ -1268,6 +1301,8 @@ export class SchoolSyllabusService implements OnModuleInit {
   }
 
   async getLessonPlanById(user: any, id: string) {
+    // A teacher sees their own plans; an admin sees any plan of their school.
+    const admin = this.isAdmin(user);
     const rows = await this.ds.query(
       `SELECT l.*, sub.name as subject_name, c.name as class_name, sec.name as section_name,
               ch.name as chapter_name, top.name as topic_name
@@ -1277,14 +1312,19 @@ export class SchoolSyllabusService implements OnModuleInit {
        LEFT JOIN sections sec ON l.section_id = sec.id
        LEFT JOIN chapters ch ON l.chapter_id = ch.id
        LEFT JOIN topics top ON l.topic_id = top.id
-       WHERE l.id = $1 AND l.institute_id = $2 AND l.teacher_id = $3`,
-      [id, user.instituteId, user.id],
+       WHERE l.id = $1 AND l.institute_id = $2 AND ($4::boolean OR l.teacher_id = $3)`,
+      [id, user.instituteId, user.id, admin],
     );
     if (!rows.length) throw new NotFoundException('Lesson plan not found');
     return { success: true, data: rows[0] };
   }
 
   async generateAiLessonTemplate(user: any, body: any) {
+    if (body.subjectId) await this.assertTeaches(user, body.subjectId);
+    if (body.chapterId && body.subjectId) {
+      const ok = await this.ds.query(`SELECT 1 FROM chapters WHERE id = $1 AND subject_id = $2`, [body.chapterId, body.subjectId]);
+      if (!ok.length) throw new BadRequestException('That chapter is not part of this subject');
+    }
     let subjectName = body.subjectName || '';
     let chapterName = body.chapterName || '';
     let topicName = body.topicName || '';
@@ -1300,13 +1340,9 @@ export class SchoolSyllabusService implements OnModuleInit {
       chapterName = chRow[0]?.name || '';
     }
 
-    if (body.subjectId && !chapterName) {
-      const chRows = await this.ds.query(
-        `SELECT name FROM chapters WHERE subject_id = $1 ORDER BY created_at ASC LIMIT 1`,
-        [body.subjectId]
-      ).catch(() => []);
-      chapterName = chRows[0]?.name || '';
-    }
+    // No chapter chosen means the whole subject. It used to silently take the
+    // subject's first chapter by creation date, writing a brief for a chapter the
+    // teacher never picked.
 
     const focusTitle = topicName || chapterName || subjectName || 'Core Curriculum';
 
@@ -1350,51 +1386,23 @@ export class SchoolSyllabusService implements OnModuleInit {
       console.error('[generateAiLessonTemplate] AI bridge call failed, falling back to canned template:', err.message);
     }
 
-    const draftTemplate = {
-      learningObjectives: `1. Understand the core principles of "${focusTitle}" in ${className} ${subjectName}.\n2. Apply formulas and fundamental concepts to solve textbook exercises.\n3. Solve standard practice problems on ${focusTitle}.`,
-      previousKnowledge: `Students should be familiar with basic prerequisite concepts of ${subjectName} prior to studying ${focusTitle}.`,
-      teachingMethodology: 'Interactive Demonstration, Blackboard Breakdown, and Guided Problem Solving',
-      teachingActivities: `1. Warm-up & Recall (5 mins): Review prerequisite concepts for ${focusTitle}.\n2. Concept Explanation (20 mins): Step-by-step breakdown of ${focusTitle}.\n3. Worked Examples (10 mins): Solving 2 board problems on ${focusTitle}.\n4. Q&A & Summary (5 mins).`,
-      teachingResources: `Standard ${subjectName} Textbook, Whiteboard/Smartboard, Chapter Diagram Worksheets`,
-      digitalResources: `EDDVA Smart Video Explanation & Interactive Quiz on ${focusTitle}`,
-      classroomActivities: `Group Discussion & Pair Problem Solving on ${focusTitle}`,
-      assessmentMethod: `Quick 3-question Check on ${focusTitle} at the end of class`,
-      homework: `Complete textbook exercise questions for ${chapterName ? `Chapter "${chapterName}"` : focusTitle}`,
-      expectedLearningOutcomes: `Students can independently explain ${focusTitle} and solve standard exercises.`,
-      teacherNotes: `Note: Reserve 5 minutes for student doubts on ${focusTitle}.`
-    };
-
-    return {
-      success: true,
-      isTemplate: true,
-      aiGenerated: false,
-      message: `AI is unavailable right now — using a standard template for "${focusTitle}". Personalize before class.`,
-      data: draftTemplate
-    };
+    // Previously a canned template was returned here as a normal response, and the
+    // form filled itself with it: a teacher could save boilerplate as a real plan.
+    throw new ServiceUnavailableException('The AI could not write a brief right now. Try again, or fill in the plan yourself.');
   }
 
   async completeLessonPlan(user: any, lessonId: string, body: any) {
-    let lessonRows: any[] = await this.ds.query(`SELECT * FROM lesson_plans WHERE id::text = $1`, [lessonId]).catch(() => []);
-    let l = lessonRows[0];
-
-    if (!l) {
-      // Dynamic fallback if lesson was launched directly from timetable or target milestone
-      const newPlanRes = await this.ds.query(
-        `INSERT INTO lesson_plans (
-           institute_id, class_id, section_id, subject_id, teacher_id, date, status, learning_objectives
-         ) VALUES ($1, $2, $3, $4, $5, NOW(), 'COMPLETED', $6)
-         RETURNING *`,
-        [
-          user.instituteId,
-          body.classId || null,
-          body.sectionId || null,
-          body.subjectId || null,
-          user.id,
-          body.topicsCovered || 'Classroom Lesson'
-        ]
-      ).catch(() => []);
-      l = newPlanRes[0] || { id: lessonId, duration_periods: 1 };
-      if (l.id) lessonId = l.id;
+    // Only the teacher who owns the plan, in their own school. This used to look the
+    // plan up by id alone (any school, any user), invent a plan when the id was not
+    // found, and report success when the inserts failed.
+    const lessonRows: any[] = await this.ds.query(
+      `SELECT * FROM lesson_plans WHERE id = $1 AND institute_id = $2 AND teacher_id = $3`,
+      [lessonId, user.instituteId, user.id],
+    );
+    const l = lessonRows[0];
+    if (!l) throw new NotFoundException('Lesson plan not found');
+    if (String(l.status || '').toUpperCase() === 'COMPLETED') {
+      throw new ConflictException('This lesson has already been recorded as completed');
     }
 
     // Safely parse rating into integer
@@ -1414,36 +1422,37 @@ export class SchoolSyllabusService implements OnModuleInit {
         else if (s.includes('poor')) ratingInt = 1;
       }
     }
+    ratingInt = Math.min(5, Math.max(1, ratingInt));
 
-    // 1. Record Completion
-    const completionRes = await this.ds.query(
-      `INSERT INTO lesson_completions (
-         lesson_plan_id, actual_date, actual_duration_periods, topics_covered, learning_objectives_achieved,
-         student_understanding_rating, homework_assigned, assessment_conducted, teacher_reflection,
-         completion_type, delay_reason, carry_forward_date
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       RETURNING *`,
-      [
-        lessonId,
-        body.actualDate || new Date(),
-        body.actualDurationPeriods || l.duration_periods || 1,
-        body.topicsCovered || l.learning_objectives || 'Classroom Lesson',
-        body.learningObjectivesAchieved || l.expected_learning_outcomes || 'Concepts Delivered',
-        ratingInt,
-        body.homeworkAssigned || l.homework || '',
-        body.assessmentConducted || l.assessment_method || '',
-        body.teacherReflection || body.additionalRemarks || '',
-        body.completionType || 'FULLY',
-        body.delayReason || null,
-        body.carryForwardDate || null
-      ]
-    ).catch(err => {
-      console.error('[completeLessonPlan.completionInsert] Warning:', err.message);
-      return [{ id: lessonId, completion_type: body.completionType || 'FULLY' }];
+    const completion = await this.ds.transaction(async (em) => {
+      const [row] = await em.query(
+        `INSERT INTO lesson_completions (
+           lesson_plan_id, actual_date, actual_duration_periods, topics_covered, learning_objectives_achieved,
+           student_understanding_rating, homework_assigned, assessment_conducted, teacher_reflection,
+           completion_type, delay_reason, carry_forward_date
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         RETURNING *`,
+        [
+          lessonId,
+          body.actualDate || new Date(),
+          body.actualDurationPeriods || l.duration_periods || 1,
+          body.topicsCovered || l.learning_objectives || 'Classroom Lesson',
+          body.learningObjectivesAchieved || l.expected_learning_outcomes || 'Concepts Delivered',
+          ratingInt,
+          body.homeworkAssigned || l.homework || '',
+          body.assessmentConducted || l.assessment_method || '',
+          body.teacherReflection || body.additionalRemarks || '',
+          body.completionType || 'FULLY',
+          body.delayReason || null,
+          body.carryForwardDate || null,
+        ],
+      );
+      await em.query(
+        `UPDATE lesson_plans SET status = 'COMPLETED', updated_at = NOW() WHERE id = $1 AND institute_id = $2 AND teacher_id = $3`,
+        [lessonId, user.instituteId, user.id],
+      );
+      return row;
     });
-
-    // Update Lesson Plan Status
-    await this.ds.query(`UPDATE lesson_plans SET status = 'COMPLETED', updated_at = NOW() WHERE id = $1`, [lessonId]);
 
     // Deliberately does NOT touch syllabus_topic_progress. Lesson Plan is a teacher's own
     // pre-class prep note (typically AI-generated) plus a personal record of what was actually
@@ -1453,22 +1462,35 @@ export class SchoolSyllabusService implements OnModuleInit {
     // syllabus needle behind an admin's back.
     return {
       success: true,
-      completion: completionRes[0],
+      completion,
     };
   }
 
   // --- 3. STUDENT & PARENT READ-ONLY PROGRESS ---
-  async getStudentSyllabusProgress(user: any, studentId: string) {
+  /**
+   * A student sees only their own progress (any studentId they pass is ignored);
+   * staff may look up a student of their own school. This used to read any
+   * student of any school by the id in the query string.
+   */
+  async getStudentSyllabusProgress(user: any, studentId?: string) {
+    const staff = this.isAdmin(user) || hasSchoolRole(user?.role, 'TEACHER');
+    const lookup = staff && studentId ? studentId : user.id;
     const stRows: any[] = await this.ds.query(
       `SELECT s.id, s.section_id, sec.class_id, c.name as class_name, sec.name as section_name
        FROM students s
        JOIN sections sec ON s.section_id = sec.id
        JOIN classes c ON sec.class_id = c.id
-       WHERE s.id = $1 OR s.user_id = $1`,
-      [studentId]
+       WHERE (s.id::text = $1 OR s.user_id::text = $1) AND s.institute_id = $2`,
+      [lookup, user.instituteId]
     );
-    if (!stRows.length) return { success: true, subjects: [] };
-    const st = stRows[0];
+    if (!stRows.length) {
+      if (staff && studentId) throw new NotFoundException('Student not found');
+      return { success: true, subjects: [] };
+    }
+    return this.progressForStudent(stRows[0]);
+  }
+
+  private async progressForStudent(st: any) {
 
     const subjects: any[] = await this.ds.query(
       `SELECT sub.id as subject_id, sub.name as subject_name,
@@ -1527,8 +1549,29 @@ export class SchoolSyllabusService implements OnModuleInit {
     return { success: true, student: st, subjects: progressList };
   }
 
-  async getParentChildSyllabusProgress(user: any, childId: string) {
-    return this.getStudentSyllabusProgress(user, childId);
+  /**
+   * A parent's own children are the students of their school whose parent email or
+   * phone matches theirs (the same rule the assessment module uses). This used to
+   * return whatever child id was passed — and nothing at all when, as the parent
+   * page does, no id was passed.
+   */
+  async getParentChildSyllabusProgress(user: any, childId?: string) {
+    const children: any[] = await this.ds.query(
+      `SELECT s.id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+         FROM students s
+         JOIN sections sec ON s.section_id = sec.id
+         JOIN classes c ON sec.class_id = c.id
+        WHERE s.institute_id = $1 AND (
+          (s.parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($2))
+          OR (s.parent_phone IS NOT NULL AND $3::text IS NOT NULL AND s.parent_phone = $3)
+        )
+        ORDER BY s.created_at`,
+      [user.instituteId, user.email || null, user.phone || null],
+    );
+    const child = childId ? children.find((c) => c.id === childId) : children[0];
+    if (childId && !child) throw new NotFoundException('Child not found');
+    if (!child) return { success: true, subjects: [] };
+    return this.progressForStudent(child);
   }
 
   // --- 4. TEMPLATES & AUDIT ---
@@ -1544,7 +1587,9 @@ export class SchoolSyllabusService implements OnModuleInit {
     const res = await this.ds.query(
       `INSERT INTO lesson_templates (institute_id, teacher_id, title, category, content_json, is_global)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [user.instituteId, user.id, body.title, body.category || 'Standard', JSON.stringify(body.contentJson || {}), body.isGlobal || false]
+      // A global template is shown to every school, so only the platform super admin may publish one.
+      [user.instituteId, user.id, body.title, body.category || 'Standard', JSON.stringify(body.contentJson || {}),
+        hasSchoolRole(user?.role, 'SUPER_ADMIN') && body.isGlobal === true]
     );
     return { success: true, data: res[0] };
   }
