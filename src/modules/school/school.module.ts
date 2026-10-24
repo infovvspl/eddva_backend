@@ -12,6 +12,7 @@ import { SchoolTopicModule } from './topic/school-topic.module';
 import { SchoolAssignmentModule } from './assignment/school-assignment.module';
 import { SchoolAssessmentModule } from './assessment/school-assessment.module';
 import { SchoolAttendanceModule } from './attendance/school-attendance.module';
+import { SchoolImprovementModule } from './improvement/school-improvement.module';
 import { SchoolDashboardModule } from './dashboard/school-dashboard.module';
 import { SchoolFeeModule } from './fee/school-fee.module';
 import { SchoolNoticeModule } from './notice/school-notice.module';
@@ -65,6 +66,7 @@ import { CompetitiveModule } from './competitive/competitive.module';
     SchoolAssignmentModule,
     SchoolAssessmentModule,
     SchoolAttendanceModule,
+    SchoolImprovementModule,
     SchoolDashboardModule,
     SchoolFeeModule,
     SchoolNoticeModule,

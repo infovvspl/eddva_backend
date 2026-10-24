@@ -265,7 +265,22 @@ export class SchoolEventService {
     return { success: true, data: event };
   }
 
+  private static readonly UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  /**
+   * Built-in holidays/vacations are synthesized in `list()` with ids like
+   * "static_hol_3" — not real rows. Without this check, PUT/DELETE on one
+   * would hit Postgres with "invalid input syntax for type uuid" (a raw 500)
+   * instead of a clean error.
+   */
+  private assertRealEvent(id: string): void {
+    if (!SchoolEventService.UUID_RE.test(id)) {
+      throw new NotFoundException('This is a built-in holiday/vacation entry and cannot be edited or deleted.');
+    }
+  }
+
   async findOne(id: string) {
+    this.assertRealEvent(id);
     const rows: any[] = await this.ds.query(
       `SELECT id, institute_id AS "instituteId", title, description, category, 
               start_time AS "startTime", end_time AS "endTime", 
@@ -280,6 +295,7 @@ export class SchoolEventService {
   }
 
   async update(id: string, body: any) {
+    this.assertRealEvent(id);
     const startTime = body.startTime ? new Date(body.startTime) : null;
     const endTime = body.endTime ? new Date(body.endTime) : null;
     
@@ -293,8 +309,8 @@ export class SchoolEventService {
            is_all_day=COALESCE($7, is_all_day),
            location=COALESCE($8, location),
            priority=COALESCE($9, priority),
-           linked_id=$10,
-           updated_at=NOW() 
+           linked_id=COALESCE($10, linked_id),
+           updated_at=NOW()
        WHERE id=$1`,
       [id, body.title, body.description, body.category, startTime, endTime, body.isAllDay, body.location, body.priority, body.linkedId ?? null],
     );
@@ -302,6 +318,7 @@ export class SchoolEventService {
   }
 
   async remove(id: string) {
+    this.assertRealEvent(id);
     await this.ds.query(`DELETE FROM events WHERE id=$1`, [id]);
     return { success: true };
   }

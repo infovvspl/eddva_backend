@@ -34,16 +34,17 @@ const args = Object.fromEntries(
 );
 
 const INSTITUTE_ID = args['institute-id'] || process.env.SEED_INSTITUTE_ID || 'c259cd4e-b018-45e2-8e46-52a497ca49a1'; // Eddva School
-const PERIODS_PER_DAY = 6;
+// A single teacher's own daily class load cap ("approx 6 classes a day" per the ticket) —
+// distinct from how many academic periods a *section's* day actually has (fetched from
+// school_periods below, since that's the school's own configured schedule and may be more
+// than 6; different teachers cover the remaining periods of the section's day).
+const TEACHER_DAILY_CAP = 6;
 const DAYS = [1, 2, 3, 4, 5, 6]; // Mon-Sat, matching the existing day_of_week convention (1-6)
-const PERIOD_TIMES = [
-  ['09:00', '09:45'],
-  ['09:45', '10:30'],
-  ['10:30', '11:15'],
-  ['11:30', '12:15'], // 11:15-11:30 short break, not a period
-  ['12:15', '13:00'],
-  ['13:45', '14:30'], // 13:00-13:45 lunch, not a period
-];
+// Period times and IDs are loaded at runtime from this institute's own `school_periods`
+// config (see main()) — not hardcoded here. The admin Timetable grid matches a cell to a
+// slot by exact `period_id` (a school_periods row id), with no fallback to period_number,
+// so inserting a row with a fabricated time and no period_id makes it invisible in the UI
+// even though the data is correct in the database.
 
 // Accounts that hold a `teachers` row but aren't real classroom teachers for
 // this purpose: two are INSTITUTE_ADMIN dual-roles, one is a known
@@ -54,6 +55,17 @@ function classLevel(className) {
   const m = String(className || '').match(/(\d+)/);
   return m ? parseInt(m[1], 10) : null;
 }
+
+// A generalist "Social Science" or "Science" teacher's department string doesn't literally
+// match the disaggregated subject names Class 10-12 use (History, Geography, Democratic
+// Politics, Political Science, Economics / Physics, Chemistry, Biology) — but in practice
+// these generalists are exactly who teaches those sub-disciplines. Without this, Class 10's
+// three social-science electives had zero matching teachers even though the school has ten
+// Social Science teachers.
+const SUBJECT_ALIASES = {
+  'Social Science': ['History', 'Geography', 'Democratic Politics', 'Political Science', 'Economics'],
+  'Science': ['Physics', 'Chemistry', 'Biology'],
+};
 
 function bandOf(level) {
   if (level == null) return null;
@@ -80,6 +92,28 @@ async function main() {
   await client.connect();
 
   try {
+    // This institute's own official period schedule (admin-configured under Academic
+    // Calendar / Periods) — the admin Timetable grid renders its rows from this table and
+    // matches each cell to a slot by exact period_id, so seeded rows must reuse these real
+    // ids and times rather than inventing a schedule of their own.
+    const periodRows = await client.query(
+      `SELECT id, sequence_no, start_time, end_time FROM school_periods
+       WHERE school_id = $1 AND is_active = true AND period_type = 'Academic'
+       ORDER BY sequence_no`,
+      [INSTITUTE_ID],
+    );
+    if (!periodRows.rows.length) {
+      throw new Error(`Institute ${INSTITUTE_ID} has no active Academic periods configured in school_periods.`);
+    }
+    const PERIODS = periodRows.rows.map((r) => ({
+      id: r.id,
+      startTime: String(r.start_time).slice(0, 5),
+      endTime: String(r.end_time).slice(0, 5),
+    }));
+    // The section's full academic day — every period a student actually has class, not the
+    // (lower) per-teacher daily cap above.
+    const SECTION_PERIODS_PER_DAY = PERIODS.length;
+
     // Current academic year's sections, grouped by class.
     const yearRes = await client.query(`SELECT MAX(academic_year) y FROM classes WHERE institute_id = $1`, [INSTITUTE_ID]);
     const academicYear = yearRes.rows[0]?.y;
@@ -92,7 +126,36 @@ async function main() {
        ORDER BY c.name, sec.name`,
       [INSTITUTE_ID, academicYear],
     );
-    const sections = sectionRows.rows.map((r) => ({ ...r, level: classLevel(r.class_name), band: bandOf(classLevel(r.class_name)) }));
+    const rawSections = sectionRows.rows.map((r) => ({ ...r, level: classLevel(r.class_name), band: bandOf(classLevel(r.class_name)) }));
+
+    // `ORDER BY c.name` sorts "Class 10" before "Class 2" (alphabetical, not numeric), and
+    // processing sections in that order lets whichever class comes first exhaust its band's
+    // limited teacher pool (a subject's one teacher can't be in two sections' periods at
+    // once) before later classes in the same band get a turn — e.g. Class 10 fully booking
+    // every secondary-band teacher's free slots before Class 9 is even reached, leaving Class
+    // 9 with zero periods. Interleaving round-robin *within each band* (one section from each
+    // class in turn) shares that scarce capacity fairly instead of first-come-first-served.
+    const byBandThenClass = new Map(); // band -> classId -> section[]
+    for (const s of rawSections) {
+      if (!byBandThenClass.has(s.band)) byBandThenClass.set(s.band, new Map());
+      const byClass = byBandThenClass.get(s.band);
+      if (!byClass.has(s.class_id)) byClass.set(s.class_id, []);
+      byClass.get(s.class_id).push(s);
+    }
+    const sections = [];
+    for (const byClass of byBandThenClass.values()) {
+      const classGroups = [...byClass.values()].sort((a, b) => (a[0].level ?? 0) - (b[0].level ?? 0));
+      let remaining = classGroups.reduce((n, g) => n + g.length, 0);
+      let cursor = 0;
+      while (remaining > 0) {
+        const group = classGroups[cursor % classGroups.length];
+        if (group.length) {
+          sections.push(group.shift());
+          remaining -= 1;
+        }
+        cursor += 1;
+      }
+    }
 
     // Subjects per class (already seeded, class-scoped).
     const subjectRows = await client.query(
@@ -137,6 +200,20 @@ async function main() {
     let roundRobinIdx = 0;
     const weightedBandCycle = bandOrder.flatMap((b) => Array(Math.max(1, sectionsPerBand[b])).fill(b));
 
+    // Subjects that only exist in the senior-secondary curriculum (Class 11-12 electives) —
+    // a teacher whose department is one of these belongs in the 'senior' band outright, not
+    // a coin-flip from the generic round-robin. Without this, a Chemistry/Biology teacher
+    // with no prior assignment history could land in 'primary' and sit completely unused
+    // while Class 11/12 — the one place that actually needs them — stays understaffed.
+    const SENIOR_ONLY_SUBJECTS = new Set([
+      'Chemistry', 'Physics', 'Biology', 'Accountancy', 'Accountacy', 'Business Studies',
+      'Psychology', 'Sociology', 'Political Science',
+    ]);
+    // Subjects taught from Class 10 upward (secondary + senior) — split these teachers into
+    // whichever of the two bands needs them most, rather than risking primary/middle.
+    const SECONDARY_OR_SENIOR_SUBJECTS = new Set(['Economics', 'Geography', 'History', 'Democratic Politics']);
+    let secSrSplitIdx = 0;
+
     const teachers = [];
     for (const row of teacherRows.rows) {
       if (EXCLUDED_TEACHER_NAMES.includes(row.name)) continue;
@@ -144,11 +221,16 @@ async function main() {
 
       const history = historyByTeacher.get(row.teacher_id);
       const inferredBand = history?.levels.length ? bandOf(mode(history.levels)) : null;
-      const band = inferredBand || weightedBandCycle[roundRobinIdx++ % weightedBandCycle.length];
+      const deptSubject = cleanSubjectName(row.department);
+      let band = inferredBand;
+      if (!band && deptSubject && SENIOR_ONLY_SUBJECTS.has(deptSubject)) band = 'senior';
+      else if (!band && deptSubject && SECONDARY_OR_SENIOR_SUBJECTS.has(deptSubject)) band = (secSrSplitIdx++ % 2 === 0) ? 'secondary' : 'senior';
+      band = band || weightedBandCycle[roundRobinIdx++ % weightedBandCycle.length];
 
-      const primarySubject = cleanSubjectName(row.department);
+      const primarySubject = deptSubject;
       const historySubjects = history ? [...history.subjects] : [];
-      const subjects = [...new Set([primarySubject, ...historySubjects].filter(Boolean))];
+      const aliasSubjects = deptSubject ? (SUBJECT_ALIASES[deptSubject] || []) : [];
+      const subjects = [...new Set([primarySubject, ...historySubjects, ...aliasSubjects].filter(Boolean))];
 
       teachers.push({ teacherId: row.teacher_id, userId: row.user_id, name: row.name, band, subjects });
     }
@@ -159,12 +241,26 @@ async function main() {
       teachersByBand.get(t.band).push(t);
     }
 
+    // Only 3 teachers landed in the 'secondary' band (Class 9-10, 6 sections) and all 3 are
+    // saturated at the 6-period/day cap — a hard ceiling with no fix short of adding staff.
+    // In practice a generalist (Hindi/English/Mathematics/Science/Social Science/Computer
+    // Science) middle-school teacher routinely also covers secondary classes; give them
+    // secondary-band eligibility too. teacherBusy/dailyCount are keyed by teacherId globally,
+    // so this can never double-book them — it just lets a middle-band teacher with spare
+    // daily capacity pick up a free secondary-band slot instead of that slot going unfilled.
+    const GENERALIST_SUBJECTS = new Set(['Hindi', 'English', 'Mathematics', 'Science', 'Social Science', 'Computer Science']);
+    const secondaryPool = teachersByBand.get('secondary') || [];
+    teachersByBand.set('secondary', secondaryPool);
+    for (const t of teachersByBand.get('middle') || []) {
+      if (t.subjects.some((s) => GENERALIST_SUBJECTS.has(s))) secondaryPool.push(t);
+    }
+
     // teacherBusy[teacherId] = Set of "day-period" keys already booked, across all sections.
     const teacherBusy = new Map();
-    const teacherDailyCount = new Map(); // "teacherId-day" -> count, capped at PERIODS_PER_DAY
+    const teacherDailyCount = new Map(); // "teacherId-day" -> count, capped at TEACHER_DAILY_CAP
     const isFree = (teacherId, day, period) => !teacherBusy.get(teacherId)?.has(`${day}-${period}`);
     const dailyCountKey = (teacherId, day) => `${teacherId}-${day}`;
-    const underDailyCap = (teacherId, day) => (teacherDailyCount.get(dailyCountKey(teacherId, day)) || 0) < PERIODS_PER_DAY;
+    const underDailyCap = (teacherId, day) => (teacherDailyCount.get(dailyCountKey(teacherId, day)) || 0) < TEACHER_DAILY_CAP;
     const book = (teacherId, day, period) => {
       if (!teacherBusy.has(teacherId)) teacherBusy.set(teacherId, new Set());
       teacherBusy.get(teacherId).add(`${day}-${period}`);
@@ -178,42 +274,67 @@ async function main() {
     const rows = [];
     let skippedSlots = 0;
 
+    // Group sections by band so scarce bands (secondary/senior, where a subject often has
+    // exactly one teacher in the whole school) share that teacher fairly across sections
+    // instead of whichever section is processed first claiming every slot that teacher is
+    // ever free for. Scheduling is driven day-by-day, period-by-period, rotating which
+    // section goes first each period — not section-by-section — so a scarce teacher's
+    // capacity spreads across all of that band's sections over the week rather than being
+    // exhausted by one section while its siblings get nothing.
+    const sectionsByBand = new Map();
     for (const section of sections) {
-      const pool = teachersByBand.get(section.band) || [];
-      if (!pool.length) { skippedSlots += DAYS.length * PERIODS_PER_DAY; continue; }
+      if (!sectionsByBand.has(section.band)) sectionsByBand.set(section.band, []);
+      sectionsByBand.get(section.band).push(section);
+    }
 
-      const classSubjects = subjectsByClass.get(section.class_id) || [];
-      if (!classSubjects.length) { skippedSlots += DAYS.length * PERIODS_PER_DAY; continue; }
+    for (const [band, bandSections] of sectionsByBand) {
+      const pool = teachersByBand.get(band) || [];
+      const state = new Map(); // section_id -> { subjectCursor, classSubjects }
+      for (const section of bandSections) {
+        state.set(section.section_id, { subjectCursor: 0, classSubjects: subjectsByClass.get(section.class_id) || [] });
+      }
 
-      let subjectCursor = 0;
+      let dayIdx = 0;
       for (const day of DAYS) {
-        const usedSubjectsToday = new Set();
-        for (let period = 1; period <= PERIODS_PER_DAY; period++) {
-          // Pick the next subject in rotation that hasn't already appeared for this section today.
-          let subject = null;
-          for (let tries = 0; tries < classSubjects.length; tries++) {
-            const candidate = classSubjects[(subjectCursor + tries) % classSubjects.length];
-            if (!usedSubjectsToday.has(candidate.id)) { subject = candidate; subjectCursor += tries + 1; break; }
+        const usedSubjectsToday = new Map(bandSections.map((s) => [s.section_id, new Set()]));
+        for (let period = 1; period <= SECTION_PERIODS_PER_DAY; period++) {
+          // Rotate which section gets first pick of the band's teachers each period, so no
+          // single section (e.g. always-first-in-array "Class 9 A") permanently wins ties.
+          const rotation = dayIdx * SECTION_PERIODS_PER_DAY + period;
+          const order = bandSections.map((_, i) => bandSections[(i + rotation) % bandSections.length]);
+
+          for (const section of order) {
+            const sectionState = state.get(section.section_id);
+            const { classSubjects } = sectionState;
+            if (!pool.length || !classSubjects.length) { skippedSlots += 1; continue; }
+
+            const usedToday = usedSubjectsToday.get(section.section_id);
+            let subject = null;
+            for (let tries = 0; tries < classSubjects.length; tries++) {
+              const candidate = classSubjects[(sectionState.subjectCursor + tries) % classSubjects.length];
+              if (!usedToday.has(candidate.id)) { subject = candidate; sectionState.subjectCursor += tries + 1; break; }
+            }
+            if (!subject) subject = classSubjects[sectionState.subjectCursor++ % classSubjects.length];
+            usedToday.add(subject.id);
+
+            // Prefer a free teacher who actually teaches this subject; fall back to any free teacher in the band.
+            let teacher = pool.find((t) => t.subjects.includes(subject.name) && isFree(t.teacherId, day, period) && underDailyCap(t.teacherId, day));
+            if (!teacher) teacher = pool.find((t) => isFree(t.teacherId, day, period) && underDailyCap(t.teacherId, day));
+            if (!teacher) { skippedSlots += 1; continue; }
+
+            book(teacher.teacherId, day, period);
+            const { id: periodId, startTime, endTime } = PERIODS[period - 1];
+            rows.push([INSTITUTE_ID, section.section_id, subject.id, teacher.teacherId, day, startTime, endTime, section.class_name + ' - ' + section.section_name, period, 'offline', periodId]);
           }
-          if (!subject) subject = classSubjects[subjectCursor++ % classSubjects.length];
-          usedSubjectsToday.add(subject.id);
-
-          // Prefer a free teacher who actually teaches this subject; fall back to any free teacher in the band.
-          let teacher = pool.find((t) => t.subjects.includes(subject.name) && isFree(t.teacherId, day, period) && underDailyCap(t.teacherId, day));
-          if (!teacher) teacher = pool.find((t) => isFree(t.teacherId, day, period) && underDailyCap(t.teacherId, day));
-          if (!teacher) { skippedSlots += 1; continue; }
-
-          book(teacher.teacherId, day, period);
-          const [startTime, endTime] = PERIOD_TIMES[period - 1];
-          rows.push([INSTITUTE_ID, section.section_id, subject.id, teacher.teacherId, day, startTime, endTime, section.class_name + ' - ' + section.section_name, period, 'offline']);
         }
+        dayIdx += 1;
       }
     }
 
     for (const r of rows) {
       await client.query(
-        `INSERT INTO timetables (institute_id, section_id, subject_id, teacher_id, day_of_week, start_time, end_time, room, period_number, type)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        `INSERT INTO timetables (institute_id, section_id, subject_id, teacher_id, day_of_week, start_time, end_time, room, period_number, type, period_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
         r,
       );
     }
@@ -233,7 +354,7 @@ async function main() {
       }
     }
     const avg = perTeacherDaily.length ? (perTeacherDaily.reduce((a, b) => a + b, 0) / perTeacherDaily.length) : 0;
-    console.log(`Average periods/day per scheduled teacher: ${avg.toFixed(1)} (cap: ${PERIODS_PER_DAY}).`);
+    console.log(`Average periods/day per scheduled teacher: ${avg.toFixed(1)} (cap: ${TEACHER_DAILY_CAP}).`);
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
