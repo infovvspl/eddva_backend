@@ -2065,6 +2065,8 @@ export class AiBridgeService {
       board?: string;
       /** Passages from the school's own chapter; presence switches on grounding. */
       sourcePassages?: any[];
+      /** lesson_plan* types: text of a teacher's uploaded plan, fenced as data by the AI service. */
+      sourceDocument?: string;
       /** Assessment papers: the sections, header, difficulty mix and figure/plot
        *  rules as the exact strings in extraContext, so the AI service can write
        *  the objective and written sections in parallel. */

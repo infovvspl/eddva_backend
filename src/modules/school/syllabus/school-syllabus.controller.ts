@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, ParseUUIDPipe, Query, UseGuards, GoneException } from '@nestjs/common';
 import { SchoolSyllabusService } from './school-syllabus.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -11,7 +11,6 @@ import {
   CreateLessonPlanDto,
   CreateLessonTemplateDto,
   CreateSyllabusPlanDto,
-  GenerateAiLessonTemplateDto,
   UpdateSyllabusPlanDto,
   UpdateSyllabusPlanProgressDto,
 } from './dto/school-syllabus.dto';
@@ -93,6 +92,13 @@ export class SchoolSyllabusController {
     return this.svc.getTeacherTeachingPlan(user, query);
   }
 
+  /** Just the teacher's annual syllabus plans (with topic progress), for "My Lesson Plan". */
+  @Get('teaching-plan/annual-plans')
+  @SchoolRoles('TEACHER')
+  async getTeacherAnnualPlans(@SchoolUser() user: any) {
+    return { success: true, data: await this.svc.getTeacherAnnualPlans(user) };
+  }
+
   @Post('lessons')
   @SchoolRoles('TEACHER')
   createLessonPlan(@SchoolUser() user: any, @Body() body: CreateLessonPlanDto) {
@@ -105,10 +111,17 @@ export class SchoolSyllabusController {
     return this.svc.getLessonPlanById(user, id);
   }
 
+  /**
+   * Retired: the per-session AI brief went through the model router (which can
+   * fall back to Gemini) and is replaced by chapter lesson plans
+   * (school/lesson-plans), which use one configured non-Gemini model. No screen
+   * calls this any more; an old client gets a clear 410 instead of AI content.
+   */
   @Post('lessons/ai-template')
   @SchoolRoles('TEACHER')
-  generateAiLessonTemplate(@SchoolUser() user: any, @Body() body: GenerateAiLessonTemplateDto) {
-    return this.svc.generateAiLessonTemplate(user, body);
+  // No body DTO: a retired route answers 410 whatever it is sent (a DTO would turn bad bodies into 400s).
+  generateAiLessonTemplate(@SchoolUser() _user: any) {
+    throw new GoneException('AI lesson briefs have been replaced by chapter lesson plans: open My Teaching Plan → Lesson plans.');
   }
 
   @Post('lessons/:id/complete')

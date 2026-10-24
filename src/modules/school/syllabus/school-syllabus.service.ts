@@ -1064,6 +1064,43 @@ export class SchoolSyllabusService implements OnModuleInit {
     };
   }
 
+  /**
+   * The annual syllabus plans for the class-subjects a teacher teaches (assigned
+   * to them, or covering a class-subject they are assigned), newest first, with
+   * each topic's live status/progress merged in from syllabus_topic_progress.
+   * Used by the teaching-plan dashboard and, on its own, by "My Lesson Plan"
+   * (GET syllabus/teaching-plan/annual-plans), which needs only this.
+   */
+  async getTeacherAnnualPlans(user: any): Promise<any[]> {
+    const instituteId = user.instituteId;
+    const teacherId = user.id;
+    const teacherProfileRow = await this.ds.query(`SELECT id FROM teachers WHERE user_id = $1`, [user.id]).catch(() => []);
+    const teacherProfileId = teacherProfileRow[0]?.id;
+    const plans: any[] = await this.ds.query(
+      `SELECT sp.*, sub.name as subject_name, c.name as class_name, sec.name as section_name
+       FROM syllabus_plans sp
+       LEFT JOIN subjects sub ON sp.subject_id = sub.id
+       LEFT JOIN classes c ON sp.class_id = c.id
+       LEFT JOIN sections sec ON sp.section_id = sec.id
+       WHERE sp.institute_id = $1 AND (
+         sp.teacher_id = $2 OR sp.teacher_id = $3 OR EXISTS (
+           SELECT 1 FROM teacher_academic_assignments taa 
+           WHERE taa.subject_id = sp.subject_id AND taa.class_id = sp.class_id 
+             AND (taa.teacher_id = $2 OR taa.teacher_id = $3)
+         )
+       )
+       ORDER BY sp.created_at DESC`,
+      [instituteId, teacherId, teacherProfileId || teacherId]
+    );
+    // sp.chapter_allocations is identity-only (topic status/progress lives in
+    // syllabus_topic_progress, the source of truth) — merge it in, otherwise topics
+    // show as pending forever even after progress has been saved.
+    return Promise.all(plans.map(async (plan) => ({
+      ...plan,
+      chapter_allocations: await this.mergeChapterAllocationsWithProgress(plan, plan.chapter_allocations),
+    })));
+  }
+
   async getTeacherTeachingPlan(user: any, query: any) {
     const instituteId = user.instituteId;
     const teacherId = user.id;
@@ -1116,35 +1153,7 @@ export class SchoolSyllabusService implements OnModuleInit {
 
     let publishedPlans: any[] = [];
     try {
-      const teacherProfileRow = await this.ds.query(`SELECT id FROM teachers WHERE user_id = $1`, [user.id]).catch(() => []);
-      const teacherProfileId = teacherProfileRow[0]?.id;
-
-      publishedPlans = await this.ds.query(
-        `SELECT sp.*, sub.name as subject_name, c.name as class_name, sec.name as section_name
-         FROM syllabus_plans sp
-         LEFT JOIN subjects sub ON sp.subject_id = sub.id
-         LEFT JOIN classes c ON sp.class_id = c.id
-         LEFT JOIN sections sec ON sp.section_id = sec.id
-         WHERE sp.institute_id = $1 AND (
-           sp.teacher_id = $2 OR sp.teacher_id = $3 OR EXISTS (
-             SELECT 1 FROM teacher_academic_assignments taa 
-             WHERE taa.subject_id = sp.subject_id AND taa.class_id = sp.class_id 
-               AND (taa.teacher_id = $2 OR taa.teacher_id = $3)
-           )
-         )
-         ORDER BY sp.created_at DESC`,
-        [instituteId, teacherId, teacherProfileId || teacherId]
-      );
-
-      // sp.chapter_allocations is identity-only (topic status/progress lives in
-      // syllabus_topic_progress, the source of truth) — merge it in here, otherwise the
-      // teacher's own dashboard cards and "Syllabus Topics — Progress Tracker" section
-      // (built from this array) show topics as pending forever even after progress
-      // has been saved.
-      publishedPlans = await Promise.all(publishedPlans.map(async (plan) => ({
-        ...plan,
-        chapter_allocations: await this.mergeChapterAllocationsWithProgress(plan, plan.chapter_allocations),
-      })));
+      publishedPlans = await this.getTeacherAnnualPlans(user);
     } catch (e) {
       console.error('[getTeacherTeachingPlan.publishedPlans] SQL Error:', e);
     }
