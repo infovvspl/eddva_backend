@@ -163,8 +163,11 @@ export class AiNotesService {
       ) + (focusConcepts.length ? buildFocusAddendum(focusConcepts) : buildSubtopicAddendum(opts.subtopics ?? []));
 
     // Lesson and practice questions are independent: run them concurrently.
+    // reasoningEffort "low": the prompt already dictates the lesson's exact structure
+    // section by section, so the model gains little from deliberating before writing —
+    // skipping that cuts generation time without shortening the lesson itself.
     const lessonPromise = this.aiBridge.startTutorSession(
-      { studentId: student.studentId, topicId: topic.topicId, context: prompt },
+      { studentId: student.studentId, topicId: topic.topicId, context: prompt, reasoningEffort: 'low' },
       student.instituteId ?? 'school',
       'school',
     );
@@ -264,6 +267,7 @@ export class AiNotesService {
         subject: topic.subjectName,
         chapter: topic.chapterName,
         examTarget: `Class ${student.className || '10'}`,
+        reasoningEffort: 'low',
       },
       student.instituteId ?? 'school',
       'school',

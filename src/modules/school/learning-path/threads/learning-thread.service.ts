@@ -140,6 +140,8 @@ export class LearningThreadService implements OnModuleInit {
         watchedCount: (s.content_json?.watched ?? []).length,
         /** The student has opened this step (its video, notes or questions). */
         opened: !!s.ref_id || !!s.content_json?.opened,
+        /** A graded quiz/assessment's score (0-100); null until it is submitted, or for other step kinds. */
+        accuracy: s.quiz_accuracy != null ? Number(s.quiz_accuracy) : null,
       });
       rounds.set(s.round, r);
     }

@@ -96,7 +96,7 @@ export class QuizEngineService {
 
     const plan = QUIZ_PLANS[kind];
     const concepts = (input.concepts ?? []).filter(Boolean).slice(0, 12);
-    const questions = await this.generateQuestions(student, topic, plan, concepts);
+    const questions = await this.generateQuestions(student, topic, plan, concepts, kind);
     if (questions.length < plan.minQuestions) {
       this.logger.warn(`Only ${questions.length} valid ${kind} questions for topic ${topic.topicId}`);
       throw new ServiceUnavailableException('Could not prepare enough good questions right now. Please try again.');
@@ -245,6 +245,7 @@ export class QuizEngineService {
     topic: TopicContext,
     plan: QuizPlan,
     concepts: string[],
+    kind: QuizKind,
   ): Promise<QuizQuestion[]> {
     const settled = await Promise.allSettled(
       plan.batches.map((b) =>
@@ -259,6 +260,11 @@ export class QuizEngineService {
             chapter: topic.chapterName,
             examTarget: `Class ${student.className || '10'}`,
             concepts: concepts.length ? concepts : undefined,
+            // The concepts and difficulty are already pinned, so the model needs little
+            // deliberation to produce each practice-quiz MCQ — "low" cuts the student's
+            // wait without weakening the set. The formal assessment keeps full reasoning:
+            // it is graded once and compares mastery before/after, so accuracy matters more.
+            reasoningEffort: kind === 'quiz' ? 'low' : undefined,
           },
           student.instituteId ?? undefined,
           'school',
