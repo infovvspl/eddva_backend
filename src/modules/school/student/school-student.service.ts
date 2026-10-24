@@ -264,6 +264,20 @@ export class SchoolStudentService implements OnModuleInit {
     }
   }
 
+  // A user's teachers.id essentially never changes, and every students-list request needs it,
+  // so remember it briefly instead of spending a database round trip on each call.
+  // Only found ids are cached, so a teacher profile created later is picked up immediately.
+  private readonly teacherIdCache = new Map<string, { id: string; exp: number }>();
+
+  private async teacherIdForUser(userId: string): Promise<string | undefined> {
+    const hit = this.teacherIdCache.get(userId);
+    if (hit && hit.exp > Date.now()) return hit.id;
+    const rows: any[] = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [userId]);
+    const id = rows[0]?.id;
+    if (id) this.teacherIdCache.set(userId, { id, exp: Date.now() + 5 * 60_000 });
+    return id;
+  }
+
   /** Who may see which students: institute, role (student/parent/teacher) scoping. */
   private async studentScopeFilter(user: any, query: any) {
     const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
@@ -285,8 +299,7 @@ export class SchoolStudentService implements OnModuleInit {
         OR (s.parent_phone IS NOT NULL AND $${params.length}::text IS NOT NULL AND s.parent_phone = $${params.length})
       )`;
     } else if (hasSchoolRole(user.role, 'TEACHER')) {
-      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
-      const teacherId = tRows[0]?.id;
+      const teacherId = await this.teacherIdForUser(user.id);
       if (teacherId) {
         params.push(teacherId);
         filter += ` AND EXISTS (
