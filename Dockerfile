@@ -2,7 +2,7 @@
 # ── Stage 1: Build ───────────────────────────────────────────────────────────
 # Debian (glibc) rather than Alpine: puppeteer needs Chromium and the bundled
 # ffmpeg binaries are glibc builds, neither works reliably on musl.
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=1
 
@@ -13,7 +13,7 @@ COPY . .
 RUN npm run build
 
 # ── Stage 2: Production dependencies only ────────────────────────────────────
-FROM node:20-bookworm-slim AS deps
+FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=1
 COPY package.json package-lock.json ./
@@ -22,7 +22,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 # ── Stage 3: Runtime ─────────────────────────────────────────────────────────
-FROM node:20-bookworm-slim AS production
+FROM node:22-bookworm-slim AS production
 WORKDIR /app
 
 # Chromium for puppeteer (document/PDF generation), ffmpeg for transcoding and
