@@ -55,6 +55,10 @@ async function bootstrap() {
     bodyParser: false,
   });
   app.set('trust proxy', true);
+  // Close TypeORM pools on SIGTERM/SIGINT so restarts/redeploys don't leak
+  // connections on the Postgres server (leaked connections are what exhaust
+  // RDS max_connections over repeated restarts).
+  app.enableShutdownHooks();
 
   // ── Static file serving for uploads ───────────────────────────────────────
   mkdirSync(join(__dirname, '..', 'uploads'), { recursive: true });

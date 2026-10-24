@@ -854,7 +854,7 @@ export class SchoolAssessmentService {
     groups.forEach((groupQuestions, sectionTitle) => {
       lines.push('', `### ${sectionTitle}`);
       groupQuestions.forEach((question: any) => {
-        lines.push(`Q${question.displayNumber || question.number}. Answer: ${question.correctAnswer}`);
+        lines.push(`Q${question.number || question.displayNumber}. Answer: ${question.correctAnswer}`);
         if (question.explanation) {
           lines.push(`Explanation: ${question.explanation}`);
         }
@@ -2090,10 +2090,10 @@ export class SchoolAssessmentService {
       headerLine,
       `Include ONLY these sections, in this order, each with a clear section heading and the EXACT number of questions specified:`,
       ...sections,
-      `Number questions clearly inside each section. The visible question numbers in the answer key must match the visible question numbers in the paper for that same section.`,
+      `Use one continuous question number sequence across the WHOLE paper; do not restart numbering in later sections. The visible question numbers in the answer key must match the visible question numbers in the paper.`,
       `At the very END, add a "## Answer Key" section that is a COMPLETE master answer sheet covering EVERY question in the paper — objective AND subjective alike — so a teacher can mark the whole paper from this one section alone.`,
       `The answer key MUST mirror the question paper structure exactly: use the same section headings and list answers under each section in the same order as the questions appear.`,
-      `Use this answer key format exactly:
+      `Use this answer key format exactly — question numbers keep climbing across every section, continuing from wherever the previous section left off (the example below is illustrative only; use the actual running numbers for this paper):
 ## Answer Key
 ### Section A
 Q1. Answer: a
@@ -2101,18 +2101,18 @@ Explanation: ...
 Q2. Answer: c
 Explanation: ...
 ### Section B
-Q1. Answer: true
+Q3. Answer: true
 Explanation: ...
 ### Section C
-Q1. Answer: expected word or phrase
+Q4. Answer: expected word or phrase
 Explanation: ...
 ### Section D
-Q1. Answer: one-line model answer giving the core fact or result expected
+Q5. Answer: one-line model answer giving the core fact or result expected
 Explanation: key point 1; key point 2; key point 3 — a short checklist a teacher can tick off while marking
 ### Section E
-Q1. Answer: one-line summary of the expected answer's main conclusion
+Q6. Answer: one-line summary of the expected answer's main conclusion
 Explanation: key point 1; key point 2; key point 3; key point 4 — a short checklist a teacher can tick off while marking
-For MCQ, True/False and Fill in the Blanks, Answer is the exact correct option/word. For Short Answer and Long Answer questions, Answer is a concise one-line model answer (not the full essay) and Explanation is a short, comma-or-semicolon-separated checklist of the key points worth marks — this is a marking aid, not a sample essay. Keep every Answer and every Explanation on a single line each — never wrap a model answer across multiple lines or paragraphs. Do not write answers as one flat paragraph. Do not mix answers from different sections.`,
+For MCQ, True/False and Fill in the Blanks, Answer is the exact correct option/word. For Short Answer and Long Answer questions, Answer is a concise one-line model answer (not the full essay) and Explanation is a short, comma-or-semicolon-separated checklist of the key points worth marks — this is a marking aid, not a sample essay. Keep every Answer and every Explanation on a single line each — never wrap a model answer across multiple lines or paragraphs. Do not write answers as one flat paragraph. Do not mix answers from different sections. Never restart the Q-number at 1 in a later section.`,
       body.prompt?.trim() ? `Additional teacher instructions: ${body.prompt.trim()}` : '',
       `Output ONLY the Markdown question paper.`,
     ].filter(Boolean).join('\n');
