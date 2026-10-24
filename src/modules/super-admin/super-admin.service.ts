@@ -81,7 +81,21 @@ export class SuperAdminService {
 
   // ── Platform Config ──────────────────────────────────────────────────────────
 
+  // The frontend polls this for maintenance mode, so avoid a DB hit per request.
+  private platformConfigCache: { value: Awaited<ReturnType<SuperAdminService['loadPlatformConfig']>>; exp: number } | null = null;
+  private static readonly PLATFORM_CONFIG_TTL_MS = 10_000;
+
   async getPlatformConfig() {
+    const now = Date.now();
+    if (this.platformConfigCache && this.platformConfigCache.exp > now) {
+      return this.platformConfigCache.value;
+    }
+    const value = await this.loadPlatformConfig();
+    this.platformConfigCache = { value, exp: now + SuperAdminService.PLATFORM_CONFIG_TTL_MS };
+    return value;
+  }
+
+  private async loadPlatformConfig() {
     let cfg = await this.platformConfigRepo.findOne({ where: { isSingleton: true } });
     if (!cfg) {
       cfg = await this.platformConfigRepo.save(
@@ -121,6 +135,7 @@ export class SuperAdminService {
     if (dto.supportEmail !== undefined) cfg.supportEmail = dto.supportEmail;
 
     await this.platformConfigRepo.save(cfg);
+    this.platformConfigCache = null;
     return this.getPlatformConfig();
   }
 

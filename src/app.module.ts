@@ -164,7 +164,8 @@ const ALL_COACHING_ENTITIES = [
         return {
           ...coachingDbConfig,
           synchronize: !isProd && dbSyncRequested,
-          logging: process.env.DB_LOGGING === 'true',
+          logging: process.env.DB_LOGGING === 'true' ? true : ['error', 'warn'],
+          maxQueryExecutionTime: Number(process.env.DB_SLOW_QUERY_MS) || 500,
           retryAttempts: 3,
           retryDelay: 2000,
           entities: ALL_COACHING_ENTITIES,
@@ -180,7 +181,8 @@ const ALL_COACHING_ENTITIES = [
       useFactory: (cfg: ConfigService) => ({
         ...schoolDbConfig,
         synchronize: false,
-        logging: process.env.DB_LOGGING === 'true',
+        logging: process.env.DB_LOGGING === 'true' ? true : ['error', 'warn'],
+        maxQueryExecutionTime: Number(process.env.DB_SLOW_QUERY_MS) || 500,
         // Survive transient network/RDS blips at startup instead of crashing.
         retryAttempts: 10,
         retryDelay: 3000,

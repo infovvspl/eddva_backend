@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # ONE-TIME SETUP — App Server (Instance 1)
 # Ubuntu 22.04 LTS
-# Installs: Node 20, PM2, Nginx, Certbot
+# Installs: Node 22, PM2, Nginx, Certbot
 # Domains:  eddva.in  (frontend)   api.eddva.in  (NestJS API)
 #
 # Run as: sudo bash setup-app-server.sh
@@ -17,8 +17,8 @@ echo "════════════════════════�
 apt-get update -y
 apt-get install -y curl git nginx certbot python3-certbot-nginx ufw
 
-# ── 2. Node 20 (via NodeSource) ───────────────────────────────────────────────
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+# ── 2. Node 22 (via NodeSource) ───────────────────────────────────────────────
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt-get install -y nodejs
 node --version && npm --version
 
