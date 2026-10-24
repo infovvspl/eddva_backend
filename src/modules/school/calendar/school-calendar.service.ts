@@ -3,7 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { hasSchoolRole } from '../common/role-helper';
 
-const HOLIDAYS_2026 = [
+export const HOLIDAYS_2026 = [
   { id: 1, title: 'Makar Sankranti', date: '2026-01-14', type: 'STATE' },
   { id: 2, title: 'Basanta Panchami', date: '2026-01-23', type: 'STATE' },
   { id: 3, title: 'Republic Day', date: '2026-01-26', type: 'NATIONAL' },
@@ -29,7 +29,7 @@ const HOLIDAYS_2026 = [
   { id: 23, title: 'Christmas', date: '2026-12-25', type: 'NATIONAL' }
 ];
 
-const VACATIONS_2026 = [
+export const VACATIONS_2026 = [
   { id: 1, title: 'Summer Vacation', startDate: '2026-05-05', endDate: '2026-06-05', type: 'VACATION' },
   { id: 2, title: 'Durga Puja Vacation', startDate: '2026-10-17', endDate: '2026-10-24', type: 'VACATION' },
   { id: 3, title: 'Winter Vacation', startDate: '2026-12-24', endDate: '2026-12-31', type: 'VACATION' }

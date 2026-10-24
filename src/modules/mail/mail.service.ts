@@ -190,6 +190,39 @@ export class MailService {
   }
 
   /**
+   * Tells a super admin a new institute just onboarded (self-registration or
+   * super-admin-initiated) — the admin's own credentials go to them directly
+   * via sendCredentials(); this is the super admin's heads-up copy, with no
+   * password in it, so it's safe to keep in a sent-mail archive.
+   */
+  async sendInstituteOnboardedNotification(opts: {
+    to: string;
+    instituteName: string;
+    adminName: string;
+    adminEmail: string;
+  }): Promise<DeliverResult> {
+    const { to, instituteName, adminName, adminEmail } = opts;
+    const subject = `New institute onboarded — ${instituteName}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #6366f1;">New institute onboarded</h2>
+        <p><strong>${instituteName}</strong> has been onboarded onto EDVA.</p>
+        <div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <p style="margin: 4px 0;"><strong>Admin name:</strong> ${adminName}</p>
+          <p style="margin: 4px 0;"><strong>Admin email:</strong> ${adminEmail}</p>
+        </div>
+        <p style="color: #888; font-size: 12px;">— EDVA Platform</p>
+      </div>
+    `;
+
+    return this.deliver({
+      to, subject, html,
+      category: 'Institute Onboarded',
+      logLabel: `Institute onboarded notification (institute: ${instituteName})`,
+    });
+  }
+
+  /**
    * The STUDENT's own login (their email + password), delivered to the
    * PARENT's inbox as the chosen delivery channel — distinct from
    * sendParentCredentials() below, which is the parent's *own* separate

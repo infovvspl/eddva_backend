@@ -1,0 +1,17 @@
+{
+  "description": "Representative chapters for evaluating AI chapter lesson plans (schema v2). Names match Eddva School on the dev database; `chapter` matches by prefix. Run with scripts/lesson-plan-eval.js (real AI calls: needs cost authorisation).",
+  "institute": "Eddva School",
+  "cases": [
+    { "id": "math10-real-numbers", "class": "Class 10", "subject": "Mathematics", "chapter": "Real Numbers", "periods": 4, "minutes": 45, "type": "maths, procedural", "grounded": true },
+    { "id": "sci10-chemical-reactions", "class": "Class 10", "subject": "Science", "chapter": "Chemical Reactions and Equations", "periods": 5, "minutes": 45, "type": "science, practical/lab", "grounded": true },
+    { "id": "hist10-nationalism-europe", "class": "Class 10", "subject": "History", "chapter": "The Rise of Nationalism in Europe", "periods": 4, "minutes": 45, "type": "humanities, narrative", "grounded": true },
+    { "id": "eng10-letter-to-god", "class": "Class 10", "subject": "English Communicative", "chapter": "A Letter to God", "periods": 3, "minutes": 45, "type": "literature", "grounded": true },
+    { "id": "hin10-sakhi", "class": "Class 10", "subject": "Hindi", "chapter": "साखी", "periods": 3, "minutes": 45, "type": "language (Hindi poetry)", "grounded": true },
+    { "id": "phy11-units", "class": "Class 11", "subject": "Physics", "chapter": "UNITS AND MEASUREMENTS", "periods": 6, "minutes": 40, "type": "senior science, quantitative", "grounded": true },
+    { "id": "chem12-solutions", "class": "Class 12", "subject": "Chemistry", "chapter": "Solutions", "periods": 5, "minutes": 45, "type": "senior science, conceptual + numericals", "grounded": true },
+    { "id": "math6-patterns", "class": "Class 6", "subject": "Mathematics", "chapter": "Patterns in Mathematics", "periods": 3, "minutes": 35, "type": "middle school, exploratory", "grounded": true },
+    { "id": "evs3-family-friends", "class": "Class 3", "subject": "The World Around Us", "chapter": "Family and Friends", "periods": 2, "minutes": 30, "type": "primary, age-appropriate language", "grounded": true },
+    { "id": "bio12-flowering-plants", "class": "Class 12", "subject": "Biology", "chapter": "Sexual Reproduction in Flowering Plants", "periods": 4, "minutes": 45, "type": "no textbook indexed: must be flagged ungrounded", "grounded": false },
+    { "id": "eng7-river-spoke", "class": "Class 7", "subject": "English", "chapter": "The Day the River Spoke", "periods": 3, "minutes": 40, "type": "no textbook indexed: must be flagged ungrounded", "grounded": false }
+  ]
+}

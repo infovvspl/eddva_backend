@@ -1,12 +1,18 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsIn,
+  IsInt,
   IsNumber,
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -216,121 +222,153 @@ export class UpdateSyllabusPlanProgressDto {
   completionDate?: string | null;
 }
 
+/** The lesson form sends '' for a field nobody picked; treat that as not given. */
+const emptyToUndefined = () => Transform(({ value }) => (value === '' ? undefined : value));
+
+const LESSON_TEXT_MAX = 20000;
+
 export class CreateLessonPlanDto {
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   academicYear?: string;
 
-  @IsString()
+  @IsUUID()
   classId: string;
 
-  @IsString()
+  @IsUUID()
   sectionId: string;
 
-  @IsString()
+  @IsUUID()
   subjectId: string;
 
   @IsOptional()
-  @IsString()
+  @emptyToUndefined()
+  @IsUUID()
   chapterId?: string;
 
   @IsOptional()
-  @IsString()
+  @emptyToUndefined()
+  @IsUUID()
   topicId?: string;
 
   @IsOptional()
-  @IsString()
+  @emptyToUndefined()
+  @IsDateString()
   date?: string;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
+  @Max(20)
   durationPeriods?: number;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   learningObjectives?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   previousKnowledge?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   teachingMethodology?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   teachingActivities?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   teachingResources?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   digitalResources?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   classroomActivities?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   assessmentMethod?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   homework?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   expectedLearningOutcomes?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   teacherNotes?: string;
 
   @IsOptional()
-  @IsString()
+  @emptyToUndefined()
+  @IsUUID()
   timetableId?: string | null;
 
+  /** A new plan is scheduled or a draft; completion goes through /complete. */
   @IsOptional()
-  @IsString()
+  @IsIn(['SCHEDULED', 'DRAFT'])
   status?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LESSON_TEXT_MAX)
   aiBrief?: string;
 }
 
 export class GenerateAiLessonTemplateDto {
   @IsOptional()
-  @IsString()
+  @emptyToUndefined()
+  @IsUUID()
   subjectId?: string;
 
   @IsOptional()
-  @IsString()
+  @emptyToUndefined()
+  @IsUUID()
   chapterId?: string;
 
   // Unused by generateAiLessonTemplate today but sent by the modal — kept to avoid rejection.
   @IsOptional()
-  @IsString()
+  @emptyToUndefined()
+  @IsUUID()
   topicId?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   subjectName?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   chapterName?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   className?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   topicName?: string;
 }
 
@@ -384,8 +422,8 @@ export class CompleteLessonPlanDto {
   @IsString()
   carryForwardDate?: string | null;
 
-  // Only used by the "lesson launched directly from a timetable slot" dynamic-create
-  // fallback — not sent by the current lesson-completion modal, but a real code path.
+  // Accepted for older clients but no longer used: completing an unknown lesson id
+  // used to create a plan from these; it now returns 404.
   @IsOptional()
   @IsString()
   classId?: string;

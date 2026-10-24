@@ -1,0 +1,3393 @@
+diff --git a/src/modules/school/assignment/analytics.service.spec.ts b/src/modules/school/assignment/analytics.service.spec.ts
+new file mode 100644
+index 0000000..2888793
+--- /dev/null
++++ b/src/modules/school/assignment/analytics.service.spec.ts
+@@ -0,0 +1,68 @@
++import { AnalyticsUnit, buildAnalytics } from './analytics.service';
++
++const unit = (id: string, over: Partial<AnalyticsUnit> = {}): AnalyticsUnit => ({
++  id,
++  name: id,
++  status: 'pending',
++  marks: null,
++  isLate: false,
++  submittedAt: null,
++  ...over,
++});
++
++describe('buildAnalytics', () => {
++  it('counts submitted, pending, evaluated and awaiting evaluation', () => {
++    const a = buildAnalytics(
++      [
++        unit('a', { status: 'graded', marks: 80, submittedAt: 'x' }),
++        unit('b', { status: 'submitted', submittedAt: 'x' }),
++        unit('c'),
++        unit('d'),
++      ],
++      { isGroup: false, maxMarks: 100 },
++    );
++    expect(a.summary).toMatchObject({
++      total: 4, submitted: 2, pending: 2, evaluated: 1, awaitingEvaluation: 1, submissionRate: 50,
++    });
++    expect(a.unitLabel).toBe('students');
++  });
++
++  it('averages only graded work and reports it as a percentage of max marks', () => {
++    const a = buildAnalytics(
++      [
++        unit('a', { status: 'graded', marks: 8 }),
++        unit('b', { status: 'graded', marks: 4 }),
++        unit('c', { status: 'submitted' }),
++      ],
++      { isGroup: false, maxMarks: 10 },
++    );
++    expect(a.summary).toMatchObject({ avgMarks: 6, avgPercent: 60, highest: 8, lowest: 4 });
++  });
++
++  it('buckets scores and puts a perfect score in the top bucket', () => {
++    const a = buildAnalytics(
++      [
++        unit('a', { status: 'graded', marks: 100 }),
++        unit('b', { status: 'graded', marks: 0 }),
++        unit('c', { status: 'graded', marks: 45 }),
++      ],
++      { isGroup: false, maxMarks: 100 },
++    );
++    expect(a.distribution.map((d) => d.count)).toEqual([1, 0, 1, 0, 1]);
++  });
++
++  it('counts late only among submitted units and labels groups', () => {
++    const a = buildAnalytics(
++      [unit('g1', { status: 'submitted', isLate: true }), unit('g2', { isLate: true })],
++      { isGroup: true, maxMarks: 100 },
++    );
++    expect(a.summary.late).toBe(1);
++    expect(a.unitLabel).toBe('groups');
++  });
++
++  it('handles an empty assignment and bad max marks', () => {
++    const a = buildAnalytics([], { isGroup: false, maxMarks: 0 });
++    expect(a.summary).toMatchObject({ total: 0, submissionRate: null, avgMarks: null, highest: null });
++    expect(a.distribution.every((d) => d.count === 0)).toBe(true);
++  });
++});
+diff --git a/src/modules/school/assignment/analytics.service.ts b/src/modules/school/assignment/analytics.service.ts
+new file mode 100644
+index 0000000..6784a51
+--- /dev/null
++++ b/src/modules/school/assignment/analytics.service.ts
+@@ -0,0 +1,78 @@
++export type UnitStatus = 'pending' | 'submitted' | 'graded';
++
++/** One thing that has to submit: a student (individual) or a group. */
++export interface AnalyticsUnit {
++  id: string;
++  name: string;
++  members?: string[];
++  status: UnitStatus;
++  marks: number | null;
++  isLate: boolean;
++  submittedAt: Date | string | null;
++}
++
++export interface AssignmentAnalytics {
++  unitLabel: 'students' | 'groups';
++  summary: {
++    total: number;
++    submitted: number;
++    pending: number;
++    evaluated: number;
++    awaitingEvaluation: number;
++    late: number;
++    submissionRate: number | null;
++    avgMarks: number | null;
++    avgPercent: number | null;
++    highest: number | null;
++    lowest: number | null;
++  };
++  distribution: { label: string; count: number }[];
++  units: (AnalyticsUnit & { percent: number | null })[];
++}
++
++const BUCKETS = ['0-20%', '20-40%', '40-60%', '60-80%', '80-100%'];
++
++const round1 = (n: number) => Math.round(n * 10) / 10;
++
++/** Pure calculation of the assignment tracking numbers. */
++export function buildAnalytics(
++  units: AnalyticsUnit[],
++  opts: { isGroup: boolean; maxMarks: number },
++): AssignmentAnalytics {
++  const max = opts.maxMarks > 0 ? opts.maxMarks : 100;
++  const withPercent = units.map((u) => ({
++    ...u,
++    percent: u.marks == null ? null : round1((u.marks / max) * 100),
++  }));
++
++  const submitted = units.filter((u) => u.status !== 'pending').length;
++  const evaluated = units.filter((u) => u.status === 'graded').length;
++  const scored = units.filter((u) => u.status === 'graded' && u.marks != null).map((u) => u.marks as number);
++  const avgMarks = scored.length ? round1(scored.reduce((a, b) => a + b, 0) / scored.length) : null;
++
++  const distribution = BUCKETS.map((label) => ({ label, count: 0 }));
++  for (const u of withPercent) {
++    if (u.status !== 'graded' || u.percent == null) continue;
++    const idx = Math.min(Math.max(Math.floor(u.percent / 20), 0), 4); // 100% falls in the top bucket
++    distribution[idx].count++;
++  }
++
++  return {
++    unitLabel: opts.isGroup ? 'groups' : 'students',
++    summary: {
++      total: units.length,
++      submitted,
++      pending: units.length - submitted,
++      evaluated,
++      awaitingEvaluation: submitted - evaluated,
++      late: units.filter((u) => u.status !== 'pending' && u.isLate).length,
++      submissionRate: units.length ? Math.round((submitted / units.length) * 100) : null,
++      avgMarks,
++      avgPercent: avgMarks == null ? null : round1((avgMarks / max) * 100),
++      highest: scored.length ? Math.max(...scored) : null,
++      lowest: scored.length ? Math.min(...scored) : null,
++    },
++    distribution,
++    units: withPercent,
++  };
++}
+diff --git a/src/modules/school/assignment/answer-grading.spec.ts b/src/modules/school/assignment/answer-grading.spec.ts
+new file mode 100644
+index 0000000..3338b9d
+--- /dev/null
++++ b/src/modules/school/assignment/answer-grading.spec.ts
+@@ -0,0 +1,74 @@
++import { BadRequestException } from '@nestjs/common';
++import { gradeAnswers, normalizeChoice } from './answer-grading';
++import { buildQuestionAnalytics } from './question-analytics';
++
++describe('gradeAnswers', () => {
++  const qs = [
++    { id: 'q1', type: 'mcq_single', marks: 2, correctAnswer: 'B', options: [{ label: 'A', text: 'x' }, { label: 'B', text: 'y' }] },
++    { id: 'q2', type: 'mcq_multiple', marks: 3, correctAnswer: 'A,C', options: [{ label: 'A', text: '' }, { label: 'B', text: '' }, { label: 'C', text: '' }] },
++    { id: 'q3', type: 'short_answer', marks: 5 },
++  ];
++
++  it('normalises choices regardless of case, order and spacing', () => {
++    expect(normalizeChoice(' c, a ')).toBe('A,C');
++    expect(normalizeChoice(['b', 'B'])).toBe('B');
++    expect(normalizeChoice(null)).toBe('');
++  });
++
++  it('grades objective answers and leaves written ones for the teacher', () => {
++    const r = gradeAnswers(qs, { q1: 'B', q2: 'c,a', q3: 'Inertia is...' });
++    expect(r.total).toBe(5);
++    expect(r.fullyGraded).toBe(false);
++    expect(r.rows.map((x) => x.marksAwarded)).toEqual([2, 3, null]);
++    expect(r.answered).toBe(3);
++  });
++
++  it('scores a partial multi-select as zero and a blank as incorrect', () => {
++    const r = gradeAnswers(qs.slice(0, 2), JSON.stringify({ q2: 'A' }));
++    expect(r.rows[0]).toMatchObject({ answer: null, isCorrect: false, marksAwarded: 0 });
++    expect(r.rows[1]).toMatchObject({ isCorrect: false, marksAwarded: 0 });
++    expect(r.fullyGraded).toBe(true);
++    expect(r.answered).toBe(1);
++  });
++
++  it('rejects unknown questions, unknown options and multiple picks on single-choice', () => {
++    expect(() => gradeAnswers(qs, { nope: 'A' })).toThrow(BadRequestException);
++    expect(() => gradeAnswers(qs, { q1: 'Z' })).toThrow(BadRequestException);
++    expect(() => gradeAnswers(qs, { q1: 'A,B' })).toThrow(BadRequestException);
++    expect(() => gradeAnswers(qs, '{oops')).toThrow(BadRequestException);
++  });
++});
++
++describe('buildQuestionAnalytics', () => {
++  const questions = [
++    { id: 'q1', position: 1, text: 'Force unit', type: 'mcq_single', marks: 2, topicName: 'Motion',
++      options: [{ label: 'A', text: 'J' }, { label: 'B', text: 'N' }, { label: 'C', text: 'W' }], correctAnswer: 'B' },
++    { id: 'q2', position: 2, text: 'Define inertia', type: 'short_answer', marks: 4, topicName: 'Laws' },
++  ];
++  const answers = [
++    { questionId: 'q1', answer: 'B', isCorrect: true, marksAwarded: 2 },
++    { questionId: 'q1', answer: 'A', isCorrect: false, marksAwarded: 0 },
++    { questionId: 'q1', answer: 'A', isCorrect: false, marksAwarded: 0 },
++    { questionId: 'q1', answer: null, isCorrect: false, marksAwarded: 0 },
++    { questionId: 'q2', answer: 'text', isCorrect: null, marksAwarded: 3 },
++    { questionId: 'q2', answer: 'text', isCorrect: null, marksAwarded: null },
++  ];
++
++  it('reports per-question correctness, skips and the most chosen wrong option', () => {
++    const { questions: qa } = buildQuestionAnalytics(questions, answers);
++    expect(qa[0]).toMatchObject({ attempts: 4, skipped: 1, correctCount: 1, correctPercent: 25, mostChosenWrong: 'A' });
++    expect(qa[0].optionCounts).toEqual({ A: 2, B: 1, C: 0 });
++  });
++
++  it('averages only graded written answers', () => {
++    const { questions: qa } = buildQuestionAnalytics(questions, answers);
++    expect(qa[1]).toMatchObject({ attempts: 2, correctPercent: null, avgPercent: 75 });
++  });
++
++  it('ranks topics weakest first and flags those under 60%', () => {
++    const { topics } = buildQuestionAnalytics(questions, answers);
++    expect(topics.map((t) => t.topic)).toEqual(['Motion', 'Laws']);
++    expect(topics[0]).toMatchObject({ avgPercent: 25, weak: true });
++    expect(topics[1]).toMatchObject({ avgPercent: 75, weak: false });
++  });
++});
+diff --git a/src/modules/school/assignment/answer-grading.ts b/src/modules/school/assignment/answer-grading.ts
+new file mode 100644
+index 0000000..bcb2665
+--- /dev/null
++++ b/src/modules/school/assignment/answer-grading.ts
+@@ -0,0 +1,83 @@
++import { BadRequestException } from '@nestjs/common';
++import { OBJECTIVE_TYPES, QuestionOption } from './assignment-questions';
++
++/** Canonical form of an answer: upper-case labels, sorted, comma separated ("c, a" -> "A,C"). */
++export function normalizeChoice(value: unknown): string {
++  const parts = (Array.isArray(value) ? value : String(value ?? '').split(/[,;\s]+/))
++    .map((x) => String(x).trim().toUpperCase())
++    .filter(Boolean);
++  return Array.from(new Set(parts)).sort().join(',');
++}
++
++export interface StoredQuestion {
++  id: string;
++  type: string;
++  marks: number;
++  options?: QuestionOption[] | null;
++  correctAnswer?: string | null;
++}
++
++export interface GradedAnswer {
++  questionId: string;
++  answer: string | null;
++  isCorrect: boolean | null;
++  /** null = needs a teacher (written answer) */
++  marksAwarded: number | null;
++}
++
++/**
++ * Validates the student's answers against the assignment's questions and grades
++ * the objective ones. Every question gets a row (blank answers score 0 when
++ * objective) so analytics denominators include students who skipped it.
++ */
++export function gradeAnswers(
++  questions: StoredQuestion[],
++  rawAnswers: unknown,
++): { rows: GradedAnswer[]; fullyGraded: boolean; total: number; answered: number } {
++  let map: any = {};
++  if (typeof rawAnswers === 'string' && rawAnswers.trim()) {
++    try {
++      map = JSON.parse(rawAnswers);
++    } catch {
++      throw new BadRequestException('answers is not valid JSON');
++    }
++  } else if (rawAnswers && typeof rawAnswers === 'object') {
++    map = rawAnswers;
++  }
++  if (map === null || Array.isArray(map) || typeof map !== 'object') {
++    throw new BadRequestException('answers must be an object of questionId -> answer');
++  }
++  const known = new Set(questions.map((q) => q.id));
++  for (const id of Object.keys(map)) {
++    if (!known.has(id)) throw new BadRequestException('An answer refers to a question that is not in this assignment');
++  }
++
++  let total = 0;
++  let answered = 0;
++  let fullyGraded = true;
++  const rows = questions.map((q): GradedAnswer => {
++    const raw = map[q.id];
++    if (OBJECTIVE_TYPES.has(q.type)) {
++      const picked = normalizeChoice(raw);
++      if (picked) {
++        const valid = new Set((q.options || []).map((o) => o.label));
++        if (picked.split(',').some((p) => !valid.has(p))) {
++          throw new BadRequestException('An answer uses an option that does not exist');
++        }
++        if (q.type !== 'mcq_multiple' && picked.includes(',')) {
++          throw new BadRequestException('Only one option can be chosen for this question');
++        }
++        answered++;
++      }
++      const correct = !!picked && picked === normalizeChoice(q.correctAnswer);
++      const marksAwarded = correct ? Number(q.marks) : 0;
++      total += marksAwarded;
++      return { questionId: q.id, answer: picked || null, isCorrect: picked ? correct : false, marksAwarded };
++    }
++    const text = String(raw ?? '').trim().slice(0, 5000);
++    if (text) answered++;
++    fullyGraded = false;
++    return { questionId: q.id, answer: text || null, isCorrect: null, marksAwarded: null };
++  });
++  return { rows, fullyGraded: fullyGraded && questions.length > 0, total: Math.round(total * 100) / 100, answered };
++}
+diff --git a/src/modules/school/assignment/assignment-questions.spec.ts b/src/modules/school/assignment/assignment-questions.spec.ts
+new file mode 100644
+index 0000000..4978f0a
+--- /dev/null
++++ b/src/modules/school/assignment/assignment-questions.spec.ts
+@@ -0,0 +1,81 @@
++import { BadRequestException } from '@nestjs/common';
++import {
++  fromAiQuestion,
++  fromBankQuestion,
++  sanitizeQuestions,
++  stripAnswers,
++  totalMarks,
++} from './assignment-questions';
++
++describe('assignment questions', () => {
++  describe('fromBankQuestion', () => {
++    it('keeps an assessment MCQ with its labelled options and answer', () => {
++      const q = fromBankQuestion(
++        { text: 'Unit of force?', type: 'mcq_single', marks: 2,
++          options: [{ label: 'A', text: 'Joule' }, { label: 'B', text: 'Newton' }], correctAnswer: 'B' },
++        'asm1:0',
++      );
++      expect(q).toMatchObject({ type: 'mcq_single', marks: 2, correctAnswer: 'B', source: 'bank', sourceRef: 'asm1:0' });
++      expect(q!.options).toHaveLength(2);
++    });
++
++    it('treats a written question as short answer and skips empty text', () => {
++      expect(fromBankQuestion({ text: 'Define inertia.', correctAnswer: 'Resistance to change' }, 'x')).toMatchObject({
++        type: 'short_answer', options: null, marks: 1, correctAnswer: 'Resistance to change',
++      });
++      expect(fromBankQuestion({ text: '  ' }, 'x')).toBeNull();
++    });
++  });
++
++  describe('fromAiQuestion', () => {
++    it('reads isCorrect flags on options', () => {
++      const q = fromAiQuestion(
++        { content: 'Capital of India?', options: [{ content: 'Mumbai' }, { content: 'Delhi', isCorrect: true }] },
++        { type: 'mcq_single', topicName: 'Capitals' },
++      );
++      expect(q).toMatchObject({ correctAnswer: 'B', topicName: 'Capitals', source: 'ai' });
++      expect(q!.options![1]).toEqual({ label: 'B', text: 'Delhi' });
++    });
++
++    it('maps a plain-string answer to a label, by letter or by option text', () => {
++      const opts = ['3', '4', '5'];
++      expect(fromAiQuestion({ question: '2+2?', options: opts, answer: 'B' }, { type: 'mcq_single' })!.correctAnswer).toBe('B');
++      expect(fromAiQuestion({ question: '2+2?', options: opts, answer: '4' }, { type: 'mcq_single' })!.correctAnswer).toBe('B');
++    });
++
++    it('keeps a model answer for written questions', () => {
++      const q = fromAiQuestion({ content: 'Explain gravity.', answer: 'Attraction between masses' }, { type: 'short_answer' });
++      expect(q).toMatchObject({ type: 'short_answer', options: null, correctAnswer: 'Attraction between masses' });
++    });
++  });
++
++  describe('sanitizeQuestions', () => {
++    const mcq = { type: 'mcq_single', text: 'Q', marks: 1, correctAnswer: 'A',
++      options: [{ label: 'A', text: 'x' }, { label: 'B', text: 'y' }] };
++
++    it('accepts valid questions, including a JSON string from a form field', () => {
++      expect(sanitizeQuestions([mcq])).toHaveLength(1);
++      expect(sanitizeQuestions(JSON.stringify([mcq]))[0].correctAnswer).toBe('A');
++      expect(sanitizeQuestions(undefined)).toEqual([]);
++    });
++
++    it('rejects missing text, bad marks, and unusable objective questions', () => {
++      expect(() => sanitizeQuestions([{ ...mcq, text: '' }])).toThrow(BadRequestException);
++      expect(() => sanitizeQuestions([{ ...mcq, marks: 0 }])).toThrow(BadRequestException);
++      expect(() => sanitizeQuestions([{ ...mcq, options: [{ label: 'A', text: 'x' }] }])).toThrow(BadRequestException);
++      expect(() => sanitizeQuestions([{ ...mcq, correctAnswer: 'Z' }])).toThrow(BadRequestException);
++      expect(() => sanitizeQuestions([{ ...mcq, correctAnswer: 'A,B' }])).toThrow(BadRequestException);
++      expect(() => sanitizeQuestions('{oops')).toThrow(BadRequestException);
++    });
++
++    it('allows several answers only for mcq_multiple, and written questions need no key', () => {
++      expect(sanitizeQuestions([{ ...mcq, type: 'mcq_multiple', correctAnswer: 'A,B' }])[0].correctAnswer).toBe('A,B');
++      expect(sanitizeQuestions([{ type: 'long_answer', text: 'Discuss', marks: 5 }])[0].correctAnswer).toBeNull();
++    });
++  });
++
++  it('totals marks and strips answers for students', () => {
++    expect(totalMarks([{ marks: 1.5 }, { marks: 2 }])).toBe(3.5);
++    expect(stripAnswers({ text: 'Q', correctAnswer: 'A', explanation: 'because' })).toEqual({ text: 'Q' });
++  });
++});
+diff --git a/src/modules/school/assignment/assignment-questions.ts b/src/modules/school/assignment/assignment-questions.ts
+new file mode 100644
+index 0000000..1e0fade
+--- /dev/null
++++ b/src/modules/school/assignment/assignment-questions.ts
+@@ -0,0 +1,166 @@
++import { BadRequestException } from '@nestjs/common';
++
++export type QuestionSource = 'bank' | 'ai' | 'manual';
++
++export interface QuestionOption {
++  label: string;
++  text: string;
++}
++
++/** A question as stored on an assignment (a snapshot, independent of where it came from). */
++export interface AssignmentQuestion {
++  type: string;
++  text: string;
++  options: QuestionOption[] | null;
++  /** Option label(s) for objective questions (e.g. "B" or "A,C"), model answer for written ones. */
++  correctAnswer: string | null;
++  explanation: string | null;
++  marks: number;
++  topicName: string | null;
++  source: QuestionSource;
++  sourceRef: string | null;
++}
++
++export const OBJECTIVE_TYPES = new Set(['mcq_single', 'mcq_multiple', 'true_false']);
++export const MAX_QUESTIONS_PER_ASSIGNMENT = 100;
++const LABELS = 'ABCDEFGH';
++
++const str = (v: unknown) => (v == null ? '' : String(v)).trim();
++
++function normalizeOptions(raw: unknown): QuestionOption[] | null {
++  if (!Array.isArray(raw) || !raw.length) return null;
++  const out = raw
++    .map((o: any, i: number) => {
++      const text = str(o && typeof o === 'object' ? o.text ?? o.content ?? o.optionText : o);
++      const label = str(o && typeof o === 'object' ? o.label ?? o.optionLabel : '') || LABELS[i] || String(i + 1);
++      return { label: label.toUpperCase().slice(0, 2), text };
++    })
++    .filter((o) => o.text);
++  return out.length ? out : null;
++}
++
++/** Labels of the correct options, from an explicit answer or per-option isCorrect flags. */
++function correctLabels(rawOptions: unknown, answer: unknown, options: QuestionOption[] | null): string | null {
++  if (!options) return null;
++  const flagged: string[] = [];
++  if (Array.isArray(rawOptions)) {
++    rawOptions.forEach((o: any, i: number) => {
++      if (o && typeof o === 'object' && o.isCorrect === true && options[i]) flagged.push(options[i].label);
++    });
++  }
++  if (flagged.length) return flagged.join(',');
++
++  const parts = (Array.isArray(answer) ? answer : str(answer).split(/[,;\s]+/)).map((x) => str(x).toUpperCase()).filter(Boolean);
++  const labels = options.map((o) => o.label);
++  const byLabel = parts.filter((p) => labels.includes(p));
++  if (byLabel.length) return byLabel.join(',');
++
++  // answer given as the option text
++  const wanted = str(Array.isArray(answer) ? answer[0] : answer).toLowerCase();
++  const match = options.find((o) => o.text.toLowerCase() === wanted);
++  return match ? match.label : null;
++}
++
++/** A question stored inside an assessment (questions_json). */
++export function fromBankQuestion(raw: any, ref: string): AssignmentQuestion | null {
++  const text = str(raw?.text ?? raw?.question);
++  if (!text) return null;
++  const options = normalizeOptions(raw.options);
++  const type = str(raw.type) || (options ? 'mcq_single' : 'short_answer');
++  const answer = raw.correctAnswer ?? raw.correct_answer;
++  return {
++    type,
++    text,
++    options,
++    correctAnswer: options ? correctLabels(raw.options, answer, options) : str(answer) || null,
++    explanation: str(raw.explanation) || null,
++    marks: Number(raw.marks) > 0 ? Number(raw.marks) : 1,
++    topicName: str(raw.topicName ?? raw.topic) || null,
++    source: 'bank',
++    sourceRef: ref,
++  };
++}
++
++/** A question returned by the Eddva AI generator. */
++export function fromAiQuestion(raw: any, opts: { topicName?: string | null; type: string; marks?: number }): AssignmentQuestion | null {
++  const text = str(raw?.content ?? raw?.questionText ?? raw?.question ?? raw?.text);
++  if (!text) return null;
++  const options = normalizeOptions(raw.options);
++  const answer = raw.answer ?? raw.correctAnswer ?? raw.correctOptions;
++  const objective = !!options;
++  return {
++    type: objective ? (raw.type === 'mcq_multiple' ? 'mcq_multiple' : 'mcq_single') : opts.type === 'mcq_single' ? 'short_answer' : opts.type,
++    text,
++    options,
++    correctAnswer: objective
++      ? correctLabels(raw.options, answer, options)
++      : str(raw.modelAnswer ?? raw.answer ?? raw.solution) || null,
++    explanation: str(raw.explanation ?? raw.solutionText ?? raw.solution) || null,
++    marks: opts.marks && opts.marks > 0 ? opts.marks : 1,
++    topicName: opts.topicName ?? null,
++    source: 'ai',
++    sourceRef: null,
++  };
++}
++
++/** Validates what the teacher submits and returns clean questions (400 on anything unusable). */
++export function sanitizeQuestions(input: unknown): AssignmentQuestion[] {
++  let list = input;
++  if (typeof input === 'string' && input.trim()) {
++    try {
++      list = JSON.parse(input);
++    } catch {
++      throw new BadRequestException('questions is not valid JSON');
++    }
++  }
++  if (list == null || list === '') return [];
++  if (!Array.isArray(list)) throw new BadRequestException('questions must be a list');
++  if (list.length > MAX_QUESTIONS_PER_ASSIGNMENT) {
++    throw new BadRequestException(`An assignment can have at most ${MAX_QUESTIONS_PER_ASSIGNMENT} questions`);
++  }
++
++  return list.map((raw: any, i: number) => {
++    const n = i + 1;
++    const text = str(raw?.text);
++    if (!text) throw new BadRequestException(`Question ${n} has no text`);
++    const marks = Number(raw.marks);
++    if (!(marks > 0) || marks > 1000) throw new BadRequestException(`Question ${n} needs marks greater than 0`);
++
++    const options = normalizeOptions(raw.options);
++    const type = str(raw.type) || (options ? 'mcq_single' : 'short_answer');
++    let correctAnswer: string | null = str(raw.correctAnswer) || null;
++    if (OBJECTIVE_TYPES.has(type)) {
++      if (!options || options.length < 2) throw new BadRequestException(`Question ${n} needs at least two options`);
++      const valid = new Set(options.map((o) => o.label));
++      const picked = (correctAnswer || '').split(',').map((x) => x.trim().toUpperCase()).filter(Boolean);
++      if (!picked.length || picked.some((p) => !valid.has(p))) {
++        throw new BadRequestException(`Question ${n} needs a valid correct answer`);
++      }
++      if (type !== 'mcq_multiple' && picked.length > 1) {
++        throw new BadRequestException(`Question ${n} allows only one correct answer`);
++      }
++      correctAnswer = picked.join(',');
++    }
++    const source: QuestionSource = ['bank', 'ai', 'manual'].includes(raw.source) ? raw.source : 'manual';
++    return {
++      type,
++      text: text.slice(0, 4000),
++      options,
++      correctAnswer,
++      explanation: str(raw.explanation).slice(0, 4000) || null,
++      marks,
++      topicName: str(raw.topicName).slice(0, 200) || null,
++      source,
++      sourceRef: str(raw.sourceRef).slice(0, 200) || null,
++    };
++  });
++}
++
++export const totalMarks = (questions: { marks: number }[]) =>
++  Math.round(questions.reduce((sum, q) => sum + Number(q.marks), 0) * 100) / 100;
++
++/** Student-facing view: no answers or explanations. */
++export function stripAnswers<T extends { correctAnswer?: unknown; explanation?: unknown }>(q: T) {
++  const { correctAnswer: _a, explanation: _e, ...rest } = q;
++  return rest;
++}
+diff --git a/src/modules/school/assignment/grouping.service.spec.ts b/src/modules/school/assignment/grouping.service.spec.ts
+new file mode 100644
+index 0000000..495bb21
+--- /dev/null
++++ b/src/modules/school/assignment/grouping.service.spec.ts
+@@ -0,0 +1,58 @@
++import { GroupingService, GroupingStudent } from './grouping.service';
++
++const pool = (n: number, scored = true): GroupingStudent[] =>
++  Array.from({ length: n }, (_, i) => ({
++    id: `s${i}`,
++    name: `Student ${i}`,
++    score: scored ? i : null,
++  }));
++
++const sizes = (g: { members: unknown[] }[]) => g.map((x) => x.members.length);
++
++describe('GroupingService', () => {
++  it('splits 42 students at size 4 into 11 even groups (no group of 2)', () => {
++    const groups = GroupingService.createGroups(pool(42), { strategy: 'random', groupSize: 4 });
++    expect(groups).toHaveLength(11);
++    expect(Math.max(...sizes(groups)) - Math.min(...sizes(groups))).toBeLessThanOrEqual(1);
++    expect(sizes(groups).reduce((a, b) => a + b, 0)).toBe(42);
++  });
++
++  it('honours an explicit group count', () => {
++    const groups = GroupingService.createGroups(pool(10), { strategy: 'random', groupCount: 3 });
++    expect(sizes(groups).sort()).toEqual([3, 3, 4]);
++  });
++
++  it('never creates more groups than students', () => {
++    expect(GroupingService.createGroups(pool(3), { strategy: 'random', groupCount: 9 })).toHaveLength(3);
++  });
++
++  it('places every student exactly once', () => {
++    for (const strategy of ['random', 'balanced'] as const) {
++      const ids = GroupingService.createGroups(pool(23), { strategy, groupSize: 5 })
++        .flatMap((g) => g.members.map((m) => m.id));
++      expect(new Set(ids).size).toBe(23);
++      expect(ids).toHaveLength(23);
++    }
++  });
++
++  it('balanced keeps group averages close together', () => {
++    const groups = GroupingService.createGroups(pool(40), { strategy: 'balanced', groupSize: 4 });
++    const avgs = groups.map((g) => g.members.reduce((a, m) => a + (m.score ?? 0), 0) / g.members.length);
++    expect(Math.max(...avgs) - Math.min(...avgs)).toBeLessThanOrEqual(2);
++  });
++
++  it('balanced works when nobody has a score', () => {
++    const groups = GroupingService.createGroups(pool(9, false), { strategy: 'balanced', groupSize: 3 });
++    expect(sizes(groups)).toEqual([3, 3, 3]);
++  });
++
++  it('manual returns empty groups to be filled by the teacher', () => {
++    const groups = GroupingService.createGroups(pool(8), { strategy: 'manual', groupSize: 4 });
++    expect(sizes(groups)).toEqual([0, 0]);
++  });
++
++  it('returns no groups for an empty pool and requires a size or count', () => {
++    expect(GroupingService.createGroups([], { strategy: 'random', groupSize: 4 })).toEqual([]);
++    expect(() => GroupingService.createGroups(pool(4), { strategy: 'random' })).toThrow();
++  });
++});
+diff --git a/src/modules/school/assignment/grouping.service.ts b/src/modules/school/assignment/grouping.service.ts
+new file mode 100644
+index 0000000..26df164
+--- /dev/null
++++ b/src/modules/school/assignment/grouping.service.ts
+@@ -0,0 +1,127 @@
++export type GroupingStrategy = 'balanced' | 'random' | 'manual';
++
++export interface GroupingStudent {
++  id: string;
++  name: string;
++  rollNo?: string | null;
++  /** Past performance (0-100). Only used by the balanced strategy. */
++  score?: number | null;
++}
++
++export interface GeneratedGroup {
++  groupNumber: number;
++  name: string;
++  members: GroupingStudent[];
++}
++
++export interface CreateGroupsOptions {
++  strategy: GroupingStrategy;
++  groupSize?: number;
++  groupCount?: number;
++  /** Injectable for deterministic tests. */
++  random?: () => number;
++}
++
++export const MAX_GROUP_SIZE = 50;
++
++/**
++ * Splits a student pool into assignment-specific groups. Pure and free of any
++ * DB / Nest dependencies. Group sizes always differ by at most one, so a
++ * remainder never leaves a tiny leftover group (e.g. 42 students at size 4 ->
++ * 11 groups: nine of 4 and two of 3, rather than ten of 4 and one of 2).
++ */
++export class GroupingService {
++  static groupName(groupNumber: number): string {
++    return `Group ${groupNumber}`;
++  }
++
++  /** Number of groups needed for a target size / explicit count. */
++  static computeGroupCount(total: number, opts: Pick<CreateGroupsOptions, 'groupSize' | 'groupCount'>): number {
++    if (total <= 0) return 0;
++    let count: number;
++    if (opts.groupCount && opts.groupCount > 0) {
++      count = Math.floor(opts.groupCount);
++    } else if (opts.groupSize && opts.groupSize > 0) {
++      count = Math.ceil(total / Math.floor(opts.groupSize));
++    } else {
++      throw new Error('groupSize or groupCount is required');
++    }
++    return Math.min(Math.max(count, 1), total);
++  }
++
++  static createGroups(students: GroupingStudent[], opts: CreateGroupsOptions): GeneratedGroup[] {
++    const unique = Array.from(new Map(students.map((s) => [s.id, s])).values());
++    const count = GroupingService.computeGroupCount(unique.length, opts);
++    const groups: GeneratedGroup[] = Array.from({ length: count }, (_, i) => ({
++      groupNumber: i + 1,
++      name: GroupingService.groupName(i + 1),
++      members: [],
++    }));
++    if (count === 0 || opts.strategy === 'manual') return groups;
++
++    const rand = opts.random ?? Math.random;
++    const shuffled = GroupingService.shuffle(unique, rand);
++
++    if (opts.strategy === 'random') {
++      GroupingService.dealEvenly(shuffled, groups);
++      return groups;
++    }
++
++    // balanced: rank by score (unscored students get the pool median so they
++    // don't skew one group), then deal in a snake so each group gets a mix of
++    // strong and weak students. The shuffle above randomises ties.
++    const scored = unique
++      .map((s) => s.score)
++      .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
++      .sort((a, b) => a - b);
++    const median = scored.length ? scored[Math.floor(scored.length / 2)] : 0;
++    const ranked = [...shuffled].sort(
++      (a, b) => (b.score ?? median) - (a.score ?? median),
++    );
++    GroupingService.dealSnake(ranked, groups);
++    return groups;
++  }
++
++  private static shuffle<T>(items: T[], rand: () => number): T[] {
++    const a = [...items];
++    for (let i = a.length - 1; i > 0; i--) {
++      const j = Math.floor(rand() * (i + 1));
++      [a[i], a[j]] = [a[j], a[i]];
++    }
++    return a;
++  }
++
++  /** Fill groups so sizes differ by at most one (first `rem` groups get +1). */
++  private static dealEvenly(students: GroupingStudent[], groups: GeneratedGroup[]) {
++    const base = Math.floor(students.length / groups.length);
++    const rem = students.length % groups.length;
++    let cursor = 0;
++    groups.forEach((g, i) => {
++      const size = base + (i < rem ? 1 : 0);
++      g.members = students.slice(cursor, cursor + size);
++      cursor += size;
++    });
++  }
++
++  /**
++   * Snake deal (0..n-1, n-1..0, ...) skipping groups that already reached
++   * their even target size, so sizes still differ by at most one.
++   */
++  private static dealSnake(ranked: GroupingStudent[], groups: GeneratedGroup[]) {
++    const n = groups.length;
++    const base = Math.floor(ranked.length / n);
++    const rem = ranked.length % n;
++    const capacity = groups.map((_, i) => base + (i < rem ? 1 : 0));
++    let round = 0;
++    let placed = 0;
++    while (placed < ranked.length) {
++      const order = Array.from({ length: n }, (_, i) => (round % 2 === 0 ? i : n - 1 - i));
++      for (const gi of order) {
++        if (placed >= ranked.length) break;
++        if (groups[gi].members.length >= capacity[gi]) continue;
++        groups[gi].members.push(ranked[placed++]);
++      }
++      round++;
++    }
++  }
++}
+diff --git a/src/modules/school/assignment/question-analytics.ts b/src/modules/school/assignment/question-analytics.ts
+new file mode 100644
+index 0000000..85814f3
+--- /dev/null
++++ b/src/modules/school/assignment/question-analytics.ts
+@@ -0,0 +1,84 @@
++const round1 = (n: number) => Math.round(n * 10) / 10;
++
++export interface QuestionInfo {
++  id: string;
++  position: number;
++  text: string;
++  type: string;
++  marks: number;
++  topicName: string | null;
++  options?: { label: string; text: string }[] | null;
++  correctAnswer?: string | null;
++}
++
++export interface AnswerInfo {
++  questionId: string;
++  answer: string | null;
++  isCorrect: boolean | null;
++  marksAwarded: number | null;
++}
++
++export const WEAK_TOPIC_THRESHOLD = 60;
++
++/** Per-question and per-topic performance from the stored answers. */
++export function buildQuestionAnalytics(questions: QuestionInfo[], answers: AnswerInfo[]) {
++  const perQuestion = questions.map((q) => {
++    const mine = answers.filter((a) => a.questionId === q.id);
++    const graded = mine.filter((a) => a.marksAwarded != null);
++    const awarded = graded.reduce((n, a) => n + (a.marksAwarded as number), 0);
++    const avgPercent = graded.length && q.marks > 0 ? round1((awarded / graded.length / q.marks) * 100) : null;
++
++    let optionCounts: Record<string, number> | null = null;
++    let mostChosenWrong: string | null = null;
++    if (q.options?.length) {
++      optionCounts = Object.fromEntries(q.options.map((o) => [o.label, 0]));
++      for (const a of mine) {
++        for (const label of String(a.answer ?? '').split(',').filter(Boolean)) {
++          if (label in optionCounts) optionCounts[label]++;
++        }
++      }
++      const correct = new Set(String(q.correctAnswer ?? '').split(',').filter(Boolean));
++      const wrong = Object.entries(optionCounts).filter(([label, n]) => !correct.has(label) && n > 0);
++      wrong.sort((a, b) => b[1] - a[1]);
++      mostChosenWrong = wrong[0]?.[0] ?? null;
++    }
++    const objectiveAnswers = mine.filter((a) => a.isCorrect != null);
++    const correctCount = objectiveAnswers.filter((a) => a.isCorrect).length;
++    return {
++      id: q.id,
++      position: q.position,
++      text: q.text,
++      type: q.type,
++      marks: q.marks,
++      topicName: q.topicName,
++      attempts: mine.length,
++      skipped: mine.filter((a) => !a.answer).length,
++      correctCount: objectiveAnswers.length ? correctCount : null,
++      correctPercent: objectiveAnswers.length ? Math.round((correctCount / objectiveAnswers.length) * 100) : null,
++      avgPercent,
++      optionCounts,
++      mostChosenWrong,
++    };
++  });
++
++  // Topic = marks earned / marks available across every graded answer on that topic.
++  const topicMap = new Map<string, { earned: number; possible: number; questions: Set<string> }>();
++  for (const q of questions) {
++    const topic = q.topicName || 'General';
++    for (const a of answers.filter((x) => x.questionId === q.id && x.marksAwarded != null)) {
++      const t = topicMap.get(topic) ?? { earned: 0, possible: 0, questions: new Set<string>() };
++      t.earned += a.marksAwarded as number;
++      t.possible += q.marks;
++      t.questions.add(q.id);
++      topicMap.set(topic, t);
++    }
++  }
++  const topics = Array.from(topicMap.entries())
++    .map(([topic, t]) => {
++      const avgPercent = t.possible > 0 ? round1((t.earned / t.possible) * 100) : null;
++      return { topic, questions: t.questions.size, avgPercent, weak: avgPercent != null && avgPercent < WEAK_TOPIC_THRESHOLD };
++    })
++    .sort((a, b) => (a.avgPercent ?? 101) - (b.avgPercent ?? 101));
++
++  return { questions: perQuestion, topics };
++}
+diff --git a/src/modules/school/assignment/school-assignment.controller.ts b/src/modules/school/assignment/school-assignment.controller.ts
+index 46961df..4b12c21 100644
+--- a/src/modules/school/assignment/school-assignment.controller.ts
++++ b/src/modules/school/assignment/school-assignment.controller.ts
+@@ -37,6 +37,42 @@ export class SchoolAssignmentController {
+     return this.svc.list(user, query);
+   }
+ 
++  @Get('roster')
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  roster(@SchoolUser() user: any, @Query() query: any) {
++    return this.svc.getRoster(user, query);
++  }
++
++  @Get('question-bank')
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  questionBank(@SchoolUser() user: any, @Query() query: any) {
++    return this.svc.searchQuestionBank(user, query);
++  }
++
++  @Post('questions/generate')
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  generateQuestions(@SchoolUser() user: any, @Body() body: any) {
++    return this.svc.generateQuestions(user, body);
++  }
++
++  @Get('pool/options')
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  poolOptions(@SchoolUser() user: any, @Query() query: any) {
++    return this.svc.getPoolOptions(user, query);
++  }
++
++  @Post('pool/resolve')
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  resolvePool(@SchoolUser() user: any, @Body() body: any) {
++    return this.svc.resolvePoolPreview(user, body);
++  }
++
++  @Post('groups/preview')
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  previewGroups(@SchoolUser() user: any, @Body() body: any) {
++    return this.svc.previewGroups(user, body);
++  }
++
+   @Get('submissions/inbox')
+   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+   listInbox(@SchoolUser() user: any, @Query() query: any) {
+@@ -74,6 +110,13 @@ export class SchoolAssignmentController {
+     return this.svc.create(user, body, file);
+   }
+ 
++  @Post(':id/publish')
++  @Audit({ module: 'Academic', action: 'Assignment Publish', description: 'Published assignment ID {params.id}' })
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  publish(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
++    return this.svc.publish(user, id, body);
++  }
++
+   @Post(':id/submit')
+   @Audit({ module: 'Academic', action: 'Assignment Submit', description: 'Submitted assignment ID {params.id}' })
+   @SchoolRoles('STUDENT')
+@@ -93,6 +136,16 @@ export class SchoolAssignmentController {
+     return this.svc.getSubmissions(user, id);
+   }
+ 
++  @Get(':id/submissions/:submissionId/answers')
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  getSubmissionAnswers(
++    @SchoolUser() user: any,
++    @Param('id') id: string,
++    @Param('submissionId') submissionId: string,
++  ) {
++    return this.svc.getSubmissionAnswers(user, id, submissionId);
++  }
++
+   @Post(':id/submissions/:submissionId/grade')
+   @Audit({ module: 'Academic', action: 'Assignment Grade', description: 'Graded assignment submission {params.submissionId}' })
+   @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+@@ -114,6 +167,38 @@ export class SchoolAssignmentController {
+     return this.svc.resolveSubmissionFile(user, submissionId);
+   }
+ 
++  @Get(':id/questions')
++  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  getQuestions(@SchoolUser() user: any, @Param('id') id: string) {
++    return this.svc.getQuestions(user, id);
++  }
++
++  @Put(':id/questions')
++  @Audit({ module: 'Academic', action: 'Assignment Questions Update', description: 'Edited questions of assignment {params.id}' })
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  updateQuestions(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
++    return this.svc.updateQuestions(user, id, body);
++  }
++
++  @Get(':id/analytics')
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  getAnalytics(@SchoolUser() user: any, @Param('id') id: string) {
++    return this.svc.getAnalytics(user, id);
++  }
++
++  @Get(':id/groups')
++  @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  getGroups(@SchoolUser() user: any, @Param('id') id: string) {
++    return this.svc.getGroups(user, id);
++  }
++
++  @Put(':id/groups')
++  @Audit({ module: 'Academic', action: 'Assignment Groups Update', description: 'Edited groups of assignment {params.id}' })
++  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
++  updateGroups(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) {
++    return this.svc.updateGroups(user, id, body);
++  }
++
+   @Get(':id')
+   @SchoolRoles('STUDENT', 'TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+   findOne(@SchoolUser() user: any, @Param('id') id: string) {
+diff --git a/src/modules/school/assignment/school-assignment.e2e.spec.ts b/src/modules/school/assignment/school-assignment.e2e.spec.ts
+new file mode 100644
+index 0000000..befe8a0
+--- /dev/null
++++ b/src/modules/school/assignment/school-assignment.e2e.spec.ts
+@@ -0,0 +1,629 @@
++/**
++ * End-to-end test of the assignment module: real HTTP -> controller -> real
++ * guards (roles) -> service -> real Postgres. Only these are faked:
++ *   - login (a header carries the acting user),
++ *   - notifications / push / student-activity (so no real user is contacted),
++ *   - the AI generator (deterministic questions).
++ *
++ * It writes to the database configured in SCHOOL_DB_URL, so it is OFF unless
++ * explicitly enabled:
++ *
++ *   RUN_ASSIGNMENT_E2E=1 npx jest src/modules/school/assignment/school-assignment.e2e.spec.ts
++ *
++ * Everything it creates hangs off its own assignments and is removed in afterAll.
++ */
++import { CanActivate, ExecutionContext, INestApplication, UnauthorizedException } from '@nestjs/common';
++import { Test } from '@nestjs/testing';
++import { getDataSourceToken } from '@nestjs/typeorm';
++import type { DataSource } from 'typeorm';
++
++jest.mock('../common/gamification-helper', () => ({ recordStudentActivity: jest.fn().mockResolvedValue(undefined) }));
++
++const enabled = process.env.RUN_ASSIGNMENT_E2E === '1';
++const suite = enabled ? describe : describe.skip;
++jest.setTimeout(180_000);
++
++suite('Assignment module (end to end)', () => {
++  let app: INestApplication;
++  let ds: DataSource;
++  let svc: any;
++  let base = '';
++  const notified: string[] = [];
++  const created: string[] = [];
++
++  // fixtures discovered from the database
++  let institute: string;
++  let classId: string;
++  let sectionId: string;
++  let subjectId: string;
++  let teacher: any;
++  let students: { id: string; userId: string; name: string }[] = [];
++  let foreignClassId: string | null = null;
++  let foreignSectionId: string | null = null;
++
++  const userOf = (s: { userId: string; name: string }) => ({
++    id: s.userId, role: 'STUDENT', instituteId: institute, name: s.name,
++  });
++
++  const call = async (method: string, path: string, user: any, body?: any, form?: FormData) => {
++    const headers: Record<string, string> = { 'x-test-user': JSON.stringify(user) };
++    if (body !== undefined) headers['content-type'] = 'application/json';
++    const res = await fetch(`${base}/school/assignments${path}`, {
++      method,
++      headers,
++      body: form ?? (body !== undefined ? JSON.stringify(body) : undefined),
++    });
++    let json: any = null;
++    try { json = await res.json(); } catch { /* empty body */ }
++    return { status: res.status, body: json };
++  };
++  const toForm = (fields: Record<string, any>) => {
++    const f = new FormData();
++    for (const [k, v] of Object.entries(fields)) f.append(k, typeof v === 'string' ? v : JSON.stringify(v));
++    return f;
++  };
++  const track = <T extends { body: any }>(res: T): T => { if (res.body?.data?.id) created.push(res.body.data.id); return res; };
++
++  const mcq = (text: string, correct: string, marks: number, topicName: string) => ({
++    type: 'mcq_single', text, marks, topicName, correctAnswer: correct, source: 'manual',
++    options: [{ label: 'A', text: 'one' }, { label: 'B', text: 'two' }, { label: 'C', text: 'three' }],
++  });
++  const baseFields = () => ({
++    type: 'homework', class_id: classId, section_id: sectionId, subject_id: subjectId, max_marks: '100',
++  });
++  const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
++
++  beforeAll(async () => {
++    // loaded lazily so a normal `npm test` (suite skipped) never needs SCHOOL_DB_URL
++    require('dotenv').config();
++    const { schoolDbConfig } = require('../../../config/database.config');
++    const { DataSource: DS } = require('typeorm');
++    ds = new DS({ ...schoolDbConfig, entities: [], migrations: [] });
++    await ds.initialize();
++
++    const { SchoolAssignmentController } = require('./school-assignment.controller');
++    const { SchoolAssignmentService } = require('./school-assignment.service');
++    const { SchoolJwtGuard } = require('../guards/school-jwt.guard');
++    const { SchoolNotificationService } = require('../notification/school-notification.service');
++    const { AiBridgeService } = require('../../ai-bridge/ai-bridge.service');
++    const { S3Service } = require('../../upload/s3.service');
++    const { FcmService } = require('../notification-fcm/fcm.service');
++
++    const fakeJwt: CanActivate = {
++      canActivate(ctx: ExecutionContext) {
++        const req = ctx.switchToHttp().getRequest();
++        const h = req.headers['x-test-user'];
++        if (!h) throw new UnauthorizedException();
++        req.user = JSON.parse(String(h));
++        return true;
++      },
++    };
++
++    const moduleRef = await Test.createTestingModule({
++      controllers: [SchoolAssignmentController],
++      providers: [
++        SchoolAssignmentService,
++        { provide: getDataSourceToken('school'), useValue: ds },
++        { provide: SchoolNotificationService, useValue: { create: async (n: any) => { notified.push(n.recipientId); } } },
++        { provide: FcmService, useValue: { isReady: false, checkUserPreference: async () => false, sendPushToUser: async () => [] } },
++        { provide: S3Service, useValue: {} },
++        {
++          provide: AiBridgeService,
++          useValue: {
++            generateQuestionsFromTopic: async () => [
++              { content: 'Which is a unit of force?', options: [{ content: 'Joule' }, { content: 'Newton', isCorrect: true }], explanation: 'N' },
++              { content: 'Define inertia.', answer: 'Resistance to change in motion' },
++            ],
++          },
++        },
++      ],
++    })
++      .overrideGuard(SchoolJwtGuard)
++      .useValue(fakeJwt)
++      .compile();
++
++    app = moduleRef.createNestApplication();
++    await app.init();
++    await app.listen(0);
++    base = `http://127.0.0.1:${(app.getHttpServer().address() as any).port}`;
++    svc = moduleRef.get(SchoolAssignmentService);
++
++    // ── discover a teacher with a populated section ──
++    const t = (
++      await ds.query(
++        `SELECT t.institute_id, t.user_id, ta.class_id, ta.section_id, ta.subject_id, u.name
++         FROM teachers t
++         JOIN teacher_academic_assignments ta ON ta.teacher_id::text = t.id::text
++         JOIN users u ON u.id::text = t.user_id::text
++         WHERE ta.section_id IS NOT NULL AND ta.subject_id IS NOT NULL
++           AND (SELECT COUNT(DISTINCT s.user_id) FROM students s
++                 WHERE s.section_id = ta.section_id AND COALESCE(s.status,'ACTIVE')='ACTIVE') >= 8
++         LIMIT 1`,
++      )
++    )[0];
++    if (!t) throw new Error('No teacher with a section of 8+ active students found for the e2e test');
++    institute = String(t.institute_id);
++    classId = String(t.class_id);
++    sectionId = String(t.section_id);
++    subjectId = String(t.subject_id);
++    teacher = { id: String(t.user_id), role: 'TEACHER', instituteId: institute, name: t.name };
++
++    const st: any[] = await ds.query(
++      `SELECT DISTINCT ON (s.user_id) s.id, s.user_id, u.name
++       FROM students s JOIN users u ON u.id::text = s.user_id::text
++       WHERE s.section_id::text = $1::text AND COALESCE(s.status,'ACTIVE')='ACTIVE'
++       ORDER BY s.user_id, s.id LIMIT 10`,
++      [sectionId],
++    );
++    students = st.map((r) => ({ id: String(r.id), userId: String(r.user_id), name: r.name }));
++
++    const foreign: any[] = await ds.query(
++      `SELECT sec.id, sec.class_id FROM sections sec
++       JOIN classes c ON c.id::text = sec.class_id::text
++       WHERE c.institute_id::text = $1::text
++         AND sec.class_id::text NOT IN (
++           SELECT ta.class_id::text FROM teacher_academic_assignments ta
++           JOIN teachers t ON t.id::text = ta.teacher_id::text WHERE t.user_id::text = $2::text)
++       LIMIT 1`,
++      [institute, teacher.id],
++    );
++    foreignClassId = foreign[0] ? String(foreign[0].class_id) : null;
++    foreignSectionId = foreign[0] ? String(foreign[0].id) : null;
++  });
++
++  afterAll(async () => {
++    try {
++      for (const id of created) await svc.remove(teacher, id);
++      if (created.length) {
++        // nothing of ours may be left behind in any table
++        for (const table of [
++          'assignments', 'assignment_students', 'assignment_groups', 'assignment_group_members',
++          'assignment_questions', 'assignment_answers', 'assignment_submissions',
++        ]) {
++          const col = table === 'assignments' ? 'id' : 'assignment_id';
++          const left = await ds.query(`SELECT COUNT(*)::int AS n FROM ${table} WHERE ${col}::text = ANY($1::text[])`, [created]);
++          expect({ table, left: left[0].n }).toEqual({ table, left: 0 });
++        }
++      }
++    } finally {
++      await app?.close();
++      await ds?.destroy();
++    }
++  });
++
++  // ───────────────────────── access control ─────────────────────────
++  describe('access control', () => {
++    it('rejects requests without a login', async () => {
++      const res = await fetch(`${base}/school/assignments`);
++      expect(res.status).toBe(401);
++    });
++
++    it('keeps teacher-only endpoints away from students', async () => {
++      const stu = userOf(students[0]);
++      for (const [method, path, body] of [
++        ['GET', '/pool/options'], ['GET', '/question-bank'], ['GET', '/submissions/inbox'],
++        ['POST', '/groups/preview', {}], ['POST', '/questions/generate', {}],
++      ] as const) {
++        expect((await call(method, path, stu, body)).status).toBe(403);
++      }
++    });
++  });
++
++  // ───────────────────────── pool, roster, groups ─────────────────────────
++  describe('pool and group preview', () => {
++    it('lists only the sections this teacher teaches', async () => {
++      const res = await call('GET', '/pool/options', teacher);
++      expect(res.status).toBe(200);
++      expect(res.body.data.some((o: any) => o.sectionId === sectionId)).toBe(true);
++      if (foreignSectionId) expect(res.body.data.some((o: any) => o.sectionId === foreignSectionId)).toBe(false);
++    });
++
++    it('returns the real roster with ids', async () => {
++      const res = await call('GET', `/roster?classId=${classId}&sectionId=${sectionId}&subjectId=${subjectId}`, teacher);
++      expect(res.status).toBe(200);
++      expect(res.body.data.length).toBeGreaterThanOrEqual(8);
++      expect(res.body.data[0]).toHaveProperty('id');
++    });
++
++    it('refuses a section the teacher does not teach', async () => {
++      if (!foreignSectionId) return;
++      const res = await call('POST', '/pool/resolve', teacher, {
++        pool: { sections: [{ classId: foreignClassId, sectionId: foreignSectionId }] },
++      });
++      expect(res.status).toBe(403);
++    });
++
++    it('previews balanced groups over exactly the chosen students', async () => {
++      const pick = students.slice(0, 6).map((s) => s.id);
++      const res = await call('POST', '/groups/preview', teacher, {
++        classId, sectionId, subjectId, strategy: 'balanced', groupSize: 3,
++        pool: { sections: [{ classId, sectionId }], studentIds: pick },
++      });
++      expect(res.status).toBe(201);
++      const groups = res.body.data.groups;
++      expect(groups.map((g: any) => g.members.length)).toEqual([3, 3]);
++      expect(groups.flatMap((g: any) => g.members.map((m: any) => m.id)).sort()).toEqual([...pick].sort());
++    });
++
++    it('rejects a bad strategy', async () => {
++      const res = await call('POST', '/groups/preview', teacher, { classId, sectionId, strategy: 'nope', groupSize: 3 });
++      expect(res.status).toBe(400);
++    });
++  });
++
++  // ───────────────────────── question helpers ─────────────────────────
++  describe('questions', () => {
++    it('generates questions with AI for review (nothing saved)', async () => {
++      const res = await call('POST', '/questions/generate', teacher, { topic: 'Laws of Motion', count: 2, type: 'mcq_single', marks: 2 });
++      expect(res.status).toBe(201);
++      expect(res.body.data).toHaveLength(2);
++      expect(res.body.data[0]).toMatchObject({ source: 'ai', marks: 2, correctAnswer: 'B', topicName: 'Laws of Motion' });
++      expect(res.body.data[1].correctAnswer).toBe('Resistance to change in motion');
++    });
++
++    it('requires a topic for AI generation', async () => {
++      expect((await call('POST', '/questions/generate', teacher, {})).status).toBe(400);
++    });
++
++    it('searches the question bank', async () => {
++      const res = await call('GET', `/question-bank?subjectId=${subjectId}&classId=${classId}`, teacher);
++      expect(res.status).toBe(200);
++      expect(Array.isArray(res.body.data)).toBe(true);
++    });
++  });
++
++  // ───────────────────────── group assignment, full lifecycle ─────────────────────────
++  describe('group assignment with questions', () => {
++    let id: string;
++    let groups: { name: string; memberIds: string[] }[];
++    let pool: string[];
++    let member1: any; let member2: any; let otherGroupMember: any; let outsider: any;
++    let submissionId: string;
++    let qids: Record<string, string> = {};
++
++    beforeAll(async () => {
++      pool = students.slice(0, 6).map((s) => s.id);
++      const prev = await call('POST', '/groups/preview', teacher, {
++        classId, sectionId, strategy: 'random', groupSize: 3, pool: { sections: [{ classId, sectionId }], studentIds: pool },
++      });
++      groups = prev.body.data.groups.map((g: any) => ({ name: g.name, memberIds: g.members.map((m: any) => m.id) }));
++      const byId = (sid: string) => students.find((s) => s.id === sid)!;
++      member1 = userOf(byId(groups[0].memberIds[0]));
++      member2 = userOf(byId(groups[0].memberIds[1]));
++      otherGroupMember = userOf(byId(groups[1].memberIds[0]));
++      outsider = userOf(students[7]); // same section, not in the pool
++    });
++
++    it('creates the assignment, its pool, groups and questions together', async () => {
++      const questions = [
++        mcq('Unit of force?', 'B', 2, 'Motion'),
++        { ...mcq('Pick the vectors', 'A,C', 3, 'Motion'), type: 'mcq_multiple' },
++        { type: 'short_answer', text: 'Define inertia.', marks: 5, topicName: 'Laws', source: 'manual' },
++      ];
++      const res = track(await call('POST', '', teacher, undefined, toForm({
++        ...baseFields(), title: 'E2E group project', target_type: 'group', group_strategy: 'random', group_size: '3',
++        pool: { sections: [{ classId, sectionId }], studentIds: pool }, groups, questions,
++        publish_mode: 'now', due_date: hoursFromNow(48), late_policy: 'allow', max_attempts: '2',
++      })));
++      expect(res.status).toBe(201);
++      id = res.body.data.id;
++      expect(res.body.data).toMatchObject({ target_type: 'group', status: 'active', max_attempts: 2 });
++      expect(Number(res.body.data.max_marks)).toBe(10); // 2 + 3 + 5, not the 100 sent
++
++      const n = async (sql: string) => (await ds.query(sql, [id]))[0].n;
++      expect(await n(`SELECT COUNT(*)::int n FROM assignment_students WHERE assignment_id::text=$1`)).toBe(6);
++      expect(await n(`SELECT COUNT(*)::int n FROM assignment_groups WHERE assignment_id::text=$1`)).toBe(2);
++      expect(await n(`SELECT COUNT(*)::int n FROM assignment_group_members WHERE assignment_id::text=$1`)).toBe(6);
++      expect(await n(`SELECT COUNT(*)::int n FROM assignment_questions WHERE assignment_id::text=$1`)).toBe(3);
++    });
++
++    it('notified only the pool', () => {
++      const poolUsers = new Set(students.slice(0, 6).map((s) => s.userId));
++      expect(notified.length).toBeGreaterThanOrEqual(6);
++      expect(notified.every((u) => poolUsers.has(u) || !students.some((s) => s.userId === u && !poolUsers.has(s.userId)))).toBe(true);
++      expect(notified).not.toContain(outsider.id);
++    });
++
++    it('shows it to group members and hides it from students outside the pool', async () => {
++      const mine = await call('GET', '', member1);
++      const row = mine.body.data.find((a: any) => a.id === id);
++      expect(row).toBeTruthy();
++      expect(row.my_group_name).toBeTruthy();
++      expect(row.question_count).toBe(3);
++      const theirs = await call('GET', '', outsider);
++      expect(theirs.body.data.find((a: any) => a.id === id)).toBeUndefined();
++      expect((await call('GET', `/${id}/questions`, outsider)).status).toBe(403);
++    });
++
++    it('gives students the questions without the answer key', async () => {
++      const res = await call('GET', `/${id}/questions`, member1);
++      expect(res.status).toBe(200);
++      expect(res.body.data).toHaveLength(3);
++      for (const q of res.body.data) {
++        expect(q).not.toHaveProperty('correctAnswer');
++        expect(q).not.toHaveProperty('explanation');
++      }
++      res.body.data.forEach((q: any) => { qids[q.position] = q.id; });
++    });
++
++    it('stops students outside the pool from submitting', async () => {
++      const res = await call('POST', `/${id}/submit`, outsider, undefined, toForm({ answers: { [qids[1]]: 'B' } }));
++      expect(res.status).toBe(403);
++    });
++
++    it('rejects invalid answers', async () => {
++      expect((await call('POST', `/${id}/submit`, member1, undefined, toForm({ answers: { [qids[1]]: 'Z' } }))).status).toBe(400);
++      expect((await call('POST', `/${id}/submit`, member1, undefined, toForm({ answers: { nope: 'A' } }))).status).toBe(400);
++      expect((await call('POST', `/${id}/submit`, member1, undefined, toForm({}))).status).toBe(400);
++    });
++
++    it('accepts one shared submission per group and auto-grades the objective part', async () => {
++      const res = await call('POST', `/${id}/submit`, member1, undefined, toForm({
++        answers: { [qids[1]]: 'B', [qids[2]]: 'c, a', [qids[3]]: 'Resistance to a change of motion' },
++      }));
++      expect(res.status).toBe(201);
++      expect(res.body.data.status).toBe('submitted'); // written answer still needs the teacher
++      submissionId = res.body.data.id;
++
++      const answers = await ds.query(
++        `SELECT question_id, marks_awarded, is_correct FROM assignment_answers WHERE submission_id::text=$1 ORDER BY marks_awarded NULLS LAST`,
++        [submissionId],
++      );
++      expect(answers).toHaveLength(3);
++      expect(answers.filter((a: any) => a.is_correct === true)).toHaveLength(2);
++    });
++
++    it('lets the teammate see and re-submit the same submission, then enforces the attempt limit', async () => {
++      const seen = await call('GET', `/${id}/questions`, member2);
++      expect(seen.body.data[0].myAnswer).toBe('B');
++      expect(seen.body.data[0]).not.toHaveProperty('correctAnswer'); // not graded yet
++
++      const again = await call('POST', `/${id}/submit`, member2, undefined, toForm({
++        answers: { [qids[1]]: 'B', [qids[2]]: 'A,C', [qids[3]]: 'Inertia resists changes in motion' },
++      }));
++      expect(again.status).toBe(201);
++      expect(again.body.data.id).toBe(submissionId);
++
++      const third = await call('POST', `/${id}/submit`, member1, undefined, toForm({ answers: { [qids[1]]: 'B' } }));
++      expect(third.status).toBe(400);
++      expect(String(third.body.message)).toMatch(/attempt/i);
++
++      const rows = await ds.query(`SELECT attempt_count, group_id FROM assignment_submissions WHERE assignment_id::text=$1`, [id]);
++      expect(rows).toHaveLength(1);
++      expect(rows[0].attempt_count).toBe(2);
++      expect(rows[0].group_id).toBeTruthy();
++    });
++
++    it('shows teachers the groups, submissions (by group) and per-question answers', async () => {
++      const g = await call('GET', `/${id}/groups`, teacher);
++      expect(g.body.data.groups).toHaveLength(2);
++      expect(g.body.data.groups.filter((x: any) => x.submission)).toHaveLength(1);
++
++      const s = await call('GET', `/${id}/submissions`, teacher);
++      expect(s.body.data).toHaveLength(1);
++      expect(s.body.data[0].group_name).toBeTruthy();
++
++      const a = await call('GET', `/${id}/submissions/${submissionId}/answers`, teacher);
++      expect(a.body.data).toHaveLength(3);
++      expect(a.body.data[2]).toMatchObject({ answer: 'Inertia resists changes in motion', marksAwarded: null });
++    });
++
++    it('will not let groups be edited after submission', async () => {
++      const res = await call('PUT', `/${id}/groups`, teacher, { groups });
++      expect(res.status).toBe(400);
++    });
++
++    it('validates per-question grading', async () => {
++      // written question still has no marks
++      expect((await call('POST', `/${id}/submissions/${submissionId}/grade`, teacher, {
++        questionMarks: [{ questionId: qids[1], marks: 2 }],
++      })).status).toBe(400);
++      // more than the question is worth
++      expect((await call('POST', `/${id}/submissions/${submissionId}/grade`, teacher, {
++        questionMarks: [{ questionId: qids[3], marks: 6 }],
++      })).status).toBe(400);
++      // unknown question
++      expect((await call('POST', `/${id}/submissions/${submissionId}/grade`, teacher, {
++        questionMarks: [{ questionId: '00000000-0000-0000-0000-000000000000', marks: 1 }],
++      })).status).toBe(400);
++    });
++
++    it('grades: total is the sum of the question marks', async () => {
++      const res = await call('POST', `/${id}/submissions/${submissionId}/grade`, teacher, {
++        questionMarks: [{ questionId: qids[3], marks: 4 }], feedback: 'Good effort',
++      });
++      expect(res.status).toBe(201);
++      expect(res.body.data).toMatchObject({ status: 'graded', marks: 9 }); // 2 + 3 auto + 4
++    });
++
++    it('then reveals the answer key to the group and blocks re-submission', async () => {
++      const res = await call('GET', `/${id}/questions`, member2);
++      expect(res.body.meta.submissionStatus).toBe('graded');
++      expect(res.body.data[0]).toMatchObject({ correctAnswer: 'B', marksAwarded: 2, isCorrect: true });
++      const late = await call('POST', `/${id}/submit`, member1, undefined, toForm({ answers: { [qids[1]]: 'A' } }));
++      expect(late.status).toBe(400);
++    });
++
++    it('the other group has no submission and is shown as pending', async () => {
++      const list = await call('GET', '', otherGroupMember);
++      expect(list.body.data.find((a: any) => a.id === id).mySubmission).toBeNull();
++    });
++
++    it('computes analytics: units, question level and weak topics', async () => {
++      const res = await call('GET', `/${id}/analytics`, teacher);
++      expect(res.status).toBe(200);
++      const d = res.body.data;
++      expect(d.unitLabel).toBe('groups');
++      expect(d.summary).toMatchObject({ total: 2, submitted: 1, pending: 1, evaluated: 1, submissionRate: 50, avgMarks: 9, late: 0 });
++      expect(d.questionLevel.questions).toHaveLength(3);
++      expect(d.questionLevel.questions[0]).toMatchObject({ correctPercent: 100 });
++      const topics = Object.fromEntries(d.questionLevel.topics.map((t: any) => [t.topic, t]));
++      expect(topics.Motion.avgPercent).toBe(100);
++      expect(topics.Laws.avgPercent).toBe(80);
++      expect((await call('GET', `/${id}/analytics`, member1)).status).toBe(403);
++    });
++
++    it('rejects a group containing someone outside the pool', async () => {
++      const bad = groups.map((g, i) => (i === 0 ? { ...g, memberIds: [...g.memberIds, students[7].id] } : g));
++      const res = await call('POST', '', teacher, undefined, toForm({
++        ...baseFields(), title: 'E2E bad group', target_type: 'group',
++        pool: { sections: [{ classId, sectionId }], studentIds: pool }, groups: bad, publish_mode: 'now',
++      }));
++      expect(res.status).toBe(400);
++      expect(res.body.data?.id).toBeUndefined();
++    });
++  });
++
++  // ───────────────────────── individual: draft -> publish -> auto-graded ─────────────────────────
++  describe('individual assignment lifecycle', () => {
++    let id: string;
++    let inPool: any; let notInPool: any;
++    const qids: string[] = [];
++
++    beforeAll(() => {
++      inPool = userOf(students[0]);
++      notInPool = userOf(students[1]);
++    });
++
++    it('saves a draft that students cannot see or open', async () => {
++      const res = track(await call('POST', '', teacher, {
++        ...baseFields(), title: 'E2E quiz', target_type: 'individual', publish_mode: 'draft',
++        pool: { sections: [{ classId, sectionId }], studentIds: [students[0].id] },
++        questions: [mcq('First?', 'A', 1, 'Algebra'), mcq('Second?', 'C', 1, 'Algebra')],
++      }));
++      expect(res.status).toBe(201);
++      id = res.body.data.id;
++      expect(res.body.data.status).toBe('draft');
++      expect((await call('GET', '', inPool)).body.data.find((a: any) => a.id === id)).toBeUndefined();
++      expect((await call('GET', `/${id}/questions`, inPool)).status).toBe(403);
++      expect((await call('POST', `/${id}/submit`, inPool, undefined, toForm({ answers: {} }))).status).toBe(403);
++    });
++
++    it('publishes the draft and shows it only to the selected student', async () => {
++      const pub = await call('POST', `/${id}/publish`, teacher, {});
++      expect(pub.status).toBe(201);
++      expect(pub.body.data.status).toBe('active');
++      expect((await call('POST', `/${id}/publish`, teacher, {})).status).toBe(400); // already live
++
++      const mine = (await call('GET', '', inPool)).body.data.find((a: any) => a.id === id);
++      expect(mine).toBeTruthy();
++      expect((await call('GET', '', notInPool)).body.data.find((a: any) => a.id === id)).toBeUndefined();
++      expect((await call('POST', `/${id}/submit`, notInPool, undefined, toForm({ answers: {} }))).status).toBe(403);
++
++      const q = await call('GET', `/${id}/questions`, inPool);
++      q.body.data.forEach((x: any) => qids.push(x.id));
++    });
++
++    it('grades an all-objective submission instantly', async () => {
++      const res = await call('POST', `/${id}/submit`, inPool, undefined, toForm({ answers: { [qids[0]]: 'A', [qids[1]]: 'C' } }));
++      expect(res.status).toBe(201);
++      expect(res.body.data).toMatchObject({ status: 'graded', marks: 2 });
++      const mine = (await call('GET', '', inPool)).body.data.find((a: any) => a.id === id);
++      expect(mine.status).toBe('evaluated');
++      expect(mine.mySubmission.isLate).toBe(false);
++      expect((await call('POST', `/${id}/submit`, inPool, undefined, toForm({ answers: { [qids[0]]: 'B' } }))).status).toBe(400);
++    });
++
++    it('reports it in analytics (student-wise)', async () => {
++      const d = (await call('GET', `/${id}/analytics`, teacher)).body.data;
++      expect(d.unitLabel).toBe('students');
++      expect(d.summary).toMatchObject({ total: 1, submitted: 1, evaluated: 1, avgMarks: 2, avgPercent: 100 });
++      expect(d.questionLevel.topics[0]).toMatchObject({ topic: 'Algebra', avgPercent: 100, weak: false });
++    });
++
++    it('applies the teacher\'s manual mark override and rejects bad ones', async () => {
++      const subs = (await call('GET', `/${id}/submissions`, teacher)).body.data;
++      const r = await call('POST', `/${id}/submissions/${subs[0].id}/grade`, teacher, {
++        questionMarks: [{ questionId: qids[0], marks: 1 }, { questionId: qids[1], marks: 0 }],
++      });
++      expect(r.body.data.marks).toBe(1);
++    });
++  });
++
++  // ───────────────────────── schedule and submission rules ─────────────────────────
++  describe('schedule, late policy and validation', () => {
++    const stu = () => userOf(students[2]);
++    const pool = () => ({ sections: [{ classId, sectionId }], studentIds: [students[2].id] });
++
++    it('refuses a release time in the past and a due date before the release', async () => {
++      const past = await call('POST', '', teacher, { ...baseFields(), title: 'x', publish_mode: 'scheduled', start_at: hoursFromNow(-3), pool: pool() });
++      expect(past.status).toBe(400);
++      const bad = await call('POST', '', teacher, {
++        ...baseFields(), title: 'x', publish_mode: 'scheduled', start_at: hoursFromNow(5), due_date: hoursFromNow(2), pool: pool(),
++      });
++      expect(bad.status).toBe(400);
++    });
++
++    it('keeps a scheduled assignment hidden until the release job runs', async () => {
++      const res = track(await call('POST', '', teacher, {
++        ...baseFields(), title: 'E2E scheduled', publish_mode: 'scheduled', start_at: hoursFromNow(5), pool: pool(),
++      }));
++      expect(res.body.data.status).toBe('scheduled');
++      const id = res.body.data.id;
++      const before = notified.length;
++      expect((await call('GET', '', stu())).body.data.find((a: any) => a.id === id)).toBeUndefined();
++
++      await ds.query(`UPDATE assignments SET start_at = NOW() - INTERVAL '1 minute' WHERE id::text = $1`, [id]);
++      await svc.releaseScheduledAssignments();
++      const live = (await ds.query(`SELECT status FROM assignments WHERE id::text = $1`, [id]))[0];
++      expect(live.status).toBe('active');
++      expect((await call('GET', '', stu())).body.data.find((a: any) => a.id === id)).toBeTruthy();
++      expect(notified.slice(before)).toEqual([students[2].userId]); // announced once, to the pool only
++
++      await svc.releaseScheduledAssignments(); // a second tick must not announce again
++      expect(notified.slice(before)).toHaveLength(1);
++    });
++
++    it('blocks submissions after the due date when the policy is "block"', async () => {
++      const res = track(await call('POST', '', teacher, {
++        ...baseFields(), title: 'E2E closed', publish_mode: 'now', due_date: hoursFromNow(-2), late_policy: 'block', pool: pool(),
++      }));
++      expect(res.status).toBe(201);
++      const sub = await call('POST', `/${res.body.data.id}/submit`, stu(), undefined, toForm({ notes: 'too late' }));
++      expect(sub.status).toBe(400);
++      expect(String(sub.body.message)).toMatch(/due date/i);
++    });
++
++    it('accepts and flags late work when the policy is "allow"', async () => {
++      const res = track(await call('POST', '', teacher, {
++        ...baseFields(), title: 'E2E late ok', publish_mode: 'now', due_date: hoursFromNow(-2), late_policy: 'allow', pool: pool(),
++      }));
++      const id = res.body.data.id;
++      const sub = await call('POST', `/${id}/submit`, stu(), undefined, toForm({ notes: 'sorry, late' }));
++      expect(sub.status).toBe(201);
++      expect(sub.body.data.is_late).toBe(true);
++      const list = (await call('GET', `/${id}/submissions`, teacher)).body.data;
++      expect(list[0].is_late).toBe(true);
++      expect((await call('GET', `/${id}/analytics`, teacher)).body.data.summary.late).toBe(1);
++    });
++
++    it('requires something to submit', async () => {
++      const res = track(await call('POST', '', teacher, { ...baseFields(), title: 'E2E empty', publish_mode: 'now', pool: pool() }));
++      expect((await call('POST', `/${res.body.data.id}/submit`, stu(), undefined, toForm({}))).status).toBe(400);
++    });
++
++    it('stops a teacher assigning to a class they do not teach', async () => {
++      if (!foreignSectionId) return;
++      const res = await call('POST', '', teacher, {
++        ...baseFields(), class_id: foreignClassId, section_id: foreignSectionId, title: 'nope', publish_mode: 'now',
++      });
++      expect(res.status).toBe(403);
++    });
++
++    it('validates questions on create', async () => {
++      const bad = { ...baseFields(), title: 'E2E bad q', publish_mode: 'now', pool: pool() };
++      expect((await call('POST', '', teacher, { ...bad, questions: [{ type: 'mcq_single', text: 'no options', marks: 1 }] })).status).toBe(400);
++      expect((await call('POST', '', teacher, { ...bad, questions: [{ ...mcq('q', 'Z', 1, 't') }] })).status).toBe(400);
++      expect((await call('POST', '', teacher, { ...bad, questions: [{ ...mcq('q', 'A', 0, 't') }] })).status).toBe(400);
++    });
++
++    it('lets the teacher update schedule rules, and delete cleans everything up', async () => {
++      const res = track(await call('POST', '', teacher, { ...baseFields(), title: 'E2E edit', publish_mode: 'now', pool: pool() }));
++      const id = res.body.data.id;
++      const upd = await call('PUT', `/${id}`, teacher, { title: 'E2E edited', late_policy: 'block', max_attempts: 3 });
++      expect(upd.status).toBe(200);
++      const row = (await call('GET', `/${id}`, teacher)).body.data;
++      expect(row).toMatchObject({ title: 'E2E edited', late_policy: 'block', max_attempts: 3 });
++    });
++  });
++});
+diff --git a/src/modules/school/assignment/school-assignment.pool.spec.ts b/src/modules/school/assignment/school-assignment.pool.spec.ts
+new file mode 100644
+index 0000000..eb2174a
+--- /dev/null
++++ b/src/modules/school/assignment/school-assignment.pool.spec.ts
+@@ -0,0 +1,86 @@
++import { BadRequestException, ForbiddenException } from '@nestjs/common';
++import { SchoolAssignmentService } from './school-assignment.service';
++
++/**
++ * resolvePool is the gate that decides which students an assignment can reach,
++ * so these tests focus on the permission and subset rules (DB is mocked).
++ */
++describe('SchoolAssignmentService student pool', () => {
++  const accessible = [
++    { section_id: 'sec-a', section_name: 'A', class_id: 'c-9', class_name: 'Class 9' },
++    { section_id: 'sec-b', section_name: 'B', class_id: 'c-9', class_name: 'Class 9' },
++  ];
++  const students = [
++    { id: 's1', name: 'One', roll_no: '1', section_id: 'sec-a', section_name: 'A', class_name: 'Class 9', score: null },
++    { id: 's2', name: 'Two', roll_no: '2', section_id: 'sec-b', section_name: 'B', class_name: 'Class 9', score: 80 },
++  ];
++
++  const makeService = () => {
++    const query = jest.fn(async (sql: string, params: any[]) => {
++      if (sql.includes('FROM teachers t')) return accessible;
++      if (sql.includes('FROM students s')) {
++        const wanted: string[] = params[1];
++        return students.filter((s) => wanted.includes(s.section_id));
++      }
++      return [];
++    });
++    const svc = new SchoolAssignmentService(
++      { query } as any, {} as any, {} as any, {} as any, {} as any,
++    );
++    return { svc: svc as any, query };
++  };
++
++  const teacher = { id: 'u1', role: 'TEACHER' };
++
++  it('merges students from several permitted sections', async () => {
++    const { svc } = makeService();
++    const pool = await svc.resolvePool(teacher, 'inst', {
++      sections: [{ classId: 'c-9', sectionId: 'sec-a' }, { classId: 'c-9', sectionId: 'sec-b' }],
++    });
++    expect(pool.map((s: any) => s.id)).toEqual(['s1', 's2']);
++  });
++
++  it('rejects a section the teacher does not teach', async () => {
++    const { svc } = makeService();
++    await expect(
++      svc.resolvePool(teacher, 'inst', { sections: [{ classId: 'c-9', sectionId: 'sec-z' }] }),
++    ).rejects.toBeInstanceOf(ForbiddenException);
++    await expect(
++      svc.resolvePool(teacher, 'inst', { sections: [{ classId: 'c-10', sectionId: 'sec-a' }] }),
++    ).rejects.toBeInstanceOf(ForbiddenException);
++  });
++
++  it('a selected-students subset cannot add students from outside the sections', async () => {
++    const { svc } = makeService();
++    const pool = await svc.resolvePool(teacher, 'inst', {
++      sections: [{ classId: 'c-9', sectionId: 'sec-a' }],
++      studentIds: ['s1', 's2', 'someone-else'],
++    });
++    expect(pool.map((s: any) => s.id)).toEqual(['s1']);
++  });
++
++  it('accepts the pool as a JSON string (multipart form field)', async () => {
++    const { svc } = makeService();
++    const pool = await svc.resolvePool(
++      teacher,
++      'inst',
++      JSON.stringify({ sections: [{ classId: 'c-9', sectionId: 'sec-b' }] }),
++    );
++    expect(pool.map((s: any) => s.id)).toEqual(['s2']);
++  });
++
++  it('falls back to the primary class/section when no pool is sent', async () => {
++    const { svc } = makeService();
++    const pool = await svc.resolvePool(teacher, 'inst', undefined, { classId: 'c-9', sectionId: 'sec-a' });
++    expect(pool.map((s: any) => s.id)).toEqual(['s1']);
++  });
++
++  it('errors on an empty pool or malformed JSON', async () => {
++    const { svc } = makeService();
++    await expect(
++      svc.resolvePool(teacher, 'inst', { sections: [{ classId: 'c-9', sectionId: 'sec-a' }], studentIds: [] }),
++    ).rejects.toBeInstanceOf(BadRequestException);
++    await expect(svc.resolvePool(teacher, 'inst', '{oops')).rejects.toBeInstanceOf(BadRequestException);
++    await expect(svc.resolvePool(teacher, 'inst', undefined)).rejects.toBeInstanceOf(BadRequestException);
++  });
++});
+diff --git a/src/modules/school/assignment/school-assignment.schedule.spec.ts b/src/modules/school/assignment/school-assignment.schedule.spec.ts
+new file mode 100644
+index 0000000..f3c0448
+--- /dev/null
++++ b/src/modules/school/assignment/school-assignment.schedule.spec.ts
+@@ -0,0 +1,46 @@
++import { BadRequestException } from '@nestjs/common';
++import { SchoolAssignmentService } from './school-assignment.service';
++
++describe('SchoolAssignmentService schedule rules', () => {
++  const svc = new SchoolAssignmentService({} as any, {} as any, {} as any, {} as any, {} as any) as any;
++  const inHours = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
++
++  it('defaults to publishing now with legacy-compatible rules', () => {
++    expect(svc.parseScheduleRules({})).toEqual({
++      status: 'active', startAt: null, latePolicy: 'allow', maxAttempts: null,
++    });
++  });
++
++  it('saves a draft without a start date', () => {
++    expect(svc.parseScheduleRules({ publish_mode: 'draft', start_at: inHours(2) }).status).toBe('draft');
++    expect(svc.parseScheduleRules({ publish_mode: 'draft', start_at: inHours(2) }).startAt).toBeNull();
++  });
++
++  it('scheduling needs a future start date', () => {
++    expect(() => svc.parseScheduleRules({ publish_mode: 'scheduled' })).toThrow(BadRequestException);
++    expect(() => svc.parseScheduleRules({ publish_mode: 'scheduled', start_at: inHours(-5) })).toThrow(BadRequestException);
++    const ok = svc.parseScheduleRules({ publish_mode: 'scheduled', start_at: inHours(3) });
++    expect(ok.status).toBe('scheduled');
++    expect(ok.startAt).toBeInstanceOf(Date);
++  });
++
++  it('rejects a due date that is not after the start date', () => {
++    expect(() =>
++      svc.parseScheduleRules({ publish_mode: 'scheduled', start_at: inHours(3), due_date: inHours(2) }),
++    ).toThrow(BadRequestException);
++  });
++
++  it('normalises late policy and attempt limits', () => {
++    expect(svc.parseScheduleRules({ late_policy: 'block', max_attempts: '3' })).toMatchObject({
++      latePolicy: 'block', maxAttempts: 3,
++    });
++    expect(svc.parseScheduleRules({ late_policy: 'weird', max_attempts: 0 })).toMatchObject({
++      latePolicy: 'allow', maxAttempts: null,
++    });
++    expect(svc.parseScheduleRules({ max_attempts: 999 }).maxAttempts).toBe(20);
++  });
++
++  it('rejects an invalid start date', () => {
++    expect(() => svc.parseScheduleRules({ publish_mode: 'scheduled', start_at: 'not-a-date' })).toThrow(BadRequestException);
++  });
++});
+diff --git a/src/modules/school/assignment/school-assignment.service.ts b/src/modules/school/assignment/school-assignment.service.ts
+index 49933ed..c596b46 100644
+--- a/src/modules/school/assignment/school-assignment.service.ts
++++ b/src/modules/school/assignment/school-assignment.service.ts
+@@ -6,6 +6,7 @@ import {
+   NotFoundException,
+   ServiceUnavailableException,
+ } from '@nestjs/common';
++import { Cron } from '@nestjs/schedule';
+ import { InjectDataSource } from '@nestjs/typeorm';
+ import { DataSource } from 'typeorm';
+ import { SchoolNotificationService } from '../notification/school-notification.service';
+@@ -20,9 +21,31 @@ import {
+   SCHOOL_NOTIFICATION_TEMPLATES,
+   fillTemplate,
+ } from '../notification-fcm/school-notification-templates';
++import { GroupingService, GroupingStrategy, GroupingStudent, MAX_GROUP_SIZE } from './grouping.service';
++import { AnalyticsUnit, buildAnalytics } from './analytics.service';
++import { gradeAnswers, StoredQuestion } from './answer-grading';
++import { buildQuestionAnalytics } from './question-analytics';
++import {
++  AssignmentQuestion,
++  fromAiQuestion,
++  fromBankQuestion,
++  sanitizeQuestions,
++  stripAnswers,
++  totalMarks,
++} from './assignment-questions';
+ import * as fs from 'fs';
+ import * as path from 'path';
+ 
++/**
++ * TypeORM's postgres driver returns `[rows, affectedCount]` for UPDATE/DELETE ... RETURNING
++ * (but plain rows for SELECT/INSERT). Normalise to the rows.
++ */
++function rowsOf(result: any): any[] {
++  return Array.isArray(result) && result.length === 2 && Array.isArray(result[0]) && typeof result[1] === 'number'
++    ? result[0]
++    : result;
++}
++
+ @Injectable()
+ export class SchoolAssignmentService {
+   private readonly logger = new Logger(SchoolAssignmentService.name);
+@@ -191,11 +214,12 @@ export class SchoolAssignmentService {
+     let targetSectionId = assignment.section_id;
+     if (!targetSectionId && assignment.class_id) {
+       const fallbackSections: any[] = await this.ds.query(
+-        `SELECT id
+-         FROM sections
+-         WHERE class_id::text = $1::text
+-           AND institute_id::text = $2::text
+-         ORDER BY name ASC
++        `SELECT sec.id
++         FROM sections sec
++         JOIN classes c ON c.id::text = sec.class_id::text
++         WHERE sec.class_id::text = $1::text
++           AND c.institute_id::text = $2::text
++         ORDER BY sec.name ASC
+          LIMIT 1`,
+         [assignment.class_id, instituteId],
+       );
+@@ -203,10 +227,11 @@ export class SchoolAssignmentService {
+     }
+ 
+     const sectionRows: any[] = await this.ds.query(
+-      `SELECT sec.id AS section_id, sec.class_id, sec.institute_id
++      `SELECT sec.id AS section_id, sec.class_id, c.institute_id
+        FROM sections sec
++       JOIN classes c ON c.id::text = sec.class_id::text
+        WHERE sec.id::text = $1::text
+-         AND sec.institute_id::text = $2::text
++         AND c.institute_id::text = $2::text
+        LIMIT 1`,
+       [targetSectionId, instituteId],
+     );
+@@ -228,6 +253,744 @@ export class SchoolAssignmentService {
+     };
+   }
+ 
++  /** Notify (in-app + push) every student the assignment was sent to. */
++  private async notifyPool(assignment: any) {
++    try {
++      // Everyone in the pool; group assignments only reach students placed in a group.
++      const studentUsers = await this.ds.query(
++        `SELECT s.user_id FROM assignment_students asg
++         JOIN students s ON s.id::text = asg.student_id::text
++         WHERE asg.assignment_id::text = $1::text
++           AND ($2::text <> 'group' OR EXISTS (
++                 SELECT 1 FROM assignment_group_members gm
++                 WHERE gm.assignment_id::text = asg.assignment_id::text AND gm.student_id::text = s.id::text))`,
++        [assignment.id, assignment.target_type || 'individual'],
++      );
++
++      await Promise.allSettled(
++        studentUsers.map((stu) =>
++          this.notificationService.create({
++            recipientId: stu.user_id,
++            type: 'assignment',
++            title: 'New Assignment',
++            message: `${assignment.title} has been uploaded.`,
++            actionUrl: '/school/student/assignments',
++          }),
++        ),
++      );
++
++      // Send FCM push to all target students
++      if (studentUsers.length > 0 && this.fcm.isReady) {
++        for (const stu of studentUsers) {
++          const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'announcement_alerts');
++          if (!prefAllowed) continue;
++
++          // Dedup with assignment.id
++          const dupRows = await this.ds.query(
++            `SELECT 1 FROM school_notification_log
++             WHERE user_id = $1
++               AND notification_type = $2
++               AND reference_id = $3
++               AND status = 'SUCCESS'
++             LIMIT 1`,
++            [stu.user_id, SchoolFcmNotificationType.NEW_ASSIGNMENT, assignment.id],
++          );
++          if (dupRows.length > 0) continue;
++
++          const { title: pushTitle, body: pushBody } = fillTemplate(
++            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NEW_ASSIGNMENT],
++            { title: assignment.title || 'Assignment' },
++          );
++
++          const pushResults = await this.fcm.sendPushToUser(
++            stu.user_id,
++            pushTitle,
++            pushBody,
++            { type: 'NEW_ASSIGNMENT', assignmentId: assignment.id },
++          );
++
++          const anySuccess = pushResults.some((r) => r.success);
++          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
++          const failureReasons = pushResults
++            .filter((r) => !r.success)
++            .map((r) => r.error)
++            .join('; ');
++
++          if (pushResults.length > 0) {
++            await this.ds.query(
++              `INSERT INTO school_notification_log
++                 (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
++               VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
++              [
++                stu.user_id,
++                SchoolFcmNotificationType.NEW_ASSIGNMENT,
++                assignment.id,
++                anySuccess ? 'SUCCESS' : 'FAILED',
++                firstMessageId,
++                failureReasons || null,
++              ],
++            );
++          }
++        }
++      }
++    } catch (notifErr: any) {
++      this.logger.error(`Failed to send assignment upload notifications: ${notifErr.message}`);
++    }
++  }
++
++  private parseScheduleRules(body: any) {
++    const mode = String(body.publish_mode || 'now');
++    const startRaw = body.start_at || body.startAt;
++    const startAt = startRaw ? new Date(startRaw) : null;
++    if (startAt && Number.isNaN(startAt.getTime())) throw new BadRequestException('start_at is not a valid date');
++    const dueRaw = body.due_date || body.dueDate;
++    const due = dueRaw ? new Date(dueRaw) : null;
++
++    let status: 'draft' | 'scheduled' | 'active' = 'active';
++    if (mode === 'draft') status = 'draft';
++    else if (mode === 'scheduled') {
++      if (!startAt) throw new BadRequestException('start_at is required to schedule an assignment');
++      if (startAt.getTime() < Date.now() - 60_000) throw new BadRequestException('start_at must be in the future');
++      status = 'scheduled';
++    }
++    if (startAt && due && due.getTime() <= startAt.getTime()) {
++      throw new BadRequestException('Due date must be after the start date');
++    }
++    const latePolicy = body.late_policy === 'block' ? 'block' : 'allow';
++    const attempts = Math.floor(Number(body.max_attempts));
++    const maxAttempts = attempts > 0 ? Math.min(attempts, 20) : null;
++    return { status, startAt: status === 'scheduled' ? startAt : null, latePolicy, maxAttempts };
++  }
++
++  /** Releases scheduled assignments whose start time has passed. The UPDATE claims each row once. */
++  @Cron('* * * * *')
++  async releaseScheduledAssignments() {
++    try {
++      const released: any[] = rowsOf(await this.ds.query(
++        `UPDATE assignments SET status = 'active', published_at = NOW(), updated_at = NOW()
++         WHERE status = 'scheduled' AND start_at IS NOT NULL AND start_at <= NOW()
++         RETURNING *`,
++      ));
++      for (const a of released) await this.notifyPool(a);
++    } catch (err: any) {
++      this.logger.error(`Failed to release scheduled assignments: ${err.message}`);
++    }
++  }
++
++  /** Publish a draft now, or schedule it with start_at. */
++  async publish(user: any, assignmentId: string, body: any) {
++    const assignment = await this.checkAssignmentAccess(user, assignmentId);
++    const isOwner = String(assignment.teacher_id) === String(user.id);
++    if (!isOwner && !hasSchoolRole(user.role, 'INSTITUTE_ADMIN') && !hasSchoolRole(user.role, 'SUPER_ADMIN')) {
++      throw new ForbiddenException('Only the assignment creator or school admin can publish');
++    }
++    if (!['draft', 'scheduled'].includes(assignment.status)) {
++      throw new BadRequestException('Only draft or scheduled assignments can be published');
++    }
++    const rules = this.parseScheduleRules({
++      publish_mode: body?.start_at || body?.startAt ? 'scheduled' : 'now',
++      start_at: body?.start_at || body?.startAt,
++      due_date: assignment.due_date,
++    });
++    const rows: any[] = rowsOf(await this.ds.query(
++      `UPDATE assignments
++         SET status = $2, start_at = $3, published_at = $4, updated_at = NOW()
++       WHERE id::text = $1::text
++       RETURNING *`,
++      [assignmentId, rules.status, rules.startAt, rules.status === 'active' ? new Date() : null],
++    ));
++    if (rules.status === 'active') await this.notifyPool(rows[0]);
++    return { success: true, data: rows[0] };
++  }
++
++  // ───────────────────────── Questions ─────────────────────────
++
++  /** Questions saved in the institute's assessments, flattened for picking. */
++  async searchQuestionBank(user: any, query: any) {
++    const instituteId = this.resolveInstituteId(user, query.instituteId);
++    const params: unknown[] = [instituteId];
++    let filter = `c.institute_id::text = $1::text
++      AND CASE WHEN jsonb_typeof(a.questions_json) = 'array' THEN jsonb_array_length(a.questions_json) ELSE 0 END > 0`;
++
++    const subjectId = query.subjectId || query.subject_id;
++    const classId = query.classId || query.class_id;
++    if (subjectId) {
++      params.push(subjectId);
++      filter += ` AND a.subject_id::text = $${params.length}::text`;
++    }
++    if (classId) {
++      params.push(classId);
++      filter += ` AND a.class_id::text = $${params.length}::text`;
++    }
++    if (!hasSchoolRole(user.role, 'INSTITUTE_ADMIN') && !hasSchoolRole(user.role, 'SUPER_ADMIN')) {
++      // Teachers only see papers for the classes they teach, or their own.
++      const classIds = Array.from(new Set((await this.listAccessibleSections(user, instituteId)).map((x) => x.classId)));
++      params.push(classIds);
++      filter += ` AND (a.class_id::text = ANY($${params.length}::text[])`;
++      params.push(user.id);
++      filter += ` OR a.teacher_id::text = $${params.length}::text)`;
++    }
++
++    const rows: any[] = await this.ds.query(
++      `SELECT a.id, a.title, a.questions_json, sub.name AS subject_name, c.name AS class_name
++       FROM assessments a
++       JOIN classes c ON c.id::text = a.class_id::text
++       LEFT JOIN subjects sub ON sub.id::text = a.subject_id::text
++       WHERE ${filter}
++       ORDER BY a.created_at DESC
++       LIMIT 60`,
++      params,
++    );
++
++    const needle = String(query.q || '').trim().toLowerCase();
++    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 100);
++    const out: any[] = [];
++    for (const row of rows) {
++      const list: any[] = Array.isArray(row.questions_json) ? row.questions_json : [];
++      for (let i = 0; i < list.length && out.length < limit; i++) {
++        const q = fromBankQuestion(list[i], `${row.id}:${i}`);
++        if (!q) continue;
++        if (needle && !q.text.toLowerCase().includes(needle)) continue;
++        out.push({ ...q, assessmentTitle: row.title, subjectName: row.subject_name, className: row.class_name });
++      }
++      if (out.length >= limit) break;
++    }
++    return { success: true, data: out };
++  }
++
++  private async resolveBoard(instituteId: string): Promise<string> {
++    try {
++      const rows: any[] = await this.ds.query(`SELECT board FROM institutes WHERE id::text = $1::text LIMIT 1`, [instituteId]);
++      return String(rows[0]?.board || '').trim() || 'CBSE';
++    } catch {
++      return 'CBSE';
++    }
++  }
++
++  /** Generates questions with Eddva AI for the teacher to review. Nothing is saved here. */
++  async generateQuestions(user: any, body: any) {
++    const instituteId = this.resolveInstituteId(user, body.instituteId);
++    const topic = String(body.topic || '').trim();
++    if (!topic) throw new BadRequestException('topic is required');
++    const count = Math.min(Math.max(Math.floor(Number(body.count) || 5), 1), 20);
++    const type = ['mcq_single', 'short_answer', 'long_answer'].includes(body.type) ? body.type : 'mcq_single';
++    const difficulty = ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium';
++    const marks = Number(body.marks) > 0 ? Number(body.marks) : 1;
++    const board = await this.resolveBoard(instituteId);
++
++    let raw: any[];
++    try {
++      raw = await this.aiBridge.generateQuestionsFromTopic(
++        {
++          topicId: String(body.subjectId || topic),
++          topicName: [`${board} Board`, body.className ? `Class ${body.className}` : '', body.subjectName || '', topic]
++            .filter(Boolean)
++            .join(' - '),
++          count,
++          difficulty,
++          type,
++          examTarget: board.toLowerCase(),
++          subject: body.subjectName || undefined,
++          chapter: body.chapter || undefined,
++          notes: body.notes || undefined,
++        },
++        instituteId,
++        'school',
++        board,
++      );
++    } catch {
++      throw new ServiceUnavailableException('AI is temporarily unavailable. Pick from the question bank instead.');
++    }
++
++    const questions = (raw || [])
++      .map((q: any) => fromAiQuestion(q, { topicName: topic, type, marks }))
++      .filter((q): q is AssignmentQuestion => !!q)
++      .slice(0, count);
++    if (!questions.length) {
++      throw new ServiceUnavailableException('AI could not generate questions for this topic. Try rewording it.');
++    }
++    return { success: true, data: questions };
++  }
++
++  private async saveQuestions(
++    q: { query: (sql: string, params?: any[]) => Promise<any> },
++    assignmentId: string,
++    questions: AssignmentQuestion[],
++  ) {
++    for (let i = 0; i < questions.length; i++) {
++      const { marks, topicName, source, sourceRef, ...data } = questions[i];
++      await q.query(
++        `INSERT INTO assignment_questions (assignment_id, position, marks, topic_name, source, source_ref, data)
++         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
++        [assignmentId, i + 1, marks, topicName, source, sourceRef, JSON.stringify(data)],
++      );
++    }
++  }
++
++  async getQuestions(user: any, assignmentId: string) {
++    const assignment = await this.checkAssignmentAccess(user, assignmentId);
++    const rows: any[] = await this.ds.query(
++      `SELECT id, position, marks, topic_name, source, data
++       FROM assignment_questions WHERE assignment_id::text = $1::text ORDER BY position`,
++      [assignmentId],
++    );
++    const full = rows.map((r) => ({
++      id: r.id, position: r.position, marks: Number(r.marks), topicName: r.topic_name, source: r.source, ...r.data,
++    }));
++    if (hasSchoolRole(user.role, 'PARENT')) return { success: true, data: full.map((q) => stripAnswers(q)) };
++    if (!hasSchoolRole(user.role, 'STUDENT')) return { success: true, data: full };
++
++    // Student: their own answers, and the answer key only once the work is graded.
++    const profile = await this.getStudentProfile(user);
++    let sub: any = null;
++    if (assignment.target_type === 'group') {
++      const gm: any[] = await this.ds.query(
++        `SELECT group_id FROM assignment_group_members WHERE assignment_id::text = $1::text AND student_id::text = $2::text`,
++        [assignmentId, profile.student_id],
++      );
++      if (gm.length) {
++        sub = (await this.ds.query(
++          `SELECT id, status FROM assignment_submissions WHERE assignment_id::text = $1::text AND group_id::text = $2::text`,
++          [assignmentId, gm[0].group_id],
++        ))[0];
++      }
++    } else {
++      sub = (await this.ds.query(
++        `SELECT id, status FROM assignment_submissions WHERE assignment_id::text = $1::text AND student_id::text = $2::text`,
++        [assignmentId, profile.student_id],
++      ))[0];
++    }
++    const answers: any[] = sub
++      ? await this.ds.query(`SELECT question_id, answer, is_correct, marks_awarded FROM assignment_answers WHERE submission_id::text = $1::text`, [sub.id])
++      : [];
++    const reveal = sub?.status === 'graded';
++    return {
++      success: true,
++      data: full.map((q) => {
++        const a = answers.find((x) => String(x.question_id) === String(q.id));
++        const base: any = { ...stripAnswers(q), myAnswer: a?.answer ?? null };
++        if (reveal) {
++          base.correctAnswer = q.correctAnswer;
++          base.explanation = q.explanation;
++          base.isCorrect = a?.is_correct ?? null;
++          base.marksAwarded = a?.marks_awarded == null ? null : Number(a.marks_awarded);
++        }
++        return base;
++      }),
++      meta: { submissionStatus: sub?.status ?? null },
++    };
++  }
++
++  /** Replace the questions of an assignment. Allowed until a student has submitted. */
++  async updateQuestions(user: any, assignmentId: string, body: any) {
++    const assignment = await this.checkAssignmentAccess(user, assignmentId);
++    const isOwner = String(assignment.teacher_id) === String(user.id);
++    if (!isOwner && !hasSchoolRole(user.role, 'INSTITUTE_ADMIN') && !hasSchoolRole(user.role, 'SUPER_ADMIN')) {
++      throw new ForbiddenException('Only the assignment creator or school admin can edit questions');
++    }
++    const submitted: any[] = await this.ds.query(
++      `SELECT 1 FROM assignment_submissions WHERE assignment_id::text = $1::text LIMIT 1`,
++      [assignmentId],
++    );
++    if (submitted.length) {
++      throw new BadRequestException('Questions cannot be changed after a student has submitted');
++    }
++    const questions = sanitizeQuestions(body.questions);
++    await this.ds.transaction(async (tx) => {
++      await tx.query(`DELETE FROM assignment_questions WHERE assignment_id::text = $1::text`, [assignmentId]);
++      await this.saveQuestions(tx, assignmentId, questions);
++      if (questions.length) {
++        await tx.query(`UPDATE assignments SET max_marks = $2, updated_at = NOW() WHERE id::text = $1::text`, [
++          assignmentId,
++          totalMarks(questions),
++        ]);
++      }
++    });
++    return this.getQuestions(user, assignmentId);
++  }
++
++  /** Teacher must teach this class/section/subject (admins are unrestricted). */
++  private async assertTeacherCanAssign(
++    user: any,
++    classId: string,
++    sectionId: string | null,
++    subjectId?: string | null,
++  ) {
++    if (hasSchoolRole(user.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user.role, 'SUPER_ADMIN')) return;
++    if (!hasSchoolRole(user.role, 'TEACHER')) return;
++    const rows: any[] = await this.ds.query(
++      `SELECT 1
++       FROM teachers t
++       JOIN teacher_academic_assignments ta ON ta.teacher_id::text = t.id::text
++       WHERE t.user_id::text = $1::text
++         AND ta.class_id::text = $2::text
++         AND ($3::text IS NULL OR ta.section_id::text = $3::text)
++         AND ($4::text IS NULL OR COALESCE(ta.is_class_teacher, false) = true OR ta.subject_id::text = $4::text)
++       LIMIT 1`,
++      [user.id, classId, sectionId, subjectId ?? null],
++    );
++    if (!rows.length) {
++      throw new ForbiddenException('You are not assigned to teach this class, section and subject');
++    }
++  }
++
++  // ───────────────────────── Student pool ─────────────────────────
++
++  /** Class/section pairs the user may assign to. Admins: whole institute. Teachers: their teaching assignments. */
++  private async listAccessibleSections(user: any, instituteId: string) {
++    const isAdmin = hasSchoolRole(user.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user.role, 'SUPER_ADMIN');
++    const rows: any[] = isAdmin
++      ? await this.ds.query(
++          `SELECT sec.id AS section_id, sec.name AS section_name, c.id AS class_id, c.name AS class_name
++           FROM sections sec JOIN classes c ON c.id::text = sec.class_id::text
++           WHERE c.institute_id::text = $1::text
++           ORDER BY c.name, sec.name`,
++          [instituteId],
++        )
++      : await this.ds.query(
++          `SELECT DISTINCT sec.id AS section_id, sec.name AS section_name, c.id AS class_id, c.name AS class_name
++           FROM teachers t
++           JOIN teacher_academic_assignments ta ON ta.teacher_id::text = t.id::text
++           JOIN sections sec ON sec.class_id::text = ta.class_id::text
++                            AND (ta.section_id IS NULL OR sec.id::text = ta.section_id::text)
++           JOIN classes c ON c.id::text = sec.class_id::text
++           WHERE t.user_id::text = $1::text AND c.institute_id::text = $2::text
++           ORDER BY c.name, sec.name`,
++          [user.id, instituteId],
++        );
++    return rows.map((r) => ({
++      classId: String(r.class_id),
++      className: r.class_name as string,
++      sectionId: String(r.section_id),
++      sectionName: r.section_name as string,
++    }));
++  }
++
++  async getPoolOptions(user: any, query: any) {
++    const instituteId = this.resolveInstituteId(user, query.instituteId);
++    return { success: true, data: await this.listAccessibleSections(user, instituteId) };
++  }
++
++  /** Active students of the given sections, with a past-performance score for balanced grouping. */
++  private async loadStudentsBySections(instituteId: string, sectionIds: string[]) {
++    if (!sectionIds.length) return [];
++    const rows: any[] = await this.ds.query(
++      `SELECT s.id, u.name, s.roll_no, s.section_id, sec.name AS section_name, c.name AS class_name,
++              (SELECT AVG(sm.marks / NULLIF(a2.max_marks, 0) * 100)
++                 FROM assignment_submissions sm
++                 JOIN assignments a2 ON a2.id::text = sm.assignment_id::text
++                WHERE sm.student_id::text = s.id::text AND sm.marks IS NOT NULL) AS score
++       FROM students s
++       JOIN users u ON u.id::text = s.user_id::text
++       JOIN sections sec ON sec.id::text = s.section_id::text
++       JOIN classes c ON c.id::text = sec.class_id::text
++       WHERE s.institute_id::text = $1::text
++         AND s.section_id::text = ANY($2::text[])
++         AND COALESCE(s.status, 'ACTIVE') = 'ACTIVE'
++       ORDER BY c.name, sec.name, u.name`,
++      [instituteId, sectionIds],
++    );
++    return rows.map((r) => ({
++      id: String(r.id),
++      name: r.name as string,
++      rollNo: r.roll_no as string | null,
++      score: r.score == null ? null : Number(r.score),
++      sectionId: String(r.section_id),
++      sectionName: r.section_name as string,
++      className: r.class_name as string,
++    }));
++  }
++
++  /** Legacy single class/section roster. */
++  private async loadRoster(instituteId: string, classId: string, sectionId?: string | null) {
++    const secRows: any[] = await this.ds.query(
++      `SELECT sec.id FROM sections sec
++       JOIN classes c ON c.id::text = sec.class_id::text
++       WHERE sec.class_id::text = $1::text AND c.institute_id::text = $2::text
++         AND ($3::text IS NULL OR sec.id::text = $3::text)`,
++      [classId, instituteId, sectionId || null],
++    );
++    return this.loadStudentsBySections(instituteId, secRows.map((r) => String(r.id)));
++  }
++
++  /**
++   * Turns a pool definition into the concrete student list, enforcing that the
++   * caller may assign to every selected class/section.
++   * pool = { sections: [{classId, sectionId?}], studentIds?: string[] }
++   */
++  private async resolvePool(
++    user: any,
++    instituteId: string,
++    rawPool: any,
++    primary?: { classId?: string | null; sectionId?: string | null },
++  ) {
++    let pool = rawPool;
++    if (typeof rawPool === 'string' && rawPool.trim()) {
++      try {
++        pool = JSON.parse(rawPool);
++      } catch {
++        throw new BadRequestException('pool is not valid JSON');
++      }
++    }
++    const requested: any[] =
++      Array.isArray(pool?.sections) && pool.sections.length
++        ? pool.sections
++        : primary?.classId
++          ? [{ classId: primary.classId, sectionId: primary.sectionId }]
++          : [];
++    if (!requested.length) throw new BadRequestException('Select at least one class/section');
++
++    const accessible = await this.listAccessibleSections(user, instituteId);
++    const sectionIds = new Set<string>();
++    for (const r of requested) {
++      const cid = String(r.classId ?? r.class_id ?? '');
++      const sid = r.sectionId ?? r.section_id ?? null;
++      const matches = accessible.filter(
++        (a) => a.classId === cid && (!sid || a.sectionId === String(sid)),
++      );
++      if (!matches.length) {
++        throw new ForbiddenException('You do not have access to one of the selected classes/sections');
++      }
++      matches.forEach((m) => sectionIds.add(m.sectionId));
++    }
++
++    let students = await this.loadStudentsBySections(instituteId, Array.from(sectionIds));
++    if (pool?.studentIds !== undefined && pool?.studentIds !== null) {
++      const wanted = new Set((pool.studentIds as any[]).map(String));
++      students = students.filter((s) => wanted.has(s.id));
++    }
++    if (!students.length) throw new BadRequestException('No students found in the selected pool');
++    return students;
++  }
++
++  async resolvePoolPreview(user: any, body: any) {
++    const instituteId = this.resolveInstituteId(user, body.instituteId);
++    const students = await this.resolvePool(user, instituteId, body.pool, {
++      classId: body.classId || body.class_id,
++      sectionId: body.sectionId || body.section_id,
++    });
++    return { success: true, data: students };
++  }
++
++  /** null = legacy assignment without a stored pool; otherwise whether any of the students is in it. */
++  private async poolMembership(assignmentId: string, studentIds: string[]): Promise<boolean | null> {
++    const rows: any[] = await this.ds.query(
++      `SELECT COUNT(*)::int AS total,
++              COUNT(*) FILTER (WHERE student_id::text = ANY($2::text[]))::int AS mine
++       FROM assignment_students WHERE assignment_id::text = $1::text`,
++      [assignmentId, studentIds.map(String)],
++    );
++    if (!rows[0] || rows[0].total === 0) return null;
++    return rows[0].mine > 0;
++  }
++
++  /** Student ids an existing assignment was sent to (stored pool, else legacy class/section). */
++  private async assignmentPoolIds(assignment: any): Promise<Set<string>> {
++    const rows: any[] = await this.ds.query(
++      `SELECT student_id FROM assignment_students WHERE assignment_id::text = $1::text`,
++      [assignment.id],
++    );
++    if (rows.length) return new Set(rows.map((r) => String(r.student_id)));
++    const legacy = await this.loadRoster(assignment.tenant_id, assignment.class_id, assignment.section_id);
++    return new Set(legacy.map((s) => s.id));
++  }
++
++  async getRoster(user: any, query: any) {
++    const instituteId = this.resolveInstituteId(user, query.instituteId);
++    const classId = query.classId || query.class_id;
++    const sectionId = query.sectionId || query.section_id || null;
++    if (!classId) throw new BadRequestException('classId is required');
++    await this.assertTeacherCanAssign(user, classId, sectionId, query.subjectId || query.subject_id || null);
++    return { success: true, data: await this.loadRoster(instituteId, classId, sectionId) };
++  }
++
++  async previewGroups(user: any, body: any) {
++    const instituteId = this.resolveInstituteId(user, body.instituteId);
++    const classId = body.classId || body.class_id || null;
++    const sectionId = body.sectionId || body.section_id || null;
++    if (classId) {
++      await this.assertTeacherCanAssign(user, classId, sectionId, body.subjectId || body.subject_id || null);
++    }
++
++    const strategy = (body.strategy || 'balanced') as GroupingStrategy;
++    if (!['balanced', 'random', 'manual'].includes(strategy)) {
++      throw new BadRequestException('strategy must be balanced, random or manual');
++    }
++    const groupSize = body.groupSize != null ? Number(body.groupSize) : undefined;
++    const groupCount = body.groupCount != null ? Number(body.groupCount) : undefined;
++    if (!(groupSize && groupSize > 0) && !(groupCount && groupCount > 0)) {
++      throw new BadRequestException('groupSize or groupCount is required');
++    }
++    if ((groupSize ?? 0) > MAX_GROUP_SIZE || (groupCount ?? 0) > MAX_GROUP_SIZE * 4) {
++      throw new BadRequestException('Group size or count is too large');
++    }
++
++    const roster = await this.resolvePool(user, instituteId, body.pool, { classId, sectionId });
++
++    // Optionally group each section on its own instead of mixing the pool.
++    const keepTogether = body.keepSectionsTogether === true || body.keepSectionsTogether === 'true';
++    const sectionOrder = Array.from(new Set(roster.map((s) => s.sectionId)));
++    let groups: { name: string; groupNumber: number; members: GroupingStudent[] }[];
++    if (keepTogether && sectionOrder.length > 1) {
++      if (!(groupSize && groupSize > 0)) {
++        throw new BadRequestException('Use "students per group" when keeping sections separate');
++      }
++      groups = [];
++      for (const secId of sectionOrder) {
++        const part = roster.filter((s) => s.sectionId === secId);
++        const label = `${part[0].className} ${part[0].sectionName}`;
++        const made = GroupingService.createGroups(part, { strategy, groupSize });
++        for (const g of made) {
++          groups.push({
++            groupNumber: groups.length + 1,
++            name: `${label} - Group ${g.groupNumber}`,
++            members: g.members,
++          });
++        }
++      }
++    } else {
++      groups = GroupingService.createGroups(roster, { strategy, groupSize, groupCount });
++    }
++
++    return {
++      success: true,
++      data: {
++        totalStudents: roster.length,
++        groups: groups.map((g) => ({
++          name: g.name,
++          groupNumber: g.groupNumber,
++          members: g.members.map((m) => ({ id: m.id, name: m.name, rollNo: m.rollNo ?? null })),
++        })),
++      },
++    };
++  }
++
++  /** Validates teacher-supplied groups against the allowed roster and returns a clean list. */
++  private async normalizeGroups(
++    raw: any,
++    allowed: Set<string>,
++  ): Promise<{ name: string; memberIds: string[] }[]> {
++    let parsed = raw;
++    if (typeof raw === 'string') {
++      try {
++        parsed = JSON.parse(raw);
++      } catch {
++        throw new BadRequestException('groups is not valid JSON');
++      }
++    }
++    if (!Array.isArray(parsed) || !parsed.length) {
++      throw new BadRequestException('A group assignment needs at least one group');
++    }
++    const seen = new Set<string>();
++    const groups = parsed
++      .map((g: any, i: number) => {
++        const memberIds: string[] = (g.memberIds || (g.members || []).map((m: any) => m.id)).map(String);
++        for (const id of memberIds) {
++          if (!allowed.has(id)) {
++            throw new BadRequestException('A group contains a student outside the selected student pool');
++          }
++          if (seen.has(id)) throw new BadRequestException('A student cannot be in more than one group');
++          seen.add(id);
++        }
++        return { name: String(g.name || GroupingService.groupName(i + 1)).slice(0, 120), memberIds };
++      })
++      .filter((g) => g.memberIds.length > 0);
++    if (!groups.length) throw new BadRequestException('Every group is empty');
++    return groups;
++  }
++
++  private async saveGroups(
++    q: { query: (sql: string, params?: any[]) => Promise<any> },
++    assignmentId: string,
++    groups: { name: string; memberIds: string[] }[],
++  ) {
++    for (let i = 0; i < groups.length; i++) {
++      const rows = await q.query(
++        `INSERT INTO assignment_groups (assignment_id, group_name, group_number)
++         VALUES ($1, $2, $3) RETURNING id`,
++        [assignmentId, groups[i].name, i + 1],
++      );
++      for (const studentId of groups[i].memberIds) {
++        await q.query(
++          `INSERT INTO assignment_group_members (group_id, assignment_id, student_id) VALUES ($1, $2, $3)`,
++          [rows[0].id, assignmentId, studentId],
++        );
++      }
++    }
++  }
++
++  async getGroups(user: any, assignmentId: string) {
++    const assignment = await this.checkAssignmentAccess(user, assignmentId);
++    const rows: any[] = await this.ds.query(
++      `SELECT g.id AS group_id, g.group_name, g.group_number,
++              s.id AS student_id, u.name AS student_name, s.roll_no,
++              subm.id AS submission_id, subm.status AS submission_status,
++              subm.marks AS submission_marks, subm.submitted_at
++       FROM assignment_groups g
++       LEFT JOIN assignment_group_members gm ON gm.group_id = g.id
++       LEFT JOIN students s ON s.id::text = gm.student_id::text
++       LEFT JOIN users u ON u.id::text = s.user_id::text
++       LEFT JOIN assignment_submissions subm
++         ON subm.assignment_id = g.assignment_id AND subm.group_id = g.id
++       WHERE g.assignment_id::text = $1::text
++       ORDER BY g.group_number, u.name`,
++      [assignmentId],
++    );
++    const byId = new Map<string, any>();
++    for (const r of rows) {
++      let g = byId.get(r.group_id);
++      if (!g) {
++        g = {
++          id: r.group_id,
++          name: r.group_name,
++          groupNumber: r.group_number,
++          members: [],
++          submission: r.submission_id
++            ? { id: r.submission_id, status: r.submission_status, marks: r.submission_marks, submittedAt: r.submitted_at }
++            : null,
++        };
++        byId.set(r.group_id, g);
++      }
++      if (r.student_id) g.members.push({ id: r.student_id, name: r.student_name, rollNo: r.roll_no });
++    }
++    let result = Array.from(byId.values());
++    if (hasSchoolRole(user.role, 'STUDENT')) {
++      // Students only see their own group.
++      const profile = await this.getStudentProfile(user);
++      result = result.filter((g) => g.members.some((m: any) => String(m.id) === String(profile.student_id)));
++    }
++    return {
++      success: true,
++      data: { assignmentId: assignment.id, targetType: assignment.target_type, groups: result },
++    };
++  }
++
++  /** Manual edit of the groups. Locked once any group has submitted. */
++  async updateGroups(user: any, assignmentId: string, body: any) {
++    const assignment = await this.checkAssignmentAccess(user, assignmentId);
++    if (assignment.target_type !== 'group') {
++      throw new BadRequestException('This is not a group assignment');
++    }
++    const isOwner = String(assignment.teacher_id) === String(user.id);
++    if (!isOwner && !hasSchoolRole(user.role, 'INSTITUTE_ADMIN') && !hasSchoolRole(user.role, 'SUPER_ADMIN')) {
++      throw new ForbiddenException('Only the assignment creator or school admin can edit groups');
++    }
++    const submitted: any[] = await this.ds.query(
++      `SELECT 1 FROM assignment_submissions WHERE assignment_id::text = $1::text AND group_id IS NOT NULL LIMIT 1`,
++      [assignmentId],
++    );
++    if (submitted.length) {
++      throw new BadRequestException('Groups cannot be changed after a group has submitted');
++    }
++    const groups = await this.normalizeGroups(body.groups, await this.assignmentPoolIds(assignment));
++    await this.ds.transaction(async (tx) => {
++      await tx.query(`DELETE FROM assignment_group_members WHERE assignment_id::text = $1::text`, [assignmentId]);
++      await tx.query(`DELETE FROM assignment_groups WHERE assignment_id::text = $1::text`, [assignmentId]);
++      await this.saveGroups(tx, assignmentId, groups);
++    });
++    return this.getGroups(user, assignmentId);
++  }
++
+   private mapRow(r: any) {
+     const submissionStatus = r.submission_status;
+     let status = 'pending';
+@@ -253,6 +1016,8 @@ export class SchoolAssignmentService {
+             filePath: r.submission_file_path,
+             notes: r.submission_notes,
+             submittedAt: r.submission_submitted_at,
++            isLate: r.submission_is_late === true,
++            attemptCount: r.submission_attempt_count == null ? null : Number(r.submission_attempt_count),
+             status: submissionStatus,
+             marksObtained: r.submission_marks,
+             feedback: r.submission_feedback,
+@@ -290,26 +1055,51 @@ export class SchoolAssignmentService {
+         );
+         classId = classRows[0]?.class_id || null;
+       }
+-      if (!classId) return { success: true, data: [] };
+-      params.push(classId);
+-      filter += ` AND a.class_id::text=$${params.length}::text`;
+-      if (profile.section_id) {
+-        params.push(profile.section_id);
+-        filter += ` AND (a.section_id IS NULL OR a.section_id::text=$${params.length}::text)`;
+-      } else {
+-        filter += ` AND a.section_id IS NULL`;
++      params.push(studentId);
++      const studentIdx = params.length;
++      let legacyMatch = 'FALSE';
++      if (classId) {
++        params.push(classId);
++        legacyMatch = `a.class_id::text=$${params.length}::text`;
++        if (profile.section_id) {
++          params.push(profile.section_id);
++          legacyMatch += ` AND (a.section_id IS NULL OR a.section_id::text=$${params.length}::text)`;
++        } else {
++          legacyMatch += ` AND a.section_id IS NULL`;
++        }
+       }
++      filter += ` AND COALESCE(a.status, 'active') = 'active'`;
++      // Stored pool wins; assignments without one fall back to class/section matching.
++      filter += ` AND (
++        EXISTS (SELECT 1 FROM assignment_students asg
++                WHERE asg.assignment_id::text = a.id::text AND asg.student_id::text = $${studentIdx}::text)
++        OR (NOT EXISTS (SELECT 1 FROM assignment_students asg2 WHERE asg2.assignment_id::text = a.id::text)
++            AND ${legacyMatch})
++      )`;
++      // Group assignments are only visible to students placed in a group.
++      filter += ` AND (COALESCE(a.target_type, 'individual') <> 'group' OR EXISTS (
++        SELECT 1 FROM assignment_group_members gm
++        WHERE gm.assignment_id::text = a.id::text AND gm.student_id::text = $${studentIdx}::text))`;
+     } else if (hasSchoolRole(user.role, 'PARENT')) {
+       const children = await this.ds.query(`
+-        SELECT section_id FROM students WHERE institute_id = $1 AND (
++        SELECT id, section_id FROM students WHERE institute_id = $1 AND (
+           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+           OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+         )
+       `, [user.instituteId, user.email, user.phone]);
+       const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
++      const childIds = children.map((c: any) => String(c.id));
++      filter += ` AND COALESCE(a.status, 'active') = 'active'`;
+       if (sectionIds.length > 0) {
+         params.push(sectionIds);
+-        filter += ` AND a.section_id = ANY($${params.length}::uuid[])`;
++        const secIdx = params.length;
++        params.push(childIds);
++        filter += ` AND (
++          EXISTS (SELECT 1 FROM assignment_students asg
++                  WHERE asg.assignment_id::text = a.id::text AND asg.student_id::text = ANY($${params.length}::text[]))
++          OR (NOT EXISTS (SELECT 1 FROM assignment_students asg2 WHERE asg2.assignment_id::text = a.id::text)
++              AND a.section_id = ANY($${secIdx}::uuid[]))
++        )`;
+       } else {
+         filter += ` AND 1=0`;
+       }
+@@ -350,8 +1140,15 @@ export class SchoolAssignmentService {
+     }
+ 
+     const submissionJoin = studentId
+-      ? `LEFT JOIN assignment_submissions subm
+-           ON subm.assignment_id::text = a.id::text AND subm.student_id::text = $${params.length + 1}::text`
++      ? `LEFT JOIN assignment_group_members mygm
++           ON mygm.assignment_id::text = a.id::text AND mygm.student_id::text = $${params.length + 1}::text
++         LEFT JOIN assignment_groups mygrp ON mygrp.id = mygm.group_id
++         LEFT JOIN assignment_submissions subm
++           ON subm.assignment_id::text = a.id::text
++          AND (
++            (COALESCE(a.target_type, 'individual') = 'group' AND subm.group_id = mygm.group_id)
++            OR (COALESCE(a.target_type, 'individual') <> 'group' AND subm.student_id::text = $${params.length + 1}::text)
++          )`
+       : '';
+     if (studentId) params.push(studentId);
+ 
+@@ -363,18 +1160,36 @@ export class SchoolAssignmentService {
+               subm.marks AS submission_marks,
+               COALESCE(subm.feedback_summary, subm.teacher_remarks) AS submission_feedback,
+               subm.submitted_at AS submission_submitted_at,
++              subm.is_late AS submission_is_late, subm.attempt_count AS submission_attempt_count,
++              mygrp.id AS my_group_id, mygrp.group_name AS my_group_name,
++              NULL::int AS group_count, NULL::int AS expected_count, NULL::int AS pool_count,
+               NULL::int AS submission_count, NULL::int AS pending_grade_count`
+       : `,NULL AS submission_id, NULL AS submission_file_path,
+               NULL AS submission_notes, NULL AS submission_status,
+               NULL AS submission_marks, NULL AS submission_feedback,
+               NULL AS submission_submitted_at,
++              NULL AS submission_is_late, NULL AS submission_attempt_count,
++              NULL AS my_group_id, NULL AS my_group_name,
++              (SELECT COUNT(*)::int FROM assignment_groups g WHERE g.assignment_id::text = a.id::text) AS group_count,
++              -- submissions expected: one per group, else one per student in the class/section
++              CASE WHEN COALESCE(a.target_type, 'individual') = 'group'
++                THEN (SELECT COUNT(*)::int FROM assignment_groups g2 WHERE g2.assignment_id::text = a.id::text)
++                WHEN EXISTS (SELECT 1 FROM assignment_students p WHERE p.assignment_id::text = a.id::text)
++                THEN (SELECT COUNT(*)::int FROM assignment_students p WHERE p.assignment_id::text = a.id::text)
++                ELSE (SELECT COUNT(*)::int FROM students st
++                        JOIN sections sx ON sx.id::text = st.section_id::text
++                       WHERE sx.class_id::text = a.class_id::text
++                         AND (a.section_id IS NULL OR st.section_id::text = a.section_id::text))
++              END AS expected_count,
++              (SELECT COUNT(*)::int FROM assignment_students p WHERE p.assignment_id::text = a.id::text) AS pool_count,
+               (SELECT COUNT(*)::int FROM assignment_submissions sub
+                WHERE sub.assignment_id::text = a.id::text) AS submission_count,
+               (SELECT COUNT(*)::int FROM assignment_submissions sub
+                WHERE sub.assignment_id::text = a.id::text AND sub.status <> 'graded') AS pending_grade_count`;
+ 
+     const rows: any[] = await this.ds.query(
+-      `SELECT a.*, sub.name AS subject_name, c.name AS class_name, sec.name AS section_name
++      `SELECT a.*, sub.name AS subject_name, c.name AS class_name, sec.name AS section_name,
++              (SELECT COUNT(*)::int FROM assignment_questions q WHERE q.assignment_id::text = a.id::text) AS question_count
+               ${submissionSelect}
+        FROM assignments a
+        LEFT JOIN subjects sub ON a.subject_id::text = sub.id::text
+@@ -571,6 +1386,23 @@ export class SchoolAssignmentService {
+       }
+     }
+ 
++    await this.assertTeacherCanAssign(user, classId, sectionId, subjectId);
++
++    const targetType: 'individual' | 'group' = body.target_type === 'group' ? 'group' : 'individual';
++    const poolStudents = await this.resolvePool(user, instituteId, body.pool, { classId, sectionId });
++    const poolIds = poolStudents.map((s) => s.id);
++    const groups =
++      targetType === 'group'
++        ? await this.normalizeGroups(body.groups ?? body.groups_meta, new Set(poolIds))
++        : [];
++    const groupStrategy = ['balanced', 'random', 'manual'].includes(body.group_strategy) ? body.group_strategy : null;
++    const groupSize = Number(body.group_size) > 0 ? Math.floor(Number(body.group_size)) : null;
++    const questions = sanitizeQuestions(body.questions);
++    // With questions attached, the total comes from the questions themselves.
++    const maxMarks = questions.length ? totalMarks(questions) : Number(body.max_marks) > 0 ? Number(body.max_marks) : 100;
++
++    const rules = this.parseScheduleRules(body);
++
+     let instructions = body.instructions || body.description || null;
+     const refImage = body.reference_image_url || body.referenceImageUrl;
+     if (refImage && instructions) {
+@@ -580,8 +1412,8 @@ export class SchoolAssignmentService {
+     }
+     const type = body.type || 'homework';
+ 
+-    const sql = `INSERT INTO assignments (tenant_id, class_id, section_id, subject_id, type, title, instructions, due_date, file_path, teacher_id)
+-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`;
++    const sql = `INSERT INTO assignments (tenant_id, class_id, section_id, subject_id, type, title, instructions, due_date, file_path, teacher_id, target_type, group_strategy, group_size, max_marks, status, start_at, published_at, late_policy, max_attempts)
++       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`;
+     const params = [
+       instituteId,
+       classId,
+@@ -595,89 +1427,32 @@ export class SchoolAssignmentService {
+         : null,
+       filePath,
+       user.id,
++      targetType,
++      groupStrategy,
++      groupSize,
++      maxMarks,
++      rules.status,
++      rules.startAt,
++      rules.status === 'active' ? new Date() : null,
++      rules.latePolicy,
++      rules.maxAttempts,
+     ];
+-    const rows: any[] = await this.ds.query(sql, params);
+-    const assignment = rows[0];
+-
+-    // Notify students
+-    try {
+-      const studentUsers = await this.ds.query(
+-        `SELECT s.user_id FROM students s
+-         JOIN sections sec ON s.section_id = sec.id
+-         WHERE sec.class_id::text = $1
+-           AND ($2::text IS NULL OR s.section_id::text = $2::text)`,
+-        [classId, sectionId],
++    // Assignment and its groups are saved together so a failure never leaves a
++    // group assignment without groups.
++    const assignment = await this.ds.transaction(async (tx) => {
++      const rows: any[] = await tx.query(sql, params);
++      await tx.query(
++        `INSERT INTO assignment_students (assignment_id, student_id)
++         SELECT $1, unnest($2::uuid[])`,
++        [rows[0].id, poolIds],
+       );
++      if (groups.length) await this.saveGroups(tx, rows[0].id, groups);
++      if (questions.length) await this.saveQuestions(tx, rows[0].id, questions);
++      return rows[0];
++    });
+ 
+-      await Promise.allSettled(
+-        studentUsers.map((stu) =>
+-          this.notificationService.create({
+-            recipientId: stu.user_id,
+-            type: 'assignment',
+-            title: 'New Assignment',
+-            message: `${body.title} has been uploaded.`,
+-            actionUrl: '/school/student/assignments',
+-          }),
+-        ),
+-      );
+-
+-      // Send FCM push to all target students
+-      if (studentUsers.length > 0 && this.fcm.isReady) {
+-        for (const stu of studentUsers) {
+-          const prefAllowed = await this.fcm.checkUserPreference(stu.user_id, 'announcement_alerts');
+-          if (!prefAllowed) continue;
+-
+-          // Dedup with assignment.id
+-          const dupRows = await this.ds.query(
+-            `SELECT 1 FROM school_notification_log
+-             WHERE user_id = $1
+-               AND notification_type = $2
+-               AND reference_id = $3
+-               AND status = 'SUCCESS'
+-             LIMIT 1`,
+-            [stu.user_id, SchoolFcmNotificationType.NEW_ASSIGNMENT, assignment.id],
+-          );
+-          if (dupRows.length > 0) continue;
+-
+-          const { title: pushTitle, body: pushBody } = fillTemplate(
+-            SCHOOL_NOTIFICATION_TEMPLATES[SchoolFcmNotificationType.NEW_ASSIGNMENT],
+-            { title: body.title || 'Assignment' },
+-          );
+-
+-          const pushResults = await this.fcm.sendPushToUser(
+-            stu.user_id,
+-            pushTitle,
+-            pushBody,
+-            { type: 'NEW_ASSIGNMENT', assignmentId: assignment.id },
+-          );
+-
+-          const anySuccess = pushResults.some((r) => r.success);
+-          const firstMessageId = pushResults.find((r) => r.messageId)?.messageId || null;
+-          const failureReasons = pushResults
+-            .filter((r) => !r.success)
+-            .map((r) => r.error)
+-            .join('; ');
+-
+-          if (pushResults.length > 0) {
+-            await this.ds.query(
+-              `INSERT INTO school_notification_log
+-                 (user_id, notification_type, reference_id, sent_at, status, fcm_message_id, failure_reason)
+-               VALUES ($1, $2, $3, NOW(), $4, $5, $6)`,
+-              [
+-                stu.user_id,
+-                SchoolFcmNotificationType.NEW_ASSIGNMENT,
+-                assignment.id,
+-                anySuccess ? 'SUCCESS' : 'FAILED',
+-                firstMessageId,
+-                failureReasons || null,
+-              ],
+-            );
+-          }
+-        }
+-      }
+-    } catch (notifErr: any) {
+-      this.logger.error(`Failed to send assignment upload notifications: ${notifErr.message}`);
+-    }
++    // Drafts and scheduled assignments are not announced until they are released.
++    if (rules.status === 'active') await this.notifyPool(assignment);
+ 
+     return { success: true, data: assignment };
+   }
+@@ -686,7 +1461,7 @@ export class SchoolAssignmentService {
+     user: any,
+     assignmentId: string,
+     file?: Express.Multer.File,
+-    body?: { notes?: string },
++    body?: { notes?: string; answers?: unknown },
+   ) {
+     if (!hasSchoolRole(user.role, 'STUDENT')) {
+       throw new ForbiddenException('Only students can submit assignments');
+@@ -703,52 +1478,107 @@ export class SchoolAssignmentService {
+       throw new NotFoundException('Assignment not found');
+     }
+     const assignment = assignRows[0];
++    if ((assignment.status || 'active') !== 'active') {
++      throw new ForbiddenException('This assignment is not open for submission');
++    }
++    const isLate = !!assignment.due_date && new Date(assignment.due_date).getTime() < Date.now();
++    if (isLate && assignment.late_policy === 'block') {
++      throw new BadRequestException('The due date has passed and late submissions are not accepted');
++    }
+     const profile = await this.getOrCreateStudentProfileForAssignment(
+       user,
+       assignment,
+       instituteId,
+     );
+-    if (
+-      profile.class_id &&
+-      String(assignment.class_id) !== String(profile.class_id)
+-    ) {
+-      throw new ForbiddenException('This assignment is not for your class');
++    const inPool = await this.poolMembership(assignmentId, [profile.student_id]);
++    if (inPool === false) {
++      throw new ForbiddenException('This assignment was not assigned to you');
+     }
+-    if (
+-      assignment.section_id &&
+-      String(assignment.section_id) !== String(profile.section_id)
+-    ) {
+-      throw new ForbiddenException('This assignment is not for your section');
++    if (inPool === null) {
++      // Legacy assignment without a stored pool: match on class/section.
++      if (profile.class_id && String(assignment.class_id) !== String(profile.class_id)) {
++        throw new ForbiddenException('This assignment is not for your class');
++      }
++      if (assignment.section_id && String(assignment.section_id) !== String(profile.section_id)) {
++        throw new ForbiddenException('This assignment is not for your section');
++      }
+     }
+ 
++    // Questions attached to the assignment: validate and auto-grade before anything is uploaded.
++    const qRows: any[] = await this.ds.query(
++      `SELECT id, marks, data FROM assignment_questions WHERE assignment_id::text = $1::text ORDER BY position`,
++      [assignmentId],
++    );
++    const storedQuestions: StoredQuestion[] = qRows.map((r) => ({
++      id: r.id,
++      marks: Number(r.marks),
++      type: r.data.type,
++      options: r.data.options,
++      correctAnswer: r.data.correctAnswer,
++    }));
++    const graded = storedQuestions.length ? gradeAnswers(storedQuestions, body?.answers) : null;
++
+     const filePath = await this.storedUploadPath(instituteId, file, 'student-submissions');
+-    if (!filePath && !body?.notes?.trim()) {
+-      throw new BadRequestException('Upload a file or add submission notes');
++    if (!filePath && !body?.notes?.trim() && !(graded && graded.answered > 0)) {
++      throw new BadRequestException(
++        graded ? 'Answer at least one question, or upload a file' : 'Upload a file or add submission notes',
++      );
+     }
+ 
+-    const existing: any[] = await this.ds.query(
+-      `SELECT id FROM assignment_submissions
+-       WHERE assignment_id::text = $1::text AND student_id::text = $2::text`,
+-      [assignmentId, profile.student_id],
+-    );
++    // Group assignments: one shared submission per group.
++    let groupId: string | null = null;
++    if (assignment.target_type === 'group') {
++      const gm: any[] = await this.ds.query(
++        `SELECT group_id FROM assignment_group_members
++         WHERE assignment_id::text = $1::text AND student_id::text = $2::text`,
++        [assignmentId, profile.student_id],
++      );
++      if (!gm.length) {
++        throw new ForbiddenException('You are not part of a group for this assignment');
++      }
++      groupId = gm[0].group_id;
++    }
+ 
+-    const rows: any[] = existing.length
++    const existing: any[] = groupId
++      ? await this.ds.query(
++          `SELECT id, status, attempt_count FROM assignment_submissions
++           WHERE assignment_id::text = $1::text AND group_id::text = $2::text`,
++          [assignmentId, groupId],
++        )
++      : await this.ds.query(
++          `SELECT id, status, attempt_count FROM assignment_submissions
++           WHERE assignment_id::text = $1::text AND student_id::text = $2::text`,
++          [assignmentId, profile.student_id],
++        );
++    if ((groupId || graded) && existing[0]?.status === 'graded') {
++      throw new BadRequestException(
++        groupId ? 'Your group submission has already been graded' : 'This assignment has already been graded',
++      );
++    }
++    if (existing[0] && assignment.max_attempts && Number(existing[0].attempt_count) >= Number(assignment.max_attempts)) {
++      throw new BadRequestException(`You have used all ${assignment.max_attempts} attempt(s) for this assignment`);
++    }
++
++    const rowsRaw: any[] = existing.length
+       ? await this.ds.query(
+         `UPDATE assignment_submissions
+          SET file_path = COALESCE($2, file_path),
+              attachment_url = COALESCE($2, attachment_url),
+              notes = COALESCE($3, notes),
++             student_id = $4,
++             attempt_count = attempt_count + 1,
++             is_late = $5,
+              status = 'submitted',
+              submitted_at = NOW(),
+              updated_at = NOW()
+          WHERE id::text = $1::text
+          RETURNING *`,
+-        [existing[0].id, filePath, body?.notes?.trim() || null],
++        [existing[0].id, filePath, body?.notes?.trim() || null, profile.student_id, isLate],
+       )
+       : await this.ds.query(
+       `INSERT INTO assignment_submissions
+-         (assignment_id, student_id, file_path, attachment_url, notes, status)
+-       VALUES ($1, $2, $3, $4, $5, 'submitted')
++         (assignment_id, student_id, file_path, attachment_url, notes, status, group_id, is_late)
++       VALUES ($1, $2, $3, $4, $5, 'submitted', $6, $7)
+        RETURNING *`,
+       [
+         assignmentId,
+@@ -756,9 +1586,36 @@ export class SchoolAssignmentService {
+         filePath,
+         filePath,
+         body?.notes?.trim() || null,
++        groupId,
++        isLate,
+       ],
+     );
+ 
++    const rows: any[] = rowsOf(rowsRaw);
++
++    // Store the answers; assignments made only of objective questions are graded on the spot.
++    let submissionRow = rows[0];
++    if (graded) {
++      await this.ds.transaction(async (tx) => {
++        await tx.query(`DELETE FROM assignment_answers WHERE submission_id::text = $1::text`, [submissionRow.id]);
++        for (const r of graded.rows) {
++          await tx.query(
++            `INSERT INTO assignment_answers (assignment_id, submission_id, question_id, answer, is_correct, marks_awarded)
++             VALUES ($1, $2, $3, $4, $5, $6)`,
++            [assignmentId, submissionRow.id, r.questionId, r.answer, r.isCorrect, r.marksAwarded],
++          );
++        }
++        if (graded.fullyGraded) {
++          const updated = await tx.query(
++            `UPDATE assignment_submissions SET marks = $2, status = 'graded', updated_at = NOW()
++             WHERE id::text = $1::text RETURNING *`,
++            [submissionRow.id, graded.total],
++          );
++          submissionRow = rowsOf(updated)[0];
++        }
++      });
++    }
++
+     // Notify the teacher
+     try {
+       const teacherUserId = assignRows[0].teacher_id;
+@@ -838,7 +1695,7 @@ export class SchoolAssignmentService {
+       console.error('Failed to log student activity (assignment):', err.message),
+     );
+ 
+-    return { success: true, data: rows[0] };
++    return { success: true, data: submissionRow };
+   }
+ 
+ 
+@@ -863,7 +1720,8 @@ export class SchoolAssignmentService {
+     }
+     const rows: any[] = await this.ds.query(
+       `SELECT
+-         subm.id, subm.student_id, subm.status,
++         subm.id, subm.student_id, subm.status, subm.group_id, grp.group_name,
++         subm.is_late, subm.attempt_count,
+          COALESCE(subm.file_path, subm.attachment_url) AS file_path,
+          subm.notes, subm.marks,
+          COALESCE(subm.feedback_summary, subm.teacher_remarks) AS feedback,
+@@ -880,6 +1738,7 @@ export class SchoolAssignmentService {
+        LEFT JOIN sections target_sec ON a.section_id::text = target_sec.id::text
+        LEFT JOIN sections student_sec ON st.section_id::text = student_sec.id::text
+        LEFT JOIN subjects sub ON a.subject_id::text = sub.id::text
++       LEFT JOIN assignment_groups grp ON grp.id = subm.group_id
+        WHERE ${filter}
+        ORDER BY subm.submitted_at DESC
+        LIMIT 100`,
+@@ -892,7 +1751,8 @@ export class SchoolAssignmentService {
+     await this.checkAssignmentAccess(user, assignmentId);
+     const rows: any[] = await this.ds.query(
+       `SELECT
+-         subm.id, subm.student_id, subm.status,
++         subm.id, subm.student_id, subm.status, subm.group_id, grp.group_name,
++         subm.is_late, subm.attempt_count,
+          COALESCE(subm.file_path, subm.attachment_url) AS file_path,
+          subm.notes, subm.marks,
+          COALESCE(subm.feedback_summary, subm.teacher_remarks) AS feedback,
+@@ -908,6 +1768,7 @@ export class SchoolAssignmentService {
+        JOIN users u ON u.id::text = s.user_id::text
+        LEFT JOIN sections sec ON sec.id::text = s.section_id::text
+        LEFT JOIN classes c ON c.id::text = sec.class_id::text
++       LEFT JOIN assignment_groups grp ON grp.id = subm.group_id
+        WHERE subm.assignment_id::text = $1::text
+        ORDER BY subm.submitted_at DESC`,
+       [assignmentId],
+@@ -919,10 +1780,59 @@ export class SchoolAssignmentService {
+     user: any,
+     assignmentId: string,
+     submissionId: string,
+-    body: { marks?: number; feedback?: string },
++    body: { marks?: number; feedback?: string; questionMarks?: { questionId: string; marks: number }[] },
+   ) {
+     await this.checkAssignmentAccess(user, assignmentId);
+-    const rows: any[] = await this.ds.query(
++    let marks: number | null = body.marks ?? null;
++
++    // Assignments with questions: the total is the sum of the per-question marks.
++    if (Array.isArray(body.questionMarks) && body.questionMarks.length) {
++      const qRows: any[] = await this.ds.query(
++        `SELECT id, marks FROM assignment_questions WHERE assignment_id::text = $1::text`,
++        [assignmentId],
++      );
++      const max = new Map<string, number>(qRows.map((q) => [String(q.id), Number(q.marks)]));
++      for (const m of body.questionMarks) {
++        const limit = max.get(String(m.questionId));
++        if (limit === undefined) throw new BadRequestException('A mark refers to a question that is not in this assignment');
++        if (!(Number(m.marks) >= 0) || Number(m.marks) > limit) {
++          throw new BadRequestException(`Marks for a question must be between 0 and ${limit}`);
++        }
++      }
++      marks = await this.ds.transaction(async (tx) => {
++        const sub = await tx.query(
++          `SELECT id FROM assignment_submissions WHERE id::text = $1::text AND assignment_id::text = $2::text`,
++          [submissionId, assignmentId],
++        );
++        if (!sub.length) throw new NotFoundException('Submission not found');
++        for (const m of body.questionMarks!) {
++          await tx.query(
++            `INSERT INTO assignment_answers (assignment_id, submission_id, question_id, marks_awarded)
++             VALUES ($1, $2, $3, $4)
++             ON CONFLICT (submission_id, question_id)
++             DO UPDATE SET marks_awarded = EXCLUDED.marks_awarded, updated_at = NOW()`,
++            [assignmentId, submissionId, m.questionId, Number(m.marks)],
++          );
++        }
++        const left = await tx.query(
++          `SELECT COUNT(*)::int AS n FROM assignment_answers WHERE submission_id::text = $1::text AND marks_awarded IS NULL`,
++          [submissionId],
++        );
++        if (left[0].n > 0 || (await tx.query(
++          `SELECT 1 FROM assignment_answers WHERE submission_id::text = $1::text HAVING COUNT(*) < $2`,
++          [submissionId, max.size],
++        )).length) {
++          throw new BadRequestException('Give marks for every question before saving');
++        }
++        const sum = await tx.query(
++          `SELECT COALESCE(SUM(marks_awarded), 0) AS total FROM assignment_answers WHERE submission_id::text = $1::text`,
++          [submissionId],
++        );
++        return Number(sum[0].total);
++      });
++    }
++
++    const rowsRaw: any[] = await this.ds.query(
+       `UPDATE assignment_submissions
+          SET marks = $2,
+              feedback_summary = $3,
+@@ -931,12 +1841,41 @@ export class SchoolAssignmentService {
+              updated_at = NOW()
+          WHERE id::text = $1::text AND assignment_id::text = $4::text
+          RETURNING *`,
+-      [submissionId, body.marks ?? null, body.feedback?.trim() ?? null, assignmentId],
++      [submissionId, marks, body.feedback?.trim() ?? null, assignmentId],
+     );
++    const rows = rowsOf(rowsRaw);
+     if (!rows.length) throw new NotFoundException('Submission not found');
+     return { success: true, data: rows[0] };
+   }
+ 
++  /** One submission's answers next to the questions (teacher grading view). */
++  async getSubmissionAnswers(user: any, assignmentId: string, submissionId: string) {
++    await this.checkAssignmentAccess(user, assignmentId);
++    const rows: any[] = await this.ds.query(
++      `SELECT q.id, q.position, q.marks, q.topic_name, q.data,
++              a.answer, a.is_correct, a.marks_awarded
++       FROM assignment_questions q
++       LEFT JOIN assignment_answers a
++         ON a.question_id = q.id AND a.submission_id::text = $2::text
++       WHERE q.assignment_id::text = $1::text
++       ORDER BY q.position`,
++      [assignmentId, submissionId],
++    );
++    return {
++      success: true,
++      data: rows.map((r) => ({
++        id: r.id,
++        position: r.position,
++        marks: Number(r.marks),
++        topicName: r.topic_name,
++        ...r.data,
++        answer: r.answer ?? null,
++        isCorrect: r.is_correct,
++        marksAwarded: r.marks_awarded == null ? null : Number(r.marks_awarded),
++      })),
++    };
++  }
++
+   private async checkAssignmentAccess(user: any, assignmentId: string) {
+     const rows: any[] = await this.ds.query(
+       `SELECT * FROM assignments WHERE id::text=$1::text`,
+@@ -952,21 +1891,32 @@ export class SchoolAssignmentService {
+       throw new ForbiddenException('You do not have access to this assignment');
+     }
+ 
++    if ((hasSchoolRole(user.role, 'STUDENT') || hasSchoolRole(user.role, 'PARENT')) && (assignment.status || 'active') !== 'active') {
++      throw new ForbiddenException('You do not have access to this assignment');
++    }
++
+     if (hasSchoolRole(user.role, 'STUDENT')) {
+-      const studentProfile = user.studentProfile || (await this.ds.query(`SELECT section_id FROM students WHERE user_id=$1`, [user.id]))[0];
++      const studentRow = (await this.ds.query(`SELECT id, section_id FROM students WHERE user_id=$1`, [user.id]))[0];
++      const studentProfile = studentRow || user.studentProfile;
+       const sectionId = studentProfile?.sectionId || studentProfile?.section_id;
+-      if (assignment.section_id && sectionId && String(assignment.section_id) !== String(sectionId)) {
++      const inPool = studentRow ? await this.poolMembership(assignment.id, [String(studentRow.id)]) : null;
++      if (inPool === false) {
++        throw new ForbiddenException('You do not have access to this assignment');
++      }
++      if (inPool === null && assignment.section_id && sectionId && String(assignment.section_id) !== String(sectionId)) {
+         throw new ForbiddenException('You do not have access to this assignment');
+       }
+     } else if (hasSchoolRole(user.role, 'PARENT')) {
+       const children = await this.ds.query(`
+-        SELECT section_id FROM students WHERE institute_id = $1 AND (
++        SELECT id, section_id FROM students WHERE institute_id = $1 AND (
+           (parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(parent_email) = LOWER($2))
+           OR (parent_phone IS NOT NULL AND $3::text IS NOT NULL AND parent_phone = $3)
+         )
+       `, [user.instituteId, user.email, user.phone]);
+       const sectionIds = children.map((c: any) => c.section_id).filter(Boolean);
+-      if (!sectionIds.includes(assignment.section_id)) {
++      const inPool = await this.poolMembership(assignment.id, children.map((c: any) => String(c.id)));
++      const allowed = inPool === null ? sectionIds.includes(assignment.section_id) : inPool;
++      if (!allowed) {
+         throw new ForbiddenException('You do not have access to this assignment');
+       }
+     } else if (hasSchoolRole(user.role, 'TEACHER')) {
+@@ -977,7 +1927,7 @@ export class SchoolAssignmentService {
+           `SELECT 1 FROM teacher_academic_assignments WHERE teacher_id = $1 AND section_id::text = $2::text LIMIT 1`,
+           [teacherId, assignment.section_id]
+         );
+-        if (assignment.teacher_id !== teacherId && !hasAssignment.length) {
++        if (String(assignment.teacher_id) !== String(user.id) && assignment.teacher_id !== teacherId && !hasAssignment.length) {
+           throw new ForbiddenException('You do not have access to this assignment');
+         }
+       } else {
+@@ -988,6 +1938,113 @@ export class SchoolAssignmentService {
+     return assignment;
+   }
+ 
++  /** Tracking numbers for the assignment details page (teachers/admins). */
++  async getAnalytics(user: any, assignmentId: string) {
++    const assignment = await this.checkAssignmentAccess(user, assignmentId);
++    const isGroup = assignment.target_type === 'group';
++
++    const subs: any[] = await this.ds.query(
++      `SELECT student_id, group_id, status, marks, is_late, submitted_at
++       FROM assignment_submissions WHERE assignment_id::text = $1::text`,
++      [assignmentId],
++    );
++    const toStatus = (r?: any): AnalyticsUnit['status'] =>
++      !r ? 'pending' : r.status === 'graded' || r.marks != null ? 'graded' : 'submitted';
++
++    let units: AnalyticsUnit[];
++    if (isGroup) {
++      const rows: any[] = await this.ds.query(
++        `SELECT g.id AS group_id, g.group_name, g.group_number, u.name AS student_name
++         FROM assignment_groups g
++         LEFT JOIN assignment_group_members gm ON gm.group_id = g.id
++         LEFT JOIN students s ON s.id::text = gm.student_id::text
++         LEFT JOIN users u ON u.id::text = s.user_id::text
++         WHERE g.assignment_id::text = $1::text
++         ORDER BY g.group_number, u.name`,
++        [assignmentId],
++      );
++      const byGroup = new Map<string, { id: string; name: string; members: string[] }>();
++      for (const r of rows) {
++        const g = byGroup.get(r.group_id) ?? { id: r.group_id, name: r.group_name, members: [] };
++        if (r.student_name) g.members.push(r.student_name);
++        byGroup.set(r.group_id, g);
++      }
++      units = Array.from(byGroup.values()).map((g) => {
++        const sub = subs.find((x) => String(x.group_id) === String(g.id));
++        return {
++          id: g.id,
++          name: g.name,
++          members: g.members,
++          status: toStatus(sub),
++          marks: sub?.marks == null ? null : Number(sub.marks),
++          isLate: sub?.is_late === true,
++          submittedAt: sub?.submitted_at ?? null,
++        };
++      });
++    } else {
++      const poolIds = Array.from(await this.assignmentPoolIds(assignment));
++      const students: any[] = poolIds.length
++        ? await this.ds.query(
++            `SELECT s.id, u.name FROM students s JOIN users u ON u.id::text = s.user_id::text
++             WHERE s.id::text = ANY($1::text[]) ORDER BY u.name`,
++            [poolIds],
++          )
++        : [];
++      units = students.map((st) => {
++        const sub = subs.find((x) => String(x.student_id) === String(st.id));
++        return {
++          id: String(st.id),
++          name: st.name,
++          status: toStatus(sub),
++          marks: sub?.marks == null ? null : Number(sub.marks),
++          isLate: sub?.is_late === true,
++          submittedAt: sub?.submitted_at ?? null,
++        };
++      });
++    }
++
++    const qRows: any[] = await this.ds.query(
++      `SELECT id, position, marks, topic_name, data FROM assignment_questions
++       WHERE assignment_id::text = $1::text ORDER BY position`,
++      [assignmentId],
++    );
++    const questionLevel = qRows.length
++      ? buildQuestionAnalytics(
++          qRows.map((r) => ({
++            id: r.id, position: r.position, marks: Number(r.marks), topicName: r.topic_name,
++            text: r.data.text, type: r.data.type, options: r.data.options, correctAnswer: r.data.correctAnswer,
++          })),
++          (
++            await this.ds.query(
++              `SELECT question_id, answer, is_correct, marks_awarded FROM assignment_answers WHERE assignment_id::text = $1::text`,
++              [assignmentId],
++            )
++          ).map((a: any) => ({
++            questionId: a.question_id,
++            answer: a.answer,
++            isCorrect: a.is_correct,
++            marksAwarded: a.marks_awarded == null ? null : Number(a.marks_awarded),
++          })),
++        )
++      : null;
++
++    return {
++      success: true,
++      data: {
++        questionLevel,
++        assignment: {
++          id: assignment.id,
++          title: assignment.title,
++          targetType: assignment.target_type || 'individual',
++          status: assignment.status,
++          maxMarks: Number(assignment.max_marks) || 100,
++          dueDate: assignment.due_date,
++        },
++        ...buildAnalytics(units, { isGroup, maxMarks: Number(assignment.max_marks) || 100 }),
++      },
++    };
++  }
++
+   async findOne(user: any, id?: string) {
+     let reqUser = user;
+     let targetId = id;
+@@ -1019,12 +2076,27 @@ export class SchoolAssignmentService {
+       await this.checkAssignmentAccess(reqUser, targetId);
+     }
+ 
+-    const sql = `UPDATE assignments SET title=COALESCE($2,title),instructions=COALESCE($3,instructions),due_date=COALESCE($4,due_date),updated_at=NOW() WHERE id::text=$1::text`;
++    const dueDate = body.dueDate || body.due_date ? new Date(body.dueDate || body.due_date) : null;
++    const startRaw = body.start_at || body.startAt;
++    const startAt = startRaw ? new Date(startRaw) : null;
++    const attempts = body.max_attempts === undefined ? undefined : Math.floor(Number(body.max_attempts));
++    const sql = `UPDATE assignments SET
++         title = COALESCE($2, title),
++         instructions = COALESCE($3, instructions),
++         due_date = COALESCE($4, due_date),
++         start_at = CASE WHEN status = 'scheduled' THEN COALESCE($5, start_at) ELSE start_at END,
++         late_policy = COALESCE($6, late_policy),
++         max_attempts = CASE WHEN $7::int IS NULL THEN max_attempts WHEN $7::int <= 0 THEN NULL ELSE $7::int END,
++         updated_at = NOW()
++       WHERE id::text = $1::text`;
+     const params = [
+       targetId,
+       body.title,
+-      body.description,
+-      body.dueDate ? new Date(body.dueDate) : null,
++      body.description ?? body.instructions,
++      dueDate,
++      startAt,
++      body.late_policy === 'block' || body.late_policy === 'allow' ? body.late_policy : null,
++      attempts === undefined || Number.isNaN(attempts) ? null : Math.min(attempts, 20),
+     ];
+     await this.ds.query(sql, params);
+     return { success: true };
+@@ -1041,6 +2113,11 @@ export class SchoolAssignmentService {
+       await this.checkAssignmentAccess(reqUser, targetId);
+     }
+ 
++    await this.ds.query(`DELETE FROM assignment_answers WHERE assignment_id::text=$1::text`, [targetId]);
++    await this.ds.query(`DELETE FROM assignment_questions WHERE assignment_id::text=$1::text`, [targetId]);
++    await this.ds.query(`DELETE FROM assignment_students WHERE assignment_id::text=$1::text`, [targetId]);
++    await this.ds.query(`DELETE FROM assignment_group_members WHERE assignment_id::text=$1::text`, [targetId]);
++    await this.ds.query(`DELETE FROM assignment_groups WHERE assignment_id::text=$1::text`, [targetId]);
+     await this.ds.query(`DELETE FROM assignment_submissions WHERE assignment_id::text=$1::text`, [targetId]);
+     await this.ds.query(`DELETE FROM assignments WHERE id::text=$1::text`, [targetId]);
+     return { success: true };

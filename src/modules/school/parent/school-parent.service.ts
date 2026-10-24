@@ -349,6 +349,58 @@ export class SchoolParentService {
     }));
   }
 
+  /**
+   * How much has been deposited so far, what's currently due, and what's
+   * coming up — `fees.student_id` references the student *profile* id
+   * (`child.profile_id`), not the user id every other parent endpoint here
+   * keys off of, since that's what the fee ledger was built against.
+   */
+  async getFeeSummary(user: any, studentId: string) {
+    const parent = await this.loadParent(user);
+    const child = await this.getOwnedChild(parent, studentId);
+
+    const feeRows: any[] = await this.ds.query(
+      `SELECT id, title, amount, amount_paid, status, due_date, paid_date
+       FROM fees WHERE student_id = $1 ORDER BY due_date ASC`,
+      [child.profile_id],
+    );
+
+    const today = new Date();
+    let totalDeposited = 0;
+    let totalPending = 0;
+    const dueFees: any[] = [];
+    const upcomingFees: any[] = [];
+    const recentPayments: any[] = [];
+
+    for (const f of feeRows) {
+      const amount = Number(f.amount) || 0;
+      const amountPaid = Number(f.amount_paid) || 0;
+      totalDeposited += amountPaid;
+      const status = String(f.status).toLowerCase();
+      if (status === 'paid' || status === 'exempt') {
+        if (f.paid_date) recentPayments.push({ id: f.id, title: f.title, amount, amountPaid, paidDate: f.paid_date });
+        continue;
+      }
+      const balance = amount - amountPaid;
+      totalPending += balance;
+      const entry = { id: f.id, title: f.title, amount, amountPaid, balance, dueDate: f.due_date, status };
+      if (f.due_date && new Date(f.due_date) > today) {
+        upcomingFees.push(entry);
+      } else {
+        dueFees.push(entry);
+      }
+    }
+    recentPayments.sort((a, b) => new Date(b.paidDate).getTime() - new Date(a.paidDate).getTime());
+
+    return {
+      totalDeposited,
+      totalPending,
+      dueFees,
+      upcomingFees,
+      recentPayments: recentPayments.slice(0, 5),
+    };
+  }
+
   async getMarks(user: any, studentId: string) {
     const parent = await this.loadParent(user);
     const child = await this.getOwnedChild(parent, studentId);

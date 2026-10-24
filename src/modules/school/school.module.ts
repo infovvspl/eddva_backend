@@ -12,6 +12,7 @@ import { SchoolTopicModule } from './topic/school-topic.module';
 import { SchoolAssignmentModule } from './assignment/school-assignment.module';
 import { SchoolAssessmentModule } from './assessment/school-assessment.module';
 import { SchoolAttendanceModule } from './attendance/school-attendance.module';
+import { SchoolImprovementModule } from './improvement/school-improvement.module';
 import { SchoolDashboardModule } from './dashboard/school-dashboard.module';
 import { SchoolFeeModule } from './fee/school-fee.module';
 import { SchoolNoticeModule } from './notice/school-notice.module';
@@ -31,7 +32,7 @@ import { SchoolClassModule } from './class/school-class.module';
 import { SchoolAiUsageModule } from './ai-usage/school-ai-usage.module';
 import { SchoolCalendarModule } from './calendar/school-calendar.module';
 import { CareerModule } from './career/career.module';
-import { SchoolStudyPlanModule } from './study-plan/school-study-plan.module';
+import { LearningPathModule } from './learning-path/learning-path.module';
 import { SchoolPptModule } from './ppt/school-ppt.module';
 import { SchoolTextbookModule } from './textbook/school-textbook.module';
 import { SchoolAiTutorModule } from './ai-tutor/school-ai-tutor.module';
@@ -46,6 +47,7 @@ import { RecordingHighlightModule } from './recording-highlight/recording-highli
 import { SchoolNotificationFcmModule } from './notification-fcm/school-notification-fcm.module';
 
 import { SchoolSyllabusModule } from './syllabus/school-syllabus.module';
+import { LessonPlanModule } from './lesson-plan/lesson-plan.module';
 import { SchoolStaffModule } from './staff/school-staff.module';
 import { SchoolRolesModule } from './roles/school-roles.module';
 import { CompetitiveModule } from './competitive/competitive.module';
@@ -55,6 +57,7 @@ import { EmergencySosModule } from './emergency-sos/emergency-sos.module';
 @Module({
   imports: [
     SchoolSyllabusModule,
+    LessonPlanModule,
     SchoolAuthModule,
     SchoolInstituteModule,
     SchoolStudentModule,
@@ -67,6 +70,7 @@ import { EmergencySosModule } from './emergency-sos/emergency-sos.module';
     SchoolAssignmentModule,
     SchoolAssessmentModule,
     SchoolAttendanceModule,
+    SchoolImprovementModule,
     SchoolDashboardModule,
     SchoolFeeModule,
     SchoolNoticeModule,
@@ -86,7 +90,7 @@ import { EmergencySosModule } from './emergency-sos/emergency-sos.module';
     SchoolAiUsageModule,
     SchoolCalendarModule,
     CareerModule,
-    SchoolStudyPlanModule,
+    LearningPathModule,
     SchoolPptModule,
     SchoolTextbookModule,
     SchoolAiTutorModule,

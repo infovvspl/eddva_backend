@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards, Req } from '@nestjs/common';
 import { SchoolNoticeService } from './school-notice.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
@@ -24,6 +24,11 @@ export class SchoolNoticeController {
   broadcast(@SchoolUser() user: any, @Body() body: any) { return this.svc.broadcast(user, body); }
 
   @Get() list(@SchoolUser() user: any, @Query() query: any) { return this.svc.list(user, query); }
+
+  @Post('upload-url')
+  presignAttachment(@SchoolUser() user: any, @Body() body: any, @Req() req: any) {
+    return this.svc.presignAttachment(user, body, req);
+  }
 
   @Post()
   @Audit({ module: 'Communication', action: 'Notice Published', description: 'Published notice: {body.title}' })

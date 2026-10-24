@@ -185,6 +185,48 @@ export class SchoolNotificationService {
     return { success: true, count: rows[0]?.count || 0 };
   }
 
+  /**
+   * Institute-wide counterpart of `getFlagCount` — that one is scoped to the
+   * calling user's own notifications, so an admin querying it only ever sees
+   * their own flags. This counts every unread `is_flag` notification for
+   * anyone in the institute (students, teachers, or admins), broken down by
+   * category and recipient role, for the admin dashboard's "Flag Tracker"
+   * card. Generic by design: whatever gets flagged next (not just attendance)
+   * shows up here automatically, with no dashboard change needed.
+   */
+  async getInstituteFlagSummary(user: any) {
+    const instituteId = user.instituteId;
+    const breakdownRows = await this.ds.query(
+      `SELECT n.category, n.role AS recipient_role, COUNT(*)::int AS count
+       FROM notifications n
+       JOIN users u ON u.id = n.recipient_id
+       WHERE u.institute_id = $1 AND n.is_flag = true AND n.is_read = false AND n.is_deleted = false
+       GROUP BY n.category, n.role`,
+      [instituteId],
+    );
+    const byCategory: Record<string, number> = {};
+    const byRole: Record<string, number> = {};
+    let total = 0;
+    for (const r of breakdownRows) {
+      byCategory[r.category || 'general'] = (byCategory[r.category || 'general'] || 0) + r.count;
+      byRole[r.recipient_role || 'unknown'] = (byRole[r.recipient_role || 'unknown'] || 0) + r.count;
+      total += r.count;
+    }
+
+    const recent = await this.ds.query(
+      `SELECT n.id, n.title, n.message, n.category, n.priority, n.role AS recipient_role,
+              n.reference_id, n.reference_type, n.action_url, n.created_at,
+              u.name AS recipient_name
+       FROM notifications n
+       JOIN users u ON u.id = n.recipient_id
+       WHERE u.institute_id = $1 AND n.is_flag = true AND n.is_read = false AND n.is_deleted = false
+       ORDER BY n.created_at DESC LIMIT 20`,
+      [instituteId],
+    );
+
+    return { success: true, total, byCategory, byRole, recent };
+  }
+
   async remove(id: string) {
     await this.ds.query(`UPDATE notifications SET is_deleted=true, updated_at=NOW() WHERE id=$1`, [id]);
     return { success: true };
@@ -264,7 +306,10 @@ export class SchoolNotificationService {
           attendanceAlerts: p.attendance_alerts,
           announcementAlerts: p.announcement_alerts,
           liveClassAlerts: p.live_class_alerts,
-          feeAlerts: p.fee_alerts
+          feeAlerts: p.fee_alerts,
+          // Column added for the AI Study Planner's weekly defaulter alerts; missing on a row
+          // saved before that migration, so it falls back to the same default as the rest (on).
+          studyPlannerAlerts: p.study_planner_alerts !== undefined ? p.study_planner_alerts : true
         }
       };
     }
@@ -280,7 +325,8 @@ export class SchoolNotificationService {
         attendanceAlerts: true,
         announcementAlerts: true,
         liveClassAlerts: true,
-        feeAlerts: true
+        feeAlerts: true,
+        studyPlannerAlerts: true
       }
     };
   }
@@ -290,8 +336,8 @@ export class SchoolNotificationService {
       `INSERT INTO notification_preferences (
         user_id, enable_in_app, enable_email, enable_push,
         assignment_alerts, assessment_alerts, attendance_alerts,
-        announcement_alerts, live_class_alerts, fee_alerts, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        announcement_alerts, live_class_alerts, fee_alerts, study_planner_alerts, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
       ON CONFLICT (user_id) DO UPDATE SET
         enable_in_app = EXCLUDED.enable_in_app,
         enable_email = EXCLUDED.enable_email,
@@ -302,6 +348,7 @@ export class SchoolNotificationService {
         announcement_alerts = EXCLUDED.announcement_alerts,
         live_class_alerts = EXCLUDED.live_class_alerts,
         fee_alerts = EXCLUDED.fee_alerts,
+        study_planner_alerts = EXCLUDED.study_planner_alerts,
         updated_at = NOW()`,
       [
         user.id,
@@ -313,7 +360,8 @@ export class SchoolNotificationService {
         prefs.attendanceAlerts !== undefined ? prefs.attendanceAlerts : true,
         prefs.announcementAlerts !== undefined ? prefs.announcementAlerts : true,
         prefs.liveClassAlerts !== undefined ? prefs.liveClassAlerts : true,
-        prefs.feeAlerts !== undefined ? prefs.feeAlerts : true
+        prefs.feeAlerts !== undefined ? prefs.feeAlerts : true,
+        prefs.studyPlannerAlerts !== undefined ? prefs.studyPlannerAlerts : true
       ]
     );
     return { success: true };
