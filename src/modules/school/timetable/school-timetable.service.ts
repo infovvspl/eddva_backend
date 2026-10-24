@@ -165,7 +165,11 @@ export class SchoolTimetableService {
       const teacherId = tRows[0]?.id;
       if (teacherId) {
         params.push(teacherId);
-        filterQuery += ` AND (t.teacher_id = $${params.length} OR t.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $${params.length}))`;
+        // A teacher always sees their own taught periods. They additionally see a
+        // section's FULL timetable only where they are that section's class teacher
+        // (homeroom) — any assignment row, subject or not, used to grant this, which
+        // leaked every other teacher's periods into a subject-only teacher's view.
+        filterQuery += ` AND (t.teacher_id = $${params.length} OR t.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $${params.length} AND is_class_teacher = true))`;
       } else {
         filterQuery += ` AND 1=0`;
       }
