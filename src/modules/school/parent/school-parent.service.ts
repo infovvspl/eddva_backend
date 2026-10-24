@@ -1,7 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolMeetingService } from '../meeting/school-meeting.service';
+import { SchoolScreenTimeService } from '../screen-time/school-screen-time.service';
 
 /**
  * Parent portal service.
@@ -17,6 +18,7 @@ export class SchoolParentService {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly meetingService: SchoolMeetingService,
+    private readonly screenTimeService: SchoolScreenTimeService,
   ) { }
 
   // ── Internal helpers ──────────────────────────────────────────────────────
@@ -286,6 +288,65 @@ export class SchoolParentService {
         remarks: r.remarks,
       })),
     };
+  }
+
+  async getScreenTime(user: any, studentId: string, range?: string) {
+    const parent = await this.loadParent(user);
+    const child = await this.getOwnedChild(parent, studentId);
+    const days = range === 'month' ? 30 : 7;
+    const result = await this.screenTimeService.getRange(child.id, days);
+    return {
+      todaySeconds: result.today,
+      totalSeconds: result.total,
+      days: result.days.map((d) => ({ date: d.date, activeSeconds: d.activeSeconds })),
+    };
+  }
+
+  /** `month` is "YYYY-MM" — backs the parent-facing screen-time calendar view. */
+  async getScreenTimeMonth(user: any, studentId: string, month: string) {
+    const parent = await this.loadParent(user);
+    const child = await this.getOwnedChild(parent, studentId);
+    const [yearStr, monthStr] = month.split('-');
+    const year = Number(yearStr);
+    const monthNum = Number(monthStr);
+    if (!year || !monthNum || monthNum < 1 || monthNum > 12) {
+      throw new BadRequestException('Invalid month');
+    }
+    const result = await this.screenTimeService.getMonth(child.id, year, monthNum);
+    return {
+      totalSeconds: result.total,
+      days: result.days,
+    };
+  }
+
+  async getActiveEmergencyAlerts(user: any) {
+    const parent = await this.loadParent(user);
+    const childRows = await this.loadChildRows(parent);
+    const childIds = childRows.map((r) => r.id);
+    if (!childIds.length) return [];
+
+    const rows: any[] = await this.ds.query(
+      `SELECT ea.id, ea.student_user_id, ea.message, ea.sender_name, ea.sender_role, ea.created_at,
+              u.name AS student_name, c.name AS class_name, sec.name AS section_name
+       FROM school_emergency_alerts ea
+       JOIN users u ON u.id = ea.student_user_id
+       LEFT JOIN students s ON s.user_id = u.id
+       LEFT JOIN sections sec ON s.section_id = sec.id
+       LEFT JOIN classes c ON sec.class_id = c.id
+       WHERE ea.student_user_id = ANY($1) AND ea.status = 'ACTIVE'
+       ORDER BY ea.created_at DESC`,
+      [childIds],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      studentName: r.student_name,
+      className: r.class_name,
+      sectionName: r.section_name,
+      message: r.message,
+      senderName: r.sender_name,
+      senderRole: r.sender_role,
+      createdAt: r.created_at,
+    }));
   }
 
   async getMarks(user: any, studentId: string) {

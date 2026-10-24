@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { SchoolParentService } from './school-parent.service';
 import { SchoolParentController } from './school-parent.controller';
 import { SchoolMeetingModule } from '../meeting/school-meeting.module';
+import { SchoolScreenTimeModule } from '../screen-time/school-screen-time.module';
 
 @Module({
-  imports: [SchoolMeetingModule],
+  imports: [SchoolMeetingModule, SchoolScreenTimeModule],
   controllers: [SchoolParentController],
   providers: [SchoolParentService],
 })

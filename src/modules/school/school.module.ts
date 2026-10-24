@@ -49,6 +49,8 @@ import { SchoolSyllabusModule } from './syllabus/school-syllabus.module';
 import { SchoolStaffModule } from './staff/school-staff.module';
 import { SchoolRolesModule } from './roles/school-roles.module';
 import { CompetitiveModule } from './competitive/competitive.module';
+import { SchoolScreenTimeModule } from './screen-time/school-screen-time.module';
+import { EmergencySosModule } from './emergency-sos/emergency-sos.module';
 
 @Module({
   imports: [
@@ -94,6 +96,8 @@ import { CompetitiveModule } from './competitive/competitive.module';
     RecordingHighlightModule,
     SchoolNotificationFcmModule,
     SchoolStaffModule,
+    SchoolScreenTimeModule,
+    EmergencySosModule,
     SchoolRolesModule,
     CompetitiveModule,
   ],
