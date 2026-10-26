@@ -12,10 +12,11 @@ import { InternalErpTeacherService } from './internal-erp-teacher.service';
 import { InternalErpModulesController } from './internal-erp-modules.controller';
 import { InternalErpModulesService } from './internal-erp-modules.service';
 import { InternalPlatformLinkController } from './internal-platform-link.controller';
+import { InternalPlatformInstitutesController } from './internal-platform-institutes.controller';
 
 @Module({
   imports: [AiUsageModule, SchoolStudentModule, SchoolTeacherModule],
-  controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController],
+  controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController, InternalPlatformInstitutesController],
   providers: [InternalAiUsageService, AiFeatureFlagService, InternalErpStudentService, InternalErpTeacherService, InternalErpModulesService],
   exports: [AiFeatureFlagService, InternalAiUsageService],
 })

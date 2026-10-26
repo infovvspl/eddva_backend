@@ -7,12 +7,11 @@ import {
   HttpCode,
   NotFoundException,
   Put,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { IsEmail, IsIn, IsString, MinLength } from 'class-validator';
-import { timingSafeEqual } from 'crypto';
 import { DataSource } from 'typeorm';
+import { assertInternalKey } from './internal-key';
 
 export class LinkPlatformUserDto {
   /** Which LMS database the user lives in. */
@@ -39,15 +38,6 @@ export class InternalPlatformLinkController {
     @InjectDataSource('coaching') private readonly coaching: DataSource,
   ) {}
 
-  private assertInternal(key?: string): void {
-    const expected = process.env.INTERNAL_API_KEY ?? '';
-    const a = Buffer.from(key ?? '');
-    const b = Buffer.from(expected);
-    if (!expected || a.length !== b.length || !timingSafeEqual(a, b)) {
-      throw new UnauthorizedException('Invalid internal key');
-    }
-  }
-
   /**
    * Binds an existing LMS user to a platform identity so their platform tokens are accepted.
    * Idempotent, and refuses to re-point a link so a mistaken call can't hand one account's
@@ -56,7 +46,7 @@ export class InternalPlatformLinkController {
   @Put('link')
   @HttpCode(200)
   async link(@Headers('x-internal-key') key: string, @Body() dto: LinkPlatformUserDto) {
-    this.assertInternal(key);
+    assertInternalKey(key);
     const school = dto.vertical === 'school';
     const ds = school ? this.school : this.coaching;
     const scopeColumn = school ? 'institute_id' : 'tenant_id';
