@@ -179,7 +179,11 @@ export class QuizEngineService {
       const draft = sanitizeAnswers(questions, row.draft_answers);
       const answers = submitted === null || late ? draft : { ...draft, ...sanitizeAnswers(questions, submitted) };
       const grade = gradeQuiz(questions, answers);
-      const weakConcepts = detectWeakConcepts(grade.responses, cfg);
+      // No forced concept list on this instance (a subtopic thread's round-1 quiz, free-labelled
+      // by the model) -> cluster near-duplicate labels before grouping, since nothing guarantees
+      // the model phrases one weak point identically across questions. See detectWeakConcepts.
+      const hadForcedConcepts = Array.isArray(row.concepts) && row.concepts.length > 0;
+      const weakConcepts = detectWeakConcepts(grade.responses, cfg, { clusterFreeLabels: !hadForcedConcepts });
       const status = submitted === null || late ? 'auto_submitted' : 'submitted';
 
       await insertRows(

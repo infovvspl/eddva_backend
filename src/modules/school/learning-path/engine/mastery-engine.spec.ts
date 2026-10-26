@@ -275,6 +275,58 @@ describe('detectWeakConcepts', () => {
       { conceptTag: 'Roots', correct: 1, total: 2, accuracy: 50 },
     ]);
   });
+
+  it('without clusterFreeLabels, near-duplicate free labels stay separate and never reach minQuestions', () => {
+    const weak = detectWeakConcepts(
+      [
+        { conceptTag: 'Mirror sign convention', isCorrect: false },
+        { conceptTag: 'Sign convention in mirrors', isCorrect: false },
+      ],
+      cfg,
+    );
+    expect(weak).toEqual([]);
+  });
+
+  it('with clusterFreeLabels, merges near-duplicate free labels (word overlap >= 0.5) into one weak concept', () => {
+    const weak = detectWeakConcepts(
+      [
+        { conceptTag: 'Mirror sign convention', isCorrect: false },
+        { conceptTag: 'Sign convention in mirrors', isCorrect: false },
+      ],
+      cfg,
+      { clusterFreeLabels: true },
+    );
+    expect(weak).toEqual([{ conceptTag: 'Mirror sign convention', correct: 0, total: 2, accuracy: 0 }]);
+  });
+
+  it('with clusterFreeLabels, clearly distinct free labels are not merged', () => {
+    const weak = detectWeakConcepts(
+      [
+        { conceptTag: 'Mirror sign convention', isCorrect: false },
+        { conceptTag: 'Mirror sign convention', isCorrect: false },
+        { conceptTag: 'Lens formula derivation', isCorrect: false },
+        { conceptTag: 'Lens formula derivation', isCorrect: false },
+      ],
+      cfg,
+      { clusterFreeLabels: true },
+    );
+    expect(weak).toEqual([
+      { conceptTag: 'Mirror sign convention', correct: 0, total: 2, accuracy: 0 },
+      { conceptTag: 'Lens formula derivation', correct: 0, total: 2, accuracy: 0 },
+    ]);
+  });
+
+  it('with clusterFreeLabels, exact-match behavior (case/whitespace-insensitive) is unchanged', () => {
+    const weak = detectWeakConcepts(
+      [
+        { conceptTag: 'Discriminant', isCorrect: false },
+        { conceptTag: 'discriminant ', isCorrect: false },
+      ],
+      cfg,
+      { clusterFreeLabels: true },
+    );
+    expect(weak).toEqual([{ conceptTag: 'Discriminant', correct: 0, total: 2, accuracy: 0 }]);
+  });
 });
 
 describe('resolveMasteryConfig', () => {

@@ -40,10 +40,17 @@ export function sanitizeVideos(raw: unknown, max = MAX_VIDEOS): StepVideo[] {
   return out;
 }
 
-export function videoCacheKey(topicId: string, focus: string[], className: string | null = null, board = ''): string {
+/**
+ * `subtopicId`, when given, replaces `topicId` as the cache's own identity —
+ * so each subtopic under a topic gets its own cached video instead of all of
+ * them colliding on one topic-wide entry (they'd otherwise share both the
+ * same topicId and, for a first-round search, the same empty `focus`).
+ */
+export function videoCacheKey(topicId: string, focus: string[], className: string | null = null, board = '', subtopicId: string | null = null): string {
   const f = [...new Set(focus.map((c) => c.trim().toLowerCase()).filter(Boolean))].sort().join('|');
   const who = `${(className ?? '').trim().toLowerCase()}/${board.trim().toLowerCase()}`;
-  return `${CACHE_VERSION}:${topicId}:${who}:${f}`.slice(0, 300);
+  const scope = subtopicId ? `sub:${subtopicId}` : topicId;
+  return `${CACHE_VERSION}:${scope}:${who}:${f}`.slice(0, 300);
 }
 
 /**
@@ -61,10 +68,10 @@ export class TopicVideosService {
     private readonly aiBridge: AiBridgeService,
   ) {}
 
-  async forStep(student: StudentIdentity, topic: TopicContext, focus: string[]): Promise<StepVideo[]> {
+  async forStep(student: StudentIdentity, topic: TopicContext, focus: string[], subtopicId: string | null = null): Promise<StepVideo[]> {
     const instituteId = student.instituteId;
     const board = await this.board(instituteId);
-    const key = videoCacheKey(topic.topicId, focus, student.className, board);
+    const key = videoCacheKey(topic.topicId, focus, student.className, board, subtopicId);
     if (instituteId) {
       const cached = await this.ds.query(
         `SELECT videos_json FROM topic_video_cache

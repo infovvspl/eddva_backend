@@ -518,6 +518,24 @@ export function shouldRegenerateLesson(markdown: string | null | undefined, subj
   return false;
 }
 
+/**
+ * A lesson's own first "# Heading" line should match what it would be titled
+ * today. The one real case this catches: a subtopic thread's notes are now
+ * prompted with "# {subtopic name}" (see openNotesUncased's `topic.topicName`,
+ * overridden per-subtopic by the caller), but a session generated before that
+ * title override shipped still has the OLD "# {parent topic name}" heading —
+ * every subtopic under that topic looked identical at a glance. Detected
+ * purely from the markdown's own heading line, so it costs nothing extra to
+ * check, and is a no-op for an ordinary topic thread (whose heading always
+ * matched its own name anyway).
+ */
+export function lessonTitleStale(markdown: string | null | undefined, expectedTitle: string): boolean {
+  const text = String(markdown || '');
+  const match = text.match(/^#\s+(.+?)\s*$/m);
+  if (!match) return false; // no heading at all: shouldRegenerateLesson's length/section checks already catch this
+  return match[1].trim().toLowerCase() !== String(expectedTitle || '').trim().toLowerCase();
+}
+
 export function extractFormulaCandidates(markdown: string): string[] {
   const lines = String(markdown || '')
     .split('\n')

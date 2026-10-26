@@ -344,7 +344,16 @@ export class LearningReportService {
     return rows.map((r: any) => ({ ...r, n: Number(r.n) }));
   }
 
-  /** Every topic path the students have opened, with the score before starting and the latest. */
+  /**
+   * Every topic path the students have opened, with the score before starting and the latest.
+   *
+   * Deliberately `scope = 'topic'` only, not `IN ('topic', 'subtopic')`: a topic with subtopics
+   * now has one thread per subtopic instead of one shared thread, and `topicsStarted`/
+   * `topicsCompleted` below count path *rows*, which would stop meaning "topics" the moment a
+   * 5-subtopic topic contributed 5 rows. Reflecting per-subtopic-path activity in these reports
+   * needs its own topic-level dedupe/rollup (reusing home/completion.ts's rule, not just widening
+   * this filter) — out of scope for the per-subtopic-paths feature itself; left as a known gap.
+   */
   private async paths(ids: string[]): Promise<PathRow[]> {
     if (!ids.length) return [];
     return this.ds.query(

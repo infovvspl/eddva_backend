@@ -54,4 +54,9 @@ describe('videoCacheKey', () => {
     expect(videoCacheKey('t1', [], 'Class 10', 'CBSE')).not.toBe(videoCacheKey('t1', [], 'Class 10', 'ICSE'));
     expect(videoCacheKey('t1', [], 'Class 9', 'CBSE')).not.toBe(videoCacheKey('t1', [], 'Class 10', 'CBSE'));
   });
+
+  it('keys by subtopic, not topic, when given one — so siblings never collide on one topic-wide entry', () => {
+    expect(videoCacheKey('t1', [], null, '', 'sub1')).not.toBe(videoCacheKey('t1', [], null, '', 'sub2'));
+    expect(videoCacheKey('t1', [], null, '', 'sub1')).not.toBe(videoCacheKey('t1', [])); // topic's own (no subtopic) entry
+  });
 });

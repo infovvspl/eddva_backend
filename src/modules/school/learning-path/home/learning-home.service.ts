@@ -66,10 +66,9 @@ export class LearningHomeService {
         [student.studentId],
       ),
       this.ds.query(
-        `SELECT th.id::text, th.topic_id::text, th.status, th.current_round, th.parent_thread_id::text,
-                (SELECT COUNT(*)::int FROM learning_thread_steps st WHERE st.thread_id = th.id AND st.status = 'done') AS steps_done,
-                th.opened_subtopics
-           FROM learning_threads th WHERE th.student_id = $1 AND th.scope = 'topic'`,
+        `SELECT th.id::text, th.topic_id::text, th.subtopic_id::text, th.status, th.current_round, th.parent_thread_id::text,
+                (SELECT COUNT(*)::int FROM learning_thread_steps st WHERE st.thread_id = th.id AND st.status = 'done') AS steps_done
+           FROM learning_threads th WHERE th.student_id = $1 AND th.scope IN ('topic', 'subtopic')`,
         [student.studentId],
       ),
       this.ds.query(
@@ -121,11 +120,11 @@ export class LearningHomeService {
       threads: threadRows.map((t: any) => ({
         id: t.id,
         topicId: t.topic_id,
+        subtopicId: t.subtopic_id ?? null,
         status: t.status,
         round: t.current_round,
         parentThreadId: t.parent_thread_id,
         stepsDone: Number(t.steps_done ?? 0),
-        openedSubtopics: Array.isArray(t.opened_subtopics) ? t.opened_subtopics : [],
       })),
       scores,
       thresholds: {
