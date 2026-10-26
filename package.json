@@ -68,6 +68,7 @@
     "groq-sdk": "^1.2.1",
     "handlebars": "^4.7.9",
     "helmet": "^7.2.0",
+    "jose": "^5.10.0",
     "json2csv": "^6.0.0-alpha.2",
     "luxon": "^3.7.2",
     "mailtrap": "^5.0.0",

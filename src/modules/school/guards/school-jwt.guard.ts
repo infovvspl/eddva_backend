@@ -1,15 +1,19 @@
 import {
   CanActivate,
   ExecutionContext,
+  Inject,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { decodeProtectedHeader } from 'jose';
 import * as jwt from 'jsonwebtoken';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { IS_PUBLIC_KEY } from '../decorators/school-public.decorator';
 import { hasSchoolRole } from '../common/role-helper';
+import { PLATFORM_TOKEN_VERIFIER, PlatformTokenVerifier, platformVerifierFromEnv } from '../../../common/platform/platform-token.verifier';
 
 // The guard resolves the user from the DB on every authenticated request.
 // A short-lived cache absorbs request bursts (e.g. a chat panel firing several
@@ -127,7 +131,28 @@ export class SchoolJwtGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     @InjectDataSource('school') private readonly ds: DataSource,
+    @Optional() @Inject(PLATFORM_TOKEN_VERIFIER) private readonly platformVerifier?: PlatformTokenVerifier | null,
   ) { }
+
+  /**
+   * RS256 tokens are platform tokens. They are checked against the platform JWKS and mapped to a
+   * school user through users.platform_user_id (set only by the internal link endpoint) - never by
+   * email or tenant claims. Everything after this (role, institute, active flag) comes from the
+   * DB row exactly as for a school token.
+   */
+  private async resolvePlatformUserId(token: string): Promise<string> {
+    const verifier = this.platformVerifier ?? platformVerifierFromEnv();
+    if (!verifier) throw new UnauthorizedException('Invalid or expired token');
+    let sub: string | undefined;
+    try {
+      sub = (await verifier.verify(token)).payload.sub;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+    const rows: any[] = sub ? await this.ds.query(`SELECT id FROM users WHERE platform_user_id = $1`, [sub]) : [];
+    if (!rows.length) throw new UnauthorizedException('No school account is linked to this platform user');
+    return rows[0].id;
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -156,10 +181,20 @@ export class SchoolJwtGuard implements CanActivate {
     const jwtSecret = process.env.SCHOOL_JWT_SECRET ||
       (process.env.JWT_SECRET ? process.env.JWT_SECRET + '_school' : 'dev_school_secret_change_in_prod');
     let decoded: any;
+    let tokenAlg: string | undefined;
     try {
-      decoded = jwt.verify(token, jwtSecret);
+      tokenAlg = decodeProtectedHeader(token).alg;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
+    }
+    if (tokenAlg === 'RS256') {
+      decoded = { id: await this.resolvePlatformUserId(token) };
+    } else {
+      try {
+        decoded = jwt.verify(token, jwtSecret);
+      } catch {
+        throw new UnauthorizedException('Invalid or expired token');
+      }
     }
 
     const userId = decoded.id || decoded.sub;

@@ -38,6 +38,10 @@ export class User extends Base {
   @Column({ nullable: true })
   email: string;
 
+  /** Id of this person in eddva_platform. Set only by the internal platform link endpoint. */
+  @Column({ name: 'platform_user_id', type: 'varchar', nullable: true, unique: true })
+  platformUserId: string | null;
+
   @Column({ name: 'full_name' })
   fullName: string;
 

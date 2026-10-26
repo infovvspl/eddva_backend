@@ -20,6 +20,8 @@ export class SchoolUser extends SchoolBase {
   @Column({ type: 'varchar', default: SchoolUserRole.STUDENT }) role: string;
   @Column({ name: 'profile_image', nullable: true }) profileImage: string;
   @Column({ nullable: true }) phone: string;
+  /** Id of this person in eddva_platform. Set only by the internal platform link endpoint. */
+  @Column({ name: 'platform_user_id', type: 'varchar', nullable: true, unique: true }) platformUserId: string | null;
   @Column({ name: 'is_active', default: true }) isActive: boolean;
 
   @BeforeInsert()
