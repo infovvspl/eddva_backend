@@ -13,11 +13,15 @@ import compression from 'compression';
 import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { seedSuperAdmin } from './database/seeds/super-admin.seeder';
+import { installSkipNoopDdl } from './common/database/skip-noop-ddl';
 
 // Load env files early with override so .env.local always wins over .env and process.env
 for (const file of ['.env', '.env.local']) {
   if (existsSync(file)) dotenv.config({ path: file, override: true });
 }
+// Before any module boots: start-up ALTER ... ADD COLUMN IF NOT EXISTS for columns that
+// already exist must not take table locks (they stalled logins on the shared dev DB).
+installSkipNoopDdl();
 // Trigger restart
 function validateEnv(logger: Logger) {
   const isProd = process.env.NODE_ENV === 'production';
@@ -44,10 +48,21 @@ function validateEnv(logger: Logger) {
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   validateEnv(logger);
+  // bodyParser:false — Nest's own default json/urlencoded parsers (body-parser's
+  // 100kb default limit) get registered inside NestFactory.create(), BEFORE the
+  // explicit 10mb parsers below ever run. Since Express runs middleware in
+  // registration order, that default 100kb parser silently rejected (413) any
+  // request body over 100kb — e.g. almost any real file attached as base64 JSON
+  // (notice attachments, etc.) — no matter what limit was passed below.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    bodyParser: false,
   });
   app.set('trust proxy', true);
+  // Close TypeORM pools on SIGTERM/SIGINT so restarts/redeploys don't leak
+  // connections on the Postgres server (leaked connections are what exhaust
+  // RDS max_connections over repeated restarts).
+  app.enableShutdownHooks();
 
   // ── Static file serving for uploads ───────────────────────────────────────
   mkdirSync(join(__dirname, '..', 'uploads'), { recursive: true });
@@ -119,6 +134,8 @@ async function bootstrap() {
       'x-tenant-subdomain',
       'x-institute-domain',
       'x-vertical',
+      // The portal a school request comes from; see actingUser in school-jwt.guard.
+      'x-school-portal',
       'Cache-Control',
       'Pragma',
       'Expires',
@@ -332,9 +349,6 @@ async function bootstrap() {
     await schoolDs.query(`ALTER TABLE institutes ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
     await schoolDs.query(`ALTER TABLE institutes ADD COLUMN IF NOT EXISTS ai_features JSONB NOT NULL DEFAULT '{"ai_doubt_solver":true,"ai_notes_generator":true,"ai_quiz_generator":true,"ai_study_planner":true,"ai_career_guidance":true,"ai_ocr_handwriting":true,"ai_subjective_grading":true}'`);
     await schoolDs.query(`UPDATE institutes SET ai_features = '{"ai_doubt_solver":true,"ai_notes_generator":true,"ai_quiz_generator":true,"ai_study_planner":true,"ai_career_guidance":true,"ai_ocr_handwriting":true,"ai_subjective_grading":true}'::jsonb WHERE ai_features = '[]'::jsonb OR ai_features = '{}'::jsonb`);
-    // Ensure all existing institutes have these OCR features merged in, and ensure AI is active (ai_enabled=true) for development/sandbox
-    await schoolDs.query(`UPDATE institutes SET ai_enabled = true`);
-    await schoolDs.query(`UPDATE institutes SET ai_features = ai_features || '{"ai_ocr_handwriting":true,"ai_subjective_grading":true}'::jsonb`);
     await schoolDs.query(`ALTER TABLE institutes ADD COLUMN IF NOT EXISTS modules_permissions JSONB NOT NULL DEFAULT '{"live_classes":true,"assessments":true,"assignments":true,"chat":true}'`);
     await schoolDs.query(`UPDATE institutes SET modules_permissions = '{"live_classes":true,"assessments":true,"assignments":true,"chat":true}'::jsonb WHERE modules_permissions = '{}'::jsonb OR modules_permissions IS NULL`);
     await schoolDs.query(`

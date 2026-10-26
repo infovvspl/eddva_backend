@@ -3,10 +3,30 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { UserRole } from '../../../database/entities/user.entity';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolStaffService {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+
+  // Mirrors SchoolTeacherService.resolveOptionalInstituteId(): an institute
+  // admin is always scoped to their own institute, while a platform super
+  // admin (no institute of their own) may pass one via ?instituteId= — the
+  // Administrators page's "Add Administrator" picker calls this cross-institute
+  // when a super admin manages a specific institute's admins.
+  private resolveOptionalInstituteId(user: any, requestedInstituteId?: string): string | null {
+    const userInstituteId = user.instituteId || user.institute_id || null;
+    if (hasSchoolRole(user.role, 'SUPER_ADMIN')) {
+      if (userInstituteId) {
+        if (requestedInstituteId && requestedInstituteId !== 'ALL' && requestedInstituteId !== userInstituteId) {
+          throw new BadRequestException('Unauthorized institute access');
+        }
+        return userInstituteId;
+      }
+      return requestedInstituteId && requestedInstituteId !== 'ALL' ? requestedInstituteId : null;
+    }
+    return userInstituteId;
+  }
 
   async create(user: any, body: any) {
     const instituteId = user.instituteId;
@@ -38,29 +58,40 @@ export class SchoolStaffService {
   }
 
   async list(user: any, query: any) {
-    const instituteId = user.instituteId;
+    const instituteId = this.resolveOptionalInstituteId(user, query.instituteId);
     const page = Number(query.page || 1);
     const limit = Number(query.limit || 20);
     const offset = (page - 1) * limit;
 
+    const where = instituteId ? `u.institute_id = $1 AND u.role = $2` : `u.role = $1`;
+    const baseParams = instituteId ? [instituteId, UserRole.STAFF] : [UserRole.STAFF];
+
     const rows: any[] = await this.ds.query(
-      `SELECT u.id, u.name, u.email, u.phone, u.profile_image, u.is_active, u.created_at, u.role_id, r.name as custom_role_name
+      `SELECT u.id, u.name, u.email, u.phone, u.profile_image, u.is_active, u.created_at, u.role_id, r.name as custom_role_name,
+              u.role, u.is_primary_admin, u.admin_permissions
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
-       WHERE u.institute_id = $1 AND u.role = $2
+       WHERE ${where}
        ORDER BY u.created_at DESC
-       LIMIT $3 OFFSET $4`,
-      [instituteId, UserRole.STAFF, limit, offset]
+       LIMIT $${baseParams.length + 1} OFFSET $${baseParams.length + 2}`,
+      [...baseParams, limit, offset]
     );
 
     const countRes = await this.ds.query(
-      `SELECT COUNT(*)::int as total FROM users WHERE institute_id = $1 AND role = $2`,
-      [instituteId, UserRole.STAFF]
+      `SELECT COUNT(*)::int as total FROM users WHERE ${where}`,
+      baseParams
     );
+
+    const mappedRows = rows.map((r) => ({
+      ...r,
+      profileImage: r.profile_image,
+      isPrimaryAdmin: r.is_primary_admin === true,
+      adminPermissions: typeof r.admin_permissions === 'string' ? JSON.parse(r.admin_permissions) : r.admin_permissions,
+    }));
 
     return {
       success: true,
-      data: rows,
+      data: mappedRows,
       total: countRes[0].total,
       page,
       limit,

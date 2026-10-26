@@ -323,6 +323,39 @@ export class SchoolClassService implements OnModuleInit {
     return 'en';
   }
 
+  /**
+   * Language subjects (Hindi, Odia) whose AI notes/quiz must be produced in that
+   * language regardless of the per-recording language dropdown — the subject
+   * being taught determines content language here, not how the teacher tagged
+   * the upload.
+   */
+  private languageFromSubjectName(subjectName?: string | null): 'hi' | 'od' | null {
+    const name = String(subjectName || '').toLowerCase();
+    if (/\bhindi\b/.test(name)) return 'hi';
+    if (/\bodia\b|\boriya\b/.test(name)) return 'od';
+    return null;
+  }
+
+  /**
+   * Content language for AI notes/quiz generation: a language subject (Hindi/Odia)
+   * always wins over the recording's own `language` field; every other subject
+   * falls back to the per-recording language the teacher selected at upload.
+   * Transcription keeps using `normalizeLanguage(rec.language)` directly, since
+   * that should match what was actually spoken, not the subject being taught.
+   */
+  private resolveContentLanguage(rec: { language?: any; subject_name?: string | null }): 'en' | 'hi' | 'hinglish' | 'od' {
+    return this.languageFromSubjectName(rec.subject_name) ?? this.normalizeLanguage(rec.language);
+  }
+
+  /**
+   * In-video quiz language: only a language subject (Hindi/Odia) gets a quiz in
+   * that language; every other subject is always quizzed in English, even when
+   * the lecture was spoken/tagged as Hindi or Hinglish.
+   */
+  private resolveQuizLanguage(rec: { subject_name?: string | null }): 'en' | 'hi' | 'od' {
+    return this.languageFromSubjectName(rec.subject_name) ?? 'en';
+  }
+
   /** Presigned S3 PUT URL for a recorded-class video (browser uploads directly). */
   async presignUpload(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }, req?: any) {
     const instituteId = this.resolveInstituteId(user, (body as any).instituteId);
@@ -404,8 +437,12 @@ export class SchoolClassService implements OnModuleInit {
       const classParam = params.length;
       params.push(scope.sectionId);
       const sectionParam = params.length;
+      // Internal QA fixtures use a "QA-TEST" title prefix by convention — exclude them from
+      // the student-facing list (and therefore the study planner's backlog counts, which are
+      // derived from this same endpoint) so testing artifacts never surface as real coursework.
       sql += ` AND r.class_id = $${classParam}::uuid
-               AND r.section_id = $${sectionParam}::uuid`;
+               AND r.section_id = $${sectionParam}::uuid
+               AND r.title NOT ILIKE 'QA-TEST%'`;
     }
     sql += ` ORDER BY r.created_at DESC`;
     const rows = await this.ds.query(sql, params);
@@ -558,6 +595,14 @@ export class SchoolClassService implements OnModuleInit {
     let effectiveSubjectId = body.subjectId;
     let effectiveChapterId = body.chapterId || null;
     let effectiveTopicId = body.topicId || null;
+    // subjects.class_id is frequently NULL — a subject may carry a section_id
+    // instead (see school-ppt.service.ts's CLASS_JOIN) — so the class is
+    // resolved through the section too, not the subjects row alone. Matching
+    // on sub.class_id directly here mismatched every section-scoped subject,
+    // which fell through to the name-fallback below and could remap
+    // effectiveSubjectId to an unrelated subject row — silently dropping the
+    // selected chapter (it validates against chapters of the *wrong*
+    // subject's id) and leaving videoUrl/title as the lecture's only content.
     const scopeRows = await this.ds.query(
       `SELECT sub.id, sub.name
        FROM sections sec
@@ -567,7 +612,7 @@ export class SchoolClassService implements OnModuleInit {
          AND sec.id::text = $2::text
          AND c.institute_id::text = $3::text
          AND sub.institute_id::text = $3::text
-         AND sub.class_id::text = $1::text
+         AND COALESCE(sub.class_id::text, sec.class_id::text) = $1::text
          AND (sub.section_id IS NULL OR sub.section_id::text = $2::text)
        LIMIT 1`,
       [body.classId, body.sectionId, instituteId, body.subjectId],
@@ -579,10 +624,11 @@ export class SchoolClassService implements OnModuleInit {
          JOIN subjects scoped
            ON LOWER(TRIM(scoped.name)) = LOWER(TRIM(selected.name))
           AND scoped.institute_id::text = selected.institute_id::text
-          AND scoped.class_id::text = $2::text
-          AND (scoped.section_id IS NULL OR scoped.section_id::text = $3::text)
+         LEFT JOIN sections scoped_sec ON scoped_sec.id::text = scoped.section_id::text
          WHERE selected.id::text = $1::text
            AND selected.institute_id::text = $4::text
+           AND COALESCE(scoped.class_id::text, scoped_sec.class_id::text) = $2::text
+           AND (scoped.section_id IS NULL OR scoped.section_id::text = $3::text)
          ORDER BY CASE WHEN scoped.section_id::text = $3::text THEN 0 ELSE 1 END
          LIMIT 1`,
         [body.subjectId, body.classId, body.sectionId, instituteId],
@@ -835,15 +881,17 @@ export class SchoolClassService implements OnModuleInit {
       // Kick off transcription so a live recording gets a transcript, notes and a
       // quiz — the whole point of publishing it here (see the method doc). Without
       // this it sits at transcript_status=null exactly like an untranscribed upload.
+      //
+      // Through the durable lecture job, like uploads: it runs transcript then
+      // notes inside an AI request context. Calling processTranscription
+      // directly from this background path had no institute in context, so AI
+      // admission refused every live recording ("could not be attributed to an
+      // authenticated institute") and no notes were ever made. The institute is
+      // the lecture row's own, set server-side when the class was created.
       const liveInstituteId = lecture.institute_id || lecture.instituteId;
       if (liveInstituteId && data.recordingUrl) {
-        this.processTranscription(
-          recording.id,
-          data.recordingUrl,
-          lecture.topic_id || lecture.topicId || null,
-          liveInstituteId,
-          'en',
-        ).catch((err) => this.logger.warn(`Transcription kickoff failed for live ${recording.id}: ${err?.message}`));
+        this.enqueueLectureJob(recording, null, liveInstituteId)
+          .catch((err) => this.logger.warn(`Lecture job kickoff failed for live ${recording.id}: ${err?.message}`));
       }
     } catch (err: any) {
       this.logger.warn(`Failed to create class_recording from live broadcast: ${err?.message}`);
@@ -1687,8 +1735,11 @@ export class SchoolClassService implements OnModuleInit {
   async runLectureJob(data: LectureJobData, attempt = 1): Promise<void> {
     await this.ensureTable();
     const rows = await this.ds.query(
-      `SELECT id, video_url, transcript, transcript_status, notes_status, topic_id, language
-       FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      `SELECT r.id, r.video_url, r.transcript, r.transcript_status, r.notes_status, r.topic_id, r.language,
+              s.name AS subject_name
+       FROM class_recordings r
+       LEFT JOIN subjects s ON s.id = r.subject_id
+       WHERE r.id=$1 AND r.institute_id=$2::uuid`,
       [data.recordingId, data.instituteId],
     );
     if (!rows.length) {
@@ -1697,7 +1748,8 @@ export class SchoolClassService implements OnModuleInit {
       return;
     }
     const rec = rows[0];
-    const language = this.normalizeLanguage(rec.language);
+    const language = this.normalizeLanguage(rec.language); // transcription: matches what was actually spoken
+    const notesLanguage = this.resolveContentLanguage(rec); // notes: a language subject (Hindi/Odia) wins
     const topicId = rec.topic_id || null;
 
     await this.setLectureJob(data.recordingId, LectureJobStatus.TRANSCRIBING, { started: true, attempt });
@@ -1728,7 +1780,7 @@ export class SchoolClassService implements OnModuleInit {
               transcript = t[0]?.transcript || transcript;
             }
             await this.setLectureJob(data.recordingId, LectureJobStatus.GENERATING_NOTES);
-            await this.generateNotes(rec.id, transcript, topicId, data.instituteId, language);
+            await this.generateNotes(rec.id, transcript, topicId, data.instituteId, notesLanguage);
           }
 
           await this.setLectureJob(data.recordingId, LectureJobStatus.COMPLETED, { completed: true });
@@ -1964,7 +2016,10 @@ export class SchoolClassService implements OnModuleInit {
     await this.ensureTable();
     const instituteId = this.resolveInstituteId(user);
     const rows = await this.ds.query(
-      `SELECT id, title, transcript, notes, topic_id, language FROM class_recordings WHERE id=$1 AND institute_id=$2::uuid`,
+      `SELECT r.id, r.title, r.transcript, r.notes, r.topic_id, r.language, s.name AS subject_name
+       FROM class_recordings r
+       LEFT JOIN subjects s ON s.id = r.subject_id
+       WHERE r.id=$1 AND r.institute_id=$2::uuid`,
       [id, instituteId],
     );
     if (!rows.length) throw new NotFoundException('Recording not found');
@@ -1990,7 +2045,7 @@ export class SchoolClassService implements OnModuleInit {
           lectureTitle: rec.title || 'Lecture',
           topicId: rec.topic_id || '',
           numQuestions: 5,
-          language: rec.language,
+          language: this.resolveQuizLanguage(rec),
         },
         instituteId,
       );

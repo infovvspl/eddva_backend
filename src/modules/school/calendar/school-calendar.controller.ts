@@ -5,10 +5,13 @@ import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolFeature } from '../decorators/school-feature.decorator';
 import { SchoolFeatureGuard } from '../guards/school-feature.guard';
+import { AdminModuleGuard } from '../guards/admin-module.guard';
+import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
 
 @Controller('school/calendar')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, SchoolFeatureGuard, AdminModuleGuard)
 @SchoolFeature('module', 'academic_calendar')
+@RequireAdminModule('academic_calendar')
 export class SchoolCalendarController {
   constructor(private readonly svc: SchoolCalendarService) {}
 

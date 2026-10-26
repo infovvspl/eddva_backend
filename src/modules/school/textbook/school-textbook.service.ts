@@ -867,9 +867,14 @@ export class SchoolTextbookService implements OnModuleInit {
     await this.ensureSchema();
 
     const chapterRows = await this.ds.query(
-      `SELECT c.id, c.name AS chapter_name, s.id AS subject_id, s.class_id
+      // subjects.class_id is frequently NULL — a subject may carry a section_id
+      // instead (see school-ppt.service.ts's CLASS_JOIN) — so the class is
+      // resolved through the section too, not the subjects row alone.
+      `SELECT c.id, c.name AS chapter_name, s.id AS subject_id,
+              COALESCE(s.class_id, sec.class_id) AS class_id
        FROM chapters c
        JOIN subjects s ON s.id = c.subject_id
+       LEFT JOIN sections sec ON sec.id = s.section_id
        WHERE c.id::text = $1::text LIMIT 1`,
       [chapterId],
     );
@@ -880,6 +885,17 @@ export class SchoolTextbookService implements OnModuleInit {
     const key = `tenants/${instituteId}/school-materials/${Date.now()}-${randomUUID()}-${safeName}`;
     const fileUrl = await this.s3Service.upload(key, file.buffer, file.mimetype || 'application/pdf');
 
+    // A chapter's textbook is trained once for the whole class. section_id is
+    // deliberately left NULL rather than fanned out to today's assigned
+    // sections: fanning out would freeze "which sections see this" as of
+    // training time, so a section added — or newly assigned this subject —
+    // afterwards would silently miss every chapter trained before that
+    // change, needing a re-train or manual backfill to catch up. With NULL,
+    // the materials list (school-material.service.ts) resolves "which
+    // sections of this class actually teach this subject" live, off
+    // teacher_academic_assignments, every time it's queried — so a section
+    // assigned later sees every already-trained chapter immediately, and one
+    // row per chapter never multiplies no matter how many times it's retrained.
     const inserted = await this.ds.query(
       // exam and type are NOT NULL enums; 'school'/'ebook' is what the 300-odd
       // chapter PDFs already in this table use.
@@ -894,6 +910,31 @@ export class SchoolTextbookService implements OnModuleInit {
       ],
     );
     const materialId = inserted[0].id;
+
+    // A replacement supersedes every earlier upload made *through this
+    // pipeline* for this chapter. study_materials itself has no upsert key
+    // (unlike textbook_sources, keyed by chapter_id), so without this each
+    // "Replace" piles up another row — the teacher-facing materials list
+    // (school-material.service.ts's list()) has no "latest only" logic and
+    // would show every past version as its own E-book entry instead of just
+    // the one actually being trained.
+    //
+    // Scoped to rows this pipeline itself created (content_source IS NULL,
+    // never set by /school/materials' create(), and tracked in
+    // textbook_link_status, written only by uploadAndIndex/auditLinks) so a
+    // teacher's own "E-book" reference material for the same chapter — a
+    // different, personal upload — is never touched.
+    await this.ds.query(
+      `UPDATE study_materials sm
+          SET is_active = FALSE
+        WHERE sm.chapter_id::text = $1::text
+          AND sm.type = 'ebook'::study_materials_type_enum
+          AND sm.id::text <> $2::text
+          AND sm.tenant_id::text = $3::text
+          AND sm.content_source IS NULL
+          AND EXISTS (SELECT 1 FROM textbook_link_status ls WHERE ls.material_id::text = sm.id::text)`,
+      [chapter.id, materialId, instituteId],
+    );
 
     // A freshly uploaded file is by definition reachable; recording it keeps the
     // bulk run from re-checking and the coverage screen from showing it unknown.

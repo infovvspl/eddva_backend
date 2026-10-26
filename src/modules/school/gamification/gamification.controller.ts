@@ -23,8 +23,9 @@ export class SchoolGamificationController {
     @Req() req: Request,
     @Query('sessionId') sessionId: string,
     @Query('currentIdx') currentIdx?: string,
+    @Query('answers') answers?: string,
   ) {
-    return this.gamification.getNextQuizRushQuestion((req as any).user, sessionId, currentIdx);
+    return this.gamification.getNextQuizRushQuestion((req as any).user, sessionId, currentIdx, answers);
   }
 
   @Post('quiz-rush/submit')
@@ -49,11 +50,10 @@ export class SchoolGamificationController {
     @Req() req: Request,
     @Query('questId') questId: string,
     @Query('stageOrder') stageOrder?: string,
-    @Query('mode') mode?: string,
     @Query('subjectId') subjectId?: string,
     @Query('chapterId') chapterId?: string,
   ) {
-    return this.gamification.getTreasureChallenge((req as any).user, questId, Number(stageOrder || 1), mode || 'ranked', subjectId, chapterId);
+    return this.gamification.getTreasureChallenge((req as any).user, questId, Number(stageOrder || 1), subjectId, chapterId);
   }
 
   @Post('treasure/complete')
@@ -63,8 +63,8 @@ export class SchoolGamificationController {
 
   @Get('math-sprint/start')
   @SchoolFeature('ai', 'ai_game_quizzes')
-  startMathSprint(@Req() req: Request, @Query('difficulty') difficulty: string, @Query('mode') mode?: string) {
-    return this.gamification.startMathSprint((req as any).user, difficulty || 'medium', mode || 'ranked');
+  startMathSprint(@Req() req: Request) {
+    return this.gamification.startMathSprint((req as any).user);
   }
 
   @Get('math-sprint/next-question')
@@ -73,8 +73,9 @@ export class SchoolGamificationController {
     @Req() req: Request,
     @Query('sessionId') sessionId: string,
     @Query('currentIdx') currentIdx?: string,
+    @Query('lastCorrect') lastCorrect?: string,
   ) {
-    return this.gamification.getNextMathSprintQuestion((req as any).user, sessionId, currentIdx);
+    return this.gamification.getNextMathSprintQuestion((req as any).user, sessionId, currentIdx, lastCorrect);
   }
 
   @Post('math-sprint/submit')
@@ -97,12 +98,10 @@ export class SchoolGamificationController {
   startMemoryMatch(
     @Req() req: Request,
     @Query('deckId') deckId: string,
-    @Query('difficulty') difficulty?: string,
-    @Query('mode') mode?: string,
     @Query('subjectId') subjectId?: string,
     @Query('chapterId') chapterId?: string,
   ) {
-    return this.gamification.startMemoryMatch((req as any).user, deckId, difficulty, mode || 'ranked', subjectId, chapterId);
+    return this.gamification.startMemoryMatch((req as any).user, deckId, subjectId, chapterId);
   }
 
   @Post('memory-match/submit')
@@ -125,12 +124,10 @@ export class SchoolGamificationController {
   startWordMaster(
     @Req() req: Request,
     @Query('deckId') deckId: string,
-    @Query('difficulty') difficulty?: string,
-    @Query('mode') mode?: string,
     @Query('subjectId') subjectId?: string,
     @Query('chapterId') chapterId?: string,
   ) {
-    return this.gamification.startWordMaster((req as any).user, deckId, difficulty, mode || 'ranked', subjectId, chapterId);
+    return this.gamification.startWordMaster((req as any).user, deckId, subjectId, chapterId);
   }
 
   @Post('word-master/submit-word')

@@ -8,6 +8,8 @@ import {
   SCHOOL_NOTIFICATION_TEMPLATES,
   fillTemplate,
 } from '../notification-fcm/school-notification-templates';
+import { MailService } from '../../mail/mail.service';
+import { randomBytes } from 'crypto';
 
 import * as bcrypt from 'bcryptjs';
 
@@ -19,7 +21,12 @@ export class SchoolInstituteService {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notificationService: SchoolNotificationService,
     private readonly fcm: FcmService,
+    private readonly mailService: MailService,
   ) {}
+
+  private generateTempPassword() {
+    return randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+  }
 
   private normalizeTenantDomain(value: unknown): string | null {
     if (value === undefined || value === null) return null;
@@ -51,11 +58,11 @@ export class SchoolInstituteService {
           name, email, phone, address, city, state, pin_code, logo, tenant_domain, status,
           alternate_phone, principal_name, registration_no, plot_no, street_name, land_mark, district,
           website, school_type, board, established_year, affiliation_no, total_classes,
-          total_students, total_teachers, ai_enabled, ai_features, active_modules
+          total_students, total_teachers, ai_enabled, ai_features, active_modules, erp_enabled, lms_enabled
          )
          VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
+          $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30
          ) RETURNING *`,
         [
           name.trim(),
@@ -86,6 +93,8 @@ export class SchoolInstituteService {
           body.aiEnabled ?? body.ai_enabled ?? false,
           JSON.stringify(body.aiFeatures || body.ai_features || {}),
           JSON.stringify(body.activeModules || body.active_modules || []),
+          body.erpEnabled ?? body.erp_enabled ?? false,
+          body.lmsEnabled ?? body.lms_enabled ?? true,
         ],
       );
       institute = rows[0];
@@ -100,8 +109,8 @@ export class SchoolInstituteService {
       const hashed = await bcrypt.hash(body.adminPassword, 12);
       const adminName = body.principalName || body.adminName || 'Admin';
       await this.ds.query(
-        `INSERT INTO users (institute_id, name, email, password, role, phone, is_active)
-         VALUES ($1,$2,$3,$4,'INSTITUTE_ADMIN',$5,TRUE)`,
+        `INSERT INTO users (institute_id, name, email, password, role, phone, is_active, is_primary_admin)
+         VALUES ($1,$2,$3,$4,'INSTITUTE_ADMIN',$5,TRUE,TRUE)`,
         [institute.id, adminName, body.email, hashed, body.phone || null]
       );
     }
@@ -362,8 +371,10 @@ export class SchoolInstituteService {
     const aiFeatures = body.aiFeatures ?? body.ai_features;
     const activeModules = body.activeModules ?? body.active_modules;
     const modulesPermissions = body.modulesPermissions ?? body.modules_permissions;
+    const erpEnabled = body.erpEnabled ?? body.erp_enabled;
+    const lmsEnabled = body.lmsEnabled ?? body.lms_enabled;
 
-    console.log('UPDATE INSTITUTE - BODY:', JSON.stringify({ aiEnabled, aiFeatures, modulesPermissions }));
+    console.log('UPDATE INSTITUTE - BODY:', JSON.stringify({ aiEnabled, aiFeatures, modulesPermissions, erpEnabled, lmsEnabled }));
 
     await this.ds.query(
       `UPDATE institutes SET
@@ -389,6 +400,8 @@ export class SchoolInstituteService {
        active_modules=CASE WHEN $22::jsonb IS NOT NULL THEN $22::jsonb ELSE active_modules END,
        board=COALESCE($21,board),
        min_attendance_percentage=COALESCE($23::numeric,min_attendance_percentage),
+       erp_enabled=COALESCE($24::boolean,erp_enabled),
+       lms_enabled=COALESCE($25::boolean,lms_enabled),
        updated_at=NOW() WHERE id=$1`,
       [
         id,
@@ -414,6 +427,8 @@ export class SchoolInstituteService {
         body.board || null,
         activeModules !== undefined ? JSON.stringify(activeModules) : null,
         body.minAttendancePercentage ?? body.min_attendance_percentage ?? null,
+        erpEnabled !== undefined ? erpEnabled : null,
+        lmsEnabled !== undefined ? lmsEnabled : null,
       ],
     );
 
@@ -483,8 +498,8 @@ export class SchoolInstituteService {
     if (!adminEmail || !hashedPassword) return;
 
     await this.ds.query(
-      `INSERT INTO users (institute_id, name, email, password, role, phone, is_active)
-       VALUES ($1, $2, $3, $4, 'INSTITUTE_ADMIN', $5, TRUE)`,
+      `INSERT INTO users (institute_id, name, email, password, role, phone, is_active, is_primary_admin)
+       VALUES ($1, $2, $3, $4, 'INSTITUTE_ADMIN', $5, TRUE, TRUE)`,
       [
         instituteId,
         adminName || 'Admin',
@@ -498,6 +513,35 @@ export class SchoolInstituteService {
   async setStatus(id: string, status: string) {
     await this.ds.query(`UPDATE institutes SET status=$2, updated_at=NOW() WHERE id=$1`, [id, status]);
     return this.findOne(id);
+  }
+
+  /**
+   * Resets the institute's primary admin password and re-sends the
+   * credentials email — for when the original onboarding email was lost, or
+   * never arrived (mail provider down, typo'd address later corrected, etc).
+   */
+  async resendCredentials(id: string) {
+    const institute = await this.findOne(id);
+
+    const admins: Array<{ id: string; email: string | null; name: string }> = await this.ds.query(
+      `SELECT id, email, name FROM users
+       WHERE institute_id = $1 AND role = 'INSTITUTE_ADMIN'
+       ORDER BY created_at ASC LIMIT 1`,
+      [id],
+    );
+    const admin = admins[0];
+    if (!admin) throw new NotFoundException('No admin account found for this institute');
+    if (!admin.email) throw new NotFoundException("This institute's admin has no email on file");
+
+    const tempPassword = this.generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
+    await this.ds.query(
+      `UPDATE users SET password = $1, is_first_login = true, updated_at = NOW() WHERE id = $2`,
+      [passwordHash, admin.id],
+    );
+
+    const result = await this.mailService.sendCredentials(admin.email, admin.name, admin.email, tempPassword, institute.name);
+    return { message: result.sent ? 'Credentials re-sent' : 'Password reset, but the email could not be sent', emailSent: result.sent };
   }
 
   async delete(id: string) {

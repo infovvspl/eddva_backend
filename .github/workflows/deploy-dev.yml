@@ -11,18 +11,32 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install & Build
         run: |
           npm ci
           npm run build
+          test -f dist/main.js
+
+      # The build happens here, on GitHub's machine, and only the result goes to
+      # the server. The server used to run npm ci + nest build itself: minutes of
+      # full CPU on the 2-CPU box that also serves PRODUCTION (eddva.in), which
+      # made dev and prod slow on every push - and an npm ci that failed half-way
+      # (an ffmpeg-static download 504) left the server without node_modules.
+      - name: Package the build
+        run: |
+          mkdir -p release
+          # package.json and package-lock.json travel with the build: the
+          # server needs them for npm ci and cannot fetch them itself (the
+          # repository is private and the server holds no GitHub credentials).
+          tar -czf release/dist.tgz dist package.json package-lock.json
 
       - name: Get runner IP and open EC2 security group
         env:
@@ -39,6 +53,16 @@ jobs:
             --cidr "${RUNNER_IP}/32" \
             --description "GitHub Actions runner (auto-removed)" || true
 
+      - name: Upload the build to EC2 (DEV)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: release/dist.tgz
+          target: /home/ubuntu/eddva_backend_dev/.release
+          strip_components: 1
+
       - name: Deploy to EC2 (DEV)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -46,27 +70,42 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: SCHOOL_JWT_SECRET
-          # A clean npm ci + nest build on this box runs close to the action's
-          # 10m default, so a slightly slower run (server busy, e.g. a transcode)
-          # trips "Run Command Timeout". Give it real headroom.
+          # Usually seconds now (no build here). Headroom for the occasional
+          # npm ci, which runs only when package-lock.json changed.
           command_timeout: 25m
           script: |
             set -e
             cd /home/ubuntu/eddva_backend_dev
-            git fetch --all
-            git reset --hard origin/dev
-            # npm ci already removes node_modules; the explicit rm just adds delete
-            # time on a large tree, so skip it.
-            npm ci
-            # Prune the install caches. ffmpeg-static's postinstall downloads a
-            # ~70MB binary into ~/.cache on every npm ci, and nothing ever
-            # removed it: on 2026-10-04 that cache had reached 9.1GB across
-            # ~130 deploys, filled the 24GB root volume, killed the pm2 daemon
-            # and took dev AND prod down until the disk was cleared by hand.
-            # Both caches are rebuilt on demand, so dropping them costs only a
-            # slower next install.
-            rm -rf /home/ubuntu/.cache/ffmpeg-static-nodejs "$HOME/.npm/_cacache"
-            npm run build
+            mkdir -p .release
+            # The package files come from the build tarball, not git: the
+            # repository is private and this server has no GitHub credentials.
+            tar -xzf .release/dist.tgz package.json package-lock.json
+            # Packages are reinstalled only when package-lock.json changed (most
+            # pushes do not), and at low priority so production keeps the CPU.
+            LOCK_SHA=$(sha256sum package-lock.json | cut -d' ' -f1)
+            if [ ! -d node_modules ] || [ "$(cat .release/deps.sha 2>/dev/null)" != "$LOCK_SHA" ]; then
+              echo "package-lock.json changed: npm ci"
+              nice -n 10 ionice -c3 npm ci
+              echo "$LOCK_SHA" > .release/deps.sha
+              # Prune the install caches. ffmpeg-static's postinstall downloads a
+              # ~70MB binary into ~/.cache on every npm ci, and nothing ever
+              # removed it: on 2026-10-04 that cache had reached 9.1GB across
+              # ~130 deploys, filled the 24GB root volume, killed the pm2 daemon
+              # and took dev AND prod down until the disk was cleared by hand.
+              # Both caches are rebuilt on demand, so dropping them costs only a
+              # slower next install.
+              rm -rf /home/ubuntu/.cache/ffmpeg-static-nodejs "$HOME/.npm/_cacache"
+            else
+              echo "package-lock.json unchanged: keeping node_modules"
+            fi
+            # The new build goes in next to the running one and is swapped in
+            # just before the restart; the previous one is kept for rollback.
+            rm -rf dist.new && mkdir dist.new
+            tar -xzf .release/dist.tgz -C dist.new --strip-components=1 dist
+            test -f dist.new/main.js
+            rm -rf dist.prev
+            if [ -d dist ]; then mv dist dist.prev; fi
+            mv dist.new dist
             grep -q '^SCHOOL_JWT_SECRET=' .env \
               && sed -i "s|^SCHOOL_JWT_SECRET=.*|SCHOOL_JWT_SECRET=${SCHOOL_JWT_SECRET}|" .env \
               || echo "SCHOOL_JWT_SECRET=${SCHOOL_JWT_SECRET}" >> .env
@@ -91,6 +130,26 @@ jobs:
                 -i 1 \
                 --max-memory-restart 400M \
                 --log /home/ubuntu/logs/backend-dev.log
+            fi
+            # Healthy = the API answers (401 without a login). If the new build
+            # does not come up within 90s, the previous build is put back.
+            PORT=$(grep -E '^PORT=' .env | tail -1 | cut -d= -f2 | tr -dc '0-9'); PORT=${PORT:-3001}
+            healthy() {
+              for i in $(seq 1 45); do
+                code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:${PORT}/api/v1/school/auth/me" || true)
+                if [ "$code" = "401" ] || [ "$code" = "200" ]; then echo "healthy after about $((i * 2))s"; return 0; fi
+                sleep 2
+              done
+              return 1
+            }
+            if ! healthy; then
+              echo "New build did not come up; rolling back to the previous build"
+              if [ -d dist.prev ]; then
+                rm -rf dist.failed && mv dist dist.failed && mv dist.prev dist
+                pm2 restart eddva-backend-dev --update-env
+                healthy || echo "Previous build did not come up either"
+              fi
+              exit 1
             fi
             pm2 save
 

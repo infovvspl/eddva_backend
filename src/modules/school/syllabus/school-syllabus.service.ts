@@ -1,7 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { hasSchoolRole } from '../common/role-helper';
 
 @Injectable()
 export class SchoolSyllabusService implements OnModuleInit {
@@ -272,50 +276,74 @@ export class SchoolSyllabusService implements OnModuleInit {
     ]);
   }
 
-  /** Formats one planned topic (from chapter_allocations) merged with its live progress row,
-   *  in the same shape every existing endpoint has always returned to the frontend. */
-  private formatTopicProgress(ch: any, t: any, match: any | undefined) {
-    const statusMap: Record<string, string> = { PLANNED: 'pending', IN_PROGRESS: 'in_progress', COMPLETED: 'completed', DELAYED: 'delayed' };
-    return {
-      topicId: t.topicId || t.id || null,
-      topicName: t.topicName || t.name || 'Topic',
-      chapterId: ch.chapterId,
-      chapterName: ch.chapterName,
-      chapterTerm: ch.term || 'Unit 1',
-      status: match ? (statusMap[match.status] || 'pending') : (t.status || 'pending'),
-      progress: match ? (match.progress ?? 0) : (t.progress ?? 0),
-      plannedPeriods: match?.planned_periods ?? t.plannedPeriods ?? t.periods ?? 1,
-      actualPeriods: match?.actual_periods ?? t.actualPeriods ?? 0,
-      remarks: match?.remarks ?? t.remarks ?? null,
-      delayReason: match?.delay_reason ?? t.delayReason ?? null,
-      carryForwardDate: match?.carry_forward_date ? new Date(match.carry_forward_date).toISOString().split('T')[0] : (t.carryForwardDate || null),
-      completedAt: match?.completed_at ? new Date(match.completed_at).toISOString() : (t.completedAt || null),
-    };
+  /**
+   * Counts actual classes conducted for a plan's teacher/subject/class/section —
+   * only finalized attendance_sessions count, since an unfinalized session means
+   * attendance was opened but never confirmed as held. This is the system's sole
+   * input for "how much of this plan has actually happened"; nothing here is
+   * self-reported by the teacher.
+   */
+  private async getConductedPeriods(plan: {
+    teacherId?: string | null;
+    subjectId?: string | null;
+    classId?: string | null;
+    sectionId?: string | null;
+    plannedStartDate?: any;
+  }): Promise<number> {
+    if (!plan.teacherId || !plan.subjectId) return 0;
+
+    // syllabus_plans.teacher_id is stored inconsistently across the app — sometimes a
+    // teachers.id, sometimes the underlying users.id (the same ambiguity every other
+    // join in this service already works around) — while attendance_sessions.teacher_id
+    // is always the users.id. Resolve both forms so this doesn't silently undercount.
+    const conditions = [
+      `teacher_id::text IN ($1::text, (SELECT user_id::text FROM teachers WHERE id::text = $1::text), (SELECT id::text FROM teachers WHERE user_id::text = $1::text))`,
+      'subject_id = $2',
+      'finalized = true',
+    ];
+    const params: any[] = [plan.teacherId, plan.subjectId];
+
+    if (plan.sectionId) {
+      params.push(plan.sectionId);
+      conditions.push(`section_id = $${params.length}`);
+    } else if (plan.classId) {
+      params.push(plan.classId);
+      conditions.push(`class_id = $${params.length}`);
+    }
+
+    if (plan.plannedStartDate) {
+      params.push(plan.plannedStartDate);
+      conditions.push(`date >= $${params.length}`);
+    }
+
+    const rows = await this.ds.query(
+      `SELECT COUNT(*)::int AS c FROM attendance_sessions WHERE ${conditions.join(' AND ')}`,
+      params,
+    ).catch(() => []);
+
+    return rows[0]?.c || 0;
   }
 
   /**
-   * Walks a plan's planning structure (chapterAllocations) merged with its live
-   * syllabus_topic_progress rows, returning both the per-topic list and aggregate counts.
-   * The single computation every tracker/reporting endpoint uses.
+   * Walks a plan's planning structure (chapterAllocations), auto-filling topics in order
+   * with the plan's actual conducted periods (from attendance_sessions) until they run out.
+   * This is the single computation every tracker/reporting endpoint uses — progress is
+   * entirely system-derived from classes conducted against the admin-set target, there is
+   * no teacher-entered status or progress input anywhere in this pipeline.
    */
-  private async computeTopicsProgress(planId: string, chapterAllocations: any[]) {
-    const progressRows: any[] = await this.ds.query(
-      `SELECT stp.*, t.name AS db_topic_name, c.name AS db_chapter_name
-       FROM syllabus_topic_progress stp
-       LEFT JOIN topics t ON t.id = stp.topic_id
-       LEFT JOIN chapters c ON c.id = stp.chapter_id
-       WHERE stp.syllabus_plan_id = $1`,
-      [planId],
-    ).catch(() => []);
+  private async computeTopicsProgress(
+    plan: {
+      id: string;
+      teacherId?: string | null;
+      subjectId?: string | null;
+      classId?: string | null;
+      sectionId?: string | null;
+      plannedStartDate?: any;
+    },
+    chapterAllocations: any[],
+  ) {
+    let periodsRemaining = await this.getConductedPeriods(plan);
 
-    const byTopicId = new Map<string, any>();
-    const byName = new Map<string, any>();
-    for (const r of progressRows) {
-      if (r.topic_id) byTopicId.set(String(r.topic_id), r);
-      if (r.topic_name) byName.set(String(r.topic_name).trim().toLowerCase(), r);
-    }
-
-    const consumed = new Set<any>();
     const results: any[] = [];
     (chapterAllocations || []).forEach((ch: any, chIdx: number) => {
       // A chapter with no topics defined yet still represents undone work — count it as
@@ -323,32 +351,38 @@ export class SchoolSyllabusService implements OnModuleInit {
       const topics = Array.isArray(ch.topics) && ch.topics.length > 0
         ? ch.topics
         : [{ topicId: `ch-${ch.chapterId || chIdx}`, topicName: `Core Curriculum: ${ch.chapterName}` }];
+
       topics.forEach((t: any) => {
-        const tId = t.topicId ? String(t.topicId) : null;
-        const tName = (t.topicName || t.name || '').trim().toLowerCase();
-        const match = (tId && byTopicId.get(tId)) || (tName && byName.get(tName));
-        if (match) consumed.add(match);
-        results.push(this.formatTopicProgress(ch, t, match));
+        const plannedPeriods = Math.max(1, parseInt(t.periods ?? t.plannedPeriods, 10) || 2);
+        const actualPeriods = Math.max(0, Math.min(plannedPeriods, periodsRemaining));
+        periodsRemaining = Math.max(0, periodsRemaining - actualPeriods);
+        const progress = Math.round((actualPeriods / plannedPeriods) * 100);
+        const status = progress >= 100 ? 'completed' : actualPeriods > 0 ? 'in_progress' : 'pending';
+
+        results.push({
+          topicId: t.topicId || t.id || null,
+          topicName: t.topicName || t.name || 'Topic',
+          chapterId: ch.chapterId,
+          chapterName: ch.chapterName,
+          chapterTerm: ch.term || 'Unit 1',
+          status,
+          progress,
+          plannedPeriods,
+          actualPeriods,
+          remarks: null,
+          delayReason: null,
+          carryForwardDate: null,
+          completedAt: status === 'completed' ? new Date().toISOString() : null,
+        });
       });
     });
-
-    // A progress row can exist without appearing in chapterAllocations (e.g. a lesson was
-    // completed for a topic that isn't part of this plan's allocated structure) — it still
-    // counts toward the plan's totals.
-    for (const r of progressRows) {
-      if (!consumed.has(r)) {
-        results.push(this.formatTopicProgress(
-          { chapterId: r.chapter_id, chapterName: r.db_chapter_name || 'Unassigned', term: 'Unit 1' },
-          { topicId: r.topic_id, topicName: r.topic_name || r.db_topic_name },
-          r,
-        ));
-      }
-    }
 
     const totalTopics = results.length;
     const completedTopics = results.filter((r) => r.status === 'completed').length;
     const inProgressTopics = results.filter((r) => r.status === 'in_progress').length;
-    const progressPercentage = totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0;
+    const totalPlannedPeriods = results.reduce((acc, r) => acc + r.plannedPeriods, 0) || 1;
+    const totalActualPeriods = results.reduce((acc, r) => acc + r.actualPeriods, 0);
+    const progressPercentage = Math.min(100, Math.round((totalActualPeriods / totalPlannedPeriods) * 100));
 
     return { topics: results, totalTopics, completedTopics, inProgressTopics, progressPercentage };
   }
@@ -365,7 +399,8 @@ export class SchoolSyllabusService implements OnModuleInit {
     delayedInProgressTopics: Array<{ topicId: string | null; topicName: string; progress: number }>;
   }>> {
     const overduePlans: any[] = await this.ds.query(
-      `SELECT sp.id AS plan_id, sp.institute_id, sp.teacher_id, sp.chapter_allocations, sp.planned_completion_date,
+      `SELECT sp.id AS plan_id, sp.institute_id, sp.teacher_id, sp.subject_id, sp.class_id, sp.section_id,
+              sp.planned_start_date, sp.chapter_allocations, sp.planned_completion_date,
               COALESCE(sub.name, 'Subject') AS subject_name, c.name AS class_name, sec.name AS section_name
        FROM syllabus_plans sp
        LEFT JOIN subjects sub ON sp.subject_id = sub.id
@@ -377,7 +412,17 @@ export class SchoolSyllabusService implements OnModuleInit {
     const results: Array<any> = [];
     for (const row of overduePlans) {
       const allocs = Array.isArray(row.chapter_allocations) ? row.chapter_allocations : [];
-      const pp = await this.computeTopicsProgress(row.plan_id, allocs);
+      const pp = await this.computeTopicsProgress(
+        {
+          id: row.plan_id,
+          teacherId: row.teacher_id,
+          subjectId: row.subject_id,
+          classId: row.class_id,
+          sectionId: row.section_id,
+          plannedStartDate: row.planned_start_date,
+        },
+        allocs,
+      );
       if (pp.progressPercentage >= 100) continue;
 
       results.push({
@@ -481,7 +526,7 @@ export class SchoolSyllabusService implements OnModuleInit {
     // status/progress instead of the raw, identity-only JSON column.
     const merged = await Promise.all(rows.map(async (row: any) => ({
       ...row,
-      chapter_allocations: await this.mergeChapterAllocationsWithProgress(row.id, row.chapter_allocations),
+      chapter_allocations: await this.mergeChapterAllocationsWithProgress(row, row.chapter_allocations),
     })));
 
     return { success: true, data: merged };
@@ -501,9 +546,26 @@ export class SchoolSyllabusService implements OnModuleInit {
    * chapter_allocations is handed to the frontend, so no caller ever shows the raw,
    * always-stale JSON column directly.
    */
-  private async mergeChapterAllocationsWithProgress(planId: string, chapterAllocations: any[]) {
+  private async mergeChapterAllocationsWithProgress(plan: {
+    id: string;
+    teacher_id?: string | null;
+    subject_id?: string | null;
+    class_id?: string | null;
+    section_id?: string | null;
+    planned_start_date?: any;
+  }, chapterAllocations: any[]) {
     const allocs = Array.isArray(chapterAllocations) ? chapterAllocations : [];
-    const { topics: mergedTopics } = await this.computeTopicsProgress(planId, allocs);
+    const { topics: mergedTopics } = await this.computeTopicsProgress(
+      {
+        id: plan.id,
+        teacherId: plan.teacher_id,
+        subjectId: plan.subject_id,
+        classId: plan.class_id,
+        sectionId: plan.section_id,
+        plannedStartDate: plan.planned_start_date,
+      },
+      allocs,
+    );
 
     const topicsByChapter = new Map<string, any[]>();
     mergedTopics.forEach((t: any) => {
@@ -535,7 +597,7 @@ export class SchoolSyllabusService implements OnModuleInit {
     if (!rows.length) throw new NotFoundException('Syllabus plan not found');
 
     const plan = rows[0];
-    plan.chapter_allocations = await this.mergeChapterAllocationsWithProgress(id, plan.chapter_allocations);
+    plan.chapter_allocations = await this.mergeChapterAllocationsWithProgress(plan, plan.chapter_allocations);
     return { success: true, data: plan };
   }
 
@@ -575,12 +637,20 @@ export class SchoolSyllabusService implements OnModuleInit {
     return { success: true, message: 'Syllabus plan removed successfully' };
   }
 
+  /**
+   * SUPERSEDED: progress is now computed automatically from classes conducted
+   * (see computeTopicsProgress/getConductedPeriods) and no longer read from
+   * syllabus_topic_progress, so writes through this method no longer affect any
+   * tracker, dashboard, or analytics output. Kept only so the teacher UI's existing
+   * Mark Done/Update Progress buttons don't 404 until that UI is removed — slated
+   * for deletion alongside that frontend change.
+   */
   async updateSyllabusPlanProgress(user: any, id: string, body: any) {
     const instituteId = user.instituteId;
     const { chapterAllocations, topicId, status, progress, actualPeriods } = body;
 
     const existingRows = await this.ds.query(
-      `SELECT id, chapter_allocations, subject_id FROM syllabus_plans WHERE id = $1 AND institute_id = $2`,
+      `SELECT id, chapter_allocations, subject_id, teacher_id, class_id, section_id, planned_start_date FROM syllabus_plans WHERE id = $1 AND institute_id = $2`,
       [id, instituteId]
     );
 
@@ -648,7 +718,17 @@ export class SchoolSyllabusService implements OnModuleInit {
       [id, chapterAllocationsJson, instituteId]
     );
 
-    const { topics: mergedTopics } = await this.computeTopicsProgress(id, currentAllocations);
+    const { topics: mergedTopics } = await this.computeTopicsProgress(
+      {
+        id,
+        teacherId: existingRows[0].teacher_id,
+        subjectId: existingRows[0].subject_id,
+        classId: existingRows[0].class_id,
+        sectionId: existingRows[0].section_id,
+        plannedStartDate: existingRows[0].planned_start_date,
+      },
+      currentAllocations,
+    );
     const mergedByKey = new Map<string, any>();
     mergedTopics.forEach((t: any) => {
       if (t.topicId) mergedByKey.set(String(t.topicId), t);
@@ -674,6 +754,7 @@ export class SchoolSyllabusService implements OnModuleInit {
         `SELECT 
             sp.id as plan_id,
             sp.subject_id as subject_id,
+            sp.teacher_id as teacher_id,
             sp.chapter_allocations,
             COALESCE(sub.name, 'Subject Plan') as subject_name,
             c.name as class_name,
@@ -705,7 +786,7 @@ export class SchoolSyllabusService implements OnModuleInit {
          LEFT JOIN users u_plan ON (u_plan.id = t_plan.user_id OR u_plan.id = sp.teacher_id)
          LEFT JOIN chapters ch ON ch.subject_id = sub.id
          WHERE sp.institute_id = $1
-         GROUP BY sp.id, sp.subject_id, sp.chapter_allocations, sub.name, c.name, c.id, sp.class_id, sp.section_id, sec.name, sp.term, sp.planned_periods, sp.priority, sp.planned_start_date, sp.planned_completion_date
+         GROUP BY sp.id, sp.subject_id, sp.teacher_id, sp.chapter_allocations, sub.name, c.name, c.id, sp.class_id, sp.section_id, sec.name, sp.term, sp.planned_periods, sp.priority, sp.planned_start_date, sp.planned_completion_date
          ORDER BY c.name NULLS LAST, sub.name`,
         [instituteId]
       );
@@ -714,12 +795,23 @@ export class SchoolSyllabusService implements OnModuleInit {
       subjectRows = [];
     }
 
-    // Completion percentages are computed from syllabus_topic_progress — the single
-    // source of truth — merged onto each plan's planning structure.
+    // Completion percentages are computed from actual classes conducted (attendance_sessions)
+    // against the admin-set target — the single source of truth — merged onto each plan's
+    // planning structure.
     const now = new Date();
     const trackerData = await Promise.all(subjectRows.map(async (row) => {
       const allocs = Array.isArray(row.chapter_allocations) ? row.chapter_allocations : [];
-      const pp = await this.computeTopicsProgress(row.plan_id, allocs);
+      const pp = await this.computeTopicsProgress(
+        {
+          id: row.plan_id,
+          teacherId: row.teacher_id,
+          subjectId: row.subject_id,
+          classId: row.class_id,
+          sectionId: row.section_id,
+          plannedStartDate: row.planned_start_date,
+        },
+        allocs,
+      );
 
       const startDate = row.planned_start_date ? new Date(row.planned_start_date) : null;
       const completionDate = row.planned_completion_date ? new Date(row.planned_completion_date) : null;
@@ -856,9 +948,19 @@ export class SchoolSyllabusService implements OnModuleInit {
     const elapsedDays = Math.max(0, Math.min(totalDays, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))));
     const overallPlannedProgress = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
 
-    // Dynamic Topic Calculations — merged with the plan's live syllabus_topic_progress rows,
-    // the single source of truth for completion status.
-    const { topics: mergedProgress } = await this.computeTopicsProgress(plan.id, chapterAllocations);
+    // Dynamic Topic Calculations — derived from the plan's actual classes conducted
+    // (attendance_sessions), the single source of truth for completion status.
+    const { topics: mergedProgress } = await this.computeTopicsProgress(
+      {
+        id: plan.id,
+        teacherId: plan.teacher_id,
+        subjectId: plan.subject_id,
+        classId: plan.class_id,
+        sectionId: plan.section_id,
+        plannedStartDate: plan.planned_start_date,
+      },
+      chapterAllocations,
+    );
     const topicCalculations: any[] = [];
     let completedCount = 0;
 
@@ -962,6 +1064,43 @@ export class SchoolSyllabusService implements OnModuleInit {
     };
   }
 
+  /**
+   * The annual syllabus plans for the class-subjects a teacher teaches (assigned
+   * to them, or covering a class-subject they are assigned), newest first, with
+   * each topic's live status/progress merged in from syllabus_topic_progress.
+   * Used by the teaching-plan dashboard and, on its own, by "My Lesson Plan"
+   * (GET syllabus/teaching-plan/annual-plans), which needs only this.
+   */
+  async getTeacherAnnualPlans(user: any): Promise<any[]> {
+    const instituteId = user.instituteId;
+    const teacherId = user.id;
+    const teacherProfileRow = await this.ds.query(`SELECT id FROM teachers WHERE user_id = $1`, [user.id]).catch(() => []);
+    const teacherProfileId = teacherProfileRow[0]?.id;
+    const plans: any[] = await this.ds.query(
+      `SELECT sp.*, sub.name as subject_name, c.name as class_name, sec.name as section_name
+       FROM syllabus_plans sp
+       LEFT JOIN subjects sub ON sp.subject_id = sub.id
+       LEFT JOIN classes c ON sp.class_id = c.id
+       LEFT JOIN sections sec ON sp.section_id = sec.id
+       WHERE sp.institute_id = $1 AND (
+         sp.teacher_id = $2 OR sp.teacher_id = $3 OR EXISTS (
+           SELECT 1 FROM teacher_academic_assignments taa 
+           WHERE taa.subject_id = sp.subject_id AND taa.class_id = sp.class_id 
+             AND (taa.teacher_id = $2 OR taa.teacher_id = $3)
+         )
+       )
+       ORDER BY sp.created_at DESC`,
+      [instituteId, teacherId, teacherProfileId || teacherId]
+    );
+    // sp.chapter_allocations is identity-only (topic status/progress lives in
+    // syllabus_topic_progress, the source of truth) — merge it in, otherwise topics
+    // show as pending forever even after progress has been saved.
+    return Promise.all(plans.map(async (plan) => ({
+      ...plan,
+      chapter_allocations: await this.mergeChapterAllocationsWithProgress(plan, plan.chapter_allocations),
+    })));
+  }
+
   async getTeacherTeachingPlan(user: any, query: any) {
     const instituteId = user.instituteId;
     const teacherId = user.id;
@@ -1014,35 +1153,7 @@ export class SchoolSyllabusService implements OnModuleInit {
 
     let publishedPlans: any[] = [];
     try {
-      const teacherProfileRow = await this.ds.query(`SELECT id FROM teachers WHERE user_id = $1`, [user.id]).catch(() => []);
-      const teacherProfileId = teacherProfileRow[0]?.id;
-
-      publishedPlans = await this.ds.query(
-        `SELECT sp.*, sub.name as subject_name, c.name as class_name, sec.name as section_name
-         FROM syllabus_plans sp
-         LEFT JOIN subjects sub ON sp.subject_id = sub.id
-         LEFT JOIN classes c ON sp.class_id = c.id
-         LEFT JOIN sections sec ON sp.section_id = sec.id
-         WHERE sp.institute_id = $1 AND (
-           sp.teacher_id = $2 OR sp.teacher_id = $3 OR EXISTS (
-             SELECT 1 FROM teacher_academic_assignments taa 
-             WHERE taa.subject_id = sp.subject_id AND taa.class_id = sp.class_id 
-               AND (taa.teacher_id = $2 OR taa.teacher_id = $3)
-           )
-         )
-         ORDER BY sp.created_at DESC`,
-        [instituteId, teacherId, teacherProfileId || teacherId]
-      );
-
-      // sp.chapter_allocations is identity-only (topic status/progress lives in
-      // syllabus_topic_progress, the source of truth) — merge it in here, otherwise the
-      // teacher's own dashboard cards and "Syllabus Topics — Progress Tracker" section
-      // (built from this array) show topics as pending forever even after progress
-      // has been saved.
-      publishedPlans = await Promise.all(publishedPlans.map(async (plan) => ({
-        ...plan,
-        chapter_allocations: await this.mergeChapterAllocationsWithProgress(plan.id, plan.chapter_allocations),
-      })));
+      publishedPlans = await this.getTeacherAnnualPlans(user);
     } catch (e) {
       console.error('[getTeacherTeachingPlan.publishedPlans] SQL Error:', e);
     }
@@ -1112,9 +1223,38 @@ export class SchoolSyllabusService implements OnModuleInit {
     };
   }
 
+  // ── Access helpers (lesson-plan audit, 22 Oct 2026) ──────────────────────
+
+  private isAdmin(user: any): boolean {
+    return hasSchoolRole(user?.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user?.role, 'SUPER_ADMIN');
+  }
+
+  /** The caller's teachers.id (teacher_academic_assignments keys on it, not users.id). */
+  private async teacherIdOf(user: any): Promise<string> {
+    const rows = await this.ds.query(`SELECT id FROM teachers WHERE user_id = $1 LIMIT 1`, [user.id]);
+    if (!rows.length) throw new ForbiddenException('Only teachers can do this');
+    return rows[0].id;
+  }
+
+  /** Refuses unless the teacher teaches this subject in this class (and section, when given). */
+  private async assertTeaches(user: any, subjectId: string, classId?: string | null, sectionId?: string | null) {
+    const teacherId = await this.teacherIdOf(user);
+    const rows = await this.ds.query(
+      `SELECT 1 FROM teacher_academic_assignments
+        WHERE teacher_id = $1 AND subject_id = $2
+          AND ($3::uuid IS NULL OR class_id = $3::uuid)
+          AND ($4::uuid IS NULL OR section_id = $4::uuid OR section_id IS NULL)
+        LIMIT 1`,
+      [teacherId, subjectId, classId || null, sectionId || null],
+    );
+    if (!rows.length) throw new ForbiddenException('You do not teach this subject in this class');
+  }
+
   async createLessonPlan(user: any, body: any) {
     const instituteId = user.instituteId;
     const teacherId = user.id;
+    // A teacher plans only for a class, section and subject they teach.
+    await this.assertTeaches(user, body.subjectId, body.classId, body.sectionId);
 
     // Resolve which syllabus plan this lesson covers so completeLessonPlan can update
     // exactly that plan's progress instead of guessing by subject+class later. Purely
@@ -1170,6 +1310,8 @@ export class SchoolSyllabusService implements OnModuleInit {
   }
 
   async getLessonPlanById(user: any, id: string) {
+    // A teacher sees their own plans; an admin sees any plan of their school.
+    const admin = this.isAdmin(user);
     const rows = await this.ds.query(
       `SELECT l.*, sub.name as subject_name, c.name as class_name, sec.name as section_name,
               ch.name as chapter_name, top.name as topic_name
@@ -1179,14 +1321,19 @@ export class SchoolSyllabusService implements OnModuleInit {
        LEFT JOIN sections sec ON l.section_id = sec.id
        LEFT JOIN chapters ch ON l.chapter_id = ch.id
        LEFT JOIN topics top ON l.topic_id = top.id
-       WHERE l.id = $1 AND l.institute_id = $2 AND l.teacher_id = $3`,
-      [id, user.instituteId, user.id],
+       WHERE l.id = $1 AND l.institute_id = $2 AND ($4::boolean OR l.teacher_id = $3)`,
+      [id, user.instituteId, user.id, admin],
     );
     if (!rows.length) throw new NotFoundException('Lesson plan not found');
     return { success: true, data: rows[0] };
   }
 
   async generateAiLessonTemplate(user: any, body: any) {
+    if (body.subjectId) await this.assertTeaches(user, body.subjectId);
+    if (body.chapterId && body.subjectId) {
+      const ok = await this.ds.query(`SELECT 1 FROM chapters WHERE id = $1 AND subject_id = $2`, [body.chapterId, body.subjectId]);
+      if (!ok.length) throw new BadRequestException('That chapter is not part of this subject');
+    }
     let subjectName = body.subjectName || '';
     let chapterName = body.chapterName || '';
     let topicName = body.topicName || '';
@@ -1202,13 +1349,9 @@ export class SchoolSyllabusService implements OnModuleInit {
       chapterName = chRow[0]?.name || '';
     }
 
-    if (body.subjectId && !chapterName) {
-      const chRows = await this.ds.query(
-        `SELECT name FROM chapters WHERE subject_id = $1 ORDER BY created_at ASC LIMIT 1`,
-        [body.subjectId]
-      ).catch(() => []);
-      chapterName = chRows[0]?.name || '';
-    }
+    // No chapter chosen means the whole subject. It used to silently take the
+    // subject's first chapter by creation date, writing a brief for a chapter the
+    // teacher never picked.
 
     const focusTitle = topicName || chapterName || subjectName || 'Core Curriculum';
 
@@ -1252,51 +1395,23 @@ export class SchoolSyllabusService implements OnModuleInit {
       console.error('[generateAiLessonTemplate] AI bridge call failed, falling back to canned template:', err.message);
     }
 
-    const draftTemplate = {
-      learningObjectives: `1. Understand the core principles of "${focusTitle}" in ${className} ${subjectName}.\n2. Apply formulas and fundamental concepts to solve textbook exercises.\n3. Solve standard practice problems on ${focusTitle}.`,
-      previousKnowledge: `Students should be familiar with basic prerequisite concepts of ${subjectName} prior to studying ${focusTitle}.`,
-      teachingMethodology: 'Interactive Demonstration, Blackboard Breakdown, and Guided Problem Solving',
-      teachingActivities: `1. Warm-up & Recall (5 mins): Review prerequisite concepts for ${focusTitle}.\n2. Concept Explanation (20 mins): Step-by-step breakdown of ${focusTitle}.\n3. Worked Examples (10 mins): Solving 2 board problems on ${focusTitle}.\n4. Q&A & Summary (5 mins).`,
-      teachingResources: `Standard ${subjectName} Textbook, Whiteboard/Smartboard, Chapter Diagram Worksheets`,
-      digitalResources: `EDDVA Smart Video Explanation & Interactive Quiz on ${focusTitle}`,
-      classroomActivities: `Group Discussion & Pair Problem Solving on ${focusTitle}`,
-      assessmentMethod: `Quick 3-question Check on ${focusTitle} at the end of class`,
-      homework: `Complete textbook exercise questions for ${chapterName ? `Chapter "${chapterName}"` : focusTitle}`,
-      expectedLearningOutcomes: `Students can independently explain ${focusTitle} and solve standard exercises.`,
-      teacherNotes: `Note: Reserve 5 minutes for student doubts on ${focusTitle}.`
-    };
-
-    return {
-      success: true,
-      isTemplate: true,
-      aiGenerated: false,
-      message: `AI is unavailable right now — using a standard template for "${focusTitle}". Personalize before class.`,
-      data: draftTemplate
-    };
+    // Previously a canned template was returned here as a normal response, and the
+    // form filled itself with it: a teacher could save boilerplate as a real plan.
+    throw new ServiceUnavailableException('The AI could not write a brief right now. Try again, or fill in the plan yourself.');
   }
 
   async completeLessonPlan(user: any, lessonId: string, body: any) {
-    let lessonRows: any[] = await this.ds.query(`SELECT * FROM lesson_plans WHERE id::text = $1`, [lessonId]).catch(() => []);
-    let l = lessonRows[0];
-
-    if (!l) {
-      // Dynamic fallback if lesson was launched directly from timetable or target milestone
-      const newPlanRes = await this.ds.query(
-        `INSERT INTO lesson_plans (
-           institute_id, class_id, section_id, subject_id, teacher_id, date, status, learning_objectives
-         ) VALUES ($1, $2, $3, $4, $5, NOW(), 'COMPLETED', $6)
-         RETURNING *`,
-        [
-          user.instituteId,
-          body.classId || null,
-          body.sectionId || null,
-          body.subjectId || null,
-          user.id,
-          body.topicsCovered || 'Classroom Lesson'
-        ]
-      ).catch(() => []);
-      l = newPlanRes[0] || { id: lessonId, duration_periods: 1 };
-      if (l.id) lessonId = l.id;
+    // Only the teacher who owns the plan, in their own school. This used to look the
+    // plan up by id alone (any school, any user), invent a plan when the id was not
+    // found, and report success when the inserts failed.
+    const lessonRows: any[] = await this.ds.query(
+      `SELECT * FROM lesson_plans WHERE id = $1 AND institute_id = $2 AND teacher_id = $3`,
+      [lessonId, user.instituteId, user.id],
+    );
+    const l = lessonRows[0];
+    if (!l) throw new NotFoundException('Lesson plan not found');
+    if (String(l.status || '').toUpperCase() === 'COMPLETED') {
+      throw new ConflictException('This lesson has already been recorded as completed');
     }
 
     // Safely parse rating into integer
@@ -1316,36 +1431,37 @@ export class SchoolSyllabusService implements OnModuleInit {
         else if (s.includes('poor')) ratingInt = 1;
       }
     }
+    ratingInt = Math.min(5, Math.max(1, ratingInt));
 
-    // 1. Record Completion
-    const completionRes = await this.ds.query(
-      `INSERT INTO lesson_completions (
-         lesson_plan_id, actual_date, actual_duration_periods, topics_covered, learning_objectives_achieved,
-         student_understanding_rating, homework_assigned, assessment_conducted, teacher_reflection,
-         completion_type, delay_reason, carry_forward_date
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       RETURNING *`,
-      [
-        lessonId,
-        body.actualDate || new Date(),
-        body.actualDurationPeriods || l.duration_periods || 1,
-        body.topicsCovered || l.learning_objectives || 'Classroom Lesson',
-        body.learningObjectivesAchieved || l.expected_learning_outcomes || 'Concepts Delivered',
-        ratingInt,
-        body.homeworkAssigned || l.homework || '',
-        body.assessmentConducted || l.assessment_method || '',
-        body.teacherReflection || body.additionalRemarks || '',
-        body.completionType || 'FULLY',
-        body.delayReason || null,
-        body.carryForwardDate || null
-      ]
-    ).catch(err => {
-      console.error('[completeLessonPlan.completionInsert] Warning:', err.message);
-      return [{ id: lessonId, completion_type: body.completionType || 'FULLY' }];
+    const completion = await this.ds.transaction(async (em) => {
+      const [row] = await em.query(
+        `INSERT INTO lesson_completions (
+           lesson_plan_id, actual_date, actual_duration_periods, topics_covered, learning_objectives_achieved,
+           student_understanding_rating, homework_assigned, assessment_conducted, teacher_reflection,
+           completion_type, delay_reason, carry_forward_date
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         RETURNING *`,
+        [
+          lessonId,
+          body.actualDate || new Date(),
+          body.actualDurationPeriods || l.duration_periods || 1,
+          body.topicsCovered || l.learning_objectives || 'Classroom Lesson',
+          body.learningObjectivesAchieved || l.expected_learning_outcomes || 'Concepts Delivered',
+          ratingInt,
+          body.homeworkAssigned || l.homework || '',
+          body.assessmentConducted || l.assessment_method || '',
+          body.teacherReflection || body.additionalRemarks || '',
+          body.completionType || 'FULLY',
+          body.delayReason || null,
+          body.carryForwardDate || null,
+        ],
+      );
+      await em.query(
+        `UPDATE lesson_plans SET status = 'COMPLETED', updated_at = NOW() WHERE id = $1 AND institute_id = $2 AND teacher_id = $3`,
+        [lessonId, user.instituteId, user.id],
+      );
+      return row;
     });
-
-    // Update Lesson Plan Status
-    await this.ds.query(`UPDATE lesson_plans SET status = 'COMPLETED', updated_at = NOW() WHERE id = $1`, [lessonId]);
 
     // Deliberately does NOT touch syllabus_topic_progress. Lesson Plan is a teacher's own
     // pre-class prep note (typically AI-generated) plus a personal record of what was actually
@@ -1355,22 +1471,35 @@ export class SchoolSyllabusService implements OnModuleInit {
     // syllabus needle behind an admin's back.
     return {
       success: true,
-      completion: completionRes[0],
+      completion,
     };
   }
 
   // --- 3. STUDENT & PARENT READ-ONLY PROGRESS ---
-  async getStudentSyllabusProgress(user: any, studentId: string) {
+  /**
+   * A student sees only their own progress (any studentId they pass is ignored);
+   * staff may look up a student of their own school. This used to read any
+   * student of any school by the id in the query string.
+   */
+  async getStudentSyllabusProgress(user: any, studentId?: string) {
+    const staff = this.isAdmin(user) || hasSchoolRole(user?.role, 'TEACHER');
+    const lookup = staff && studentId ? studentId : user.id;
     const stRows: any[] = await this.ds.query(
       `SELECT s.id, s.section_id, sec.class_id, c.name as class_name, sec.name as section_name
        FROM students s
        JOIN sections sec ON s.section_id = sec.id
        JOIN classes c ON sec.class_id = c.id
-       WHERE s.id = $1 OR s.user_id = $1`,
-      [studentId]
+       WHERE (s.id::text = $1 OR s.user_id::text = $1) AND s.institute_id = $2`,
+      [lookup, user.instituteId]
     );
-    if (!stRows.length) return { success: true, subjects: [] };
-    const st = stRows[0];
+    if (!stRows.length) {
+      if (staff && studentId) throw new NotFoundException('Student not found');
+      return { success: true, subjects: [] };
+    }
+    return this.progressForStudent(stRows[0]);
+  }
+
+  private async progressForStudent(st: any) {
 
     const subjects: any[] = await this.ds.query(
       `SELECT sub.id as subject_id, sub.name as subject_name,
@@ -1389,7 +1518,7 @@ export class SchoolSyllabusService implements OnModuleInit {
     // another section's teacher made on the same catalog topic in their own plan.
     const progressList = await Promise.all(subjects.map(async (sub) => {
       const planRows = await this.ds.query(
-        `SELECT id, chapter_allocations FROM syllabus_plans
+        `SELECT id, teacher_id, subject_id, class_id, section_id, planned_start_date, chapter_allocations FROM syllabus_plans
          WHERE class_id = $1 AND subject_id = $2 AND (section_id = $3 OR section_id IS NULL)
          ORDER BY (section_id IS NOT NULL) DESC, created_at DESC
          LIMIT 1`,
@@ -1399,7 +1528,17 @@ export class SchoolSyllabusService implements OnModuleInit {
       let totalTopics = 0;
       let completedTopics = 0;
       if (planRows.length) {
-        const pp = await this.computeTopicsProgress(planRows[0].id, planRows[0].chapter_allocations);
+        const pp = await this.computeTopicsProgress(
+          {
+            id: planRows[0].id,
+            teacherId: planRows[0].teacher_id,
+            subjectId: planRows[0].subject_id,
+            classId: planRows[0].class_id,
+            sectionId: planRows[0].section_id,
+            plannedStartDate: planRows[0].planned_start_date,
+          },
+          planRows[0].chapter_allocations,
+        );
         totalTopics = pp.totalTopics;
         completedTopics = pp.completedTopics;
       }
@@ -1419,8 +1558,29 @@ export class SchoolSyllabusService implements OnModuleInit {
     return { success: true, student: st, subjects: progressList };
   }
 
-  async getParentChildSyllabusProgress(user: any, childId: string) {
-    return this.getStudentSyllabusProgress(user, childId);
+  /**
+   * A parent's own children are the students of their school whose parent email or
+   * phone matches theirs (the same rule the assessment module uses). This used to
+   * return whatever child id was passed — and nothing at all when, as the parent
+   * page does, no id was passed.
+   */
+  async getParentChildSyllabusProgress(user: any, childId?: string) {
+    const children: any[] = await this.ds.query(
+      `SELECT s.id, s.section_id, sec.class_id, c.name AS class_name, sec.name AS section_name
+         FROM students s
+         JOIN sections sec ON s.section_id = sec.id
+         JOIN classes c ON sec.class_id = c.id
+        WHERE s.institute_id = $1 AND (
+          (s.parent_email IS NOT NULL AND $2::text IS NOT NULL AND LOWER(s.parent_email) = LOWER($2))
+          OR (s.parent_phone IS NOT NULL AND $3::text IS NOT NULL AND s.parent_phone = $3)
+        )
+        ORDER BY s.created_at`,
+      [user.instituteId, user.email || null, user.phone || null],
+    );
+    const child = childId ? children.find((c) => c.id === childId) : children[0];
+    if (childId && !child) throw new NotFoundException('Child not found');
+    if (!child) return { success: true, subjects: [] };
+    return this.progressForStudent(child);
   }
 
   // --- 4. TEMPLATES & AUDIT ---
@@ -1436,7 +1596,9 @@ export class SchoolSyllabusService implements OnModuleInit {
     const res = await this.ds.query(
       `INSERT INTO lesson_templates (institute_id, teacher_id, title, category, content_json, is_global)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [user.instituteId, user.id, body.title, body.category || 'Standard', JSON.stringify(body.contentJson || {}), body.isGlobal || false]
+      // A global template is shown to every school, so only the platform super admin may publish one.
+      [user.instituteId, user.id, body.title, body.category || 'Standard', JSON.stringify(body.contentJson || {}),
+        hasSchoolRole(user?.role, 'SUPER_ADMIN') && body.isGlobal === true]
     );
     return { success: true, data: res[0] };
   }

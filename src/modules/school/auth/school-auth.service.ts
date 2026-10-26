@@ -4,12 +4,29 @@ import { DataSource } from 'typeorm';
 import { querySectionSubjects } from '../common/section-subjects';
 import { recordStudentActivity } from '../common/gamification-helper';
 import { hasSchoolRole } from '../common/role-helper';
+import { StorageService } from '../../storage/storage.service';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class SchoolAuthService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    private readonly storage: StorageService,
+  ) {}
+
+  /** Deletes a previously uploaded avatar file; only touches keys under avatars/. Never throws. */
+  private async deleteAvatarFile(url?: string | null) {
+    if (!url) return;
+    try {
+      const key = decodeURIComponent(new URL(url).pathname.replace(/^\/+/, ''));
+      if (key.startsWith('avatars/') && !key.includes('..')) await this.storage.deleteFile(key);
+    } catch {
+      /* not one of our URLs, or storage unavailable — the DB link is still cleared */
+    }
+  }
 
   private schoolJwtPayload(user: { id: string; role: string; email: string; institute_id?: string | null; sessionId?: string }) {
     return {
@@ -67,7 +84,8 @@ export class SchoolAuthService {
     const rows: any[] = await this.ds.query(
       `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo,
               i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features,
-              i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address
+              i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address,
+              i.erp_enabled AS inst_erp_enabled, i.lms_enabled AS inst_lms_enabled
        FROM users u
        LEFT JOIN institutes i ON i.id = u.institute_id
        WHERE ${whereClause}`,
@@ -134,6 +152,11 @@ export class SchoolAuthService {
       }
     }
 
+    return this.buildLoginPayload(token, user);
+  }
+
+  /** Shared by password login and the ERP→LMS SSO switch — same response shape either way. */
+  private async buildLoginPayload(token: string, user: any) {
     const { password: _p, ...safeUser } = user;
     const studentProfile =
       hasSchoolRole(user.role, 'STUDENT') ? await this.loadStudentAcademic(user.id) : null;
@@ -147,6 +170,8 @@ export class SchoolAuthService {
         role: user.role,
         isActive: user.is_active,
         profileImage: user.profile_image,
+        isPrimaryAdmin: user.is_primary_admin === true,
+        adminPermissions: typeof user.admin_permissions === 'string' ? JSON.parse(user.admin_permissions) : user.admin_permissions,
 
         phone: user.phone,
         instituteId: user.institute_id,
@@ -164,9 +189,69 @@ export class SchoolAuthService {
         aiFeatures: typeof user.inst_ai_features === 'string' ? JSON.parse(user.inst_ai_features) : (user.inst_ai_features ?? {}),
         activeModules: typeof user.inst_active_modules === 'string' ? JSON.parse(user.inst_active_modules) : (user.inst_active_modules ?? []),
         modulesPermissions: typeof user.inst_modules_permissions === 'string' ? JSON.parse(user.inst_modules_permissions) : (user.inst_modules_permissions ?? {}),
+        erpEnabled: user.inst_erp_enabled ?? false,
+        lmsEnabled: user.inst_lms_enabled ?? true,
       } : null,
       tenantDomain: user.tenant_domain,
     };
+  }
+
+  /**
+   * Verifies an ERP-issued SSO bridge token (signed with SCHOOL_JWT_SECRET,
+   * minted by ERP's `POST /api/auth/lms-sso-token`) and returns a normal LMS
+   * session — same shape as `login()`. Unlike the ERP-bound direction, this
+   * never auto-provisions: the LMS user must already exist (an Institute
+   * Admin switching back always originated here), so a missing account is a
+   * real error, not something to paper over.
+   */
+  async ssoLogin(ssoToken: string, ip?: string, userAgent?: string) {
+    const secret = process.env.SCHOOL_JWT_SECRET;
+    if (!secret) {
+      throw new UnauthorizedException('SSO is not configured');
+    }
+
+    let payload: any;
+    try {
+      payload = jwt.verify(ssoToken, secret);
+    } catch {
+      throw new UnauthorizedException('Invalid or expired SSO token');
+    }
+
+    if (payload.purpose !== 'lms-sso') {
+      throw new UnauthorizedException('Invalid SSO token');
+    }
+
+    const { email, instituteId } = payload;
+    if (!email || !instituteId) {
+      throw new UnauthorizedException('SSO token missing email or institute');
+    }
+
+    const rows: any[] = await this.ds.query(
+      `SELECT u.*, i.id AS inst_id, i.name AS inst_name, i.tenant_domain, i.status AS inst_status, i.logo,
+              i.ai_enabled AS inst_ai_enabled, i.ai_features AS inst_ai_features,
+              i.modules_permissions AS inst_modules_permissions, i.active_modules AS inst_active_modules, i.state AS inst_state, i.city AS inst_city, i.address AS inst_address,
+              i.erp_enabled AS inst_erp_enabled, i.lms_enabled AS inst_lms_enabled
+       FROM users u
+       LEFT JOIN institutes i ON i.id = u.institute_id
+       WHERE LOWER(u.email) = LOWER($1) AND u.institute_id = $2`,
+      [email, instituteId],
+    );
+    if (!rows.length) {
+      throw new UnauthorizedException('No LMS account found for this user');
+    }
+
+    const user = rows[0];
+    if (!user.is_active) throw new UnauthorizedException('Account is inactive');
+    if (user.inst_status === 'SUSPENDED') throw new UnauthorizedException('Institute account is suspended');
+
+    const sessionRows: any[] = await this.ds.query(
+      `INSERT INTO auth_sessions (user_id, ip_address, browser) VALUES ($1, $2, $3) RETURNING id`,
+      [user.id, ip || null, userAgent || null],
+    );
+    user.sessionId = sessionRows[0].id;
+
+    const token = this.signSchoolToken(user);
+    return this.buildLoginPayload(token, user);
   }
 
   async loadStudentAcademic(userId: string) {
@@ -220,6 +305,35 @@ export class SchoolAuthService {
     };
   }
 
+  async updateProfile(user: any, dto: { name: string; email: string }) {
+    if (!UUID_RE.test(String(user?.id || ''))) {
+      throw new BadRequestException('This account has no editable profile');
+    }
+    const dup: any[] = await this.ds.query(
+      'SELECT 1 FROM users WHERE lower(email) = $1 AND id::text <> $2::text LIMIT 1',
+      [dto.email, user.id],
+    );
+    if (dup.length) throw new BadRequestException('That email is already in use');
+    await this.ds.query('UPDATE users SET name = $1, email = $2 WHERE id = $3', [dto.name, dto.email, user.id]);
+    return { success: true, data: { name: dto.name, email: dto.email } };
+  }
+
+  async removeAvatar(userId: string) {
+    if (!UUID_RE.test(String(userId || ''))) throw new BadRequestException('This account has no editable profile');
+    const rows: any[] = await this.ds.query('SELECT profile_image FROM users WHERE id = $1', [userId]);
+    await this.ds.query('UPDATE users SET profile_image = NULL WHERE id = $1', [userId]);
+    await this.deleteAvatarFile(rows[0]?.profile_image);
+    return { success: true, data: { avatarUrl: null } };
+  }
+
+  async updateAvatar(userId: string, avatarUrl: string) {
+    if (!UUID_RE.test(String(userId || ''))) throw new BadRequestException('This account has no editable profile');
+    const rows: any[] = await this.ds.query('SELECT profile_image FROM users WHERE id = $1', [userId]);
+    await this.ds.query('UPDATE users SET profile_image = $1 WHERE id = $2', [avatarUrl, userId]);
+    if (rows[0]?.profile_image !== avatarUrl) await this.deleteAvatarFile(rows[0]?.profile_image);
+    return { success: true, data: { avatarUrl } };
+  }
+
   async recordAdminPortalEntry(user: any) {
     const role = String(user?.role || '').toUpperCase().replace(/\s+/g, '_');
     const rolesList = role.split(',').map((r) => r.trim());
@@ -269,6 +383,42 @@ export class SchoolAuthService {
       await this.ds.query(`UPDATE auth_sessions SET is_active = false WHERE id = $1`, [user.sessionId]);
     }
     return { success: true, message: 'Logged out successfully' };
+  }
+
+  /**
+   * Mints a short-lived bridge token for the LMS→ERP SSO handoff. Signed with
+   * SCHOOL_JWT_SECRET specifically — the one secret ERP's core JwtStrategy is
+   * already documented to trust as "LMS-issued" (see eddva_erp_backend's
+   * AUTH_ENV.md / resolveCoreJwtSecrets()). Deliberately short-lived: this is
+   * a one-shot exchange token, not a session credential — ERP verifies it
+   * once, provisions/looks up its own local user, and mints its own native
+   * session token from then on.
+   */
+  async mintErpSsoToken(user: any) {
+    if (!user?.institute?.erpEnabled) {
+      throw new ForbiddenException('This institute does not have ERP access');
+    }
+
+    const secret = process.env.SCHOOL_JWT_SECRET;
+    if (!secret) {
+      throw new InternalServerErrorException('SCHOOL_JWT_SECRET is not configured');
+    }
+
+    const token = jwt.sign(
+      {
+        sub: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        instituteId: user.instituteId ?? user.institute?.id ?? null,
+        tenantType: 'school',
+        purpose: 'erp-sso',
+      },
+      secret,
+      { expiresIn: '2m' },
+    );
+
+    return { success: true, token };
   }
 
   async register(body: any) {
@@ -337,9 +487,46 @@ export class SchoolAuthService {
     return { success: true, token, user: { id: user.id, name: user.name, email: user.email, role: user.role }, institute };
   }
 
-  async registerUser(body: any) {
-    const { name, email, password, role } = body;
+  /**
+   * SECURITY: this used to be a public, unauthenticated endpoint that let the
+   * caller pick ANY role (including INSTITUTE_ADMIN/SUPER_ADMIN) with no
+   * institute binding at all — a straightforward privilege-escalation hole.
+   * It is now authenticated (SchoolRoles restricts it to SUPER_ADMIN /
+   * INSTITUTE_ADMIN at the controller) and every field that matters is
+   * derived from the caller, never trusted from the request body:
+   *   - instituteId always comes from the actor (an Institute Admin's own
+   *     institute; a Super Admin must name one explicitly, since they have
+   *     none of their own).
+   *   - role is restricted to a safe allow-list per actor — an Institute
+   *     Admin can create Teacher/Staff/Parent accounts but never another
+   *     Institute Admin (no self-service co-admin creation); only a Super
+   *     Admin can create an Institute Admin, and nobody can create a Super
+   *     Admin through this endpoint at all.
+   */
+  async registerUser(actor: any, body: any) {
+    const { name, email, password } = body;
     if (!name || !email || !password) throw new BadRequestException('Name, email and password are required');
+
+    const actorRole = String(actor?.role || '').toUpperCase();
+    const requestedRole = String(body.role || 'TEACHER').toUpperCase();
+
+    let instituteId: string | null;
+    let allowedRoles: string[];
+    if (actorRole === 'SUPER_ADMIN') {
+      instituteId = body.instituteId || null;
+      if (!instituteId) throw new BadRequestException('instituteId is required');
+      allowedRoles = ['TEACHER', 'STAFF', 'PARENT', 'INSTITUTE_ADMIN'];
+    } else if (actorRole === 'INSTITUTE_ADMIN') {
+      instituteId = actor?.instituteId || actor?.institute_id || null;
+      if (!instituteId) throw new ForbiddenException('Missing institute context');
+      allowedRoles = ['TEACHER', 'STAFF', 'PARENT'];
+    } else {
+      throw new ForbiddenException('Not authorized to create users');
+    }
+
+    if (!allowedRoles.includes(requestedRole)) {
+      throw new ForbiddenException(`You are not permitted to create a ${requestedRole} account`);
+    }
 
     const existing: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email) = LOWER($1)`, [email]);
     if (existing.length) throw new BadRequestException('Email already exists');
@@ -348,8 +535,8 @@ export class SchoolAuthService {
     let rows: any[];
     try {
       rows = await this.ds.query(
-        `INSERT INTO users (name, email, password, role, is_active) VALUES ($1,$2,$3,$4,TRUE) ON CONFLICT (email) DO NOTHING RETURNING *`,
-        [name, email.trim().toLowerCase(), hashed, role || 'TEACHER'],
+        `INSERT INTO users (name, email, password, role, institute_id, is_active) VALUES ($1,$2,$3,$4,$5,TRUE) ON CONFLICT (email) DO NOTHING RETURNING *`,
+        [name, email.trim().toLowerCase(), hashed, requestedRole, instituteId],
       );
     } catch {
       throw new BadRequestException('Email already exists');
@@ -357,8 +544,7 @@ export class SchoolAuthService {
     if (!rows.length) throw new BadRequestException('Email already exists');
     const user = rows[0];
 
-    const token = this.signSchoolToken(user);
-    return { success: true, token, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
+    return { success: true, user: { id: user.id, name: user.name, email: user.email, role: user.role, instituteId: user.institute_id } };
   }
 
   private normalizePhone(raw: string): string {

@@ -4,6 +4,10 @@ import { DataSource } from 'typeorm';
 import { hasSchoolRole } from '../common/role-helper';
 import { SchoolReportService } from './school-report.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
+import { SchoolNotificationService } from '../notification/school-notification.service';
+
+const REPORT_CARD_STATUSES = ['DRAFT', 'PUBLISHED', 'APPROVED', 'REJECTED'] as const;
+type ReportCardStatus = typeof REPORT_CARD_STATUSES[number];
 
 @Injectable()
 export class SchoolReportCardRemarksService {
@@ -13,6 +17,7 @@ export class SchoolReportCardRemarksService {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly reportService: SchoolReportService,
     private readonly aiBridgeService: AiBridgeService,
+    private readonly notificationService: SchoolNotificationService,
   ) {}
 
   private async assertAccess(user: any, studentId: string): Promise<string> {
@@ -39,6 +44,84 @@ export class SchoolReportCardRemarksService {
       throw new ForbiddenException('You do not have access to this student');
     }
     return instituteId;
+  }
+
+  private normalizeReportCardStatus(status: unknown): ReportCardStatus {
+    const normalized = String(status || '').trim().toUpperCase();
+    return (REPORT_CARD_STATUSES as readonly string[]).includes(normalized) ? (normalized as ReportCardStatus) : 'DRAFT';
+  }
+
+  private async findInstituteAdminUserIds(instituteId: string): Promise<string[]> {
+    const rows: any[] = await this.ds.query(
+      `SELECT id FROM users WHERE institute_id = $1 AND role = 'INSTITUTE_ADMIN' AND is_active = true`,
+      [instituteId],
+    );
+    return rows.map((r) => r.id);
+  }
+
+  private async findParentUserIds(instituteId: string, studentId: string): Promise<string[]> {
+    const rows: any[] = await this.ds.query(
+      `SELECT DISTINCT p.id FROM students s
+       JOIN users p ON p.institute_id = $1 AND p.role = 'PARENT' AND (
+         (s.parent_email IS NOT NULL AND LOWER(p.email) = LOWER(s.parent_email))
+         OR (s.parent_phone IS NOT NULL AND p.phone = s.parent_phone)
+       )
+       WHERE s.institute_id = $1 AND s.user_id = $2`,
+      [instituteId, studentId],
+    );
+    return rows.map((r) => r.id);
+  }
+
+  private async findClassTeacherUserId(studentId: string): Promise<string | null> {
+    const rows: any[] = await this.ds.query(
+      `SELECT t.user_id FROM students s
+       JOIN sections sec ON sec.id = s.section_id
+       JOIN teachers t ON t.id = sec.class_teacher_id
+       WHERE s.user_id = $1
+       LIMIT 1`,
+      [studentId],
+    );
+    return rows[0]?.user_id || null;
+  }
+
+  private async notifyMany(userIds: string[], notif: { type: string; title: string; message: string; actionUrl?: string; referenceId: string }) {
+    await Promise.allSettled(
+      userIds.map((userId) =>
+        this.notificationService.create({
+          recipientId: userId,
+          type: notif.type,
+          category: 'report_card',
+          title: notif.title,
+          message: notif.message,
+          actionUrl: notif.actionUrl,
+          referenceId: notif.referenceId,
+          referenceType: 'report_card',
+        }),
+      ),
+    );
+  }
+
+  /** Unwraps AI remarks persisted before the feedback-generation bug fix, where the raw
+   *  {"feedbackText": "...", ...} JSON envelope — sometimes even double-encoded as a JSON
+   *  string of that object — was stored verbatim instead of the paragraph. */
+  private cleanAiRemark(remark: string | null): string | null {
+    if (!remark) return remark;
+    let current: unknown = remark;
+    // Up to a few rounds: a value can be a JSON string containing another JSON string.
+    for (let i = 0; i < 4 && typeof current === 'string'; i++) {
+      const trimmed = current.trim();
+      const looksJson = (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('"') && trimmed.endsWith('"'));
+      if (!looksJson) break;
+      try {
+        current = JSON.parse(trimmed);
+      } catch {
+        break;
+      }
+      if (current && typeof current === 'object' && typeof (current as any).feedbackText === 'string' && (current as any).feedbackText.trim()) {
+        return (current as any).feedbackText.trim();
+      }
+    }
+    return remark;
   }
 
   /** improving / declining / steady from the chronological score series (needs 4+ scored exams). */
@@ -114,6 +197,13 @@ export class SchoolReportCardRemarksService {
       [studentId, academicYear],
     );
     let row = rows[0];
+    const status = row ? this.normalizeReportCardStatus(row.status) : 'DRAFT';
+
+    // Students/parents can't see the report card at all until it's approved — don't even
+    // bother materializing an AI remark for content they're not allowed to view yet.
+    if ((hasSchoolRole(user.role, 'STUDENT') || hasSchoolRole(user.role, 'PARENT')) && status !== 'APPROVED') {
+      return { success: true, data: { status, visible: false } };
+    }
 
     if (!row?.teacher_remark && !row?.ai_remark) {
       const aiRemark = await this.generateAiRemark(studentId, instituteId, academicYear);
@@ -131,17 +221,231 @@ export class SchoolReportCardRemarksService {
     }
 
     const teacherRemark = row?.teacher_remark || null;
-    const aiRemark = row?.ai_remark || null;
+    const aiRemark = this.cleanAiRemark(row?.ai_remark || null);
     const remarkSource = teacherRemark ? 'TEACHER' : (aiRemark ? 'AI' : null);
     return {
       success: true,
       data: {
+        status: row ? this.normalizeReportCardStatus(row.status) : status,
+        visible: true,
         teacherRemark,
         aiRemark,
         remarkSource,
         effectiveRemark: teacherRemark || aiRemark || '',
         aiGeneratedAt: row?.ai_generated_at || null,
+        publishedAt: row?.published_at || null,
+        approvedAt: row?.approved_at || null,
+        rejectedAt: row?.rejected_at || null,
+        rejectionReason: row?.rejection_reason || null,
       },
+    };
+  }
+
+  /** Lightweight status-only read — used by the frontend to decide whether to render
+   *  the report card (fetched separately from the student profile) or a placeholder. */
+  async getStatus(user: any, query: any) {
+    const { studentId, academicYear } = query;
+    if (!studentId || !academicYear) throw new BadRequestException('studentId and academicYear are required');
+    await this.assertAccess(user, studentId);
+
+    const rows: any[] = await this.ds.query(
+      `SELECT status, published_at, approved_at, rejected_at, rejection_reason FROM report_card_remarks WHERE student_id = $1 AND academic_year = $2`,
+      [studentId, academicYear],
+    );
+    const row = rows[0];
+    const status = row ? this.normalizeReportCardStatus(row.status) : 'DRAFT';
+    const data: any = { status, visible: status === 'APPROVED' };
+
+    if (hasSchoolRole(user.role, 'PARENT')) {
+      const ackRows: any[] = await this.ds.query(
+        `SELECT 1 FROM report_card_acknowledgements WHERE student_id = $1 AND academic_year = $2 AND parent_user_id = $3`,
+        [studentId, academicYear, user.id],
+      );
+      data.checkedByMe = ackRows.length > 0;
+    }
+    if (hasSchoolRole(user.role, 'TEACHER') || hasSchoolRole(user.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user.role, 'SUPER_ADMIN')) {
+      data.publishedAt = row?.published_at || null;
+      data.approvedAt = row?.approved_at || null;
+      data.rejectedAt = row?.rejected_at || null;
+      data.rejectionReason = row?.rejection_reason || null;
+    }
+    return { success: true, data };
+  }
+
+  async publish(user: any, body: any) {
+    const { studentId, academicYear, className } = body;
+    if (!studentId || !academicYear) throw new BadRequestException('studentId and academicYear are required');
+    const instituteId = await this.assertAccess(user, studentId);
+
+    const rows: any[] = await this.ds.query(
+      `INSERT INTO report_card_remarks (institute_id, student_id, academic_year, class_name, status, published_by, published_at, rejected_by, rejected_at, rejection_reason)
+       VALUES ($1, $2, $3, $4, 'PUBLISHED', $5, NOW(), NULL, NULL, NULL)
+       ON CONFLICT (student_id, academic_year)
+       DO UPDATE SET
+         status = 'PUBLISHED',
+         published_by = $5,
+         published_at = NOW(),
+         rejected_by = NULL,
+         rejected_at = NULL,
+         rejection_reason = NULL,
+         class_name = COALESCE($4::text, report_card_remarks.class_name),
+         updated_at = NOW()
+       RETURNING *`,
+      [instituteId, studentId, academicYear, className || null, user.id],
+    );
+    const row = rows[0];
+
+    const adminIds = await this.findInstituteAdminUserIds(instituteId);
+    await this.notifyMany(adminIds, {
+      type: 'report_card_published',
+      title: 'Report Card Published',
+      message: `A report card for ${academicYear} is ready for your approval.`,
+      actionUrl: `/school/admin/students/${studentId}/report-card?class=${encodeURIComponent(row.class_name || '')}&year=${encodeURIComponent(academicYear)}`,
+      referenceId: studentId,
+    });
+
+    return { success: true, data: { status: 'PUBLISHED', publishedAt: row.published_at } };
+  }
+
+  async approve(user: any, body: any) {
+    const { studentId, academicYear } = body;
+    if (!studentId || !academicYear) throw new BadRequestException('studentId and academicYear are required');
+    const instituteId = await this.assertAccess(user, studentId);
+
+    const existing: any[] = await this.ds.query(
+      `SELECT status FROM report_card_remarks WHERE student_id = $1 AND academic_year = $2`,
+      [studentId, academicYear],
+    );
+    const currentStatus = existing[0] ? this.normalizeReportCardStatus(existing[0].status) : 'DRAFT';
+    if (currentStatus !== 'PUBLISHED' && currentStatus !== 'REJECTED') {
+      throw new BadRequestException('Report card must be published before it can be approved');
+    }
+
+    const rows: any[] = await this.ds.query(
+      `UPDATE report_card_remarks SET status = 'APPROVED', approved_by = $3, approved_at = NOW(), updated_at = NOW()
+       WHERE student_id = $1 AND academic_year = $2
+       RETURNING *`,
+      [studentId, academicYear, user.id],
+    );
+    const row = rows[0];
+
+    const classQs = `class=${encodeURIComponent(row.class_name || '')}&year=${encodeURIComponent(academicYear)}`;
+    await this.notifyMany([studentId], {
+      type: 'report_card_approved',
+      title: 'Report Card Available',
+      message: `The report card for ${academicYear} has been approved and is now available.`,
+      actionUrl: `/school/student/analytics/report-card?${classQs}`,
+      referenceId: studentId,
+    });
+
+    const parentIds = await this.findParentUserIds(instituteId, studentId);
+    await this.notifyMany(parentIds, {
+      type: 'report_card_approved',
+      title: 'Report Card Available',
+      message: `The report card for ${academicYear} has been approved and is now available.`,
+      actionUrl: `/school/parent/child/report-card?${classQs}&studentId=${studentId}`,
+      referenceId: studentId,
+    });
+
+    return { success: true, data: { status: 'APPROVED', approvedAt: row.approved_at } };
+  }
+
+  async reject(user: any, body: any) {
+    const { studentId, academicYear, reason } = body;
+    if (!studentId || !academicYear) throw new BadRequestException('studentId and academicYear are required');
+    const instituteId = await this.assertAccess(user, studentId);
+
+    const existing: any[] = await this.ds.query(
+      `SELECT status, published_by FROM report_card_remarks WHERE student_id = $1 AND academic_year = $2`,
+      [studentId, academicYear],
+    );
+    if (!existing[0] || this.normalizeReportCardStatus(existing[0].status) !== 'PUBLISHED') {
+      throw new BadRequestException('Only a published report card can be rejected');
+    }
+
+    const rows: any[] = await this.ds.query(
+      `UPDATE report_card_remarks SET status = 'REJECTED', rejected_by = $3, rejected_at = NOW(), rejection_reason = $4, updated_at = NOW()
+       WHERE student_id = $1 AND academic_year = $2
+       RETURNING *`,
+      [studentId, academicYear, user.id, (reason ?? '').trim() || null],
+    );
+    const row = rows[0];
+
+    if (row.published_by) {
+      await this.notifyMany([row.published_by], {
+        type: 'report_card_rejected',
+        title: 'Report Card Needs Changes',
+        message: `The report card for ${academicYear} was sent back${row.rejection_reason ? `: ${row.rejection_reason}` : '.'}`,
+        actionUrl: `/school/teacher/reports/student/${studentId}/report-card?class=${encodeURIComponent(row.class_name || '')}&year=${encodeURIComponent(academicYear)}`,
+        referenceId: studentId,
+      });
+    }
+
+    return { success: true, data: { status: 'REJECTED', rejectionReason: row.rejection_reason } };
+  }
+
+  async markChecked(user: any, body: any) {
+    const { studentId, academicYear } = body;
+    if (!studentId || !academicYear) throw new BadRequestException('studentId and academicYear are required');
+    if (!hasSchoolRole(user.role, 'PARENT')) {
+      throw new ForbiddenException('Only parents can acknowledge a report card');
+    }
+    const instituteId = await this.assertAccess(user, studentId);
+
+    const existing: any[] = await this.ds.query(
+      `SELECT status FROM report_card_remarks WHERE student_id = $1 AND academic_year = $2`,
+      [studentId, academicYear],
+    );
+    if (!existing[0] || this.normalizeReportCardStatus(existing[0].status) !== 'APPROVED') {
+      throw new BadRequestException('Report card is not available to acknowledge yet');
+    }
+
+    await this.ds.query(
+      `INSERT INTO report_card_acknowledgements (institute_id, student_id, academic_year, parent_user_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (student_id, academic_year, parent_user_id) DO NOTHING`,
+      [instituteId, studentId, academicYear, user.id],
+    );
+
+    const classTeacherId = await this.findClassTeacherUserId(studentId);
+    if (classTeacherId) {
+      await this.notifyMany([classTeacherId], {
+        type: 'report_card_checked',
+        title: 'Report Card Acknowledged',
+        message: `A parent has reviewed the report card for ${academicYear}.`,
+        actionUrl: `/school/teacher/reports/student/${studentId}/report-card?year=${encodeURIComponent(academicYear)}`,
+        referenceId: studentId,
+      });
+    }
+
+    const adminIds = await this.findInstituteAdminUserIds(instituteId);
+    await this.notifyMany(adminIds, {
+      type: 'report_card_checked',
+      title: 'Report Card Acknowledged',
+      message: `A parent has reviewed the report card for ${academicYear}.`,
+      actionUrl: `/school/admin/students/${studentId}/report-card?year=${encodeURIComponent(academicYear)}`,
+      referenceId: studentId,
+    });
+
+    return { success: true, data: { checked: true } };
+  }
+
+  async getCheckedStatus(user: any, query: any) {
+    const { studentId, academicYear } = query;
+    if (!studentId || !academicYear) throw new BadRequestException('studentId and academicYear are required');
+    await this.assertAccess(user, studentId);
+
+    const rows: any[] = await this.ds.query(
+      `SELECT a.parent_user_id, a.checked_at, u.name AS parent_name
+       FROM report_card_acknowledgements a
+       JOIN users u ON u.id = a.parent_user_id
+       WHERE a.student_id = $1 AND a.academic_year = $2
+       ORDER BY a.checked_at ASC`,
+      [studentId, academicYear],
+    );
+    return {
+      success: true,
+      data: rows.map((r) => ({ parentUserId: r.parent_user_id, parentName: r.parent_name, checkedAt: r.checked_at })),
     };
   }
 
@@ -168,13 +472,16 @@ export class SchoolReportCardRemarksService {
       [instituteId, studentId, academicYear, className || null, teacherRemark, user.id],
     );
     const row = rows[0];
+    const savedTeacherRemark = row.teacher_remark || null;
+    const aiRemark = this.cleanAiRemark(row.ai_remark || null);
     return {
       success: true,
       data: {
-        teacherRemark: row.teacher_remark || null,
-        aiRemark: row.ai_remark || null,
-        remarkSource: row.teacher_remark ? 'TEACHER' : (row.ai_remark ? 'AI' : null),
-        effectiveRemark: row.teacher_remark || row.ai_remark || '',
+        status: this.normalizeReportCardStatus(row.status),
+        teacherRemark: savedTeacherRemark,
+        aiRemark,
+        remarkSource: savedTeacherRemark ? 'TEACHER' : (aiRemark ? 'AI' : null),
+        effectiveRemark: savedTeacherRemark || aiRemark || '',
         aiGeneratedAt: row.ai_generated_at || null,
       },
     };

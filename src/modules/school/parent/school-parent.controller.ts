@@ -38,6 +38,26 @@ export class SchoolParentController {
     return this.svc.submitLeaveRequest(user, id, body);
   }
 
+  @Get('students/:id/screen-time')
+  getScreenTime(@SchoolUser() user: any, @Param('id') id: string, @Query('range') range?: string) {
+    return this.svc.getScreenTime(user, id, range);
+  }
+
+  @Get('students/:id/screen-time/month')
+  getScreenTimeMonth(@SchoolUser() user: any, @Param('id') id: string, @Query('month') month: string) {
+    return this.svc.getScreenTimeMonth(user, id, month);
+  }
+
+  /** Catch-up read for a tab that wasn't connected to the live socket when an alert fired. */
+  @Get('emergency-alerts/active')
+  getActiveEmergencyAlerts(@SchoolUser() user: any) {
+    return this.svc.getActiveEmergencyAlerts(user);
+  }
+
+  @Get('students/:id/fees') getFeeSummary(@SchoolUser() user: any, @Param('id') id: string) {
+    return this.svc.getFeeSummary(user, id);
+  }
+
   @Get('students/:id/marks') getMarks(@SchoolUser() user: any, @Param('id') id: string) {
     return this.svc.getMarks(user, id);
   }

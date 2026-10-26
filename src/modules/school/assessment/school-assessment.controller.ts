@@ -98,6 +98,11 @@ export class SchoolAssessmentController {
   @Audit({ module: 'Assessment', action: 'Assessment Edit', description: 'Updated assessment ID {params.id}' })
   update(@SchoolUser() user: any, @Param('id') id: string, @Body() body: any) { return this.svc.update(user, id, body); }
 
+  @Post(':id/publish')
+  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  @Audit({ module: 'Assessment', action: 'Assessment Publish', description: 'Published assessment ID {params.id}' })
+  publish(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.publish(user, id); }
+
   @Delete(':id')
   @Audit({ module: 'Assessment', action: 'Assessment Delete', description: 'Deleted assessment ID {params.id}' })
   remove(@SchoolUser() user: any, @Param('id') id: string) { return this.svc.remove(user, id); }

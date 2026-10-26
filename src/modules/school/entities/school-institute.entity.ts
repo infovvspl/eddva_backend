@@ -34,6 +34,7 @@ export class SchoolInstitute extends SchoolBase {
   @Column({ name: 'is_suspended', default: false }) isSuspended: boolean;
   @Column({ name: 'suspension_reason', nullable: true }) suspensionReason: string;
   @Column({ name: 'erp_enabled', default: false }) erpEnabled: boolean;
+  @Column({ name: 'lms_enabled', default: true }) lmsEnabled: boolean;
   @Column({ name: 'ai_enabled', default: false }) aiEnabled: boolean;
   @Column({ name: 'ai_features', type: 'jsonb', nullable: true, default: {} }) aiFeatures: any;
   @Column({ name: 'modules_permissions', type: 'jsonb', nullable: true, default: {} }) modulesPermissions: any;

@@ -6,13 +6,43 @@ import * as bcrypt from 'bcryptjs';
 import { MailService } from '../../mail/mail.service';
 import { querySectionSubjects } from '../common/section-subjects';
 import { hasSchoolRole } from '../common/role-helper';
+import { generateTempPassword } from '../../../common/temp-password';
+import { DocumentGeneratorService } from '../../document-generator/document-generator.service';
+import { S3Service } from '../../upload/s3.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class SchoolStudentService implements OnModuleInit {
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
-    private readonly mailService: MailService
+    private readonly mailService: MailService,
+    private readonly documentGeneratorService: DocumentGeneratorService,
+    private readonly s3Service: S3Service,
   ) { }
+
+  /**
+   * Student photo uploads used to be read as a base64 data URI and posted
+   * straight in the create/update JSON body — the same bug class as notices
+   * attachments (see SchoolNoticeService.presignAttachment): a real phone
+   * photo pushes the base64-inflated payload past the server's 10MB JSON
+   * limit, so the upload silently never reached `profile_image` at all. This
+   * presigns a direct browser-to-storage upload instead.
+   */
+  async presignPhoto(user: any, body: { fileName?: string; contentType?: string; fileSize?: number }, req: any) {
+    const instituteId = user.instituteId;
+    if (!instituteId) throw new BadRequestException('Institute ID could not be determined');
+    if (!body.contentType) throw new BadRequestException('contentType is required');
+    const MAX = 10 * 1024 * 1024; // 10 MB — a profile photo, not a document
+    if (body.fileSize && body.fileSize > MAX) throw new BadRequestException('Photo must be ≤ 10 MB');
+    const safeName = (body.fileName || 'photo').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'photo';
+    const key = `tenants/${instituteId}/student-photos/${Date.now()}-${randomUUID()}-${safeName}`;
+    const { uploadUrl, fileUrl } = await this.s3Service.presign(key, body.contentType);
+
+    const host = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const proxyUrl = `${host}/api/v1/upload/proxy?url=${encodeURIComponent(uploadUrl)}&contentType=${encodeURIComponent(body.contentType)}`;
+
+    return { uploadUrl: proxyUrl, fileUrl, key };
+  }
 
   async onModuleInit() {
     try {
@@ -139,7 +169,37 @@ export class SchoolStudentService implements OnModuleInit {
   async create(user: any, body: any) {
     const instituteId = await this.resolveInstituteId(user, body.instituteId);
     if (!body.name || !body.email) throw new BadRequestException('Name and email are required');
-    if (!body.password) throw new BadRequestException('Password is required for student login');
+
+    // Mirrors the onboarding wizard's own per-field checks — the frontend
+    // can never be trusted as the only validation layer, since this endpoint
+    // is reachable directly (e.g. bulk tooling, a future integration, or
+    // someone bypassing the form). Keep in sync with
+    // AddStudentMultiStep.jsx's getStepErrors().
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+      throw new BadRequestException('Invalid email address');
+    }
+    if (body.phone && !/^\d{10}$/.test(body.phone)) {
+      throw new BadRequestException('Mobile number must be exactly 10 digits');
+    }
+    if (body.nationalId && !/^\d{12}$/.test(body.nationalId)) {
+      throw new BadRequestException('Aadhaar ID must be exactly 12 digits');
+    }
+    if (body.pinCode && !/^\d{6}$/.test(body.pinCode)) {
+      throw new BadRequestException('PIN code must be exactly 6 digits');
+    }
+    if (body.parentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.parentEmail)) {
+      throw new BadRequestException('Invalid parent email address');
+    }
+    if (body.parentPhone && !/^\d{10}$/.test(body.parentPhone)) {
+      throw new BadRequestException('Parent phone must be exactly 10 digits');
+    }
+
+    // A blank password auto-generates one rather than blocking creation — the
+    // admin is never forced to invent one, and whichever credential-delivery
+    // channel they pick afterward (student email / parent email / slip) needs
+    // a real plaintext value to show, which only exists at this moment.
+    const passwordWasGenerated = !body.password;
+    const studentPassword = body.password || generateTempPassword();
 
     const existing: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1)`, [body.email]);
     if (existing.length) throw new BadRequestException('Email already exists');
@@ -149,7 +209,7 @@ export class SchoolStudentService implements OnModuleInit {
     }
 
     const enrollmentNo = body.enrollmentNo || await this.generateEnrollmentNo(instituteId);
-    const hashed = await bcrypt.hash(body.password, 12);
+    const hashed = await bcrypt.hash(studentPassword, 12);
     const sectionId = body.sectionId || null;
 
     const queryRunner = this.ds.createQueryRunner();
@@ -188,7 +248,14 @@ export class SchoolStudentService implements OnModuleInit {
       }
 
       const { password: _p, ...safeUser } = u;
-      return { success: true, message: 'Student created successfully', data: { ...safeUser, studentProfile: sRows[0] } };
+      return {
+        success: true,
+        message: 'Student created successfully',
+        data: { ...safeUser, studentProfile: sRows[0] },
+        // Only present when auto-generated — never echoes back an admin-chosen
+        // password, and never persisted anywhere beyond this one response.
+        ...(passwordWasGenerated ? { generatedPassword: studentPassword } : {}),
+      };
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw new BadRequestException(err instanceof Error ? err.message : 'Error creating student profile');
@@ -197,7 +264,22 @@ export class SchoolStudentService implements OnModuleInit {
     }
   }
 
-  async list(user: any, query: any) {
+  // A user's teachers.id essentially never changes, and every students-list request needs it,
+  // so remember it briefly instead of spending a database round trip on each call.
+  // Only found ids are cached, so a teacher profile created later is picked up immediately.
+  private readonly teacherIdCache = new Map<string, { id: string; exp: number }>();
+
+  private async teacherIdForUser(userId: string): Promise<string | undefined> {
+    const hit = this.teacherIdCache.get(userId);
+    if (hit && hit.exp > Date.now()) return hit.id;
+    const rows: any[] = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [userId]);
+    const id = rows[0]?.id;
+    if (id) this.teacherIdCache.set(userId, { id, exp: Date.now() + 5 * 60_000 });
+    return id;
+  }
+
+  /** Who may see which students: institute, role (student/parent/teacher) scoping. */
+  private async studentScopeFilter(user: any, query: any) {
     const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
     const params: any[] = [];
     let filter = `u.role='STUDENT'`;
@@ -217,19 +299,45 @@ export class SchoolStudentService implements OnModuleInit {
         OR (s.parent_phone IS NOT NULL AND $${params.length}::text IS NOT NULL AND s.parent_phone = $${params.length})
       )`;
     } else if (hasSchoolRole(user.role, 'TEACHER')) {
-      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
-      const teacherId = tRows[0]?.id;
+      const teacherId = await this.teacherIdForUser(user.id);
       if (teacherId) {
         params.push(teacherId);
         filter += ` AND EXISTS (
           SELECT 1
           FROM teacher_academic_assignments ta
-          WHERE ta.teacher_id::text = $${params.length}::text
-            AND ta.class_id::text = sec.class_id::text
-            AND ta.section_id::text = sec.id::text
+          WHERE ta.teacher_id = $${params.length}::uuid
+            AND ta.class_id = sec.class_id
+            AND ta.section_id = sec.id
         )`;
       }
     }
+
+    return { filter, params };
+  }
+
+  /** Classes and sections the caller can see students in, for the filter dropdowns. */
+  async listFilterOptions(user: any, query: any = {}) {
+    const { filter, params } = await this.studentScopeFilter(user, query);
+    const rows: any[] = await this.ds.query(
+      `SELECT DISTINCT c.id AS class_id, c.name AS class_name, sec.id AS section_id, sec.name AS section_name
+       FROM users u JOIN students s ON s.user_id=u.id
+       JOIN sections sec ON s.section_id=sec.id
+       JOIN classes c ON sec.class_id=c.id
+       WHERE ${filter}
+       ORDER BY c.name, sec.name`,
+      params,
+    );
+    const classes = new Map<string, { id: string; name: string; sections: { id: string; name: string }[] }>();
+    for (const r of rows) {
+      if (!classes.has(r.class_id)) classes.set(r.class_id, { id: r.class_id, name: r.class_name, sections: [] });
+      classes.get(r.class_id)!.sections.push({ id: r.section_id, name: r.section_name });
+    }
+    return { success: true, data: { classes: [...classes.values()] } };
+  }
+
+  async list(user: any, query: any) {
+    const { filter: scopeFilter, params } = await this.studentScopeFilter(user, query);
+    let filter = scopeFilter;
 
     if (query.classId) {
       params.push(query.classId);
@@ -239,6 +347,9 @@ export class SchoolStudentService implements OnModuleInit {
       params.push(query.sectionId);
       filter += ` AND s.section_id::text=$${params.length}::text`;
     }
+    const status = String(query.status || '').toLowerCase();
+    if (status === 'active') filter += ` AND u.is_active = TRUE`;
+    else if (status === 'inactive') filter += ` AND u.is_active = FALSE`;
 
     if (query.search) {
       const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
@@ -263,9 +374,6 @@ export class SchoolStudentService implements OnModuleInit {
       LEFT JOIN classes c ON sec.class_id=c.id
       WHERE ${filter}
     `;
-    const countResult = await this.ds.query(countQuery, params);
-    const total = parseInt(countResult[0]?.total || '0', 10);
-    const totalPages = limit ? Math.ceil(total / limit) : 1;
 
     const allowedSortFields: Record<string, string> = {
       name: 'u.name',
@@ -276,7 +384,7 @@ export class SchoolStudentService implements OnModuleInit {
     const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const limitOffsetClause = limit !== null ? `LIMIT ${limit} OFFSET ${offset}` : '';
-    const rows: any[] = await this.ds.query(
+    const [countResult, rows]: [any[], any[]] = await Promise.all([this.ds.query(countQuery, params), this.ds.query(
       `SELECT u.id,u.name,u.email,u.phone,u.is_active,u.profile_image,u.created_at,
               u.institute_id,i.name AS institute_name,
               s.id AS profile_id,s.enrollment_no,s.roll_no,s.section_id,s.dob,s.gender,s.blood_group,
@@ -284,16 +392,19 @@ export class SchoolStudentService implements OnModuleInit {
               s.parent_email,s.parent_occupation,s.address,s.city,s.state,s.pin_code,
               s.medical_conditions,s.allergies,s.documents,s.national_id,
               s.previous_school_name,s.previous_admission_no,s.reason_for_transfer,s.caste_category,s.board_registration_no,s.board_name,s.document_verification,s.status,
+              s.credentials_sent_at,s.student_credentials_sent_at,
               sec.name AS section_name,c.id AS class_id,c.name AS class_name,
               (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE UPPER(at.status) IN ('PRESENT','LATE')) / NULLIF(COUNT(*), 0))
-                 FROM attendances at WHERE at.user_id::text = u.id::text) AS attendance_pct
+                 FROM attendances at WHERE at.user_id = u.id) AS attendance_pct
        FROM users u JOIN students s ON s.user_id=u.id
        LEFT JOIN institutes i ON i.id=u.institute_id
        LEFT JOIN sections sec ON s.section_id=sec.id
        LEFT JOIN classes c ON sec.class_id=c.id
        WHERE ${filter} ORDER BY ${sortBy} ${sortOrder} ${limitOffsetClause}`,
       params,
-    );
+    )]);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+    const totalPages = limit ? Math.ceil(total / limit) : 1;
     const mapped = rows.map(r => {
       const documents = this.parseJsonObject(r.documents);
       const parentDetails = documents.parentDetails || {};
@@ -321,6 +432,8 @@ export class SchoolStudentService implements OnModuleInit {
           motherName: r.mother_name,
           parentPhone: r.parent_phone,
           parentEmail: r.parent_email,
+          credentialsSentAt: r.credentials_sent_at,
+          studentCredentialsSentAt: r.student_credentials_sent_at,
           parentOccupation: r.parent_occupation,
           currentAddress: r.address,
           address: r.address,
@@ -358,31 +471,24 @@ export class SchoolStudentService implements OnModuleInit {
     const instituteId = await this.resolveOptionalInstituteId(user, query.instituteId);
 
     const params: any[] = [];
-    let joinClause = '';
-    let filter = `u.role = 'STUDENT'`;
+    let joinClause = `
+      JOIN students s ON s.user_id = u.id
+      LEFT JOIN sections sec ON s.section_id = sec.id
+      LEFT JOIN classes c ON sec.class_id = c.id
+    `;
+    let filter = `u.role = 'STUDENT' AND s.status = 'ACTIVE'`;
     if (instituteId) {
       params.push(instituteId);
       filter += ` AND u.institute_id = $${params.length}`;
+      filter += ` AND c.academic_year = (SELECT MAX(academic_year) FROM classes WHERE institute_id = $${params.length})`;
     }
 
     if (query.classId) {
-      joinClause = `
-        JOIN students s ON s.user_id = u.id
-        LEFT JOIN sections sec ON s.section_id = sec.id
-        LEFT JOIN classes c ON sec.class_id = c.id
-      `;
       params.push(query.classId);
       filter += ` AND c.id::text = $${params.length}::text`;
     }
 
     if (query.sectionId) {
-      if (!query.classId) {
-        joinClause = `
-          JOIN students s ON s.user_id = u.id
-          LEFT JOIN sections sec ON s.section_id = sec.id
-          LEFT JOIN classes c ON sec.class_id = c.id
-        `;
-      }
       params.push(query.sectionId);
       filter += ` AND s.section_id::text = $${params.length}::text`;
     }
@@ -1179,7 +1285,11 @@ export class SchoolStudentService implements OnModuleInit {
       try {
         if (!rec.name?.trim()) throw new Error('Name is required');
         if (!rec.email?.trim()) throw new Error('Email is required');
-        if (!rec.password?.trim()) throw new Error('Password is required');
+
+        // Same auto-generate-if-blank rule as the single-create path — a
+        // spreadsheet with an empty Password column no longer fails the row.
+        const rowPasswordWasGenerated = !rec.password?.trim();
+        const rowPassword = rec.password?.trim() || generateTempPassword();
 
         const existing: any[] = await this.ds.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1)`, [rec.email.trim()]);
         if (existing.length) throw new Error('Email already exists');
@@ -1198,7 +1308,7 @@ export class SchoolStudentService implements OnModuleInit {
         }
 
         const enrollmentNo = rec.enrollmentNo || await this.generateEnrollmentNo(instituteId);
-        const hashed = await bcrypt.hash(rec.password, 12);
+        const hashed = await bcrypt.hash(rowPassword, 12);
 
         const uRows: any[] = await this.ds.query(
           `INSERT INTO users (institute_id,name,email,password,role,phone,is_active) VALUES ($1,$2,$3,$4,'STUDENT',$5,TRUE) RETURNING id`,
@@ -1229,7 +1339,15 @@ export class SchoolStudentService implements OnModuleInit {
           ]
         );
 
-        imported.push({ row, email: rec.email });
+        imported.push({
+          row,
+          studentId: userId,
+          email: rec.email,
+          name: rec.name,
+          parentEmail: rec.parentEmail || null,
+          // Only present when auto-generated — mirrors create()'s same rule.
+          ...(rowPasswordWasGenerated ? { generatedPassword: rowPassword } : {}),
+        });
       } catch (err: any) {
         errors.push({ row, email: rec.email || 'N/A', error: err.message });
       }
@@ -1239,6 +1357,7 @@ export class SchoolStudentService implements OnModuleInit {
       success: true,
       importedCount: imported.length,
       failedCount: errors.length,
+      imported,
       errors
     };
   }
@@ -1385,7 +1504,7 @@ export class SchoolStudentService implements OnModuleInit {
     const parentName = body.parentName || student.father_name || student.mother_name || `Parent of ${student.name}`;
 
     // Determine or generate temp password
-    const tempPassword = body.tempPassword || Math.random().toString(36).substring(2, 10);
+    const tempPassword = body.tempPassword || generateTempPassword();
     const loginUrl = body.loginUrl || 'https://odm.eddva.in/login';
     const instituteName = student.institute_name || 'EDDVA School';
 
@@ -1410,6 +1529,15 @@ export class SchoolStudentService implements OnModuleInit {
       instituteName,
     });
 
+    // Only stamped on a real send — a devMode no-op must not make the student
+    // look like credentials have already reached the parent.
+    if (result.sent === true) {
+      await this.ds.query(
+        `UPDATE students SET credentials_sent_at = now(), credentials_sent_count = credentials_sent_count + 1 WHERE user_id = $1`,
+        [student.id],
+      );
+    }
+
     return {
       success: true,
       sent: result.sent,
@@ -1421,7 +1549,331 @@ export class SchoolStudentService implements OnModuleInit {
     };
   }
 
+  /**
+   * Bulk fan-out of sendParentCredentials() over many students, for the admin
+   * "select students → send parent credentials" action. Reuses that method
+   * unmodified per student — no duplicated email/upsert logic — in bounded
+   * concurrency chunks so a large batch doesn't open dozens of simultaneous
+   * SMTP connections at once (the mail transporter here isn't pooled/rate-
+   * limited; Gmail SMTP, the default, throttles hard past a few per second).
+   * One student's failure (no parent email, not found, wrong institute) is
+   * caught and recorded — it never aborts the rest of the batch.
+   */
+  async bulkSendParentCredentials(
+    user: any,
+    studentIds: string[],
+    opts: { skipAlreadySent?: boolean } = {},
+  ) {
+    if (!Array.isArray(studentIds) || !studentIds.length) {
+      throw new BadRequestException('studentIds is required and must be a non-empty array');
+    }
+    const skipAlreadySent = opts.skipAlreadySent !== false;
 
+    type ResultRow = {
+      studentId: string;
+      parentEmail?: string | null;
+      parentName?: string | null;
+      status: 'sent' | 'skipped' | 'failed';
+      reason?: string;
+    };
+    const results: ResultRow[] = [];
+
+    let toProcess = studentIds;
+    if (skipAlreadySent) {
+      const alreadySentRows: any[] = await this.ds.query(
+        `SELECT user_id FROM students WHERE user_id = ANY($1::uuid[]) AND credentials_sent_at IS NOT NULL`,
+        [studentIds],
+      );
+      const alreadySent = new Set(alreadySentRows.map((r) => r.user_id));
+      for (const id of alreadySent) {
+        results.push({ studentId: id as string, status: 'skipped', reason: 'already_sent' });
+      }
+      toProcess = studentIds.filter((id) => !alreadySent.has(id));
+    }
+
+    const CHUNK_SIZE = 8;
+    for (let i = 0; i < toProcess.length; i += CHUNK_SIZE) {
+      const chunk = toProcess.slice(i, i + CHUNK_SIZE);
+      const settled = await Promise.allSettled(
+        chunk.map((studentId) => this.sendParentCredentials(user, studentId, {})),
+      );
+      settled.forEach((outcome, idx) => {
+        const studentId = chunk[idx];
+        if (outcome.status === 'fulfilled') {
+          // sendParentCredentials() doesn't throw on a mail-provider failure —
+          // it returns { sent: false, error } like a normal result, because the
+          // single-send endpoint's caller needs that detail. A fulfilled promise
+          // here is therefore NOT the same thing as "the email actually went
+          // out" and must still be checked.
+          if (outcome.value.sent === true) {
+            results.push({
+              studentId,
+              parentEmail: outcome.value.parentEmail,
+              parentName: outcome.value.parentName,
+              status: 'sent',
+            });
+          } else {
+            results.push({
+              studentId,
+              parentEmail: outcome.value.parentEmail,
+              parentName: outcome.value.parentName,
+              status: 'failed',
+              reason: outcome.value.error || 'Email delivery failed',
+            });
+          }
+        } else {
+          const err = outcome.reason;
+          results.push({
+            studentId,
+            status: 'failed',
+            reason: err instanceof Error ? err.message : 'Failed to send credentials',
+          });
+        }
+      });
+    }
+
+    const sentCount = results.filter((r) => r.status === 'sent').length;
+    const skippedCount = results.filter((r) => r.status === 'skipped').length;
+    const failedCount = results.filter((r) => r.status === 'failed').length;
+
+    return {
+      success: true,
+      data: {
+        totalRequested: studentIds.length,
+        sentCount,
+        skippedCount,
+        failedCount,
+        results,
+      },
+    };
+  }
+
+  /**
+   * The STUDENT's own login, delivered through whichever channel the admin
+   * picked — distinct from sendParentCredentials() above, which is the
+   * parent's separate parent-portal account. Always issues a fresh password
+   * (same "send = reset + deliver" rule the parent flow uses), so there is
+   * never a stale password sitting un-communicated.
+   */
+  async sendStudentCredentials(
+    user: any,
+    studentId: string,
+    body: { channel: 'student_email' | 'parent_email' | 'slip'; parentEmail?: string; loginUrl?: string },
+  ) {
+    const channel = body.channel;
+    if (!['student_email', 'parent_email', 'slip'].includes(channel)) {
+      throw new BadRequestException('channel must be one of: student_email, parent_email, slip');
+    }
+
+    const rows: any[] = await this.ds.query(
+      `SELECT u.id, u.name, u.email, u.institute_id, s.parent_email, s.father_name, s.mother_name, i.name as institute_name
+       FROM users u
+       LEFT JOIN students s ON s.user_id = u.id
+       LEFT JOIN institutes i ON u.institute_id = i.id
+       WHERE (u.id=$1 OR s.id=$1) AND u.role='STUDENT'`,
+      [studentId],
+    );
+    if (!rows.length) throw new NotFoundException('Student not found');
+    const student = rows[0];
+
+    const instituteId = await this.resolveInstituteId(user, student.institute_id);
+    if (student.institute_id !== instituteId) {
+      throw new BadRequestException('Unauthorized to access this student');
+    }
+
+    const instituteName = student.institute_name || 'EDDVA School';
+    const loginUrl = body.loginUrl || 'https://odm.eddva.in/login';
+    const tempPassword = generateTempPassword();
+    const hashed = await bcrypt.hash(tempPassword, 12);
+    await this.ds.query(`UPDATE users SET password = $1 WHERE id = $2`, [hashed, student.id]);
+
+    const stampSent = async () => {
+      await this.ds.query(
+        `UPDATE students SET student_credentials_sent_at = now(), student_credentials_sent_count = student_credentials_sent_count + 1 WHERE user_id = $1`,
+        [student.id],
+      );
+    };
+
+    if (channel === 'slip') {
+      const pdfBuffer = await this.documentGeneratorService.generateCredentialSlip([{
+        studentName: student.name,
+        studentEmail: student.email,
+        tempPassword,
+        instituteName,
+        loginUrl,
+      }]);
+      await stampSent();
+      return {
+        success: true,
+        channel: 'slip' as const,
+        pdfBase64: pdfBuffer.toString('base64'),
+        studentName: student.name,
+        studentEmail: student.email,
+      };
+    }
+
+    if (channel === 'parent_email') {
+      const parentEmail = body.parentEmail || student.parent_email;
+      if (!parentEmail) {
+        throw new BadRequestException('No parent email found for this student. Please provide one.');
+      }
+      const parentName = student.father_name || student.mother_name || `Parent of ${student.name}`;
+      const result = await this.mailService.sendStudentCredentialsToParent({
+        to: parentEmail,
+        parentName,
+        studentName: student.name,
+        studentEmail: student.email,
+        tempPassword,
+        loginUrl,
+        instituteName,
+      });
+      if (result.sent === true) await stampSent();
+      return {
+        success: true,
+        channel: 'parent_email' as const,
+        sent: result.sent,
+        devMode: result.devMode,
+        error: result.error,
+        parentEmail,
+        studentName: student.name,
+      };
+    }
+
+    // student_email
+    const result = await this.mailService.sendCredentials(student.email, student.name, student.email, tempPassword, instituteName);
+    if (result.sent === true) await stampSent();
+    return {
+      success: true,
+      channel: 'student_email' as const,
+      sent: result.sent,
+      devMode: result.devMode,
+      error: result.error,
+      studentEmail: student.email,
+      studentName: student.name,
+    };
+  }
+
+  /**
+   * Bulk fan-out of sendStudentCredentials(). For the email channels this is
+   * the same chunked Promise.allSettled pattern as bulkSendParentCredentials.
+   * The slip channel is handled separately: one combined multi-page PDF for
+   * the whole batch (page-break-per-student, see generateCredentialSlip)
+   * rather than N separate single-page downloads.
+   */
+  async bulkSendStudentCredentials(
+    user: any,
+    studentIds: string[],
+    opts: { channel: 'student_email' | 'parent_email' | 'slip'; skipAlreadySent?: boolean },
+  ) {
+    if (!Array.isArray(studentIds) || !studentIds.length) {
+      throw new BadRequestException('studentIds is required and must be a non-empty array');
+    }
+    const channel = opts.channel;
+    if (!['student_email', 'parent_email', 'slip'].includes(channel)) {
+      throw new BadRequestException('channel must be one of: student_email, parent_email, slip');
+    }
+    const skipAlreadySent = opts.skipAlreadySent !== false;
+
+    type ResultRow = { studentId: string; status: 'sent' | 'skipped' | 'failed'; reason?: string; studentEmail?: string; studentName?: string };
+    const results: ResultRow[] = [];
+
+    let toProcess = studentIds;
+    if (skipAlreadySent) {
+      const alreadySentRows: any[] = await this.ds.query(
+        `SELECT user_id FROM students WHERE user_id = ANY($1::uuid[]) AND student_credentials_sent_at IS NOT NULL`,
+        [studentIds],
+      );
+      const alreadySent = new Set(alreadySentRows.map((r) => r.user_id));
+      for (const id of alreadySent) {
+        results.push({ studentId: id as string, status: 'skipped', reason: 'already_sent' });
+      }
+      toProcess = studentIds.filter((id) => !alreadySent.has(id));
+    }
+
+    if (channel === 'slip') {
+      if (!toProcess.length) {
+        return { success: true, data: { channel, totalRequested: studentIds.length, sentCount: 0, skippedCount: results.length, failedCount: 0, results, pdfBase64: null } };
+      }
+
+      const rows: any[] = await this.ds.query(
+        `SELECT u.id, u.name, u.email, u.institute_id, i.name as institute_name
+         FROM users u LEFT JOIN institutes i ON u.institute_id = i.id
+         WHERE u.id = ANY($1::uuid[]) AND u.role='STUDENT'`,
+        [toProcess],
+      );
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      const loginUrl = 'https://odm.eddva.in/login';
+      const records: Array<{ studentName: string; studentEmail: string; tempPassword: string; instituteName: string; loginUrl: string }> = [];
+      const succeededIds: string[] = [];
+
+      for (const studentId of toProcess) {
+        const row = byId.get(studentId);
+        if (!row) {
+          results.push({ studentId, status: 'failed', reason: 'Student not found' });
+          continue;
+        }
+        const tempPassword = generateTempPassword();
+        const hashed = await bcrypt.hash(tempPassword, 12);
+        await this.ds.query(`UPDATE users SET password = $1 WHERE id = $2`, [hashed, row.id]);
+        records.push({
+          studentName: row.name,
+          studentEmail: row.email,
+          tempPassword,
+          instituteName: row.institute_name || 'EDDVA School',
+          loginUrl,
+        });
+        succeededIds.push(studentId);
+        results.push({ studentId, status: 'sent', studentEmail: row.email, studentName: row.name });
+      }
+
+      let pdfBase64: string | null = null;
+      if (records.length) {
+        const pdfBuffer = await this.documentGeneratorService.generateCredentialSlip(records);
+        pdfBase64 = pdfBuffer.toString('base64');
+        await this.ds.query(
+          `UPDATE students SET student_credentials_sent_at = now(), student_credentials_sent_count = student_credentials_sent_count + 1 WHERE user_id = ANY($1::uuid[])`,
+          [succeededIds],
+        );
+      }
+
+      const sentCount = results.filter((r) => r.status === 'sent').length;
+      const failedCount = results.filter((r) => r.status === 'failed').length;
+      return {
+        success: true,
+        data: { channel, totalRequested: studentIds.length, sentCount, skippedCount: results.length - sentCount - failedCount, failedCount, results, pdfBase64 },
+      };
+    }
+
+    // Email channels — same bounded-concurrency fan-out as bulkSendParentCredentials.
+    const CHUNK_SIZE = 8;
+    for (let i = 0; i < toProcess.length; i += CHUNK_SIZE) {
+      const chunk = toProcess.slice(i, i + CHUNK_SIZE);
+      const settled = await Promise.allSettled(
+        chunk.map((studentId) => this.sendStudentCredentials(user, studentId, { channel })),
+      );
+      settled.forEach((outcome, idx) => {
+        const studentId = chunk[idx];
+        if (outcome.status === 'fulfilled') {
+          if (outcome.value.sent === true) {
+            results.push({ studentId, status: 'sent', studentEmail: outcome.value.studentEmail, studentName: outcome.value.studentName });
+          } else {
+            results.push({ studentId, status: 'failed', reason: outcome.value.error || 'Email delivery failed', studentEmail: outcome.value.studentEmail, studentName: outcome.value.studentName });
+          }
+        } else {
+          const err = outcome.reason;
+          results.push({ studentId, status: 'failed', reason: err instanceof Error ? err.message : 'Failed to send credentials' });
+        }
+      });
+    }
+
+    const sentCount = results.filter((r) => r.status === 'sent').length;
+    const skippedCount = results.filter((r) => r.status === 'skipped').length;
+    const failedCount = results.filter((r) => r.status === 'failed').length;
+    return {
+      success: true,
+      data: { channel, totalRequested: studentIds.length, sentCount, skippedCount, failedCount, results },
+    };
+  }
 
   async getMyCourses(user: any) {
     const studentRows = await this.ds.query(
@@ -1524,20 +1976,30 @@ export class SchoolStudentService implements OnModuleInit {
          WHERE taa.class_id::text = $1::text
            AND taa.section_id::text = $2::text
        )
-       SELECT cs.id, cs.name, u.name AS teacher_name, u.id AS teacher_user_id
-       FROM class_subjects cs
-       LEFT JOIN teacher_academic_assignments taa 
-         ON taa.class_id::text = $1::text 
-        AND taa.section_id::text = $2::text 
-        AND (
-          taa.subject_id::text = cs.id::text 
-          OR taa.subject_id::text IN (
-            SELECT id::text FROM subjects WHERE LOWER(TRIM(name)) = LOWER(TRIM(cs.name))
+       SELECT * FROM (
+         SELECT DISTINCT ON (cs.id) cs.id, cs.name, u.name AS teacher_name, u.id AS teacher_user_id
+         FROM class_subjects cs
+         LEFT JOIN teacher_academic_assignments taa
+           ON taa.class_id::text = $1::text
+          AND taa.section_id::text = $2::text
+          AND (
+            taa.subject_id::text = cs.id::text
+            OR taa.subject_id::text IN (
+              SELECT id::text FROM subjects WHERE LOWER(TRIM(name)) = LOWER(TRIM(cs.name))
+            )
           )
-        )
-       LEFT JOIN teachers t ON taa.teacher_id = t.id
-       LEFT JOIN users u ON t.user_id = u.id
-       ORDER BY cs.name`,
+         LEFT JOIN teachers t ON taa.teacher_id = t.id
+         LEFT JOIN users u ON t.user_id = u.id
+         -- The OR/name-matching join above can match more than one teacher_academic_assignments
+         -- row per subject, fanning the LEFT JOIN out into duplicate (cs.id) rows — which then
+         -- duplicated every chapter/topic/resource (DPP, mindmap, ...) under that subject all
+         -- the way to the API response. DISTINCT ON (cs.id) collapses back to one row per
+         -- subject; ORDER BY here (required to pair with DISTINCT ON) just picks a deterministic
+         -- teacher when more than one assignment matches — it does not affect the final subject
+         -- ordering, which the outer ORDER BY below still controls.
+         ORDER BY cs.id, u.name NULLS LAST
+       ) deduped_subjects
+       ORDER BY deduped_subjects.name`,
       [student.class_id, student.section_id]
     );
 
@@ -1615,8 +2077,12 @@ export class SchoolStudentService implements OnModuleInit {
       }
     }
 
-    // Assemble tree from pre-fetched maps (zero additional DB queries)
-    const curriculum = subjectRows.map((sub: any) => {
+    // Assemble tree from pre-fetched maps (zero additional DB queries).
+    // Belt-and-suspenders dedup by id — the subject query above is already fixed to return
+    // one row per subject, but this guarantees a duplicated subjectRows entry (from this or
+    // any future join change) can never double every chapter/topic/resource under it again.
+    const uniqueSubjectRows = [...new Map(subjectRows.map((s: any) => [s.id, s])).values()];
+    const curriculum = uniqueSubjectRows.map((sub: any) => {
       const chapterRows = chaptersBySubjectId.get(sub.id) ?? [];
       const chapters = chapterRows.map((chap: any) => {
         const topicRows = topicsByChapterId.get(chap.id) ?? [];

@@ -81,6 +81,10 @@ export const otpConfig = registerAs('otp', () => ({
 }));
 
 export const mailConfig = registerAs('mail', () => ({
+  // 'mailtrap' (HTTP API, via the official `mailtrap` SDK) or 'smtp' (nodemailer,
+  // the original path — kept as the default so any environment that hasn't set
+  // this var yet, or hasn't set MAILTRAP_API_TOKEN, keeps working unchanged).
+  provider: process.env.MAIL_PROVIDER || 'smtp',
   host: process.env.MAIL_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.MAIL_PORT) || 587,
   secure: process.env.MAIL_SECURE === 'true',
@@ -88,6 +92,13 @@ export const mailConfig = registerAs('mail', () => ({
   pass: process.env.MAIL_PASS || '',
   from: process.env.MAIL_FROM || 'EDVA Platform <noreply@edva.in>',
   devMode: process.env.MAIL_DEV_MODE !== 'false', // default true in dev
+  mailtrap: {
+    token: process.env.MAILTRAP_API_TOKEN || '',
+    // Sandbox mode routes every send into a Mailtrap testing inbox instead of
+    // a real recipient — set MAILTRAP_SANDBOX=true while testing a new flow.
+    sandbox: process.env.MAILTRAP_SANDBOX === 'true',
+    testInboxId: process.env.MAILTRAP_TEST_INBOX_ID ? parseInt(process.env.MAILTRAP_TEST_INBOX_ID) : undefined,
+  },
 }));
 
 export const storageConfig = registerAs('storage', () => ({

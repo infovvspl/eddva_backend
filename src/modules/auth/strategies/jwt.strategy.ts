@@ -12,6 +12,7 @@ export interface JwtPayload {
   role: string;
   batchIds?: string[]; // for teachers
   tokenVersion?: number;
+  source?: string;  // 'school' for a school-vertical token; absent/other for coaching
   iat?: number;
   exp?: number;
 }
@@ -34,6 +35,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   private readonly cacheTtlMs = 15000; // 15 seconds
 
   async validate(payload: JwtPayload) {
+    // A school-vertical token (school-auth.service.ts's signSchoolToken) shares
+    // this same JWT secret and can carry the identical 'super_admin' role
+    // string, but its `sub` is a row in the SCHOOL database, not this one —
+    // letting it through here would authenticate it against a coaching user
+    // that doesn't actually correspond to the caller. Reject it outright
+    // rather than let the two verticals' sessions cross.
+    if (payload.source === 'school') {
+      throw new UnauthorizedException('This session belongs to the school vertical, not coaching.');
+    }
+
     const userId = payload.sub;
     const payloadTokenVersion = payload.tokenVersion ?? 0;
     const now = Date.now();

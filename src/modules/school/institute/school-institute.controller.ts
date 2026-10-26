@@ -71,6 +71,10 @@ export class SchoolInstituteController {
   @SchoolRoles('SUPER_ADMIN')
   reject(@Param('id') id: string) { return this.svc.setStatus(id, 'SUSPENDED'); }
 
+  @Post(':id/resend-credentials')
+  @SchoolRoles('SUPER_ADMIN')
+  resendCredentials(@Param('id') id: string) { return this.svc.resendCredentials(id); }
+
   @Delete(':id')
   @SchoolRoles('SUPER_ADMIN')
   delete(@Param('id') id: string) { return this.svc.delete(id); }

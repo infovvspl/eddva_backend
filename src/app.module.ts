@@ -2,6 +2,7 @@ import { Module, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/c
 import { TypeOrmModule } from '@nestjs/typeorm'; // restart trigger for RDS
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { HealthController } from './health.controller';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
@@ -79,6 +80,7 @@ import { BroadcastPoll } from './modules/live-broadcast/entities/broadcast-poll.
 import { BroadcastPollVote } from './modules/live-broadcast/entities/broadcast-poll-vote.entity';
 import { BroadcastReaction } from './modules/live-broadcast/entities/broadcast-reaction.entity';
 import { MailModule } from './modules/mail/mail.module';
+import { SmsModule } from './modules/sms/sms.module';
 import { InstituteSettingsModule } from './modules/institute-settings/institute-settings.module';
 import { PYQModule } from './modules/pyq/pyq.module';
 import { PresenceModule } from './modules/presence/presence.module';
@@ -163,7 +165,8 @@ const ALL_COACHING_ENTITIES = [
         return {
           ...coachingDbConfig,
           synchronize: !isProd && dbSyncRequested,
-          logging: !isProd,
+          logging: process.env.DB_LOGGING === 'true' ? true : ['error', 'warn'],
+          maxQueryExecutionTime: Number(process.env.DB_SLOW_QUERY_MS) || 500,
           retryAttempts: 3,
           retryDelay: 2000,
           entities: ALL_COACHING_ENTITIES,
@@ -179,7 +182,8 @@ const ALL_COACHING_ENTITIES = [
       useFactory: (cfg: ConfigService) => ({
         ...schoolDbConfig,
         synchronize: false,
-        logging: process.env.DB_LOGGING === 'true',
+        logging: process.env.DB_LOGGING === 'true' ? true : ['error', 'warn'],
+        maxQueryExecutionTime: Number(process.env.DB_SLOW_QUERY_MS) || 500,
         // Survive transient network/RDS blips at startup instead of crashing.
         retryAttempts: 10,
         retryDelay: 3000,
@@ -250,6 +254,7 @@ const ALL_COACHING_ENTITIES = [
     LiveClassModule,
     LiveBroadcastModule,
     MailModule,
+    SmsModule,
     InstituteSettingsModule,
     PYQModule,
     PresenceModule,
@@ -273,6 +278,7 @@ const ALL_COACHING_ENTITIES = [
     BlogModule,
     BlogAdminAuthModule,
   ],
+  controllers: [HealthController],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     // Outermost interceptor: opens the AI attribution ALS scope (P1-6) before

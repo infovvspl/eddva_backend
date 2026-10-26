@@ -165,7 +165,11 @@ export class SchoolTimetableService {
       const teacherId = tRows[0]?.id;
       if (teacherId) {
         params.push(teacherId);
-        filterQuery += ` AND (t.teacher_id = $${params.length} OR t.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $${params.length}))`;
+        // A teacher always sees their own taught periods. They additionally see a
+        // section's FULL timetable only where they are that section's class teacher
+        // (homeroom) — any assignment row, subject or not, used to grant this, which
+        // leaked every other teacher's periods into a subject-only teacher's view.
+        filterQuery += ` AND (t.teacher_id = $${params.length} OR t.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $${params.length} AND is_class_teacher = true))`;
       } else {
         filterQuery += ` AND 1=0`;
       }
@@ -289,7 +293,7 @@ export class SchoolTimetableService {
         `SELECT t.day_of_week, t.start_time, t.end_time, t.room, t.type, t.meeting_link AS "meetingLink",
                 t.period_number AS "periodNumber", t.period_id AS "periodId",
                 sp.period_name AS "periodName", sp.period_type AS "periodType",
-                sub.name as subject, u.name as teacher
+                sub.name as subject, u.name as teacher, u.profile_image AS "teacherImage"
          FROM timetables t
          LEFT JOIN school_periods sp ON t.period_id = sp.id OR (t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
          LEFT JOIN subjects sub ON t.subject_id = sub.id
@@ -298,7 +302,8 @@ export class SchoolTimetableService {
          WHERE t.section_id = $1`, [sectionId]
       ),
       this.ds.query(
-        `SELECT s.day_of_week, s.start_time, s.end_time, s.room, sub.name as subject, u.name as teacher
+        `SELECT s.day_of_week, s.start_time, s.end_time, s.room, sub.name as subject, u.name as teacher,
+                u.profile_image AS "teacherImage"
          FROM schedules s
          LEFT JOIN subjects sub ON s.subject_id = sub.id
          LEFT JOIN users u ON s.teacher_id = u.id
@@ -342,6 +347,8 @@ export class SchoolTimetableService {
       ...offlineRows.map(r => ({
         subject: r.type === 'break' ? (r.remarks || 'Break') : (r.subject || 'Unknown'),
         teacher: r.type === 'break' ? '' : (r.teacher || 'Unknown'),
+        // The teacher's profile photo, shown on the student timetable.
+        teacherImage: r.type === 'break' ? null : (r.teacherImage || null),
         day: REV_DAY_MAP[r.day_of_week] || 'MONDAY',
         startTime: r.start_time?.substring(0, 5) || '00:00',
         endTime: r.end_time?.substring(0, 5) || '00:00',
@@ -362,6 +369,7 @@ export class SchoolTimetableService {
       ...liveRows.map(r => ({
         subject: r.subject || 'Unknown',
         teacher: r.teacher || 'Unknown',
+        teacherImage: r.teacherImage || null,
         day: typeof r.day_of_week === 'string' ? r.day_of_week.toUpperCase() : (REV_DAY_MAP[r.day_of_week] || 'MONDAY'),
         startTime: r.start_time?.substring(0, 5) || '00:00',
         endTime: r.end_time?.substring(0, 5) || '00:00',

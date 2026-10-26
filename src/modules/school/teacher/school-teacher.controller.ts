@@ -1,13 +1,16 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { SchoolTeacherService } from './school-teacher.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
 import { SchoolRolesGuard } from '../guards/school-roles.guard';
 import { SchoolUser } from '../decorators/school-user.decorator';
 import { SchoolRoles } from '../decorators/school-roles.decorator';
 import { Audit } from '../../audit-log/audit.decorator';
+import { AdminModuleGuard } from '../guards/admin-module.guard';
+import { RequireAdminModule } from '../decorators/require-admin-module.decorator';
 
 @Controller('school/teachers')
-@UseGuards(SchoolJwtGuard, SchoolRolesGuard)
+@UseGuards(SchoolJwtGuard, SchoolRolesGuard, AdminModuleGuard)
+@RequireAdminModule('teachers')
 export class SchoolTeacherController {
   constructor(private readonly svc: SchoolTeacherService) { }
 
@@ -63,11 +66,14 @@ export class SchoolTeacherController {
   @Put(':id/admin-role')
   @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
   @Audit({ module: 'Users', action: 'Teacher Admin Role', description: 'Changed admin access for teacher ID {params.id}' })
-  setAdminRole(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: { isAdmin: boolean }) {
-    return this.svc.setAdminRole(user, id, !!body?.isAdmin);
+  setAdminRole(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string, @Body() body: { isAdmin: boolean; permissions?: string[] }) {
+    return this.svc.setAdminRole(user, id, !!body?.isAdmin, body?.permissions);
   }
 
   @Delete(':id')
-  @Audit({ module: 'Users', action: 'Teacher Delete', description: 'Deleted teacher ID {params.id}' })
-  remove(@SchoolUser() user: any, @Param('id', ParseUUIDPipe) id: string) { return this.svc.remove(user, id); }
+  remove() {
+    // Teacher records can never be hard-deleted — only deactivated/archived via PUT (isActive: false),
+    // so employment history, academic assignments and attendance stay intact for legacy reporting.
+    throw new ForbiddenException('Teachers cannot be deleted. Deactivate the teacher instead to archive their record.');
+  }
 }

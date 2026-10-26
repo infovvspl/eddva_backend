@@ -6,6 +6,9 @@ export enum BlogPostStatus {
   PUBLISHED = 'PUBLISHED',
 }
 
+export const BLOG_LOCALES = ['en', 'hi'] as const;
+export type BlogLocale = (typeof BLOG_LOCALES)[number];
+
 export interface BlogPostSection {
   heading: string;
   body: string;
@@ -73,6 +76,16 @@ export class BlogPost extends Base {
 
   @Column({ name: 'document_settings', type: 'jsonb', nullable: true })
   documentSettings: BlogDocumentSettings;
+
+  /** Language the post is written in. Each translation is its own post. */
+  @Index()
+  @Column({ type: 'varchar', default: 'en' })
+  locale: BlogLocale;
+
+  /** Shared by the English and Hindi versions of the same article. */
+  @Index()
+  @Column({ name: 'translation_group', type: 'varchar', nullable: true })
+  translationGroup: string | null;
 
   @Index()
   @Column({ type: 'varchar', default: BlogPostStatus.DRAFT })

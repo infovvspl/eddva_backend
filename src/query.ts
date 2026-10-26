@@ -16,8 +16,8 @@ async function run() {
   const before = await ds.query(`SELECT id, name, ai_enabled FROM institutes`);
   console.log('Before:', JSON.stringify(before, null, 2));
 
-  // Enable AI for Army Public School (and any other institute)
-  await ds.query(`UPDATE institutes SET ai_enabled = TRUE`);
+  // Enable AI for Army Public School only
+  await ds.query(`UPDATE institutes SET ai_enabled = TRUE WHERE name = 'Army Public School'`);
 
   const after = await ds.query(`SELECT id, name, ai_enabled FROM institutes`);
   console.log('After:', JSON.stringify(after, null, 2));

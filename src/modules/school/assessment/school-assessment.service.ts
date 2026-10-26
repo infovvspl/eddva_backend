@@ -835,8 +835,12 @@ export class SchoolAssessmentService {
     const original = String(answerKey || '').trim();
     if (!String(contentText || '').trim() || !original) return original;
 
+    // Any question with a captured answer survives the rebuild — including
+    // Short/Long Answer, whose "answer" is a model answer rather than a single
+    // correct option. The key is a full marking-reference sheet, not just the
+    // objective sections.
     const questions = this.parseQuestionsFromMarkdown(contentText || '', original)
-      .filter((question: any) => this.objectiveTypes.has(question.type) && question.correctAnswer);
+      .filter((question: any) => question.correctAnswer);
     if (!questions.length) return original;
 
     const groups = new Map<string, any[]>();
@@ -850,7 +854,7 @@ export class SchoolAssessmentService {
     groups.forEach((groupQuestions, sectionTitle) => {
       lines.push('', `### ${sectionTitle}`);
       groupQuestions.forEach((question: any) => {
-        lines.push(`Q${question.displayNumber || question.number}. Answer: ${question.correctAnswer}`);
+        lines.push(`Q${question.number || question.displayNumber}. Answer: ${question.correctAnswer}`);
         if (question.explanation) {
           lines.push(`Explanation: ${question.explanation}`);
         }
@@ -984,7 +988,10 @@ export class SchoolAssessmentService {
           marks: finalSpec.marks,
           options: finalSpec.type === 'mcq_single' ? inlineOptions : undefined,
           correctAnswer: answerMap.get(sequenceNumber),
-          explanation: this.objectiveTypes.has(finalSpec.type) ? answerDetailMap.get(sequenceNumber)?.explanation : undefined,
+          // A model answer's key-points checklist is just as valid for a
+          // Short/Long Answer question as an explanation is for an objective
+          // one — both are marking aids, so this is no longer type-gated.
+          explanation: answerDetailMap.get(sequenceNumber)?.explanation,
         };
         continue;
       }
@@ -1032,7 +1039,7 @@ export class SchoolAssessmentService {
       image: q.image || undefined,
       diagram: q.diagram || undefined,
       correctAnswer: q.correctAnswer,
-      explanation: this.objectiveTypes.has(q.type || 'short_answer') ? q.explanation : undefined,
+      explanation: q.explanation,
     }));
   }
 
@@ -1113,7 +1120,9 @@ export class SchoolAssessmentService {
           marks: finalSpec.marks,
           options: options.length ? options : undefined,
           correctAnswer: answerMap.get(sequenceNumber),
-          explanation: this.objectiveTypes.has(finalSpec.type) ? answerDetailMap.get(sequenceNumber)?.explanation : undefined,
+          // See parseLineByLineQuestionPaper — a model-answer checklist is a
+          // valid "explanation" for Short/Long Answer too, not just objective types.
+          explanation: answerDetailMap.get(sequenceNumber)?.explanation,
         });
       });
     }
@@ -1234,6 +1243,48 @@ export class SchoolAssessmentService {
       : `${withoutImage}\n\n[This question is accompanied by a diagram from the textbook.]`;
   }
 
+  /**
+   * Splits `total` marks into `parts` whole-number shares as evenly as
+   * possible — the leftover (if any) goes to the first shares. Used to turn a
+   * master-answer-key's flat mark total into one weight per key point.
+   */
+  private splitMarksEvenly(total: number, parts: number): number[] {
+    if (parts <= 0) return [];
+    const base = Math.floor(total / parts);
+    const remainder = total - base * parts;
+    return Array.from({ length: parts }, (_, i) => base + (i < remainder ? 1 : 0));
+  }
+
+  /**
+   * Builds a grading rubric directly from the paper's own master answer key —
+   * the same model answer and key-points checklist a teacher reads, turned
+   * into the {criteria, keyConcepts, modelAnswer} shape AI grading expects.
+   * No AI call: the master key was already written by the paper-generation
+   * call with full question context (and textbook grounding, when the paper
+   * has it), so re-deriving a SECOND, independent model answer here would
+   * only risk disagreeing with the one the teacher actually sees.
+   */
+  private rubricFromMasterAnswerKey(question: any) {
+    const marks = Number(question.marks || 1);
+    const keyPoints = String(question.explanation || '')
+      .split(/[;,]\s*/)
+      .map((p: string) => p.trim())
+      .filter(Boolean);
+    const criteria = keyPoints.length
+      ? this.splitMarksEvenly(marks, keyPoints.length).map((criterionMarks, i) => ({
+          text: keyPoints[i],
+          marks: criterionMarks,
+        }))
+      : [{ text: question.correctAnswer, marks }];
+    return {
+      criteria,
+      keyConcepts: keyPoints.length ? keyPoints : undefined,
+      modelAnswer: question.correctAnswer,
+      source: 'master_answer_key',
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   private async generateSubjectiveRubrics(
     questions: any[],
     ctx: { subjectId?: string; classId?: string; instituteId?: string },
@@ -1243,52 +1294,67 @@ export class SchoolAssessmentService {
     if (!needsRubric.length) return questions;
     if (!isSchoolAiFeatureEnabled(user, 'ai_subjective_grading')) return questions;
 
-    try {
-      const [{ subjectName, className }, board] = await Promise.all([
-        this.resolveSubjectAndClassNames(ctx.subjectId, ctx.classId),
-        this.resolveBoard(ctx.instituteId),
-      ]);
-      const result = await this.aiBridge.generateSubjectiveRubrics(
-        {
-          questions: needsRubric.map((q: any) => ({
-            questionId: q.id,
-            // A question carrying a figure was previously sent as text alone,
-            // so the marking scheme was written without knowing a diagram was
-            // part of the question at all. The figure's caption is sent, not
-            // the image: it is what the textbook itself calls the diagram, and
-            // it costs no vision call.
-            text: this.questionTextForMarking(q),
-            marks: Number(q.marks || 1),
-            type: q.type,
-          })),
-          subjectName,
-          className,
+    // The master answer key (this paper's own "## Answer Key" section) is
+    // authoritative when it already has a model answer for a question — reuse
+    // it instead of calling the separate, ungrounded rubric AI. Only questions
+    // still missing a master-key answer fall back to that call.
+    const rubricsById = new Map<string, any>();
+    const needsAiRubric: any[] = [];
+    for (const q of needsRubric) {
+      if (q.correctAnswer) {
+        rubricsById.set(q.id, this.rubricFromMasterAnswerKey(q));
+      } else {
+        needsAiRubric.push(q);
+      }
+    }
+
+    if (needsAiRubric.length) {
+      try {
+        const [{ subjectName, className }, board] = await Promise.all([
+          this.resolveSubjectAndClassNames(ctx.subjectId, ctx.classId),
+          this.resolveBoard(ctx.instituteId),
+        ]);
+        const result = await this.aiBridge.generateSubjectiveRubrics(
+          {
+            questions: needsAiRubric.map((q: any) => ({
+              questionId: q.id,
+              // A question carrying a figure was previously sent as text alone,
+              // so the marking scheme was written without knowing a diagram was
+              // part of the question at all. The figure's caption is sent, not
+              // the image: it is what the textbook itself calls the diagram, and
+              // it costs no vision call.
+              text: this.questionTextForMarking(q),
+              marks: Number(q.marks || 1),
+              type: q.type,
+            })),
+            subjectName,
+            className,
+            board,
+          },
+          ctx.instituteId,
+          'school',
           board,
-        },
-        ctx.instituteId,
-        'school',
-        board,
-      );
-      const rubricsById = new Map((result?.rubrics || []).map((r: any) => [r.questionId, r]));
-      return questions.map((q: any) => {
-        if (!this.subjectiveTypes.has(q.type) || q.rubric) return q;
-        const r = rubricsById.get(q.id);
-        if (!r) return q;
-        return {
-          ...q,
-          rubric: {
+        );
+        (result?.rubrics || []).forEach((r: any) => {
+          rubricsById.set(r.questionId, {
             criteria: r.criteria,
             keyConcepts: r.keyConcepts,
             modelAnswer: r.modelAnswer,
             source: 'ai_generated',
             generatedAt: new Date().toISOString(),
-          },
-        };
-      });
-    } catch (err) {
-      this.logger.warn(`Subjective rubric generation failed: ${err?.message || err}`);
-      return questions;
+          });
+        });
+      } catch (err: any) {
+        this.logger.warn(`Subjective rubric generation failed: ${err?.message || err}`);
+      }
     }
+
+    return questions.map((q: any) => {
+      if (!this.subjectiveTypes.has(q.type) || q.rubric) return q;
+      const rubric = rubricsById.get(q.id);
+      if (!rubric) return q;
+      return { ...q, rubric };
+    });
   }
 
   async list(user: any, query: any) {
@@ -1317,6 +1383,7 @@ export class SchoolAssessmentService {
       if (!classId) return { success: true, data: [] };
       params.push(classId);
       filters.push(`a.class_id::text=$${params.length}::text`);
+      filters.push(`COALESCE(a.status, 'scheduled') <> 'draft'`);
     } else if (hasSchoolRole(user.role, 'PARENT')) {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id = $1 AND (
@@ -1334,6 +1401,7 @@ export class SchoolAssessmentService {
         if (classIds.length > 0) {
           params.push(classIds);
           filters.push(`a.class_id = ANY($${params.length}::uuid[])`);
+          filters.push(`COALESCE(a.status, 'scheduled') <> 'draft'`);
         } else {
           filters.push(`1=0`);
         }
@@ -1923,7 +1991,7 @@ export class SchoolAssessmentService {
     const chapterName = (body.chapterName || named.chapterName || '').trim();
     const topicName = (body.topicName || named.topicName || '').trim();
     const testType = body.type || body.assessmentType || 'topic';
-    const difficulty = body.difficulty || 'intermediate';
+    const difficultyMode = body.difficulty || 'intermediate';
     const totalMarks = body.totalMarks || body.total_marks || 100;
     const duration = body.durationMinutes || body.duration_minutes || 60;
     const language = (body.language || 'en').toLowerCase();
@@ -1943,14 +2011,59 @@ export class SchoolAssessmentService {
     const fillBlank = n(body.fillBlankCount, 5);
     const shortAns = n(body.shortCount, 3);
     const longAns = n(body.longCount, 2);
+    const totalQuestions = mcq + trueFalse + fillBlank + shortAns + longAns;
+
+    // "mix" and "custom" aren't a single difficulty word the AI-bridge's
+    // `difficulty` field can carry — they're a split across the whole paper,
+    // so the exact counts go into the prompt text instead, and a plain
+    // 'intermediate' goes to the AI-bridge field as a safe representative value.
+    let difficultyForBridge = difficultyMode;
+    let difficultyLine = `Difficulty: ${difficultyMode}.`;
+    // The mix as numbers, for the AI service to split between the calls that
+    // write the paper's sections in parallel (see paperPlan below).
+    let difficultyCounts: { easy: number; medium: number; hard: number } | null = null;
+    if (difficultyMode === 'mix' || difficultyMode === 'custom') {
+      let easyCount: number;
+      let mediumCount: number;
+      let hardCount: number;
+      if (difficultyMode === 'custom') {
+        easyCount = n(body.easyCount, 0);
+        mediumCount = n(body.mediumCount, 0);
+        hardCount = n(body.hardCount, 0);
+        if (easyCount + mediumCount + hardCount !== totalQuestions) {
+          throw new BadRequestException(
+            `Custom difficulty counts (${easyCount + mediumCount + hardCount}) must add up to the total number of questions (${totalQuestions}).`,
+          );
+        }
+      } else {
+        const base = Math.floor(totalQuestions / 3);
+        const remainder = totalQuestions % 3;
+        easyCount = base + (remainder > 0 ? 1 : 0);
+        mediumCount = base + (remainder > 1 ? 1 : 0);
+        hardCount = base;
+      }
+      difficultyForBridge = 'intermediate';
+      difficultyCounts = { easy: easyCount, medium: mediumCount, hard: hardCount };
+      difficultyLine = `Difficulty mix: the paper must contain exactly ${easyCount} easy, ${mediumCount} `
+        + `intermediate and ${hardCount} hard questions in total (not per section) — spread this mix across `
+        + `the sections above however fits naturally, rather than grouping all of one difficulty together.`;
+    }
 
     const sections: string[] = [];
-    if (mcq > 0) sections.push(`- Section A — Multiple Choice Questions: exactly ${mcq} questions, each with four options labelled (a), (b), (c), (d) and exactly one correct option. 1 mark each.`);
-    if (trueFalse > 0) sections.push(`- Section B — True or False: exactly ${trueFalse} statements. 1 mark each.`);
-    if (fillBlank > 0) sections.push(`- Section C — Fill in the Blanks: exactly ${fillBlank} questions, each containing a blank shown as "______". 1 mark each.`);
-    if (shortAns > 0) sections.push(`- Section D — Short Answer: exactly ${shortAns} questions. 3 marks each.`);
-    if (longAns > 0) sections.push(`- Section E — Long Answer: exactly ${longAns} questions. 5 marks each.`);
-    if (sections.length === 0) sections.push(`- Section A — Multiple Choice Questions: exactly 10 questions, four options (a)-(d), one correct. 1 mark each.`);
+    // The same lines, described for the AI service: objective and written
+    // sections are written by two model calls at once and joined.
+    const planSections: { letter: string; kind: 'objective' | 'written'; count: number; text: string }[] = [];
+    const addSection = (letter: string, kind: 'objective' | 'written', count: number, text: string) => {
+      sections.push(text);
+      planSections.push({ letter, kind, count, text });
+    };
+    if (mcq > 0) addSection('A', 'objective', mcq, `- Section A — Multiple Choice Questions: exactly ${mcq} questions, each with four options labelled (a), (b), (c), (d) and exactly one correct option. 1 mark each.`);
+    if (trueFalse > 0) addSection('B', 'objective', trueFalse, `- Section B — True or False: exactly ${trueFalse} statements. 1 mark each.`);
+    if (fillBlank > 0) addSection('C', 'objective', fillBlank, `- Section C — Fill in the Blanks: exactly ${fillBlank} questions, each containing a blank shown as "______". 1 mark each.`);
+    if (shortAns > 0) addSection('D', 'written', shortAns, `- Section D — Short Answer: exactly ${shortAns} questions. 3 marks each.`);
+    if (longAns > 0) addSection('E', 'written', longAns, `- Section E — Long Answer: exactly ${longAns} questions. 5 marks each.`);
+    if (sections.length === 0) addSection('A', 'objective', 10, `- Section A — Multiple Choice Questions: exactly 10 questions, four options (a)-(d), one correct. 1 mark each.`);
+    const headerLine = `Begin with a paper header (Subject, Class, Maximum Marks, Time Allowed) and a brief "General Instructions" list.`;
 
     // Resolve the selected chapters (supports a multi-chapter range, e.g. 1–10).
     // Ordered by curriculum sort_order so the scope reads in teaching sequence.
@@ -1971,15 +2084,16 @@ export class SchoolAssessmentService {
     const extraContext = [
       `LANGUAGE: Write the ENTIRE question paper in English. Every word — questions, instructions, options, section headings, and the answer key — must be in English only.`,
       `Produce a COMPLETE school examination QUESTION PAPER in clean Markdown — this is an exam paper, NOT lesson notes or an explanation.`,
-      `Class: ${className}. Subject: ${subjectName}. Assessment type: ${testType}. Difficulty: ${difficulty}. Maximum Marks: ${totalMarks}. Time Allowed: ${duration} minutes.`,
+      `Class: ${className}. Subject: ${subjectName}. Assessment type: ${testType}. Maximum Marks: ${totalMarks}. Time Allowed: ${duration} minutes.`,
+      difficultyLine,
       scopeLine,
-      `Begin with a paper header (Subject, Class, Maximum Marks, Time Allowed) and a brief "General Instructions" list.`,
+      headerLine,
       `Include ONLY these sections, in this order, each with a clear section heading and the EXACT number of questions specified:`,
       ...sections,
-      `Number questions clearly inside each section. The visible question numbers in the answer key must match the visible question numbers in the paper for that same section.`,
-      `At the very END, add a "## Answer Key" section with correct answers ONLY for objective sections: MCQ, True/False, Fill in the Blanks. Do NOT include Short Answer or Long Answer questions in the answer key.`,
+      `Use one continuous question number sequence across the WHOLE paper; do not restart numbering in later sections. The visible question numbers in the answer key must match the visible question numbers in the paper.`,
+      `At the very END, add a "## Answer Key" section that is a COMPLETE master answer sheet covering EVERY question in the paper — objective AND subjective alike — so a teacher can mark the whole paper from this one section alone.`,
       `The answer key MUST mirror the question paper structure exactly: use the same section headings and list answers under each section in the same order as the questions appear.`,
-      `Use this answer key format exactly:
+      `Use this answer key format exactly — question numbers keep climbing across every section, continuing from wherever the previous section left off (the example below is illustrative only; use the actual running numbers for this paper):
 ## Answer Key
 ### Section A
 Q1. Answer: a
@@ -1987,12 +2101,18 @@ Explanation: ...
 Q2. Answer: c
 Explanation: ...
 ### Section B
-Q1. Answer: true
+Q3. Answer: true
 Explanation: ...
 ### Section C
-Q1. Answer: expected word or phrase
+Q4. Answer: expected word or phrase
 Explanation: ...
-Do not write answers as one flat paragraph. Do not mix answers from different sections.`,
+### Section D
+Q5. Answer: one-line model answer giving the core fact or result expected
+Explanation: key point 1; key point 2; key point 3 — a short checklist a teacher can tick off while marking
+### Section E
+Q6. Answer: one-line summary of the expected answer's main conclusion
+Explanation: key point 1; key point 2; key point 3; key point 4 — a short checklist a teacher can tick off while marking
+For MCQ, True/False and Fill in the Blanks, Answer is the exact correct option/word. For Short Answer and Long Answer questions, Answer is a concise one-line model answer (not the full essay) and Explanation is a short, comma-or-semicolon-separated checklist of the key points worth marks — this is a marking aid, not a sample essay. Keep every Answer and every Explanation on a single line each — never wrap a model answer across multiple lines or paragraphs. Do not write answers as one flat paragraph. Do not mix answers from different sections. Never restart the Q-number at 1 in a later section.`,
       body.prompt?.trim() ? `Additional teacher instructions: ${body.prompt.trim()}` : '',
       `Output ONLY the Markdown question paper.`,
     ].filter(Boolean).join('\n');
@@ -2114,10 +2234,20 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           // Unknown content type → falls back to the generic template; the
           // detailed extraContext above fully drives the exam-paper structure.
           contentType: 'assessment_paper',
-          difficulty,
+          difficulty: difficultyForBridge,
           length: 'detailed',
           extraContext: extraContext + strictSourceRule + figureRule + plotRule + noOrphanDiagramRule,
           ...(sourcePassages.length ? { sourcePassages } : {}),
+          // Exact strings from extraContext above, so the AI service can write
+          // the objective and written sections in parallel and join them. A
+          // service that does not know it ignores it.
+          paperPlan: {
+            sections: planSections,
+            header: headerLine,
+            difficulty: difficultyCounts ? { line: difficultyLine, ...difficultyCounts } : null,
+            figures: figureRule,
+            plots: plotRule,
+          },
         },
         instituteId,
         'school',
@@ -2251,7 +2381,9 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
           body.scheduledAt || body.scheduledDate || body.scheduled_date
             ? new Date(body.scheduledAt || body.scheduledDate || body.scheduled_date)
             : null,
-          body.status || 'scheduled',
+          // A test now starts life as a draft — invisible to students and off
+          // their calendar — until the teacher explicitly publishes it below.
+          body.status || 'draft',
           contentText,
           contentSource,
           filePath,
@@ -2476,6 +2608,9 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
       if (assessment.class_id && studentClassId && String(assessment.class_id) !== String(studentClassId)) {
         throw new ForbiddenException('You do not have access to this assessment');
       }
+      if (assessment.status === 'draft') {
+        throw new ForbiddenException('This assessment has not been published yet');
+      }
     } else if (userRole === 'PARENT') {
       const children = await this.ds.query(`
         SELECT section_id FROM students WHERE institute_id::text = $1::text AND (
@@ -2493,6 +2628,9 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         if (!classIds.includes(String(assessment.class_id))) {
           throw new ForbiddenException('You do not have access to this assessment');
         }
+      }
+      if (assessment.status === 'draft') {
+        throw new ForbiddenException('This assessment has not been published yet');
       }
     } else if (userRole === 'TEACHER') {
       const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id::text=$1::text`, [user.id]);
@@ -2656,6 +2794,35 @@ Do not write answers as one flat paragraph. Do not mix answers from different se
         },
         reqUser,
       ).catch((err) => this.logger.error(`Rubric backfill failed for ${updated.id}: ${err?.message || err}`));
+    }
+
+    return { success: true, data: updated };
+  }
+
+  /**
+   * Flips a draft assessment live: students (and the class calendar) only
+   * ever see a test from this point on, never from create() itself. Idempotent
+   * guard against double-publish; access/ownership reuses the same check as
+   * every other write on this assessment, so whoever can edit it can publish it.
+   */
+  async publish(user: any, id: string) {
+    const assessment = await this.checkAssessmentAccess(user, id);
+    if (assessment.status !== 'draft') {
+      throw new BadRequestException('This assessment has already been published');
+    }
+
+    const rows: any[] = await this.ds.query(
+      `UPDATE assessments SET status = 'scheduled' WHERE id::text = $1::text RETURNING *`,
+      [id],
+    );
+    const updated = rows[0];
+
+    await this.syncCalendarEvent(this.ds, updated, user?.id, user?.instituteId || assessment.institute_id);
+
+    if (updated.class_id) {
+      void this.notifyStudentsOfNewAssessment(updated, updated.class_id).catch((err) =>
+        this.logger.error(`Failed to send assessment notifications: ${err?.message || err}`),
+      );
     }
 
     return { success: true, data: updated };
