@@ -26,6 +26,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { DataSource } from 'typeorm';
+import { AI_FEATURES_REGISTRY } from '../school/common/ai-features.registry';
 import { assertInternalKey } from './internal-key';
 
 export class PlatformInstituteAdminDto {
@@ -99,7 +100,12 @@ export class InternalPlatformInstitutesController {
     assertInternalKey(key);
     try {
       return await this.ds.transaction(async (m) => {
-        const aiFeatures = Object.fromEntries(dto.aiFeatures.map((f) => [f, true]));
+        // The LMS treats a missing key as "on" for most features, so every known feature is written explicitly:
+        // true when the platform enabled it, false when it did not. Otherwise an unticked feature would still work.
+        const aiFeatures: Record<string, boolean> = {
+          ...Object.fromEntries(AI_FEATURES_REGISTRY.map((f) => [f.key, false])),
+          ...Object.fromEntries(dto.aiFeatures.map((f) => [f, true])),
+        };
         const status = STATUS[dto.status];
         const existing = await m.query(`SELECT id FROM institutes WHERE id::text = $1`, [id]);
 
