@@ -3,6 +3,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import {
   InternalPlatformInstitutesController,
+  profileColumns,
   UpsertPlatformInstituteDto,
 } from './internal-platform-institutes.controller';
 
@@ -60,6 +61,32 @@ describe('InternalPlatformInstitutesController', () => {
     });
     expect(sqls.some((s) => s.startsWith('INSERT INTO institutes'))).toBe(true);
     expect(sqls.some((s) => s.startsWith('UPDATE institutes'))).toBe(false);
+  });
+
+  it('keeps only known profile keys with string or number values, mapped to their columns', () => {
+    expect(profileColumns({ board: 'CBSE', establishedYear: 1999, city: '  Pune ', phone: '', hack: 'x', evil: { a: 1 }, district: null }, 'data:image/png;base64,AA')).toEqual([
+      ['board', 'CBSE'], ['established_year', 1999], ['city', 'Pune'], ['logo', 'data:image/png;base64,AA'],
+    ]);
+    expect(profileColumns(undefined, undefined)).toEqual([]);
+  });
+
+  it('writes the profile on create, and on update only sets the fields that were sent', async () => {
+    const created = setup([[/SELECT id FROM institutes/, []], [/WHERE platform_user_id/, []], [/lower\(email\)/, []], [/INSERT INTO users/, [{ id: 'u' }]]]);
+    await created.ctl.upsert('k', ID, body({ profile: { board: 'CBSE', city: 'Pune', totalStudents: 800 }, logo: 'data:image/png;base64,AA' }));
+    const insert = created.query.mock.calls.find(([q]) => String(q).startsWith('INSERT INTO institutes'))!;
+    expect(insert[0]).toContain(', board, city, total_students, logo');
+    expect(insert[1]!.slice(14)).toEqual(['CBSE', 'Pune', 800, 'data:image/png;base64,AA']);
+
+    const updated = setup([[/SELECT id FROM institutes/, [{ id: ID }]]]);
+    await updated.ctl.upsert('k', ID, body({ profile: { city: 'Delhi' }, admin: undefined }));
+    const update = updated.query.mock.calls.find(([q]) => String(q).startsWith('UPDATE institutes'))!;
+    expect(update[0]).toContain('city = COALESCE($12, city)');
+    expect(update[0]).not.toContain('board');
+    expect(update[1]).toHaveLength(12);
+
+    const plain = setup([[/SELECT id FROM institutes/, [{ id: ID }]]]);
+    await plain.ctl.upsert('k', ID, body({ admin: undefined }));
+    expect(plain.query.mock.calls.find(([q]) => String(q).startsWith('UPDATE institutes'))![1]).toHaveLength(11);
   });
 
   it('updates an existing institute without touching users when no admin is sent', async () => {

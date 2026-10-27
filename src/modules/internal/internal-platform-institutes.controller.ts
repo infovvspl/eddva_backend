@@ -17,6 +17,7 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -35,6 +36,26 @@ export class PlatformInstituteAdminDto {
   @IsString() @MinLength(1) platformUserId: string;
 }
 
+/** Profile key -> institutes column. A fixed list, so only these columns can ever be written. */
+export const PROFILE_COLUMNS = {
+  schoolType: 'school_type', board: 'board', establishedYear: 'established_year', affiliationNo: 'affiliation_no',
+  registrationNo: 'registration_no', phone: 'phone', alternatePhone: 'alternate_phone', website: 'website',
+  plotNo: 'plot_no', streetName: 'street_name', landMark: 'land_mark', city: 'city', district: 'district',
+  state: 'state', pinCode: 'pin_code', totalClasses: 'total_classes', totalStudents: 'total_students',
+  totalTeachers: 'total_teachers',
+} as const;
+
+/** Only known keys with string or number values; anything else is dropped. Returns [column, value] pairs. */
+export function profileColumns(profile?: Record<string, unknown>, logo?: string): Array<[string, string | number]> {
+  const out: Array<[string, string | number]> = [];
+  for (const [key, column] of Object.entries(PROFILE_COLUMNS)) {
+    const v = profile?.[key];
+    if ((typeof v === 'string' && v.trim() !== '') || (typeof v === 'number' && Number.isFinite(v))) out.push([column, typeof v === 'string' ? v.trim() : v]);
+  }
+  if (logo) out.push(['logo', logo]);
+  return out;
+}
+
 export class UpsertPlatformInstituteDto {
   @IsString() @MinLength(2) name: string;
   @Matches(/^[a-z0-9-]{3,32}$/) slug: string;
@@ -48,6 +69,9 @@ export class UpsertPlatformInstituteDto {
   @IsArray() @IsString({ each: true }) aiFeatures: string[];
   @IsOptional() @IsInt() @Min(1) maxStudents?: number;
   @IsOptional() @IsInt() @Min(1) maxTeachers?: number;
+  /** School details entered at enrolment. Existing values are only replaced by ones that are sent. */
+  @IsOptional() @IsObject() profile?: Record<string, unknown>;
+  @IsOptional() @IsString() logo?: string;
   /** Optional so flags/status can sync for tenants that have no platform user yet; required to create the institute. */
   @IsOptional() @ValidateNested() @Type(() => PlatformInstituteAdminDto) admin?: PlatformInstituteAdminDto;
 }
@@ -80,23 +104,26 @@ export class InternalPlatformInstitutesController {
         const existing = await m.query(`SELECT id FROM institutes WHERE id::text = $1`, [id]);
 
         if (existing.length) {
+          const extra = profileColumns(dto.profile, dto.logo);
+          const extraSet = extra.map(([col], i) => `, ${col} = COALESCE($${12 + i}, ${col})`).join('');
           await m.query(
             `UPDATE institutes SET name = $2, status = $3, is_suspended = $4, plan = COALESCE($5, plan),
                     max_students = COALESCE($6, max_students), max_teachers = COALESCE($7, max_teachers),
-                    erp_enabled = $8, lms_enabled = $9, ai_enabled = $10, ai_features = $11::jsonb, updated_at = now()
+                    erp_enabled = $8, lms_enabled = $9, ai_enabled = $10, ai_features = $11::jsonb, updated_at = now()${extraSet}
               WHERE id::text = $1`,
             [id, dto.name, status, dto.status === 'suspended', dto.plan ?? null, dto.maxStudents ?? null,
-             dto.maxTeachers ?? null, dto.erp, dto.lms, dto.ai, JSON.stringify(aiFeatures)],
+             dto.maxTeachers ?? null, dto.erp, dto.lms, dto.ai, JSON.stringify(aiFeatures), ...extra.map(([, v]) => v)],
           );
         } else {
           if (!dto.admin) throw new BadRequestException('admin is required to create an institute');
+          const extra = profileColumns(dto.profile, dto.logo);
           await m.query(
             `INSERT INTO institutes (id, name, email, tenant_domain, subdomain, status, is_suspended, plan,
-                    max_students, max_teachers, erp_enabled, lms_enabled, ai_enabled, ai_features)
-             VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,500),COALESCE($10,20),$11,$12,$13,$14::jsonb)`,
+                    max_students, max_teachers, erp_enabled, lms_enabled, ai_enabled, ai_features${extra.map(([c]) => `, ${c}`).join('')})
+             VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,500),COALESCE($10,20),$11,$12,$13,$14::jsonb${extra.map((_, i) => `, $${15 + i}`).join('')})`,
             [id, dto.name, dto.admin.email, dto.tenantDomain, dto.slug, status, dto.status === 'suspended',
              dto.plan ?? null, dto.maxStudents ?? null, dto.maxTeachers ?? null, dto.erp, dto.lms, dto.ai,
-             JSON.stringify(aiFeatures)],
+             JSON.stringify(aiFeatures), ...extra.map(([, v]) => v)],
           );
         }
 
