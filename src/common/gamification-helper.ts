@@ -36,14 +36,43 @@ export function calculateCurrentStreak(dates: string[]): number {
   return streak;
 }
 
+/**
+ * "This student already has this activity recorded today", per server process.
+ * One row per (user, date, type) is all the streak needs, and it cannot change again
+ * until tomorrow, so repeating the insert plus the full-history streak scan on every
+ * `/auth/me` call (which also runs on each idle check) is wasted work. A restart only
+ * costs one repeat, because the insert is idempotent.
+ */
+const recordedToday = new Map<string, string>();
+const MAX_TRACKED_ACTIVITIES = 50_000;
+
+function rememberRecorded(key: string, day: string) {
+  if (recordedToday.size >= MAX_TRACKED_ACTIVITIES) recordedToday.clear();
+  recordedToday.set(key, day);
+}
+
+/** Test hook: forget what has been recorded. */
+export function resetStudentActivityThrottle() {
+  recordedToday.clear();
+}
+
 export async function recordStudentActivity(
   ds: DataSource,
   userId: string,
   activityType: string,
   cacheManager?: Cache,
 ) {
+  const todayStr = getLocalDateString(new Date());
+  const throttleKey = `${userId}:${activityType}`;
+  if (recordedToday.get(throttleKey) === todayStr) {
+    // Nothing to write, but whoever asked may still need the cached dashboard cleared.
+    if (cacheManager) {
+      await cacheManager.del(`dashboard:${userId}`).catch(() => undefined);
+    }
+    return;
+  }
+
   try {
-    const todayStr = getLocalDateString(new Date());
     await ds.query(
       `INSERT INTO student_activity (user_id, activity_date, activity_type)
        VALUES ($1, $2, $3)
@@ -85,6 +114,9 @@ export async function recordStudentActivity(
         [streak, longestStreak, userId],
       );
     }
+
+    // Only a fully written day is remembered; a failed write is retried on the next call.
+    rememberRecorded(throttleKey, todayStr);
 
     if (cacheManager) {
       const cacheKey = `dashboard:${userId}`;

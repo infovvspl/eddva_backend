@@ -26,7 +26,24 @@ export class SchoolGrievanceService implements OnModuleInit {
     await this.ensureGrievanceMessagesTable();
   }
 
-  private async ensureGrievanceMessagesTable() {
+  private messagesTableReady: Promise<void> | null = null;
+
+  /**
+   * Creates the table once per process; concurrent and later callers share that one run.
+   * It used to repeat the CREATE/ALTER statements on every message list or send. A failed
+   * run is forgotten so the next call tries again.
+   */
+  private ensureGrievanceMessagesTable(): Promise<void> {
+    if (!this.messagesTableReady) {
+      this.messagesTableReady = this.createGrievanceMessagesTable().catch((err) => {
+        this.messagesTableReady = null;
+        throw err;
+      });
+    }
+    return this.messagesTableReady;
+  }
+
+  private async createGrievanceMessagesTable() {
     await this.ds.query(`
       CREATE TABLE IF NOT EXISTS grievance_messages (
         id uuid NOT NULL DEFAULT uuid_generate_v4(),

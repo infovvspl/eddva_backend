@@ -104,7 +104,31 @@ export class SchoolAssessmentService {
     }
   }
 
-  private async ensureAssessmentContentColumns() {
+  private readonly schemaRuns = new Map<string, Promise<void>>();
+
+  /**
+   * One run per schema step, shared by every caller that arrives while it is running.
+   * Without this, simultaneous first requests each ran the full list of ALTER statements
+   * (some take table locks). A failed run is forgotten, so the next call retries it.
+   */
+  private ensureOnce(key: string, run: () => Promise<void>): Promise<void> {
+    let existing = this.schemaRuns.get(key);
+    if (!existing) {
+      existing = run().catch((err) => {
+        this.schemaRuns.delete(key);
+        throw err;
+      });
+      this.schemaRuns.set(key, existing);
+    }
+    return existing;
+  }
+
+  private ensureAssessmentContentColumns(): Promise<void> {
+    if (this.schemaReady) return Promise.resolve();
+    return this.ensureOnce('content', () => this.runEnsureAssessmentContentColumns());
+  }
+
+  private async runEnsureAssessmentContentColumns() {
     if (this.schemaReady) return;
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS content_text TEXT NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS content_source VARCHAR NULL`);
@@ -191,7 +215,12 @@ export class SchoolAssessmentService {
     );
   }
 
-  private async ensureAssessmentSubmissionSchema() {
+  private ensureAssessmentSubmissionSchema(): Promise<void> {
+    if (this.submissionSchemaReady) return Promise.resolve();
+    return this.ensureOnce('submission', () => this.runEnsureAssessmentSubmissionSchema());
+  }
+
+  private async runEnsureAssessmentSubmissionSchema() {
     if (this.submissionSchemaReady) return;
     await this.ds.query(`
       CREATE TABLE IF NOT EXISTS assessment_submissions (
@@ -220,7 +249,12 @@ export class SchoolAssessmentService {
     this.submissionSchemaReady = true;
   }
 
-  private async ensureResultSchema() {
+  private ensureResultSchema(): Promise<void> {
+    if (this.resultSchemaReady) return Promise.resolve();
+    return this.ensureOnce('result', () => this.runEnsureResultSchema());
+  }
+
+  private async runEnsureResultSchema() {
     if (this.resultSchemaReady) return;
     await this.ds.query(`ALTER TABLE results ADD COLUMN IF NOT EXISTS total_marks NUMERIC(5,2) NOT NULL DEFAULT 100`);
     // Both columns pre-date this table's JSONB-era additions and are legacy

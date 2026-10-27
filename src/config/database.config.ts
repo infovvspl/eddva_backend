@@ -6,6 +6,16 @@ dotenv.config();
 const isProd = process.env.NODE_ENV === 'production';
 const defaultDbPoolMax = isProd ? '20' : '5';
 
+/**
+ * Optional ceiling on any single query, in milliseconds (DB_STATEMENT_TIMEOUT_MS).
+ * Unset or 0 means no limit, which is today's behaviour. With a value set, a stuck query
+ * frees its connection and fails that one request instead of holding the pool for
+ * everyone. It also applies to migrations run through this config, so leave it unset
+ * when running a long migration.
+ */
+const statementTimeoutMs = Math.max(0, parseInt(process.env.DB_STATEMENT_TIMEOUT_MS || '0', 10) || 0);
+const statementTimeoutOption = statementTimeoutMs > 0 ? { statement_timeout: statementTimeoutMs } : {};
+
 if (!process.env.COACHING_DB_URL) throw new Error('COACHING_DB_URL is required');
 if (!process.env.SCHOOL_DB_URL)   throw new Error('SCHOOL_DB_URL is required');
 
@@ -29,6 +39,7 @@ export const coachingDbConfig: DataSourceOptions = {
     connectionTimeoutMillis: 15_000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
+    ...statementTimeoutOption,
   },
   entities: [__dirname + '/../database/entities/*.entity{.ts,.js}',
              __dirname + '/../modules/**/entities/*.entity{.ts,.js}'],
@@ -50,6 +61,7 @@ export const schoolDbConfig: DataSourceOptions = {
     connectionTimeoutMillis: 30_000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
+    ...statementTimeoutOption,
   },
   entities: [__dirname + '/../modules/school/**/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../modules/school/migrations/*{.ts,.js}'],
