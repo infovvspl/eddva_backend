@@ -48,6 +48,11 @@ export class SchoolParentController {
     return this.svc.getScreenTimeMonth(user, id, month);
   }
 
+  @Get('students/:id/screen-time/year')
+  getScreenTimeYear(@SchoolUser() user: any, @Param('id') id: string, @Query('year') year: string) {
+    return this.svc.getScreenTimeYear(user, id, year);
+  }
+
   /** Catch-up read for a tab that wasn't connected to the live socket when an alert fired. */
   @Get('emergency-alerts/active')
   getActiveEmergencyAlerts(@SchoolUser() user: any) {

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { SchoolReportService } from './school-report.service';
 import { SchoolReportCardRemarksService } from './school-report-card-remarks.service';
 import { SchoolJwtGuard } from '../guards/school-jwt.guard';
@@ -24,7 +24,6 @@ export class SchoolReportController {
   @Get('student-performance') studentPerformance(@SchoolUser() user: any, @Query('studentId') studentId: string) { return this.svc.studentPerformance(user, studentId); }
   @Get('student') studentReport(@SchoolUser() user: any, @Query() query: any) { return this.svc.studentReport(user, query); }
   @Get('assessment') assessmentReport(@SchoolUser() user: any, @Query() query: any) { return this.svc.assessmentReport(user, query); }
-  @Get('teacher/class') teacherClassReport(@SchoolUser() user: any, @Query() query: any) { return this.svc.teacherClassReport(user, query); }
 
   @Get('report-card-remarks') getReportCardRemarks(@SchoolUser() user: any, @Query() query: any) { return this.remarksSvc.get(user, query); }
   @Put('report-card-remarks') saveReportCardRemarks(@SchoolUser() user: any, @Body() body: any) { return this.remarksSvc.save(user, body); }
@@ -52,6 +51,14 @@ export class SchoolReportController {
   checkReportCard(@SchoolUser() user: any, @Body() body: any) { return this.remarksSvc.markChecked(user, body); }
 
   @Get('report-card-check-status')
-  @SchoolRoles('TEACHER', 'INSTITUTE_ADMIN', 'SUPER_ADMIN')
   getReportCardCheckStatus(@SchoolUser() user: any, @Query() query: any) { return this.remarksSvc.getCheckedStatus(user, query); }
+
+  @Post('report-card-signature-upload-url')
+  @SchoolRoles('PARENT')
+  presignParentSignature(@SchoolUser() user: any, @Body() body: any, @Req() req: any) { return this.remarksSvc.presignParentSignature(user, body, req); }
+
+  @Put('report-card-signature')
+  @SchoolRoles('PARENT')
+  @Audit({ module: 'ReportCard', action: 'Parent Signature Uploaded', description: 'Parent uploaded a signature for report card for student {body.studentId}' })
+  saveParentSignature(@SchoolUser() user: any, @Body() body: any) { return this.remarksSvc.saveParentSignature(user, body); }
 }

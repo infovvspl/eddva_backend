@@ -9,6 +9,7 @@ import {
   PERIOD_DAYS,
   periodStart,
   trendBuckets,
+  trendBucketCount,
 } from './report-metrics';
 
 describe('engagementScore', () => {
@@ -80,6 +81,15 @@ describe('periods and trends', () => {
     expect(bucketOf('2026-10-19', 'week')).toBe('2026-10-19');
     expect(bucketOf('2026-10-24', 'month')).toBe('2026-10-01');
     expect(bucketOf('2026-10-24', 'year')).toBe('2026-01-01');
+  });
+
+  it('scales the trend window to the period so "Today" and "Last 7 days" actually differ', () => {
+    expect(trendBucketCount('today', 'day')).toBe(1);
+    expect(trendBucketCount('week', 'day')).toBe(7);
+    expect(trendBucketCount('month', 'day')).toBe(30);
+    expect(trendBucketCount('year', 'month')).toBe(12);
+    // a long period paired with a fine granularity is capped, not unreadable
+    expect(trendBucketCount('year', 'day')).toBe(30);
   });
 
   it('lists every bucket of the window, oldest first', () => {

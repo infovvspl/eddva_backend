@@ -592,8 +592,6 @@ export class SchoolReportService {
       }
     }
 
-    console.log('[DEBUG classReport] query:', query, 'classAnalytics:', classAnalytics);
-    console.log(`[Teacher Performance Audit] Teacher ID: ${scope.teacherId || 'N/A'}, Assessments: ${totalAssessmentsCreated}, Submissions: ${totalStudentSubmissions}, Evaluated: ${evaluatedSubmissions}, Distinct Students: ${evaluatedStudents.length}`);
     return {
       success: true,
       data: classAnalytics,
@@ -1124,100 +1122,4 @@ export class SchoolReportService {
     return { success: true, count: rows.length, data: rows, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async teacherClassReport(user: any, query: any) {
-    const isSuperAdmin = hasSchoolRole(user?.role, 'SUPER_ADMIN');
-    const isInstituteAdmin = hasSchoolRole(user?.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user?.role, 'ADMIN');
-    const isTeacher = hasSchoolRole(user?.role, 'TEACHER');
-
-    if (!isSuperAdmin && !isInstituteAdmin && !isTeacher) {
-      throw new ForbiddenException('You do not have access to this report');
-    }
-
-    const instituteId = user.instituteId;
-    const classId = query.classId || null;
-    const page = Math.max(1, parseInt(query.page) || 1);
-    const limit = Math.max(1, parseInt(query.limit) || 10);
-    const offset = (page - 1) * limit;
-
-    let filter = `u.institute_id=$1 AND u.role='STUDENT'`;
-    const params: any[] = [instituteId];
-
-    if (isTeacher) {
-      const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
-      const teacherId = tRows[0]?.id;
-      if (teacherId) {
-        params.push(teacherId);
-        filter += ` AND s.section_id IN (SELECT section_id FROM teacher_academic_assignments WHERE teacher_id = $${params.length})`;
-      } else {
-        filter += ` AND 1=0`;
-      }
-    }
-
-    if (classId) {
-      params.push(classId);
-      filter += ` AND c.id=$${params.length}`;
-    }
-
-    const countQuery = `
-      SELECT COUNT(*)::int AS total
-      FROM users u
-      JOIN students s ON s.user_id=u.id
-      LEFT JOIN sections sec ON s.section_id=sec.id
-      LEFT JOIN classes c ON sec.class_id=c.id
-      WHERE ${filter}
-    `;
-    const countResult = await this.ds.query(countQuery, params);
-    const total = parseInt(countResult[0]?.total || '0', 10);
-    const totalPages = Math.ceil(total / limit);
-
-    const studentsSql = `
-      SELECT u.id,u.name,c.name AS class_name
-      FROM users u
-      JOIN students s ON s.user_id=u.id
-      LEFT JOIN sections sec ON s.section_id=sec.id
-      LEFT JOIN classes c ON sec.class_id=c.id
-      WHERE ${filter}
-      ORDER BY u.name ASC
-      LIMIT ${limit} OFFSET ${offset}
-    `;
-    const studentsRows = await this.ds.query(studentsSql, params);
-
-    const studentsData = studentsRows.map((s: any) => {
-      // Mock student performance for UI
-      const avgScore = Math.floor(Math.random() * 30) + 65;
-      const trends = ['improving', 'declining', 'stable'];
-      return {
-        id: s.id,
-        name: s.name,
-        class: s.class_name || 'N/A',
-        avgScore,
-        trend: trends[Math.floor(Math.random() * trends.length)],
-        weakAreas: ['Mathematics', 'Physics'].slice(0, Math.floor(Math.random() * 2) + 1),
-        strongAreas: ['English', 'Biology'].slice(0, Math.floor(Math.random() * 2) + 1)
-      };
-    });
-
-    const mockData = [
-      { title: 'Jan', class_name: 'Class 9', avg_score: 75, attendance_rate: 92, pass_rate: 85, top_subject: 'English', weak_subject: 'Math' },
-      { title: 'Feb', class_name: 'Class 9', avg_score: 78, attendance_rate: 94, pass_rate: 88, top_subject: 'Science', weak_subject: 'Math' },
-      { title: 'Mar', class_name: 'Class 9', avg_score: 82, attendance_rate: 90, pass_rate: 92, top_subject: 'History', weak_subject: 'Physics' },
-    ];
-
-    const mockWeaknesses = [
-      { topic: 'Algebra', weak_students: 12, avg_score: 45 },
-      { topic: 'Thermodynamics', weak_students: 8, avg_score: 52 },
-      { topic: 'Trigonometry', weak_students: 15, avg_score: 41 },
-    ];
-
-    return {
-      success: true,
-      data: mockData,
-      students: studentsData,
-      weaknesses: mockWeaknesses,
-      total,
-      page,
-      limit,
-      totalPages
-    };
-  }
 }

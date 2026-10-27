@@ -42,6 +42,14 @@ export class SchoolScreenTimeController {
     return { totalSeconds: result.total, days: result.days };
   }
 
+  @Get('me/year')
+  async getMyYear(@SchoolUser() user: any, @Query('year') year: string) {
+    const yearNum = Number(year);
+    if (!yearNum) throw new BadRequestException('Invalid year');
+    const result = await this.svc.getYear(user.id, yearNum);
+    return { totalSeconds: result.total, months: result.months };
+  }
+
   /** Admin drill-down into one user's trend (e.g. the Students page's detail view). */
   @Get('user/:id')
   @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
@@ -78,6 +86,23 @@ export class SchoolScreenTimeController {
     }
     const result = await this.svc.getMonth(id, year, monthNum);
     return { totalSeconds: result.total, days: result.days };
+  }
+
+  @Get('user/:id/year')
+  @SchoolRoles('INSTITUTE_ADMIN', 'SUPER_ADMIN')
+  @RequireAdminModule('screen_time')
+  async getUserYear(
+    @SchoolUser() user: any,
+    @Param('id') id: string,
+    @Query('year') year: string,
+    @Query('instituteId') instituteIdOverride?: string,
+  ) {
+    const instituteId = (user.role === 'SUPER_ADMIN' && instituteIdOverride) || user.instituteId;
+    await this.svc.assertUserInInstitute(id, instituteId);
+    const yearNum = Number(year);
+    if (!yearNum) throw new BadRequestException('Invalid year');
+    const result = await this.svc.getYear(id, yearNum);
+    return { totalSeconds: result.total, months: result.months };
   }
 
   /** Consolidated per-user report for the institute admin's "Time Spent" page. */

@@ -5,6 +5,8 @@ import { hasSchoolRole } from '../common/role-helper';
 import { SchoolReportService } from './school-report.service';
 import { AiBridgeService } from '../../ai-bridge/ai-bridge.service';
 import { SchoolNotificationService } from '../notification/school-notification.service';
+import { S3Service } from '../../upload/s3.service';
+import { randomUUID } from 'crypto';
 
 const REPORT_CARD_STATUSES = ['DRAFT', 'PUBLISHED', 'APPROVED', 'REJECTED'] as const;
 type ReportCardStatus = typeof REPORT_CARD_STATUSES[number];
@@ -12,12 +14,17 @@ type ReportCardStatus = typeof REPORT_CARD_STATUSES[number];
 @Injectable()
 export class SchoolReportCardRemarksService {
   private readonly logger = new Logger(SchoolReportCardRemarksService.name);
+  // De-dupes concurrent `get()` calls for the same report card so two requests
+  // racing in before the first AI remark is persisted don't each pay for a
+  // separate AI-bridge generation.
+  private readonly inFlightAiRemarks = new Map<string, Promise<string | null>>();
 
   constructor(
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly reportService: SchoolReportService,
     private readonly aiBridgeService: AiBridgeService,
     private readonly notificationService: SchoolNotificationService,
+    private readonly s3Service: S3Service,
   ) {}
 
   private async assertAccess(user: any, studentId: string): Promise<string> {
@@ -42,6 +49,24 @@ export class SchoolReportCardRemarksService {
     }
     if (!hasSchoolRole(user.role, 'SUPER_ADMIN') && String(instituteId) !== String(user.instituteId)) {
       throw new ForbiddenException('You do not have access to this student');
+    }
+
+    // A teacher (who is not also an admin) only has access to students in sections they teach.
+    const isAdmin = hasSchoolRole(user.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user.role, 'SUPER_ADMIN');
+    if (hasSchoolRole(user.role, 'TEACHER') && !isAdmin) {
+      const taught: any[] = await this.ds.query(
+        `SELECT 1
+         FROM students s
+         JOIN sections sec ON sec.id::text = s.section_id::text
+         JOIN teachers t ON t.user_id::text = $2::text
+         JOIN teacher_academic_assignments ta ON ta.teacher_id::text = t.id::text
+          AND ta.class_id::text = sec.class_id::text
+          AND (ta.section_id IS NULL OR ta.section_id::text = s.section_id::text)
+         WHERE s.user_id::text = $1::text
+         LIMIT 1`,
+        [studentId, user.id],
+      );
+      if (!taught.length) throw new ForbiddenException('This student is not in a class you teach');
     }
     return instituteId;
   }
@@ -206,7 +231,15 @@ export class SchoolReportCardRemarksService {
     }
 
     if (!row?.teacher_remark && !row?.ai_remark) {
-      const aiRemark = await this.generateAiRemark(studentId, instituteId, academicYear);
+      const inFlightKey = `${studentId}:${academicYear}`;
+      let generation = this.inFlightAiRemarks.get(inFlightKey);
+      if (!generation) {
+        generation = this.generateAiRemark(studentId, instituteId, academicYear).finally(() => {
+          this.inFlightAiRemarks.delete(inFlightKey);
+        });
+        this.inFlightAiRemarks.set(inFlightKey, generation);
+      }
+      const aiRemark = await generation;
       if (aiRemark) {
         const upserted: any[] = await this.ds.query(
           `INSERT INTO report_card_remarks (institute_id, student_id, academic_year, class_name, ai_remark, remark_source, ai_generated_at)
@@ -312,21 +345,18 @@ export class SchoolReportCardRemarksService {
     if (!studentId || !academicYear) throw new BadRequestException('studentId and academicYear are required');
     const instituteId = await this.assertAccess(user, studentId);
 
-    const existing: any[] = await this.ds.query(
-      `SELECT status FROM report_card_remarks WHERE student_id = $1 AND academic_year = $2`,
-      [studentId, academicYear],
-    );
-    const currentStatus = existing[0] ? this.normalizeReportCardStatus(existing[0].status) : 'DRAFT';
-    if (currentStatus !== 'PUBLISHED' && currentStatus !== 'REJECTED') {
-      throw new BadRequestException('Report card must be published before it can be approved');
-    }
-
+    // The status check and the transition happen in one atomic UPDATE so two
+    // concurrent approve/reject calls can't both pass a separate precondition
+    // check before either writes (check-then-act race).
     const rows: any[] = await this.ds.query(
       `UPDATE report_card_remarks SET status = 'APPROVED', approved_by = $3, approved_at = NOW(), updated_at = NOW()
-       WHERE student_id = $1 AND academic_year = $2
+       WHERE student_id = $1 AND academic_year = $2 AND status IN ('PUBLISHED', 'REJECTED')
        RETURNING *`,
       [studentId, academicYear, user.id],
     );
+    if (!rows.length) {
+      throw new BadRequestException('Report card must be published before it can be approved');
+    }
     const row = rows[0];
 
     const classQs = `class=${encodeURIComponent(row.class_name || '')}&year=${encodeURIComponent(academicYear)}`;
@@ -355,20 +385,17 @@ export class SchoolReportCardRemarksService {
     if (!studentId || !academicYear) throw new BadRequestException('studentId and academicYear are required');
     const instituteId = await this.assertAccess(user, studentId);
 
-    const existing: any[] = await this.ds.query(
-      `SELECT status, published_by FROM report_card_remarks WHERE student_id = $1 AND academic_year = $2`,
-      [studentId, academicYear],
-    );
-    if (!existing[0] || this.normalizeReportCardStatus(existing[0].status) !== 'PUBLISHED') {
-      throw new BadRequestException('Only a published report card can be rejected');
-    }
-
+    // Atomic UPDATE...WHERE status='PUBLISHED' — see approve() for why the
+    // precondition check can't be a separate SELECT.
     const rows: any[] = await this.ds.query(
       `UPDATE report_card_remarks SET status = 'REJECTED', rejected_by = $3, rejected_at = NOW(), rejection_reason = $4, updated_at = NOW()
-       WHERE student_id = $1 AND academic_year = $2
+       WHERE student_id = $1 AND academic_year = $2 AND status = 'PUBLISHED'
        RETURNING *`,
       [studentId, academicYear, user.id, (reason ?? '').trim() || null],
     );
+    if (!rows.length) {
+      throw new BadRequestException('Only a published report card can be rejected');
+    }
     const row = rows[0];
 
     if (row.published_by) {
@@ -407,6 +434,12 @@ export class SchoolReportCardRemarksService {
       [instituteId, studentId, academicYear, user.id],
     );
 
+    await this.notifyAcknowledgement(studentId, academicYear, instituteId);
+
+    return { success: true, data: { checked: true } };
+  }
+
+  private async notifyAcknowledgement(studentId: string, academicYear: string, instituteId: string) {
     const classTeacherId = await this.findClassTeacherUserId(studentId);
     if (classTeacherId) {
       await this.notifyMany([classTeacherId], {
@@ -426,8 +459,6 @@ export class SchoolReportCardRemarksService {
       actionUrl: `/school/admin/students/${studentId}/report-card?year=${encodeURIComponent(academicYear)}`,
       referenceId: studentId,
     });
-
-    return { success: true, data: { checked: true } };
   }
 
   async getCheckedStatus(user: any, query: any) {
@@ -436,7 +467,7 @@ export class SchoolReportCardRemarksService {
     await this.assertAccess(user, studentId);
 
     const rows: any[] = await this.ds.query(
-      `SELECT a.parent_user_id, a.checked_at, u.name AS parent_name
+      `SELECT a.parent_user_id, a.checked_at, a.signature_url, u.name AS parent_name
        FROM report_card_acknowledgements a
        JOIN users u ON u.id = a.parent_user_id
        WHERE a.student_id = $1 AND a.academic_year = $2
@@ -445,8 +476,76 @@ export class SchoolReportCardRemarksService {
     );
     return {
       success: true,
-      data: rows.map((r) => ({ parentUserId: r.parent_user_id, parentName: r.parent_name, checkedAt: r.checked_at })),
+      data: rows.map((r) => ({
+        parentUserId: r.parent_user_id,
+        parentName: r.parent_name,
+        checkedAt: r.checked_at,
+        signatureUrl: r.signature_url || null,
+      })),
     };
+  }
+
+  /** Presigned S3 upload URL for a parent's signature image — mirrors
+   *  SchoolStudentService.presignPhoto, scoped to this student's report card. */
+  async presignParentSignature(user: any, body: { studentId: string; academicYear: string; fileName?: string; contentType?: string; fileSize?: number }, req: any) {
+    const { studentId, academicYear } = body;
+    if (!studentId || !academicYear) throw new BadRequestException('studentId and academicYear are required');
+    if (!hasSchoolRole(user.role, 'PARENT')) {
+      throw new ForbiddenException('Only parents can upload a report-card signature');
+    }
+    if (!body.contentType) throw new BadRequestException('contentType is required');
+    const MAX = 5 * 1024 * 1024; // 5 MB — a signature image, not a document
+    if (body.fileSize && body.fileSize > MAX) throw new BadRequestException('Signature image must be ≤ 5 MB');
+    const instituteId = await this.assertAccess(user, studentId);
+
+    const existing: any[] = await this.ds.query(
+      `SELECT status FROM report_card_remarks WHERE student_id = $1 AND academic_year = $2`,
+      [studentId, academicYear],
+    );
+    if (!existing[0] || this.normalizeReportCardStatus(existing[0].status) !== 'APPROVED') {
+      throw new BadRequestException('Report card is not available to sign yet');
+    }
+
+    const safeName = (body.fileName || 'signature.png').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'signature.png';
+    const key = `tenants/${instituteId}/report-card-signatures/${studentId}/${academicYear}/${Date.now()}-${randomUUID()}-${safeName}`;
+    const { uploadUrl, fileUrl } = await this.s3Service.presign(key, body.contentType);
+
+    const host = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const proxyUrl = `${host}/api/v1/upload/proxy?url=${encodeURIComponent(uploadUrl)}&contentType=${encodeURIComponent(body.contentType)}`;
+
+    return { success: true, data: { uploadUrl: proxyUrl, fileUrl, key } };
+  }
+
+  /** Saves the signature image URL (after the frontend has PUT it to S3) and
+   *  counts the upload itself as the parent's acknowledgement. */
+  async saveParentSignature(user: any, body: { studentId: string; academicYear: string; signatureUrl: string }) {
+    const { studentId, academicYear, signatureUrl } = body;
+    if (!studentId || !academicYear || !signatureUrl) {
+      throw new BadRequestException('studentId, academicYear and signatureUrl are required');
+    }
+    if (!hasSchoolRole(user.role, 'PARENT')) {
+      throw new ForbiddenException('Only parents can upload a report-card signature');
+    }
+    const instituteId = await this.assertAccess(user, studentId);
+
+    const existing: any[] = await this.ds.query(
+      `SELECT status FROM report_card_remarks WHERE student_id = $1 AND academic_year = $2`,
+      [studentId, academicYear],
+    );
+    if (!existing[0] || this.normalizeReportCardStatus(existing[0].status) !== 'APPROVED') {
+      throw new BadRequestException('Report card is not available to sign yet');
+    }
+
+    await this.ds.query(
+      `INSERT INTO report_card_acknowledgements (institute_id, student_id, academic_year, parent_user_id, signature_url)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (student_id, academic_year, parent_user_id) DO UPDATE SET signature_url = EXCLUDED.signature_url`,
+      [instituteId, studentId, academicYear, user.id, signatureUrl],
+    );
+
+    await this.notifyAcknowledgement(studentId, academicYear, instituteId);
+
+    return { success: true, data: { signatureUrl } };
   }
 
   async save(user: any, body: any) {
@@ -457,7 +556,16 @@ export class SchoolReportCardRemarksService {
     }
     const instituteId = await this.assertAccess(user, studentId);
 
+    const existing: any[] = await this.ds.query(
+      `SELECT status FROM report_card_remarks WHERE student_id = $1 AND academic_year = $2`,
+      [studentId, academicYear],
+    );
+    const wasApproved = !!existing[0] && this.normalizeReportCardStatus(existing[0].status) === 'APPROVED';
+
     const teacherRemark = (body.teacherRemark ?? '').trim() || null;
+    if (teacherRemark && teacherRemark.length > 2000) {
+      throw new BadRequestException('Remark must be 2000 characters or fewer');
+    }
     const rows: any[] = await this.ds.query(
       `INSERT INTO report_card_remarks (institute_id, student_id, academic_year, class_name, teacher_remark, remark_source, updated_by)
        VALUES ($1, $2, $3, $4::text, $5::text, CASE WHEN $5::text IS NOT NULL THEN 'TEACHER' ELSE 'AI' END, $6)
@@ -466,12 +574,33 @@ export class SchoolReportCardRemarksService {
          teacher_remark = $5::text,
          remark_source = CASE WHEN $5::text IS NOT NULL THEN 'TEACHER' WHEN report_card_remarks.ai_remark IS NOT NULL THEN 'AI' ELSE NULL END,
          class_name = COALESCE($4::text, report_card_remarks.class_name),
+         status = CASE WHEN report_card_remarks.status = 'APPROVED' THEN 'DRAFT' ELSE report_card_remarks.status END,
+         approved_by = CASE WHEN report_card_remarks.status = 'APPROVED' THEN NULL ELSE report_card_remarks.approved_by END,
+         approved_at = CASE WHEN report_card_remarks.status = 'APPROVED' THEN NULL ELSE report_card_remarks.approved_at END,
          updated_by = $6,
          updated_at = NOW()
        RETURNING *`,
       [instituteId, studentId, academicYear, className || null, teacherRemark, user.id],
     );
     const row = rows[0];
+
+    // Editing remarks on an already-approved report card invalidates any parent
+    // acknowledgement of it and sends the card back through publish -> approve.
+    if (wasApproved) {
+      await this.ds.query(
+        `DELETE FROM report_card_acknowledgements WHERE student_id = $1 AND academic_year = $2`,
+        [studentId, academicYear],
+      );
+      const adminIds = await this.findInstituteAdminUserIds(instituteId);
+      await this.notifyMany(adminIds, {
+        type: 'report_card_reopened',
+        title: 'Approved Report Card Edited',
+        message: `The remarks for ${academicYear} were edited after approval. The report card was reset to Draft and must be re-published and re-approved.`,
+        actionUrl: `/school/admin/students/${studentId}/report-card?year=${encodeURIComponent(academicYear)}`,
+        referenceId: studentId,
+      });
+    }
+
     const savedTeacherRemark = row.teacher_remark || null;
     const aiRemark = this.cleanAiRemark(row.ai_remark || null);
     return {

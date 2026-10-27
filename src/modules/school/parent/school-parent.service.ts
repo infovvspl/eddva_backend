@@ -319,6 +319,21 @@ export class SchoolParentService {
     };
   }
 
+  /** `year` is "YYYY" — backs the parent-facing screen-time annual view. */
+  async getScreenTimeYear(user: any, studentId: string, year: string) {
+    const parent = await this.loadParent(user);
+    const child = await this.getOwnedChild(parent, studentId);
+    const yearNum = Number(year);
+    if (!yearNum) {
+      throw new BadRequestException('Invalid year');
+    }
+    const result = await this.screenTimeService.getYear(child.id, yearNum);
+    return {
+      totalSeconds: result.total,
+      months: result.months,
+    };
+  }
+
   async getActiveEmergencyAlerts(user: any) {
     const parent = await this.loadParent(user);
     const childRows = await this.loadChildRows(parent);

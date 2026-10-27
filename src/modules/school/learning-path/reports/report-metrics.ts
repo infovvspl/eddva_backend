@@ -33,8 +33,22 @@ export const ENGAGEMENT = {
 
 export const EFFORT_WITHOUT_GAIN = { minMinutes: 60, maxImprovement: 2 } as const;
 
-/** How far back a usage trend goes, in buckets of its granularity. */
+/** How far back a usage trend goes, in buckets of its granularity — the cap
+ *  used when the natural window for the period would be unreadably wide. */
 export const TREND_BUCKETS: Record<TrendGranularity, number> = { day: 30, week: 12, month: 12, year: 5 };
+
+const BUCKET_DAYS: Record<TrendGranularity, number> = { day: 1, week: 7, month: 30, year: 365 };
+
+/**
+ * How many buckets the trend chart should show so its window actually matches
+ * the selected period (e.g. "Today" shows 1 bucket, not the same fixed 30-day
+ * window as "Last 30 days"), capped at TREND_BUCKETS so a long period paired
+ * with a fine granularity doesn't produce an unreadable chart.
+ */
+export function trendBucketCount(period: ReportPeriod, granularity: TrendGranularity): number {
+  const natural = Math.ceil(PERIOD_DAYS[period] / BUCKET_DAYS[granularity]);
+  return Math.max(1, Math.min(TREND_BUCKETS[granularity], natural));
+}
 
 export interface StudentActivity {
   seconds: number;
@@ -96,8 +110,8 @@ export function bucketOf(day: string, granularity: TrendGranularity): string {
 }
 
 /** Every bucket of the trend window, oldest first, ending with the bucket of `today`. */
-export function trendBuckets(today: string, granularity: TrendGranularity): string[] {
-  const n = TREND_BUCKETS[granularity];
+export function trendBuckets(today: string, granularity: TrendGranularity, count: number = TREND_BUCKETS[granularity]): string[] {
+  const n = count;
   const out: string[] = [];
   let cursor = bucketOf(today, granularity);
   for (let i = 0; i < n; i++) {
@@ -112,8 +126,9 @@ export function buildTrend(
   rows: { day: string; studentId: string; seconds: number }[],
   today: string,
   granularity: TrendGranularity,
+  count: number = TREND_BUCKETS[granularity],
 ): { period: string; seconds: number; activeStudents: number }[] {
-  const buckets = trendBuckets(today, granularity);
+  const buckets = trendBuckets(today, granularity, count);
   const index = new Map(buckets.map((b, i) => [b, i]));
   const seconds = buckets.map(() => 0);
   const students = buckets.map(() => new Set<string>());
