@@ -6,13 +6,13 @@ import { aiRequestStorage, getAiRequestContext } from '../../../../common/contex
 import { AiBridgeService } from '../../../ai-bridge/ai-bridge.service';
 import { SchoolTextbookService } from '../../textbook/school-textbook.service';
 import { LearningPathQueueService } from '../jobs/learning-path-queue.service';
-import { alignRoadmap, AlignedRoadmap, fallbackRoadmap } from './roadmap-align';
+import { alignRoadmap, alignSubtopics, AlignedRoadmap, fallbackRoadmap } from './roadmap-align';
 
 export interface RoadmapTopic {
   id: string;
   ord: number;
   name: string;
-  subtopics: string[];
+  subtopics: { id: string; name: string }[];
 }
 
 export interface ChapterRoadmap {
@@ -83,7 +83,12 @@ export class RoadmapService {
     const out = new Map<string, ChapterRoadmap>();
     if (!chapterIds.length) return out;
     const rows = await this.ds.query(
-      `SELECT r.chapter_id::text AS chapter_id, r.source, t.id::text AS topic_id, t.ord, t.name, t.subtopics
+      `SELECT r.chapter_id::text AS chapter_id, r.source, t.id::text AS topic_id, t.ord, t.name,
+              COALESCE(
+                (SELECT jsonb_agg(jsonb_build_object('id', rs.id, 'name', rs.name) ORDER BY rs.ord)
+                   FROM learning_roadmap_subtopics rs WHERE rs.roadmap_topic_id = t.id AND rs.active),
+                '[]'::jsonb
+              ) AS subtopics
          FROM learning_roadmaps r
          LEFT JOIN learning_roadmap_topics t ON t.chapter_id = r.chapter_id AND t.ord IS NOT NULL
         WHERE r.kind = 'chapter' AND r.status = 'ready' AND r.chapter_id::text = ANY($1::text[])
@@ -92,7 +97,10 @@ export class RoadmapService {
     );
     for (const r of rows) {
       const map = out.get(r.chapter_id) ?? { state: 'ready' as const, source: r.source, topics: [] };
-      if (r.topic_id) map.topics.push({ id: r.topic_id, ord: Number(r.ord), name: r.name, subtopics: Array.isArray(r.subtopics) ? r.subtopics : [] });
+      if (r.topic_id) {
+        const subtopics = Array.isArray(r.subtopics) ? r.subtopics.map((s: any) => ({ id: s.id, name: String(s.name ?? '').trim() })) : [];
+        map.topics.push({ id: r.topic_id, ord: Number(r.ord), name: r.name, subtopics });
+      }
       out.set(r.chapter_id, map);
     }
     for (const id of chapterIds) if (!out.has(id)) out.set(id, { state: 'pending', source: null, topics: [] });
@@ -103,6 +111,52 @@ export class RoadmapService {
   async forTopic(topicId: string): Promise<string[]> {
     const [row] = await this.ds.query(`SELECT subtopics FROM learning_roadmap_topics WHERE id::text = $1::text`, [topicId]);
     return Array.isArray(row?.subtopics) ? row.subtopics : [];
+  }
+
+  /** A topic's active subtopics, with their stable ids, in order. */
+  async subtopicsOf(topicId: string): Promise<{ id: string; ord: number; name: string }[]> {
+    const rows = await this.ds.query(
+      `SELECT id::text, ord, name FROM learning_roadmap_subtopics WHERE roadmap_topic_id::text = $1::text AND active ORDER BY ord`,
+      [topicId],
+    );
+    return rows.map((r: any) => ({ id: r.id, ord: Number(r.ord), name: r.name }));
+  }
+
+  /** One subtopic's name by its id, or null if it does not exist or was retired. */
+  async subtopicName(subtopicId: string): Promise<string | null> {
+    const [row] = await this.ds.query(`SELECT name FROM learning_roadmap_subtopics WHERE id::text = $1::text AND active`, [subtopicId]);
+    return row?.name ?? null;
+  }
+
+  /**
+   * Keeps a topic's subtopics identified by a stable id across regenerations:
+   * an existing active row is reused (by normalized-name match) and just
+   * moved/renamed, a new name gets a new row, and one the AI no longer
+   * returns is retired (active = false), never deleted, so anything already
+   * pointing at it (a thread, a mastery row) keeps a valid id.
+   */
+  private async writeSubtopics(manager: EntityManager, roadmapTopicId: string, subtopicNames: string[]): Promise<void> {
+    const existing = await manager.query(
+      `SELECT id::text, name FROM learning_roadmap_subtopics WHERE roadmap_topic_id = $1 AND active`,
+      [roadmapTopicId],
+    );
+    const aligned = alignSubtopics(subtopicNames, existing);
+    if (!aligned.subtopics.length) return;
+    // Move every existing active row out of the way before reassigning final ord values one at a
+    // time, so a reorder never transiently collides with uq_learning_roadmap_subtopics_order
+    // (same idiom already used for learning_roadmap_topics.ord elsewhere in this file).
+    await manager.query(`UPDATE learning_roadmap_subtopics SET ord = ord + 10000 WHERE roadmap_topic_id = $1 AND active`, [roadmapTopicId]);
+    for (const s of aligned.subtopics) {
+      const reuseId = aligned.matches.get(s.ord);
+      if (reuseId) {
+        await manager.query(`UPDATE learning_roadmap_subtopics SET ord = $2, name = $3 WHERE id = $1`, [reuseId, s.ord, s.name]);
+      } else {
+        await manager.query(`INSERT INTO learning_roadmap_subtopics (roadmap_topic_id, ord, name) VALUES ($1, $2, $3)`, [roadmapTopicId, s.ord, s.name]);
+      }
+    }
+    if (aligned.retired.length) {
+      await manager.query(`UPDATE learning_roadmap_subtopics SET active = false WHERE id = ANY($1::uuid[])`, [aligned.retired]);
+    }
   }
 
   async requestChapterRoadmaps(chapterIds: string[], instituteId: string | null, className: string | null): Promise<number> {
@@ -219,6 +273,7 @@ export class RoadmapService {
           [chapterId, t.ord, t.name, JSON.stringify(t.subtopics)],
         );
         ids.set(t.ord, ins.id);
+        await this.writeSubtopics(manager, ins.id, t.subtopics);
       }
       for (const [recordedId, ord] of aligned.links) {
         await manager.query(
@@ -340,6 +395,7 @@ export class RoadmapService {
             [chapterId, t.ord, t.name, JSON.stringify(t.subtopics)],
           );
           ids.set(t.ord, row.id);
+          await this.writeSubtopics(manager, row.id, t.subtopics);
         }
       }
       // Topic-roadmap topics the chapter roadmap did not cover go at the end.
@@ -394,6 +450,7 @@ export class RoadmapService {
           topic.name,
           JSON.stringify(topic.subtopics),
         ]);
+        await this.writeSubtopics(manager, state.linked_to, topic.subtopics);
         await manager.query(
           `UPDATE learning_roadmaps SET source = 'ai', attempts = 0, generated_at = NOW(), updated_at = NOW()
             WHERE kind = 'topic' AND curriculum_topic_id::text = $1::text`,
@@ -467,6 +524,7 @@ export class RoadmapService {
           `INSERT INTO learning_roadmap_topic_links (curriculum_topic_id, roadmap_topic_id, chapter_id) VALUES ($1, $2, $3)`,
           [recordedTopicId, row.id, chapter.id],
         );
+        await this.writeSubtopics(manager, row.id, topic!.subtopics);
       }
       await this.markReady(manager, 'topic', chapter.id, recordedTopicId, source);
       return !linked;

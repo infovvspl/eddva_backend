@@ -17,11 +17,11 @@ import { TopicVideosService } from './topic-videos.service';
 import { RoadmapService } from '../roadmap/roadmap.service';
 
 export interface OpenThreadInput {
-  /** A roadmap topic (every chapter is studied through its AI roadmap topics). */
+  /** A roadmap topic with no subtopics of its own (one still studied as a whole). */
   topicId?: string;
   general?: boolean;
-  /** Opened from a subtopic node on the mind map: echoed back so the page can focus on it. */
-  focusSubtopic?: string;
+  /** A subtopic: its own video, notes, quiz, assessment and chat. */
+  subtopicId?: string;
 }
 
 export interface StepProgressInput {
@@ -31,6 +31,15 @@ export interface StepProgressInput {
 }
 
 const MAX_QUIZ_CONCEPTS = 12;
+/**
+ * Before this, a subtopic thread's video step was searched against the parent
+ * topic (the subtopic was only a loose, secondary hint) — see openStep's
+ * 'videos' case. A video picked before this moment, on a subtopic thread,
+ * is re-searched once instead of being reused forever; unlike the notes
+ * heading, a stored video's own title gives no reliable signal of what it
+ * was searched for, so this is a one-time cutoff rather than content inspection.
+ */
+const VIDEO_SUBTOPIC_SCOPE_FIX_AT = new Date('2026-10-26T18:30:00.000Z');
 
 /**
  * One chat per mind-map node. Holds the curved path (rounds of videos ->
@@ -62,12 +71,13 @@ export class LearningThreadService implements OnModuleInit {
   async listThreads(user: any) {
     const student = await this.requireStudent(user);
     const rows = await this.store.manager.query(
-      `SELECT th.*, t.name AS topic_name, c.name AS chapter_name, s.name AS subject_name,
+      `SELECT th.*, t.name AS topic_name, c.name AS chapter_name, s.name AS subject_name, rs.name AS subtopic_name,
               cs.kind AS current_step_kind
          FROM learning_threads th
          LEFT JOIN learning_roadmap_topics t ON t.id = th.topic_id
          LEFT JOIN chapters c ON c.id = th.chapter_id
          LEFT JOIN subjects s ON s.id = th.subject_id
+         LEFT JOIN learning_roadmap_subtopics rs ON rs.id = th.subtopic_id
          LEFT JOIN learning_thread_steps cs ON cs.id = th.current_step_id
         WHERE th.student_id::text = $1::text
         ORDER BY (th.status = 'suggested'), th.last_activity_at DESC`,
@@ -79,39 +89,41 @@ export class LearningThreadService implements OnModuleInit {
     }));
   }
 
-  /** Get or create the chat for a roadmap topic, or the student's general chat. */
+  /** Get or create the chat for a subtopic, a no-subtopics topic, or the student's general chat. */
   async openThread(user: any, input: OpenThreadInput) {
     const student = await this.requireStudent(user);
-    if (!!input.topicId === !!input.general) throw new BadRequestException('Open exactly one of: a topic, or the general chat');
+    const ways = [input.subtopicId, input.topicId, input.general].filter(Boolean).length;
+    if (ways !== 1) throw new BadRequestException('Open exactly one of: a subtopic, a topic, or the general chat');
 
     if (input.general) {
       const id = await this.getOrCreateGeneral(student);
       return this.getThread(user, id);
     }
 
+    if (input.subtopicId) {
+      const found = await this.curriculum.findRoadmapSubtopic(student, input.subtopicId);
+      if (!found) throw new NotFoundException('Subtopic not found in your curriculum');
+      const threadId = await this.getOrCreateSubtopicThread(student, found.topic, { id: found.id, name: found.name }, { origin: 'mind_map', status: 'active' });
+      await this.reactivateIfSuggested(threadId);
+      return this.getThread(user, threadId);
+    }
+
     const topic: TopicContext | null = await this.curriculum.findRoadmapTopic(student, input.topicId!);
     if (!topic) throw new NotFoundException('Topic not found in your curriculum');
+    const activeSubtopics = await this.roadmaps.subtopicsOf(topic.topicId);
+    if (activeSubtopics.length) throw new BadRequestException('This topic has subtopics — open one of those instead');
+
     const threadId = await this.getOrCreateTopicThread(student, topic, { origin: 'mind_map', status: 'active' });
+    await this.reactivateIfSuggested(threadId);
+    return this.getThread(user, threadId);
+  }
+
+  private async reactivateIfSuggested(threadId: string) {
     await this.store.manager.query(
       `UPDATE learning_threads SET status = 'active', last_activity_at = NOW(), updated_at = NOW()
         WHERE id = $1 AND status = 'suggested'`,
       [threadId],
     );
-    // Only a real subtopic of this topic is echoed back (and remembered as opened); anything else is ignored.
-    const wanted = String(input.focusSubtopic ?? '').trim().toLowerCase();
-    const focusSubtopic = wanted
-      ? (await this.roadmaps.forTopic(topic.topicId)).find((s) => s.trim().toLowerCase() === wanted) ?? null
-      : null;
-    if (focusSubtopic) {
-      await this.store.manager.query(
-        `UPDATE learning_threads
-            SET opened_subtopics = CASE WHEN opened_subtopics ? $2 THEN opened_subtopics ELSE opened_subtopics || to_jsonb($2::text) END
-          WHERE id = $1`,
-        [threadId, focusSubtopic.trim()],
-      );
-    }
-    const view = await this.getThread(user, threadId);
-    return { ...view, focusSubtopic };
   }
 
   /** Everything the chat page needs: the path, one page of messages, and where to resume. */
@@ -172,12 +184,15 @@ export class LearningThreadService implements OnModuleInit {
   async openStep(user: any, threadId: string, stepId: string, opts: { retake?: boolean } = {}) {
     const student = await this.requireStudent(user);
     const thread = await this.store.loadOwnedThread(this.store.manager, student.studentId, threadId);
-    if (thread.scope !== 'topic') throw new BadRequestException('The general chat has no steps');
+    if (thread.scope === 'general') throw new BadRequestException('The general chat has no steps');
     const step = await this.store.loadStep(this.store.manager, threadId, stepId);
     if (step.status === 'locked') throw new ConflictException('Finish the earlier steps first');
     if (step.status === 'skipped') throw new ConflictException('This step was replaced by a focused round below');
     const topic = await this.requireTopic(student, thread.topic_id);
     const focus: string[] = step.focus_concepts ?? [];
+    // Fetched once and reused below (videos' focus, notes' single-subtopic scope, the
+    // quiz/assessment topic-name override) instead of each branch looking it up on its own.
+    const subtopicName = thread.scope === 'subtopic' ? await this.roadmaps.subtopicName(thread.subtopic_id) : null;
 
     let payload: any;
     switch (step.kind as StepKind) {
@@ -186,8 +201,17 @@ export class LearningThreadService implements OnModuleInit {
         // several-video picks keeps the one already watched, or picks its best video again.
         const stored: any[] = Array.isArray(step.content_json?.videos) ? step.content_json.videos : [];
         const watchedIds: string[] = step.content_json?.watched ?? [];
-        const keep = stored.find((v) => watchedIds.includes(v?.videoId)) ?? (stored.length === 1 ? stored[0] : null);
-        const videos = keep ? [keep] : await this.videos.forStep(student, topic, focus);
+        // A subtopic thread's video picked before the scoping fix was searched against the
+        // parent topic — re-search once instead of reusing a mis-scoped pick forever.
+        const stale = thread.scope === 'subtopic' && stored.length > 0 && new Date(step.updated_at) < VIDEO_SUBTOPIC_SCOPE_FIX_AT;
+        const keep = stale ? null : stored.find((v) => watchedIds.includes(v?.videoId)) ?? (stored.length === 1 ? stored[0] : null);
+        // For a subtopic thread, search FOR the subtopic itself (not the parent topic with the
+        // subtopic as a loose, secondary hint) — the search's own `topic` field is what actually
+        // drives it, so round 1 (no focus_concepts yet) needs the subtopic as that primary term,
+        // not appended after the topic's name. Round 2/3's real focus concepts (specific weak
+        // points) still refine it further. Cached per-subtopic (not per-topic) for the same reason.
+        const videosTopic = thread.scope === 'subtopic' && subtopicName ? { ...topic, topicName: subtopicName } : topic;
+        const videos = keep ? [keep] : await this.videos.forStep(student, videosTopic, focus, thread.scope === 'subtopic' ? thread.subtopic_id : null);
         await this.store.manager.query(
           `UPDATE learning_thread_steps SET content_json = content_json || $2::jsonb, updated_at = NOW() WHERE id = $1`,
           [stepId, JSON.stringify({ videos, opened: true })],
@@ -196,15 +220,19 @@ export class LearningThreadService implements OnModuleInit {
         break;
       }
       case 'notes': {
-        const subtopics = focus.length ? [] : await this.roadmaps.forTopic(topic.topicId);
-        const notes = await this.notes.openNotes(student, topic, { round: step.round, focusConcepts: focus, subtopics, threadId });
+        const subtopics = focus.length ? [] : subtopicName ? [subtopicName] : await this.roadmaps.forTopic(topic.topicId);
+        // The lesson's own markdown title is templated as "# {topicName}" (lesson-content.ts) —
+        // for a subtopic thread it must be the subtopic's own name, or every subtopic's notes
+        // show the same heading and look identical at a glance despite different content.
+        const notesTopic = thread.scope === 'subtopic' && subtopicName ? { ...topic, topicName: subtopicName } : topic;
+        const notes = await this.notes.openNotes(student, notesTopic, { round: step.round, focusConcepts: focus, subtopics, threadId });
         await this.store.manager.query(`UPDATE learning_thread_steps SET ref_id = $2, updated_at = NOW() WHERE id = $1`, [stepId, notes.sessionId]);
         payload = { kind: 'notes', notes };
         break;
       }
       case 'quiz':
       case 'assessment':
-        payload = { kind: step.kind, quiz: await this.openQuizStep(user, student, thread, step, topic, opts.retake === true) };
+        payload = { kind: step.kind, quiz: await this.openQuizStep(user, student, thread, step, topic, subtopicName, opts.retake === true) };
         break;
     }
 
@@ -215,7 +243,15 @@ export class LearningThreadService implements OnModuleInit {
     return { stepId, ...payload };
   }
 
-  private async openQuizStep(user: any, student: StudentIdentity, thread: any, step: any, topic: TopicContext, retake: boolean) {
+  private async openQuizStep(
+    user: any,
+    student: StudentIdentity,
+    thread: any,
+    step: any,
+    topic: TopicContext,
+    subtopicName: string | null,
+    retake: boolean,
+  ) {
     if (step.ref_id) {
       const [existing] = await this.store.manager.query(`SELECT status FROM learning_quiz_instances WHERE id = $1`, [step.ref_id]);
       if (existing?.status === 'in_progress') return this.quiz.getInstance(user, step.ref_id);
@@ -225,10 +261,18 @@ export class LearningThreadService implements OnModuleInit {
       throw new ConflictException('Finish the assessment you already have open first');
     }
 
-    const concepts = await this.conceptsForQuiz(thread.id, step, topic.topicId);
+    const concepts = await this.conceptsForQuiz(thread, step, topic.topicId);
+    // A subtopic thread's prompt is scoped to the subtopic by name, in every round — not just
+    // round 1 — the same way notes always titles itself with the subtopic (see openStep's
+    // 'notes' case). Independently of that, `concepts` is empty in round 1 (so each question
+    // keeps the AI's own specific label instead of one coarse tag; see conceptsForQuiz) and the
+    // real weak points in round 2/3 (forcing exact-copy tagging to them) — the two decisions
+    // don't need to move together, and conflating them left round 2/3 wrongly falling back to
+    // the parent topic's name. Persistence (topic_id/chapter_id/subject_id) is untouched either way.
+    const quizTopic = thread.scope === 'subtopic' && subtopicName ? { ...topic, topicName: subtopicName } : topic;
     const instance = await this.quiz.createInstance({
       student,
-      topic,
+      topic: quizTopic,
       kind: step.kind,
       round: step.round,
       concepts,
@@ -254,16 +298,30 @@ export class LearningThreadService implements OnModuleInit {
   }
 
   /**
-   * What the quiz is tagged with: the round's focus concepts, else the topic's
-   * subtopics (so every subtopic node on the mind map gets a measured status),
-   * else the key concepts of the round's notes.
+   * What the quiz is tagged with: the round's focus concepts — EXCEPT for the
+   * formal assessment, which ignores them. The assessment is the gate that
+   * decides completion/improvement and only unlocks once the quiz clears, so
+   * it must always measure the whole unit (the subtopic, or the topic when
+   * there are none) — narrowing it to the same weak points the quiz just
+   * drilled would make it circular (of course accuracy looks good on the
+   * exact points just practiced) instead of a real check of the whole thing.
+   * Only the quiz step narrows to focus concepts; the assessment is computed
+   * exactly as round 1 would be, every round.
+   *
+   * Once not narrowed: for a subtopic thread, nothing forced — every question
+   * is scoped to the one subtopic through its `topic` name override in
+   * `openQuizStep` instead, and keeps the AI's own specific per-question label
+   * (matchConcept's no-forced-concepts fallback) rather than collapsing to one
+   * coarse tag; else the topic's own subtopics (so every subtopic node on the
+   * mind map gets a measured status); else the key concepts of the round's notes.
    */
-  private async conceptsForQuiz(threadId: string, step: any, topicId: string): Promise<string[]> {
-    const focus: string[] = step.focus_concepts ?? [];
+  private async conceptsForQuiz(thread: any, step: any, topicId: string): Promise<string[]> {
+    const focus: string[] = step.kind === 'assessment' ? [] : step.focus_concepts ?? [];
     if (focus.length) return focus.slice(0, MAX_QUIZ_CONCEPTS);
+    if (thread.scope === 'subtopic') return [];
     const subtopics = await this.roadmaps.forTopic(topicId);
     if (subtopics.length) return subtopics.slice(0, MAX_QUIZ_CONCEPTS);
-    const notesStep = await this.store.roundStep(this.store.manager, threadId, step.round, 'notes');
+    const notesStep = await this.store.roundStep(this.store.manager, thread.id, step.round, 'notes');
     if (!notesStep?.ref_id) return [];
     const [session] = await this.store.manager.query(`SELECT key_concepts FROM school_ai_study_sessions WHERE id = $1`, [notesStep.ref_id]);
     const keys = Array.isArray(session?.key_concepts) ? session.key_concepts : [];
@@ -410,9 +468,27 @@ export class LearningThreadService implements OnModuleInit {
       if (!pick) return;
       const topic = await this.curriculum.findRoadmapTopic(student, pick);
       if (!topic) return;
-      const childId = await this.getOrCreateTopicThread(student, topic, { origin: 'prerequisite', status: 'suggested', parentThreadId: threadId });
+      // A topic with subtopics has no thread of its own to suggest (see openThread) — offer its
+      // first subtopic instead. There is no mastery signal to rank "weakest" for a topic the
+      // student has not necessarily touched yet, so the first one (by ord) is the same "show
+      // the next node" default used elsewhere in this codebase, not an attempt at ranking.
+      const activeSubtopics = await this.roadmaps.subtopicsOf(topic.topicId);
+      const firstSubtopic = activeSubtopics[0] ?? null;
+      const childId = firstSubtopic
+        ? await this.getOrCreateSubtopicThread(student, topic, firstSubtopic, { origin: 'prerequisite', status: 'suggested', parentThreadId: threadId })
+        : await this.getOrCreateTopicThread(student, topic, { origin: 'prerequisite', status: 'suggested', parentThreadId: threadId });
       await this.post(threadId, [
-        { role: 'ai', kind: 'prerequisite_suggestion', content: { threadId: childId, topicId: topic.topicId, topicName: topic.topicName } },
+        {
+          role: 'ai',
+          kind: 'prerequisite_suggestion',
+          content: {
+            threadId: childId,
+            topicId: topic.topicId,
+            topicName: topic.topicName,
+            subtopicId: firstSubtopic?.id ?? null,
+            subtopicName: firstSubtopic?.name ?? null,
+          },
+        },
       ]);
     } catch (err) {
       this.logger.warn(`Prerequisite suggestion failed for thread ${threadId}: ${(err as Error)?.message}`);
@@ -478,6 +554,70 @@ export class LearningThreadService implements OnModuleInit {
     });
   }
 
+  /**
+   * A subtopic's own thread: same shape as a topic thread (round 1, a welcome
+   * message, baseline mastery) but keyed by subtopic_id, with topic_id kept
+   * alongside it since every other join in this service still reads topic_id.
+   */
+  private async getOrCreateSubtopicThread(
+    student: StudentIdentity,
+    topic: TopicContext,
+    subtopic: { id: string; name: string },
+    opts: { origin: 'mind_map' | 'prerequisite'; status: 'active' | 'suggested'; parentThreadId?: string },
+  ): Promise<string> {
+    const existing = await this.store.manager.query(
+      `SELECT id FROM learning_threads WHERE student_id::text = $1::text AND subtopic_id::text = $2::text AND scope = 'subtopic'`,
+      [student.studentId, subtopic.id],
+    );
+    if (existing.length) return existing[0].id;
+
+    return this.store.transaction(async (manager) => {
+      const [baseline] = await manager.query(
+        `SELECT COALESCE(
+                  (SELECT mastery FROM student_topic_mastery WHERE student_id::text = $1::text AND topic_id::text = $2::text AND status NOT IN ('not_assessed', 'insufficient_data')),
+                  (SELECT mastery FROM student_chapter_mastery WHERE student_id::text = $1::text AND chapter_id::text = $3::text AND status NOT IN ('not_assessed', 'insufficient_data'))
+                ) AS mastery`,
+        [student.studentId, topic.topicId, topic.chapterId],
+      );
+      const inserted = await manager.query(
+        `INSERT INTO learning_threads
+           (institute_id, student_id, scope, subject_id, chapter_id, topic_id, subtopic_id, parent_thread_id, origin, status, baseline_mastery, baseline_at)
+         VALUES ($1, $2, 'subtopic', $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $10::numeric IS NULL THEN NULL ELSE NOW() END)
+         ON CONFLICT (student_id, subtopic_id) WHERE scope = 'subtopic' DO NOTHING
+         RETURNING *`,
+        [
+          student.instituteId, student.studentId, topic.subjectId, topic.chapterId, topic.topicId, subtopic.id,
+          opts.parentThreadId ?? null, opts.origin, opts.status, baseline?.mastery ?? null,
+        ],
+      );
+      if (!inserted.length) {
+        // Created by a parallel request a moment ago.
+        const [row] = await manager.query(
+          `SELECT id FROM learning_threads WHERE student_id::text = $1::text AND subtopic_id::text = $2::text AND scope = 'subtopic'`,
+          [student.studentId, subtopic.id],
+        );
+        return row.id;
+      }
+      const thread = inserted[0];
+      const first = await this.store.createRound(manager, thread.id, 1, []);
+      await manager.query(`UPDATE learning_threads SET current_step_id = $2 WHERE id = $1`, [thread.id, first.id]);
+      await this.store.addMessages(manager, thread.id, [
+        {
+          role: 'ai',
+          kind: 'welcome',
+          round: 1,
+          content: {
+            topicName: subtopic.name,
+            parentTopicName: topic.topicName,
+            baselineMastery: thread.baseline_mastery === null ? null : Number(thread.baseline_mastery),
+            origin: opts.origin,
+          },
+        },
+      ]);
+      return thread.id;
+    });
+  }
+
   private async getOrCreateGeneral(student: StudentIdentity): Promise<string> {
     const rows = await this.store.manager.query(
       `INSERT INTO learning_threads (institute_id, student_id, scope, origin, status)
@@ -528,16 +668,17 @@ export class LearningThreadService implements OnModuleInit {
   }
 
   async threadNames(thread: any) {
-    if (thread.scope !== 'topic') return { topic_name: null, chapter_name: null, subject_name: null };
+    if (thread.scope === 'general') return { topic_name: null, chapter_name: null, subject_name: null, subtopic_name: null };
     const [row] = await this.store.manager.query(
-      `SELECT t.name AS topic_name, c.name AS chapter_name, s.name AS subject_name
+      `SELECT t.name AS topic_name, c.name AS chapter_name, s.name AS subject_name, rs.name AS subtopic_name
          FROM learning_roadmap_topics t
          LEFT JOIN chapters c ON c.id = $2
          LEFT JOIN subjects s ON s.id = $3
+         LEFT JOIN learning_roadmap_subtopics rs ON rs.id = $4
         WHERE t.id = $1`,
-      [thread.topic_id, thread.chapter_id, thread.subject_id],
+      [thread.topic_id, thread.chapter_id, thread.subject_id, thread.subtopic_id],
     );
-    return row ?? { topic_name: null, chapter_name: null, subject_name: null };
+    return row ?? { topic_name: null, chapter_name: null, subject_name: null, subtopic_name: null };
   }
 
   private threadSummary(r: any) {
@@ -549,6 +690,8 @@ export class LearningThreadService implements OnModuleInit {
       parentThreadId: r.parent_thread_id ?? null,
       topicId: r.topic_id ?? null,
       topicName: r.topic_name ?? null,
+      subtopicId: r.subtopic_id ?? null,
+      subtopicName: r.subtopic_name ?? null,
       chapterId: r.chapter_id ?? null,
       chapterName: r.chapter_name ?? null,
       subjectId: r.subject_id ?? null,

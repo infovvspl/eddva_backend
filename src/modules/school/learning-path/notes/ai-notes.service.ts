@@ -11,6 +11,7 @@ import {
   extractBulletSection,
   extractFormulaCandidates,
   hasStructuredPracticeOptions,
+  lessonTitleStale,
   mapRawPracticeQuestion,
   normalizeSolvedExamplesFormatting,
   shouldRegenerateLesson,
@@ -129,7 +130,7 @@ export class AiNotesService {
     const focusConcepts = (opts.focusConcepts ?? []).slice(0, MAX_FOCUS_CONCEPTS);
     const existing = await this.findSession(student.studentId, topic.topicId, round, opts.threadId ?? null);
 
-    if (existing && !shouldRegenerateLesson(existing.lesson_markdown, topic.subjectName)) {
+    if (existing && !shouldRegenerateLesson(existing.lesson_markdown, topic.subjectName) && !lessonTitleStale(existing.lesson_markdown, topic.topicName)) {
       if (opts.threadId && !existing.thread_id) {
         // A round-1 lesson from the old planner is adopted by the thread, keeping the student's highlights.
         await this.ds.query(`UPDATE school_ai_study_sessions SET thread_id = $1 WHERE id = $2 AND thread_id IS NULL`, [

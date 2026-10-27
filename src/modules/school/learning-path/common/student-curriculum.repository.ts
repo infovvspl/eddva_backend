@@ -75,6 +75,41 @@ export class StudentCurriculumRepository {
   }
 
   /**
+   * One subtopic, with its own name and its parent topic's full context, but
+   * only if its chapter belongs to this student's subjects and it is still
+   * active (mirrors findRoadmapTopic).
+   */
+  async findRoadmapSubtopic(student: StudentIdentity, subtopicId: string): Promise<{ id: string; name: string; topic: TopicContext } | null> {
+    const subjectIds = await this.subjectIds(student);
+    if (!subjectIds.length) return null;
+    const rows = await this.ds.query(
+      `SELECT rs.id::text AS subtopic_id, rs.name AS subtopic_name,
+              t.id::text AS topic_id, t.name AS topic_name, c.id::text AS chapter_id, c.name AS chapter_name,
+              s.id::text AS subject_id, s.name AS subject_name
+         FROM learning_roadmap_subtopics rs
+         JOIN learning_roadmap_topics t ON t.id = rs.roadmap_topic_id
+         JOIN chapters c ON c.id = t.chapter_id
+         JOIN subjects s ON s.id::text = c.subject_id::text
+        WHERE rs.id::text = $1::text AND rs.active AND s.id::text = ANY($2::text[])`,
+      [subtopicId, subjectIds],
+    );
+    if (!rows.length) return null;
+    const r = rows[0];
+    return {
+      id: r.subtopic_id,
+      name: r.subtopic_name,
+      topic: {
+        topicId: r.topic_id,
+        topicName: r.topic_name,
+        chapterId: r.chapter_id,
+        chapterName: r.chapter_name,
+        subjectId: r.subject_id,
+        subjectName: r.subject_name,
+      },
+    };
+  }
+
+  /**
    * The student's chapters and the topics their mastery is judged on: every
    * roadmap topic, plus each recorded topic no roadmap covers yet (so a weak
    * topic can be noticed before any roadmap exists, and then get its own).
@@ -97,7 +132,13 @@ export class StudentCurriculumRepository {
   async loadTopicUnits(chapterIds: string[]): Promise<TopicUnit[]> {
     if (!chapterIds.length) return [];
     const rows = await this.ds.query(
-      `SELECT t.id::text AS id, t.chapter_id::text AS chapter_id, t.name, t.ord, t.subtopics, 'roadmap' AS kind
+      `SELECT t.id::text AS id, t.chapter_id::text AS chapter_id, t.name, t.ord,
+              COALESCE(
+                (SELECT jsonb_agg(jsonb_build_object('id', rs.id, 'name', rs.name) ORDER BY rs.ord)
+                   FROM learning_roadmap_subtopics rs WHERE rs.roadmap_topic_id = t.id AND rs.active),
+                '[]'::jsonb
+              ) AS subtopics,
+              'roadmap' AS kind
          FROM learning_roadmap_topics t
         WHERE t.chapter_id::text = ANY($1::text[])
        UNION ALL
@@ -112,7 +153,7 @@ export class StudentCurriculumRepository {
       chapterId: r.chapter_id,
       name: String(r.name ?? '').trim(),
       ord: r.ord === null ? null : Number(r.ord),
-      subtopics: Array.isArray(r.subtopics) ? r.subtopics : [],
+      subtopics: Array.isArray(r.subtopics) ? r.subtopics.map((s: any) => ({ id: s.id, name: String(s.name ?? '').trim() })) : [],
       kind: r.kind,
     }));
   }

@@ -5,17 +5,23 @@ const chapter = (subjectId: string, chapterId: string, chapterName: string): Cha
   subjectId, subjectName: subjectId === 's1' ? 'Maths' : 'Science', chapterId, chapterName, chapterOrder: 0,
 });
 const m = (status: string, mastery: number | null, estMinutes = 0, chapterLevelStatus?: string): MasteryRow => ({ status, mastery, estMinutes, chapterLevelStatus });
-const unit = (id: string, chapterId: string, name: string, kind: 'roadmap' | 'recorded', ord: number | null = null, subtopics: string[] = []): TopicUnit => ({
-  id, chapterId, name, ord, subtopics, kind,
-});
+const sub = (id: string, name: string) => ({ id, name });
+const unit = (
+  id: string,
+  chapterId: string,
+  name: string,
+  kind: 'roadmap' | 'recorded',
+  ord: number | null = null,
+  subtopics: { id: string; name: string }[] = [],
+): TopicUnit => ({ id, chapterId, name, ord, subtopics, kind });
 const thresholds = { minQuestions: 2, weakBelow: 60, atRisk: 70, mastered: 85 };
 
 const c1Roadmap: RoadmapInfo = {
   state: 'ready', source: 'ai',
   topics: [
-    { id: 'r3', ord: 1, name: 'Standard form', subtopics: ['General form'] },
-    { id: 'r1', ord: 2, name: 'Discriminant', subtopics: ['Discriminant formula', 'Sign of the discriminant'] },
-    { id: 'r2', ord: 3, name: 'Roots', subtopics: ['Real roots'] },
+    { id: 'r3', ord: 1, name: 'Standard form', subtopics: [sub('s-gf', 'General form')] },
+    { id: 'r1', ord: 2, name: 'Discriminant', subtopics: [sub('s-df', 'Discriminant formula'), sub('s-sd', 'Sign of the discriminant')] },
+    { id: 'r2', ord: 3, name: 'Roots', subtopics: [sub('s-rr', 'Real roots')] },
   ],
 };
 
@@ -23,12 +29,12 @@ const input = (over: Partial<MindMapInput> = {}): MindMapInput => ({
   chapters: [chapter('s1', 'c1', 'Quadratics'), chapter('s1', 'c2', 'Triangles'), chapter('s2', 'c3', 'Acids'), chapter('s2', 'c4', 'Light')],
   chapterRoadmaps: new Map([['c1', c1Roadmap]]),
   units: [
-    unit('r3', 'c1', 'Standard form', 'roadmap', 1, ['General form']),
-    unit('r1', 'c1', 'Discriminant', 'roadmap', 2, ['Discriminant formula', 'Sign of the discriminant']),
-    unit('r2', 'c1', 'Roots', 'roadmap', 3, ['Real roots']),
+    unit('r3', 'c1', 'Standard form', 'roadmap', 1, [sub('s-gf', 'General form')]),
+    unit('r1', 'c1', 'Discriminant', 'roadmap', 2, [sub('s-df', 'Discriminant formula'), sub('s-sd', 'Sign of the discriminant')]),
+    unit('r2', 'c1', 'Roots', 'roadmap', 3, [sub('s-rr', 'Real roots')]),
     unit('k4', 'c2', 'SIMILARITY', 'recorded'),
     unit('k6', 'c2', 'PYTHAGORAS THEOREM', 'recorded'),
-    unit('r7', 'c2', 'Basic proportionality theorem', 'roadmap', null, ['Statement', 'Proof']),
+    unit('r7', 'c2', 'Basic proportionality theorem', 'roadmap', null, [sub('s-st', 'Statement'), sub('s-pr', 'Proof')]),
     unit('k5', 'c4', 'REFLECTION', 'recorded'),
   ],
   topicMastery: new Map([
@@ -77,8 +83,8 @@ describe('buildMindMap', () => {
       [3, 'Roots', 'at_risk', 'ready'],
     ]);
     expect(c1.topics[1].subtopics).toEqual([
-      { name: 'Discriminant formula', order: 1, status: 'weak', accuracy: 25, answered: 4, opened: false },
-      { name: 'Sign of the discriminant', order: 2, status: 'insufficient_data', accuracy: 100, answered: 1, opened: false },
+      { id: 's-df', name: 'Discriminant formula', order: 1, status: 'weak', accuracy: 25, answered: 4, thread: null },
+      { id: 's-sd', name: 'Sign of the discriminant', order: 2, status: 'insufficient_data', accuracy: 100, answered: 1, thread: null },
     ]);
   });
 
@@ -108,12 +114,18 @@ describe('buildMindMap', () => {
 
   it('keeps a topic with a chat visible and hangs suggested prerequisites under it', () => {
     const threads: ThreadRow[] = [
-      { id: 'th4', topicId: 'r7', status: 'active', round: 2, parentThreadId: null },
-      { id: 'th1', topicId: 'r1', status: 'suggested', round: 1, parentThreadId: 'th4' },
+      { id: 'th4', topicId: 'r7', subtopicId: null, status: 'active', round: 2, parentThreadId: null },
+      { id: 'th1', topicId: 'r1', subtopicId: null, status: 'suggested', round: 1, parentThreadId: 'th4' },
     ];
     const r7 = find(buildMindMap(input({ threads, topicMastery: new Map([['r7', m('ok', 75)]]) })), 'c2')!.topics.find((t) => t.topicId === 'r7')!;
     expect(r7.thread).toEqual({ id: 'th4', status: 'active', round: 2, stepsDone: 0 });
-    expect(r7.children).toEqual([{ threadId: 'th1', topicId: 'r1', name: 'Discriminant', status: 'suggested', stepsDone: 0 }]);
+    expect(r7.children).toEqual([{ threadId: 'th1', topicId: 'r1', name: 'Discriminant', status: 'suggested', stepsDone: 0, subtopicId: null }]);
+  });
+
+  it('keeps a topic with subtopics visible once any of them has a chat, even if the topic itself is not weak', () => {
+    const threads: ThreadRow[] = [{ id: 'th-st', topicId: 'r7', subtopicId: 's-st', status: 'active', round: 1, parentThreadId: null }];
+    const c2 = find(buildMindMap(input({ threads, topicMastery: new Map([['r7', m('ok', 75)]]) })), 'c2')!;
+    expect(c2.topics.map((t) => t.topicId)).toContain('r7');
   });
 
   it('shows a "weak chapter" whose marks all come from one weak topic as that topic, not a chapter roadmap', () => {
@@ -139,10 +151,46 @@ describe('buildMindMap', () => {
     expect(find(result, 'c2')).toMatchObject({ expanded: true });
   });
 
-  it('marks the subtopics the student opened the topic from', () => {
-    const threads: ThreadRow[] = [{ id: 'th1', topicId: 'r1', status: 'active', round: 1, parentThreadId: null, openedSubtopics: ['  SIGN of the discriminant '] }];
+  it('gives each subtopic its own thread, independent of its siblings', () => {
+    const threads: ThreadRow[] = [{ id: 'th-sd', topicId: 'r1', subtopicId: 's-sd', status: 'active', round: 1, parentThreadId: null }];
     const r1 = find(buildMindMap(input({ threads })), 'c1')!.topics.find((t) => t.topicId === 'r1')!;
-    expect(r1.subtopics.map((s) => [s.name, s.opened])).toEqual([['Discriminant formula', false], ['Sign of the discriminant', true]]);
+    expect(r1.subtopics.map((s) => [s.name, s.thread])).toEqual([
+      ['Discriminant formula', null],
+      ['Sign of the discriminant', { id: 'th-sd', status: 'active', round: 1, stepsDone: 0 }],
+    ]);
+  });
+
+  it('marks a topic with subtopics completed only once every one of them is, not merely started', () => {
+    const oneDone: ThreadRow[] = [
+      { id: 't1', topicId: 'r1', subtopicId: 's-df', status: 'completed', round: 1, parentThreadId: null },
+      { id: 't2', topicId: 'r1', subtopicId: 's-sd', status: 'active', round: 1, parentThreadId: null },
+    ];
+    const r1 = find(buildMindMap(input({ threads: oneDone })), 'c1')!.topics.find((t) => t.topicId === 'r1')!;
+    expect(r1.completed).toBe(false);
+
+    const bothDone: ThreadRow[] = [
+      { id: 't1', topicId: 'r1', subtopicId: 's-df', status: 'completed', round: 1, parentThreadId: null },
+      { id: 't2', topicId: 'r1', subtopicId: 's-sd', status: 'completed', round: 1, parentThreadId: null },
+    ];
+    const r1Done = find(buildMindMap(input({ threads: bothDone })), 'c1')!.topics.find((t) => t.topicId === 'r1')!;
+    expect(r1Done.completed).toBe(true);
+  });
+
+  it('marks a topic with no subtopics completed from its own thread', () => {
+    const threads: ThreadRow[] = [{ id: 't1', topicId: 'k6', subtopicId: null, status: 'completed', round: 1, parentThreadId: null }];
+    const c2 = find(buildMindMap(input({ threads, topicMastery: new Map([['k6', m('weak', 40, 45)]]) })), 'c2')!;
+    expect(c2.topics.find((t) => t.topicId === 'k6')!.completed).toBe(true);
+  });
+
+  it('marks a chapter completed only once every topic of its full roadmap roster is, not just the ones shown', () => {
+    const allDone: ThreadRow[] = [
+      { id: 't1', topicId: 'r3', subtopicId: 's-gf', status: 'completed', round: 1, parentThreadId: null },
+      { id: 't2', topicId: 'r1', subtopicId: 's-df', status: 'completed', round: 1, parentThreadId: null },
+      { id: 't3', topicId: 'r1', subtopicId: 's-sd', status: 'completed', round: 1, parentThreadId: null },
+      { id: 't4', topicId: 'r2', subtopicId: 's-rr', status: 'completed', round: 1, parentThreadId: null },
+    ];
+    expect(find(buildMindMap(input({ threads: allDone })), 'c1')!.completed).toBe(true);
+    expect(find(buildMindMap(input({ threads: allDone.slice(0, 3) })), 'c1')!.completed).toBe(false); // r2's subtopic never completed
   });
 
   it('handles a student with nothing assessed yet', () => {
@@ -174,7 +222,7 @@ describe('summarizeMap', () => {
       ...input(),
       chapters: [chapter('s2', 'mag', 'Magnetic Effects'), chapter('s2', 'acid', 'Acids'), chapter('s2', 'life', 'Life Processes'), chapter('s1', 'real', 'Real Numbers')],
       chapterRoadmaps: new Map(),
-      units: [unit('mf', 'mag', 'Magnetic Field', 'roadmap', 1, ['Lines']), unit('cp', 'acid', 'Chemical Properties', 'roadmap', 1), unit('ns', 'real', 'Number Systems', 'roadmap', 1, ['Basics'])],
+      units: [unit('mf', 'mag', 'Magnetic Field', 'roadmap', 1, [sub('s-l', 'Lines')]), unit('cp', 'acid', 'Chemical Properties', 'roadmap', 1), unit('ns', 'real', 'Number Systems', 'roadmap', 1, [sub('s-b', 'Basics')])],
       topicMastery: new Map([['mf', m('weak', 18, 40)], ['cp', m('weak', 19, 40)], ['ns', m('at_risk', 50, 30)]]),
       chapterMastery: new Map([
         ['mag', m('weak', 18, 40, 'not_assessed')],
