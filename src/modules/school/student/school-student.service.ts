@@ -709,22 +709,23 @@ export class SchoolStudentService implements OnModuleInit {
           [userId, studentId]
         ).catch(() => []);
 
-        const userRows = await this.ds.query(
-          `SELECT xp_total, current_streak, longest_streak FROM users WHERE id::text = $1::text LIMIT 1`,
-          [userId],
-        ).catch(() => []);
-        const userXp = Number(userRows[0]?.xp_total || 0);
-        const userCurrentStreak = Number(userRows[0]?.current_streak || 0);
-        const userLongestStreak = Number(userRows[0]?.longest_streak || 0);
+        // `users` has no xp/streak columns in the school DB (only the separate
+        // coaching-app schema does) — this always failed and logged a "column
+        // does not exist" error for a value that was always 0 anyway.
+        const userXp = 0;
+        const userCurrentStreak = 0;
+        const userLongestStreak = 0;
 
+        // `students.eddva_coins`/`current_streak`/`longest_streak` don't exist either —
+        // only `xp_total` does, which is the one column still read here.
         const studentDataRows = await this.ds.query(
-          `SELECT xp_total, eddva_coins, current_streak, longest_streak FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
+          `SELECT xp_total FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
           [userId, studentId],
         ).catch(() => []);
         const studentXp = Number(studentDataRows[0]?.xp_total || 0);
-        const studentCoins = Number(studentDataRows[0]?.eddva_coins || 0);
-        const studentCurrentStreak = Number(studentDataRows[0]?.current_streak || 0);
-        const studentLongestStreak = Number(studentDataRows[0]?.longest_streak || 0);
+        const studentCoins = 0;
+        const studentCurrentStreak = 0;
+        const studentLongestStreak = 0;
 
         const scoreSumRows = await this.ds.query(
           `SELECT COALESCE(SUM(xp_earned), 0)::int AS total_xp, COALESCE(SUM(coins_earned), 0)::int AS total_coins

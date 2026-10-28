@@ -241,19 +241,45 @@ export class SchoolNotificationService {
     instituteId: string,
     notif: { type: string; title: string; message: string; actionUrl?: string },
     targetRoles?: string[],
+    // A single institute-wide blast can land on students, teachers, parents and
+    // admins at once, but each role has its own announcements page — a flat
+    // `notif.actionUrl` (previously always the student route) sent everyone who
+    // tapped the notification to a page only students have. This lets the
+    // caller give a per-role destination; `role` here can be comma-joined
+    // (e.g. "TEACHER,INSTITUTE_ADMIN"), same as `hasSchoolRole` handles elsewhere,
+    // so this matches with LIKE rather than exact equality.
+    actionUrlByRole?: { admin?: string; teacher?: string; parent?: string; student?: string },
   ): Promise<number> {
+    const params: any[] = [instituteId, notif.type, notif.title, notif.message];
+    let actionUrlExpr = `$5`;
+    params.push(notif.actionUrl || null);
+
+    if (actionUrlByRole) {
+      const adminIdx = params.push(actionUrlByRole.admin || notif.actionUrl || null);
+      const teacherIdx = params.push(actionUrlByRole.teacher || notif.actionUrl || null);
+      const parentIdx = params.push(actionUrlByRole.parent || notif.actionUrl || null);
+      const studentIdx = params.push(actionUrlByRole.student || notif.actionUrl || null);
+      actionUrlExpr = `
+        CASE
+          WHEN UPPER(REPLACE(role, ' ', '_')) LIKE '%ADMIN%' THEN $${adminIdx}
+          WHEN UPPER(REPLACE(role, ' ', '_')) LIKE '%TEACHER%' THEN $${teacherIdx}
+          WHEN UPPER(REPLACE(role, ' ', '_')) LIKE '%PARENT%' THEN $${parentIdx}
+          ELSE $${studentIdx}
+        END
+      `;
+    }
+
     let sql = `
       INSERT INTO notifications (user_id, recipient_id, type, title, message, action_url, is_read, category, priority)
-      SELECT id, id, $2, $3, $4, $5, false, 'announcement', 'medium'
+      SELECT id, id, $2, $3, $4, ${actionUrlExpr}, false, 'announcement', 'medium'
       FROM users
       WHERE institute_id = $1 AND is_active = TRUE
     `;
-    const params: any[] = [instituteId, notif.type, notif.title, notif.message, notif.actionUrl || null];
     if (targetRoles?.length) {
       params.push(targetRoles);
       sql += ` AND role = ANY($${params.length})`;
     }
-    sql += ` RETURNING id, recipient_id`;
+    sql += ` RETURNING id, recipient_id, action_url`;
 
     const rows: any[] = await this.ds.query(sql, params);
     for (const row of rows) {
@@ -263,7 +289,7 @@ export class SchoolNotificationService {
           type: notif.type,
           title: notif.title,
           message: notif.message,
-          actionUrl: notif.actionUrl || null,
+          actionUrl: row.action_url || null,
           isRead: false,
           createdAt: new Date(),
         });
