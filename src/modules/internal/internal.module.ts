@@ -9,6 +9,7 @@ import { InternalPlatformPeopleController } from './internal-platform-people.con
 import { SchoolTextbookModule } from '../school/textbook/school-textbook.module';
 import { InternalPlatformTextbooksController } from './internal-platform-textbooks.controller';
 import { InternalPlatformUsersController } from './internal-platform-users.controller';
+import { InternalPlatformErpModulesController } from './internal-platform-erp-modules.controller';
 import { InternalPlatformStorageController } from './internal-platform-storage.controller';
 import { InternalAiUsageService } from './internal-ai-usage.service';
 import { InternalAiUsageController } from './internal-ai-usage.controller';
@@ -24,7 +25,7 @@ import { InternalPlatformInstitutesController } from './internal-platform-instit
 
 @Module({
   imports: [AiUsageModule, SchoolStudentModule, SchoolTeacherModule, SchoolInstituteModule, SchoolTextbookModule],
-  controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController, InternalPlatformInstitutesController, InternalPlatformStorageController, InternalPlatformSupportController, InternalPlatformRevenueController, InternalPlatformPeopleController, InternalPlatformTextbooksController, InternalPlatformUsersController],
+  controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController, InternalPlatformInstitutesController, InternalPlatformStorageController, InternalPlatformSupportController, InternalPlatformRevenueController, InternalPlatformPeopleController, InternalPlatformTextbooksController, InternalPlatformUsersController, InternalPlatformErpModulesController],
   providers: [InternalAiUsageService, AiFeatureFlagService, InternalErpStudentService, InternalErpTeacherService, InternalErpModulesService],
   exports: [AiFeatureFlagService, InternalAiUsageService],
 })
