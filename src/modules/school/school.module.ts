@@ -52,6 +52,7 @@ import { SchoolStaffModule } from './staff/school-staff.module';
 import { SchoolRolesModule } from './roles/school-roles.module';
 import { CompetitiveModule } from './competitive/competitive.module';
 import { SchoolScreenTimeModule } from './screen-time/school-screen-time.module';
+import { SchoolActivityModule } from './activity/school-activity.module';
 import { EmergencySosModule } from './emergency-sos/emergency-sos.module';
 
 @Module({
@@ -101,6 +102,7 @@ import { EmergencySosModule } from './emergency-sos/emergency-sos.module';
     SchoolNotificationFcmModule,
     SchoolStaffModule,
     SchoolScreenTimeModule,
+    SchoolActivityModule,
     EmergencySosModule,
     SchoolRolesModule,
     CompetitiveModule,
