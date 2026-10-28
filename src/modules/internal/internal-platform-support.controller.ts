@@ -37,6 +37,8 @@ export class InternalPlatformSupportController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     assertInternalKey(key);
     const size = clamp(Number(pageSize), 1, 100, 20);
@@ -66,10 +68,12 @@ export class InternalPlatformSupportController {
     const counts: Record<string, number> = { total: 0, OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0, REOPENED: 0, CLOSED: 0 };
     for (const r of countRows) { counts[String(r.status).toUpperCase()] = (counts[String(r.status).toUpperCase()] ?? 0) + r.n; counts.total += r.n; }
 
+    const SORTS: Record<string, string> = { title: 'c.title', status: 'c.status', createdAt: 'c.created_at', updatedAt: 'c.updated_at' };
+    const orderBy = `${SORTS[sortBy ?? ''] ?? 'c.updated_at'} ${sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'}`;
     const rows = await this.ds.query(
       `SELECT c.id::text AS id, c.title, c.status::text AS status, c.created_at AS "createdAt", c.updated_at AS "updatedAt",
               i.id::text AS "instituteId", i.name AS "instituteName", u.name AS "raisedByName"
-         ${from} ${filtered} ORDER BY c.updated_at DESC, c.id LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+         ${from} ${filtered} ORDER BY ${orderBy}, c.id LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, size, (pageNo - 1) * size],
     );
     const items = rows.map((r: any) => ({ ...r, ticketNumber: ticketNumber(r.id) }));
