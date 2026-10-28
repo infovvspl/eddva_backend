@@ -3,8 +3,10 @@ import {
   Body,
   ConflictException,
   Controller,
+  Get,
   Headers,
   HttpCode,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Put,
@@ -93,6 +95,29 @@ const isUniqueViolation = (err: any) => (err?.code ?? err?.driverError?.code) ==
 @Controller('internal/platform/institutes')
 export class InternalPlatformInstitutesController {
   constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+
+  /**
+   * What the LMS holds about one institute, for the platform console's school page: its details and how many
+   * teachers, students and parents have a login. For schools imported from the LMS this is the source of truth.
+   */
+  @Get(':id/summary')
+  async summary(@Headers('x-internal-key') key: string, @Param('id', ParseUUIDPipe) id: string) {
+    assertInternalKey(key);
+    const [inst] = await this.ds.query(
+      `SELECT name, status::text AS status, created_at AS "createdAt", tenant_domain AS "tenantDomain", principal_name AS "principalName", email,
+              registration_no AS "registrationNo", phone, alternate_phone AS "alternatePhone", website, address, plot_no AS "plotNo",
+              street_name AS "streetName", land_mark AS "landMark", city, district, state, pin_code AS "pinCode", school_type AS "schoolType",
+              board, established_year AS "establishedYear", affiliation_no AS "affiliationNo", total_classes AS "totalClasses",
+              total_students AS "totalStudents", total_teachers AS "totalTeachers", ai_enabled AS "aiEnabled", ai_features AS "aiFeatures",
+              erp_enabled AS "erpEnabled", lms_enabled AS "lmsEnabled"
+         FROM institutes WHERE id::text = $1`,
+      [id],
+    );
+    if (!inst) throw new NotFoundException('Institute not found');
+    const rows: { role: string; n: number }[] = await this.ds.query(`SELECT UPPER(role::text) AS role, COUNT(*)::int AS n FROM users WHERE institute_id::text = $1 GROUP BY 1`, [id]);
+    const n = (role: string) => rows.find((r) => r.role === role)?.n ?? 0;
+    return { institute: inst, counts: { students: n('STUDENT'), teachers: n('TEACHER'), parents: n('PARENT'), admins: n('INSTITUTE_ADMIN') } };
+  }
 
   @Put(':id')
   @HttpCode(200)
