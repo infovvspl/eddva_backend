@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -63,6 +64,11 @@ export function profileColumns(profile?: Record<string, unknown>, logo?: string)
   return out;
 }
 
+export class SetAdminPasswordDto {
+  @Matches(/^\$2[aby]\$/) passwordHash: string;
+  @IsString() @MinLength(1) platformUserId: string;
+}
+
 export class UpsertPlatformInstituteDto {
   @IsString() @MinLength(2) name: string;
   @Matches(/^[a-z0-9-]{3,32}$/) slug: string;
@@ -117,6 +123,31 @@ export class InternalPlatformInstitutesController {
     const rows: { role: string; n: number }[] = await this.ds.query(`SELECT UPPER(role::text) AS role, COUNT(*)::int AS n FROM users WHERE institute_id::text = $1 GROUP BY 1`, [id]);
     const n = (role: string) => rows.find((r) => r.role === role)?.n ?? 0;
     return { institute: inst, counts: { students: n('STUDENT'), teachers: n('TEACHER'), parents: n('PARENT'), admins: n('INSTITUTE_ADMIN') } };
+  }
+
+  /**
+   * Sets the school admin's password (a bcrypt hash made by the platform) and marks it for a change at next login.
+   * This is the platform's "resend credentials": the LMS upsert never overwrites a password, so this is the one way.
+   */
+  @Put(':id/admin-password')
+  @HttpCode(200)
+  async setAdminPassword(@Headers('x-internal-key') key: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: SetAdminPasswordDto) {
+    assertInternalKey(key);
+    const [admin] = await this.ds.query(`SELECT id FROM users WHERE platform_user_id = $1 AND institute_id::text = $2`, [dto.platformUserId, id]);
+    if (!admin) throw new NotFoundException('No LMS admin is linked to that platform user');
+    await this.ds.query(`UPDATE users SET password = $1, is_first_login = true, updated_at = NOW() WHERE id = $2`, [dto.passwordHash, admin.id]);
+    return { updated: true };
+  }
+
+  /** Permanently removes the institute row, as the LMS super admin's Delete does (dependent data goes with it). */
+  @Delete(':id')
+  @HttpCode(200)
+  async remove(@Headers('x-internal-key') key: string, @Param('id', ParseUUIDPipe) id: string) {
+    assertInternalKey(key);
+    const [inst] = await this.ds.query(`SELECT id FROM institutes WHERE id::text = $1`, [id]);
+    if (!inst) throw new NotFoundException('Institute not found');
+    await this.ds.query(`DELETE FROM institutes WHERE id::text = $1`, [id]);
+    return { deleted: true };
   }
 
   @Put(':id')
