@@ -51,6 +51,10 @@ export class AiUsageAdminService {
     };
   }
 
+  getSeries(range: 'today' | '7d' | '15d' | '1m' | '3m') {
+    return this.usageSvc.getSeries(range);
+  }
+
   async getByInstitute(product: Product, period: Period, sort: 'requests' | 'cost' | 'latency' = 'cost') {
     const { from } = this.dateRange(period);
     const vertical = product === 'all' ? undefined : product;

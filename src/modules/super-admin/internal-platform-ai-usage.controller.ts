@@ -9,6 +9,8 @@ type Period = (typeof PERIODS)[number];
  * Read-only AI usage for the platform console (eddva_platform). It reuses the same figures the LMS super
  * admin sees, so the two never disagree; the platform calls it with the shared internal key.
  */
+const RANGES = ['today', '7d', '15d', '1m', '3m'] as const;
+
 @Controller('internal/platform/ai-usage')
 export class InternalPlatformAiUsageController {
   constructor(private readonly usage: AiUsageAdminService) {}
@@ -22,5 +24,13 @@ export class InternalPlatformAiUsageController {
       this.usage.getByInstitute('all', period as Period, 'cost'),
     ]);
     return { period, dashboard, byInstitute };
+  }
+
+  /** Successful and failed calls over time, for the dashboard's AI usage chart. */
+  @Get('trend')
+  async trend(@Headers('x-internal-key') key: string, @Query('range') range: string = '7d') {
+    assertInternalKey(key);
+    if (!(RANGES as readonly string[]).includes(range)) throw new BadRequestException(`range must be one of ${RANGES.join(', ')}`);
+    return this.usage.getSeries(range as (typeof RANGES)[number]);
   }
 }

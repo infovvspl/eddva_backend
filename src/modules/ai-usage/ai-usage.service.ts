@@ -558,6 +558,34 @@ export class AiUsageService implements OnModuleInit {
     );
   }
 
+  /**
+   * Successful and failed AI calls over time, from the per-call event rows: by hour for "today", by day otherwise.
+   * Every bucket is present (zero when quiet), so a chart has no gaps.
+   */
+  async getSeries(range: 'today' | '7d' | '15d' | '1m' | '3m') {
+    await this.ensureTables();
+    const days = { '7d': 7, '15d': 15, '1m': 30, '3m': 90 } as const;
+    if (range === 'today') {
+      const rows = await this.ds.query(`
+        WITH b AS (SELECT generate_series(DATE_TRUNC('day', NOW()), DATE_TRUNC('day', NOW()) + INTERVAL '23 hours', INTERVAL '1 hour') AS t)
+        SELECT b.t AS at,
+               COUNT(e.id) FILTER (WHERE e.success)::int AS successful,
+               COUNT(e.id) FILTER (WHERE NOT e.success)::int AS failed
+          FROM b LEFT JOIN ai_usage_events e ON DATE_TRUNC('hour', e.created_at) = b.t
+         GROUP BY b.t ORDER BY b.t`);
+      return { unit: 'hour' as const, points: rows.map((r: any) => ({ at: new Date(r.at).toISOString(), successful: Number(r.successful), failed: Number(r.failed) })) };
+    }
+    const n = days[range] ?? 7;
+    const rows = await this.ds.query(`
+      WITH b AS (SELECT generate_series(DATE_TRUNC('day', NOW()) - ($1::int - 1) * INTERVAL '1 day', DATE_TRUNC('day', NOW()), INTERVAL '1 day') AS t)
+      SELECT b.t AS at,
+             COUNT(e.id) FILTER (WHERE e.success)::int AS successful,
+             COUNT(e.id) FILTER (WHERE NOT e.success)::int AS failed
+        FROM b LEFT JOIN ai_usage_events e ON DATE_TRUNC('day', e.created_at) = b.t
+       GROUP BY b.t ORDER BY b.t`, [n]);
+    return { unit: 'day' as const, points: rows.map((r: any) => ({ at: new Date(r.at).toISOString(), successful: Number(r.successful), failed: Number(r.failed) })) };
+  }
+
   /** Per-institute breakdown (super-admin), with names resolved per vertical. */
   async getByInstitute(opts: { vertical?: string; from?: string; to?: string } = {}) {
     await this.ensureTables();
