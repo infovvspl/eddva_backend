@@ -1,8 +1,12 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { randomUUID } from 'crypto';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { ArrayMaxSize, IsArray, IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { DataSource } from 'typeorm';
 import { SchoolChatService } from '../school/chat/school-chat.service';
+import { SchoolMeetingService } from '../school/meeting/school-meeting.service';
+import { S3Service } from '../upload/s3.service';
 import { SchoolNoticeService } from '../school/notice/school-notice.service';
 import { assertInternalKey } from './internal-key';
 
@@ -27,7 +31,27 @@ export class BroadcastDto {
 export class ChatSendDto {
   @IsUUID() receiverId: string;
   @IsString() @MinLength(1) @MaxLength(5000) content: string;
+  /** A file already uploaded through `chat/attachments`. */
+  @IsOptional() @IsString() @MaxLength(2000) attachmentUrl?: string;
+  @IsOptional() @IsString() @MaxLength(255) attachmentName?: string;
+  /** The message this one replies to. */
+  @IsOptional() @IsUUID() parentMessageId?: string;
 }
+
+export class MeetingDto {
+  @IsUUID() peerId: string;
+  @IsString() @MinLength(1) @MaxLength(200) title: string;
+  @IsOptional() @IsString() @MaxLength(2000) description?: string;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/) meetingDate: string;
+  @Matches(/^\d{2}:\d{2}$/) startTime: string;
+  @IsInt() @Min(5) @Max(480) durationMinutes: number;
+  @IsIn(['online', 'offline']) meetingMode: string;
+  @IsOptional() @IsString() @MaxLength(60) meetingPlatform?: string;
+  @IsOptional() @IsString() @MaxLength(1000) meetingLink?: string;
+  @IsOptional() @IsString() @MaxLength(300) location?: string;
+}
+
+const MAX_ATTACHMENT = 20 * 1024 * 1024;
 
 export class ChatEditDto {
   @IsString() @MinLength(1) @MaxLength(5000) content: string;
@@ -44,6 +68,8 @@ export class InternalPlatformCommunicationController {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly notices: SchoolNoticeService,
     private readonly chat: SchoolChatService,
+    private readonly meetings: SchoolMeetingService,
+    private readonly s3: S3Service,
   ) {}
 
   // ── Broadcasts ──
@@ -172,7 +198,50 @@ export class InternalPlatformCommunicationController {
   @HttpCode(201)
   async send(@Headers('x-internal-key') key: string, @Body() dto: ChatSendDto) {
     assertInternalKey(key);
-    return (await this.chat.sendMessage(await this.actor(), { receiverId: dto.receiverId, content: dto.content.trim() })).data;
+    return (await this.chat.sendMessage(await this.actor(), { receiverId: dto.receiverId, content: dto.content.trim(), attachmentUrl: dto.attachmentUrl, attachmentName: dto.attachmentName, parentMessageId: dto.parentMessageId })).data;
+  }
+
+  /** Who the platform speaks as in chat; the live feed joins this user's room. */
+  @Get('chat/me')
+  async me(@Headers('x-internal-key') key: string) {
+    assertInternalKey(key);
+    const a = await this.actor();
+    return { id: a.id, name: a.name };
+  }
+
+  /** Stores a chat attachment under the admin's own institute, the same place the LMS keeps its chat files. */
+  @Post('chat/attachments')
+  @HttpCode(201)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ATTACHMENT } }))
+  async attach(@Headers('x-internal-key') key: string, @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined, @Body('peerId', ParseUUIDPipe) peerId: string) {
+    assertInternalKey(key);
+    if (!file) throw new BadRequestException('Choose a file to attach.');
+    if (file.size > MAX_ATTACHMENT) throw new BadRequestException('File must be 20 MB or smaller.');
+    const instituteId = await this.instituteOf(peerId);
+    const safe = (file.originalname || 'file').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'file';
+    const objectKey = `tenants/${instituteId}/chat/attachments/${Date.now()}-${randomUUID()}-${safe}`;
+    const url = await this.s3.upload(objectKey, file.buffer, file.mimetype || 'application/octet-stream');
+    return { url, name: file.originalname };
+  }
+
+  /** Schedules a meeting with an institute admin (they get the LMS meeting request) and drops a card into the chat. */
+  @Post('chat/meetings')
+  @HttpCode(201)
+  async meeting(@Headers('x-internal-key') key: string, @Body() dto: MeetingDto) {
+    assertInternalKey(key);
+    if (dto.meetingMode === 'offline' && !dto.location?.trim()) throw new BadRequestException('Location is required for offline meetings.');
+    const actor = await this.actor();
+    const instituteId = await this.instituteOf(dto.peerId);
+    const created = await this.meetings.create(actor, {
+      title: dto.title, description: dto.description, meetingDate: dto.meetingDate, startTime: dto.startTime, durationMinutes: dto.durationMinutes,
+      meetingMode: dto.meetingMode, meetingPlatform: dto.meetingMode === 'online' ? dto.meetingPlatform : null, meetingLink: dto.meetingMode === 'online' ? dto.meetingLink || null : null,
+      location: dto.meetingMode === 'offline' ? dto.location : null, recipientIds: [dto.peerId], instituteId,
+    });
+    const clean = (v?: string) => (v ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
+    const where = dto.meetingMode === 'online' ? dto.meetingLink || '' : dto.location || '';
+    const card = ['[MEETING_CARD]', clean(dto.title), `${dto.meetingDate} ${dto.startTime}`, `${dto.durationMinutes} mins`, clean(dto.description) || (dto.meetingMode === 'online' ? 'Online meeting' : `At ${clean(where)}`), dto.meetingMode === 'online' ? clean(where) : ''].join('|');
+    await this.chat.sendMessage(actor, { receiverId: dto.peerId, content: card });
+    return created.data;
   }
 
   @Patch('chat/messages/:id')
@@ -193,6 +262,12 @@ export class InternalPlatformCommunicationController {
   private async actor() {
     const [u] = await this.ds.query(`SELECT id::text AS id, name FROM users WHERE LOWER(role) = 'super_admin' AND is_active IS NOT FALSE ORDER BY created_at LIMIT 1`);
     return { id: u?.id ?? '00000000-0000-0000-0000-000000000001', name: u?.name ?? 'EDVA Super Admin Support', role: 'SUPER_ADMIN' };
+  }
+
+  private async instituteOf(userId: string): Promise<string> {
+    const [row] = await this.ds.query(`SELECT institute_id::text AS id FROM users WHERE id = $1 AND LOWER(role) = 'institute_admin'`, [userId]);
+    if (!row?.id) throw new BadRequestException('That person is not an institute admin.');
+    return row.id;
   }
 
   private ensureColumn() {

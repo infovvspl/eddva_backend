@@ -23,13 +23,15 @@ import { InternalErpTeacherService } from './internal-erp-teacher.service';
 import { InternalErpModulesController } from './internal-erp-modules.controller';
 import { InternalErpModulesService } from './internal-erp-modules.service';
 import { InternalPlatformLinkController } from './internal-platform-link.controller';
+import { SchoolMeetingModule } from '../school/meeting/school-meeting.module';
+import { UploadModule } from '../upload/upload.module';
 import { SchoolChatModule } from '../school/chat/school-chat.module';
 import { SchoolNoticeModule } from '../school/notice/school-notice.module';
 import { InternalPlatformCommunicationController } from './internal-platform-communication.controller';
 import { InternalPlatformInstitutesController } from './internal-platform-institutes.controller';
 
 @Module({
-  imports: [AiUsageModule, SchoolStudentModule, SchoolTeacherModule, SchoolInstituteModule, SchoolTextbookModule, CompetitiveModule, SchoolChatModule, SchoolNoticeModule],
+  imports: [AiUsageModule, SchoolStudentModule, SchoolTeacherModule, SchoolInstituteModule, SchoolTextbookModule, CompetitiveModule, SchoolChatModule, SchoolNoticeModule, SchoolMeetingModule, UploadModule],
   controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController, InternalPlatformInstitutesController, InternalPlatformStorageController, InternalPlatformSupportController, InternalPlatformRevenueController, InternalPlatformPeopleController, InternalPlatformTextbooksController, InternalPlatformUsersController, InternalPlatformErpModulesController, InternalPlatformCompetitiveController, InternalPlatformCommunicationController],
   providers: [InternalAiUsageService, AiFeatureFlagService, InternalErpStudentService, InternalErpTeacherService, InternalErpModulesService],
   exports: [AiFeatureFlagService, InternalAiUsageService],
