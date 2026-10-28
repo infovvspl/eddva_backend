@@ -23,6 +23,7 @@ export class InternalPlatformPeopleController {
     @Param('id', ParseUUIDPipe) id: string,
     @Query('kind') kind?: string,
     @Query('search') search?: string,
+    @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -35,6 +36,8 @@ export class InternalPlatformPeopleController {
 
     const spec = this.spec(kind as Kind);
     const where = [spec.where];
+    if (status === 'active') where.push('u.is_active = TRUE');
+    else if (status === 'inactive') where.push('u.is_active = FALSE');
     for (const term of terms) {
       params.push(`%${term.toLowerCase()}%`);
       where.push(`(${spec.searchColumns.map((c) => `LOWER(COALESCE(${c}::text, '')) LIKE $${params.length}`).join(' OR ')})`);
