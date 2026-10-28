@@ -53,6 +53,7 @@ export class InternalPlatformSupportController {
     const scopeParams = [...params];
 
     if (status === 'open') where.push(`c.status::text IN ('OPEN', 'IN_PROGRESS')`);
+    else if (status === 'resolved') where.push(`c.status::text IN ('RESOLVED', 'CLOSED')`);
     else if (status && (STATUSES as readonly string[]).includes(status.toUpperCase())) { params.push(status.toUpperCase()); where.push(`c.status::text = $${params.length}`); }
     const terms = (search ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 5);
     for (const term of terms) {

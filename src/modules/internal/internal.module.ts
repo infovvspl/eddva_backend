@@ -6,6 +6,8 @@ import { SchoolInstituteModule } from '../school/institute/school-institute.modu
 import { InternalPlatformSupportController } from './internal-platform-support.controller';
 import { InternalPlatformRevenueController } from './internal-platform-revenue.controller';
 import { InternalPlatformPeopleController } from './internal-platform-people.controller';
+import { SchoolTextbookModule } from '../school/textbook/school-textbook.module';
+import { InternalPlatformTextbooksController } from './internal-platform-textbooks.controller';
 import { InternalPlatformStorageController } from './internal-platform-storage.controller';
 import { InternalAiUsageService } from './internal-ai-usage.service';
 import { InternalAiUsageController } from './internal-ai-usage.controller';
@@ -20,8 +22,8 @@ import { InternalPlatformLinkController } from './internal-platform-link.control
 import { InternalPlatformInstitutesController } from './internal-platform-institutes.controller';
 
 @Module({
-  imports: [AiUsageModule, SchoolStudentModule, SchoolTeacherModule, SchoolInstituteModule],
-  controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController, InternalPlatformInstitutesController, InternalPlatformStorageController, InternalPlatformSupportController, InternalPlatformRevenueController, InternalPlatformPeopleController],
+  imports: [AiUsageModule, SchoolStudentModule, SchoolTeacherModule, SchoolInstituteModule, SchoolTextbookModule],
+  controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController, InternalPlatformInstitutesController, InternalPlatformStorageController, InternalPlatformSupportController, InternalPlatformRevenueController, InternalPlatformPeopleController, InternalPlatformTextbooksController],
   providers: [InternalAiUsageService, AiFeatureFlagService, InternalErpStudentService, InternalErpTeacherService, InternalErpModulesService],
   exports: [AiFeatureFlagService, InternalAiUsageService],
 })
