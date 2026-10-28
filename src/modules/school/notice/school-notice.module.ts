@@ -9,6 +9,7 @@ import { UploadModule } from '../../upload/upload.module';
   imports: [SchoolNotificationModule, SchoolNotificationFcmModule, UploadModule],
   controllers: [SchoolNoticeController],
   providers: [SchoolNoticeService],
+  exports: [SchoolNoticeService],
 })
 export class SchoolNoticeModule {}
 

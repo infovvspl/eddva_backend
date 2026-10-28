@@ -9,7 +9,7 @@ import { UploadModule } from '../../upload/upload.module';
   imports: [SchoolNotificationModule, UploadModule],
   controllers: [SchoolChatController],
   providers: [SchoolChatService, SchoolChatGateway],
-  exports: [SchoolChatGateway],
+  exports: [SchoolChatGateway, SchoolChatService],
 })
 export class SchoolChatModule {}
 
