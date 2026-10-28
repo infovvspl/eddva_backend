@@ -610,6 +610,42 @@ export class SchoolStudentService implements OnModuleInit {
 
     const effectiveSectionId = student.section_id || fallbackStudentProfile.sectionId || null;
 
+    // These three only need the student row above, not each other, so they run together.
+    const [attendanceSummary, todayPlan, gamificationProfile] = await Promise.all([
+      this.loadDashboardAttendance(student),
+      this.loadDashboardTodayPlan(effectiveSectionId),
+      this.loadDashboardGamification(userId, student, fallbackStudentProfile),
+    ]);
+    const attendancePercentage = attendanceSummary.percentage;
+
+    return {
+      success: true,
+      data: {
+        student: {
+          id: student.id,
+          userId: student.user_id,
+          className: student.class_name,
+          sectionName: student.section_name,
+          enrollmentNo: student.enrollment_no,
+          currentLevel: gamificationProfile.level,
+          eddvaCoins: gamificationProfile.coins,
+          coins: gamificationProfile.coins,
+          unlockedBadges: gamificationProfile.badges,
+        },
+        eddvaCoins: gamificationProfile.coins,
+        coins: gamificationProfile.coins,
+        xpTotal: gamificationProfile.xp,
+        currentStreak: gamificationProfile.current_streak,
+        longestStreak: gamificationProfile.longest_streak,
+        attendancePercentage,
+        attendanceSummary,
+        todayClasses: todayPlan.length,
+        todayPlan,
+      }
+    };
+  }
+
+  private async loadDashboardAttendance(student: any) {
     let attendanceSummary = { present: 0, absent: 0, leave: 0, total: 0, percentage: null as number | null };
     if (student.id || student.user_id) {
       try {
@@ -665,8 +701,10 @@ export class SchoolStudentService implements OnModuleInit {
         console.warn('[getDashboard] Attendance query warning:', (e as Error)?.message);
       }
     }
-    const attendancePercentage = attendanceSummary.percentage;
+    return attendanceSummary;
+  }
 
+  private async loadDashboardTodayPlan(effectiveSectionId: string | null) {
     const dayNum = new Date().getDay();
     const mappedDayOfWeek = dayNum === 0 ? 7 : dayNum;
 
@@ -697,101 +735,80 @@ export class SchoolStudentService implements OnModuleInit {
       room: t.room || '',
       type: t.type || '',
     }));
+    return todayPlan;
+  }
 
+  private async loadDashboardGamification(userId: string | null, student: any, fallbackStudentProfile: any) {
     let gamificationProfile = { xp: 0, coins: 0, level: 1, badges: [] as string[], current_streak: 0, longest_streak: 0 };
-    if (userId) {
-      try {
-        const studentId = student?.id || fallbackStudentProfile.id || userId;
-        const profileRows = await this.ds.query(
-          `SELECT xp, coins, level, badges, current_streak, longest_streak 
-           FROM gamification_profiles 
+    if (!userId) return gamificationProfile;
+    try {
+      const studentId = student?.id || fallbackStudentProfile.id || userId;
+      // Three independent lookups; each one failing on its own falls back to "nothing found".
+      const [profileRows, studentDataRows, scoreSumRows] = await Promise.all([
+        this.ds.query(
+          `SELECT xp, coins, level, badges, current_streak, longest_streak
+           FROM gamification_profiles
            WHERE user_id::text = $1::text OR user_id::text = $2::text`,
-          [userId, studentId]
-        ).catch(() => []);
-
-        // `users` has no xp/streak columns in the school DB (only the separate
-        // coaching-app schema does) — this always failed and logged a "column
-        // does not exist" error for a value that was always 0 anyway.
-        const userXp = 0;
-        const userCurrentStreak = 0;
-        const userLongestStreak = 0;
-
-        // `students.eddva_coins`/`current_streak`/`longest_streak` don't exist either —
-        // only `xp_total` does, which is the one column still read here.
-        const studentDataRows = await this.ds.query(
+          [userId, studentId],
+        ).catch(() => []),
+        // `students.eddva_coins`/`current_streak`/`longest_streak` don't exist in the
+        // school DB — only `xp_total` does, which is the one column read here.
+        this.ds.query(
           `SELECT xp_total FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
           [userId, studentId],
-        ).catch(() => []);
-        const studentXp = Number(studentDataRows[0]?.xp_total || 0);
-        const studentCoins = 0;
-        const studentCurrentStreak = 0;
-        const studentLongestStreak = 0;
-
-        const scoreSumRows = await this.ds.query(
+        ).catch(() => []),
+        this.ds.query(
           `SELECT COALESCE(SUM(xp_earned), 0)::int AS total_xp, COALESCE(SUM(coins_earned), 0)::int AS total_coins
            FROM school_game_scores
            WHERE student_user_id::text = $1::text OR student_id::text = $1::text OR student_user_id::text = $2::text OR student_id::text = $2::text`,
           [userId, studentId],
-        ).catch(() => [{ total_xp: 0, total_coins: 0 }]);
+        ).catch(() => [{ total_xp: 0, total_coins: 0 }]),
+      ]);
 
-        const gameXp = Number(scoreSumRows[0]?.total_xp || 0);
-        const gameCoins = Number(scoreSumRows[0]?.total_coins || 0);
+      // `users` has no xp/streak columns in the school DB (only the separate
+      // coaching-app schema does) — querying it always failed and logged a
+      // "column does not exist" error for a value that was always 0 anyway.
+      const userXp = 0;
+      const userCurrentStreak = 0;
+      const userLongestStreak = 0;
 
-        let finalXp = Math.max(gameXp, userXp, studentXp);
-        let finalCoins = Math.max(gameCoins, studentCoins);
-        let finalStreak = Math.max(userCurrentStreak, studentCurrentStreak);
-        let finalLongestStreak = Math.max(userLongestStreak, studentLongestStreak);
-        let finalBadges: string[] = [];
+      const studentXp = Number(studentDataRows[0]?.xp_total || 0);
+      const studentCoins = 0;
+      const studentCurrentStreak = 0;
+      const studentLongestStreak = 0;
 
-        if (profileRows.length > 0) {
-          const row = profileRows[0];
-          finalXp = Math.max(Number(row.xp || 0), gameXp, userXp, studentXp);
-          finalCoins = Math.max(Number(row.coins || 0), gameCoins, studentCoins);
-          finalStreak = Math.max(Number(row.current_streak || 0), userCurrentStreak, studentCurrentStreak);
-          finalLongestStreak = Math.max(Number(row.longest_streak || 0), userLongestStreak, studentLongestStreak);
-          finalBadges = Array.isArray(row.badges) ? row.badges : [];
-        }
+      const gameXp = Number(scoreSumRows[0]?.total_xp || 0);
+      const gameCoins = Number(scoreSumRows[0]?.total_coins || 0);
 
-        const calculatedLevel = Math.max(1, Math.floor(finalXp / 100) + 1);
+      let finalXp = Math.max(gameXp, userXp, studentXp);
+      let finalCoins = Math.max(gameCoins, studentCoins);
+      let finalStreak = Math.max(userCurrentStreak, studentCurrentStreak);
+      let finalLongestStreak = Math.max(userLongestStreak, studentLongestStreak);
+      let finalBadges: string[] = [];
 
-        gamificationProfile = {
-          xp: finalXp,
-          coins: finalCoins,
-          level: calculatedLevel,
-          badges: finalBadges,
-          current_streak: finalStreak,
-          longest_streak: finalLongestStreak,
-        };
-      } catch (e) {
-        console.warn('[getDashboard] Gamification profile query warning:', (e as Error)?.message);
+      if (profileRows.length > 0) {
+        const row = profileRows[0];
+        finalXp = Math.max(Number(row.xp || 0), gameXp, userXp, studentXp);
+        finalCoins = Math.max(Number(row.coins || 0), gameCoins, studentCoins);
+        finalStreak = Math.max(Number(row.current_streak || 0), userCurrentStreak, studentCurrentStreak);
+        finalLongestStreak = Math.max(Number(row.longest_streak || 0), userLongestStreak, studentLongestStreak);
+        finalBadges = Array.isArray(row.badges) ? row.badges : [];
       }
+
+      const calculatedLevel = Math.max(1, Math.floor(finalXp / 100) + 1);
+
+      gamificationProfile = {
+        xp: finalXp,
+        coins: finalCoins,
+        level: calculatedLevel,
+        badges: finalBadges,
+        current_streak: finalStreak,
+        longest_streak: finalLongestStreak,
+      };
+    } catch (e) {
+      console.warn('[getDashboard] Gamification profile query warning:', (e as Error)?.message);
     }
-
-    return {
-      success: true,
-      data: {
-        student: {
-          id: student.id,
-          userId: student.user_id,
-          className: student.class_name,
-          sectionName: student.section_name,
-          enrollmentNo: student.enrollment_no,
-          currentLevel: gamificationProfile.level,
-          eddvaCoins: gamificationProfile.coins,
-          coins: gamificationProfile.coins,
-          unlockedBadges: gamificationProfile.badges,
-        },
-        eddvaCoins: gamificationProfile.coins,
-        coins: gamificationProfile.coins,
-        xpTotal: gamificationProfile.xp,
-        currentStreak: gamificationProfile.current_streak,
-        longestStreak: gamificationProfile.longest_streak,
-        attendancePercentage,
-        attendanceSummary,
-        todayClasses: todayPlan.length,
-        todayPlan,
-      }
-    };
+    return gamificationProfile;
   }
 
   async findOne(user: any, id?: string) {

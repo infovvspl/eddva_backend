@@ -4,9 +4,10 @@ import { SchoolReportCardRemarksService } from './school-report-card-remarks.ser
 import { SchoolReportController } from './school-report.controller';
 import { AiBridgeModule } from '../../ai-bridge/ai-bridge.module';
 import { SchoolNotificationModule } from '../notification/school-notification.module';
+import { UploadModule } from '../../upload/upload.module';
 
 @Module({
-  imports: [AiBridgeModule, SchoolNotificationModule],
+  imports: [AiBridgeModule, SchoolNotificationModule, UploadModule],
   controllers: [SchoolReportController],
   providers: [SchoolReportService, SchoolReportCardRemarksService],
 })

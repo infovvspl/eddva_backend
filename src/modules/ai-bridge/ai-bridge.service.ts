@@ -535,11 +535,25 @@ export class AiBridgeService {
 
   // ── AI #2 — AI Tutor ──────────────────────────────────────────────────────
   async startTutorSession(
-    payload: { studentId: string; topicId: string; context: string },
+    payload: {
+      studentId: string;
+      topicId: string;
+      context: string;
+      /** Skips most of the model's internal reasoning for a faster reply; callers whose
+       *  content is template-following generation (not open-ended reasoning) opt in. */
+      reasoningEffort?: 'low' | 'medium' | 'high';
+    },
     tenantId?: string,
     vertical?: string,
   ) {
-    return this.post('/tutor/session', payload, tenantId, undefined, vertical);
+    const { reasoningEffort, ...rest } = payload;
+    return this.post(
+      '/tutor/session',
+      { ...rest, reasoning_effort: reasoningEffort },
+      tenantId,
+      undefined,
+      vertical,
+    );
   }
 
   async continueTutorSession(
@@ -982,6 +996,9 @@ export class AiBridgeService {
       board?: string;
       /** When given, every question comes back with `concept` = one of these (learning-path weak-concept detection). */
       concepts?: string[];
+      /** Skips most of the model's internal reasoning for faster generation; callers that
+       *  already constrain the question shape tightly (e.g. the study planner) opt in. */
+      reasoningEffort?: 'low' | 'medium' | 'high';
     },
     tenantId?: string,
     vertical?: string,
@@ -1000,6 +1017,7 @@ export class AiBridgeService {
       subject: dto.subject,             // enables _SUBJECT_RULES_TEST + scope_constraint in Django
       chapter: dto.chapter,
       chapters: dto.chapters,           // subject-test: exact DB chapters to generate from
+      reasoning_effort: dto.reasoningEffort,
       seed: (dto as any).seed,          // force LLM variety
       language: dto.language,
       concepts: dto.concepts?.length ? dto.concepts : undefined,
@@ -2065,6 +2083,8 @@ export class AiBridgeService {
       board?: string;
       /** Passages from the school's own chapter; presence switches on grounding. */
       sourcePassages?: any[];
+      /** lesson_plan* types: text of a teacher's uploaded plan, fenced as data by the AI service. */
+      sourceDocument?: string;
       /** Assessment papers: the sections, header, difficulty mix and figure/plot
        *  rules as the exact strings in extraContext, so the AI service can write
        *  the objective and written sections in parallel. */

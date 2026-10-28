@@ -57,6 +57,21 @@ const norm = (s: string) =>
 const tokens = (s: string) => new Set(norm(s).split(' ').filter((t) => t.length > 2));
 
 /**
+ * Two labels' word overlap, as a fraction of the smaller word set — 1 for the
+ * same bag of words, 0 for nothing shared. Shared by `matchConcept` (a label
+ * against a list of wanted concepts) and `detectWeakConcepts`' free-label
+ * clustering (a label against another label), so the "good enough" threshold
+ * (>= 0.5, applied by each caller) only has to be picked once.
+ */
+export function wordOverlapScore(a: string, b: string): number {
+  const ta = tokens(a);
+  const tb = tokens(b);
+  if (!ta.size || !tb.size) return 0;
+  const overlap = [...ta].filter((w) => tb.has(w)).length;
+  return overlap / Math.min(ta.size, tb.size);
+}
+
+/**
  * Map a model-supplied concept (or, failing that, its subtopic label) onto one
  * of the concepts we asked for: exact match, then containment, then the best
  * word overlap of at least half. With no requested concepts the model's own
@@ -75,13 +90,9 @@ export function matchConcept(label: string | null | undefined, concepts: string[
     return nc.length > 3 && (n.includes(nc) || nc.includes(n));
   });
   if (contained) return contained;
-  const t = tokens(raw);
   let best: { concept: string; score: number } | null = null;
   for (const c of concepts) {
-    const tc = tokens(c);
-    if (!tc.size || !t.size) continue;
-    const overlap = [...t].filter((w) => tc.has(w)).length;
-    const score = overlap / Math.min(t.size, tc.size);
+    const score = wordOverlapScore(raw, c);
     if (score >= 0.5 && (!best || score > best.score)) best = { concept: c, score };
   }
   return best?.concept ?? null;

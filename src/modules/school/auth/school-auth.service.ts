@@ -289,7 +289,8 @@ export class SchoolAuthService {
       hasSchoolRole(user.role, 'STUDENT') ? await this.loadStudentAcademic(user.id) : null;
 
     if (hasSchoolRole(user.role, 'STUDENT')) {
-      await recordStudentActivity(this.ds, user.id, 'login').catch(err =>
+      // The streak update is bookkeeping the student does not wait for: reply first.
+      void recordStudentActivity(this.ds, user.id, 'login').catch(err =>
         console.error('Failed to log student activity (login):', err.message),
       );
     }

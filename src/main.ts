@@ -13,11 +13,15 @@ import compression from 'compression';
 import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { seedSuperAdmin } from './database/seeds/super-admin.seeder';
+import { installSkipNoopDdl } from './common/database/skip-noop-ddl';
 
 // Load env files early with override so .env.local always wins over .env and process.env
 for (const file of ['.env', '.env.local']) {
   if (existsSync(file)) dotenv.config({ path: file, override: true });
 }
+// Before any module boots: start-up ALTER ... ADD COLUMN IF NOT EXISTS for columns that
+// already exist must not take table locks (they stalled logins on the shared dev DB).
+installSkipNoopDdl();
 // Trigger restart
 function validateEnv(logger: Logger) {
   const isProd = process.env.NODE_ENV === 'production';

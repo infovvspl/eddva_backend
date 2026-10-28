@@ -11,6 +11,7 @@ import {
   extractBulletSection,
   extractFormulaCandidates,
   hasStructuredPracticeOptions,
+  lessonTitleStale,
   mapRawPracticeQuestion,
   normalizeSolvedExamplesFormatting,
   shouldRegenerateLesson,
@@ -129,7 +130,7 @@ export class AiNotesService {
     const focusConcepts = (opts.focusConcepts ?? []).slice(0, MAX_FOCUS_CONCEPTS);
     const existing = await this.findSession(student.studentId, topic.topicId, round, opts.threadId ?? null);
 
-    if (existing && !shouldRegenerateLesson(existing.lesson_markdown, topic.subjectName)) {
+    if (existing && !shouldRegenerateLesson(existing.lesson_markdown, topic.subjectName) && !lessonTitleStale(existing.lesson_markdown, topic.topicName)) {
       if (opts.threadId && !existing.thread_id) {
         // A round-1 lesson from the old planner is adopted by the thread, keeping the student's highlights.
         await this.ds.query(`UPDATE school_ai_study_sessions SET thread_id = $1 WHERE id = $2 AND thread_id IS NULL`, [
@@ -163,8 +164,11 @@ export class AiNotesService {
       ) + (focusConcepts.length ? buildFocusAddendum(focusConcepts) : buildSubtopicAddendum(opts.subtopics ?? []));
 
     // Lesson and practice questions are independent: run them concurrently.
+    // reasoningEffort "low": the prompt already dictates the lesson's exact structure
+    // section by section, so the model gains little from deliberating before writing —
+    // skipping that cuts generation time without shortening the lesson itself.
     const lessonPromise = this.aiBridge.startTutorSession(
-      { studentId: student.studentId, topicId: topic.topicId, context: prompt },
+      { studentId: student.studentId, topicId: topic.topicId, context: prompt, reasoningEffort: 'low' },
       student.instituteId ?? 'school',
       'school',
     );
@@ -264,6 +268,7 @@ export class AiNotesService {
         subject: topic.subjectName,
         chapter: topic.chapterName,
         examTarget: `Class ${student.className || '10'}`,
+        reasoningEffort: 'low',
       },
       student.instituteId ?? 'school',
       'school',

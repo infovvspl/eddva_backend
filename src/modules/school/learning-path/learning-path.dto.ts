@@ -43,20 +43,19 @@ export class HeartbeatDto {
   device?: string;
 }
 
-/** Exactly one of topicId (a roadmap topic) or general is checked by the service. */
+/** Exactly one of subtopicId, topicId (a roadmap topic with no subtopics) or general is checked by the service. */
 export class OpenThreadDto {
   @IsOptional()
   @IsUUID()
   topicId?: string;
 
   @IsOptional()
-  @IsBoolean()
-  general?: boolean;
+  @IsUUID()
+  subtopicId?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  focusSubtopic?: string;
+  @IsBoolean()
+  general?: boolean;
 }
 
 export class ThreadPageQueryDto {

@@ -83,6 +83,47 @@ export function alignRoadmap(ai: AiRoadmapTopic[], recorded: CurriculumTopic[]):
   return { topics, links };
 }
 
+export interface ExistingSubtopic {
+  id: string;
+  name: string;
+}
+
+export interface AlignedSubtopics {
+  /** Every subtopic the DB should have active after this write, in the AI's order. */
+  subtopics: { ord: number; name: string }[];
+  /** ord -> an existing row's id to reuse (matched by normalized name); absent means brand new. */
+  matches: Map<number, string>;
+  /** Existing active ids the AI no longer returned. The caller marks these inactive, never deletes them. */
+  retired: string[];
+}
+
+/**
+ * Matches the AI's subtopic names for one topic against that topic's existing
+ * active subtopic rows by normalized name, so a subtopic keeps its id (and
+ * whatever thread or mastery points at it) across roadmap regenerations
+ * instead of only ever matching by name. Simple exact-normalized matching is
+ * enough here (subtopic names are short); a dropped subtopic is reported for
+ * retirement, never deletion, since things may already point at it.
+ */
+export function alignSubtopics(aiSubtopics: string[], existing: ExistingSubtopic[]): AlignedSubtopics {
+  const names = [...new Set((Array.isArray(aiSubtopics) ? aiSubtopics : []).map((s) => String(s).trim()).filter(Boolean))].slice(0, MAX_SUBTOPICS);
+  const byNorm = new Map(existing.map((e) => [norm(e.name), e]));
+  const used = new Set<string>();
+  const subtopics: AlignedSubtopics['subtopics'] = [];
+  const matches = new Map<number, string>();
+  names.forEach((name, i) => {
+    const ord = i + 1;
+    subtopics.push({ ord, name });
+    const hit = byNorm.get(norm(name));
+    if (hit && !used.has(hit.id)) {
+      matches.set(ord, hit.id);
+      used.add(hit.id);
+    }
+  });
+  const retired = existing.filter((e) => !used.has(e.id)).map((e) => e.id);
+  return { subtopics, matches, retired };
+}
+
 /** After repeated AI failures: one topic, the chapter itself, covering every recorded topic. */
 export function fallbackRoadmap(chapterName: string, recorded: CurriculumTopic[]): AlignedRoadmap {
   return {

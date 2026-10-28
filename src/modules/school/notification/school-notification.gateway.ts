@@ -32,4 +32,26 @@ export class SchoolNotificationGateway {
       this.logger.error(`Failed to emit new_notification: ${(err as Error).message}`);
     }
   }
+
+  /** Starts (or re-shows) the Emergency SOS banner on the recipient's screen. */
+  emitEmergencyAlertActive(userId: string, alert: any) {
+    if (!userId || !alert) return;
+    try {
+      this.server.to(`user:${userId}`).emit('emergency_sos_active', alert);
+      this.logger.log(`Emitted emergency_sos_active to user:${userId}`);
+    } catch (err) {
+      this.logger.error(`Failed to emit emergency_sos_active: ${(err as Error).message}`);
+    }
+  }
+
+  /** Clears the Emergency SOS banner once the sender marks it resolved. */
+  emitEmergencyAlertResolved(userId: string, alertId: string) {
+    if (!userId || !alertId) return;
+    try {
+      this.server.to(`user:${userId}`).emit('emergency_sos_resolved', { alertId });
+      this.logger.log(`Emitted emergency_sos_resolved to user:${userId}`);
+    } catch (err) {
+      this.logger.error(`Failed to emit emergency_sos_resolved: ${(err as Error).message}`);
+    }
+  }
 }

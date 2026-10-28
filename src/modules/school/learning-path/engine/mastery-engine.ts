@@ -1,4 +1,5 @@
 import { EvidenceSource, MasteryConfig } from './mastery-config';
+import { wordOverlapScore } from '../quiz/quiz-questions';
 
 /**
  * Weak-topic detection. Pure functions only: no I/O, no clock reads (callers
@@ -265,19 +266,39 @@ export interface ConceptAccuracy {
  * Concepts answered at least concepts.minQuestions times with accuracy below
  * concepts.weakBelow, weakest first. Tags are grouped case- and
  * whitespace-insensitively; the first spelling seen is kept for display.
+ *
+ * `clusterFreeLabels` is for a quiz that had no forced concept list (every
+ * question free-labelled by the model, e.g. a subtopic thread's round-1
+ * quiz): nothing guarantees the model phrases the same weak point
+ * identically across questions, so exact-string grouping would scatter one
+ * real weak point across several single-occurrence labels that never reach
+ * minQuestions. Pass it true in that case to merge labels by word overlap
+ * instead of exact match. A quiz that *did* get a forced concept list
+ * (round 2/3, or any topic/chapter-level quiz) already has exact-copy tags
+ * from that list (see matchConcept) and should use the default exact-match
+ * grouping — clustering there would only risk merging two genuinely
+ * different requested concepts that happen to share a word.
  */
-export function detectWeakConcepts(responses: ConceptResponse[], cfg: MasteryConfig): ConceptAccuracy[] {
-  const groups = new Map<string, ConceptAccuracy>();
+export function detectWeakConcepts(responses: ConceptResponse[], cfg: MasteryConfig, opts: { clusterFreeLabels?: boolean } = {}): ConceptAccuracy[] {
+  const groups: ConceptAccuracy[] = [];
+  const byExactKey = new Map<string, ConceptAccuracy>();
   for (const r of responses) {
     const label = String(r.conceptTag ?? '').trim().replace(/\s+/g, ' ');
     if (!label) continue;
-    const key = label.toLowerCase();
-    const g = groups.get(key) ?? { conceptTag: label, correct: 0, total: 0, accuracy: 0 };
-    g.total += 1;
-    if (r.isCorrect) g.correct += 1;
-    groups.set(key, g);
+
+    const g = opts.clusterFreeLabels
+      ? groups.find((existing) => wordOverlapScore(label, existing.conceptTag) >= 0.5)
+      : byExactKey.get(label.toLowerCase());
+    if (g) {
+      g.total += 1;
+      if (r.isCorrect) g.correct += 1;
+      continue;
+    }
+    const created: ConceptAccuracy = { conceptTag: label, correct: r.isCorrect ? 1 : 0, total: 1, accuracy: 0 };
+    groups.push(created);
+    byExactKey.set(label.toLowerCase(), created);
   }
-  return [...groups.values()]
+  return groups
     .map((g) => ({ ...g, accuracy: round((g.correct / g.total) * 100, 1) }))
     .filter((g) => g.total >= cfg.concepts.minQuestions && g.accuracy < cfg.concepts.weakBelow)
     .sort((a, b) => a.accuracy - b.accuracy || b.total - a.total);

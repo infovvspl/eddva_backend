@@ -80,6 +80,7 @@ import { BroadcastPoll } from './modules/live-broadcast/entities/broadcast-poll.
 import { BroadcastPollVote } from './modules/live-broadcast/entities/broadcast-poll-vote.entity';
 import { BroadcastReaction } from './modules/live-broadcast/entities/broadcast-reaction.entity';
 import { MailModule } from './modules/mail/mail.module';
+import { SmsModule } from './modules/sms/sms.module';
 import { InstituteSettingsModule } from './modules/institute-settings/institute-settings.module';
 import { PYQModule } from './modules/pyq/pyq.module';
 import { PresenceModule } from './modules/presence/presence.module';
@@ -253,6 +254,7 @@ const ALL_COACHING_ENTITIES = [
     LiveClassModule,
     LiveBroadcastModule,
     MailModule,
+    SmsModule,
     InstituteSettingsModule,
     PYQModule,
     PresenceModule,

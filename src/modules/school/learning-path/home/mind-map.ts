@@ -15,12 +15,20 @@
  * with it.
  */
 
+import { chapterCompleted, topicCompleted } from './completion';
+
 export interface ChapterRow {
   subjectId: string;
   subjectName: string;
   chapterId: string;
   chapterName: string;
   chapterOrder: number;
+}
+
+/** A subtopic's stable identity (see learning_roadmap_subtopics) — just enough to key a thread or a thread lookup by. */
+export interface SubtopicUnit {
+  id: string;
+  name: string;
 }
 
 /** A unit of learning: a roadmap topic, or a recorded topic no roadmap covers yet. */
@@ -30,14 +38,14 @@ export interface TopicUnit {
   name: string;
   /** Position in the chapter roadmap; null for a topic-roadmap topic or a recorded topic. */
   ord: number | null;
-  subtopics: string[];
+  subtopics: SubtopicUnit[];
   kind: 'roadmap' | 'recorded';
 }
 
 export interface RoadmapInfo {
   state: 'ready' | 'pending';
   source: string | null;
-  topics: { id: string; ord: number; name: string; subtopics: string[] }[];
+  topics: { id: string; ord: number; name: string; subtopics: SubtopicUnit[] }[];
 }
 
 export interface MasteryRow {
@@ -51,13 +59,13 @@ export interface MasteryRow {
 export interface ThreadRow {
   id: string;
   topicId: string;
+  /** Set for a subtopic's own thread (scope = 'subtopic'); null for a no-subtopics topic's thread. */
+  subtopicId: string | null;
   status: string;
   round: number;
   parentThreadId: string | null;
   /** Steps finished on the path (video watched, notes read, quiz taken…): 0 means opened but not started. */
   stepsDone?: number;
-  /** Subtopics the student opened this topic's path from. */
-  openedSubtopics?: string[];
 }
 
 /** Answers per subtopic for one topic, keyed by the lower-cased, trimmed subtopic name. */
@@ -71,13 +79,14 @@ export interface SubtopicThresholds {
 }
 
 export interface SubtopicNode {
+  id: string;
   name: string;
   order: number;
   status: string;
   accuracy: number | null;
   answered: number;
-  /** The student opened the topic's path from this subtopic. */
-  opened: boolean;
+  /** Its own video/notes/quiz/assessment/chat; null until the student opens it. */
+  thread: { id: string; status: string; round: number; stepsDone: number } | null;
 }
 
 export interface TopicNode {
@@ -90,9 +99,12 @@ export interface TopicNode {
   estMinutes: number;
   /** 'pending' while this weak topic's own roadmap is being generated (it cannot be opened yet). */
   roadmapState: 'ready' | 'pending';
+  /** Null (and never created) once the topic has subtopics — each of those has its own thread instead. */
   thread: { id: string; status: string; round: number; stepsDone: number } | null;
   subtopics: SubtopicNode[];
-  children: { threadId: string; topicId: string; name: string; status: string; stepsDone: number }[];
+  /** All its subtopics' threads completed (or, with none, its own thread), never its mastery/status. */
+  completed: boolean;
+  children: { threadId: string; topicId: string; name: string; status: string; stepsDone: number; subtopicId: string | null }[];
 }
 
 export interface ChapterNode {
@@ -105,6 +117,8 @@ export interface ChapterNode {
   expanded: boolean;
   /** For an expanded chapter: 'pending' while its chapter roadmap is being generated. */
   roadmapState: 'ready' | 'pending' | null;
+  /** Every topic in its full roadmap roster completed — independent of which topics are shown above. */
+  completed: boolean;
   topics: TopicNode[];
 }
 
@@ -173,23 +187,26 @@ export function subtopicStatus(correct: number, total: number, t: SubtopicThresh
   return 'mastered';
 }
 
-function subtopicNodes(subtopics: string[], scores: SubtopicScores | undefined, t: SubtopicThresholds, opened: Set<string>): SubtopicNode[] {
-  return subtopics.map((name, i) => {
-    const s = scores?.get(key(name));
+function subtopicNodes(subtopics: SubtopicUnit[], scores: SubtopicScores | undefined, t: SubtopicThresholds, threadBySubtopic: Map<string, ThreadRow>): SubtopicNode[] {
+  return subtopics.map((u, i) => {
+    const s = scores?.get(key(u.name));
+    const thread = threadBySubtopic.get(u.id);
     return {
-      name: name.trim(),
+      id: u.id,
+      name: u.name.trim(),
       order: i + 1,
       status: subtopicStatus(s?.correct ?? 0, s?.total ?? 0, t),
       accuracy: s?.total ? Math.round((s.correct / s.total) * 1000) / 10 : null,
       answered: s?.total ?? 0,
-      opened: opened.has(key(name)),
+      thread: thread ? { id: thread.id, status: thread.status, round: thread.round, stepsDone: thread.stepsDone ?? 0 } : null,
     };
   });
 }
 
 export function buildMindMap(input: MindMapInput): MindMapResult {
   const { chapters: chapterRows, chapterRoadmaps, units, topicMastery, chapterMastery, threads, scores, thresholds } = input;
-  const threadByTopic = new Map(threads.map((t) => [t.topicId, t]));
+  const threadByTopic = new Map(threads.filter((t) => !t.subtopicId).map((t) => [t.topicId, t]));
+  const threadBySubtopic = new Map(threads.filter((t) => t.subtopicId).map((t) => [t.subtopicId!, t]));
   const threadById = new Map(threads.map((t) => [t.id, t]));
   const unitById = new Map(units.map((u) => [u.id, u]));
   const unitsByChapter = new Map<string, TopicUnit[]>();
@@ -201,12 +218,31 @@ export function buildMindMap(input: MindMapInput): MindMapResult {
   const childrenOf = new Map<string, TopicNode['children']>();
   for (const t of threads) {
     if (!t.parentThreadId || !threadById.has(t.parentThreadId)) continue;
+    const unit = unitById.get(t.topicId);
+    const subtopicName = t.subtopicId ? unit?.subtopics.find((s) => s.id === t.subtopicId)?.name : undefined;
     const list = childrenOf.get(t.parentThreadId) ?? [];
-    list.push({ threadId: t.id, topicId: t.topicId, name: unitById.get(t.topicId)?.name ?? '', status: t.status, stepsDone: t.stepsDone ?? 0 });
+    list.push({
+      threadId: t.id,
+      topicId: t.topicId,
+      name: subtopicName ?? unit?.name ?? '',
+      status: t.status,
+      stepsDone: t.stepsDone ?? 0,
+      subtopicId: t.subtopicId ?? null,
+    });
     childrenOf.set(t.parentThreadId, list);
   }
 
-  const node = (u: { id: string; name: string; subtopics: string[] }, order: number | null, roadmapState: 'ready' | 'pending'): TopicNode => {
+  /** A topic with subtopics is judged entirely by them (its own `thread`, if an old one happens
+   *  to still exist, never factors in — see the "accepted edge cases" in the per-subtopic-paths
+   *  plan); one with none is judged by its own thread, exactly as before this feature existed. */
+  const topicCompletedOf = (u: { id: string; subtopics: SubtopicUnit[] }): boolean =>
+    topicCompleted(
+      u.subtopics.length > 0,
+      u.subtopics.map((s) => threadBySubtopic.get(s.id)?.status ?? null),
+      threadByTopic.get(u.id)?.status ?? null,
+    );
+
+  const node = (u: { id: string; name: string; subtopics: SubtopicUnit[] }, order: number | null, roadmapState: 'ready' | 'pending'): TopicNode => {
     const m = topicMastery.get(u.id) ?? NONE;
     const thread = threadByTopic.get(u.id);
     return {
@@ -218,7 +254,8 @@ export function buildMindMap(input: MindMapInput): MindMapResult {
       estMinutes: m.estMinutes,
       roadmapState,
       thread: thread ? { id: thread.id, status: thread.status, round: thread.round, stepsDone: thread.stepsDone ?? 0 } : null,
-      subtopics: subtopicNodes(u.subtopics, scores.get(u.id), thresholds, new Set((thread?.openedSubtopics ?? []).map(key))),
+      subtopics: subtopicNodes(u.subtopics, scores.get(u.id), thresholds, threadBySubtopic),
+      completed: topicCompletedOf(u),
       children: thread ? childrenOf.get(thread.id) ?? [] : [],
     };
   };
@@ -253,13 +290,22 @@ export function buildMindMap(input: MindMapInput): MindMapResult {
         topics = roadmap?.state === 'ready' ? [...roadmap.topics].sort((a, b) => a.ord - b.ord).map((t) => node(t, t.ord, 'ready')) : [];
       } else {
         topics = (unitsByChapter.get(c.chapterId) ?? [])
-          .filter((u) => NEEDS_ATTENTION.has((topicMastery.get(u.id) ?? NONE).status) || threadByTopic.has(u.id))
+          .filter(
+            (u) =>
+              NEEDS_ATTENTION.has((topicMastery.get(u.id) ?? NONE).status) ||
+              threadByTopic.has(u.id) ||
+              u.subtopics.some((s) => threadBySubtopic.has(s.id)),
+          )
           .map((u) => node(u, null, u.kind === 'roadmap' ? 'ready' : 'pending'))
           .sort(bySeverity);
         for (const t of topics) if (t.roadmapState === 'pending') topicRoadmapsNeeded.push({ chapterId: c.chapterId, topicId: t.topicId });
       }
 
       if (!expanded && !topics.length) continue;
+      // Every topic of the chapter's full roadmap roster, not just whichever subset is shown
+      // above (a "fine" chapter's non-weak topics are never surfaced for display at all) — a
+      // chapter is only complete once literally all of them are.
+      const fullRoster = chapterRoadmaps.get(c.chapterId)?.topics ?? [];
       chapters.push({
         chapterId: c.chapterId,
         name: c.chapterName.trim(),
@@ -267,6 +313,7 @@ export function buildMindMap(input: MindMapInput): MindMapResult {
         mastery: cm.mastery,
         estMinutes: topics.reduce((sum, t) => sum + t.estMinutes, 0) || cm.estMinutes,
         expanded,
+        completed: chapterCompleted(fullRoster.map(topicCompletedOf)),
         roadmapState,
         topics,
       });

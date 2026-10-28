@@ -46,8 +46,17 @@ export class ThreadStore {
     return rows[0];
   }
 
+  /** A quiz/assessment step's accuracy comes along once it is graded, so the path can mark a failed attempt. */
   async steps(manager: EntityManager, threadId: string) {
-    return manager.query(`SELECT * FROM learning_thread_steps WHERE thread_id = $1 ORDER BY round, ordinal`, [threadId]);
+    return manager.query(
+      `SELECT ts.*, qi.accuracy AS quiz_accuracy
+         FROM learning_thread_steps ts
+         LEFT JOIN learning_quiz_instances qi
+           ON qi.id = ts.ref_id AND qi.status IN ('submitted', 'auto_submitted')
+        WHERE ts.thread_id = $1
+        ORDER BY ts.round, ts.ordinal`,
+      [threadId],
+    );
   }
 
   async roundStep(manager: EntityManager, threadId: string, round: number, kind: StepKind) {

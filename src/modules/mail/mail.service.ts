@@ -446,4 +446,62 @@ export class MailService {
       logLabel: 'Lead confirmation email',
     });
   }
+
+  /** Urgent parent-facing alert triggered by a teacher/admin via Emergency SOS. */
+  async sendEmergencySosAlert(opts: {
+    to: string;
+    parentName: string;
+    studentName: string;
+    className: string;
+    instituteName: string;
+    senderName: string;
+    senderRole: string;
+    message: string;
+  }): Promise<DeliverResult> {
+    const { to, parentName, studentName, className, instituteName, senderName, senderRole, message } = opts;
+    const subject = `URGENT: Emergency Alert regarding ${studentName} — ${instituteName}`;
+    const html = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+      <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:40px 0;">
+          <tr><td align="center">
+            <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.07);border:2px solid #dc2626;">
+              <tr>
+                <td style="background:#dc2626;padding:28px 40px;text-align:center;">
+                  <h1 style="margin:0;font-size:22px;font-weight:900;color:#ffffff;letter-spacing:-0.3px;">⚠ EMERGENCY ALERT</h1>
+                  <p style="margin:6px 0 0;font-size:12px;color:rgba(255,255,255,0.85);font-weight:700;text-transform:uppercase;letter-spacing:1px;">${instituteName}</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:32px 40px;">
+                  <p style="margin:0 0 8px;font-size:18px;font-weight:800;color:#0f172a;">Dear ${parentName},</p>
+                  <p style="margin:0 0 20px;font-size:15px;color:#334155;line-height:1.6;">
+                    This is an urgent alert regarding your child, <strong>${studentName}</strong> (${className}).
+                  </p>
+                  <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px;margin:0 0 20px;">
+                    <p style="margin:0;font-size:14px;color:#991b1b;line-height:1.6;">${message}</p>
+                  </div>
+                  <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">
+                    Please contact the school immediately.
+                  </p>
+                  <p style="margin:0;font-size:13px;color:#64748b;">
+                    Sent by <strong>${senderName}</strong> (${senderRole})
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    return this.deliver({
+      to, subject, html,
+      category: 'Emergency SOS',
+      logLabel: `Emergency SOS alert (student: ${studentName})`,
+    });
+  }
 }

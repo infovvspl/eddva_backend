@@ -15,6 +15,7 @@ import {
   ReportPeriod,
   TrendGranularity,
   trendBuckets,
+  trendBucketCount,
 } from './report-metrics';
 import { canSeeSubject } from './report-scope';
 import { ReportScopeService, ScopedStudent } from './report-scope.service';
@@ -69,6 +70,7 @@ export class LearningReportService {
     const students = all.filter((s) => (!q.classId || s.classId === q.classId) && (!q.sectionId || s.sectionId === q.sectionId));
     const today = istDay(new Date());
     const from = periodStart(today, period);
+    const trendCount = trendBucketCount(period, granularity);
     const ids = students.map((s) => s.studentId);
     const byId = new Map(students.map((s) => [s.studentId, s]));
     const sees = (studentId: string, subjectId: string | null) => {
@@ -79,7 +81,7 @@ export class LearningReportService {
     const [usage, lastActive, trendRows, steps, paths, weak, subjects] = await Promise.all([
       this.usageByDay(ids, from),
       this.lastActive(ids),
-      this.usageByDay(ids, trendBuckets(today, granularity)[0]),
+      this.usageByDay(ids, trendBuckets(today, granularity, trendCount)[0]),
       this.stepsDone(ids, from),
       this.paths(ids),
       this.weakTopics(ids),
@@ -150,6 +152,7 @@ export class LearningReportService {
         trendRows.filter((u) => sees(u.student_id, u.subject_id)).map((u) => ({ day: u.day, studentId: u.student_id, seconds: u.seconds })),
         today,
         granularity,
+        trendCount,
       ),
       lists: {
         inactive: rows.filter((r) => r.inactive).map(listItem),
@@ -168,6 +171,7 @@ export class LearningReportService {
     const { scope, student } = await this.scopes.resolveStudent(user, ref, q.instituteId);
     const today = istDay(new Date());
     const from = periodStart(today, period);
+    const trendCount = trendBucketCount(period, granularity);
     const ids = [student.studentId];
     const sees = (subjectId: string | null) => canSeeSubject(student.access, subjectId, q.subjectId || null);
 
@@ -182,7 +186,7 @@ export class LearningReportService {
         `SELECT DISTINCT day::text AS day, subject_id::text FROM learning_engagement_daily WHERE student_id = $1 AND active_seconds > 0`,
         [student.studentId],
       ),
-      this.usageByDay(ids, trendBuckets(today, granularity)[0]),
+      this.usageByDay(ids, trendBuckets(today, granularity, trendCount)[0]),
       this.stepsDone(ids, from),
       this.paths(ids),
       this.ds.query(
@@ -289,7 +293,7 @@ export class LearningReportService {
         topicsStarted: myPaths.length,
         topicsCompleted: myPaths.filter((p) => p.status === 'completed').length,
       },
-      trend: buildTrend(trendRows.filter((u) => sees(u.subject_id)).map((u) => ({ day: u.day, studentId: u.student_id, seconds: u.seconds })), today, granularity),
+      trend: buildTrend(trendRows.filter((u) => sees(u.subject_id)).map((u) => ({ day: u.day, studentId: u.student_id, seconds: u.seconds })), today, granularity, trendCount),
       bySection: [...bySection.entries()].map(([section, s]) => ({ section, seconds: s })).sort((a, b) => b.seconds - a.seconds),
       bySubject: subjects.filter((s) => s.seconds > 0).map((s) => ({ subjectId: s.subjectId, name: s.name, seconds: s.seconds })),
       subjects,
@@ -344,7 +348,16 @@ export class LearningReportService {
     return rows.map((r: any) => ({ ...r, n: Number(r.n) }));
   }
 
-  /** Every topic path the students have opened, with the score before starting and the latest. */
+  /**
+   * Every topic path the students have opened, with the score before starting and the latest.
+   *
+   * Deliberately `scope = 'topic'` only, not `IN ('topic', 'subtopic')`: a topic with subtopics
+   * now has one thread per subtopic instead of one shared thread, and `topicsStarted`/
+   * `topicsCompleted` below count path *rows*, which would stop meaning "topics" the moment a
+   * 5-subtopic topic contributed 5 rows. Reflecting per-subtopic-path activity in these reports
+   * needs its own topic-level dedupe/rollup (reusing home/completion.ts's rule, not just widening
+   * this filter) — out of scope for the per-subtopic-paths feature itself; left as a known gap.
+   */
   private async paths(ids: string[]): Promise<PathRow[]> {
     if (!ids.length) return [];
     return this.ds.query(

@@ -81,10 +81,10 @@ export class ThreadChatService {
       baselineMastery: thread.baseline_mastery === null ? null : Number(thread.baseline_mastery),
     });
 
-    // A topic's chat only answers questions about its topic; the general AI Tutor chat answers anything.
-    if (thread.scope === 'topic' && !(await this.isOnTopic(thread, names, history, text, student.instituteId))) {
+    // A topic's or subtopic's chat only answers questions about it; the general AI Tutor chat answers anything.
+    if (thread.scope !== 'general' && !(await this.isOnTopic(thread, names, history, text, student.instituteId))) {
       const reply =
-        `I can only help with **${names.topic_name ?? 'this topic'}**${names.chapter_name ? ` (${names.chapter_name})` : ''} here. ` +
+        `I can only help with **${names.subtopic_name ?? names.topic_name ?? 'this topic'}**${names.chapter_name ? ` (${names.chapter_name})` : ''} here. ` +
         'That question looks like it is about something else. Ask it in the AI Tutor instead.';
       const round = thread.current_round;
       const [studentMessage, aiMessage] = await this.store.transaction((manager) =>
@@ -97,7 +97,7 @@ export class ThreadChatService {
     }
 
     let passages: any[] = [];
-    if (thread.scope === 'topic' && student.instituteId) {
+    if (thread.scope !== 'general' && student.instituteId) {
       passages = await this.textbooks
         // Chapter-level: the thread's topic is a roadmap topic, which the textbook index does not know.
         .getGroundingPassages(student.instituteId, { chapterId: thread.chapter_id, topicId: null }, 'both')
@@ -143,7 +143,7 @@ export class ThreadChatService {
 
     const quiz = sanitizeChatQuiz(result.quiz);
     // Stored only once answered, so a failed attempt can simply be retried without a dangling question.
-    const round = thread.scope === 'topic' ? thread.current_round : null;
+    const round = thread.scope !== 'general' ? thread.current_round : null;
     const [studentMessage, aiMessage] = await this.store.transaction((manager) =>
       this.store.addMessages(manager, threadId, [
         { role: 'student', kind: 'text', round, stepId: currentStep?.id ?? null, content: mode === 'quiz' ? { text, mode } : { text } },
@@ -219,7 +219,13 @@ export class ThreadChatService {
    */
   private async isOnTopic(thread: any, names: any, history: any[], text: string, instituteId: string | null): Promise<boolean> {
     try {
-      const [topic] = await this.store.manager.query(`SELECT subtopics FROM learning_roadmap_topics WHERE id = $1`, [thread.topic_id]);
+      // A subtopic thread is scoped to just that subtopic's name, with no sibling subtopics
+      // loosening the check — the whole point of a subtopic's own chat is to stay inside it,
+      // not the rest of its parent topic. A topic thread (no subtopics) keeps the old, wider check.
+      const subtopics =
+        thread.scope === 'subtopic'
+          ? []
+          : await this.store.manager.query(`SELECT subtopics FROM learning_roadmap_topics WHERE id = $1`, [thread.topic_id]).then(([t]: any[]) => (Array.isArray(t?.subtopics) ? t.subtopics : []));
       const recent = history
         .slice(0, SCOPE_HISTORY_TURNS)
         .reverse()
@@ -227,10 +233,10 @@ export class ThreadChatService {
         .filter((m) => m.content);
       const res = await this.aiBridge.checkTopicScope(
         {
-          topic: names.topic_name ?? '',
+          topic: names.subtopic_name ?? names.topic_name ?? '',
           chapter: names.chapter_name ?? undefined,
           subject: names.subject_name ?? undefined,
-          subtopics: Array.isArray(topic?.subtopics) ? topic.subtopics : [],
+          subtopics,
           history: recent,
           message: text,
         },

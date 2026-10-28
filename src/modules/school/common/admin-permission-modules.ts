@@ -22,6 +22,8 @@ export const ADMIN_PERMISSION_MODULES = [
   'document_generator',
   'audit_logs',
   'complaints',
+  'screen_time',
+  'emergency_sos',
 ] as const;
 
 export type AdminPermissionModule = typeof ADMIN_PERMISSION_MODULES[number];

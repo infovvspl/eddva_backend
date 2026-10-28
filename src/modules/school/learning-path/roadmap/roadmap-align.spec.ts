@@ -1,4 +1,4 @@
-import { alignRoadmap, fallbackRoadmap } from './roadmap-align';
+import { alignRoadmap, alignSubtopics, fallbackRoadmap } from './roadmap-align';
 
 const recorded = [
   { id: 'r1', name: 'MAGNETIC FIELD AND FIELD LINES' },
@@ -48,5 +48,60 @@ describe('fallbackRoadmap', () => {
     const fb = fallbackRoadmap(' Light ', recorded);
     expect(fb.topics).toEqual([{ ord: 1, name: 'Light', subtopics: [] }]);
     expect([...fb.links.values()]).toEqual([1, 1, 1, 1]);
+  });
+});
+
+describe('alignSubtopics', () => {
+  const existing = [
+    { id: 's1', name: 'Bar magnet field' },
+    { id: 's2', name: 'Field line properties' },
+  ];
+
+  it('reuses an existing id for an exact (normalized) name match', () => {
+    const { subtopics, matches } = alignSubtopics(['Bar magnet field', 'Field line properties'], existing);
+    expect(subtopics).toEqual([
+      { ord: 1, name: 'Bar magnet field' },
+      { ord: 2, name: 'Field line properties' },
+    ]);
+    expect(matches.get(1)).toBe('s1');
+    expect(matches.get(2)).toBe('s2');
+  });
+
+  it('matches case- and whitespace-insensitively', () => {
+    const { matches } = alignSubtopics(['  bar MAGNET field  '], existing);
+    expect(matches.get(1)).toBe('s1');
+  });
+
+  it('gives a genuinely new name a new row (no match)', () => {
+    const { subtopics, matches } = alignSubtopics(['Electromagnetic induction'], existing);
+    expect(subtopics).toEqual([{ ord: 1, name: 'Electromagnetic induction' }]);
+    expect(matches.has(1)).toBe(false);
+  });
+
+  it('retires, but never deletes, an existing row the AI no longer returns', () => {
+    const { retired } = alignSubtopics(['Bar magnet field'], existing);
+    expect(retired).toEqual(['s2']);
+  });
+
+  it('reorders an existing row by matching it at its new position, not deleting it', () => {
+    const { subtopics, matches, retired } = alignSubtopics(['Field line properties', 'Bar magnet field'], existing);
+    expect(subtopics).toEqual([
+      { ord: 1, name: 'Field line properties' },
+      { ord: 2, name: 'Bar magnet field' },
+    ]);
+    expect(matches.get(1)).toBe('s2');
+    expect(matches.get(2)).toBe('s1');
+    expect(retired).toEqual([]);
+  });
+
+  it('dedupes, trims and caps at 8, same as topic subtopics', () => {
+    const many = Array.from({ length: 10 }, (_, i) => `Concept ${i}`);
+    const { subtopics } = alignSubtopics([...many, ' Concept 0 '], []);
+    expect(subtopics).toHaveLength(8);
+    expect(subtopics[0]).toEqual({ ord: 1, name: 'Concept 0' });
+  });
+
+  it('copes with junk', () => {
+    expect(alignSubtopics(null as any, existing)).toEqual({ subtopics: [], matches: new Map(), retired: ['s1', 's2'] });
   });
 });
