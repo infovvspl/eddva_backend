@@ -43,6 +43,11 @@ export class SchoolParentController {
     return this.svc.getScreenTime(user, id, range);
   }
 
+  @Get('students/:id/screen-time/activity')
+  getActivityBreakdown(@SchoolUser() user: any, @Param('id') id: string, @Query('range') range?: string) {
+    return this.svc.getActivityBreakdown(user, id, range);
+  }
+
   @Get('students/:id/screen-time/month')
   getScreenTimeMonth(@SchoolUser() user: any, @Param('id') id: string, @Query('month') month: string) {
     return this.svc.getScreenTimeMonth(user, id, month);

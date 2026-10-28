@@ -24,7 +24,10 @@ export interface AppHeartbeatInput {
  */
 @Injectable()
 export class SchoolActivityService {
-  constructor(@InjectDataSource('school') private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource('school') private readonly ds: DataSource,
+    @InjectDataSource('coaching') private readonly coachingDs: DataSource,
+  ) {}
 
   async recordHeartbeat(user: { id: string; instituteId?: string | null }, input: AppHeartbeatInput) {
     const now = new Date();
@@ -55,19 +58,141 @@ export class SchoolActivityService {
     });
   }
 
-  /** The caller's own view: this week's time by category, for a quick self-check. */
-  async getMyBreakdown(user: { id: string }) {
+  /**
+   * The caller's own view: time by category over the window, each paired with
+   * that category's "verified engagement" fact (read from the feature's own
+   * ground-truth table, not the heartbeat) where one exists. This is also the
+   * query the admin/parent reports (Phase 4) will call per user.
+   */
+  async getMyBreakdown(user: { id: string }, days = 7) {
+    return this.getBreakdown(user.id, days);
+  }
+
+  async getBreakdown(userId: string, days = 7) {
     const today = istDay(new Date());
     const rows = await this.ds.query(
       `SELECT category, SUM(active_seconds)::int AS seconds, SUM(visits)::int AS visits
          FROM school_activity_daily
-        WHERE user_id = $1 AND day > $2::date - 7
+        WHERE user_id = $1 AND day > $2::date - $3::int
         GROUP BY category ORDER BY seconds DESC`,
-      [user.id, today],
+      [userId, today, days],
     );
-    return {
-      byCategory: rows.map((r: any) => ({ category: r.category, seconds: Number(r.seconds) || 0, visits: Number(r.visits) || 0 })),
-    };
+    const byCategory = await Promise.all(
+      rows.map(async (r: any) => ({
+        category: r.category as AppActivityCategory,
+        seconds: Number(r.seconds) || 0,
+        visits: Number(r.visits) || 0,
+        verified: await this.verifiedFactFor(r.category, userId, days),
+      })),
+    );
+    // chat_ai (the AI Tutor panel) has no page of its own — see
+    // activity-categories.ts — so it never accrues page-time, but its usage
+    // is still real ground truth worth reporting on its own row.
+    if (!byCategory.some((c) => c.category === 'chat_ai')) {
+      const verified = await this.verifiedFactFor('chat_ai', userId, days);
+      if (verified) byCategory.push({ category: 'chat_ai', seconds: 0, visits: 0, verified });
+    }
+    return { byCategory };
+  }
+
+  /**
+   * The genuine-action fact for one category, read from the feature's own
+   * table rather than anything this service itself wrote — this is what lets
+   * the report tell "page open" apart from "actually did something". Returns
+   * null for categories with no ground-truth source yet (study_materials —
+   * no reading-completion signal built; battle_arena — out of scope here, see
+   * Battle Arena join-logic restriction; nav — navigation has no genuine
+   * action to check by nature).
+   */
+  private async verifiedFactFor(category: string, userId: string, days: number): Promise<Record<string, unknown> | null> {
+    switch (category) {
+      case 'games': {
+        const [row] = await this.ds.query(
+          `SELECT COUNT(*)::int AS rounds, COALESCE(SUM(time_taken_seconds), 0)::int AS played_seconds
+             FROM school_game_scores
+            WHERE student_user_id = $1 AND created_at >= NOW() - ($2 || ' days')::interval`,
+          [userId, days],
+        );
+        return { roundsPlayed: Number(row?.rounds) || 0, playedSeconds: Number(row?.played_seconds) || 0 };
+      }
+      case 'assignments': {
+        const [row] = await this.ds.query(
+          `SELECT COUNT(*)::int AS submissions, MAX(asu.submitted_at) AS last_submitted_at
+             FROM assignment_submissions asu
+             JOIN students s ON s.id = asu.student_id
+            WHERE s.user_id = $1 AND asu.submitted_at >= NOW() - ($2 || ' days')::interval`,
+          [userId, days],
+        );
+        return { submissions: Number(row?.submissions) || 0, lastSubmittedAt: row?.last_submitted_at ?? null };
+      }
+      case 'assessments_other': {
+        const [row] = await this.ds.query(
+          `SELECT COUNT(*)::int AS attempts,
+                  COALESCE(SUM(EXTRACT(EPOCH FROM (submitted_at - started_at))), 0)::int AS verified_seconds
+             FROM assessment_submissions
+            WHERE student_user_id = $1 AND started_at IS NOT NULL
+              AND submitted_at >= NOW() - ($2 || ' days')::interval`,
+          [userId, days],
+        );
+        return { attempts: Number(row?.attempts) || 0, verifiedSeconds: Number(row?.verified_seconds) || 0 };
+      }
+      case 'doubts': {
+        const [row] = await this.ds.query(
+          `SELECT COUNT(*)::int AS doubts_asked
+             FROM student_doubts
+            WHERE student_user_id = $1 AND created_at >= NOW() - ($2 || ' days')::interval`,
+          [userId, days],
+        );
+        return { doubtsAsked: Number(row?.doubts_asked) || 0 };
+      }
+      case 'career': {
+        const [row] = await this.ds.query(
+          `SELECT
+             (SELECT COUNT(*) FROM school_interest_quiz_results WHERE student_id = $1 AND completed_at >= NOW() - ($2 || ' days')::interval)::int AS quizzes_completed,
+             (SELECT COUNT(*) FROM school_career_reports WHERE student_id = $1 AND generated_at >= NOW() - ($2 || ' days')::interval)::int AS reports_generated`,
+          [userId, days],
+        );
+        return { quizzesCompleted: Number(row?.quizzes_completed) || 0, reportsGenerated: Number(row?.reports_generated) || 0 };
+      }
+      case 'video_lectures': {
+        // A row with zero progress means the page was opened but nothing was
+        // actually watched — exclude it so "recordings watched" reflects real
+        // viewing, not every recording a student has ever clicked into.
+        const [recRow] = await this.ds.query(
+          `SELECT COUNT(*) FILTER (WHERE watch_percentage > 0 OR last_position_seconds > 0)::int AS recordings_watched,
+                  COUNT(*) FILTER (WHERE watch_percentage >= 90)::int AS recordings_completed
+             FROM class_recording_progress
+            WHERE student_user_id = $1 AND updated_at >= NOW() - ($2 || ' days')::interval`,
+          [userId, days],
+        );
+        const [liveRow] = await this.ds.query(
+          `SELECT COUNT(*) FILTER (WHERE duration_seconds > 0)::int AS live_classes_joined,
+                  COALESCE(SUM(duration_seconds), 0)::int AS live_seconds
+             FROM school_live_participants
+            WHERE user_id = $1 AND joined_at >= NOW() - ($2 || ' days')::interval`,
+          [userId, days],
+        );
+        const recordingsWatched = Number(recRow?.recordings_watched) || 0;
+        const recordingsCompleted = Number(recRow?.recordings_completed) || 0;
+        const liveClassesJoined = Number(liveRow?.live_classes_joined) || 0;
+        const liveSeconds = Number(liveRow?.live_seconds) || 0;
+        if (!recordingsWatched && !liveClassesJoined) return null;
+        return { recordingsWatched, recordingsCompleted, liveClassesJoined, liveSeconds };
+      }
+      case 'chat_ai': {
+        // ai_usage_events lives on the coaching DB (see AiUsageService), not school.
+        const [row] = await this.coachingDs.query(
+          `SELECT COUNT(*)::int AS messages
+             FROM ai_usage_events
+            WHERE user_id = $1 AND feature = 'ai_tutor' AND created_at >= NOW() - ($2 || ' days')::interval`,
+          [userId, days],
+        );
+        const messages = Number(row?.messages) || 0;
+        return messages > 0 ? { messages } : null;
+      }
+      default:
+        return null;
+    }
   }
 
   private async extendOrStartSession(
