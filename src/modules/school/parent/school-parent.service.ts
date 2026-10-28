@@ -3,6 +3,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SchoolMeetingService } from '../meeting/school-meeting.service';
 import { SchoolScreenTimeService } from '../screen-time/school-screen-time.service';
+import { SchoolActivityService } from '../activity/school-activity.service';
 
 /**
  * Parent portal service.
@@ -19,6 +20,7 @@ export class SchoolParentService {
     @InjectDataSource('school') private readonly ds: DataSource,
     private readonly meetingService: SchoolMeetingService,
     private readonly screenTimeService: SchoolScreenTimeService,
+    private readonly activityService: SchoolActivityService,
   ) { }
 
   // ── Internal helpers ──────────────────────────────────────────────────────
@@ -300,6 +302,14 @@ export class SchoolParentService {
       totalSeconds: result.total,
       days: result.days.map((d) => ({ date: d.date, activeSeconds: d.activeSeconds })),
     };
+  }
+
+  /** Per-category time-open vs. verified-engagement breakdown — backs the parent-facing screen-time detail view. */
+  async getActivityBreakdown(user: any, studentId: string, range?: string) {
+    const parent = await this.loadParent(user);
+    const child = await this.getOwnedChild(parent, studentId);
+    const days = range === 'year' ? 365 : range === 'month' ? 30 : range === 'today' ? 1 : 7;
+    return this.activityService.getBreakdown(child.id, days);
   }
 
   /** `month` is "YYYY-MM" — backs the parent-facing screen-time calendar view. */
