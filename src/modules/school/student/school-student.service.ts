@@ -743,20 +743,18 @@ export class SchoolStudentService implements OnModuleInit {
     if (!userId) return gamificationProfile;
     try {
       const studentId = student?.id || fallbackStudentProfile.id || userId;
-      // Four independent lookups; each one failing on its own falls back to "nothing found".
-      const [profileRows, userRows, studentDataRows, scoreSumRows] = await Promise.all([
+      // Three independent lookups; each one failing on its own falls back to "nothing found".
+      const [profileRows, studentDataRows, scoreSumRows] = await Promise.all([
         this.ds.query(
           `SELECT xp, coins, level, badges, current_streak, longest_streak
            FROM gamification_profiles
            WHERE user_id::text = $1::text OR user_id::text = $2::text`,
           [userId, studentId],
         ).catch(() => []),
+        // `students.eddva_coins`/`current_streak`/`longest_streak` don't exist in the
+        // school DB — only `xp_total` does, which is the one column read here.
         this.ds.query(
-          `SELECT xp_total, current_streak, longest_streak FROM users WHERE id::text = $1::text LIMIT 1`,
-          [userId],
-        ).catch(() => []),
-        this.ds.query(
-          `SELECT xp_total, eddva_coins, current_streak, longest_streak FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
+          `SELECT xp_total FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
           [userId, studentId],
         ).catch(() => []),
         this.ds.query(
@@ -767,14 +765,17 @@ export class SchoolStudentService implements OnModuleInit {
         ).catch(() => [{ total_xp: 0, total_coins: 0 }]),
       ]);
 
-      const userXp = Number(userRows[0]?.xp_total || 0);
-      const userCurrentStreak = Number(userRows[0]?.current_streak || 0);
-      const userLongestStreak = Number(userRows[0]?.longest_streak || 0);
+      // `users` has no xp/streak columns in the school DB (only the separate
+      // coaching-app schema does) — querying it always failed and logged a
+      // "column does not exist" error for a value that was always 0 anyway.
+      const userXp = 0;
+      const userCurrentStreak = 0;
+      const userLongestStreak = 0;
 
       const studentXp = Number(studentDataRows[0]?.xp_total || 0);
-      const studentCoins = Number(studentDataRows[0]?.eddva_coins || 0);
-      const studentCurrentStreak = Number(studentDataRows[0]?.current_streak || 0);
-      const studentLongestStreak = Number(studentDataRows[0]?.longest_streak || 0);
+      const studentCoins = 0;
+      const studentCurrentStreak = 0;
+      const studentLongestStreak = 0;
 
       const gameXp = Number(scoreSumRows[0]?.total_xp || 0);
       const gameCoins = Number(scoreSumRows[0]?.total_coins || 0);

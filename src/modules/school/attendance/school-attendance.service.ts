@@ -254,18 +254,45 @@ export class SchoolAttendanceService {
     query: any,
   ): Promise<Record<string, number>> {
     if (!userIds.length) return {};
+    // The % is a trend over time, not that single day's status — so a daily
+    // Reports view (only `query.date` set) still averages over the trailing
+    // 30 days, same as no filter at all. Only an explicit startDate/endDate
+    // (weekly/monthly views) narrows the window.
     const rangeStart = query.startDate
       ? new Date(query.startDate)
-      : query.date
-      ? new Date(query.date)
       : new Date(new Date().setDate(new Date().getDate() - 30));
-    const rangeEnd = query.endDate ? new Date(query.endDate) : query.date ? new Date(query.date) : new Date();
+    const rangeEnd = query.endDate ? new Date(query.endDate) : new Date();
     const rows: any[] = await this.ds.query(
       `SELECT user_id::text AS user_id,
          ROUND(100.0 * COUNT(*) FILTER (WHERE UPPER(status) = 'PRESENT') / NULLIF(COUNT(*), 0), 1) AS percentage
        FROM attendances
        WHERE institute_id::text = $1::text AND user_id::text = ANY($2::text[]) AND date >= $3 AND date <= $4
        GROUP BY user_id`,
+      [instituteId, userIds, rangeStart, rangeEnd],
+    );
+    return Object.fromEntries(rows.map((r) => [r.user_id, r.percentage !== null ? Number(r.percentage) : 0]));
+  }
+
+  /** Same as `attendancePercentageByUser` but for teachers, whose records live in `teacher_attendance`, not `attendances`. */
+  private async teacherAttendancePercentageByUser(
+    instituteId: string,
+    userIds: string[],
+    query: any,
+  ): Promise<Record<string, number>> {
+    if (!userIds.length) return {};
+    // Same as `attendancePercentageByUser`: a daily view's single `query.date`
+    // should not collapse the window to that one day — only an explicit
+    // startDate/endDate (weekly/monthly) narrows it.
+    const rangeStart = query.startDate
+      ? new Date(query.startDate)
+      : new Date(new Date().setDate(new Date().getDate() - 30));
+    const rangeEnd = query.endDate ? new Date(query.endDate) : new Date();
+    const rows: any[] = await this.ds.query(
+      `SELECT teacher_user_id::text AS user_id,
+         ROUND(100.0 * COUNT(*) FILTER (WHERE LOWER(status) IN ('present', 'late')) / NULLIF(COUNT(*), 0), 1) AS percentage
+       FROM teacher_attendance
+       WHERE institute_id::text = $1::text AND teacher_user_id::text = ANY($2::text[]) AND date::date >= $3 AND date::date <= $4
+       GROUP BY teacher_user_id`,
       [instituteId, userIds, rangeStart, rangeEnd],
     );
     return Object.fromEntries(rows.map((r) => [r.user_id, r.percentage !== null ? Number(r.percentage) : 0]));
@@ -370,15 +397,15 @@ export class SchoolAttendanceService {
 
       let joinDate = `CURRENT_DATE`;
       if (query.date) { params.push(new Date(query.date)); joinDate = `$${params.length}`; }
-      
+
       if (query.userId) { params.push(query.userId); filter += ` AND u.id=$${params.length}`; }
-      if (query.status) { 
+      if (query.status) {
          const statusTarget = query.status.toLowerCase();
          if (statusTarget === 'absent') {
-            filter += ` AND (LOWER(a.status) = 'absent' OR a.status IS NULL)`;
+            filter += ` AND (LOWER(ta.status) = 'absent' OR ta.status IS NULL)`;
          } else {
             params.push(statusTarget);
-            filter += ` AND LOWER(a.status)=$${params.length}`; 
+            filter += ` AND LOWER(ta.status)=$${params.length}`;
          }
       }
 
@@ -399,8 +426,8 @@ export class SchoolAttendanceService {
 
       const countQuery = `
         SELECT COUNT(*)::int AS total
-        FROM users u 
-        LEFT JOIN attendances a ON a.user_id = u.id AND a.date = ${joinDate}
+        FROM users u
+        LEFT JOIN teacher_attendance ta ON ta.teacher_user_id = u.id AND ta.institute_id = u.institute_id AND ta.date::date = ${joinDate}
         WHERE ${filter}
       `;
       const countResult = await this.ds.query(countQuery, params);
@@ -414,24 +441,24 @@ export class SchoolAttendanceService {
       const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
       const sql = `
-        SELECT 
-          COALESCE(a.id, u.id) AS id,
+        SELECT
+          COALESCE(ta.id, u.id) AS id,
           ${joinDate} AS date,
-          COALESCE(a.status, 'ABSENT') AS status,
-          a.remarks,
+          COALESCE(ta.status, 'absent') AS status,
+          ta.remarks,
           u.id AS user_id,
           u.name AS user_name,
           u.email,
           u.role
-        FROM users u 
-        LEFT JOIN attendances a ON a.user_id = u.id AND a.date = ${joinDate}
+        FROM users u
+        LEFT JOIN teacher_attendance ta ON ta.teacher_user_id = u.id AND ta.institute_id = u.institute_id AND ta.date::date = ${joinDate}
         WHERE ${filter}
         ORDER BY ${sortBy} ${sortOrder}
         LIMIT ${limit} OFFSET ${offset}
       `;
-      
+
       const rows: any[] = await this.ds.query(sql, params);
-      const percentageByUser = await this.attendancePercentageByUser(instituteId, [...new Set(rows.map(r => r.user_id))], query);
+      const percentageByUser = await this.teacherAttendancePercentageByUser(instituteId, [...new Set(rows.map(r => r.user_id))], query);
 
       const mapped = rows.map(r => ({
         id: r.id,
@@ -450,114 +477,265 @@ export class SchoolAttendanceService {
 
       return { success: true, data: mapped, total, page, limit, totalPages };
     }
-    let filter = `a.institute_id = $1`;
     const params: any[] = [instituteId];
+    // query.role === 'TEACHER' already returned above, so reaching here means
+    // the role filter is unset ("All Roles") or some other non-teacher role —
+    // teacher rows only belong in the union for the former.
+    let includeTeachers = !query.role;
 
-    if (query.userIds) {
-      params.push(query.userIds);
-      filter += ` AND a.user_id = ANY($${params.length}::uuid[])`;
-    }
+    // A single specific date (the default "daily" Reports view) should show
+    // the full student roster — a student nobody has marked yet still
+    // appears, as "not marked"/absent, instead of silently dropping out the
+    // way an inner join on `attendances` did. A date range (weekly/monthly)
+    // keeps listing actual records only — padding every unmarked day for
+    // every student would explode the result for no benefit.
+    const isSingleDateQuery = !!query.date && !query.startDate && !query.endDate;
+    const useStudentRoster = isSingleDateQuery && (!query.role || query.role === 'STUDENT');
 
-    if (hasSchoolRole(user.role, 'TEACHER') && !isSuperAdmin && !isInstituteAdmin) {
-      if (query.role === 'STUDENT' || !query.role) {
+    let sourceA: string;
+    let dateParam: number | undefined;
+
+    if (useStudentRoster) {
+      let rosterFilter = `u.institute_id = $1 AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%STUDENT%'`;
+      params.push(new Date(query.date));
+      dateParam = params.length;
+      // includeTeachers already reflects `!query.role` from above — stays true
+      // for "All Roles" (teacher union still applies) and false when the
+      // caller explicitly asked for query.role === 'STUDENT'.
+
+      if (query.userIds) { params.push(query.userIds); rosterFilter += ` AND u.id = ANY($${params.length}::uuid[])`; }
+
+      if (hasSchoolRole(user.role, 'TEACHER') && !isSuperAdmin && !isInstituteAdmin) {
         const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
         const teacherId = tRows[0]?.id;
         if (teacherId) {
           params.push(teacherId);
           params.push(user.id);
-          filter += ` AND (a.user_id = $${params.length} OR EXISTS (
-            SELECT 1 FROM students s
-            JOIN teacher_academic_assignments ta ON s.section_id::text = ta.section_id::text
-            WHERE s.user_id = a.user_id AND ta.teacher_id = $${params.length - 1}
+          rosterFilter += ` AND (u.id = $${params.length} OR EXISTS (
+            SELECT 1 FROM teacher_academic_assignments ta2
+            WHERE s.section_id::text = ta2.section_id::text AND ta2.teacher_id = $${params.length - 1}
           ))`;
         } else {
-          filter += ` AND 1=0`;
+          rosterFilter += ` AND 1=0`;
         }
       }
-    }
 
-    if (query.userId) { params.push(query.userId); filter += ` AND a.user_id=$${params.length}`; }
-    if (query.date) { params.push(new Date(query.date)); filter += ` AND a.date=$${params.length}`; }
-    if (query.startDate) { params.push(new Date(query.startDate)); filter += ` AND a.date>=$${params.length}`; }
-    if (query.endDate) { params.push(new Date(query.endDate)); filter += ` AND a.date<=$${params.length}`; }
-    if (query.role) {
-      const normalizedRole = String(query.role).toUpperCase().replace(/\s+/g, '_');
-      params.push(`%${normalizedRole}%`);
-      filter += ` AND UPPER(REPLACE(u.role, ' ', '_')) LIKE $${params.length}`;
-    }
-    
-    // Add support for class and section filtering which was requested
-    if (query.classId) { params.push(query.classId); filter += ` AND c.id=$${params.length}`; }
-    if (query.sectionId) { params.push(query.sectionId); filter += ` AND sec.id=$${params.length}`; }
-    if (query.status) { params.push(query.status.toLowerCase()); filter += ` AND LOWER(a.status)=$${params.length}`; }
-    if (query.rollNo) { params.push(`%${query.rollNo.toLowerCase()}%`); filter += ` AND LOWER(s.roll_no) LIKE $${params.length}`; }
-
-    if (query.search) {
-      const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
-      if (searchTerms.length > 0) {
-        const searchConditions = searchTerms.map((term: string) => {
-          params.push(term);
-          return `(LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(s.roll_no) LIKE $${params.length})`;
-        });
-        filter += ` AND (${searchConditions.join(' AND ')})`;
+      if (query.userId) { params.push(query.userId); rosterFilter += ` AND u.id=$${params.length}`; }
+      if (query.classId) { params.push(query.classId); rosterFilter += ` AND c.id=$${params.length}`; }
+      if (query.sectionId) { params.push(query.sectionId); rosterFilter += ` AND sec.id=$${params.length}`; }
+      if (query.status) { params.push(query.status.toLowerCase()); rosterFilter += ` AND LOWER(COALESCE(a.status, 'absent'))=$${params.length}`; }
+      if (query.rollNo) { params.push(`%${query.rollNo.toLowerCase()}%`); rosterFilter += ` AND LOWER(s.roll_no) LIKE $${params.length}`; }
+      if (query.search) {
+        const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+        if (searchTerms.length > 0) {
+          const conds = searchTerms.map((term: string) => {
+            params.push(term);
+            return `(LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(s.roll_no) LIKE $${params.length})`;
+          });
+          rosterFilter += ` AND (${conds.join(' AND ')})`;
+        }
       }
+
+      sourceA = `
+        SELECT
+          COALESCE(a.id, u.id) AS id,
+          $${dateParam}::date AS date,
+          COALESCE(a.status, 'absent') AS status,
+          a.remarks,
+          u.id AS user_id, u.name AS user_name, u.email, u.role,
+          s.id AS student_profile_id, s.roll_no AS roll_no,
+          sec.id AS section_id, sec.name AS section_name,
+          c.id AS class_id, c.name AS class_name
+        FROM users u
+        JOIN students s ON s.user_id = u.id
+        LEFT JOIN sections sec ON s.section_id = sec.id
+        LEFT JOIN classes c ON sec.class_id = c.id
+        LEFT JOIN attendances a ON a.user_id = u.id AND a.institute_id = u.institute_id AND a.date = $${dateParam}
+        WHERE ${rosterFilter}
+      `;
+    } else {
+      let filterA = `a.institute_id = $1`;
+
+      if (query.userIds) {
+        params.push(query.userIds);
+        filterA += ` AND a.user_id = ANY($${params.length}::uuid[])`;
+      }
+
+      if (hasSchoolRole(user.role, 'TEACHER') && !isSuperAdmin && !isInstituteAdmin) {
+        if (query.role === 'STUDENT' || !query.role) {
+          const tRows = await this.ds.query(`SELECT id FROM teachers WHERE user_id=$1`, [user.id]);
+          const teacherId = tRows[0]?.id;
+          if (teacherId) {
+            params.push(teacherId);
+            params.push(user.id);
+            filterA += ` AND (a.user_id = $${params.length} OR EXISTS (
+              SELECT 1 FROM students s
+              JOIN teacher_academic_assignments ta2 ON s.section_id::text = ta2.section_id::text
+              WHERE s.user_id = a.user_id AND ta2.teacher_id = $${params.length - 1}
+            ))`;
+          } else {
+            filterA += ` AND 1=0`;
+          }
+          includeTeachers = false; // a teacher caller only ever sees their own/their-students' records here
+        }
+      }
+
+      if (query.userId) { params.push(query.userId); filterA += ` AND a.user_id=$${params.length}`; }
+      if (query.date) { params.push(new Date(query.date)); filterA += ` AND a.date=$${params.length}`; }
+      if (query.startDate) { params.push(new Date(query.startDate)); filterA += ` AND a.date>=$${params.length}`; }
+      if (query.endDate) { params.push(new Date(query.endDate)); filterA += ` AND a.date<=$${params.length}`; }
+      if (query.role) {
+        const normalizedRole = String(query.role).toUpperCase().replace(/\s+/g, '_');
+        params.push(`%${normalizedRole}%`);
+        filterA += ` AND UPPER(REPLACE(u.role, ' ', '_')) LIKE $${params.length}`;
+      }
+
+      // class/section/roll-no only apply to students.
+      if (query.classId) { params.push(query.classId); filterA += ` AND c.id=$${params.length}`; includeTeachers = false; }
+      if (query.sectionId) { params.push(query.sectionId); filterA += ` AND sec.id=$${params.length}`; includeTeachers = false; }
+      if (query.status) { params.push(query.status.toLowerCase()); filterA += ` AND LOWER(a.status)=$${params.length}`; }
+      if (query.rollNo) { params.push(`%${query.rollNo.toLowerCase()}%`); filterA += ` AND LOWER(s.roll_no) LIKE $${params.length}`; includeTeachers = false; }
+
+      if (query.search) {
+        const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+        if (searchTerms.length > 0) {
+          const conds = searchTerms.map((term: string) => {
+            params.push(term);
+            return `(LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(s.roll_no) LIKE $${params.length})`;
+          });
+          filterA += ` AND (${conds.join(' AND ')})`;
+        }
+      }
+
+      sourceA = `
+        SELECT
+          a.id, a.date, a.status, a.remarks,
+          u.id AS user_id, u.name AS user_name, u.email, u.role,
+          s.id AS student_profile_id, s.roll_no AS roll_no,
+          sec.id AS section_id, sec.name AS section_name,
+          c.id AS class_id, c.name AS class_name
+        FROM attendances a
+        JOIN users u ON a.user_id = u.id
+        LEFT JOIN students s ON s.user_id = u.id
+        LEFT JOIN sections sec ON s.section_id = sec.id
+        LEFT JOIN classes c ON sec.class_id = c.id
+        WHERE ${filterA}
+      `;
     }
+
+    // Teacher union source — built independently with its own param pushes so
+    // it stays correct regardless of which branch above built sourceA/params.
+    // Single-date "All Roles" queries use the same roster (LEFT JOIN) pattern
+    // as sourceA, so an unmarked teacher shows up as "absent" instead of
+    // silently vanishing — matching the explicit role=TEACHER view's behavior.
+    const useTeacherRoster = includeTeachers && isSingleDateQuery && dateParam !== undefined;
+    let sourceB = '';
+
+    if (includeTeachers && useTeacherRoster) {
+      let teacherRosterFilter = `u.institute_id = $1 AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'`;
+      if (query.userIds) { params.push(query.userIds); teacherRosterFilter += ` AND u.id = ANY($${params.length}::uuid[])`; }
+      if (query.userId) { params.push(query.userId); teacherRosterFilter += ` AND u.id=$${params.length}`; }
+      if (query.status) { params.push(query.status.toLowerCase()); teacherRosterFilter += ` AND LOWER(COALESCE(ta.status, 'absent'))=$${params.length}`; }
+      if (query.search) {
+        const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+        if (searchTerms.length > 0) {
+          const conds = searchTerms.map((term: string) => {
+            params.push(term);
+            return `(LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length})`;
+          });
+          teacherRosterFilter += ` AND (${conds.join(' AND ')})`;
+        }
+      }
+
+      sourceB = `
+        SELECT
+          COALESCE(ta.id, u.id) AS id,
+          $${dateParam}::date AS date,
+          COALESCE(ta.status, 'absent') AS status,
+          ta.remarks,
+          u.id AS user_id, u.name AS user_name, u.email, u.role,
+          NULL::uuid AS student_profile_id, NULL::text AS roll_no,
+          NULL::uuid AS section_id, NULL::text AS section_name,
+          NULL::uuid AS class_id, NULL::text AS class_name
+        FROM users u
+        LEFT JOIN teacher_attendance ta ON ta.teacher_user_id = u.id AND ta.institute_id = u.institute_id AND ta.date::date = $${dateParam}
+        WHERE ${teacherRosterFilter}
+      `;
+    } else if (includeTeachers) {
+      let filterB = `ta.institute_id = $1 AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'`;
+      if (query.userIds) { params.push(query.userIds); filterB += ` AND ta.teacher_user_id = ANY($${params.length}::uuid[])`; }
+      if (query.userId) { params.push(query.userId); filterB += ` AND ta.teacher_user_id=$${params.length}`; }
+      // teacher_attendance.date is `character varying`, not `date` like attendances.date —
+      // cast it explicitly so the bound Date param (sent as a `date`-typed value) compares cleanly.
+      if (query.date) { params.push(new Date(query.date)); filterB += ` AND ta.date::date=$${params.length}`; }
+      if (query.startDate) { params.push(new Date(query.startDate)); filterB += ` AND ta.date::date>=$${params.length}`; }
+      if (query.endDate) { params.push(new Date(query.endDate)); filterB += ` AND ta.date::date<=$${params.length}`; }
+      if (query.status) { params.push(query.status.toLowerCase()); filterB += ` AND LOWER(ta.status)=$${params.length}`; }
+      if (query.search) {
+        const searchTerms = query.search.trim().split(' ').filter(Boolean).map((term: string) => `%${term.toLowerCase()}%`);
+        if (searchTerms.length > 0) {
+          const conds = searchTerms.map((term: string) => {
+            params.push(term);
+            return `(LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length})`;
+          });
+          filterB += ` AND (${conds.join(' AND ')})`;
+        }
+      }
+
+      sourceB = `
+        SELECT
+          ta.id, ta.date::date AS date, ta.status, ta.remarks,
+          u.id AS user_id, u.name AS user_name, u.email, u.role,
+          NULL::uuid AS student_profile_id, NULL::text AS roll_no,
+          NULL::uuid AS section_id, NULL::text AS section_name,
+          NULL::uuid AS class_id, NULL::text AS class_name
+        FROM teacher_attendance ta
+        JOIN users u ON ta.teacher_user_id = u.id
+        WHERE ${filterB}
+      `;
+    }
+    const combined = includeTeachers ? `(${sourceA}) UNION ALL (${sourceB})` : sourceA;
 
     const page = Math.max(1, parseInt(query.page) || 1);
     const limit = Math.max(1, parseInt(query.limit) || 10);
     const offset = (page - 1) * limit;
 
-    const countQuery = `
-      SELECT COUNT(*)::int AS total
-      FROM attendances a 
-      JOIN users u ON a.user_id = u.id 
-      LEFT JOIN students s ON s.user_id = u.id
-      LEFT JOIN sections sec ON s.section_id = sec.id
-      LEFT JOIN classes c ON sec.class_id = c.id
-      WHERE ${filter}
-    `;
-    const countResult = await this.ds.query(countQuery, params);
+    const countResult = await this.ds.query(`SELECT COUNT(*)::int AS total FROM (${combined}) combined_rows`, params);
     const total = parseInt(countResult[0]?.total || '0', 10);
     const totalPages = Math.ceil(total / limit);
 
     const allowedSortFields: Record<string, string> = {
-      date: 'a.date',
-      name: 'u.name',
+      date: 'date',
+      name: 'user_name',
     };
-    const sortBy = allowedSortFields[query.sortBy] || 'a.date';
-    const sortOrder = query.sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'; // default DESC for attendance
+    // Default to alphabetical by name, same as the role=TEACHER view, so
+    // "All Roles" lists students and teachers in one consistent order
+    // instead of shuffling by date.
+    const sortBy = allowedSortFields[query.sortBy] || 'user_name';
+    const sortOrder = query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const sql = `
-      SELECT 
-        a.*,
-        u.name AS user_name,
-        u.email,
-        u.role,
-        s.id AS student_profile_id,
-        s.roll_no AS roll_no,
-        sec.id AS section_id,
-        sec.name AS section_name,
-        c.id AS class_id,
-        c.name AS class_name
-      FROM attendances a
-      JOIN users u ON a.user_id = u.id 
-      LEFT JOIN students s ON s.user_id = u.id
-      LEFT JOIN sections sec ON s.section_id = sec.id
-      LEFT JOIN classes c ON sec.class_id = c.id
-      WHERE ${filter}
+      SELECT * FROM (${combined}) combined_rows
       ORDER BY ${sortBy} ${sortOrder}
       LIMIT ${limit} OFFSET ${offset}
     `;
-    
+
     const rows: any[] = await this.ds.query(sql, params);
-    const percentageByUser = await this.attendancePercentageByUser(instituteId, [...new Set(rows.map(r => r.user_id))], query);
+    const studentOrAdminIds = [...new Set(rows.filter(r => !hasSchoolRole(r.role, 'TEACHER')).map(r => r.user_id))];
+    const teacherIds = [...new Set(rows.filter(r => hasSchoolRole(r.role, 'TEACHER')).map(r => r.user_id))];
+    const [percentageByUser, teacherPercentageByUser] = await Promise.all([
+      this.attendancePercentageByUser(instituteId, studentOrAdminIds, query),
+      this.teacherAttendancePercentageByUser(instituteId, teacherIds, query),
+    ]);
 
     const mapped = rows.map(r => ({
       id: r.id,
       date: r.date,
       status: r.status,
       remarks: r.remarks,
-      attendancePercentage: percentageByUser[r.user_id] ?? null,
+      attendancePercentage: hasSchoolRole(r.role, 'TEACHER')
+        ? (teacherPercentageByUser[r.user_id] ?? null)
+        : (percentageByUser[r.user_id] ?? null),
       user: {
         id: r.user_id,
         name: r.user_name,

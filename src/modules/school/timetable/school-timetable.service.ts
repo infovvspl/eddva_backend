@@ -61,7 +61,7 @@ export class SchoolTimetableService {
     }
   }
 
-  private async checkConflicts(body: any, excludeId?: string) {
+  private async checkConflicts(instituteId: string, body: any, excludeId?: string) {
     const dayOfWeekInt = typeof body.dayOfWeek === 'string' ? (DAY_MAP[body.dayOfWeek.toUpperCase()] || 1) : (body.dayOfWeekInt || 1);
     const periodNumber = body.periodNumber ? parseInt(body.periodNumber, 10) : null;
     const startTime = body.startTime;
@@ -69,13 +69,13 @@ export class SchoolTimetableService {
     const room = body.room;
 
     const query = `
-      SELECT 
-        t.id, 
-        t.teacher_id, 
-        t.section_id, 
-        t.room, 
-        t.period_number, 
-        t.start_time, 
+      SELECT
+        t.id,
+        t.teacher_id,
+        t.section_id,
+        t.room,
+        t.period_number,
+        t.start_time,
         t.end_time,
         sec.name as section_name,
         cls.name as class_name,
@@ -84,9 +84,9 @@ export class SchoolTimetableService {
       LEFT JOIN sections sec ON t.section_id = sec.id
       LEFT JOIN classes cls ON sec.class_id = cls.id
       LEFT JOIN subjects sub ON t.subject_id = sub.id
-      WHERE t.day_of_week = $1 AND t.id != $2
+      WHERE t.institute_id::text = $1::text AND t.day_of_week = $2 AND t.id != $3
     `;
-    const params: any[] = [dayOfWeekInt, excludeId || '00000000-0000-0000-0000-000000000000'];
+    const params: any[] = [instituteId, dayOfWeekInt, excludeId || '00000000-0000-0000-0000-000000000000'];
 
     const existingSlots: any[] = await this.ds.query(query, params);
 
@@ -120,6 +120,33 @@ export class SchoolTimetableService {
         if (body.sectionId && slot.section_id && String(slot.section_id) === String(body.sectionId)) {
           throw new BadRequestException(
             `⚠ Timetable conflict detected: This class already has ${subjectName} scheduled at this time${timeRange}.`
+          );
+        }
+      }
+    }
+
+    // Break slots never carry a teacherId (createTimetable/updateTimetable always null it
+    // out), so the teacher-conflict check above can never catch a teacher being pulled into
+    // a class elsewhere during their own section's break. Close that gap explicitly: a
+    // regular (non-break) class can't be assigned to a teacher who has a break scheduled,
+    // at an overlapping time, in any section they're assigned to teach.
+    if (body.teacherId && body.type !== 'break') {
+      const breakRows: any[] = await this.ds.query(
+        `SELECT t.start_time, t.end_time, sec.name AS section_name, cls.name AS class_name
+         FROM timetables t
+         JOIN teacher_academic_assignments taa ON taa.section_id = t.section_id AND taa.teacher_id = $1
+         LEFT JOIN sections sec ON t.section_id = sec.id
+         LEFT JOIN classes cls ON sec.class_id = cls.id
+         WHERE t.institute_id::text = $2::text AND t.day_of_week = $3 AND t.type = 'break' AND t.id != $4`,
+        [body.teacherId, instituteId, dayOfWeekInt, excludeId || '00000000-0000-0000-0000-000000000000'],
+      );
+      for (const b of breakRows) {
+        const bStart = b.start_time ? b.start_time.substring(0, 5) : '00:00';
+        const bEnd = b.end_time ? b.end_time.substring(0, 5) : '00:00';
+        const isOverlap = startTime && endTime && bStart && bEnd && (startTime < bEnd && endTime > bStart);
+        if (isOverlap) {
+          throw new BadRequestException(
+            `⚠ Timetable conflict detected: This teacher is on break for ${b.class_name || 'Class'} - ${b.section_name || ''} at this time (${bStart} - ${bEnd}).`
           );
         }
       }
@@ -231,7 +258,7 @@ export class SchoolTimetableService {
           u.id AS "user_id",
           u.name AS "user_name"
         FROM timetables t
-        LEFT JOIN school_periods sp ON t.period_id = sp.id OR (t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
+        LEFT JOIN school_periods sp ON (t.period_id IS NOT NULL AND t.period_id = sp.id) OR (t.period_id IS NULL AND t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
         LEFT JOIN subjects sub ON t.subject_id = sub.id
         LEFT JOIN sections sec ON t.section_id = sec.id
         LEFT JOIN classes cls ON sec.class_id = cls.id
@@ -295,7 +322,7 @@ export class SchoolTimetableService {
                 sp.period_name AS "periodName", sp.period_type AS "periodType",
                 sub.name as subject, u.name as teacher, u.profile_image AS "teacherImage"
          FROM timetables t
-         LEFT JOIN school_periods sp ON t.period_id = sp.id OR (t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
+         LEFT JOIN school_periods sp ON (t.period_id IS NOT NULL AND t.period_id = sp.id) OR (t.period_id IS NULL AND t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
          LEFT JOIN subjects sub ON t.subject_id = sub.id
          LEFT JOIN teachers teach ON t.teacher_id = teach.id
          LEFT JOIN users u ON teach.user_id = u.id
@@ -400,10 +427,10 @@ export class SchoolTimetableService {
     } else {
       await this.validateAssignment(body.sectionId, body.subjectId, body.teacherId);
     }
-    await this.checkConflicts(body);
+    await this.checkConflicts(instituteId, body);
 
     const rows: any[] = await this.ds.query(
-      `INSERT INTO timetables (institute_id, section_id, subject_id, teacher_id, day_of_week, start_time, end_time, room, period_number, type, meeting_link, remarks, period_id) 
+      `INSERT INTO timetables (institute_id, section_id, subject_id, teacher_id, day_of_week, start_time, end_time, room, period_number, type, meeting_link, remarks, period_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [
         instituteId,
@@ -448,8 +475,9 @@ export class SchoolTimetableService {
 
   async findOneTimetable(id: string) {
     const rows: any[] = await this.ds.query(
-      `SELECT 
+      `SELECT
         t.id AS "id",
+        t.institute_id AS "instituteId",
         t.day_of_week AS "dayOfWeekInt",
         t.start_time AS "startTime",
         t.end_time AS "endTime",
@@ -474,7 +502,7 @@ export class SchoolTimetableService {
         u.id AS "user_id",
         u.name AS "user_name"
       FROM timetables t
-      LEFT JOIN school_periods sp ON t.period_id = sp.id OR (t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
+      LEFT JOIN school_periods sp ON (t.period_id IS NOT NULL AND t.period_id = sp.id) OR (t.period_id IS NULL AND t.institute_id = sp.school_id AND t.period_number = sp.sequence_no)
       LEFT JOIN subjects sub ON t.subject_id = sub.id
       LEFT JOIN sections sec ON t.section_id = sec.id
       LEFT JOIN classes cls ON sec.class_id = cls.id
@@ -487,6 +515,7 @@ export class SchoolTimetableService {
     const row = rows[0];
     const formatted = {
       id: row.id,
+      instituteId: row.instituteId,
       dayOfWeek: REV_DAY_MAP[row.dayOfWeekInt] || 'MONDAY',
       startTime: row.startTime ? row.startTime.substring(0, 5) : '09:00',
       endTime: row.endTime ? row.endTime.substring(0, 5) : '10:00',
@@ -517,12 +546,17 @@ export class SchoolTimetableService {
   }
 
   async updateTimetable(id: string, body: any) {
-    const dayOfWeekInt = body.dayOfWeek ? (DAY_MAP[body.dayOfWeek.toUpperCase()] || 1) : undefined;
-
     // Validate assignment
     const existing = await this.findOneTimetable(id);
     const slot = existing.data;
     const type = body.type || slot.type;
+
+    // A PATCH that omits dayOfWeek (e.g. changing only the room/time) must
+    // still conflict-check against the slot's actual existing day, not
+    // silently fall back to Monday.
+    const dayOfWeekInt = body.dayOfWeek
+      ? (DAY_MAP[body.dayOfWeek.toUpperCase()] || 1)
+      : (DAY_MAP[slot.dayOfWeek?.toUpperCase()] || 1);
 
     if (type !== 'break') {
       if (body.sectionId || body.subjectId || body.teacherId) {
@@ -537,7 +571,7 @@ export class SchoolTimetableService {
       ...body,
       dayOfWeekInt,
     };
-    await this.checkConflicts(conflictCheckBody, id);
+    await this.checkConflicts(slot.instituteId, conflictCheckBody, id);
 
       await this.ds.query(
       `UPDATE timetables SET 
@@ -645,7 +679,13 @@ export class SchoolTimetableService {
       LEFT JOIN subjects sub ON s.subject_id::text=sub.id::text
       LEFT JOIN users u ON s.teacher_id::text=u.id::text
       ${whereClause}
-      ORDER BY s.day_of_week, s.start_time
+      ORDER BY
+        CASE UPPER(s.day_of_week)
+          WHEN 'MONDAY' THEN 1 WHEN 'TUESDAY' THEN 2 WHEN 'WEDNESDAY' THEN 3
+          WHEN 'THURSDAY' THEN 4 WHEN 'FRIDAY' THEN 5 WHEN 'SATURDAY' THEN 6
+          WHEN 'SUNDAY' THEN 7 ELSE 8
+        END,
+        s.start_time
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
     const dataParams = [...params, limit, offset];
@@ -764,8 +804,8 @@ export class SchoolTimetableService {
           LEFT JOIN sections sec ON t.section_id = sec.id
           LEFT JOIN classes cls ON sec.class_id = cls.id
           LEFT JOIN subjects sub ON t.subject_id = sub.id
-          WHERE t.day_of_week = $1 AND t.id != $2 AND t.section_id != $3`,
-          [dayOfWeekInt, slotId, sectionId]
+          WHERE t.institute_id::text = $1::text AND t.day_of_week = $2 AND t.id != $3 AND t.section_id != $4`,
+          [instituteId, dayOfWeekInt, slotId, sectionId]
         );
 
         for (const dbSlot of existingSlots) {
@@ -785,6 +825,31 @@ export class SchoolTimetableService {
             if (slot.room && dbSlot.room && slot.room.trim() !== '' && dbSlot.room.trim().toLowerCase() === slot.room.trim().toLowerCase()) {
               conflicts.push(
                 `${slot.dayOfWeek} Period ${periodNumber}: Room ${slot.room} is already booked for ${dbSlot.class_name} - ${dbSlot.section_name} (${dbSubjectName}) at this time.`
+              );
+            }
+          }
+        }
+
+        // Same gap as checkConflicts(): a break slot carries no teacherId, so it can
+        // never trip the teacher-conflict check above. Explicitly block assigning this
+        // teacher to a class while they have an overlapping break in another section.
+        if (!isBreak) {
+          const breakRows = await queryRunner.query(
+            `SELECT t.start_time, t.end_time, sec.name AS section_name, cls.name AS class_name
+             FROM timetables t
+             JOIN teacher_academic_assignments taa ON taa.section_id = t.section_id AND taa.teacher_id = $1
+             LEFT JOIN sections sec ON t.section_id = sec.id
+             LEFT JOIN classes cls ON sec.class_id = cls.id
+             WHERE t.institute_id::text = $2::text AND t.day_of_week = $3 AND t.type = 'break' AND t.id != $4`,
+            [slot.teacherId, instituteId, dayOfWeekInt, slotId],
+          );
+          for (const b of breakRows) {
+            const bStart = b.start_time ? String(b.start_time).substring(0, 5) : '00:00';
+            const bEnd = b.end_time ? String(b.end_time).substring(0, 5) : '00:00';
+            const isOverlap = startTime && endTime && bStart && bEnd && (startTime < bEnd && endTime > bStart);
+            if (isOverlap) {
+              conflicts.push(
+                `${slot.dayOfWeek} Period ${periodNumber}: Teacher is on break for ${b.class_name || 'Class'} - ${b.section_name || ''} at this time.`
               );
             }
           }

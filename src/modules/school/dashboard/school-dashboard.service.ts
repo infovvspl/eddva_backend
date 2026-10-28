@@ -312,11 +312,18 @@ export class SchoolDashboardService {
           ) s
         `, [instituteId, attDate], [{ present: 0 }]),
         this.safeQuery(`
-          SELECT COUNT(DISTINCT a.user_id)::int AS present
-          FROM attendances a
-          JOIN users u ON a.user_id = u.id
-          WHERE a.institute_id = $1 AND a.date = $2::date AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'
-            AND (LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')
+          SELECT COUNT(DISTINCT uid)::int AS present FROM (
+            SELECT a.user_id::text AS uid
+            FROM attendances a
+            JOIN users u ON a.user_id = u.id
+            WHERE a.institute_id = $1 AND a.date = $2::date AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'
+              AND (LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%')
+            UNION
+            SELECT ta.teacher_user_id::text AS uid
+            FROM teacher_attendance ta
+            WHERE ta.institute_id = $1 AND ta.date::date = $2::date
+              AND (LOWER(ta.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ta.status) LIKE 'half%')
+          ) t
         `, [instituteId, attDate], [{ present: 0 }]),
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND status = 'LIVE'`, [instituteId], [{ c: 0 }]),
         this.safeQuery(`SELECT COUNT(*)::int AS c FROM school_live_lectures WHERE institute_id = $1 AND DATE(scheduled_for) = DATE($2)`, [instituteId, todayStr], [{ c: 0 }]),
@@ -415,18 +422,33 @@ export class SchoolDashboardService {
       // Same present/absent breakdown as above, but for teachers, so the chart can show
       // both roles side by side instead of leaving it ambiguous which one "Attendance" means.
       const teacherHistoryRows = await this.safeQuery(`
-        SELECT a.date::text AS date,
-               COUNT(DISTINCT a.user_id) FILTER (
-                 WHERE LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%'
-               )::int AS present_count,
-               COUNT(DISTINCT a.user_id) FILTER (WHERE LOWER(a.status) = 'absent')::int AS absent_count
-        FROM attendances a
-        JOIN users u ON u.id = a.user_id
-        WHERE a.institute_id = $1
-          AND a.date >= $2::date AND a.date <= $3::date
-          AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'
-        GROUP BY a.date
-        ORDER BY a.date ASC
+        SELECT d::text AS date,
+               COUNT(DISTINCT uid) FILTER (WHERE kind = 'present')::int AS present_count,
+               COUNT(DISTINCT uid) FILTER (WHERE kind = 'absent')::int AS absent_count
+        FROM (
+          SELECT a.date::date AS d, a.user_id::text AS uid,
+                 CASE
+                   WHEN LOWER(a.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(a.status) LIKE 'half%' THEN 'present'
+                   WHEN LOWER(a.status) = 'absent' THEN 'absent'
+                 END AS kind
+          FROM attendances a
+          JOIN users u ON u.id = a.user_id
+          WHERE a.institute_id = $1
+            AND a.date >= $2::date AND a.date <= $3::date
+            AND UPPER(REPLACE(u.role, ' ', '_')) LIKE '%TEACHER%'
+          UNION
+          SELECT ta.date::date AS d, ta.teacher_user_id::text AS uid,
+                 CASE
+                   WHEN LOWER(ta.status) IN ('present', 'late', 'half_day', 'half-day', 'halfday') OR LOWER(ta.status) LIKE 'half%' THEN 'present'
+                   WHEN LOWER(ta.status) = 'absent' THEN 'absent'
+                 END AS kind
+          FROM teacher_attendance ta
+          WHERE ta.institute_id = $1
+            AND ta.date::date >= $2::date AND ta.date::date <= $3::date
+        ) x
+        WHERE kind IS NOT NULL
+        GROUP BY d
+        ORDER BY d ASC
       `, [instituteId, mondayStr, sundayStr], []);
 
       const attendanceHistory = [];
@@ -1119,6 +1141,260 @@ export class SchoolDashboardService {
       users
     };
   }
+
+  /** Days-until-next-birthday expression for a dob column, aliased as `days_left`. Years with no such date (29 Feb) fall back to 1 Mar. */
+  private daysLeftExpr(dobCol: string): string {
+    return `(
+      (
+        make_date(
+          EXTRACT(YEAR FROM CURRENT_DATE)::int
+            + CASE WHEN make_date(EXTRACT(YEAR FROM CURRENT_DATE)::int, EXTRACT(MONTH FROM ${dobCol})::int, 1)
+                        + (EXTRACT(DAY FROM ${dobCol})::int - 1) < CURRENT_DATE
+                   THEN 1 ELSE 0 END,
+          EXTRACT(MONTH FROM ${dobCol})::int, 1
+        ) + (EXTRACT(DAY FROM ${dobCol})::int - 1) * INTERVAL '1 day'
+      )::date - CURRENT_DATE
+    )`;
+  }
+
+  /**
+   * Upcoming birthdays within `days` (default 7), scoped to what the caller
+   * should see: admins get the whole institute; teachers get their own
+   * students plus all staff; students get their classmates plus the
+   * teachers assigned to their section plus admins.
+   */
+  async birthdays(user: any, days = 7) {
+    if (!user?.instituteId) return [];
+    const instituteId = user.instituteId;
+    const windowDays = Number.isFinite(days) && days > 0 ? Math.min(days, 90) : 7;
+
+    const studentsSql = (sectionFilter = '') => `
+      SELECT u.id AS user_id, u.name, u.profile_image AS avatar, 'STUDENT' AS role,
+             to_char(s.dob, 'YYYY-MM-DD') AS dob, ${this.daysLeftExpr('s.dob')} AS days_left,
+             c.name AS class_name, sec.name AS section_name
+      FROM students s JOIN users u ON u.id = s.user_id
+      LEFT JOIN sections sec ON sec.id = s.section_id
+      LEFT JOIN classes c ON c.id = sec.class_id
+      WHERE s.institute_id = $1 AND s.status = 'ACTIVE' AND s.dob IS NOT NULL ${sectionFilter}
+    `;
+    const teachersSql = `
+      SELECT u.id AS user_id, u.name, u.profile_image AS avatar, 'TEACHER' AS role,
+             to_char(t.dob, 'YYYY-MM-DD') AS dob, ${this.daysLeftExpr('t.dob')} AS days_left,
+             NULL::text AS class_name, NULL::text AS section_name
+      FROM teachers t JOIN users u ON u.id = t.user_id
+      WHERE t.institute_id = $1 AND t.dob IS NOT NULL
+    `;
+    const adminsSql = `
+      SELECT u.id AS user_id, u.name, u.profile_image AS avatar, 'ADMIN' AS role,
+             to_char(u.dob, 'YYYY-MM-DD') AS dob, ${this.daysLeftExpr('u.dob')} AS days_left,
+             NULL::text AS class_name, NULL::text AS section_name
+      FROM users u
+      WHERE u.institute_id = $1 AND u.role ILIKE '%ADMIN%' AND u.dob IS NOT NULL
+    `;
+
+    let unionSql: string;
+    let params: any[];
+
+    if (hasSchoolRole(user.role, 'INSTITUTE_ADMIN') || hasSchoolRole(user.role, 'ADMIN') || hasSchoolRole(user.role, 'SUPER_ADMIN')) {
+      unionSql = `${studentsSql()} UNION ALL ${teachersSql} UNION ALL ${adminsSql}`;
+      params = [instituteId];
+    } else if (hasSchoolRole(user.role, 'TEACHER')) {
+      const tRows = await this.safeQuery(`SELECT id FROM teachers WHERE user_id = $1`, [user.id], []);
+      const teacherId = tRows[0]?.id;
+      const ownStudentsSql = teacherId
+        ? studentsSql(`AND s.section_id::text IN (SELECT section_id::text FROM teacher_academic_assignments WHERE teacher_id = $2)`)
+        : 'SELECT NULL AS user_id, NULL AS name, NULL AS avatar, NULL AS role, NULL::text AS dob, NULL::int AS days_left, NULL::text AS class_name, NULL::text AS section_name WHERE false';
+      unionSql = `${ownStudentsSql} UNION ALL ${teachersSql} UNION ALL ${adminsSql}`;
+      params = teacherId ? [instituteId, teacherId] : [instituteId];
+    } else if (hasSchoolRole(user.role, 'STUDENT')) {
+      const sRows = await this.safeQuery(`SELECT section_id FROM students WHERE user_id = $1`, [user.id], []);
+      const sectionId = sRows[0]?.section_id;
+      const classmatesSql = sectionId
+        ? studentsSql(`AND s.section_id::text = $2::text`)
+        : studentsSql('AND false');
+      const sectionTeachersSql = sectionId
+        ? `
+          SELECT u.id AS user_id, u.name, u.profile_image AS avatar, 'TEACHER' AS role,
+                 to_char(t.dob, 'YYYY-MM-DD') AS dob, ${this.daysLeftExpr('t.dob')} AS days_left,
+                 NULL::text AS class_name, NULL::text AS section_name
+          FROM teachers t JOIN users u ON u.id = t.user_id
+          WHERE t.institute_id = $1 AND t.dob IS NOT NULL
+            AND t.id IN (SELECT teacher_id FROM teacher_academic_assignments WHERE section_id::text = $2::text)
+        `
+        : `SELECT NULL AS user_id, NULL AS name, NULL AS avatar, NULL AS role, NULL::text AS dob, NULL::int AS days_left, NULL::text AS class_name, NULL::text AS section_name WHERE false`;
+      unionSql = `${classmatesSql} UNION ALL ${sectionTeachersSql} UNION ALL ${adminsSql}`;
+      params = sectionId ? [instituteId, sectionId] : [instituteId];
+    } else {
+      return [];
+    }
+
+    const rows = await this.safeQuery(`
+      SELECT * FROM (${unionSql}) x
+      WHERE days_left BETWEEN 0 AND $${params.length + 1}
+      ORDER BY days_left ASC, name ASC
+      LIMIT 50
+    `, [...params, windowDays], []);
+
+    return rows.map((r: any) => ({
+      userId: r.user_id,
+      name: r.name,
+      avatar: r.avatar || null,
+      role: r.role,
+      dob: r.dob,
+      daysLeft: Number(r.days_left),
+      isToday: Number(r.days_left) === 0,
+      className: r.class_name || null,
+      sectionName: r.section_name || null,
+    }));
+  }
+
+  /**
+   * Students in the teacher's own sections who are "habitual absentees":
+   * marked absent on at least `minAbsences` sessions in the last `days`
+   * (default 3 in 30), or currently on a trailing streak of `minStreak`+
+   * consecutive absences (default 3) — catches both "often misses class"
+   * and "has been gone every day this week", which a flat attendance-%
+   * threshold alone would miss (a sparse history can keep the % high).
+   */
+  async teacherHabitualAbsentees(user: any, days = 30, minAbsences = 3, minStreak = 3) {
+    const tRows = await this.safeQuery(`SELECT id FROM teachers WHERE user_id = $1`, [user.id], []);
+    const teacherId = tRows[0]?.id;
+    if (!teacherId) return [];
+
+    const sinceStr = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+
+    const records = await this.safeQuery(`
+      SELECT ar.student_id AS user_id, asess.date, ar.status
+      FROM attendance_sessions asess
+      JOIN attendance_records ar ON ar.session_id = asess.id
+      WHERE asess.section_id::text IN (
+        SELECT section_id::text FROM teacher_academic_assignments WHERE teacher_id = $1
+      )
+      AND asess.date >= $2
+      ORDER BY ar.student_id, asess.date DESC
+    `, [teacherId, sinceStr], []);
+
+    const byStudent = new Map<string, { date: string; status: string }[]>();
+    for (const r of records) {
+      const list = byStudent.get(r.user_id) || [];
+      list.push({ date: r.date, status: String(r.status || '').toLowerCase() });
+      byStudent.set(r.user_id, list);
+    }
+
+    const flagged: { userId: string; absences: number; total: number; streak: number }[] = [];
+    for (const [userId, sessions] of byStudent.entries()) {
+      // sessions are already DESC by date (most recent first) from the query above.
+      const absences = sessions.filter((s) => s.status === 'absent').length;
+      let streak = 0;
+      for (const s of sessions) {
+        if (s.status !== 'absent') break;
+        streak += 1;
+      }
+      if (absences >= minAbsences || streak >= minStreak) {
+        flagged.push({ userId, absences, total: sessions.length, streak });
+      }
+    }
+    if (!flagged.length) return [];
+
+    const studentRows = await this.safeQuery(`
+      SELECT u.id AS user_id, u.name, u.profile_image AS avatar, s.roll_no,
+             c.name AS class_name, sec.name AS section_name
+      FROM students s
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN sections sec ON sec.id = s.section_id
+      LEFT JOIN classes c ON c.id = sec.class_id
+      WHERE u.id = ANY($1::uuid[])
+    `, [flagged.map((f) => f.userId)], []);
+    const infoByUser = new Map(studentRows.map((r: any) => [r.user_id, r]));
+
+    return flagged
+      .map((f) => {
+        const info: any = infoByUser.get(f.userId) || {};
+        const pct = f.total > 0 ? Math.round(((f.total - f.absences) / f.total) * 100) : 0;
+        return {
+          userId: f.userId,
+          name: info.name || 'Unknown',
+          avatar: info.avatar || null,
+          rollNo: info.roll_no || null,
+          className: info.class_name || null,
+          sectionName: info.section_name || null,
+          absences: f.absences,
+          totalSessions: f.total,
+          attendancePercentage: pct,
+          currentStreak: f.streak,
+        };
+      })
+      .sort((a, b) => b.currentStreak - a.currentStreak || b.absences - a.absences);
+  }
+
+  /**
+   * Institute-wide fee activity for the admin dashboard: deposits made in the
+   * last `days` (default 7) — the "fee deposited" notice — plus fees coming
+   * due in the next `days`, so admins see both sides without opening the
+   * full Fee Overview page.
+   */
+  async feeNotices(user: any, days = 7) {
+    if (!user?.instituteId) return { recentDeposits: [], upcomingDues: [] };
+    const instituteId = user.instituteId;
+    const windowDays = Number.isFinite(days) && days > 0 ? Math.min(days, 90) : 7;
+
+    const [deposits, dues] = await Promise.all([
+      this.safeQuery(`
+        SELECT f.id, f.title, f.amount, f.amount_paid, to_char(f.paid_date, 'YYYY-MM-DD') AS paid_date,
+               u.id AS user_id, u.name, u.profile_image AS avatar, c.name AS class_name, sec.name AS section_name
+        FROM fees f
+        JOIN students s ON s.id = f.student_id
+        JOIN users u ON u.id = s.user_id
+        LEFT JOIN sections sec ON sec.id = s.section_id
+        LEFT JOIN classes c ON c.id = sec.class_id
+        WHERE f.institute_id = $1 AND f.status IN ('paid', 'partial') AND f.paid_date IS NOT NULL
+          AND f.paid_date >= CURRENT_DATE - $2::int
+        ORDER BY f.paid_date DESC, f.updated_at DESC
+        LIMIT 20
+      `, [instituteId, windowDays], []),
+      this.safeQuery(`
+        SELECT f.id, f.title, f.amount, f.amount_paid, to_char(f.due_date, 'YYYY-MM-DD') AS due_date,
+               (f.due_date::date - CURRENT_DATE) AS days_left,
+               u.id AS user_id, u.name, u.profile_image AS avatar, c.name AS class_name, sec.name AS section_name
+        FROM fees f
+        JOIN students s ON s.id = f.student_id
+        JOIN users u ON u.id = s.user_id
+        LEFT JOIN sections sec ON sec.id = s.section_id
+        LEFT JOIN classes c ON c.id = sec.class_id
+        WHERE f.institute_id = $1 AND f.status NOT IN ('paid', 'exempt') AND f.due_date IS NOT NULL
+          AND f.due_date::date BETWEEN CURRENT_DATE AND CURRENT_DATE + $2::int
+        ORDER BY f.due_date ASC
+        LIMIT 20
+      `, [instituteId, windowDays], []),
+    ]);
+
+    return {
+      recentDeposits: deposits.map((r: any) => ({
+        userId: r.user_id,
+        name: r.name,
+        avatar: r.avatar || null,
+        className: r.class_name || null,
+        sectionName: r.section_name || null,
+        title: r.title,
+        amount: Number(r.amount) || 0,
+        amountPaid: Number(r.amount_paid) || 0,
+        paidDate: r.paid_date,
+      })),
+      upcomingDues: dues.map((r: any) => ({
+        userId: r.user_id,
+        name: r.name,
+        avatar: r.avatar || null,
+        className: r.class_name || null,
+        sectionName: r.section_name || null,
+        title: r.title,
+        amount: Number(r.amount) || 0,
+        amountPaid: Number(r.amount_paid) || 0,
+        dueDate: r.due_date,
+        daysLeft: Number(r.days_left),
+      })),
+    };
+  }
+
   /**
    * True total across every attention-flag category, independent of the
    * dashboard card's capped preview (3 attendance + 2 teacher attendance + 2

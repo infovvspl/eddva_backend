@@ -116,7 +116,10 @@ export class SchoolNoticeService {
     );
     const r = rows[0];
 
-    // Dispatch in-app notifications to all targeted users in one INSERT...SELECT
+    // Dispatch in-app notifications to all targeted users in one INSERT...SELECT.
+    // A notice can target any mix of roles, and each role has its own
+    // announcements page — route each recipient to their own, not always the
+    // student one.
     void this.notificationService
       .bulkCreateForInstitute(
         instituteId,
@@ -129,6 +132,12 @@ export class SchoolNoticeService {
         body.targetRoles?.length
           ? (Array.isArray(body.targetRoles) ? body.targetRoles : [body.targetRoles])
           : undefined,
+        {
+          admin: '/school/admin/notices',
+          teacher: '/school/teacher/announcements',
+          parent: '/school/parent/announcements',
+          student: '/school/student/announcements',
+        },
       )
       .catch((notifErr: Error) => console.error('Failed to dispatch notifications for notice:', notifErr));
 

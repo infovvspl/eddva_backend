@@ -346,24 +346,25 @@ export class GamificationService implements OnModuleInit {
         [userId, studentId || userId],
       ).catch(() => []);
 
-      // Query users table for accumulated XP and streak counters
-      const userRows = await this.ds.query(
-        `SELECT xp_total, current_streak, longest_streak FROM users WHERE id::text = $1::text LIMIT 1`,
-        [userId],
-      ).catch(() => []);
-      const userXp = Number(userRows[0]?.xp_total || 0);
-      const userCurrentStreak = Number(userRows[0]?.current_streak || 0);
-      const userLongestStreak = Number(userRows[0]?.longest_streak || 0);
+      // `users` has no xp/streak columns in the school DB (those exist only in
+      // the separate coaching-app schema) — every call here logged a "column
+      // does not exist" error and always resolved to 0 anyway via the .catch.
+      // `gamification_profiles` (queried above into `rows`) is the real source
+      // for xp/coins/streak; `students.xp_total` is the one column that does
+      // exist here and is still read below.
+      const userXp = 0;
+      const userCurrentStreak = 0;
+      const userLongestStreak = 0;
 
-      // Query students table for student-level streak, XP, and coins
+      // Query students table for student-level XP (the only one of these columns that exists here).
       const studentRows = await this.ds.query(
-        `SELECT xp_total, eddva_coins, current_streak, longest_streak FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
+        `SELECT xp_total FROM students WHERE user_id::text = $1::text OR id::text = $2::text LIMIT 1`,
         [userId, studentId || userId],
       ).catch(() => []);
       const studentXp = Number(studentRows[0]?.xp_total || 0);
-      const studentCoins = Number(studentRows[0]?.eddva_coins || 0);
-      const studentCurrentStreak = Number(studentRows[0]?.current_streak || 0);
-      const studentLongestStreak = Number(studentRows[0]?.longest_streak || 0);
+      const studentCoins = 0;
+      const studentCurrentStreak = 0;
+      const studentLongestStreak = 0;
 
       // Query school_game_scores for all accumulated game scores
       const scoreSumRows = await this.ds.query(
