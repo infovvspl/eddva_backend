@@ -65,7 +65,7 @@ describe('InternalPlatformInstitutesController', () => {
 
   it('keeps only known profile keys with string or number values, mapped to their columns', () => {
     expect(profileColumns({ board: 'CBSE', establishedYear: 1999, city: '  Pune ', phone: '', hack: 'x', evil: { a: 1 }, district: null }, 'data:image/png;base64,AA')).toEqual([
-      ['board', 'CBSE'], ['established_year', 1999], ['city', 'Pune'], ['logo', 'data:image/png;base64,AA'],
+      ['board', 'CBSE'], ['established_year', 1999], ['city', 'Pune'], ['district', null], ['logo', 'data:image/png;base64,AA'],
     ]);
     expect(profileColumns(undefined, undefined)).toEqual([]);
   });

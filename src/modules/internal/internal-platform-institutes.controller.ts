@@ -46,12 +46,16 @@ export const PROFILE_COLUMNS = {
   totalTeachers: 'total_teachers',
 } as const;
 
-/** Only known keys with string or number values; anything else is dropped. Returns [column, value] pairs. */
-export function profileColumns(profile?: Record<string, unknown>, logo?: string): Array<[string, string | number]> {
-  const out: Array<[string, string | number]> = [];
+/**
+ * Only known keys. A string or number sets the column; an explicit `null` clears it; anything else (and any key that is
+ * absent) leaves the column alone. Returns [column, value] pairs.
+ */
+export function profileColumns(profile?: Record<string, unknown>, logo?: string): Array<[string, string | number | null]> {
+  const out: Array<[string, string | number | null]> = [];
   for (const [key, column] of Object.entries(PROFILE_COLUMNS)) {
     const v = profile?.[key];
-    if ((typeof v === 'string' && v.trim() !== '') || (typeof v === 'number' && Number.isFinite(v))) out.push([column, typeof v === 'string' ? v.trim() : v]);
+    if (v === null) out.push([column, null]);
+    else if ((typeof v === 'string' && v.trim() !== '') || (typeof v === 'number' && Number.isFinite(v))) out.push([column, typeof v === 'string' ? v.trim() : v]);
   }
   if (logo) out.push(['logo', logo]);
   return out;
@@ -111,18 +115,20 @@ export class InternalPlatformInstitutesController {
 
         if (existing.length) {
           const extra = profileColumns(dto.profile, dto.logo);
-          const extraSet = extra.map(([col], i) => `, ${col} = COALESCE($${12 + i}, ${col})`).join('');
+          const set = extra.filter(([, v]) => v !== null);
+          const extraSet = extra.map(([col, v]) => (v === null ? `, ${col} = NULL` : `, ${col} = COALESCE($${12 + set.findIndex(([c]) => c === col)}, ${col})`)).join('');
           await m.query(
             `UPDATE institutes SET name = $2, status = $3, is_suspended = $4, plan = COALESCE($5, plan),
                     max_students = COALESCE($6, max_students), max_teachers = COALESCE($7, max_teachers),
                     erp_enabled = $8, lms_enabled = $9, ai_enabled = $10, ai_features = $11::jsonb, updated_at = now()${extraSet}
               WHERE id::text = $1`,
             [id, dto.name, status, dto.status === 'suspended', dto.plan ?? null, dto.maxStudents ?? null,
-             dto.maxTeachers ?? null, dto.erp, dto.lms, dto.ai, JSON.stringify(aiFeatures), ...extra.map(([, v]) => v)],
+             dto.maxTeachers ?? null, dto.erp, dto.lms, dto.ai, JSON.stringify(aiFeatures), ...set.map(([, v]) => v)],
           );
         } else {
           if (!dto.admin) throw new BadRequestException('admin is required to create an institute');
-          const extra = profileColumns(dto.profile, dto.logo);
+          // A new institute has nothing to clear, so cleared (null) fields are simply not written.
+          const extra = profileColumns(dto.profile, dto.logo).filter(([, v]) => v !== null) as Array<[string, string | number]>;
           await m.query(
             `INSERT INTO institutes (id, name, email, tenant_domain, subdomain, status, is_suspended, plan,
                     max_students, max_teachers, erp_enabled, lms_enabled, ai_enabled, ai_features${extra.map(([c]) => `, ${c}`).join('')})
