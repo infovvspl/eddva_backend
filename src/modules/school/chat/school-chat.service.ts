@@ -84,6 +84,7 @@ export class SchoolChatService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT false,
       ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false,
       ADD COLUMN IF NOT EXISTS is_delivered BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW(),
       ADD COLUMN IF NOT EXISTS attachment_url VARCHAR,
       ADD COLUMN IF NOT EXISTS attachment_name VARCHAR;
     `)
