@@ -5,6 +5,7 @@ import { SchoolTeacherModule } from '../school/teacher/school-teacher.module';
 import { SchoolInstituteModule } from '../school/institute/school-institute.module';
 import { InternalPlatformSupportController } from './internal-platform-support.controller';
 import { InternalPlatformRevenueController } from './internal-platform-revenue.controller';
+import { InternalPlatformPeopleController } from './internal-platform-people.controller';
 import { InternalPlatformStorageController } from './internal-platform-storage.controller';
 import { InternalAiUsageService } from './internal-ai-usage.service';
 import { InternalAiUsageController } from './internal-ai-usage.controller';
@@ -20,7 +21,7 @@ import { InternalPlatformInstitutesController } from './internal-platform-instit
 
 @Module({
   imports: [AiUsageModule, SchoolStudentModule, SchoolTeacherModule, SchoolInstituteModule],
-  controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController, InternalPlatformInstitutesController, InternalPlatformStorageController, InternalPlatformSupportController, InternalPlatformRevenueController],
+  controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController, InternalPlatformInstitutesController, InternalPlatformStorageController, InternalPlatformSupportController, InternalPlatformRevenueController, InternalPlatformPeopleController],
   providers: [InternalAiUsageService, AiFeatureFlagService, InternalErpStudentService, InternalErpTeacherService, InternalErpModulesService],
   exports: [AiFeatureFlagService, InternalAiUsageService],
 })
