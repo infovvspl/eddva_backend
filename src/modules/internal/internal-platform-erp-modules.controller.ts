@@ -1,11 +1,14 @@
 import { Body, ConflictException, Controller, Get, Headers, HttpCode, NotFoundException, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, MaxLength, Max, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Matches, MaxLength, Max, Min, MinLength } from 'class-validator';
 import { DataSource } from 'typeorm';
 import { assertInternalKey } from './internal-key';
 
-/** The colours the LMS super admin's module form offers. */
+/** The colours the LMS super admin's module form offers. The seeded modules store a hex colour instead, so both are accepted. */
 export const ERP_MODULE_COLORS = ['indigo', 'blue', 'sky', 'emerald', 'teal', 'rose', 'amber', 'purple', 'fuchsia', 'slate'] as const;
+const COLOR = /^(#[0-9a-fA-F]{6}|indigo|blue|sky|emerald|teal|rose|amber|purple|fuchsia|slate)$/;
+/** The form stores PascalCase names (ShoppingCart); the seeded modules use kebab-case (shopping-cart). */
+const ICON = /^[A-Za-z0-9-]{2,40}$/;
 
 export class CreateErpModuleDto {
   /** The slug schools are assigned by (e.g. "inventory"). It cannot be changed afterwards. */
@@ -14,8 +17,8 @@ export class CreateErpModuleDto {
   @IsOptional() @IsString() @MaxLength(300) description?: string;
   /** The ERP route this module opens, e.g. "/inventory". Empty means "coming soon": the ERP will not show it. */
   @IsOptional() @Matches(/^\/[A-Za-z0-9\-_/]*$/, { message: 'path must start with / and contain only letters, digits, - _ /' }) @MaxLength(120) path?: string;
-  @Matches(/^[A-Za-z0-9]{2,40}$/, { message: 'icon must be an icon name' }) icon: string;
-  @IsIn([...ERP_MODULE_COLORS]) color: (typeof ERP_MODULE_COLORS)[number];
+  @Matches(ICON, { message: 'icon must be an icon name' }) icon: string;
+  @Matches(COLOR, { message: 'color must be a theme colour name or a #rrggbb value' }) color: string;
   @IsOptional() @IsInt() @Min(0) @Max(1000) sortOrder?: number;
 }
 
@@ -23,8 +26,8 @@ export class UpdateErpModuleDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(80) name?: string;
   @IsOptional() @IsString() @MaxLength(300) description?: string;
   @IsOptional() @Matches(/^(\/[A-Za-z0-9\-_/]*)?$/, { message: 'path must start with / and contain only letters, digits, - _ /' }) @MaxLength(120) path?: string;
-  @IsOptional() @Matches(/^[A-Za-z0-9]{2,40}$/, { message: 'icon must be an icon name' }) icon?: string;
-  @IsOptional() @IsIn([...ERP_MODULE_COLORS]) color?: (typeof ERP_MODULE_COLORS)[number];
+  @IsOptional() @Matches(ICON, { message: 'icon must be an icon name' }) icon?: string;
+  @IsOptional() @Matches(COLOR, { message: 'color must be a theme colour name or a #rrggbb value' }) color?: string;
   @IsOptional() @IsInt() @Min(0) @Max(1000) sortOrder?: number;
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
