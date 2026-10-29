@@ -139,6 +139,11 @@ export class SchoolAssessmentService {
     // backward compatibility with the single-chapter LEFT JOIN in list().
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS chapter_ids JSONB NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS topic_id UUID NULL`);
+    // Multi-topic tests (several topics within one chapter) store the full
+    // selected set here. The scalar topic_id above stays populated with the
+    // first topic for backward compatibility with the single-topic LEFT JOIN
+    // in list().
+    await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS topic_ids JSONB NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS answer_key TEXT NULL`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS language VARCHAR NULL DEFAULT 'en'`);
     await this.ds.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS questions_json JSONB NULL`);
@@ -1748,6 +1753,41 @@ export class SchoolAssessmentService {
   }
 
   /**
+   * Selected topics for a topic test, as a de-duplicated list of ids. Accepts
+   * a `topicIds` array or CSV string, and falls back to the single `topicId`
+   * so single-topic tests (and anything created before multi-topic support)
+   * keep working unchanged.
+   */
+  private normalizeTopicIds(body: any): string[] {
+    const raw = body?.topicIds ?? body?.topic_ids;
+    let ids: string[] = [];
+    if (Array.isArray(raw)) ids = raw.map((x) => String(x).trim()).filter(Boolean);
+    else if (typeof raw === 'string' && raw.trim()) ids = raw.split(',').map((x) => x.trim()).filter(Boolean);
+    if (!ids.length) {
+      const single = body?.topicId || body?.topic_id;
+      if (single) ids = [String(single).trim()];
+    }
+    return Array.from(new Set(ids));
+  }
+
+  /** Resolve topic ids to {id, name}, ordered by curriculum sort_order. */
+  private async resolveTopicList(topicIds: string[]): Promise<Array<{ id: string; name: string }>> {
+    if (!topicIds.length) return [];
+    try {
+      const rows = await this.ds.query(
+        `SELECT id, name FROM topics
+         WHERE id::text = ANY($1::text[])
+         ORDER BY COALESCE(sort_order,0) ASC, name ASC`,
+        [topicIds],
+      );
+      return rows.map((r: any) => ({ id: String(r.id), name: r.name }));
+    } catch (err) {
+      this.logger.warn(`Topic list resolution failed: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
    * The figures available to a paper, as a short catalogue the model can pick
    * from by reference.
    *
@@ -2107,13 +2147,22 @@ export class SchoolAssessmentService {
     // For a single-chapter test whose name the client didn't send, fill it in.
     const effChapterName = chapterName || (chapterList.length === 1 ? chapterList[0].name : '');
 
-    const scopeLine = topicName
-      ? `IMPORTANT SCOPE: Generate questions ONLY about the topic "${topicName}"${effChapterName ? ` (from chapter "${effChapterName}")` : ''}. Every question must relate to this topic.`
-      : multiChapter
-        ? `IMPORTANT SCOPE: Generate questions ONLY from these chapters of ${subjectName}: ${chapterList.map((c, i) => `${i + 1}) "${c.name}"`).join(', ')}. Distribute the questions across ALL of these chapters so every listed chapter is represented in the paper. Do NOT include content from any other chapter.`
-        : effChapterName
-          ? `IMPORTANT SCOPE: Generate questions ONLY from the chapter "${effChapterName}". Every question must relate to this chapter.`
-          : '';
+    // Resolve the selected topics (supports picking several topics within one
+    // chapter for a topic test).
+    const topicIds = this.normalizeTopicIds(body);
+    const topicList = await this.resolveTopicList(topicIds);
+    const multiTopic = topicList.length > 1;
+    const effTopicName = topicName || (topicList.length === 1 ? topicList[0].name : '');
+
+    const scopeLine = multiTopic
+      ? `IMPORTANT SCOPE: Generate questions ONLY about these topics${effChapterName ? ` from chapter "${effChapterName}"` : ''}: ${topicList.map((t, i) => `${i + 1}) "${t.name}"`).join(', ')}. Distribute the questions across ALL of these topics so every listed topic is represented in the paper. Do NOT include content from any other topic.`
+      : effTopicName
+        ? `IMPORTANT SCOPE: Generate questions ONLY about the topic "${effTopicName}"${effChapterName ? ` (from chapter "${effChapterName}")` : ''}. Every question must relate to this topic.`
+        : multiChapter
+          ? `IMPORTANT SCOPE: Generate questions ONLY from these chapters of ${subjectName}: ${chapterList.map((c, i) => `${i + 1}) "${c.name}"`).join(', ')}. Distribute the questions across ALL of these chapters so every listed chapter is represented in the paper. Do NOT include content from any other chapter.`
+          : effChapterName
+            ? `IMPORTANT SCOPE: Generate questions ONLY from the chapter "${effChapterName}". Every question must relate to this chapter.`
+            : '';
 
     const extraContext = [
       `LANGUAGE: Write the ENTIRE question paper in English. Every word — questions, instructions, options, section headings, and the answer key — must be in English only.`,
@@ -2178,17 +2227,21 @@ For MCQ, True/False and Fill in the Blanks, Answer is the exact correct option/w
     } else {
       let groundingChapterId: string | null =
         chapterList[0]?.id || body.chapterId || body.chapter_id || null;
-      if (!groundingChapterId && (body.topicId || body.topic_id)) {
+      const firstTopicId = topicIds[0] || body.topicId || body.topic_id;
+      if (!groundingChapterId && firstTopicId) {
         try {
           const rows = await this.ds.query(
             `SELECT chapter_id FROM topics WHERE id::text = $1::text LIMIT 1`,
-            [body.topicId || body.topic_id],
+            [firstTopicId],
           );
           groundingChapterId = rows[0]?.chapter_id ?? null;
         } catch { /* grounding is best-effort */ }
       }
+      // All selected topics share this one chapter — chapter-level grounding
+      // covers every topic in scope, so a single lookup suffices even when
+      // several topics are selected.
       ({ passages: sourcePassages } = await this.textbooks.getGroundingPassages(
-        instituteId, { chapterId: groundingChapterId, topicId: body.topicId || body.topic_id }, 'ebook',
+        instituteId, { chapterId: groundingChapterId, topicId: firstTopicId }, 'ebook',
       ));
       const singleName = effChapterName || chapterList[0]?.name || chapterName;
       if (singleName) (sourcePassages.length ? groundedChapters : ungroundedChapters).push(singleName);
@@ -2260,7 +2313,9 @@ For MCQ, True/False and Fill in the Blanks, Answer is the exact correct option/w
     try {
       const result = await this.aiBridge.generateTopicContent(
         {
-          topicName: topicName || `${subjectName} ${testType} assessment`,
+          topicName: multiTopic
+            ? `${topicList.length} topics`
+            : (effTopicName || `${subjectName} ${testType} assessment`),
           subjectName,
           chapterName: multiChapter
             ? `${chapterList.length} chapters`
@@ -2381,6 +2436,10 @@ For MCQ, True/False and Fill in the Blanks, Answer is the exact correct option/w
     // Selected chapters (multi-chapter tests). chapter_id keeps the first for
     // the single-chapter LEFT JOIN in list(); chapter_ids holds the full set.
     const chapterIds = this.normalizeChapterIds(body);
+    // Selected topics (multi-topic topic tests, all within one chapter).
+    // topic_id keeps the first for the single-topic LEFT JOIN in list();
+    // topic_ids holds the full set.
+    const topicIds = this.normalizeTopicIds(body);
     const rawContentText = body.contentText || body.content_text || body.instructions || null;
     const rawAnswerKey = body.answerKey || body.answer_key || null;
     const { contentText, answerKey: splitAnswerKey } = this.splitContentAndAnswerKey(rawContentText, rawAnswerKey);
@@ -2403,8 +2462,8 @@ For MCQ, True/False and Fill in the Blanks, Answer is the exact correct option/w
     const assessment = await this.ds.transaction(async (manager) => {
       const rows: any[] = await manager.query(
         `INSERT INTO assessments
-          (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, chapter_ids, topic_id, answer_key, language, questions_json)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17::jsonb) RETURNING *`,
+          (title, type, subject_id, class_id, total_marks, duration_minutes, scheduled_date, status, content_text, content_source, file_path, chapter_id, chapter_ids, topic_id, topic_ids, answer_key, language, questions_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15::jsonb,$16,$17,$18::jsonb) RETURNING *`,
         [
           title,
           body.assessmentType || body.type || 'exam',
@@ -2423,7 +2482,8 @@ For MCQ, True/False and Fill in the Blanks, Answer is the exact correct option/w
           filePath,
           chapterIds[0] || body.chapterId || body.chapter_id || null,
           chapterIds.length ? JSON.stringify(chapterIds) : null,
-          body.topicId || body.topic_id || null,
+          topicIds[0] || body.topicId || body.topic_id || null,
+          topicIds.length ? JSON.stringify(topicIds) : null,
           answerKey,
           body.language || 'en',
           questionsJson.length ? JSON.stringify(questionsJson) : null,
