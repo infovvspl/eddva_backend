@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEmail,
@@ -17,7 +18,14 @@ import {
 import { AnnouncementCategory, AnnouncementPriority } from './announcement.enums';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-import { AI_FEATURES, AiFeatureKey, TenantPlan, TenantStatus } from '../../../database/entities/tenant.entity';
+import {
+  AI_FEATURES,
+  AiFeatureKey,
+  COACHING_LANGUAGES,
+  CoachingLanguageKey,
+  TenantPlan,
+  TenantStatus,
+} from '../../../database/entities/tenant.entity';
 import { UserRole, UserStatus } from '../../../database/entities/user.entity';
 export class CreateTenantDto {
   @ApiProperty()
@@ -79,11 +87,25 @@ export class CreateTenantDto {
   @Transform(({ value }) => value === true || value === 'true')
   aiEnabled?: boolean;
 
+  // NOTE: not @IsEnum(AI_FEATURES) — the backend's own AI route guards
+  // (ai-bridge.controller.ts) enforce the new canonical keys, but the live
+  // frontend's UI-visibility checks (useHasAiFeature, ~12 pages) still read
+  // the older pre-migration key set from this same array. Enforcing the new
+  // enum here would reject every save from the current admin UI. Tracked as
+  // a known mismatch — needs a coordinated fix across both key sets, not a
+  // silent tightening here.
   @ApiPropertyOptional({ type: [String], enum: AI_FEATURES })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   aiFeatures?: AiFeatureKey[];
+
+  @ApiPropertyOptional({ type: [String], enum: COACHING_LANGUAGES, maxItems: 3 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @IsEnum(COACHING_LANGUAGES, { each: true })
+  enabledLanguages?: CoachingLanguageKey[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
@@ -198,11 +220,25 @@ export class UpdateTenantDto {
   @Transform(({ value }) => value === true || value === 'true')
   aiEnabled?: boolean;
 
+  // NOTE: not @IsEnum(AI_FEATURES) — the backend's own AI route guards
+  // (ai-bridge.controller.ts) enforce the new canonical keys, but the live
+  // frontend's UI-visibility checks (useHasAiFeature, ~12 pages) still read
+  // the older pre-migration key set from this same array. Enforcing the new
+  // enum here would reject every save from the current admin UI. Tracked as
+  // a known mismatch — needs a coordinated fix across both key sets, not a
+  // silent tightening here.
   @ApiPropertyOptional({ type: [String], enum: AI_FEATURES })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   aiFeatures?: AiFeatureKey[];
+
+  @ApiPropertyOptional({ type: [String], enum: COACHING_LANGUAGES, maxItems: 3 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @IsEnum(COACHING_LANGUAGES, { each: true })
+  enabledLanguages?: CoachingLanguageKey[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()

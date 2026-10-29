@@ -34,6 +34,13 @@ export const AI_FEATURES = [
 
 export type AiFeatureKey = typeof AI_FEATURES[number];
 
+// Content-facing languages a coaching institute can enable (lecture-note
+// translation, notifications). Capped at 3 enabled at once for now — see
+// enabledLanguages below.
+export const COACHING_LANGUAGES = ['en', 'hi', 'or'] as const;
+
+export type CoachingLanguageKey = typeof COACHING_LANGUAGES[number];
+
 @Entity('tenants')
 export class Tenant extends Base {
   @Column({ unique: true })
@@ -65,6 +72,9 @@ export class Tenant extends Base {
 
   @Column({ name: 'active_modules', type: 'jsonb', default: [] })
   activeModules: string[];
+
+  @Column({ name: 'enabled_languages', type: 'jsonb', default: () => `'["en","hi","or"]'` })
+  enabledLanguages: CoachingLanguageKey[];
 
   @Column({ name: 'logo_url', nullable: true })
   logoUrl: string;

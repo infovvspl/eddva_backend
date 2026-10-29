@@ -37,6 +37,7 @@ import {
 } from './dto/super-admin.dto';
 
 import { Audit } from '../audit-log/audit.decorator';
+import { COACHING_FEATURE_CATALOG } from '../../common/constants/coaching-feature-catalog.constant';
 
 @ApiTags('Super Admin')
 @ApiBearerAuth()
@@ -48,6 +49,12 @@ export class SuperAdminController {
     private readonly superAdminService: SuperAdminService,
     private readonly schoolComplaintService: SchoolComplaintService,
   ) {}
+
+  @Get('feature-catalog')
+  @ApiOperation({ summary: 'List every coaching-side per-institute toggle (AI, non-AI, language), categorized' })
+  getFeatureCatalog() {
+    return COACHING_FEATURE_CATALOG;
+  }
 
   @Post('tenants')
   @Audit({ module: 'Institute', action: 'Create', description: 'Created tenant {body.name}' })
