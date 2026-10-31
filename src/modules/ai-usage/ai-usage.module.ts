@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AiUsageService } from './ai-usage.service';
 import { AiUsageController } from './ai-usage.controller';
+import { AiFeatureFlagService } from '../internal/ai-feature-flag.service';
 
 /**
  * AI usage tracking + quota enforcement (per institute, per feature).
@@ -10,7 +11,7 @@ import { AiUsageController } from './ai-usage.controller';
  */
 @Module({
   controllers: [AiUsageController],
-  providers: [AiUsageService],
-  exports: [AiUsageService],
+  providers: [AiUsageService, AiFeatureFlagService],
+  exports: [AiUsageService, AiFeatureFlagService],
 })
 export class AiUsageModule {}

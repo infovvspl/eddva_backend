@@ -414,7 +414,7 @@ export class AiUsageService implements OnModuleInit {
   // ── Read / dashboard queries ───────────────────────────────────────────────
 
   /** Raw row-by-row event logs for deep auditing */
-  async getRawLogs(opts: { instituteId?: string; vertical?: string; feature?: string; from?: string; to?: string; limit?: number; offset?: number } = {}) {
+  async getRawLogs(opts: { instituteId?: string; vertical?: string; feature?: string; success?: boolean; from?: string; to?: string; limit?: number; offset?: number } = {}) {
     await this.ensureTables();
     const params: any[] = [];
     let sql = ` WHERE 1=1`;
@@ -423,7 +423,8 @@ export class AiUsageService implements OnModuleInit {
     if (opts.instituteId) sql += ` AND institute_id = $${params.push(opts.instituteId)}`;
     if (opts.vertical) sql += ` AND vertical = $${params.push(opts.vertical)}`;
     if (opts.feature) sql += ` AND feature = $${params.push(opts.feature)}`;
-    
+    if (opts.success !== undefined) sql += ` AND success = $${params.push(opts.success)}`;
+
     const limit = opts.limit ? Math.min(Number(opts.limit), 500) : 100;
     const offset = opts.offset ? Number(opts.offset) : 0;
     

@@ -71,6 +71,9 @@ interface SlideImageOutcome {
   attempts: number;
 }
 
+/** The kinds of AI study content that can be switched off one by one. */
+const CONTENT_TYPE_FEATURES = new Set(['dpp', 'mindmap', 'pyq', 'study_guide', 'key_concepts', 'formula_sheet', 'flashcard', 'revision_checklist', 'faq']);
+
 @Injectable()
 export class SchoolMaterialService implements OnModuleInit {
   private readonly logger = new Logger(SchoolMaterialService.name);
@@ -333,6 +336,11 @@ export class SchoolMaterialService implements OnModuleInit {
     const board = instRows[0]?.board || 'CBSE';
 
     const contentType = String(body.contentType || 'notes').trim().toLowerCase();
+    // Each kind of study content has its own switch on the AI usage page (content_dpp, content_mindmap, ...).
+    if (CONTENT_TYPE_FEATURES.has(contentType)) {
+      const kindEnabled = await this.featureFlagService.isFeatureEnabled(user.instituteId, 'school', `content_${contentType}`);
+      if (!kindEnabled) throw new ForbiddenException('This kind of content is currently disabled for your institute.');
+    }
     const isQuestionType = contentType === 'dpp' || contentType === 'pyq' || contentType === 'faq';
     const isPresentation = contentType === 'presentation' || contentType === 'ppt';
     const qCount = Number(body.questionCount) || 10;

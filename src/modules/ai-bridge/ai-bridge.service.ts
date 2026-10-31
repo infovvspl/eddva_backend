@@ -5,6 +5,7 @@ import { AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { randomUUID } from 'crypto';
 import { AiUsageService } from '../ai-usage/ai-usage.service';
+import { AiFeatureFlagService } from '../internal/ai-feature-flag.service';
 import { getAiRequestContext } from '../../common/context/ai-request-context';
 import { AiAdmissionService, AdmissionTicket } from '../../common/services/ai-admission.service';
 import { AdmissionPool, classifyPath, ADMISSION_EXEMPT_PATHS } from '../../common/services/ai-admission.constants';
@@ -121,6 +122,7 @@ export class AiBridgeService {
     private readonly http: HttpService,
     config: ConfigService,
     private readonly aiUsage: AiUsageService,
+    private readonly flags: AiFeatureFlagService,
     private readonly admission: AiAdmissionService,
   ) {
     this.baseUrl = config.get<string>('ai.baseUrl');
@@ -244,6 +246,24 @@ export class AiBridgeService {
             used: q.used,
             limit: q.limit,
           },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
+      // ── Super admin's per-feature switches and monthly limits (the AI usage page) ──
+      const flagType = v === 'school' ? 'school' : 'coaching';
+      if (!(await this.flags.isFeatureEnabled(tenantId, flagType, mapped.feature))) {
+        this.logger.warn(`AI feature switched off: institute=${tenantId} feature=${mapped.feature}`);
+        throw new HttpException(
+          { message: 'This AI feature is turned off for your institute. Contact your administrator to turn it on.', error: 'ai_feature_disabled', feature: mapped.feature },
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      const flagQuota = await this.flags.checkQuota(tenantId, flagType, mapped.feature);
+      if (!flagQuota.allowed) {
+        this.logger.warn(`AI feature limit reached: institute=${tenantId} feature=${mapped.feature} (${flagQuota.reason})`);
+        throw new HttpException(
+          { message: `This AI feature has stopped for this month: ${flagQuota.reason}. Contact your administrator to raise it.`, error: 'ai_quota_exceeded', feature: mapped.feature },
           HttpStatus.TOO_MANY_REQUESTS,
         );
       }

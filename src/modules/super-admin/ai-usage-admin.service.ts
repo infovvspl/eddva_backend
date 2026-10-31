@@ -96,6 +96,7 @@ export class AiUsageAdminService {
         avgLatencyMs: Math.round(Number(f.avg_latency_ms ?? 0)),
         isEnabled: flag?.isEnabled ?? true,
         monthlyLimit: flag?.monthlyLimit ?? null,
+        monthlyCostCap: flag?.monthlyCostCap ?? null,
         currentUsage: requests,
         successRate: requests > 0 ? Math.round((success / requests) * 100) : 100,
       };
@@ -110,7 +111,7 @@ export class AiUsageAdminService {
     return { instituteId, totalRequests, totalTokens, totalCost, successRate, features };
   }
 
-  async getRawLogs(opts: { instituteId?: string; vertical?: string; feature?: string; from?: string; to?: string; limit?: number; offset?: number }) {
+  async getRawLogs(opts: { instituteId?: string; vertical?: string; feature?: string; success?: boolean; from?: string; to?: string; limit?: number; offset?: number }) {
     return this.usageSvc.getRawLogs(opts);
   }
 

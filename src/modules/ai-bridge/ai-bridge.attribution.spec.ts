@@ -28,7 +28,9 @@ describe('AiBridgeService — attribution forwarding', () => {
     // one thing — attribution header forwarding. Admission itself is covered by
     // ai-admission.service.spec.ts.
     admission = { acquire: jest.fn().mockResolvedValue(null), release: jest.fn().mockResolvedValue(undefined) };
-    svc = new AiBridgeService(http as any, cfg as any, aiUsage as any, admission as any);
+    // The switches and limits are not what this suite checks, so everything is on and unlimited.
+    const flags = { isFeatureEnabled: jest.fn().mockResolvedValue(true), checkQuota: jest.fn().mockResolvedValue({ allowed: true }) };
+    svc = new AiBridgeService(http as any, cfg as any, aiUsage as any, flags as any, admission as any);
   });
 
   it('forwards X-User-Id / X-User-Role / X-Request-Id from the request context', async () => {

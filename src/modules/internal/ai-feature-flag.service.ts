@@ -6,6 +6,14 @@ import { DataSource } from 'typeorm';
 // Creates its own table on startup (same pattern as AiUsageService).
 // institute_id = '' (empty string) for global-scope flags.
 
+interface FlagRow {
+  feature_id: string;
+  scope: string;
+  is_enabled: boolean;
+  monthly_request_limit: number | null;
+  monthly_cost_cap: string | null;
+}
+
 @Injectable()
 export class AiFeatureFlagService implements OnModuleInit {
   private readonly logger = new Logger(AiFeatureFlagService.name);
@@ -49,64 +57,67 @@ export class AiFeatureFlagService implements OnModuleInit {
     return instituteType === 'school' ? this.schoolDs : this.coachingDs;
   }
 
+  /** Flag rows are read on every AI call, so they are kept for a few seconds; any change made here drops them at once. */
+  private readonly flagCache = new Map<string, { exp: number; rows: FlagRow[] }>();
+  private static readonly FLAG_TTL_MS = 15_000;
+
+  /** The platform-wide rows and this institute's own rows, in one query. */
+  private async flagRows(instituteId: string, instituteType: 'school' | 'coaching'): Promise<FlagRow[]> {
+    const key = `${instituteType}:${instituteId ?? ''}`;
+    const hit = this.flagCache.get(key);
+    if (hit && hit.exp > Date.now()) return hit.rows;
+    await this.ensureTables();
+    const rows: FlagRow[] = await this.getDs(instituteType).query(
+      `SELECT feature_id, scope, is_enabled, monthly_request_limit, monthly_cost_cap
+         FROM ai_feature_flags
+        WHERE scope = 'global' OR (scope = 'institute' AND institute_id = $1)`,
+      [instituteId ?? ''],
+    );
+    this.flagCache.set(key, { exp: Date.now() + AiFeatureFlagService.FLAG_TTL_MS, rows });
+    return rows;
+  }
+
+  /** On unless this institute's own setting, or else the platform-wide one, says off. Never blocks on a failed lookup. */
   async isFeatureEnabled(
     instituteId: string,
     instituteType: 'school' | 'coaching',
     featureId: string,
   ): Promise<boolean> {
     try {
-      await this.ensureTables();
-      const rows: Array<{ is_enabled: boolean }> = await this.getDs(instituteType).query(
-        `SELECT is_enabled FROM ai_feature_flags
-         WHERE feature_id=$1
-           AND (scope='global' OR (scope='institute' AND institute_id=$2))
-         ORDER BY (scope='institute') DESC
-         LIMIT 1`,
-        [featureId, instituteId ?? ''],
-      );
-      return rows.length ? rows[0].is_enabled : true;
+      const rows = (await this.flagRows(instituteId, instituteType)).filter((r) => r.feature_id === featureId);
+      const own = rows.find((r) => r.scope === 'institute');
+      const global = rows.find((r) => r.scope === 'global');
+      return (own ?? global)?.is_enabled ?? true;
     } catch (err: unknown) {
       this.logger.warn(`Feature flag check failed (defaulting to enabled): ${err}`);
       return true; // never block AI on infrastructure failure
     }
   }
 
+  /** Whether this institute has used up the monthly request limit or cost cap set for the feature. */
   async checkQuota(
     instituteId: string,
     instituteType: 'school' | 'coaching',
     featureId: string,
   ): Promise<{ allowed: boolean; reason?: string }> {
     try {
-      await this.ensureTables();
-      const ds = this.getDs(instituteType);
-      const rows: Array<{ monthly_request_limit: number | null; monthly_cost_cap: string | null }> =
-        await ds.query(
-          `SELECT monthly_request_limit, monthly_cost_cap FROM ai_feature_flags
-           WHERE feature_id=$1 AND scope='institute' AND institute_id=$2 LIMIT 1`,
-          [featureId, instituteId ?? ''],
-        );
-      if (!rows.length || (!rows[0].monthly_request_limit && !rows[0].monthly_cost_cap)) {
-        return { allowed: true };
-      }
-      const { monthly_request_limit, monthly_cost_cap } = rows[0];
+      const own = (await this.flagRows(instituteId, instituteType)).find((r) => r.feature_id === featureId && r.scope === 'institute');
+      const limit = own?.monthly_request_limit ? Number(own.monthly_request_limit) : null;
+      const cap = own?.monthly_cost_cap ? Number(own.monthly_cost_cap) : null;
+      if (!limit && !cap) return { allowed: true };
 
-      const usageRows: Array<{ count: string; cost: string }> = await ds.query(
+      const usageRows: Array<{ count: string; cost: string }> = await this.getDs(instituteType).query(
         `SELECT COALESCE(SUM(request_count),0)::int AS count,
                 COALESCE(SUM(est_cost),0)::numeric AS cost
-         FROM ai_usage_daily
-         WHERE institute_id=$1 AND feature=$2
-           AND day >= date_trunc('month', CURRENT_DATE)`,
+           FROM ai_usage_daily
+          WHERE institute_id=$1 AND feature=$2
+            AND day >= date_trunc('month', CURRENT_DATE)`,
         [instituteId, featureId],
       );
       const count = parseInt(usageRows[0]?.count ?? '0', 10);
       const cost = parseFloat(usageRows[0]?.cost ?? '0');
-
-      if (monthly_request_limit && count >= Number(monthly_request_limit)) {
-        return { allowed: false, reason: 'Monthly request limit reached' };
-      }
-      if (monthly_cost_cap && cost >= Number(monthly_cost_cap)) {
-        return { allowed: false, reason: 'Monthly cost cap reached' };
-      }
+      if (limit && count >= limit) return { allowed: false, reason: `the monthly limit of ${limit} requests has been reached` };
+      if (cap && cost >= cap) return { allowed: false, reason: `the monthly cost cap of $${cap} has been reached` };
       return { allowed: true };
     } catch (err: unknown) {
       this.logger.warn(`Quota check failed (defaulting to allowed): ${err}`);
@@ -122,6 +133,9 @@ export class AiFeatureFlagService implements OnModuleInit {
     isEnabled: boolean;
     monthlyRequestLimit?: number;
     monthlyCostCap?: number;
+    /** Remove the limit or cap instead of keeping what is there. */
+    clearRequestLimit?: boolean;
+    clearCostCap?: boolean;
     updatedBy: string;
   }): Promise<{ success: boolean }> {
     await this.ensureTables();
@@ -132,8 +146,8 @@ export class AiFeatureFlagService implements OnModuleInit {
        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
        ON CONFLICT ON CONSTRAINT uq_ai_feature_flags DO UPDATE SET
          is_enabled            = EXCLUDED.is_enabled,
-         monthly_request_limit = COALESCE(EXCLUDED.monthly_request_limit, ai_feature_flags.monthly_request_limit),
-         monthly_cost_cap      = COALESCE(EXCLUDED.monthly_cost_cap, ai_feature_flags.monthly_cost_cap),
+         monthly_request_limit = CASE WHEN $8 THEN NULL ELSE COALESCE(EXCLUDED.monthly_request_limit, ai_feature_flags.monthly_request_limit) END,
+         monthly_cost_cap      = CASE WHEN $9 THEN NULL ELSE COALESCE(EXCLUDED.monthly_cost_cap, ai_feature_flags.monthly_cost_cap) END,
          updated_by            = EXCLUDED.updated_by,
          updated_at            = NOW()`,
       [
@@ -144,8 +158,11 @@ export class AiFeatureFlagService implements OnModuleInit {
         dto.monthlyRequestLimit ?? null,
         dto.monthlyCostCap ?? null,
         dto.updatedBy,
+        dto.clearRequestLimit === true,
+        dto.clearCostCap === true,
       ],
     );
+    this.flagCache.clear();
     return { success: true };
   }
 
@@ -155,7 +172,7 @@ export class AiFeatureFlagService implements OnModuleInit {
   async getInstituteFlags(
     instituteId: string,
     instituteType: 'school' | 'coaching',
-  ): Promise<Record<string, { isEnabled: boolean; monthlyLimit: number | null }>> {
+  ): Promise<Record<string, { isEnabled: boolean; monthlyLimit: number | null; monthlyCostCap: number | null }>> {
     await this.ensureTables();
     const ds = this.getDs(instituteType);
     const rows: Array<{
@@ -163,20 +180,22 @@ export class AiFeatureFlagService implements OnModuleInit {
       scope: string;
       is_enabled: boolean;
       monthly_request_limit: number | null;
+      monthly_cost_cap: string | null;
     }> = await ds.query(
-      `SELECT feature_id, scope, is_enabled, monthly_request_limit
+      `SELECT feature_id, scope, is_enabled, monthly_request_limit, monthly_cost_cap
        FROM ai_feature_flags
        WHERE scope = 'global' OR (scope = 'institute' AND institute_id = $1)
        ORDER BY (scope = 'institute') DESC`,
       [instituteId ?? ''],
     );
-    const result: Record<string, { isEnabled: boolean; monthlyLimit: number | null }> = {};
+    const result: Record<string, { isEnabled: boolean; monthlyLimit: number | null; monthlyCostCap: number | null }> = {};
     // Rows ordered: institute first → first-write-wins gives institute precedence over global
     for (const r of rows) {
       if (!(r.feature_id in result)) {
         result[r.feature_id] = {
           isEnabled: r.is_enabled,
           monthlyLimit: r.monthly_request_limit ?? null,
+          monthlyCostCap: r.monthly_cost_cap == null ? null : Number(r.monthly_cost_cap),
         };
       }
     }

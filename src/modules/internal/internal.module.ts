@@ -27,6 +27,7 @@ import { SchoolMeetingModule } from '../school/meeting/school-meeting.module';
 import { UploadModule } from '../upload/upload.module';
 import { SchoolDashboardModule } from '../school/dashboard/school-dashboard.module';
 import { InternalPlatformAnalyticsController } from './internal-platform-analytics.controller';
+import { InternalPlatformLiveUsageController } from './internal-platform-live-usage.controller';
 import { SchoolChatModule } from '../school/chat/school-chat.module';
 import { SchoolNoticeModule } from '../school/notice/school-notice.module';
 import { InternalPlatformCommunicationController } from './internal-platform-communication.controller';
@@ -34,8 +35,8 @@ import { InternalPlatformInstitutesController } from './internal-platform-instit
 
 @Module({
   imports: [AiUsageModule, SchoolStudentModule, SchoolTeacherModule, SchoolInstituteModule, SchoolTextbookModule, CompetitiveModule, SchoolChatModule, SchoolNoticeModule, SchoolMeetingModule, UploadModule, SchoolDashboardModule],
-  controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController, InternalPlatformInstitutesController, InternalPlatformStorageController, InternalPlatformSupportController, InternalPlatformRevenueController, InternalPlatformPeopleController, InternalPlatformTextbooksController, InternalPlatformUsersController, InternalPlatformErpModulesController, InternalPlatformCompetitiveController, InternalPlatformCommunicationController, InternalPlatformAnalyticsController],
-  providers: [InternalAiUsageService, AiFeatureFlagService, InternalErpStudentService, InternalErpTeacherService, InternalErpModulesService],
-  exports: [AiFeatureFlagService, InternalAiUsageService],
+  controllers: [InternalAiUsageController, InternalErpStudentController, InternalErpTeacherController, InternalErpModulesController, InternalPlatformLinkController, InternalPlatformInstitutesController, InternalPlatformStorageController, InternalPlatformSupportController, InternalPlatformRevenueController, InternalPlatformPeopleController, InternalPlatformTextbooksController, InternalPlatformUsersController, InternalPlatformErpModulesController, InternalPlatformCompetitiveController, InternalPlatformCommunicationController, InternalPlatformAnalyticsController, InternalPlatformLiveUsageController],
+  providers: [InternalAiUsageService, InternalErpStudentService, InternalErpTeacherService, InternalErpModulesService],
+  exports: [AiUsageModule, InternalAiUsageService],
 })
 export class InternalModule {}
